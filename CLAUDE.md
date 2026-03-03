@@ -37,6 +37,7 @@ No build step. No production dependencies — only dev dependencies (PHPUnit 9.6
 - `docs/two-factor-ecosystem.md` — 2FA plugin ecosystem survey.
 - `docs/ui-ux-testing-prompts.md` — structured UI/UX testing prompts.
 - `docs/abilities-api-assessment.md` — WordPress Abilities API (6.9+) assessment.
+- `docs/sudo-architecture-comparison-matrix.md` — competitive comparison with other sudo/reauth approaches.
 - `ROADMAP.md` — unified roadmap: integration tests, WP 7.0 prep, collaboration analysis, TDD strategy, core design features, feature backlog, accessibility appendix.
 
 ## Verification Requirements

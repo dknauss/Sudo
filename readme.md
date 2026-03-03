@@ -76,7 +76,7 @@ Developers can add custom rules via the `wp_sudo_gated_actions` filter. See [Dev
 - **Self-protection** — changes to WP Sudo settings require reauthentication.
 - **Server-side enforcement** — gating decisions happen in PHP hooks before action handlers. JavaScript is for UX only.
 
-For the full threat model, boundaries, and environmental considerations, see [Security Model](docs/security-model.md).
+For the full threat model, boundaries, and environmental considerations, see [Security Model](docs/security-model.md). For a detailed comparison with other reauthentication and sudo approaches, see [Architecture Comparison Matrix](docs/sudo-architecture-comparison-matrix.md).
 
 ### Recommended Plugins
 

@@ -154,7 +154,7 @@ Use conventional commit format. Run tests and static analysis before committing.
 
 ## Manual Testing
 
-The `tests/MANUAL-TESTING.md` checklist covers 20 test areas across all surfaces (admin UI, AJAX, REST, CLI, Cron, XML-RPC, WPGraphQL, multisite). Run through it before tagging a release. The file includes expected results, curl commands, and cleanup steps.
+The `tests/MANUAL-TESTING.md` checklist covers 20 test areas across all surfaces (admin UI, AJAX, REST, CLI, Cron, XML-RPC, WPGraphQL, multisite). Run through it before tagging a release. The file includes expected results, curl commands, and cleanup steps. For structured UI/UX-focused testing scenarios, see [docs/ui-ux-testing-prompts.md](docs/ui-ux-testing-prompts.md).
 
 ## Extending Gated Actions
 

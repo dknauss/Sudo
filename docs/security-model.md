@@ -24,7 +24,7 @@ Model a WordPress compromise as a kill chain:
 3. **Escalate/Persist** — add admin user, install backdoor plugin, modify files, change credentials
 4. **Impact** — defacement, data exfiltration, spam, crypto mining
 
-Traditional security plugins focus on **step 1** (blocking initial access). Sudo focuses on the **step 2→3 transition** — even with a valid session, destructive actions require credential proof.
+Traditional security plugins focus on **step 1** (blocking initial access). Sudo focuses on the **step 2→3 transition** — even with a valid session, destructive actions require credential proof. See the [Architecture Comparison Matrix](sudo-architecture-comparison-matrix.md) for a detailed comparison of WP Sudo's approach with other reauthentication patterns.
 
 ### Public data supporting risk reduction
 
