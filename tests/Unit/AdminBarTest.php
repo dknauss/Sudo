@@ -141,6 +141,60 @@ class AdminBarTest extends TestCase {
 		unset( $_GET['wp_sudo_deactivate'] );
 	}
 
+	public function test_handle_deactivate_dies_on_invalid_nonce(): void {
+		$_GET['wp_sudo_deactivate'] = '1';
+		$_GET['_wpnonce']           = 'bad-nonce';
+
+		Functions\when( 'get_current_user_id' )->justReturn( 5 );
+		Functions\when( 'wp_verify_nonce' )->justReturn( false );
+		Functions\when( 'esc_html__' )->returnArg();
+
+		Functions\expect( 'wp_die' )
+			->once()
+			->with( 'Security check failed.', '', array( 'response' => 403 ) )
+			->andThrow( new \RuntimeException( 'nonce failed' ) );
+
+		try {
+			$this->admin_bar->handle_deactivate();
+			$this->fail( 'Expected nonce failure.' );
+		} catch ( \RuntimeException $e ) {
+			$this->assertSame( 'nonce failed', $e->getMessage() );
+		}
+
+		unset( $_GET['wp_sudo_deactivate'], $_GET['_wpnonce'] );
+	}
+
+	public function test_handle_deactivate_deactivates_session_and_redirects_on_valid_nonce(): void {
+		$_GET['wp_sudo_deactivate'] = '1';
+		$_GET['_wpnonce']           = 'good-nonce';
+
+		Functions\when( 'get_current_user_id' )->justReturn( 5 );
+		Functions\when( 'wp_verify_nonce' )->justReturn( 1 );
+		Functions\when( 'delete_user_meta' )->justReturn( true );
+		Functions\when( 'headers_sent' )->justReturn( false );
+		Functions\when( 'is_ssl' )->justReturn( false );
+		Functions\when( 'setcookie' )->justReturn( true );
+		Functions\when( 'remove_query_arg' )->justReturn( 'https://example.com/wp-admin/plugins.php' );
+
+		Actions\expectDone( 'wp_sudo_deactivated' )
+			->once()
+			->with( 5 );
+
+		Functions\expect( 'wp_safe_redirect' )
+			->once()
+			->with( 'https://example.com/wp-admin/plugins.php' )
+			->andThrow( new \RuntimeException( 'redirected' ) );
+
+		try {
+			$this->admin_bar->handle_deactivate();
+			$this->fail( 'Expected redirect short-circuit.' );
+		} catch ( \RuntimeException $e ) {
+			$this->assertSame( 'redirected', $e->getMessage() );
+		}
+
+		unset( $_GET['wp_sudo_deactivate'], $_GET['_wpnonce'] );
+	}
+
 	// ── enqueue_assets() ─────────────────────────────────────────────
 
 	public function test_enqueue_assets_skips_anonymous(): void {

@@ -1042,8 +1042,13 @@ class Gate {
 		$rest = $rule['rest'];
 
 		// Match route pattern (regex).
-		$route = $request->get_route();
-		if ( ! preg_match( $rest['route'], $route ) ) {
+		$route         = $request->get_route();
+		$route_pattern = $rest['route'] ?? '';
+		if ( ! is_string( $route_pattern ) || '' === $route_pattern ) {
+			return false;
+		}
+
+		if ( ! $this->safe_preg_match( $route_pattern, $route ) ) {
 			return false;
 		}
 
@@ -1061,6 +1066,35 @@ class Gate {
 		}
 
 		return true;
+	}
+
+	/**
+	 * Safely evaluate a regex pattern without leaking warnings.
+	 *
+	 * Invalid patterns can be injected by third-party filters on
+	 * wp_sudo_gated_actions. In that case, fail closed for the rule.
+	 *
+	 * @param string $pattern Regex pattern.
+	 * @param string $subject Subject to test.
+	 * @return bool True when the pattern matches.
+	 */
+	private function safe_preg_match( string $pattern, string $subject ): bool {
+		$had_warning = false;
+
+		// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_set_error_handler -- Guard invalid third-party regex patterns and fail closed.
+		set_error_handler(
+			static function () use ( &$had_warning ): bool {
+				$had_warning = true;
+				return true;
+			}
+		);
+
+		$matched = preg_match( $pattern, $subject );
+
+		// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_set_error_handler -- Restore the previous handler immediately after guarded call.
+		restore_error_handler();
+
+		return ! $had_warning && 1 === $matched;
 	}
 
 	/**

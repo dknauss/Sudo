@@ -802,6 +802,66 @@ class GateTest extends TestCase {
 	}
 
 	/**
+	 * Test match_request fails closed when a filtered REST rule has invalid regex.
+	 */
+	public function test_match_request_rejects_invalid_rest_regex_pattern(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->alias(
+			static function ( $hook, $value ) {
+				if ( 'wp_sudo_gated_actions' !== $hook ) {
+					return $value;
+				}
+
+				return array(
+					array(
+						'id'       => 'custom.invalid_regex',
+						'label'    => 'Invalid regex rule',
+						'category' => 'custom',
+						'rest'     => array(
+							'route'   => '#^/broken[#',
+							'methods' => array( 'GET' ),
+						),
+					),
+				);
+			}
+		);
+
+		$request = new \WP_REST_Request( 'GET', '/broken' );
+
+		$this->assertNull( $this->gate->match_request( 'rest', $request ) );
+	}
+
+	/**
+	 * Test match_request rejects filtered REST rules with non-string patterns.
+	 */
+	public function test_match_request_rejects_non_string_rest_route_pattern(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->alias(
+			static function ( $hook, $value ) {
+				if ( 'wp_sudo_gated_actions' !== $hook ) {
+					return $value;
+				}
+
+				return array(
+					array(
+						'id'       => 'custom.bad_route_type',
+						'label'    => 'Bad route type',
+						'category' => 'custom',
+						'rest'     => array(
+							'route'   => array( '/wp/v2/plugins' ),
+							'methods' => array( 'GET' ),
+						),
+					),
+				);
+			}
+		);
+
+		$request = new \WP_REST_Request( 'GET', '/wp/v2/plugins' );
+
+		$this->assertNull( $this->gate->match_request( 'rest', $request ) );
+	}
+
+	/**
 	 * Test match_request matches REST user role change (PUT with roles param).
 	 *
 	 * The user.promote rule covers PUT/PATCH to /wp/v2/users/{id} when the
@@ -1661,6 +1721,66 @@ class GateTest extends TestCase {
 			->with( \Mockery::type( 'string' ), '', array( 'response' => 403 ) );
 
 		$this->gate->gate_cli();
+	}
+
+	/**
+	 * Test gate_cli blocks wp cron commands when cron policy is disabled.
+	 */
+	public function test_gate_cli_blocks_wp_cron_when_cron_policy_disabled(): void {
+		$_SERVER['argv'] = array( 'wp', 'cron', 'event', 'run' );
+
+		Functions\when( 'get_option' )->justReturn(
+			array(
+				'cli_policy'  => 'limited',
+				'cron_policy' => 'disabled',
+			)
+		);
+		Functions\when( 'esc_html__' )->returnArg();
+
+		Functions\expect( 'wp_die' )
+			->once()
+			->with(
+				\Mockery::on(
+					static function ( $message ) {
+						return is_string( $message ) && str_contains( $message, 'WP-Cron is disabled by WP Sudo policy' );
+					}
+				),
+				'',
+				array( 'response' => 403 )
+			)
+			->andThrow( new \RuntimeException( 'cron blocked' ) );
+
+		try {
+			$this->gate->gate_cli();
+			$this->fail( 'Expected cron policy block.' );
+		} catch ( \RuntimeException $e ) {
+			$this->assertSame( 'cron blocked', $e->getMessage() );
+		}
+
+		unset( $_SERVER['argv'] );
+	}
+
+	/**
+	 * Test gate_cli does not enforce cron policy for non-cron commands.
+	 */
+	public function test_gate_cli_allows_non_cron_commands_when_cron_policy_disabled(): void {
+		$_SERVER['argv'] = array( 'wp', 'plugin', 'list' );
+
+		Functions\when( 'get_option' )->justReturn(
+			array(
+				'cli_policy'  => 'limited',
+				'cron_policy' => 'disabled',
+			)
+		);
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		Functions\expect( 'wp_die' )->never();
+		Actions\expectAdded( 'activate_plugin' )->once();
+
+		$this->gate->gate_cli();
+
+		unset( $_SERVER['argv'] );
 	}
 
 	// ── gate_cron() ──────────────────────────────────────────────────

@@ -424,6 +424,33 @@ class PluginTest extends TestCase {
 	}
 
 	// -----------------------------------------------------------------
+	// activate_network()
+	// -----------------------------------------------------------------
+
+	public function test_activate_network_stamps_version_and_sets_site_flag(): void {
+		Functions\when( 'is_multisite' )->justReturn( true );
+		Functions\when( 'get_site_option' )->justReturn( WP_SUDO_VERSION );
+
+		Functions\expect( 'update_site_option' )
+			->once()
+			->with( 'wp_sudo_activated', true );
+
+		$plugin = new Plugin();
+		$plugin->activate_network();
+	}
+
+	public function test_activate_network_does_not_strip_unfiltered_html(): void {
+		Functions\when( 'is_multisite' )->justReturn( true );
+		Functions\when( 'get_site_option' )->justReturn( WP_SUDO_VERSION );
+		Functions\when( 'update_site_option' )->justReturn( true );
+
+		Functions\expect( 'get_role' )->never();
+
+		$plugin = new Plugin();
+		$plugin->activate_network();
+	}
+
+	// -----------------------------------------------------------------
 	// deactivate()
 	// -----------------------------------------------------------------
 

@@ -214,6 +214,21 @@ class SudoSessionTest extends TestCase {
 		$this->assertSame( 'cookie-token', $_COOKIE[ Sudo_Session::TOKEN_COOKIE ] );
 	}
 
+	public function test_activate_sets_meta_and_superglobal_when_headers_already_sent(): void {
+		Functions\when( 'get_option' )->justReturn( array( 'session_duration' => 5 ) );
+		Functions\when( 'wp_generate_password' )->justReturn( 'headers-sent-token' );
+		Functions\when( 'headers_sent' )->justReturn( true );
+		Functions\when( 'delete_user_meta' )->justReturn( true );
+
+		Functions\expect( 'setcookie' )->never();
+		Functions\expect( 'update_user_meta' )->twice();
+
+		$result = Sudo_Session::activate( 3 );
+
+		$this->assertTrue( $result );
+		$this->assertSame( 'headers-sent-token', $_COOKIE[ Sudo_Session::TOKEN_COOKIE ] );
+	}
+
 	// =================================================================
 	// deactivate()
 	// =================================================================
@@ -602,6 +617,30 @@ class SudoSessionTest extends TestCase {
 		Functions\when( 'apply_filters' )->justReturn( true );
 
 		$this->assertTrue( Sudo_Session::needs_two_factor( 1 ) );
+	}
+
+	public function test_needs_two_factor_returns_false_when_provider_is_absent(): void {
+		\Two_Factor_Core::$mock_provider = null;
+		Functions\when( 'apply_filters' )->alias(
+			static function ( $filter_name, $value ) {
+				return $value;
+			}
+		);
+
+		$this->assertFalse( Sudo_Session::needs_two_factor( 1 ) );
+	}
+
+	public function test_needs_two_factor_returns_true_when_provider_exists(): void {
+		\Two_Factor_Core::$mock_provider = new \Two_Factor_Provider();
+		Functions\when( 'apply_filters' )->alias(
+			static function ( $filter_name, $value ) {
+				return $value;
+			}
+		);
+
+		$this->assertTrue( Sudo_Session::needs_two_factor( 1 ) );
+
+		\Two_Factor_Core::$mock_provider = null;
 	}
 
 	// =================================================================

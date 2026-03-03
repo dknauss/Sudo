@@ -547,6 +547,93 @@ class AdminTest extends TestCase {
 	}
 
 	// -----------------------------------------------------------------
+	// Multisite: handle_network_settings_save()
+	// -----------------------------------------------------------------
+
+	public function test_handle_network_settings_save_calls_nonce_check(): void {
+		Functions\expect( 'check_admin_referer' )
+			->once()
+			->with( Admin::PAGE_SLUG . '-options' )
+			->andThrow( new \RuntimeException( 'nonce check executed' ) );
+
+		$admin = new Admin();
+
+		try {
+			$admin->handle_network_settings_save();
+			$this->fail( 'Expected nonce check short-circuit.' );
+		} catch ( \RuntimeException $e ) {
+			$this->assertSame( 'nonce check executed', $e->getMessage() );
+		}
+	}
+
+	public function test_handle_network_settings_save_dies_when_user_cannot_manage_network_options(): void {
+		Functions\when( 'check_admin_referer' )->justReturn( true );
+		Functions\expect( 'current_user_can' )
+			->once()
+			->with( 'manage_network_options' )
+			->andReturn( false );
+		Functions\when( 'esc_html__' )->returnArg();
+
+		Functions\expect( 'wp_die' )
+			->once()
+			->with( 'Unauthorized', '', array( 'response' => 403 ) )
+			->andThrow( new \RuntimeException( 'unauthorized' ) );
+
+		$admin = new Admin();
+
+		try {
+			$admin->handle_network_settings_save();
+			$this->fail( 'Expected unauthorized short-circuit.' );
+		} catch ( \RuntimeException $e ) {
+			$this->assertSame( 'unauthorized', $e->getMessage() );
+		}
+	}
+
+	public function test_handle_network_settings_save_updates_site_option_and_redirects(): void {
+		$_POST[ Admin::OPTION_KEY ] = array(
+			'session_duration' => '8',
+			'cli_policy'       => Gate::POLICY_UNRESTRICTED,
+		);
+
+		Functions\when( 'check_admin_referer' )->justReturn( true );
+		Functions\expect( 'current_user_can' )
+			->once()
+			->with( 'manage_network_options' )
+			->andReturn( true );
+		Functions\when( 'absint' )->alias( fn( $value ) => abs( (int) $value ) );
+		Functions\when( 'add_query_arg' )->justReturn( 'https://example.com/wp-admin/network/settings.php?page=wp-sudo-settings&updated=true' );
+
+		Functions\expect( 'update_site_option' )
+			->once()
+			->with(
+				Admin::OPTION_KEY,
+				\Mockery::on(
+					function ( $settings ) {
+						return is_array( $settings )
+							&& 8 === ( $settings['session_duration'] ?? null )
+							&& Gate::POLICY_UNRESTRICTED === ( $settings['cli_policy'] ?? null );
+					}
+				)
+			);
+
+		Functions\expect( 'wp_safe_redirect' )
+			->once()
+			->with( \Mockery::on( fn( $url ) => is_string( $url ) && str_contains( $url, 'page=wp-sudo-settings' ) && str_contains( $url, 'updated=true' ) ) )
+			->andThrow( new \RuntimeException( 'redirected' ) );
+
+		$admin = new Admin();
+
+		try {
+			$admin->handle_network_settings_save();
+			$this->fail( 'Expected redirect short-circuit.' );
+		} catch ( \RuntimeException $e ) {
+			$this->assertSame( 'redirected', $e->getMessage() );
+		}
+
+		unset( $_POST[ Admin::OPTION_KEY ] );
+	}
+
+	// -----------------------------------------------------------------
 	// render_gated_actions_table()
 	// -----------------------------------------------------------------
 

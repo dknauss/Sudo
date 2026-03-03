@@ -64,6 +64,36 @@ class RequestStashTest extends TestCase {
 	}
 
 	/**
+	 * Test save() still returns the key when transient storage fails.
+	 */
+	public function test_save_returns_key_when_set_transient_fails(): void {
+		$_SERVER['REQUEST_METHOD'] = 'POST';
+		$_SERVER['HTTP_HOST']      = 'example.com';
+		$_SERVER['REQUEST_URI']    = '/wp-admin/plugins.php?action=activate&plugin=hello.php';
+
+		Functions\expect( 'wp_generate_password' )
+			->once()
+			->with( 16, false )
+			->andReturn( 'failedtransient01' );
+
+		Functions\expect( 'is_ssl' )
+			->once()
+			->andReturn( false );
+
+		Functions\when( 'esc_url_raw' )->returnArg();
+
+		Functions\expect( 'set_transient' )
+			->once()
+			->andReturn( false );
+
+		$key = $this->stash->save( 1, array( 'id' => 'plugin.activate', 'label' => 'Activate plugin' ) );
+
+		$this->assertSame( 'failedtransient01', $key );
+
+		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'] );
+	}
+
+	/**
 	 * Test save() serializes the full request data.
 	 */
 	public function test_save_stores_correct_data(): void {
@@ -161,6 +191,20 @@ class RequestStashTest extends TestCase {
 			->andReturn( $data );
 
 		$result = $this->stash->get( 'somekey1234', 99 );
+
+		$this->assertNull( $result );
+	}
+
+	/**
+	 * Test get() returns null for corrupted non-array transient payloads.
+	 */
+	public function test_get_returns_null_for_non_array_transient(): void {
+		Functions\expect( 'get_transient' )
+			->once()
+			->with( Request_Stash::TRANSIENT_PREFIX . 'corruptedkey123' )
+			->andReturn( 'corrupted' );
+
+		$result = $this->stash->get( 'corruptedkey123', 1 );
 
 		$this->assertNull( $result );
 	}
