@@ -26,9 +26,11 @@ class SudoSessionTest extends TestCase {
 		// The stored hash is '$wp$2y$...' — the '$wp' prefix distinguishes it from vanilla bcrypt.
 		// Older WP (< 6.8) used phpass which produces '$P$' hashes. In either case,
 		// wp_check_password() handles verification correctly.
+		$is_bcrypt = str_starts_with( $user->user_pass, '$wp$2y$' ) || str_starts_with( $user->user_pass, '$2y$' );
+		$is_phpass = str_starts_with( $user->user_pass, '$P$' );
 		$this->assertTrue(
-			str_starts_with( $user->user_pass, '$wp$2y$' ) || str_starts_with( $user->user_pass, '$2y$' ),
-			"Password hash should be bcrypt (starts with '\$wp\$2y\$' in WP 6.8+ or '\$2y\$' in older WP). Got: {$user->user_pass}"
+			$is_bcrypt || $is_phpass,
+			"Password hash should be bcrypt (\$wp\$2y\$ or \$2y\$) or phpass (\$P\$). Got: {$user->user_pass}"
 		);
 		$this->assertTrue( wp_check_password( $password, $user->user_pass, $user->ID ) );
 	}
