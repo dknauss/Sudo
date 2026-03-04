@@ -55,11 +55,11 @@ class AdminBarTest extends TestCase {
 
 		Actions\expectAdded( 'admin_init' )
 			->once()
-			->with( array( $this->admin_bar, 'handle_deactivate' ), 5 );
+			->with( array( $this->admin_bar, 'handle_deactivate' ), 5, 0 );
 
 		Actions\expectAdded( 'admin_enqueue_scripts' )
 			->once()
-			->with( array( $this->admin_bar, 'enqueue_assets' ), \Mockery::any() );
+			->with( array( $this->admin_bar, 'enqueue_assets' ), \Mockery::any(), 0 );
 
 		$this->admin_bar->register();
 	}

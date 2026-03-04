@@ -617,4 +617,138 @@ class ActionRegistryTest extends TestCase {
 		$this->assertTrue( call_user_func( $rule['admin']['callback'] ) );
 		unset( $_POST['super_admin'] );
 	}
+
+	// -----------------------------------------------------------------
+	// Upload rules
+	// -----------------------------------------------------------------
+
+	/**
+	 * Find a rule by ID from the registry.
+	 *
+	 * @param string $id Rule ID.
+	 * @return array<string, mixed>|null
+	 */
+	private function find_rule( string $id ): ?array {
+		foreach ( Action_Registry::rules() as $rule ) {
+			if ( ( $rule['id'] ?? '' ) === $id ) {
+				return $rule;
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Test that the plugin.upload rule exists in the registry.
+	 */
+	public function test_plugin_upload_rule_exists(): void {
+		Functions\when( '__' )->returnArg();
+
+		$rules = Action_Registry::rules();
+		$ids   = array_column( $rules, 'id' );
+
+		$this->assertContains( 'plugin.upload', $ids, 'plugin.upload rule must exist in Action_Registry' );
+	}
+
+	/**
+	 * Test that plugin.upload targets update.php with action=upload-plugin via POST.
+	 */
+	public function test_plugin_upload_rule_matches_update_php_post(): void {
+		Functions\when( '__' )->returnArg();
+
+		$rule = $this->find_rule( 'plugin.upload' );
+
+		$this->assertNotNull( $rule, 'plugin.upload rule not found' );
+		$this->assertSame( 'update.php', $rule['admin']['pagenow'] ?? null );
+		$this->assertContains( 'upload-plugin', $rule['admin']['actions'] ?? array() );
+		$this->assertSame( 'POST', $rule['admin']['method'] ?? null, 'Upload must be POST-only, not ANY' );
+	}
+
+	/**
+	 * Test that plugin.upload has no AJAX surface (file uploads are not AJAX in WP core).
+	 */
+	public function test_plugin_upload_rule_has_no_ajax_surface(): void {
+		Functions\when( '__' )->returnArg();
+
+		$rule = $this->find_rule( 'plugin.upload' );
+
+		$this->assertNotNull( $rule, 'plugin.upload rule not found' );
+		$this->assertNull( $rule['ajax'], 'plugin.upload must have null ajax surface' );
+	}
+
+	/**
+	 * Test that plugin.upload has no REST surface (handled by existing plugin.install REST rule).
+	 */
+	public function test_plugin_upload_rule_has_no_rest_surface(): void {
+		Functions\when( '__' )->returnArg();
+
+		$rule = $this->find_rule( 'plugin.upload' );
+
+		$this->assertNotNull( $rule, 'plugin.upload rule not found' );
+		$this->assertNull( $rule['rest'], 'plugin.upload must have null rest surface' );
+	}
+
+	/**
+	 * Test that the theme.upload rule exists in the registry.
+	 */
+	public function test_theme_upload_rule_exists(): void {
+		Functions\when( '__' )->returnArg();
+
+		$rules = Action_Registry::rules();
+		$ids   = array_column( $rules, 'id' );
+
+		$this->assertContains( 'theme.upload', $ids, 'theme.upload rule must exist in Action_Registry' );
+	}
+
+	/**
+	 * Test that theme.upload targets update.php with action=upload-theme via POST.
+	 */
+	public function test_theme_upload_rule_matches_update_php_post(): void {
+		Functions\when( '__' )->returnArg();
+
+		$rule = $this->find_rule( 'theme.upload' );
+
+		$this->assertNotNull( $rule, 'theme.upload rule not found' );
+		$this->assertSame( 'update.php', $rule['admin']['pagenow'] ?? null );
+		$this->assertContains( 'upload-theme', $rule['admin']['actions'] ?? array() );
+		$this->assertSame( 'POST', $rule['admin']['method'] ?? null, 'Upload must be POST-only, not ANY' );
+	}
+
+	/**
+	 * Test that theme.upload has no AJAX surface.
+	 */
+	public function test_theme_upload_rule_has_no_ajax_surface(): void {
+		Functions\when( '__' )->returnArg();
+
+		$rule = $this->find_rule( 'theme.upload' );
+
+		$this->assertNotNull( $rule, 'theme.upload rule not found' );
+		$this->assertNull( $rule['ajax'], 'theme.upload must have null ajax surface' );
+	}
+
+	/**
+	 * Test that theme.upload has no REST surface.
+	 */
+	public function test_theme_upload_rule_has_no_rest_surface(): void {
+		Functions\when( '__' )->returnArg();
+
+		$rule = $this->find_rule( 'theme.upload' );
+
+		$this->assertNotNull( $rule, 'theme.upload rule not found' );
+		$this->assertNull( $rule['rest'], 'theme.upload must have null rest surface' );
+	}
+
+	/**
+	 * Test that upload rules belong to the correct categories.
+	 */
+	public function test_upload_rules_have_correct_categories(): void {
+		Functions\when( '__' )->returnArg();
+
+		$plugin_upload = $this->find_rule( 'plugin.upload' );
+		$theme_upload  = $this->find_rule( 'theme.upload' );
+
+		$this->assertNotNull( $plugin_upload );
+		$this->assertNotNull( $theme_upload );
+		$this->assertSame( 'plugins', $plugin_upload['category'] ?? null );
+		$this->assertSame( 'themes', $theme_upload['category'] ?? null );
+	}
 }

@@ -68,16 +68,16 @@ class Challenge {
 	 * @return void
 	 */
 	public function register(): void {
-		add_action( 'admin_menu', array( $this, 'register_page' ) );
+		add_action( 'admin_menu', array( $this, 'register_page' ), 10, 0 );
 
 		// Register in network admin too — challenge page is needed in both contexts.
 		if ( is_multisite() ) {
-			add_action( 'network_admin_menu', array( $this, 'register_page' ) );
+			add_action( 'network_admin_menu', array( $this, 'register_page' ), 10, 0 );
 		}
 
-		add_action( 'wp_ajax_' . self::AJAX_AUTH_ACTION, array( $this, 'handle_ajax_auth' ) );
-		add_action( 'wp_ajax_' . self::AJAX_2FA_ACTION, array( $this, 'handle_ajax_2fa' ) );
-		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ) );
+		add_action( 'wp_ajax_' . self::AJAX_AUTH_ACTION, array( $this, 'handle_ajax_auth' ), 10, 0 );
+		add_action( 'wp_ajax_' . self::AJAX_2FA_ACTION, array( $this, 'handle_ajax_2fa' ), 10, 0 );
+		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ), 10, 0 );
 	}
 
 	/**
@@ -102,8 +102,7 @@ class Challenge {
 	 * @return void
 	 */
 	public function enqueue_assets(): void {
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Routing check only.
-		$current_page = isset( $_GET['page'] ) ? sanitize_text_field( wp_unslash( $_GET['page'] ) ) : '';
+		$current_page = self::sanitize_input_string( $_GET['page'] ?? '' ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Routing check only; sanitized in helper.
 
 		if ( 'wp-sudo-challenge' !== $current_page ) {
 			return;
@@ -111,26 +110,24 @@ class Challenge {
 
 		wp_enqueue_style(
 			'wp-sudo-challenge',
-			WP_SUDO_PLUGIN_URL . 'admin/css/wp-sudo-challenge.css',
+			self::plugin_url() . 'admin/css/wp-sudo-challenge.css',
 			array(),
-			WP_SUDO_VERSION
+			self::plugin_version()
 		);
 
 		wp_enqueue_script(
 			'wp-sudo-challenge',
-			WP_SUDO_PLUGIN_URL . 'admin/js/wp-sudo-challenge.js',
+			self::plugin_url() . 'admin/js/wp-sudo-challenge.js',
 			array( 'wp-a11y' ),
-			WP_SUDO_VERSION,
+			self::plugin_version(),
 			true
 		);
 
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Routing data only.
-		$stash_key = isset( $_GET['stash_key'] ) ? sanitize_text_field( wp_unslash( $_GET['stash_key'] ) ) : '';
+		$stash_key = self::sanitize_input_string( $_GET['stash_key'] ?? '' ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Routing data only; sanitized in helper.
 
 		$default_url = is_network_admin() ? network_admin_url() : admin_url();
 
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Routing data only.
-		$return_url = isset( $_GET['return_url'] ) ? sanitize_url( wp_unslash( $_GET['return_url'] ) ) : '';
+		$return_url = self::sanitize_input_url( $_GET['return_url'] ?? '' ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Routing data only; sanitized in helper.
 		$cancel_url = $return_url
 			? wp_validate_redirect( $return_url, $default_url )
 			: $default_url;
@@ -181,15 +178,13 @@ class Challenge {
 			wp_die( esc_html__( 'You must be logged in.', 'wp-sudo' ), 403 );
 		}
 
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Routing data only.
-		$stash_key    = isset( $_GET['stash_key'] ) ? sanitize_text_field( wp_unslash( $_GET['stash_key'] ) ) : '';
+		$stash_key    = self::sanitize_input_string( $_GET['stash_key'] ?? '' ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Routing data only; sanitized in helper.
 		$session_only = empty( $stash_key );
 
 		// Compute cancel URL — mirrors enqueue_assets() logic.
 		$default_url = is_network_admin() ? network_admin_url() : admin_url();
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Routing data only.
-		$return_url = isset( $_GET['return_url'] ) ? sanitize_url( wp_unslash( $_GET['return_url'] ) ) : '';
-		$cancel_url = $return_url
+		$return_url  = self::sanitize_input_url( $_GET['return_url'] ?? '' ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Routing data only; sanitized in helper.
+		$cancel_url  = $return_url
 			? wp_validate_redirect( $return_url, $default_url )
 			: $default_url;
 
@@ -336,14 +331,16 @@ class Challenge {
 		check_ajax_referer( self::NONCE_ACTION );
 
 		$user_id  = get_current_user_id();
-		$password = isset( $_POST['password'] ) ? wp_unslash( $_POST['password'] ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Passwords must not be sanitized.
+		$password = '';
+		if ( isset( $_POST['password'] ) && is_string( $_POST['password'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified above via check_ajax_referer.
+			$password = wp_unslash( $_POST['password'] ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Passwords must not be sanitized.
+		}
 
 		if ( ! $user_id || ! $password ) {
 			wp_send_json_error( array( 'message' => __( 'Invalid request.', 'wp-sudo' ) ), 400 );
 		}
 
-		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified above via check_ajax_referer.
-		$stash_key = isset( $_POST['stash_key'] ) ? sanitize_text_field( wp_unslash( $_POST['stash_key'] ) ) : '';
+		$stash_key = self::sanitize_input_string( $_POST['stash_key'] ?? '' ); // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce verified above; sanitized in helper.
 
 		// Verify the stash exists — only when a stash_key is provided (challenge page flow).
 		// Session-only auth sends no stash_key (session activation only, no replay).
@@ -430,8 +427,7 @@ class Challenge {
 			);
 		}
 
-		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified above via check_ajax_referer.
-		$stash_key = isset( $_POST['stash_key'] ) ? sanitize_text_field( wp_unslash( $_POST['stash_key'] ) ) : '';
+		$stash_key = self::sanitize_input_string( $_POST['stash_key'] ?? '' ); // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce verified above; sanitized in helper.
 
 		$valid = false;
 
@@ -500,7 +496,7 @@ class Challenge {
 		}
 
 		// Consume the stash (one-time use).
-		$this->stash->delete( $stash_key );
+		$this->stash->delete( $stash_key, $user_id );
 
 		/**
 		 * Fires when a stashed request is about to be replayed.
@@ -536,5 +532,51 @@ class Challenge {
 				'get_data'  => $stash['get'] ?? array(),
 			)
 		);
+	}
+
+	/**
+	 * Resolve plugin URL constant safely for static analysis and bootstrap edge cases.
+	 *
+	 * @return string
+	 */
+	private static function plugin_url(): string {
+		return defined( 'WP_SUDO_PLUGIN_URL' ) ? (string) WP_SUDO_PLUGIN_URL : '';
+	}
+
+	/**
+	 * Resolve plugin version constant safely for static analysis and bootstrap edge cases.
+	 *
+	 * @return string
+	 */
+	private static function plugin_version(): string {
+		return defined( 'WP_SUDO_VERSION' ) ? (string) WP_SUDO_VERSION : '0.0.0';
+	}
+
+	/**
+	 * Sanitize a request value as a string.
+	 *
+	 * @param mixed $value Raw request value.
+	 * @return string
+	 */
+	private static function sanitize_input_string( mixed $value ): string {
+		if ( ! is_string( $value ) ) {
+			return '';
+		}
+
+		return sanitize_text_field( wp_unslash( $value ) );
+	}
+
+	/**
+	 * Sanitize a request value as a URL.
+	 *
+	 * @param mixed $value Raw request value.
+	 * @return string
+	 */
+	private static function sanitize_input_url( mixed $value ): string {
+		if ( ! is_string( $value ) ) {
+			return '';
+		}
+
+		return esc_url_raw( wp_unslash( $value ) );
 	}
 }

@@ -41,7 +41,9 @@ class ChallengeTest extends TestCase {
 		\Two_Factor_Core::$mock_provider = null;
 
 		// Prevent stash_key leakage between tests.
-		unset( $_POST['stash_key'] );
+		unset( $_POST['stash_key'], $_GET['stash_key'], $_GET['return_url'], $_GET['page'] );
+
+		Functions\when( 'esc_url_raw' )->returnArg();
 	}
 
 	/**
@@ -50,19 +52,19 @@ class ChallengeTest extends TestCase {
 	public function test_register_hooks(): void {
 		Actions\expectAdded( 'admin_menu' )
 			->once()
-			->with( array( $this->challenge, 'register_page' ), \Mockery::any() );
+			->with( array( $this->challenge, 'register_page' ), \Mockery::any(), 0 );
 
 		Actions\expectAdded( 'wp_ajax_' . Challenge::AJAX_AUTH_ACTION )
 			->once()
-			->with( array( $this->challenge, 'handle_ajax_auth' ), \Mockery::any() );
+			->with( array( $this->challenge, 'handle_ajax_auth' ), \Mockery::any(), 0 );
 
 		Actions\expectAdded( 'wp_ajax_' . Challenge::AJAX_2FA_ACTION )
 			->once()
-			->with( array( $this->challenge, 'handle_ajax_2fa' ), \Mockery::any() );
+			->with( array( $this->challenge, 'handle_ajax_2fa' ), \Mockery::any(), 0 );
 
 		Actions\expectAdded( 'admin_enqueue_scripts' )
 			->once()
-			->with( array( $this->challenge, 'enqueue_assets' ), \Mockery::any() );
+			->with( array( $this->challenge, 'enqueue_assets' ), \Mockery::any(), 0 );
 
 		$this->challenge->register();
 	}
@@ -503,20 +505,23 @@ class ChallengeTest extends TestCase {
 
 		Actions\expectAdded( 'admin_menu' )
 			->once()
-			->with( array( $this->challenge, 'register_page' ), \Mockery::any() );
+			->with( array( $this->challenge, 'register_page' ), \Mockery::any(), 0 );
 
 		Actions\expectAdded( 'network_admin_menu' )
 			->once()
-			->with( array( $this->challenge, 'register_page' ), \Mockery::any() );
+			->with( array( $this->challenge, 'register_page' ), \Mockery::any(), 0 );
 
 		Actions\expectAdded( 'wp_ajax_' . Challenge::AJAX_AUTH_ACTION )
-			->once();
+			->once()
+			->with( array( $this->challenge, 'handle_ajax_auth' ), \Mockery::any(), 0 );
 
 		Actions\expectAdded( 'wp_ajax_' . Challenge::AJAX_2FA_ACTION )
-			->once();
+			->once()
+			->with( array( $this->challenge, 'handle_ajax_2fa' ), \Mockery::any(), 0 );
 
 		Actions\expectAdded( 'admin_enqueue_scripts' )
-			->once();
+			->once()
+			->with( array( $this->challenge, 'enqueue_assets' ), \Mockery::any(), 0 );
 
 		$this->challenge->register();
 	}
@@ -737,7 +742,7 @@ class ChallengeTest extends TestCase {
 		// replay_stash() consumes the stash.
 		$this->stash->shouldReceive( 'delete' )
 			->once()
-			->with( 'test-stash-key-abc' );
+			->with( 'test-stash-key-abc', 42 );
 
 		Functions\when( 'wp_validate_redirect' )->returnArg();
 

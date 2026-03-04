@@ -75,7 +75,9 @@ add_action(
 	'plugins_loaded',
 	static function () {
 		wp_sudo()->init();
-	}
+	},
+	10,
+	0
 );
 
 // Register activation hook.

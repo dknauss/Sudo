@@ -68,6 +68,7 @@ function wp_sudo_cleanup_user_meta(): void {
 	delete_metadata( 'user', 0, '_wp_sudo_token', '', true );
 	delete_metadata( 'user', 0, '_wp_sudo_failed_attempts', '', true );
 	delete_metadata( 'user', 0, '_wp_sudo_lockout_until', '', true );
+	delete_metadata( 'user', 0, '_wp_sudo_stash_keys', '', true );
 }
 
 if ( is_multisite() ) {

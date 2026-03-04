@@ -1257,7 +1257,7 @@ class GateTest extends TestCase {
 	public function test_register_hooks(): void {
 		Actions\expectAdded( 'admin_init' )
 			->once()
-			->with( array( $this->gate, 'intercept' ), 1 );
+			->with( array( $this->gate, 'intercept' ), 1, 0 );
 
 		$this->gate->register();
 
@@ -1591,7 +1591,7 @@ class GateTest extends TestCase {
 	public function test_register_early_hooks_init(): void {
 		Actions\expectAdded( 'init' )
 			->once()
-			->with( array( $this->gate, 'gate_non_interactive' ), 0 );
+			->with( array( $this->gate, 'gate_non_interactive' ), 0, 0 );
 
 		$this->gate->register_early();
 	}

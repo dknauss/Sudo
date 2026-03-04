@@ -62,5 +62,7 @@ add_action(
 			new WP_Sudo\Request_Stash()
 		);
 		$gate->register_early();
-	}
+	},
+	10,
+	0
 );

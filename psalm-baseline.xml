@@ -198,30 +198,7 @@
       <code><![CDATA[\WP2FA\Admin\Helpers\User_Helper]]></code>
     </UndefinedClass>
   </file>
-  <file src="includes/class-admin-bar.php">
-    <HookInvalidArgs>
-      <code><![CDATA[add_action( 'admin_init', array( $this, 'handle_deactivate' ), 5 )]]></code>
-    </HookInvalidArgs>
-    <UndefinedConstant>
-      <code><![CDATA[WP_SUDO_PLUGIN_URL]]></code>
-      <code><![CDATA[WP_SUDO_PLUGIN_URL]]></code>
-      <code><![CDATA[WP_SUDO_VERSION]]></code>
-      <code><![CDATA[WP_SUDO_VERSION]]></code>
-    </UndefinedConstant>
-  </file>
   <file src="includes/class-admin.php">
-    <HookInvalidArgs>
-      <code><![CDATA[add_action( 'admin_init', array( $this, 'register_sections' ) )]]></code>
-      <code><![CDATA[add_action( 'admin_init', array( $this, 'register_settings' ) )]]></code>
-      <code><![CDATA[add_action( 'admin_notices', array( $this, 'render_role_error_notice' ) )]]></code>
-      <code><![CDATA[add_action( 'load-' . $hook_suffix, array( $this, 'add_help_tabs' ) )]]></code>
-      <code><![CDATA[add_action( 'load-' . $hook_suffix, array( $this, 'add_help_tabs' ) )]]></code>
-      <code><![CDATA[add_action( 'load-users.php', array( $this, 'rewrite_role_error' ) )]]></code>
-      <code><![CDATA[add_action( 'network_admin_edit_wp_sudo_settings', array( $this, 'handle_network_settings_save' ) )]]></code>
-      <code><![CDATA[add_action( 'wp_ajax_' . self::AJAX_MU_INSTALL, array( $this, 'handle_mu_install' ) )]]></code>
-      <code><![CDATA[add_action( 'wp_ajax_' . self::AJAX_MU_UNINSTALL, array( $this, 'handle_mu_uninstall' ) )]]></code>
-      <code><![CDATA[add_action( 'wp_ajax_wp_sudo_app_password_policy', array( $this, 'handle_app_password_policy_save' ) )]]></code>
-    </HookInvalidArgs>
     <InvalidArgument>
       <code><![CDATA[(array) $input]]></code>
       <code><![CDATA[array(
@@ -250,59 +227,15 @@
 				'description' => __( 'Disabled shuts off the entire XML-RPC protocol. Limited blocks only gated operations. Unrestricted allows everything. Default: Limited.', 'wp-sudo' ),
 			)]]></code>
     </InvalidArgument>
-    <UndefinedConstant>
-      <code><![CDATA[WP_SUDO_PLUGIN_BASENAME]]></code>
-      <code><![CDATA[WP_SUDO_PLUGIN_DIR]]></code>
-      <code><![CDATA[WP_SUDO_PLUGIN_URL]]></code>
-      <code><![CDATA[WP_SUDO_PLUGIN_URL]]></code>
-      <code><![CDATA[WP_SUDO_PLUGIN_URL]]></code>
-      <code><![CDATA[WP_SUDO_VERSION]]></code>
-      <code><![CDATA[WP_SUDO_VERSION]]></code>
-      <code><![CDATA[WP_SUDO_VERSION]]></code>
-    </UndefinedConstant>
   </file>
   <file src="includes/class-challenge.php">
-    <HookInvalidArgs>
-      <code><![CDATA[add_action( 'wp_ajax_' . self::AJAX_2FA_ACTION, array( $this, 'handle_ajax_2fa' ) )]]></code>
-      <code><![CDATA[add_action( 'wp_ajax_' . self::AJAX_AUTH_ACTION, array( $this, 'handle_ajax_auth' ) )]]></code>
-    </HookInvalidArgs>
     <UndefinedClass>
       <code><![CDATA[\Two_Factor_Core]]></code>
       <code><![CDATA[\Two_Factor_Core]]></code>
     </UndefinedClass>
-    <UndefinedConstant>
-      <code><![CDATA[WP_SUDO_PLUGIN_URL]]></code>
-      <code><![CDATA[WP_SUDO_PLUGIN_URL]]></code>
-      <code><![CDATA[WP_SUDO_VERSION]]></code>
-      <code><![CDATA[WP_SUDO_VERSION]]></code>
-    </UndefinedConstant>
   </file>
   <file src="includes/class-gate.php">
-    <HookInvalidArgs>
-      <code><![CDATA[add_action( 'admin_init', array( $this, 'intercept' ), 1 )]]></code>
-      <code><![CDATA[add_action( 'admin_notices', array( $this, 'render_blocked_notice' ) )]]></code>
-      <code><![CDATA[add_action( 'admin_notices', array( $this, 'render_gate_notice' ) )]]></code>
-      <code><![CDATA[add_action( 'init', array( $this, 'gate_non_interactive' ), 0 )]]></code>
-      <code><![CDATA[add_action( 'network_admin_notices', array( $this, 'render_blocked_notice' ) )]]></code>
-      <code><![CDATA[add_action( 'network_admin_notices', array( $this, 'render_gate_notice' ) )]]></code>
-    </HookInvalidArgs>
-    <HookNotFound>
-      <code><![CDATA[add_action( 'graphql_process_http_request', array( $this, 'gate_wpgraphql' ) )]]></code>
-    </HookNotFound>
-  </file>
-  <file src="includes/class-plugin.php">
-    <HookInvalidArgs>
-      <code><![CDATA[add_action( 'init', array( $this, 'enforce_editor_unfiltered_html' ), 1 )]]></code>
-    </HookInvalidArgs>
-    <UndefinedConstant>
-      <code><![CDATA[WP_SUDO_PLUGIN_BASENAME]]></code>
-      <code><![CDATA[WP_SUDO_PLUGIN_URL]]></code>
-      <code><![CDATA[WP_SUDO_PLUGIN_URL]]></code>
-      <code><![CDATA[WP_SUDO_PLUGIN_URL]]></code>
-      <code><![CDATA[WP_SUDO_VERSION]]></code>
-      <code><![CDATA[WP_SUDO_VERSION]]></code>
-      <code><![CDATA[WP_SUDO_VERSION]]></code>
-    </UndefinedConstant>
+    <HookNotFound/>
   </file>
   <file src="includes/class-request-stash.php">
     <InvalidArgument>
@@ -318,37 +251,9 @@
       <code><![CDATA[\Two_Factor_Core]]></code>
     </UndefinedClass>
   </file>
-  <file src="includes/class-upgrader.php">
-    <UndefinedConstant>
-      <code><![CDATA[WP_SUDO_VERSION]]></code>
-      <code><![CDATA[WP_SUDO_VERSION]]></code>
-    </UndefinedConstant>
-  </file>
   <file src="mu-plugin/wp-sudo-loader.php">
-    <HookInvalidArgs>
-      <code><![CDATA[add_action(
-	'muplugins_loaded',
-	static function () {
-		$gate = new WP_Sudo\Gate(
-			new WP_Sudo\Sudo_Session(),
-			new WP_Sudo\Request_Stash()
-		);
-		$gate->register_early();
-	}
-)]]></code>
-    </HookInvalidArgs>
     <MissingFile>
       <code><![CDATA[require_once $wp_sudo_plugin_dir . 'wp-sudo.php']]></code>
     </MissingFile>
-  </file>
-  <file src="wp-sudo.php">
-    <HookInvalidArgs>
-      <code><![CDATA[add_action(
-	'plugins_loaded',
-	static function () {
-		wp_sudo()->init();
-	}
-)]]></code>
-    </HookInvalidArgs>
   </file>
 </files>

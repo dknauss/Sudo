@@ -29,9 +29,21 @@ class RequestStashTest extends TestCase {
 	}
 
 	/**
+	 * Stub per-user stash index meta I/O for tests that do not assert it.
+	 *
+	 * @return void
+	 */
+	private function stub_stash_index_meta_io(): void {
+		Functions\when( 'get_user_meta' )->justReturn( array() );
+		Functions\when( 'update_user_meta' )->justReturn( true );
+	}
+
+	/**
 	 * Test save() stores data and returns a key.
 	 */
 	public function test_save_returns_key(): void {
+		$this->stub_stash_index_meta_io();
+
 		$_SERVER['REQUEST_METHOD'] = 'POST';
 		$_SERVER['HTTP_HOST']      = 'example.com';
 		$_SERVER['REQUEST_URI']    = '/wp-admin/plugins.php?action=activate&plugin=hello.php';
@@ -67,6 +79,8 @@ class RequestStashTest extends TestCase {
 	 * Test save() still returns the key when transient storage fails.
 	 */
 	public function test_save_returns_key_when_set_transient_fails(): void {
+		$this->stub_stash_index_meta_io();
+
 		$_SERVER['REQUEST_METHOD'] = 'POST';
 		$_SERVER['HTTP_HOST']      = 'example.com';
 		$_SERVER['REQUEST_URI']    = '/wp-admin/plugins.php?action=activate&plugin=hello.php';
@@ -97,6 +111,8 @@ class RequestStashTest extends TestCase {
 	 * Test save() serializes the full request data.
 	 */
 	public function test_save_stores_correct_data(): void {
+		$this->stub_stash_index_meta_io();
+
 		$_SERVER['REQUEST_METHOD'] = 'POST';
 		$_SERVER['HTTP_HOST']      = 'example.com';
 		$_SERVER['REQUEST_URI']    = '/wp-admin/plugins.php';
@@ -304,6 +320,8 @@ class RequestStashTest extends TestCase {
 	 * Test save() handles missing SERVER vars gracefully.
 	 */
 	public function test_save_handles_missing_server_vars(): void {
+		$this->stub_stash_index_meta_io();
+
 		// Ensure the vars are not set.
 		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'] );
 
@@ -346,6 +364,8 @@ class RequestStashTest extends TestCase {
 	 * @see https://github.com/WordPress/wordpress-develop/blob/trunk/src/wp-includes/formatting.php
 	 */
 	public function test_save_preserves_percent_encoded_url(): void {
+		$this->stub_stash_index_meta_io();
+
 		$_SERVER['REQUEST_METHOD'] = 'GET';
 		$_SERVER['HTTP_HOST']      = 'example.com';
 		$_SERVER['REQUEST_URI']    = '/wp-admin/plugins.php?action=activate&plugin=my-plugin%2Fplugin.php&_wpnonce=abc123';
@@ -380,6 +400,314 @@ class RequestStashTest extends TestCase {
 		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'] );
 	}
 
+	/**
+	 * Test save() omits sensitive POST fields from stored data.
+	 *
+	 * Sensitive keys: pass1, pass2, user_pass, password, token, secret,
+	 * api_key, api_secret, auth_key, auth_token, access_token, private_key,
+	 * pass1-text, pwd.
+	 */
+	public function test_save_omits_sensitive_post_fields(): void {
+		$this->stub_stash_index_meta_io();
+
+		$_SERVER['REQUEST_METHOD'] = 'POST';
+		$_SERVER['HTTP_HOST']      = 'example.com';
+		$_SERVER['REQUEST_URI']    = '/wp-admin/user-new.php';
+		$_POST                     = array(
+			'user_login' => 'newuser',
+			'pass1'      => 'secret-password',
+			'pass2'      => 'secret-password',
+			'user_pass'  => 'another-secret',
+			'token'      => 'mytoken',
+			'_wpnonce'   => 'abc123',
+		);
+
+		Functions\expect( 'wp_generate_password' )->once()->andReturn( 'redacttest01234' );
+		Functions\expect( 'is_ssl' )->once()->andReturn( false );
+		Functions\when( 'esc_url_raw' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		$stored_data = null;
+		Functions\expect( 'set_transient' )
+			->once()
+			->andReturnUsing(
+				function ( $name, $data ) use ( &$stored_data ) {
+					$stored_data = $data;
+					return true;
+				}
+			);
+
+		$this->stash->save( 1, array( 'id' => 'user.create', 'label' => 'Create user' ) );
+
+		$this->assertArrayHasKey( 'user_login', $stored_data['post'], 'user_login must survive redaction' );
+		$this->assertArrayHasKey( '_wpnonce', $stored_data['post'], '_wpnonce must survive redaction' );
+		$this->assertArrayNotHasKey( 'pass1', $stored_data['post'], 'pass1 must be omitted' );
+		$this->assertArrayNotHasKey( 'pass2', $stored_data['post'], 'pass2 must be omitted' );
+		$this->assertArrayNotHasKey( 'user_pass', $stored_data['post'], 'user_pass must be omitted' );
+		$this->assertArrayNotHasKey( 'token', $stored_data['post'], 'token must be omitted' );
+
+		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'] );
+		$_POST = array();
+	}
+
+	/**
+	 * Test that sensitive keys are matched case-insensitively.
+	 */
+	public function test_sensitive_keys_matched_case_insensitively(): void {
+		$this->stub_stash_index_meta_io();
+
+		$_SERVER['REQUEST_METHOD'] = 'POST';
+		$_SERVER['HTTP_HOST']      = 'example.com';
+		$_SERVER['REQUEST_URI']    = '/wp-admin/profile.php';
+		$_POST                     = array(
+			'PASS1'     => 'uppercase-secret',
+			'Password'  => 'mixed-case-secret',
+			'USER_PASS' => 'another-secret',
+			'email'     => 'user@example.com',
+		);
+
+		Functions\expect( 'wp_generate_password' )->once()->andReturn( 'casetest0123456' );
+		Functions\expect( 'is_ssl' )->once()->andReturn( false );
+		Functions\when( 'esc_url_raw' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		$stored_data = null;
+		Functions\expect( 'set_transient' )
+			->once()
+			->andReturnUsing(
+				function ( $name, $data ) use ( &$stored_data ) {
+					$stored_data = $data;
+					return true;
+				}
+			);
+
+		$this->stash->save( 1, array( 'id' => 'user.change_password', 'label' => 'Change password' ) );
+
+		$this->assertArrayNotHasKey( 'PASS1', $stored_data['post'], 'PASS1 (uppercase) must be omitted' );
+		$this->assertArrayNotHasKey( 'Password', $stored_data['post'], 'Password (mixed case) must be omitted' );
+		$this->assertArrayNotHasKey( 'USER_PASS', $stored_data['post'], 'USER_PASS (uppercase) must be omitted' );
+		$this->assertArrayHasKey( 'email', $stored_data['post'], 'email must survive redaction' );
+
+		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'] );
+		$_POST = array();
+	}
+
+	/**
+	 * Test that nested sensitive fields are omitted recursively.
+	 */
+	public function test_nested_sensitive_fields_are_omitted(): void {
+		$this->stub_stash_index_meta_io();
+
+		$_SERVER['REQUEST_METHOD'] = 'POST';
+		$_SERVER['HTTP_HOST']      = 'example.com';
+		$_SERVER['REQUEST_URI']    = '/wp-admin/profile.php';
+		$_POST                     = array(
+			'user'         => array(
+				'name'  => 'John',
+				'pass1' => 'nested-secret',
+			),
+			'normal_field' => 'safe-value',
+		);
+
+		Functions\expect( 'wp_generate_password' )->once()->andReturn( 'nestedtest01234' );
+		Functions\expect( 'is_ssl' )->once()->andReturn( false );
+		Functions\when( 'esc_url_raw' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		$stored_data = null;
+		Functions\expect( 'set_transient' )
+			->once()
+			->andReturnUsing(
+				function ( $name, $data ) use ( &$stored_data ) {
+					$stored_data = $data;
+					return true;
+				}
+			);
+
+		$this->stash->save( 1, array( 'id' => 'user.change_password', 'label' => 'Change password' ) );
+
+		$this->assertArrayHasKey( 'user', $stored_data['post'] );
+		$this->assertArrayHasKey( 'name', $stored_data['post']['user'], 'Non-sensitive nested key must survive' );
+		$this->assertArrayNotHasKey( 'pass1', $stored_data['post']['user'], 'Nested pass1 must be omitted' );
+		$this->assertArrayHasKey( 'normal_field', $stored_data['post'], 'Top-level non-sensitive field must survive' );
+
+		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'] );
+		$_POST = array();
+	}
+
+	/**
+	 * Test that the sensitive key list is filterable.
+	 */
+	public function test_sensitive_keys_are_filterable(): void {
+		$this->stub_stash_index_meta_io();
+
+		$_SERVER['REQUEST_METHOD'] = 'POST';
+		$_SERVER['HTTP_HOST']      = 'example.com';
+		$_SERVER['REQUEST_URI']    = '/wp-admin/options-general.php';
+		$_POST                     = array(
+			'my_custom_secret' => 'very-secret',
+			'normal_field'     => 'safe-value',
+		);
+
+		Functions\expect( 'wp_generate_password' )->once()->andReturn( 'filtertest01234' );
+		Functions\expect( 'is_ssl' )->once()->andReturn( false );
+		Functions\when( 'esc_url_raw' )->returnArg();
+
+		// apply_filters returns the default list PLUS a custom key.
+		Functions\expect( 'apply_filters' )
+			->twice()
+			->with( 'wp_sudo_sensitive_stash_keys', \Mockery::type( 'array' ) )
+			->andReturnUsing(
+				function ( $tag, $keys ) {
+					$keys[] = 'my_custom_secret';
+					return $keys;
+				}
+			);
+
+		$stored_data = null;
+		Functions\expect( 'set_transient' )
+			->once()
+			->andReturnUsing(
+				function ( $name, $data ) use ( &$stored_data ) {
+					$stored_data = $data;
+					return true;
+				}
+			);
+
+		$this->stash->save( 1, array( 'id' => 'options.general', 'label' => 'Save options' ) );
+
+		$this->assertArrayNotHasKey( 'my_custom_secret', $stored_data['post'], 'Custom secret added via filter must be omitted' );
+		$this->assertArrayHasKey( 'normal_field', $stored_data['post'], 'Normal field must survive' );
+
+		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'] );
+		$_POST = array();
+	}
+
+	// -----------------------------------------------------------------
+	// Stash cap and index
+	// -----------------------------------------------------------------
+
+	/**
+	 * Test that save() calls get_user_meta and update_user_meta for the stash index.
+	 */
+	public function test_save_records_key_in_stash_index(): void {
+		$_SERVER['REQUEST_METHOD'] = 'POST';
+		$_SERVER['HTTP_HOST']      = 'example.com';
+		$_SERVER['REQUEST_URI']    = '/wp-admin/plugins.php';
+
+		Functions\expect( 'wp_generate_password' )->once()->andReturn( 'indextest1234567' );
+		Functions\expect( 'is_ssl' )->once()->andReturn( false );
+		Functions\when( 'esc_url_raw' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		// Index is empty on first save.
+		Functions\expect( 'get_user_meta' )
+			->twice()
+			->with( 1, Request_Stash::STASH_INDEX_META_KEY, true )
+			->andReturn( array() );
+
+		Functions\expect( 'set_transient' )->once()->andReturn( true );
+
+		// After saving the transient, update_user_meta records the key.
+		Functions\expect( 'update_user_meta' )->twice();
+
+		$this->stash->save( 1, array( 'id' => 'plugin.activate', 'label' => 'Activate plugin' ) );
+
+		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'] );
+	}
+
+	/**
+	 * Test that save() evicts the oldest stash when the cap is reached.
+	 *
+	 * With MAX_STASH_PER_USER = 5, the 6th save must:
+	 *   1. delete_transient for the oldest key
+	 *   2. update_user_meta to remove oldest from index
+	 *   3. set_transient for the new stash
+	 *   4. update_user_meta to add new key to index
+	 */
+	public function test_save_enforces_stash_cap(): void {
+		$_SERVER['REQUEST_METHOD'] = 'POST';
+		$_SERVER['HTTP_HOST']      = 'example.com';
+		$_SERVER['REQUEST_URI']    = '/wp-admin/plugins.php';
+
+		Functions\expect( 'wp_generate_password' )->once()->andReturn( 'newsixthkey12345' );
+		Functions\expect( 'is_ssl' )->once()->andReturn( false );
+		Functions\when( 'esc_url_raw' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		// Index is at cap (5 existing keys).
+		$existing_keys = array( 'key1111111111111', 'key2222222222222', 'key3333333333333', 'key4444444444444', 'key5555555555555' );
+
+		Functions\expect( 'get_user_meta' )
+			->twice()
+			->with( 1, Request_Stash::STASH_INDEX_META_KEY, true )
+			->andReturn( $existing_keys );
+
+		// Oldest key (key1111111111111) must be evicted before the new transient is stored.
+		Functions\expect( 'delete_transient' )
+			->once()
+			->with( Request_Stash::TRANSIENT_PREFIX . 'key1111111111111' );
+
+		// update_user_meta called twice: once after eviction, once after adding new key.
+		Functions\expect( 'update_user_meta' )->twice();
+
+		Functions\expect( 'set_transient' )->once()->andReturn( true );
+
+		$this->stash->save( 1, array( 'id' => 'plugin.activate', 'label' => 'Activate plugin' ) );
+
+		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'] );
+	}
+
+	/**
+	 * Test that delete() with user_id removes the key from the stash index.
+	 */
+	public function test_delete_with_user_id_removes_from_stash_index(): void {
+		Functions\expect( 'delete_transient' )
+			->once()
+			->with( Request_Stash::TRANSIENT_PREFIX . 'delindexkey12345' );
+
+		// Index has two keys; one will be removed.
+		Functions\expect( 'get_user_meta' )
+			->once()
+			->with( 42, Request_Stash::STASH_INDEX_META_KEY, true )
+			->andReturn( array( 'delindexkey12345', 'otherkey12345678' ) );
+
+		Functions\expect( 'update_user_meta' )
+			->once()
+			->with( 42, Request_Stash::STASH_INDEX_META_KEY, array( 'otherkey12345678' ) );
+
+		$this->stash->delete( 'delindexkey12345', 42 );
+	}
+
+	/**
+	 * Test that delete() with user_id = 0 skips index cleanup (backward compat).
+	 */
+	public function test_delete_without_user_id_skips_index_cleanup(): void {
+		Functions\expect( 'delete_transient' )
+			->once()
+			->with( Request_Stash::TRANSIENT_PREFIX . 'noindexkey12345' );
+
+		// get_user_meta and update_user_meta must NOT be called.
+		Functions\expect( 'get_user_meta' )->never();
+		Functions\expect( 'update_user_meta' )->never();
+
+		// Calling with no second argument (default 0).
+		$this->stash->delete( 'noindexkey12345' );
+	}
+
+	/**
+	 * Test MAX_STASH_PER_USER constant is 5.
+	 */
+	public function test_max_stash_per_user_is_five(): void {
+		$this->assertSame( 5, Request_Stash::MAX_STASH_PER_USER );
+	}
+
+	/**
+	 * Test STASH_INDEX_META_KEY constant value.
+	 */
+	public function test_stash_index_meta_key_constant(): void {
+		$this->assertSame( '_wp_sudo_stash_keys', Request_Stash::STASH_INDEX_META_KEY );
+	}
 	// -----------------------------------------------------------------
 	// Multisite: site transients
 	// -----------------------------------------------------------------
@@ -388,6 +716,8 @@ class RequestStashTest extends TestCase {
 	 * Test save uses set_site_transient on multisite.
 	 */
 	public function test_save_uses_site_transient_on_multisite(): void {
+		$this->stub_stash_index_meta_io();
+
 		Functions\when( 'is_multisite' )->justReturn( true );
 
 		$_SERVER['REQUEST_METHOD'] = 'POST';

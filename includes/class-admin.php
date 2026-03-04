@@ -77,30 +77,30 @@ class Admin {
 	 */
 	public function register(): void {
 		if ( is_multisite() ) {
-			add_action( 'network_admin_menu', array( $this, 'add_network_settings_page' ) );
-			add_action( 'network_admin_edit_wp_sudo_settings', array( $this, 'handle_network_settings_save' ) );
+			add_action( 'network_admin_menu', array( $this, 'add_network_settings_page' ), 10, 0 );
+			add_action( 'network_admin_edit_wp_sudo_settings', array( $this, 'handle_network_settings_save' ), 10, 0 );
 			// Register sections/fields so do_settings_sections() works on the network page.
-			add_action( 'admin_init', array( $this, 'register_sections' ) );
+			add_action( 'admin_init', array( $this, 'register_sections' ), 10, 0 );
 		} else {
-			add_action( 'admin_menu', array( $this, 'add_settings_page' ) );
-			add_action( 'admin_init', array( $this, 'register_settings' ) );
+			add_action( 'admin_menu', array( $this, 'add_settings_page' ), 10, 0 );
+			add_action( 'admin_init', array( $this, 'register_settings' ), 10, 0 );
 		}
 
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'maybe_enqueue_app_password_assets' ) );
-		add_filter( 'plugin_action_links_' . WP_SUDO_PLUGIN_BASENAME, array( $this, 'add_action_links' ) );
+		add_filter( 'plugin_action_links_' . self::plugin_basename(), array( $this, 'add_action_links' ) );
 
 		// MU-plugin install/uninstall AJAX handlers.
-		add_action( 'wp_ajax_' . self::AJAX_MU_INSTALL, array( $this, 'handle_mu_install' ) );
-		add_action( 'wp_ajax_' . self::AJAX_MU_UNINSTALL, array( $this, 'handle_mu_uninstall' ) );
+		add_action( 'wp_ajax_' . self::AJAX_MU_INSTALL, array( $this, 'handle_mu_install' ), 10, 0 );
+		add_action( 'wp_ajax_' . self::AJAX_MU_UNINSTALL, array( $this, 'handle_mu_uninstall' ), 10, 0 );
 
 		// Replace core's confusing "user editing capabilities" error with
 		// a clearer message on the Users page.
-		add_action( 'load-users.php', array( $this, 'rewrite_role_error' ) );
-		add_action( 'admin_notices', array( $this, 'render_role_error_notice' ) );
+		add_action( 'load-users.php', array( $this, 'rewrite_role_error' ), 10, 0 );
+		add_action( 'admin_notices', array( $this, 'render_role_error_notice' ), 10, 0 );
 
 		// Per-application-password policy dropdowns on user profile pages.
-		add_action( 'wp_ajax_wp_sudo_app_password_policy', array( $this, 'handle_app_password_policy_save' ) );
+		add_action( 'wp_ajax_wp_sudo_app_password_policy', array( $this, 'handle_app_password_policy_save' ), 10, 0 );
 	}
 
 	/**
@@ -118,7 +118,7 @@ class Admin {
 		);
 
 		if ( $hook_suffix ) {
-			add_action( 'load-' . $hook_suffix, array( $this, 'add_help_tabs' ) );
+			add_action( 'load-' . $hook_suffix, array( $this, 'add_help_tabs' ), 10, 0 );
 		}
 	}
 
@@ -138,7 +138,7 @@ class Admin {
 		);
 
 		if ( $hook_suffix ) {
-			add_action( 'load-' . $hook_suffix, array( $this, 'add_help_tabs' ) );
+			add_action( 'load-' . $hook_suffix, array( $this, 'add_help_tabs' ), 10, 0 );
 		}
 	}
 
@@ -608,16 +608,16 @@ class Admin {
 
 		wp_enqueue_style(
 			'wp-sudo-admin',
-			WP_SUDO_PLUGIN_URL . 'admin/css/wp-sudo-admin.css',
+			self::plugin_url() . 'admin/css/wp-sudo-admin.css',
 			array(),
-			WP_SUDO_VERSION
+			self::plugin_version()
 		);
 
 		wp_enqueue_script(
 			'wp-sudo-admin',
-			WP_SUDO_PLUGIN_URL . 'admin/js/wp-sudo-admin.js',
+			self::plugin_url() . 'admin/js/wp-sudo-admin.js',
 			array(),
-			WP_SUDO_VERSION,
+			self::plugin_version(),
 			true
 		);
 
@@ -921,7 +921,7 @@ class Admin {
 			);
 		}
 
-		$source = WP_SUDO_PLUGIN_DIR . 'mu-plugin/wp-sudo-gate.php';
+		$source = self::plugin_dir() . 'mu-plugin/wp-sudo-gate.php';
 		$mu_dir = self::get_mu_plugin_dir();
 		$dest   = $mu_dir . '/wp-sudo-gate.php';
 
@@ -1150,9 +1150,9 @@ class Admin {
 
 		wp_enqueue_script(
 			'wp-sudo-app-passwords',
-			WP_SUDO_PLUGIN_URL . 'admin/js/wp-sudo-app-passwords.js',
+			self::plugin_url() . 'admin/js/wp-sudo-app-passwords.js',
 			array( 'wp-a11y' ),
-			WP_SUDO_VERSION,
+			self::plugin_version(),
 			true
 		);
 
@@ -1230,9 +1230,10 @@ class Admin {
 			);
 		}
 
-		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- sanitize_text_field handles slashes.
-		$uuid   = sanitize_text_field( wp_unslash( $_POST['uuid'] ?? '' ) );
-		$policy = sanitize_text_field( wp_unslash( $_POST['policy'] ?? '' ) );
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce verified above via check_ajax_referer; sanitized in helper.
+		$uuid = self::sanitize_input_string( $_POST['uuid'] ?? '' );
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce verified above via check_ajax_referer; sanitized in helper.
+		$policy = self::sanitize_input_string( $_POST['policy'] ?? '' );
 
 		if ( empty( $uuid ) ) {
 			wp_send_json_error( array( 'message' => __( 'Invalid application password UUID.', 'wp-sudo' ) ) );
@@ -1268,5 +1269,55 @@ class Admin {
 		self::reset_cache();
 
 		wp_send_json_success( array( 'message' => __( 'Policy saved.', 'wp-sudo' ) ) );
+	}
+
+	/**
+	 * Resolve plugin basename constant safely for static analysis and bootstrap edge cases.
+	 *
+	 * @return string
+	 */
+	private static function plugin_basename(): string {
+		return defined( 'WP_SUDO_PLUGIN_BASENAME' ) ? (string) WP_SUDO_PLUGIN_BASENAME : 'wp-sudo/wp-sudo.php';
+	}
+
+	/**
+	 * Resolve plugin URL constant safely for static analysis and bootstrap edge cases.
+	 *
+	 * @return string
+	 */
+	private static function plugin_url(): string {
+		return defined( 'WP_SUDO_PLUGIN_URL' ) ? (string) WP_SUDO_PLUGIN_URL : '';
+	}
+
+	/**
+	 * Resolve plugin directory constant safely for static analysis and bootstrap edge cases.
+	 *
+	 * @return string
+	 */
+	private static function plugin_dir(): string {
+		return defined( 'WP_SUDO_PLUGIN_DIR' ) ? (string) WP_SUDO_PLUGIN_DIR : dirname( __DIR__ ) . '/';
+	}
+
+	/**
+	 * Resolve plugin version constant safely for static analysis and bootstrap edge cases.
+	 *
+	 * @return string
+	 */
+	private static function plugin_version(): string {
+		return defined( 'WP_SUDO_VERSION' ) ? (string) WP_SUDO_VERSION : '0.0.0';
+	}
+
+	/**
+	 * Sanitize a request value as a string.
+	 *
+	 * @param mixed $value Raw request value.
+	 * @return string
+	 */
+	private static function sanitize_input_string( mixed $value ): string {
+		if ( ! is_string( $value ) ) {
+			return '';
+		}
+
+		return sanitize_text_field( wp_unslash( $value ) );
 	}
 }

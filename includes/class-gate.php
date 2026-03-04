@@ -135,22 +135,27 @@ class Gate {
 	 */
 	public function register(): void {
 		// Admin UI + AJAX interception (admin-ajax.php also fires admin_init).
-		add_action( 'admin_init', array( $this, 'intercept' ), 1 );
+		add_action( 'admin_init', array( $this, 'intercept' ), 1, 0 );
 
 		// REST API interception — fires after route matching, before callbacks.
 		add_filter( 'rest_request_before_callbacks', array( $this, 'intercept_rest' ), 10, 3 );
 
 		// WPGraphQL interception — hooks into WPGraphQL's own lifecycle.
 		// Fires after auth validation, before body reading, regardless of endpoint name.
-		add_action( 'graphql_process_http_request', array( $this, 'gate_wpgraphql' ) );
+		/**
+		 * Suppress optional WPGraphQL hook symbol lookup.
+		 *
+		 * @psalm-suppress HookNotFound Optional hook provided by WPGraphQL plugin.
+		 */
+		add_action( 'graphql_process_http_request', array( $this, 'gate_wpgraphql' ), 10, 0 );
 
 		// Fallback admin notice when a gated AJAX/REST request was blocked.
-		add_action( 'admin_notices', array( $this, 'render_blocked_notice' ) );
-		add_action( 'network_admin_notices', array( $this, 'render_blocked_notice' ) );
+		add_action( 'admin_notices', array( $this, 'render_blocked_notice' ), 10, 0 );
+		add_action( 'network_admin_notices', array( $this, 'render_blocked_notice' ), 10, 0 );
 
 		// Persistent gate notice on gated pages when no sudo session is active.
-		add_action( 'admin_notices', array( $this, 'render_gate_notice' ) );
-		add_action( 'network_admin_notices', array( $this, 'render_gate_notice' ) );
+		add_action( 'admin_notices', array( $this, 'render_gate_notice' ), 10, 0 );
+		add_action( 'network_admin_notices', array( $this, 'render_gate_notice' ), 10, 0 );
 
 		// PHP action link filters for server-rendered buttons (plugins list table).
 		add_filter( 'plugin_action_links', array( $this, 'filter_plugin_action_links' ), 50, 2 );
@@ -167,7 +172,7 @@ class Gate {
 	 * @return void
 	 */
 	public function register_early(): void {
-		add_action( 'init', array( $this, 'gate_non_interactive' ), 0 );
+		add_action( 'init', array( $this, 'gate_non_interactive' ), 0, 0 );
 	}
 
 	/**
@@ -313,6 +318,11 @@ class Gate {
 
 		// Disabled: kill the entire XML-RPC protocol.
 		if ( self::POLICY_DISABLED === $policy ) {
+			/**
+			 * Suppress callback signature mismatch for core utility callback.
+			 *
+			 * @psalm-suppress PossiblyInvalidArgument __return_false intentionally ignores callback args.
+			 */
 			add_filter( 'xmlrpc_enabled', '__return_false' );
 			return;
 		}
@@ -685,12 +695,11 @@ class Gate {
 		// Hoist sanitization of request params above the loop so each
 		// rule iteration reuses the same sanitized values instead of
 		// calling sanitize_text_field() up to 28 times per request.
-		$request_action = '';
-		$request_method = '';
+			$request_action = '';
+			$request_method = '';
 
 		if ( 'admin' === $surface || 'ajax' === $surface ) {
-			// phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.NonceVerification.Missing -- Gate routing, not data processing.
-			$request_action = isset( $_REQUEST['action'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['action'] ) ) : '';
+			$request_action = self::sanitize_input_string( $_REQUEST['action'] ?? '' ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Gate routing only; sanitized in helper.
 		}
 
 		// WordPress core's multisite sites.php uses a two-step confirmation
@@ -699,8 +708,7 @@ class Gate {
 		// is in action2, so we extract it as a fallback for matching.
 		$request_action2 = '';
 		if ( 'admin' === $surface && 'confirm' === $request_action ) {
-			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Gate routing, not data processing.
-			$request_action2 = isset( $_REQUEST['action2'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['action2'] ) ) : '';
+			$request_action2 = self::sanitize_input_string( $_REQUEST['action2'] ?? '' ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Gate routing only; sanitized in helper.
 		}
 
 		if ( 'admin' === $surface ) {
@@ -834,8 +842,7 @@ class Gate {
 		// request parameter (see rest_cookie_check_errors() in wp-includes/rest-api.php).
 		$nonce = $request->get_header( 'X-WP-Nonce' );
 		if ( ! $nonce ) {
-			// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only classification, not action authorization.
-			$nonce = isset( $_REQUEST['_wpnonce'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['_wpnonce'] ) ) : null;
+			$nonce = self::sanitize_input_string( $_REQUEST['_wpnonce'] ?? '' ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Read-only classification; sanitized in helper.
 		}
 		$is_cookie_auth = $nonce && wp_verify_nonce( $nonce, 'wp_rest' );
 
@@ -1227,14 +1234,14 @@ class Gate {
 		);
 
 		// Pass through slug/plugin so wp.updates can locate the DOM element.
-		// phpcs:disable WordPress.Security.NonceVerification.Missing -- Read-only; nonce checked by wp.updates before dispatch.
+		// phpcs:disable WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Read-only; nonce checked by wp.updates before dispatch. Values sanitized in helper methods below.
 		if ( ! empty( $_POST['slug'] ) ) {
-			$data['slug'] = sanitize_key( wp_unslash( $_POST['slug'] ) );
+			$data['slug'] = self::sanitize_input_key( $_POST['slug'] );
 		}
 		if ( ! empty( $_POST['plugin'] ) ) {
-			$data['plugin'] = sanitize_text_field( wp_unslash( $_POST['plugin'] ) );
+			$data['plugin'] = self::sanitize_input_string( $_POST['plugin'] );
 		}
-		// phpcs:enable WordPress.Security.NonceVerification.Missing
+		// phpcs:enable WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 
 		wp_send_json_error( $data );
 	}
@@ -1467,5 +1474,33 @@ class Gate {
 		}
 
 		return $actions;
+	}
+
+	/**
+	 * Sanitize a request value as a string.
+	 *
+	 * @param mixed $value Raw request value.
+	 * @return string
+	 */
+	private static function sanitize_input_string( mixed $value ): string {
+		if ( ! is_string( $value ) ) {
+			return '';
+		}
+
+		return sanitize_text_field( wp_unslash( $value ) );
+	}
+
+	/**
+	 * Sanitize a request value as a slug/key.
+	 *
+	 * @param mixed $value Raw request value.
+	 * @return string
+	 */
+	private static function sanitize_input_key( mixed $value ): string {
+		if ( ! is_string( $value ) ) {
+			return '';
+		}
+
+		return sanitize_key( wp_unslash( $value ) );
 	}
 }

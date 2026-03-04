@@ -127,6 +127,19 @@ class Action_Registry {
 			),
 
 			array(
+				'id'       => 'plugin.upload',
+				'label'    => __( 'Upload plugin', 'wp-sudo' ),
+				'category' => 'plugins',
+				'admin'    => array(
+					'pagenow' => 'update.php',
+					'actions' => array( 'upload-plugin' ),
+					'method'  => 'POST',
+				),
+				'ajax'     => null,
+				'rest'     => null,
+			),
+
+			array(
 				'id'       => 'plugin.update',
 				'label'    => __( 'Update plugin', 'wp-sudo' ),
 				'category' => 'plugins',
@@ -187,6 +200,19 @@ class Action_Registry {
 			),
 
 			array(
+				'id'       => 'theme.upload',
+				'label'    => __( 'Upload theme', 'wp-sudo' ),
+				'category' => 'themes',
+				'admin'    => array(
+					'pagenow' => 'update.php',
+					'actions' => array( 'upload-theme' ),
+					'method'  => 'POST',
+				),
+				'ajax'     => null,
+				'rest'     => null,
+			),
+
+			array(
 				'id'       => 'theme.update',
 				'label'    => __( 'Update theme', 'wp-sudo' ),
 				'category' => 'themes',
@@ -228,8 +254,8 @@ class Action_Registry {
 					'actions'  => array( 'promote', '-1' ),
 					'method'   => 'ANY',
 					'callback' => function (): bool {
-						// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Gate routing, not data processing.
-						$action = isset( $_REQUEST['action'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['action'] ) ) : '';
+						// phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Gate routing only; sanitized in helper.
+						$action = self::sanitize_request_string( $_REQUEST['action'] ?? '' );
 						if ( 'promote' === $action ) {
 							return true;
 						}
@@ -408,23 +434,23 @@ class Action_Registry {
 
 			// ── WP Sudo Self-Protection ────────────────────────────────
 
-			array(
-				'id'       => 'options.wp_sudo',
-				'label'    => __( 'Change WP Sudo settings', 'wp-sudo' ),
-				'category' => 'options',
-				'admin'    => array(
-					'pagenow'  => 'options.php',
-					'actions'  => array( 'update' ),
-					'method'   => 'POST',
-					'callback' => function (): bool {
-						// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified by WordPress before this callback runs.
-						$option_page = isset( $_POST['option_page'] ) ? sanitize_text_field( wp_unslash( $_POST['option_page'] ) ) : '';
-						return 'wp-sudo-settings' === $option_page;
-					},
+				array(
+					'id'       => 'options.wp_sudo',
+					'label'    => __( 'Change WP Sudo settings', 'wp-sudo' ),
+					'category' => 'options',
+					'admin'    => array(
+						'pagenow'  => 'options.php',
+						'actions'  => array( 'update' ),
+						'method'   => 'POST',
+						'callback' => function (): bool {
+							// phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce verified by WordPress before this callback runs; sanitized in helper.
+							$option_page = self::sanitize_request_string( $_POST['option_page'] ?? '' );
+							return 'wp-sudo-settings' === $option_page;
+						},
+					),
+					'ajax'     => null,
+					'rest'     => null,
 				),
-				'ajax'     => null,
-				'rest'     => null,
-			),
 
 			// ── Core Updates ────────────────────────────────────────────
 
@@ -654,6 +680,22 @@ class Action_Registry {
 	 */
 	public static function reset_cache(): void {
 		self::$cached_rules = null;
+	}
+
+	/**
+	 * Sanitize a request value as a string.
+	 *
+	 * Request superglobals may contain arrays; return an empty string in that case.
+	 *
+	 * @param mixed $value Raw request value.
+	 * @return string
+	 */
+	private static function sanitize_request_string( mixed $value ): string {
+		if ( ! is_string( $value ) ) {
+			return '';
+		}
+
+		return sanitize_text_field( wp_unslash( $value ) );
 	}
 
 	/**

@@ -48,8 +48,8 @@ class Admin_Bar {
 	 */
 	public function register(): void {
 		add_action( 'admin_bar_menu', array( $this, 'admin_bar_node' ), 100 );
-		add_action( 'admin_init', array( $this, 'handle_deactivate' ), 5 );
-		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ) );
+		add_action( 'admin_init', array( $this, 'handle_deactivate' ), 5, 0 );
+		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ), 10, 0 );
 	}
 
 	/**
@@ -136,8 +136,12 @@ class Admin_Bar {
 			return;
 		}
 
-		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- wp_verify_nonce sanitizes internally.
-		if ( ! isset( $_GET['_wpnonce'] ) || ! wp_verify_nonce( wp_unslash( $_GET['_wpnonce'] ), self::DEACTIVATE_NONCE ) ) {
+		$nonce = '';
+		if ( isset( $_GET['_wpnonce'] ) && is_string( $_GET['_wpnonce'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Verified below.
+			$nonce = wp_unslash( $_GET['_wpnonce'] ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- wp_verify_nonce handles nonce input.
+		}
+
+		if ( '' === $nonce || ! wp_verify_nonce( $nonce, self::DEACTIVATE_NONCE ) ) {
 			wp_die(
 				esc_html__( 'Security check failed.', 'wp-sudo' ),
 				'',
@@ -178,16 +182,16 @@ class Admin_Bar {
 
 		wp_enqueue_style(
 			'wp-sudo-admin-bar',
-			WP_SUDO_PLUGIN_URL . 'admin/css/wp-sudo-admin-bar.css',
+			self::plugin_url() . 'admin/css/wp-sudo-admin-bar.css',
 			array(),
-			WP_SUDO_VERSION
+			self::plugin_version()
 		);
 
 		wp_enqueue_script(
 			'wp-sudo-admin-bar',
-			WP_SUDO_PLUGIN_URL . 'admin/js/wp-sudo-admin-bar.js',
+			self::plugin_url() . 'admin/js/wp-sudo-admin-bar.js',
 			array(),
-			WP_SUDO_VERSION,
+			self::plugin_version(),
 			true
 		);
 
@@ -196,6 +200,24 @@ class Admin_Bar {
 			'wpSudoAdminBar',
 			array( 'remaining' => $remaining )
 		);
+	}
+
+	/**
+	 * Resolve plugin URL constant safely for static analysis and bootstrap edge cases.
+	 *
+	 * @return string
+	 */
+	private static function plugin_url(): string {
+		return defined( 'WP_SUDO_PLUGIN_URL' ) ? (string) WP_SUDO_PLUGIN_URL : '';
+	}
+
+	/**
+	 * Resolve plugin version constant safely for static analysis and bootstrap edge cases.
+	 *
+	 * @return string
+	 */
+	private static function plugin_version(): string {
+		return defined( 'WP_SUDO_VERSION' ) ? (string) WP_SUDO_VERSION : '0.0.0';
 	}
 
 	/**

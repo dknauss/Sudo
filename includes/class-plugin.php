@@ -80,7 +80,7 @@ class Plugin {
 	 */
 	public function init(): void {
 		// Load translations.
-		load_plugin_textdomain( 'wp-sudo', false, dirname( WP_SUDO_PLUGIN_BASENAME ) . '/languages' );
+		load_plugin_textdomain( 'wp-sudo', false, dirname( self::plugin_basename() ) . '/languages' );
 
 		// Run any pending upgrade routines (must run before other components).
 		// Only on admin/CLI requests — front-end visitors never trigger migrations.
@@ -111,13 +111,13 @@ class Plugin {
 		$this->admin_bar->register();
 
 		// Enforce unfiltered_html restriction on every request (tamper detection).
-		add_action( 'init', array( $this, 'enforce_editor_unfiltered_html' ), 1 );
+		add_action( 'init', array( $this, 'enforce_editor_unfiltered_html' ), 1, 0 );
 
 		// Notice styles: ensure white background on WP Sudo admin notices (WP 7.0+).
-		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_notice_css' ) );
+		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_notice_css' ), 10, 0 );
 
 		// Keyboard shortcut: enqueue on admin pages when no active session.
-		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_shortcut' ) );
+		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_shortcut' ), 10, 0 );
 
 		// Gate UI: disable action buttons on gated pages when no session.
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_gate_ui' ) );
@@ -159,9 +159,9 @@ class Plugin {
 
 		wp_enqueue_style(
 			'wp-sudo-notices',
-			WP_SUDO_PLUGIN_URL . 'admin/css/wp-sudo-notices.css',
+			self::plugin_url() . 'admin/css/wp-sudo-notices.css',
 			array(),
-			WP_SUDO_VERSION
+			self::plugin_version()
 		);
 	}
 
@@ -188,17 +188,16 @@ class Plugin {
 		}
 
 		// Don't load on the challenge page — it has its own JS.
-		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Routing check only.
-		$page = isset( $_GET['page'] ) ? sanitize_text_field( wp_unslash( $_GET['page'] ) ) : '';
+		$page = self::sanitize_input_string( $_GET['page'] ?? '' ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Routing check only; sanitized in helper.
 		if ( 'wp-sudo-challenge' === $page ) {
 			return;
 		}
 
 		wp_enqueue_script(
 			'wp-sudo-shortcut',
-			WP_SUDO_PLUGIN_URL . 'admin/js/wp-sudo-shortcut.js',
+			self::plugin_url() . 'admin/js/wp-sudo-shortcut.js',
 			array(),
-			WP_SUDO_VERSION,
+			self::plugin_version(),
 			true
 		);
 
@@ -257,9 +256,9 @@ class Plugin {
 
 		wp_enqueue_script(
 			'wp-sudo-gate-ui',
-			WP_SUDO_PLUGIN_URL . 'admin/js/wp-sudo-gate-ui.js',
+			self::plugin_url() . 'admin/js/wp-sudo-gate-ui.js',
 			array(),
-			WP_SUDO_VERSION,
+			self::plugin_version(),
 			true
 		);
 
@@ -472,6 +471,47 @@ class Plugin {
 	 */
 	public function admin(): ?Admin {
 		return $this->admin;
+	}
+
+	/**
+	 * Resolve plugin basename constant safely for static analysis and bootstrap edge cases.
+	 *
+	 * @return string
+	 */
+	private static function plugin_basename(): string {
+		return defined( 'WP_SUDO_PLUGIN_BASENAME' ) ? (string) WP_SUDO_PLUGIN_BASENAME : 'wp-sudo/wp-sudo.php';
+	}
+
+	/**
+	 * Resolve plugin URL constant safely for static analysis and bootstrap edge cases.
+	 *
+	 * @return string
+	 */
+	private static function plugin_url(): string {
+		return defined( 'WP_SUDO_PLUGIN_URL' ) ? (string) WP_SUDO_PLUGIN_URL : '';
+	}
+
+	/**
+	 * Resolve plugin version constant safely for static analysis and bootstrap edge cases.
+	 *
+	 * @return string
+	 */
+	private static function plugin_version(): string {
+		return defined( 'WP_SUDO_VERSION' ) ? (string) WP_SUDO_VERSION : '0.0.0';
+	}
+
+	/**
+	 * Sanitize a request value as a string.
+	 *
+	 * @param mixed $value Raw request value.
+	 * @return string
+	 */
+	private static function sanitize_input_string( mixed $value ): string {
+		if ( ! is_string( $value ) ) {
+			return '';
+		}
+
+		return sanitize_text_field( wp_unslash( $value ) );
 	}
 
 	/**

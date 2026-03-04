@@ -126,7 +126,7 @@ behavior that the model cannot hold in working memory.
 
 - **Plugin** — Orchestrator. Creates and owns the component instances. Handles activation/deactivation hooks. Strips `unfiltered_html` from editors on activation and restores it on deactivation. Expires sudo session on password change (`after_password_reset`, `profile_update`).
 - **Gate** — Multi-surface interceptor. Matches incoming requests against the Action Registry and gates them via reauthentication (admin UI), error response (AJAX/REST), or policy (CLI/Cron/XML-RPC/App Passwords).
-- **Action_Registry** — Defines all gated rules (21 single-site rules across 7 categories + 8 multisite rules = 29 total). Extensible via `wp_sudo_gated_actions` filter.
+- **Action_Registry** — Defines all gated rules (23 single-site rules across 7 categories + 9 multisite rules = 32 total). Extensible via `wp_sudo_gated_actions` filter.
 - **Challenge** — Interstitial reauthentication page. Handles password authentication, 2FA integration, request stash/replay.
 - **Sudo_Session** — Session management. Cryptographic token (user meta + httponly cookie), rate limiting (5 attempts → 5-min lockout), session binding. Two-tier expiry: `is_active()` for true session state; `is_within_grace()` for the 120 s grace window after expiry (token-verified). Cleanup deferred until grace window closes.
 - **Request_Stash** — Stashes and replays intercepted admin requests using transients.
