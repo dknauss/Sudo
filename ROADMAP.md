@@ -104,8 +104,8 @@ Identified by independent assessments from Codex, Gemini, and Claude (March 2026
 This is a living document covering accumulated input and thinking about the strategic
 challenges and priorities for WP Sudo. 
 
-Current project state (as of v2.10.0):
-- **411 unit tests**, 1008 assertions, across 14 test files (Brain\Monkey mocks)
+Current project state (as of v2.10.2):
+- **429 unit tests**, 1050 assertions, across 14 test files (Brain\Monkey mocks)
 - **116 integration tests** across 16 test files (real WordPress + MySQL via `WP_UnitTestCase`)
 - CI pipeline: PHP 8.0–8.4, WordPress 6.7 + latest + trunk, single-site + multisite + PCOV coverage job
 - WordPress 7.0 Beta 2 tested (February 27, 2026); GA is April 9, 2026
@@ -885,6 +885,8 @@ WP Sudo should run a focused hardening sprint before new UX or architecture expa
 **Fix:** Harden path detection with fallback strategies. Add admin notice for unresolved plugin path. Keep canonical installs unchanged.
 
 **Tests:** Unit tests for path resolution fallbacks.
+
+**Related (shipped):** MU-plugin install UX now detects `is_writable()` on the mu-plugins directory. When the directory is not writable (common on managed hosts), the Install button is hidden and manual copy instructions are shown expanded instead.
 
 ### P3: WPGraphQL Persisted-Query Strategy
 
