@@ -234,9 +234,6 @@
       <code><![CDATA[\Two_Factor_Core]]></code>
     </UndefinedClass>
   </file>
-  <file src="includes/class-gate.php">
-    <HookNotFound/>
-  </file>
   <file src="includes/class-request-stash.php">
     <InvalidArgument>
       <code><![CDATA[$_GET]]></code>

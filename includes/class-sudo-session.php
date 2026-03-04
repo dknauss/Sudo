@@ -27,6 +27,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 class Sudo_Session {
 
+
 	/**
 	 * User-meta key that stores the session expiry timestamp.
 	 *
@@ -86,6 +87,20 @@ class Sudo_Session {
 	 * @var int
 	 */
 	public const LOCKOUT_DURATION = 300;
+
+	/**
+	 * User-meta key for tracking failed reauth events (append-only).
+	 *
+	 * @var string
+	 */
+	public const FAILURE_EVENT_META_KEY = '_wp_sudo_failure_event';
+
+	/**
+	 * User-meta key for non-blocking throttle timestamp.
+	 *
+	 * @var string
+	 */
+	public const THROTTLE_UNTIL_META_KEY = '_wp_sudo_throttle_until';
 
 	/**
 	 * Grace period in seconds after session expiry.
@@ -309,6 +324,16 @@ class Sudo_Session {
 	 * @return array{code: string, remaining?: int, expires_at?: int, delay?: int} Result with status code.
 	 */
 	public static function attempt_activation( int $user_id, string $password ): array {
+		// 1. Check for active non-blocking throttle.
+		$throttle_delay = self::throttle_remaining( $user_id );
+		if ( $throttle_delay > 0 ) {
+			return array(
+				'code'  => 'invalid_password',
+				'delay' => $throttle_delay,
+			);
+		}
+
+		// 2. Check for hard lockout.
 		if ( self::is_locked_out( $user_id ) ) {
 			return array(
 				'code'      => 'locked_out',
@@ -530,10 +555,15 @@ class Sudo_Session {
 	}
 
 	/**
-	 * Check if a user is currently locked out.
+	 * Check if a user is currently locked out from sudo reauth.
+	 *
+	 * Auto-resets the lockout and all failure tracking when the lockout
+	 * timestamp has expired.
+	 *
+	 * @since 2.0.0
 	 *
 	 * @param int $user_id User ID.
-	 * @return bool
+	 * @return bool True if the user is currently locked out.
 	 */
 	public static function is_locked_out( int $user_id ): bool {
 		$until = (int) get_user_meta( $user_id, self::LOCKOUT_UNTIL_META_KEY, true );
@@ -543,12 +573,36 @@ class Sudo_Session {
 		}
 
 		if ( time() > $until ) {
-			// Lockout expired — reset.
+			// Lockout expired — reset all failure tracking.
 			self::reset_failed_attempts( $user_id );
 			return false;
 		}
 
 		return true;
+	}
+
+	/**
+	 * Check remaining throttle delay in seconds.
+	 *
+	 * @since 2.6.0
+	 *
+	 * @param int $user_id User ID.
+	 * @return int Seconds remaining, or 0.
+	 */
+	public static function throttle_remaining( int $user_id ): int {
+		$until = (int) get_user_meta( $user_id, self::THROTTLE_UNTIL_META_KEY, true );
+		if ( ! $until ) {
+			return 0;
+		}
+
+		$remaining = $until - time();
+		if ( $remaining <= 0 ) {
+			// Throttle expired.
+			delete_user_meta( $user_id, self::THROTTLE_UNTIL_META_KEY );
+			return 0;
+		}
+
+		return $remaining;
 	}
 
 	// -------------------------------------------------------------------------
@@ -678,25 +732,33 @@ class Sudo_Session {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Record a failed reauth attempt with progressive delay.
+	 * Record a failed reauth attempt with non-blocking progressive throttle.
 	 *
 	 * Attempts 1–3 are immediate. Attempt 4 introduces a 2-second
-	 * server-side delay, attempt 5 a 5-second delay. At attempt 5+
+	 * non-blocking wait, attempt 5 a 5-second wait. At attempt 5+
 	 * the user is fully locked out for LOCKOUT_DURATION seconds.
+	 *
+	 * @since 2.0.0 Public visibility to allow 2FA/Audit integration.
 	 *
 	 * @param int $user_id User ID.
 	 * @return int Progressive delay in seconds (0 = no delay).
 	 */
-	private static function record_failed_attempt( int $user_id ): int {
-		$attempts = self::get_failed_attempts( $user_id ) + 1;
+	public static function record_failed_attempt( int $user_id ): int {
+		$now = time();
 
-		update_user_meta( $user_id, self::LOCKOUT_META_KEY, $attempts );
+		// Prune old events to prevent usermeta bloat.
+		self::prune_failed_attempts( $user_id );
+
+		// Record the new failure event.
+		add_user_meta( $user_id, self::FAILURE_EVENT_META_KEY, $now, false );
+
+		$attempts = self::get_failed_attempts( $user_id );
 
 		if ( $attempts >= self::MAX_FAILED_ATTEMPTS ) {
 			update_user_meta(
 				$user_id,
 				self::LOCKOUT_UNTIL_META_KEY,
-				time() + self::LOCKOUT_DURATION
+				$now + self::LOCKOUT_DURATION
 			);
 
 			/**
@@ -709,27 +771,57 @@ class Sudo_Session {
 			 */
 			do_action( 'wp_sudo_lockout', $user_id, $attempts );
 
-			return 0; // Lockout — delay is irrelevant.
+			return 0;
 		}
 
-		// Apply progressive delay for high attempt counts.
+		// Calculate non-blocking progressive delay.
 		$delay = self::PROGRESSIVE_DELAYS[ $attempts ] ?? 0;
 
 		if ( $delay > 0 ) {
-			sleep( $delay );
+			update_user_meta( $user_id, self::THROTTLE_UNTIL_META_KEY, $now + $delay );
 		}
 
 		return $delay;
 	}
 
 	/**
-	 * Get the number of failed attempts for a user.
+	 * Prune failure events older than 24 hours.
+	 *
+	 * @since 2.6.0
 	 *
 	 * @param int $user_id User ID.
-	 * @return int
+	 * @return void
 	 */
-	private static function get_failed_attempts( int $user_id ): int {
-		return (int) get_user_meta( $user_id, self::LOCKOUT_META_KEY, true );
+	private static function prune_failed_attempts( int $user_id ): void {
+		$events = get_user_meta( $user_id, self::FAILURE_EVENT_META_KEY, false );
+		if ( empty( $events ) ) {
+			return;
+		}
+
+		$day_ago = time() - DAY_IN_SECONDS;
+
+		foreach ( $events as $timestamp ) {
+			if ( (int) $timestamp < $day_ago ) {
+				delete_user_meta( $user_id, self::FAILURE_EVENT_META_KEY, $timestamp );
+			}
+		}
+	}
+
+	/**
+	 * Get the number of failed reauth attempts for a user.
+	 *
+	 * Counts append-only failure event rows in user meta. Each failed
+	 * attempt adds a timestamp row via add_user_meta().
+	 *
+	 * @since 2.0.0
+	 *
+	 * @param int $user_id User ID.
+	 * @return int Number of failed attempts.
+	 */
+	public static function get_failed_attempts( int $user_id ): int {
+		$events = get_user_meta( $user_id, self::FAILURE_EVENT_META_KEY, false );
+
+		return is_array( $events ) ? count( $events ) : 0;
 	}
 
 	/**
@@ -745,13 +837,21 @@ class Sudo_Session {
 	}
 
 	/**
-	 * Reset failed attempt counters.
+	 * Reset all failure tracking for a user.
+	 *
+	 * Deletes the legacy scalar counter, lockout timestamp, append-only
+	 * failure event rows, and throttle-until timestamp. Called on
+	 * successful activation and when a lockout expires.
+	 *
+	 * @since 2.0.0
 	 *
 	 * @param int $user_id User ID.
 	 * @return void
 	 */
-	private static function reset_failed_attempts( int $user_id ): void {
-		delete_user_meta( $user_id, self::LOCKOUT_META_KEY );
+	public static function reset_failed_attempts( int $user_id ): void {
+		delete_user_meta( $user_id, self::LOCKOUT_META_KEY ); // Legacy support.
 		delete_user_meta( $user_id, self::LOCKOUT_UNTIL_META_KEY );
+		delete_user_meta( $user_id, self::FAILURE_EVENT_META_KEY );
+		delete_user_meta( $user_id, self::THROTTLE_UNTIL_META_KEY );
 	}
 }

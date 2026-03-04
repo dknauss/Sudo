@@ -25,6 +25,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  */
 class Challenge {
 
+
 	/**
 	 * Nonce action for challenge authentication.
 	 *
@@ -231,7 +232,8 @@ class Challenge {
 				<div id="wp-sudo-challenge-password-step">
 					<?php if ( $is_locked ) : ?>
 						<div class="notice notice-warning inline" role="alert">
-							<p><?php esc_html_e( 'Too many failed attempts. The form is temporarily disabled. Please wait and try again.', 'wp-sudo' ); ?></p>
+							<p><?php esc_html_e( 'Too many failed attempts. The form is temporarily disabled. Please wait and try again.', 'wp-sudo' ); ?>
+							</p>
 						</div>
 					<?php endif; ?>
 
@@ -244,21 +246,11 @@ class Challenge {
 							<label for="wp-sudo-challenge-password">
 								<?php esc_html_e( 'Password', 'wp-sudo' ); ?>
 							</label><br />
-							<input
-								type="password"
-								id="wp-sudo-challenge-password"
-								class="regular-text"
-								autocomplete="current-password"
-								aria-describedby="wp-sudo-challenge-error"
-								required
-								<?php echo $is_locked ? 'disabled' : 'autofocus'; ?>
-							/>
+							<input type="password" id="wp-sudo-challenge-password" class="regular-text"
+								autocomplete="current-password" aria-describedby="wp-sudo-challenge-error" required <?php echo $is_locked ? 'disabled' : 'autofocus'; ?> />
 						</p>
 						<p class="submit">
-							<button type="submit"
-								class="button button-primary"
-								id="wp-sudo-challenge-submit"
-								<?php disabled( $is_locked ); ?>>
+							<button type="submit" class="button button-primary" id="wp-sudo-challenge-submit" <?php disabled( $is_locked ); ?>>
 								<?php esc_html_e( 'Confirm & Continue', 'wp-sudo' ); ?>
 							</button>
 							<a href="<?php echo esc_url( $cancel_url ); ?>" class="button">
@@ -274,7 +266,8 @@ class Challenge {
 						<?php esc_html_e( 'Two-Factor Authentication', 'wp-sudo' ); ?>
 					</h2>
 
-					<div class="notice notice-error inline" id="wp-sudo-challenge-2fa-error" hidden role="alert" aria-atomic="true">
+					<div class="notice notice-error inline" id="wp-sudo-challenge-2fa-error" hidden role="alert"
+						aria-atomic="true">
 						<p></p>
 					</div>
 
@@ -298,9 +291,7 @@ class Challenge {
 						do_action( 'wp_sudo_render_two_factor_fields', $user );
 						?>
 						<p class="submit">
-							<button type="submit"
-								class="button button-primary"
-								id="wp-sudo-challenge-2fa-submit">
+							<button type="submit" class="button button-primary" id="wp-sudo-challenge-2fa-submit">
 								<?php esc_html_e( 'Confirm & Continue', 'wp-sudo' ); ?>
 							</button>
 							<a href="<?php echo esc_url( $cancel_url ); ?>" class="button">
@@ -394,6 +385,14 @@ class Challenge {
 				);
 				break;
 
+			case 'invalid_password':
+				$data = array( 'message' => __( 'Incorrect password. Please try again.', 'wp-sudo' ) );
+				if ( ! empty( $result['delay'] ) ) {
+					$data['delay'] = (int) $result['delay'];
+				}
+				wp_send_json_error( $data, 401 );
+				break;
+
 			default:
 				wp_send_json_error(
 					array( 'message' => __( 'Incorrect password. Please try again.', 'wp-sudo' ) ),
@@ -427,7 +426,39 @@ class Challenge {
 			);
 		}
 
-		$stash_key = self::sanitize_input_string( $_POST['stash_key'] ?? '' ); // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce verified above; sanitized in helper.
+			$throttle_delay = Sudo_Session::throttle_remaining( $user_id );
+		if ( $throttle_delay > 0 ) {
+			wp_send_json_error(
+				array(
+					'message' => sprintf(
+						/* translators: %d: seconds remaining */
+						__( 'Too many attempts. Please wait %d seconds.', 'wp-sudo' ),
+						$throttle_delay
+					),
+					'code'    => 'throttled',
+					'delay'   => $throttle_delay,
+				),
+				429
+			);
+		}
+
+		if ( Sudo_Session::is_locked_out( $user_id ) ) {
+			$remaining = max( 0, (int) get_user_meta( $user_id, Sudo_Session::LOCKOUT_UNTIL_META_KEY, true ) - time() );
+			wp_send_json_error(
+				array(
+					'message'   => sprintf(
+						/* translators: %d: seconds remaining */
+						__( 'Too many failed attempts. Please wait %d seconds.', 'wp-sudo' ),
+						$remaining
+					),
+					'code'      => 'locked_out',
+					'remaining' => $remaining,
+				),
+				429
+			);
+		}
+
+			$stash_key = self::sanitize_input_string( $_POST['stash_key'] ?? '' ); // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce verified above; sanitized in helper.
 
 		$valid = false;
 
@@ -453,10 +484,34 @@ class Challenge {
 		$valid = (bool) apply_filters( 'wp_sudo_validate_two_factor', $valid, $user );
 
 		if ( ! $valid ) {
-			wp_send_json_error(
-				array( 'message' => __( 'Invalid authentication code. Please try again.', 'wp-sudo' ) ),
-				401
+			$delay = Sudo_Session::record_failed_attempt( $user_id );
+
+			$lockout_until = (int) get_user_meta( $user_id, Sudo_Session::LOCKOUT_UNTIL_META_KEY, true );
+			if ( $lockout_until > time() ) {
+				$remaining = max( 0, $lockout_until - time() );
+				wp_send_json_error(
+					array(
+						'message'   => sprintf(
+							/* translators: %d: seconds remaining */
+							__( 'Too many failed attempts. Please wait %d seconds.', 'wp-sudo' ),
+							$remaining
+						),
+						'code'      => 'locked_out',
+						'remaining' => $remaining,
+					),
+					429
+				);
+			}
+
+			$data = array(
+				'message' => __( 'Invalid authentication code. Please try again.', 'wp-sudo' ),
+				'code'    => 'invalid_two_factor',
 			);
+			if ( $delay > 0 ) {
+				$data['delay'] = $delay;
+			}
+
+			wp_send_json_error( $data, 401 );
 		}
 
 		Sudo_Session::clear_2fa_pending();
