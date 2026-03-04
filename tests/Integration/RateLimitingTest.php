@@ -2,12 +2,8 @@
 /**
  * Integration tests for rate limiting — real user meta in the database.
  *
- * Tests 1–3 use only attempts 1–3 (zero sleep() penalty).
- * Tests 4–6 directly set lockout meta to simulate state without
- * triggering record_failed_attempt().
- *
- * The wp_sudo_lockout hook test with real attempt 5 (5s sleep) lives
- * in AuditHooksTest (@group slow) — one test only.
+ * Tests use the append-row failure event model (add_user_meta) and
+ * non-blocking throttle semantics. No sleep() calls are involved.
  *
  * @covers \WP_Sudo\Sudo_Session
  * @package WP_Sudo\Tests\Integration
@@ -20,11 +16,11 @@ use WP_Sudo\Sudo_Session;
 class RateLimitingTest extends TestCase {
 
 	/**
-	 * SURF-05: Failed attempts increment user meta 1 → 2 → 3.
+	 * SURF-05: Failed attempts increment via append-row event tracking.
 	 *
-	 * Three wrong-password calls via attempt_activation(). Each increments
-	 * the _wp_sudo_failed_attempts user meta by 1. No sleep penalty for
-	 * attempts 1–3 (PROGRESSIVE_DELAYS only kicks in at 4).
+	 * Three wrong-password calls via attempt_activation(). Each appends a
+	 * failure event row via add_user_meta(). get_failed_attempts() derives
+	 * the count from the number of rows.
 	 */
 	public function test_failed_attempts_increment_user_meta(): void {
 		$user = $this->make_admin( 'correct-password' );
@@ -32,23 +28,23 @@ class RateLimitingTest extends TestCase {
 
 		Sudo_Session::attempt_activation( $user->ID, 'wrong' );
 		$this->assertSame(
-			'1',
-			get_user_meta( $user->ID, Sudo_Session::LOCKOUT_META_KEY, true ),
-			'After 1 failed attempt, meta should be 1.'
+			1,
+			Sudo_Session::get_failed_attempts( $user->ID ),
+			'After 1 failed attempt, event count should be 1.'
 		);
 
 		Sudo_Session::attempt_activation( $user->ID, 'wrong' );
 		$this->assertSame(
-			'2',
-			get_user_meta( $user->ID, Sudo_Session::LOCKOUT_META_KEY, true ),
-			'After 2 failed attempts, meta should be 2.'
+			2,
+			Sudo_Session::get_failed_attempts( $user->ID ),
+			'After 2 failed attempts, event count should be 2.'
 		);
 
 		Sudo_Session::attempt_activation( $user->ID, 'wrong' );
 		$this->assertSame(
-			'3',
-			get_user_meta( $user->ID, Sudo_Session::LOCKOUT_META_KEY, true ),
-			'After 3 failed attempts, meta should be 3.'
+			3,
+			Sudo_Session::get_failed_attempts( $user->ID ),
+			'After 3 failed attempts, event count should be 3.'
 		);
 	}
 
@@ -65,9 +61,9 @@ class RateLimitingTest extends TestCase {
 	}
 
 	/**
-	 * SURF-05: Successful activation resets failed attempt counter.
+	 * SURF-05: Successful activation resets all failure tracking.
 	 *
-	 * 2 failed attempts → 1 success → meta cleared.
+	 * 2 failed attempts → 1 success → failure events + throttle cleared.
 	 */
 	public function test_successful_activation_resets_failed_attempts(): void {
 		$password = 'correct-password';
@@ -77,27 +73,26 @@ class RateLimitingTest extends TestCase {
 		// 2 failed attempts.
 		Sudo_Session::attempt_activation( $user->ID, 'wrong' );
 		Sudo_Session::attempt_activation( $user->ID, 'wrong' );
-		$this->assertSame(
-			'2',
-			get_user_meta( $user->ID, Sudo_Session::LOCKOUT_META_KEY, true )
-		);
+		$this->assertSame( 2, Sudo_Session::get_failed_attempts( $user->ID ) );
 
 		// Successful activation.
 		$result = Sudo_Session::attempt_activation( $user->ID, $password );
 		$this->assertSame( 'success', $result['code'] );
 
-		// Counter should be reset.
+		// All failure tracking should be reset.
+		$this->assertSame(
+			0,
+			Sudo_Session::get_failed_attempts( $user->ID ),
+			'Failure event count should be 0 after successful activation.'
+		);
 		$this->assertEmpty(
-			get_user_meta( $user->ID, Sudo_Session::LOCKOUT_META_KEY, true ),
-			'Failed attempts meta should be cleared after successful activation.'
+			get_user_meta( $user->ID, Sudo_Session::THROTTLE_UNTIL_META_KEY, true ),
+			'Throttle meta should be cleared after successful activation.'
 		);
 	}
 
 	/**
 	 * SURF-05: is_locked_out() returns true when lockout meta is set to the future.
-	 *
-	 * Directly sets _wp_sudo_lockout_until meta to simulate lockout state
-	 * without triggering sleep() in record_failed_attempt().
 	 */
 	public function test_is_locked_out_with_simulated_lockout_meta(): void {
 		$user = $this->make_admin();
@@ -116,31 +111,81 @@ class RateLimitingTest extends TestCase {
 	}
 
 	/**
-	 * SURF-05: Expired lockout returns false and cleans up meta.
+	 * SURF-05: Expired lockout returns false and cleans up all failure tracking.
 	 *
 	 * Sets lockout timestamp in the past. is_locked_out() should return false
-	 * and reset the failed attempt counters.
+	 * and reset failure events, throttle, and lockout meta.
 	 */
 	public function test_expired_lockout_returns_false_and_resets(): void {
 		$user = $this->make_admin();
 
-		// Simulate an expired lockout (1 minute in the past).
+		// Simulate an expired lockout with failure event rows.
 		update_user_meta( $user->ID, Sudo_Session::LOCKOUT_UNTIL_META_KEY, time() - 60 );
-		update_user_meta( $user->ID, Sudo_Session::LOCKOUT_META_KEY, 5 );
+		for ( $i = 0; $i < 5; $i++ ) {
+			add_user_meta( $user->ID, Sudo_Session::FAILURE_EVENT_META_KEY, time() - 120, false );
+		}
 
 		$this->assertFalse(
 			Sudo_Session::is_locked_out( $user->ID ),
 			'is_locked_out() should return false for expired lockout.'
 		);
 
-		// Meta should be cleaned up.
-		$this->assertEmpty(
-			get_user_meta( $user->ID, Sudo_Session::LOCKOUT_META_KEY, true ),
-			'Failed attempts meta should be reset after expired lockout.'
+		// All failure tracking should be cleaned up.
+		$this->assertSame(
+			0,
+			Sudo_Session::get_failed_attempts( $user->ID ),
+			'Failure event rows should be cleared after expired lockout.'
 		);
 		$this->assertEmpty(
 			get_user_meta( $user->ID, Sudo_Session::LOCKOUT_UNTIL_META_KEY, true ),
 			'Lockout-until meta should be reset after expired lockout.'
+		);
+	}
+
+	/**
+	 * Non-blocking throttle: attempt during active throttle returns delay.
+	 *
+	 * Deterministically sets THROTTLE_UNTIL_META_KEY to a known future
+	 * timestamp, then verifies attempt_activation returns immediately
+	 * with delay metadata and does not trigger lockout.
+	 */
+	public function test_retry_during_throttle_window_returns_delay(): void {
+		$user = $this->make_admin( 'correct-password' );
+		wp_set_current_user( $user->ID );
+
+		// Directly set throttle meta — deterministic, no wall-clock dependency.
+		update_user_meta( $user->ID, Sudo_Session::THROTTLE_UNTIL_META_KEY, time() + 10 );
+
+		$result = Sudo_Session::attempt_activation( $user->ID, 'wrong-password' );
+
+		$this->assertSame( 'invalid_password', $result['code'], 'Throttled attempt should return invalid_password.' );
+		$this->assertArrayHasKey( 'delay', $result, 'Throttled response should include delay.' );
+		$this->assertGreaterThan( 0, $result['delay'], 'Delay should be positive.' );
+		$this->assertFalse(
+			Sudo_Session::is_locked_out( $user->ID ),
+			'Throttled attempt should not trigger lockout.'
+		);
+	}
+
+	/**
+	 * Throttle window skips password check — even correct password is rejected.
+	 */
+	public function test_throttle_window_skips_password_check(): void {
+		$password = 'correct-password';
+		$user     = $this->make_admin( $password );
+		wp_set_current_user( $user->ID );
+
+		// Set active throttle.
+		update_user_meta( $user->ID, Sudo_Session::THROTTLE_UNTIL_META_KEY, time() + 10 );
+
+		// Even the correct password should be rejected with delay.
+		$result = Sudo_Session::attempt_activation( $user->ID, $password );
+
+		$this->assertSame( 'invalid_password', $result['code'], 'Correct password should be rejected during throttle.' );
+		$this->assertArrayHasKey( 'delay', $result );
+		$this->assertFalse(
+			Sudo_Session::is_active( $user->ID ),
+			'Session should not be active when throttled.'
 		);
 	}
 

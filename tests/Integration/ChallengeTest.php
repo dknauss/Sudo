@@ -137,6 +137,10 @@ class ChallengeTest extends TestCase {
 		// Not yet locked out.
 		$this->assertFalse( Sudo_Session::is_locked_out( $user->ID ), 'Should not be locked out before final attempt.' );
 
+		// Attempt 4 sets a throttle window. Clear it so the 5th attempt
+		// actually processes the password instead of being short-circuited.
+		delete_user_meta( $user->ID, Sudo_Session::THROTTLE_UNTIL_META_KEY );
+
 		// The MAX_FAILED_ATTEMPTS-th attempt triggers lockout.
 		$result = Sudo_Session::attempt_activation( $user->ID, 'wrong-password' );
 		$this->assertSame( 'locked_out', $result['code'], 'Final attempt should trigger lockout.' );

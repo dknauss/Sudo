@@ -128,17 +128,18 @@ class AuditHooksTest extends TestCase {
 	 * SURF-04: wp_sudo_lockout fires with (user_id, attempt_count=5) when
 	 * the lockout threshold is reached.
 	 *
-	 * Pre-sets meta to 4 failed attempts, then one more triggers lockout.
-	 * The progressive delay at attempt 5 is sleep(5), so this test is slow.
-	 *
-	 * @group slow
+	 * Pre-sets failure events to 4 via add_user_meta append rows,
+	 * then one more attempt triggers lockout. Non-blocking model
+	 * means no sleep() delay.
 	 */
 	public function test_lockout_hook_receives_user_id_and_count(): void {
 		$user = $this->make_admin( 'correct-password' );
 		wp_set_current_user( $user->ID );
 
-		// Pre-set failed attempts to 4 (just below lockout threshold).
-		update_user_meta( $user->ID, Sudo_Session::LOCKOUT_META_KEY, 4 );
+		// Pre-set 4 failure event rows (just below lockout threshold).
+		for ( $i = 0; $i < 4; $i++ ) {
+			add_user_meta( $user->ID, Sudo_Session::FAILURE_EVENT_META_KEY, time(), false );
+		}
 
 		$captured = array();
 		add_action(
@@ -150,7 +151,7 @@ class AuditHooksTest extends TestCase {
 			2
 		);
 
-		// Attempt 5: triggers lockout (and sleep(5) from progressive delay).
+		// Attempt 5: triggers lockout (no sleep — non-blocking model).
 		Sudo_Session::attempt_activation( $user->ID, 'wrong-password' );
 
 		$this->assertSame( $user->ID, $captured[0] ?? null, 'user_id should match.' );
