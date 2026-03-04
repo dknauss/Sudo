@@ -1,5 +1,36 @@
 # Changelog
 
+## 2.10.2
+
+- **Fix: multisite uninstall orphaned MU-plugin shim and user meta** — when a network-activated plugin was uninstalled, the early-return path skipped `wp_sudo_cleanup_mu_shim()` and `wp_sudo_cleanup_user_meta()`, leaving the shim file and session metadata in the database after plugin deletion. Multisite uninstall now unconditionally cleans all sites and all network-wide data.
+- **Fix: `wp_sudo_version` option not deleted on uninstall** — `wp_sudo_cleanup_site()` deleted four options but missed `wp_sudo_version`, leaving an orphan row. Also added the missing `delete_site_option( 'wp_sudo_role_version' )` to the multisite network cleanup path.
+- **Fix: `Admin::get()` TypeError on PHP 8.2+ with corrupted settings** — `get_option()` returning `false` (from corrupted serialized data) was assigned to a `?array` typed property, causing a TypeError. Now validates the return with `is_array()` and falls back to defaults.
+- **Fix: `Gate::matches_rest()` crash on invalid third-party regex** — third-party filters on `wp_sudo_gated_actions` could inject rules with malformed regex patterns, causing `preg_match()` warnings. New `safe_preg_match()` wrapper catches the warning and fails closed (rule does not match).
+- **Psalm 6.15.1 static analysis** — added alongside PHPStan for dual static analysis. Psalm surfaced the `absint()` → `(int)` cast fix in Admin and the `wp_safe_redirect()` fallback in Gate (both shipped in v2.10.0 but caught by Psalm). Type coverage published to Shepherd.dev on default-branch pushes.
+- **Codecov integration** — unit test coverage uploaded to Codecov on CI runs.
+- **16 new unit tests** closing gaps in CLI cron-policy enforcement, network activation lifecycle, network admin settings save, admin bar deactivation handler, transient storage failures, cookie/token edge cases, and 2FA provider availability.
+- **Dependency bumps** — PHPStan 2.1.40, Yoast PHPUnit Polyfills 4.0.0, actions/checkout v6, actions/cache v5, actions/upload-artifact v7, actions/github-script v8.
+- **CodeQL and Dependabot** — CodeQL JavaScript security scanning enabled; Dependabot version updates for Composer and GitHub Actions.
+- **428 unit tests, 1043 assertions. 92 integration tests in CI.**
+
+## 2.10.1
+
+- **Fix: accessibility audit follow-up** — admin bar countdown polish, docs alignment.
+- **397 unit tests, 944 assertions. 92 integration tests in CI.**
+
+## 2.10.0
+
+- **Feature: WebAuthn gating bridge** — gates WebAuthn key registration and deletion via `wp_sudo_gated_actions` filter when the Two Factor WebAuthn plugin is active.
+- **Fix: WP 7.0 notice CSS** — corrected admin notice styling for WordPress 7.0 compatibility.
+- **Fix: MU-plugin shim respects deactivation** — the loader now checks `active_plugins` / `active_sitewide_plugins` before loading the plugin; inert when deactivated.
+- **Fix: localize app-password JS** — moved inline script to localized data; paginate stale sessions in Site Health; fix return_url handling.
+- **Fix: clamp 2FA window filter** — `wp_sudo_two_factor_window` filter output clamped to documented 1–15 minute bounds.
+- **REST `_wpnonce` fallback** — Gate accepts `_wpnonce` query parameter for REST authentication when cookie nonce header is absent.
+- **Exit path integration tests** — new test suite for security-critical exit paths (REST 403, AJAX 403, admin redirect, challenge auth, grace window).
+- **PCOV coverage CI job** — unit test coverage generation added to CI pipeline.
+- **Docs: NIST SP 800-63B terminology alignment** — reauthentication language updated throughout.
+- **397 unit tests, 944 assertions. 92 integration tests in CI.**
+
 ## 2.9.2
 
 - **Fix: 2FA help text corrected** — `includes/class-admin.php` displayed "The default 2FA window is 10 minutes" but the code default (set in v2.4.0) is `5 * MINUTE_IN_SECONDS`. Help text now reads "5 minutes". The sudo session countdown (admin bar) is a separate, unrelated timer that remains at 15 minutes.

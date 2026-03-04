@@ -9,7 +9,7 @@ Tags:              sudo, security, reauthentication, access control, admin prote
 Requires at least: 6.2
 Tested up to:      7.0
 Requires PHP:      8.0
-Stable tag:        2.10.1
+Stable tag:        2.10.2
 License:           GPL-2.0-or-later
 License URI:       https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -167,6 +167,27 @@ Extensibility: the action registry is filterable via wp_sudo_gated_actions. Nine
 7. Active sudo session — the admin bar shows a green countdown timer.
 
 == Changelog ==
+
+= 2.10.2 =
+* **Fix: multisite uninstall orphaned MU-plugin shim and user meta** — network-activated uninstall now unconditionally cleans all sites and network-wide data.
+* **Fix: `wp_sudo_version` option not deleted on uninstall** — orphan option row left after plugin deletion.
+* **Fix: `Admin::get()` TypeError on PHP 8.2+** — corrupted settings no longer crash; falls back to defaults.
+* **Fix: `Gate::matches_rest()` crash on invalid third-party regex** — new `safe_preg_match()` wrapper fails closed.
+* **Psalm 6.15.1 + Shepherd type coverage** — dual static analysis; 96.7% type inference.
+* **Codecov integration** — unit test coverage uploaded on CI.
+* **16 new unit tests** closing gaps in CLI cron-policy, network activation, settings save, admin bar, transient failures, cookie/token edges, 2FA provider.
+* **428 unit tests, 1043 assertions.**
+
+= 2.10.1 =
+* **Fix: accessibility audit follow-up** — admin bar countdown polish, docs alignment.
+
+= 2.10.0 =
+* **Feature: WebAuthn gating bridge** — gates WebAuthn key registration/deletion when the Two Factor WebAuthn plugin is active.
+* **Fix: MU-plugin shim respects deactivation** — loader checks `active_plugins` before loading; inert when deactivated.
+* **Fix: WP 7.0 notice CSS, 2FA window clamping, app-password JS localization.**
+* **REST `_wpnonce` fallback** — accepts query parameter when cookie nonce header absent.
+* **Exit path integration tests** — REST 403, AJAX 403, admin redirect, challenge auth, grace window.
+* **397 unit tests, 944 assertions.**
 
 = 2.9.2 =
 * **Fix: 2FA help text corrected** — Settings help tab said "default 2FA window is 10 minutes"; code default is 5 minutes. Fixed. (The sudo session countdown is a separate timer and remains at 15 minutes.)

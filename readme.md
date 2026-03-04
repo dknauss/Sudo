@@ -184,7 +184,7 @@ WP Sudo is built for correctness and contributor legibility, not just functional
 
 **Test-driven development.** New code requires a failing test before production code is written. The suite is split into two deliberate tiers:
 
-- **Unit tests** (397 tests, 944 assertions) — use [Brain\Monkey](https://brain-wp.github.io/BrainMonkey/) to mock all WordPress functions. Run in ~0.4s with no database. Cover request matching, session state machine, policy enforcement, and hook registration.
+- **Unit tests** (428 tests, 1043 assertions) — use [Brain\Monkey](https://brain-wp.github.io/BrainMonkey/) to mock all WordPress functions. Run in ~0.5s with no database. Cover request matching, session state machine, policy enforcement, and hook registration.
 - **Integration tests** (92 tests) — run against real WordPress + MySQL via `WP_UnitTestCase`. Cover full reauth flows, bcrypt verification, transient TTL, REST and AJAX gating, Two Factor interaction, multisite session isolation, upgrader migrations, and all 9 audit hooks.
 
 **Static analysis and code style.** PHPStan, Psalm (with WordPress stubs/plugin), and PHPCS (WordPress-Extra + WordPress-Docs + WordPressVIPMinimum) run on every push and pull request via GitHub Actions, alongside the full test matrix (PHP 8.1–8.4, WordPress latest + trunk). A nightly scheduled run catches WordPress trunk regressions early. Type coverage is published to Shepherd on default-branch pushes (`main`/`master`).
@@ -197,12 +197,12 @@ WP Sudo is built for correctness and contributor legibility, not just functional
 
 | Component | Size |
 |---|---|
-| **Production PHP** (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 224 KB · 6,688 lines |
+| **Production PHP** (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 248 KB · 6,846 lines |
 | **Assets** (screenshots, banner images) | 5.0 MB |
-| **Tests** (`tests/`) | 488 KB · 11,555 lines |
+| **Tests** (`tests/`) | 520 KB · 13,504 lines |
 | **Docs** (`docs/` + root-level md/txt) | 432 KB |
-| **Total PHP** (production + tests, excl. vendor) | 18,283 lines |
-| **Test-to-production ratio** | 1.7:1 |
+| **Total PHP** (production + tests, excl. vendor) | 20,390 lines |
+| **Test-to-production ratio** | 2.0:1 |
 
 No production dependencies. Dev dependencies (PHPUnit, PHPStan, Psalm, PHPCS, Brain\Monkey, Mockery) live in `vendor/` and are not shipped.
 
@@ -239,6 +239,36 @@ No production dependencies. Dev dependencies (PHPUnit, PHPStan, Psalm, PHPCS, Br
    ![Active sudo session](assets/screenshot-7.png?v=2)
 
 ## Changelog
+
+### 2.10.2
+
+- **Fix: multisite uninstall orphaned MU-plugin shim and user meta** — network-activated uninstall now unconditionally cleans all sites and network-wide data.
+- **Fix: `wp_sudo_version` option not deleted on uninstall** — orphan option row left after single-site and multisite deletion.
+- **Fix: `Admin::get()` TypeError on PHP 8.2+** — corrupted settings no longer crash; falls back to defaults.
+- **Fix: `Gate::matches_rest()` crash on invalid third-party regex** — new `safe_preg_match()` wrapper fails closed.
+- **Psalm 6.15.1 + Shepherd type coverage** — dual static analysis alongside PHPStan; 96.7% type inference.
+- **Codecov integration** — unit test coverage uploaded on CI.
+- **16 new unit tests** — CLI cron-policy, network activation, network settings save, admin bar, transient failures, cookie/token edges, 2FA provider.
+- **428 unit tests, 1043 assertions. 92 integration tests in CI.**
+
+### 2.10.1
+
+- **Fix: accessibility audit follow-up** — admin bar countdown polish, docs alignment.
+
+### 2.10.0
+
+- **Feature: WebAuthn gating bridge** — gates WebAuthn key registration/deletion when the Two Factor WebAuthn plugin is active.
+- **Fix: MU-plugin shim respects deactivation** — loader checks `active_plugins` before loading; inert when deactivated.
+- **Fix: WP 7.0 notice CSS, 2FA window clamping, app-password JS localization.**
+- **REST `_wpnonce` fallback** — accepts query parameter when cookie nonce header absent.
+- **Exit path integration tests** — REST 403, AJAX 403, admin redirect, challenge auth, grace window.
+- **397 unit tests, 944 assertions. 92 integration tests in CI.**
+
+### 2.9.2
+
+- **Fix: 2FA help text corrected** — Settings help tab said "10 minutes"; code default is 5 minutes.
+- **Fix: version constant drift** — bootstrap files synced to 2.9.2.
+- **397 unit tests, 944 assertions.**
 
 ### 2.9.1
 
