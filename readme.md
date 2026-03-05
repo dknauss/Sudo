@@ -197,16 +197,16 @@ WP Sudo is built for correctness and contributor legibility, not just functional
 
 | Component | Size |
 |---|---|
-| **Production PHP** (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 272 KB · 7,473 lines |
+| **Production PHP** (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 288 KB · 7,823 lines |
 | **Assets** (screenshots, banner images) | 5.0 MB |
-| **Tests** (`tests/`) | 616 KB · 14,869 lines |
+| **Tests** (`tests/`) | 648 KB · 15,539 lines |
 | **Docs** (`docs/` + root-level md/txt) | 348 KB |
-| **Total PHP** (production + tests, excl. vendor) | 22,342 lines |
+| **Total PHP** (production + tests, excl. vendor) | 23,402 lines |
 | **Test-to-production ratio** | 2.0:1 |
 
 No production dependencies. Dev dependencies (PHPUnit, PHPStan, Psalm, PHPCS, Brain\Monkey, Mockery) live in `vendor/` and are not shipped.
 
-*Last updated: 2026-03-04. See CLAUDE.md for the update command.*
+*Last updated: 2026-03-05. See CLAUDE.md for the update command.*
 
 ## Screenshots
 

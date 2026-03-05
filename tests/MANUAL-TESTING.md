@@ -629,6 +629,35 @@ curl -sk "YOUR_SITE_URL/wp-cron.php" -w "HTTP: %{http_code}, body: %{size_downlo
 4. Click **Uninstall** to remove it.
 5. **Expected:** Success message. The mu-plugin file is removed.
 
+### 9.6 MU Loader Resilience (Canonical + Non-Canonical Paths)
+
+1. Install the MU-plugin shim (`wp-content/mu-plugins/wp-sudo-gate.php`) and
+   keep the main plugin active in the default path
+   `wp-content/plugins/wp-sudo/`.
+2. Load an admin page with no active sudo session and trigger a gated action.
+3. **Expected:** Normal challenge flow occurs (loader resolves plugin file and
+   early gate hooks register).
+
+4. Rename the plugin directory to a non-canonical slug (example:
+   `wp-content/plugins/my-security-stack/`) while keeping the plugin active.
+5. Load an admin page and trigger a gated action again.
+6. **Expected:** Challenge flow still works. The MU loader should recognize the
+   active plugin basename ending in `/wp-sudo.php` and remain functional even
+   when the directory is not literally `wp-sudo`.
+
+7. Leave the MU shim installed, but deactivate the main plugin.
+8. Load several admin pages and attempt actions that were previously gated.
+9. **Expected:** Loader is inert when plugin is inactive. No gated challenge
+   flow should be triggered by the shim alone.
+
+10. Force an unresolved loader-path scenario (for example: active plugin entry
+    remains, but main plugin file is unavailable at all loader candidate paths
+    in a disposable dev environment).
+11. Add a temporary listener for:
+    `wp_sudo_mu_loader_unresolved_plugin_path`.
+12. **Expected:** The unresolved-path action fires with candidate file paths,
+    giving operators a diagnosable signal instead of a silent failure.
+
 ---
 
 ## 10. Site Health
@@ -1008,6 +1037,49 @@ curl -sk -H "Content-Type: application/json" \
 
 > **Cleanup:** Restore the WPGraphQL policy to **Limited** after testing. Remove the bypass filter mu-plugin if it was only for testing.
 
+### 16.6 Persisted Queries — Classifier Filter
+
+> Use this when WPGraphQL Persisted Queries (or APQ) is active.
+
+1. Keep WPGraphQL policy at **Limited**.
+2. Add a temporary classifier mu-plugin:
+
+```php
+<?php
+add_filter( 'wp_sudo_wpgraphql_classification', function ( string $classification, string $body ): string {
+    if ( str_contains( $body, 'persisted-mutation-hash' ) ) {
+        return 'mutation';
+    }
+    if ( str_contains( $body, 'persisted-query-hash' ) ) {
+        return 'query';
+    }
+    return $classification;
+}, 10, 2 );
+```
+
+3. Send a persisted-query mutation payload (hash-only body):
+
+```bash
+curl -sk -u "YOUR_USERNAME:YOUR_APP_PASS" \
+  -H "Content-Type: application/json" \
+  -X POST "YOUR_SITE_URL/graphql" \
+  -d '{"extensions":{"persistedQuery":{"version":1,"sha256Hash":"persisted-mutation-hash"}}}'
+```
+
+4. **Expected:** HTTP 403 with `sudo_blocked`.
+5. Send a persisted-query query payload:
+
+```bash
+curl -sk -u "YOUR_USERNAME:YOUR_APP_PASS" \
+  -H "Content-Type: application/json" \
+  -X POST "YOUR_SITE_URL/graphql" \
+  -d '{"extensions":{"persistedQuery":{"version":1,"sha256Hash":"persisted-query-hash"}}}'
+```
+
+6. **Expected:** HTTP 200 (query pass-through).
+
+> **Cleanup:** Remove the temporary classifier mu-plugin after testing.
+
 ---
 
 ## 17. v2.6.0 Feature Verification
@@ -1243,6 +1315,25 @@ curl -sk -X POST "YOUR_SITE_URL/graphql" \
 
 > **Cleanup:** Restore WPGraphQL policy to **Limited**. Remove the
 > mu-plugin listener when testing is complete.
+
+### 19.6 WSAL Sensor Bridge
+
+> Requires WP Activity Log (WSAL) plugin + `bridges/wp-sudo-wsal-sensor.php`
+> copied into `wp-content/mu-plugins/`.
+
+1. Install and activate WP Activity Log.
+2. Copy bridge:
+   `wp-content/plugins/wp-sudo/bridges/wp-sudo-wsal-sensor.php`
+   → `wp-content/mu-plugins/wp-sudo-wsal-sensor.php`
+3. Trigger a blocked action (for example, plugin activation without sudo).
+4. **Expected:** A WSAL event with ID `1900006` is recorded with payload fields
+   including `source=wp-sudo`, `hook=wp_sudo_action_blocked`, `rule_id`, and
+   `surface`.
+5. Activate sudo and repeat on a gated action that is allowed in policy flow.
+6. **Expected:** Corresponding WSAL event IDs fire based on hook type (for
+   example `1900005` gated, `1900007` allowed, `1900008` replayed).
+7. Temporarily deactivate/uninstall WSAL while leaving the bridge file in place.
+8. **Expected:** No fatal errors; bridge remains inert when WSAL APIs are absent.
 
 ---
 

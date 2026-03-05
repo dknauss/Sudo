@@ -4,6 +4,11 @@
 
 Use the `wp_sudo_gated_actions` filter to add custom rules. Each rule defines matching criteria for admin UI (`pagenow`, actions, HTTP method), AJAX (action names), and REST (route patterns, HTTP methods). Custom rules appear in the Gated Actions table on the settings page.
 
+Rule ingestion is normalized before caching. Invalid filtered entries are dropped
+fail-closed per rule (required scalar metadata: `id`, `label`, `category`;
+surface shapes must be array-or-null for `admin`, `ajax`, `rest`). If the
+filter returns a non-array payload, WP Sudo falls back to built-in rules.
+
 All rules — including custom rules — are automatically protected on non-interactive surfaces (WP-CLI, Cron, XML-RPC, Application Passwords) via the configurable policy settings, even if they don't define AJAX or REST criteria. WPGraphQL is gated by its own surface-level policy rather than per-rule matching — in Limited mode, all mutations require a sudo session regardless of which action they perform. See [WPGraphQL Surface](#wpgraphql-surface) below.
 
 ```php
@@ -123,6 +128,31 @@ do_action( 'wp_sudo_action_replayed', int $user_id, string $rule_id );
 do_action( 'wp_sudo_capability_tampered', string $role, string $capability );
 ```
 
+### Optional WSAL Sensor Bridge
+
+WP Sudo ships an optional WSAL bridge at
+`bridges/wp-sudo-wsal-sensor.php`. Install it as an mu-plugin to map
+WP Sudo hooks into WSAL events.
+
+Event mapping:
+
+| WP Sudo hook | WSAL event ID |
+|---|---|
+| `wp_sudo_activated` | `1900001` |
+| `wp_sudo_deactivated` | `1900002` |
+| `wp_sudo_reauth_failed` | `1900003` |
+| `wp_sudo_lockout` | `1900004` |
+| `wp_sudo_action_gated` | `1900005` |
+| `wp_sudo_action_blocked` | `1900006` |
+| `wp_sudo_action_allowed` | `1900007` |
+| `wp_sudo_action_replayed` | `1900008` |
+| `wp_sudo_capability_tampered` | `1900009` |
+
+The bridge is inert when WSAL APIs are unavailable.
+
+Stream parity note: WSAL bridge is first-party in this phase. Stream mapping is
+planned next (same WP Sudo hook source, Stream record writer target).
+
 ## Filters
 
 | Filter | Description |
@@ -132,6 +162,19 @@ do_action( 'wp_sudo_capability_tampered', string $role, string $capability );
 | `wp_sudo_requires_two_factor` | Whether a user needs 2FA for sudo (for third-party 2FA plugins). |
 | `wp_sudo_validate_two_factor` | Validate a 2FA code (for third-party 2FA plugins). |
 | `wp_sudo_render_two_factor_fields` | Render 2FA input fields (for third-party 2FA plugins). |
+| `wp_sudo_wpgraphql_classification` | Classify WPGraphQL body as `mutation` or `query` (persisted-query support). |
+| `wp_sudo_wpgraphql_bypass` | Bypass WPGraphQL Limited-mode gating for specific requests. |
+
+## MU Loader Diagnostics Hook
+
+When the optional MU loader cannot resolve the main plugin file path, it emits:
+
+```php
+do_action( 'wp_sudo_mu_loader_unresolved_plugin_path', array $file_candidates );
+```
+
+Use this for operational visibility on non-canonical plugin layouts or broken
+deploy states where the shim is present but the main plugin path is unresolved.
 
 ## Testing
 
@@ -185,7 +228,25 @@ WP Sudo adds WPGraphQL as a fifth non-interactive surface alongside WP-CLI, Cron
 
 **Headless deployments.** The Limited policy requires both a recognized WordPress user and an active sudo session cookie. For frontends running at a different origin, this means mutations will be blocked in most configurations — the sudo session cookie is browser-bound and can only be created via the WordPress admin UI. See [WPGraphQL: Headless Authentication Boundary](security-model.md#wpgraphql-headless-authentication-boundary) in the security model for full details and per-deployment policy recommendations.
 
-**Persisted queries.** The `str_contains($body, 'mutation')` heuristic does not detect mutations sent via WPGraphQL's Persisted Queries extension. Use the Disabled policy if mutation blocking is a hard security requirement in a persisted-query environment.
+**Persisted queries.** The default `str_contains($body, 'mutation')` heuristic does not detect mutations sent via WPGraphQL Persisted Queries (body contains only hash/ID). Use `wp_sudo_wpgraphql_classification` to classify persisted requests as mutation/query. If you do not provide classifier coverage and strict blocking is required, use Disabled policy.
+
+### `wp_sudo_wpgraphql_classification` filter
+
+Classifies a GraphQL request body as mutation or query before the legacy
+heuristic is used.
+
+```php
+/**
+ * @param string $classification '' by default; return 'mutation' or 'query'.
+ * @param string $body           The raw GraphQL request body.
+ * @return string
+ */
+apply_filters( 'wp_sudo_wpgraphql_classification', '', $body );
+```
+
+- Return `'mutation'` to force mutation handling.
+- Return `'query'` to force non-mutation handling.
+- Return any other value to fall back to default body-string heuristic.
 
 ### `wp_sudo_wpgraphql_bypass` filter
 

@@ -91,13 +91,11 @@ if ( ! function_exists( 'wp_sudo_wsal_bridge_emit' ) ) {
 	function wp_sudo_wsal_bridge_emit( int $event_id, array $payload ): void {
 		if ( class_exists( '\WSAL\Controllers\Alert_Manager' ) ) {
 			if ( method_exists( '\WSAL\Controllers\Alert_Manager', 'trigger_event' ) ) {
-				/** @psalm-suppress UndefinedClass */
 				\WSAL\Controllers\Alert_Manager::trigger_event( $event_id, $payload );
 				return;
 			}
 
 			if ( method_exists( '\WSAL\Controllers\Alert_Manager', 'Trigger' ) ) {
-				/** @psalm-suppress UndefinedClass */
 				\WSAL\Controllers\Alert_Manager::Trigger( $event_id, $payload );
 				return;
 			}
@@ -133,7 +131,6 @@ $wp_sudo_wsal_event_map = array(
 );
 
 foreach ( $wp_sudo_wsal_event_map as $hook => $meta ) {
-	/** @psalm-suppress HookNotFound */
 	add_action(
 		$hook,
 		static function ( ...$args ) use ( $hook, $meta ): void {

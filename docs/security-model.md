@@ -109,7 +109,9 @@ HTTP POST /graphql
 
 WP Sudo adds WPGraphQL as a fifth non-interactive surface with the same three-tier policy model (Disabled / Limited / Unrestricted) as WP-CLI, Cron, XML-RPC, and Application Passwords. The default is **Limited**.
 
-**Mutation detection heuristic.** In Limited mode, WP Sudo checks whether the POST body contains the word `mutation`. This is a deliberately blunt heuristic — it cannot false-negative on a standard inline GraphQL mutation, but it may false-positive on a query that mentions `mutation` in a string argument. The tradeoff is intentional: safe to over-block (for inline queries), and independent of WPGraphQL's schema. **Exception: persisted queries.** When using the WPGraphQL Persisted Queries extension (or Automatic Persisted Queries), the POST body contains only a query ID or hash — the word `mutation` never appears. The heuristic cannot detect these. If your environment uses persisted queries and mutation gating is a security requirement, use the **Disabled** policy rather than relying on Limited.
+**Mutation detection heuristic.** In Limited mode, WP Sudo checks whether the POST body contains the word `mutation` unless a classifier override is provided. This remains a deliberately blunt default heuristic — it cannot false-negative on a standard inline GraphQL mutation, but it may false-positive on a query that mentions `mutation` in a string argument. The tradeoff is intentional: safe to over-block (for inline queries), and independent of WPGraphQL's schema.
+
+**Persisted queries.** When using WPGraphQL Persisted Queries (or APQ), the request body often contains only a query hash/ID. Use the `wp_sudo_wpgraphql_classification` filter to classify those requests as `mutation` or `query`. Without classifier coverage, persisted mutations can appear as non-mutations under the default heuristic. If strict mutation blocking is required and classifier coverage is not feasible, use the **Disabled** policy.
 
 **Scope.** WPGraphQL core exposes `deleteUser`, `updateUser`, `createUser`, and related mutations that map directly to gated operations. Third-party WPGraphQL extensions may add further mutations. The surface-level policy gates all mutations uniformly without requiring a schema-coupled rule set.
 
@@ -147,6 +149,7 @@ For headless deployments that need to gate mutations by authentication — requi
 - **Cookies** — sudo session tokens require secure httponly cookies. Reverse proxies that strip or rewrite `Set-Cookie` headers may break session binding. Ensure the proxy passes cookies through to PHP.
 - **Object cache** — user meta reads go through `get_user_meta()`, which may be served from an object cache (Redis, Memcached). Standard WordPress cache invalidation handles this correctly, but custom or misconfigured cache setups can cause issues. See [Caching Considerations](#caching-considerations) for a full risk analysis.
 - **Surface detection** — the gate relies on WordPress constants (`REST_REQUEST`, `DOING_CRON`, `WP_CLI`, `XMLRPC_REQUEST`) set by WordPress core before plugin code runs. These constants are stable across all standard WordPress hosting environments.
+- **MU loader path resolution** — the loader resolves multiple basename/path candidates (configured basename, loader-derived basename, canonical fallback). If none resolve, it fails safely and emits `wp_sudo_mu_loader_unresolved_plugin_path` for diagnostics.
 
 ## Caching Considerations
 

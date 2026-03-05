@@ -2460,6 +2460,110 @@ class GateTest extends TestCase {
 		unset( $_COOKIE[ Sudo_Session::TOKEN_COOKIE ] );
 	}
 
+	// ── WPGraphQL persisted-query classification ─────────────────────
+
+	/**
+	 * Test classifier can force persisted payload to mutation handling.
+	 */
+	public function test_check_wpgraphql_blocks_persisted_payload_when_classifier_marks_mutation(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'get_option' )->justReturn( array( 'wpgraphql_policy' => 'limited' ) );
+		Functions\when( 'get_current_user_id' )->justReturn( 1 );
+		Functions\when( 'get_user_meta' )->justReturn( 0 );
+		Functions\when( 'apply_filters' )->alias(
+			static function ( $hook, $value, $body = '' ) {
+				if ( 'wp_sudo_wpgraphql_bypass' === $hook ) {
+					return false;
+				}
+				if ( 'wp_sudo_wpgraphql_classification' === $hook ) {
+					return 'mutation';
+				}
+				return $value;
+			}
+		);
+
+		Actions\expectDone( 'wp_sudo_action_blocked' )
+			->once()
+			->with( 1, 'wpgraphql', 'wpgraphql' );
+
+		$result = $this->gate->check_wpgraphql( '{"id":"persisted-op"}' );
+
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( 'sudo_blocked', $result->get_error_code() );
+	}
+
+	/**
+	 * Test classifier can force persisted payload to query handling.
+	 */
+	public function test_check_wpgraphql_allows_persisted_payload_when_classifier_marks_query(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'get_option' )->justReturn( array( 'wpgraphql_policy' => 'limited' ) );
+		Functions\when( 'get_current_user_id' )->justReturn( 1 );
+		Functions\when( 'get_user_meta' )->justReturn( 0 );
+		Functions\when( 'apply_filters' )->alias(
+			static function ( $hook, $value, $body = '' ) {
+				if ( 'wp_sudo_wpgraphql_bypass' === $hook ) {
+					return false;
+				}
+				if ( 'wp_sudo_wpgraphql_classification' === $hook ) {
+					return 'query';
+				}
+				return $value;
+			}
+		);
+
+		$this->assertNull( $this->gate->check_wpgraphql( '{"id":"persisted-op"}' ) );
+	}
+
+	/**
+	 * Test unknown classifier output falls back to legacy mutation heuristic.
+	 */
+	public function test_check_wpgraphql_classifier_unknown_falls_back_to_heuristic(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'get_option' )->justReturn( array( 'wpgraphql_policy' => 'limited' ) );
+		Functions\when( 'get_current_user_id' )->justReturn( 1 );
+		Functions\when( 'get_user_meta' )->justReturn( 0 );
+		Functions\when( 'apply_filters' )->alias(
+			static function ( $hook, $value, $body = '' ) {
+				if ( 'wp_sudo_wpgraphql_bypass' === $hook ) {
+					return false;
+				}
+				if ( 'wp_sudo_wpgraphql_classification' === $hook ) {
+					return 'unknown';
+				}
+				return $value;
+			}
+		);
+
+		$result = $this->gate->check_wpgraphql( '{"query":"mutation { updatePost(input:{id:1}) { post { id } } }"}' );
+
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( 'sudo_blocked', $result->get_error_code() );
+	}
+
+	/**
+	 * Test bypass filter still short-circuits even when classifier is present.
+	 */
+	public function test_check_wpgraphql_bypass_still_short_circuits_with_classifier_present(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'get_option' )->justReturn( array( 'wpgraphql_policy' => 'limited' ) );
+		Functions\when( 'get_current_user_id' )->justReturn( 1 );
+		Functions\when( 'get_user_meta' )->justReturn( 0 );
+		Functions\when( 'apply_filters' )->alias(
+			static function ( $hook, $value, $body = '' ) {
+				if ( 'wp_sudo_wpgraphql_bypass' === $hook ) {
+					return true;
+				}
+				if ( 'wp_sudo_wpgraphql_classification' === $hook ) {
+					return 'mutation';
+				}
+				return $value;
+			}
+		);
+
+		$this->assertNull( $this->gate->check_wpgraphql( '{"id":"persisted-op"}' ) );
+	}
+
 	// ── get_app_password_policy() — per-app-password overrides ───────
 
 	/**

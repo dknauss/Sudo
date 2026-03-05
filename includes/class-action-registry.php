@@ -704,7 +704,7 @@ class Action_Registry {
 				continue;
 			}
 
-			/** @var array<string, mixed> $rule */
+			// Type-safe after is_valid_rule() check.
 			$rule['id']       = (string) $rule['id'];
 			$rule['label']    = (string) $rule['label'];
 			$rule['category'] = (string) $rule['category'];

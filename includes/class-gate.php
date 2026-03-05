@@ -923,7 +923,7 @@ class Gate {
 
 		// Unrestricted: pass everything through; audit mutations only.
 		if ( self::POLICY_UNRESTRICTED === $policy ) {
-			if ( str_contains( $body, 'mutation' ) ) {
+			if ( $this->is_wpgraphql_mutation( $body ) ) {
 				/** This action is documented in includes/class-gate.php */
 				do_action( 'wp_sudo_action_allowed', get_current_user_id(), 'wpgraphql', 'wpgraphql' );
 			}
@@ -963,7 +963,7 @@ class Gate {
 			return null;
 		}
 
-		if ( ! str_contains( $body, 'mutation' ) ) {
+		if ( ! $this->is_wpgraphql_mutation( $body ) ) {
 			return null; // Not a mutation — pass through.
 		}
 
@@ -989,6 +989,53 @@ class Gate {
 			__( 'This GraphQL mutation requires sudo. Activate a sudo session and try again.', 'wp-sudo' ),
 			array( 'status' => 403 )
 		);
+	}
+
+	/**
+	 * Determine whether a WPGraphQL request body should be treated as mutation.
+	 *
+	 * Applies the optional classifier filter first. Supported return values:
+	 * - 'mutation': treat as mutation.
+	 * - 'query': treat as non-mutation.
+	 * Any other value falls back to the legacy heuristic (`str_contains`).
+	 *
+	 * @since 2.10.3
+	 *
+	 * @param string $body Raw GraphQL request body.
+	 * @return bool
+	 */
+	private function is_wpgraphql_mutation( string $body ): bool {
+		/**
+		 * Classify a WPGraphQL request body as mutation or query.
+		 *
+		 * Return 'mutation' to force mutation handling, or 'query' to force
+		 * query handling. Any other return value falls back to the default
+		 * body-string heuristic.
+		 *
+		 * Useful for persisted-query setups where the request body does not
+		 * include inline GraphQL text (and therefore cannot be detected by a
+		 * plain "mutation" substring check).
+		 *
+		 * @since 2.10.3
+		 *
+		 * @param string $classification Classification hint. Default ''.
+		 * @param string $body           Raw GraphQL request body.
+		 */
+		$classification = apply_filters( 'wp_sudo_wpgraphql_classification', '', $body );
+
+		if ( is_string( $classification ) ) {
+			$classification = strtolower( trim( $classification ) );
+
+			if ( 'mutation' === $classification ) {
+				return true;
+			}
+
+			if ( 'query' === $classification ) {
+				return false;
+			}
+		}
+
+		return str_contains( $body, 'mutation' );
 	}
 
 	/**

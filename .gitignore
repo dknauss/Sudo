@@ -19,6 +19,10 @@ Thumbs.db
 *~
 .idea/
 
+# Temporary caches and test artifacts
+.composer_cache/
+vendor_test/
+
 # Agent stuff (Claude / LLMs)
 .claude/
 

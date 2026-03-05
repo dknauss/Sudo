@@ -35,8 +35,8 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 03-01-PLAN.md — Core TDD: normalize/validate filtered rules in `Action_Registry::get_rules()` and drop invalid rules fail-closed (Wave 1)
-- [ ] 03-02-PLAN.md — MU-loader TDD: remove hardcoded basename/path assumptions and add resilient fallback resolution (Wave 2)
+- [x] 03-01-PLAN.md — Core TDD: normalize/validate filtered rules in `Action_Registry::get_rules()` and drop invalid rules fail-closed (Wave 1)
+- [x] 03-02-PLAN.md — MU-loader TDD: remove hardcoded basename/path assumptions and add resilient fallback resolution (Wave 2)
 - [ ] 03-03-PLAN.md — Integration + docs + full-gate verification for Phase 3 contracts (Wave 3)
 
 ### Phase 4: WPGraphQL Persisted Query Strategy and WSAL Sensor
@@ -45,6 +45,6 @@ Plans:
 **Plans:** 3 plans
 
 Plans:
-- [ ] 04-01-PLAN.md — WPGraphQL TDD: add persisted-query classification strategy with preserved secure fallback behavior (Wave 1; depends on Phase 3)
-- [ ] 04-02-PLAN.md — WSAL TDD: implement optional WSAL sensor bridge mapped from existing WP Sudo audit hooks (Wave 2)
+- [x] 04-01-PLAN.md — WPGraphQL TDD: add persisted-query classification strategy with preserved secure fallback behavior (Wave 1; depends on Phase 3)
+- [x] 04-02-PLAN.md — WSAL TDD: implement optional WSAL sensor bridge mapped from existing WP Sudo audit hooks (Wave 2)
 - [ ] 04-03-PLAN.md — Integration + docs + manual verification + full-gate closure for Phase 4 deliverables (Wave 3)

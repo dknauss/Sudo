@@ -198,6 +198,22 @@
       <code><![CDATA[\WP2FA\Admin\Helpers\User_Helper]]></code>
     </UndefinedClass>
   </file>
+  <file src="bridges/wp-sudo-wsal-sensor.php">
+    <HookNotFound>
+      <code><![CDATA[add_action(
+		$hook,
+		static function ( ...$args ) use ( $hook, $meta ): void {
+			$payload = wp_sudo_wsal_bridge_event_payload( $hook, $args );
+			wp_sudo_wsal_bridge_emit( (int) $meta['event_id'], $payload );
+		},
+		10,
+		(int) $meta['accepted_args']
+	)]]></code>
+    </HookNotFound>
+    <UndefinedClass>
+      <code><![CDATA[\WSAL\Controllers\Alert_Manager]]></code>
+    </UndefinedClass>
+  </file>
   <file src="includes/class-admin.php">
     <InvalidArgument>
       <code><![CDATA[(array) $input]]></code>

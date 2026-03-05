@@ -560,6 +560,95 @@ class PluginTest extends TestCase {
 	}
 
 	// -----------------------------------------------------------------
+	// MU loader resilience
+	// -----------------------------------------------------------------
+
+	public function test_mu_loader_registers_when_active_plugin_matches_defined_basename(): void {
+		Functions\when( 'is_multisite' )->justReturn( false );
+		Functions\when( 'get_site_option' )->justReturn( array() );
+		Functions\when( 'get_option' )->alias(
+			function ( string $key, $default = array() ) {
+				if ( 'active_plugins' === $key ) {
+					return array( WP_SUDO_PLUGIN_BASENAME );
+				}
+				return $default;
+			}
+		);
+
+		Functions\expect( 'add_action' )->once();
+
+		$this->include_mu_loader_file();
+	}
+
+	public function test_mu_loader_basename_builder_falls_back_when_defined_basename_missing(): void {
+		Functions\when( 'is_multisite' )->justReturn( false );
+		Functions\when( 'get_site_option' )->justReturn( array() );
+		Functions\when( 'get_option' )->justReturn( array() );
+		Functions\when( 'add_action' )->justReturn( true );
+
+		$this->include_mu_loader_file();
+
+		$candidates = \wp_sudo_loader_build_basename_candidates( null, 'renamed-sudo' );
+
+		$this->assertContains( 'renamed-sudo/wp-sudo.php', $candidates );
+		$this->assertContains( 'wp-sudo/wp-sudo.php', $candidates );
+		$this->assertSame( 'renamed-sudo/wp-sudo.php', $candidates[0] );
+	}
+
+	public function test_mu_loader_registers_for_non_canonical_plugin_slug(): void {
+		Functions\when( 'is_multisite' )->justReturn( false );
+		Functions\when( 'get_site_option' )->justReturn( array() );
+		Functions\when( 'get_option' )->alias(
+			function ( string $key, $default = array() ) {
+				if ( 'active_plugins' === $key ) {
+					return array( 'my-security-stack/wp-sudo.php' );
+				}
+				return $default;
+			}
+		);
+
+		Functions\expect( 'add_action' )->once();
+
+		$this->include_mu_loader_file();
+	}
+
+	public function test_mu_loader_stays_inert_when_no_active_match_is_found(): void {
+		Functions\when( 'is_multisite' )->justReturn( false );
+		Functions\when( 'get_site_option' )->justReturn( array() );
+		Functions\when( 'get_option' )->alias(
+			function ( string $key, $default = array() ) {
+				if ( 'active_plugins' === $key ) {
+					return array( 'akismet/akismet.php' );
+				}
+				return $default;
+			}
+		);
+
+		Functions\expect( 'add_action' )->never();
+
+		$this->include_mu_loader_file();
+	}
+
+	public function test_mu_loader_unresolved_path_signal_is_explicit(): void {
+		Functions\when( 'is_multisite' )->justReturn( false );
+		Functions\when( 'get_site_option' )->justReturn( array() );
+		Functions\when( 'get_option' )->justReturn( array() );
+		Functions\when( 'add_action' )->justReturn( true );
+
+		$this->include_mu_loader_file();
+
+		$candidates = array(
+			'/tmp/fake-wordpress/wp-content/plugins/nonexistent/wp-sudo.php',
+		);
+
+		Functions\expect( 'do_action' )
+			->once()
+			->with( 'wp_sudo_mu_loader_unresolved_plugin_path', $candidates );
+
+		\wp_sudo_loader_signal_unresolved_plugin_path( $candidates );
+	}
+
+	// -----------------------------------------------------------------
 	// Accessors (null before init)
 	// -----------------------------------------------------------------
 
@@ -591,5 +680,14 @@ class PluginTest extends TestCase {
 		Functions\when( 'get_current_user_id' )->justReturn( 0 );
 		Functions\when( 'wp_create_nonce' )->justReturn( 'fake-nonce' );
 		Functions\when( 'admin_url' )->alias( fn( $path = '' ) => 'https://example.com/wp-admin/' . $path );
+	}
+
+	/**
+	 * Include the procedural MU loader file for side-effect assertions.
+	 *
+	 * @return void
+	 */
+	private function include_mu_loader_file(): void {
+		include __DIR__ . '/../../mu-plugin/wp-sudo-loader.php';
 	}
 }

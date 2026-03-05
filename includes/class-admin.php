@@ -307,7 +307,7 @@ class Admin {
 					. '<ul>'
 					. '<li>' . __( '<strong>Two Factor</strong> &mdash; strongly recommended. Adds a second authentication step (TOTP, email, backup codes) to the sudo challenge.', 'wp-sudo' ) . '</li>'
 					. '<li>' . __( '<strong>WebAuthn Provider for Two Factor</strong> &mdash; recommended alongside Two Factor. Adds passkey and security key (FIDO2/WebAuthn) support so users can reauthenticate with a hardware key or platform passkey.', 'wp-sudo' ) . '</li>'
-					. '<li>' . __( '<strong>WP Activity Log</strong> or <strong>Stream</strong> &mdash; recommended for audit visibility. These logging plugins capture the 9 action hooks WP Sudo fires for session lifecycle, policy decisions, gated actions, and tamper detection.', 'wp-sudo' ) . '</li>'
+					. '<li>' . __( '<strong>WP Activity Log</strong> or <strong>Stream</strong> &mdash; recommended for audit visibility. These logging plugins capture the 9 action hooks WP Sudo fires for session lifecycle, policy decisions, gated actions, and tamper detection. A ready-to-use WSAL sensor bridge is included at <code>bridges/wp-sudo-wsal-sensor.php</code>.', 'wp-sudo' ) . '</li>'
 					. '</ul>',
 			)
 		);

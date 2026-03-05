@@ -870,39 +870,39 @@ WP Sudo ran a focused hardening sprint before new UX or architecture expansion. 
 
 **Tests:** Unit tests for threshold and lockout windows. Integration tests for repeated failures and lockout expiration.
 
-### P2: Rule-Schema Validation
+### P2: Rule-Schema Validation ✅ Complete (Phase 3)
 
 **Problem:** `Action_Registry::get_rules()` returns the output of `wp_sudo_gated_actions` filter without schema validation. Malformed rules from third-party code could cause silent matching failures. (Note: `safe_preg_match()` already guards against regex crashes, so this is a reliability issue, not a crash risk.)
 
-**Fix:** Add normalizer/validator requiring scalar `id`, `label`, `category` and known surface shapes. Drop invalid rules silently (fail closed per rule, not fatal globally). Preserve current filter contract and cache behavior.
+**Fix (shipped):** Added filtered-rule normalization/validation in `Action_Registry::get_rules()`. Invalid rules are dropped fail-closed per rule (required scalar metadata + array-or-null surfaces), and non-array filter payloads fall back to built-in rules. Filter contract and cache behavior are preserved.
 
-**Tests:** Unit tests for valid/invalid/mixed filtered rule sets. Integration test confirming plugin operates normally when one custom rule is malformed.
+**Tests:** Unit coverage for valid/invalid/mixed filtered rule sets and built-in matching resilience with malformed custom rules. Integration coverage added for mixed valid/invalid custom rules, malformed surface shapes, and non-array payload fallback behavior.
 
-### P2: MU Loader Path Resilience
+### P2: MU Loader Path Resilience ✅ Complete (Phase 3)
 
 **Problem:** `mu-plugin/wp-sudo-loader.php:22` hardcodes `'wp-sudo/wp-sudo.php'` as the plugin basename. The loader fails silently in non-standard directory layouts.
 
-**Fix:** Harden path detection with fallback strategies. Add admin notice for unresolved plugin path. Keep canonical installs unchanged.
+**Fix (shipped):** Hardened basename/path detection in `mu-plugin/wp-sudo-loader.php` using configured basename, loader-derived basename, and canonical fallback strategies. Added explicit unresolved-path diagnostic action (`wp_sudo_mu_loader_unresolved_plugin_path`). Canonical installs remain unchanged.
 
-**Tests:** Unit tests for path resolution fallbacks.
+**Tests:** Unit coverage for basename fallback construction, non-canonical active-slug recognition, inert behavior when inactive, and unresolved-path diagnostics.
 
 **Related (shipped):** MU-plugin install UX now detects `is_writable()` on the mu-plugins directory. When the directory is not writable (common on managed hosts), the Install button is hidden and manual copy instructions are shown expanded instead.
 
-### P3: WPGraphQL Persisted-Query Strategy
+### P3: WPGraphQL Persisted-Query Strategy ✅ Complete (Phase 4)
 
 **Problem:** Mutation detection in Limited mode (`class-gate.php:919`) uses `str_contains($body, 'mutation')`. Persisted queries send only a query ID, not the operation text, so mutations sent via the Persisted Queries extension bypass detection.
 
-**Fix:** Document the limitation. Add optional resolver/filter hook so implementers can classify persisted operations. Default behavior remains secure (Disabled policy).
+**Fix (shipped):** Added classifier hook `wp_sudo_wpgraphql_classification` so persisted-query environments can explicitly classify request bodies as `mutation`/`query`. Unknown classifier output falls back to legacy heuristic behavior.
 
-**Tests:** Unit tests for bypass and mutation classification paths.
+**Tests:** Unit coverage for classifier mutation/query/unknown fallback behavior and bypass precedence. Integration assertions added for persisted-query mutation block and query pass-through flows.
 
-### P3: WSAL Sensor Extension
+### P3: WSAL Sensor Extension ✅ Complete (Phase 4)
 
 **Problem:** Audit hooks exist but have no integration with enterprise logging tools.
 
-**Fix:** Ship WSAL sensor extension first (structured event mapping from existing hooks). Stream adapter second.
+**Fix (shipped):** Added optional bridge `bridges/wp-sudo-wsal-sensor.php` mapping 9 WP Sudo audit hooks into structured WSAL events. Bridge remains inert when WSAL APIs are unavailable. Stream adapter remains the follow-on parity task.
 
-**Tests:** Adapter unit tests for hook-to-event mapping. Compatibility validation against current plugin versions.
+**Tests:** Unit tests for WSAL presence/absence behavior, listener registration, payload mapping, and pass-through hook contract safety.
 
 ### Explicit Deferrals
 

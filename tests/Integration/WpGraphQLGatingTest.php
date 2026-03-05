@@ -25,6 +25,8 @@ class WpGraphQLGatingTest extends TestCase {
 
 	private const MUTATION_BODY = '{"query":"mutation { deleteUser(input:{id:\"1\"}) { deletedId } }"}';
 	private const QUERY_BODY    = '{"query":"{ posts { nodes { id title } } }"}';
+	private const PERSISTED_MUTATION_BODY = '{"extensions":{"persistedQuery":{"sha256Hash":"persisted-mutation-hash","version":1}}}';
+	private const PERSISTED_QUERY_BODY    = '{"extensions":{"persistedQuery":{"sha256Hash":"persisted-query-hash","version":1}}}';
 
 	public function set_up(): void {
 		parent::set_up();
@@ -270,5 +272,50 @@ class WpGraphQLGatingTest extends TestCase {
 		$this->assertSame( self::MUTATION_BODY, $captured_body );
 
 		remove_filter( 'wp_sudo_wpgraphql_bypass', $callback );
+	}
+
+	// ── Persisted-query classification filter ─────────────────────────
+
+	/** @test */
+	public function test_limited_persisted_mutation_blocked_when_classifier_marks_mutation(): void {
+		$user = $this->make_admin();
+		wp_set_current_user( $user->ID );
+
+		$classifier = static function ( string $classification, string $body ): string {
+			if ( str_contains( $body, 'persisted-mutation-hash' ) ) {
+				return 'mutation';
+			}
+			return $classification;
+		};
+
+		add_filter( 'wp_sudo_wpgraphql_classification', $classifier, 10, 2 );
+
+		$result = $this->gate->check_wpgraphql( self::PERSISTED_MUTATION_BODY );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'sudo_blocked', $result->get_error_code() );
+
+		remove_filter( 'wp_sudo_wpgraphql_classification', $classifier );
+	}
+
+	/** @test */
+	public function test_limited_persisted_query_passes_when_classifier_marks_query(): void {
+		$user = $this->make_admin();
+		wp_set_current_user( $user->ID );
+
+		$classifier = static function ( string $classification, string $body ): string {
+			if ( str_contains( $body, 'persisted-query-hash' ) ) {
+				return 'query';
+			}
+			return $classification;
+		};
+
+		add_filter( 'wp_sudo_wpgraphql_classification', $classifier, 10, 2 );
+
+		$result = $this->gate->check_wpgraphql( self::PERSISTED_QUERY_BODY );
+
+		$this->assertNull( $result );
+
+		remove_filter( 'wp_sudo_wpgraphql_classification', $classifier );
 	}
 }
