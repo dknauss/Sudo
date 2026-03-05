@@ -114,6 +114,179 @@ class ActionRegistryTest extends TestCase {
 	}
 
 	/**
+	 * Test get_rules() falls back to built-in rules on non-array filter output.
+	 */
+	public function test_get_rules_falls_back_to_builtin_rules_for_non_array_filter_output(): void {
+		Functions\when( '__' )->returnArg();
+		$builtin_rules = Action_Registry::rules();
+
+		Functions\when( 'apply_filters' )->alias(
+			static function ( $hook, $value ) {
+				if ( 'wp_sudo_gated_actions' !== $hook ) {
+					return $value;
+				}
+
+				return 'not-an-array';
+			}
+		);
+
+		$rules = Action_Registry::get_rules();
+
+		$this->assertSame( count( $builtin_rules ), count( $rules ) );
+		$this->assertContains( 'plugin.activate', array_column( $rules, 'id' ) );
+	}
+
+	/**
+	 * Test get_rules() drops filtered rules missing required metadata.
+	 */
+	public function test_get_rules_drops_filtered_rules_missing_required_metadata(): void {
+		Functions\when( '__' )->returnArg();
+		$builtin_count = count( Action_Registry::rules() );
+
+		Functions\when( 'apply_filters' )->alias(
+			static function ( $hook, $value ) {
+				if ( 'wp_sudo_gated_actions' !== $hook ) {
+					return $value;
+				}
+
+				$value[] = array(
+					'label'    => 'Missing ID',
+					'category' => 'custom',
+					'admin'    => array(
+						'pagenow' => 'plugins.php',
+						'actions' => array( 'activate' ),
+						'method'  => 'GET',
+					),
+				);
+
+				$value[] = array(
+					'id'       => 'custom.invalid_label',
+					'label'    => array( 'not', 'scalar' ),
+					'category' => 'custom',
+					'admin'    => array(
+						'pagenow' => 'plugins.php',
+						'actions' => array( 'activate' ),
+						'method'  => 'GET',
+					),
+				);
+
+				$value[] = array(
+					'id'       => 'custom.invalid_category',
+					'label'    => 'Invalid category type',
+					'category' => array( 'not', 'scalar' ),
+					'admin'    => array(
+						'pagenow' => 'plugins.php',
+						'actions' => array( 'activate' ),
+						'method'  => 'GET',
+					),
+				);
+
+				return $value;
+			}
+		);
+
+		$rules = Action_Registry::get_rules();
+		$ids   = array_column( $rules, 'id' );
+
+		$this->assertSame( $builtin_count, count( $rules ) );
+		$this->assertNotContains( 'custom.invalid_label', $ids );
+		$this->assertNotContains( 'custom.invalid_category', $ids );
+	}
+
+	/**
+	 * Test get_rules() drops filtered rules with invalid surface shapes.
+	 */
+	public function test_get_rules_drops_filtered_rules_with_invalid_surface_shapes(): void {
+		Functions\when( '__' )->returnArg();
+		$builtin_count = count( Action_Registry::rules() );
+
+		Functions\when( 'apply_filters' )->alias(
+			static function ( $hook, $value ) {
+				if ( 'wp_sudo_gated_actions' !== $hook ) {
+					return $value;
+				}
+
+				$value[] = array(
+					'id'       => 'custom.bad_admin_surface',
+					'label'    => 'Bad admin surface',
+					'category' => 'custom',
+					'admin'    => 'plugins.php',
+				);
+
+				$value[] = array(
+					'id'       => 'custom.bad_ajax_surface',
+					'label'    => 'Bad ajax surface',
+					'category' => 'custom',
+					'ajax'     => 123,
+				);
+
+				$value[] = array(
+					'id'       => 'custom.bad_rest_surface',
+					'label'    => 'Bad rest surface',
+					'category' => 'custom',
+					'rest'     => '#^/wp/v2/plugins$#',
+				);
+
+				return $value;
+			}
+		);
+
+		$rules = Action_Registry::get_rules();
+		$ids   = array_column( $rules, 'id' );
+
+		$this->assertSame( $builtin_count, count( $rules ) );
+		$this->assertNotContains( 'custom.bad_admin_surface', $ids );
+		$this->assertNotContains( 'custom.bad_ajax_surface', $ids );
+		$this->assertNotContains( 'custom.bad_rest_surface', $ids );
+	}
+
+	/**
+	 * Test get_rules() keeps valid custom rules while dropping invalid entries.
+	 */
+	public function test_get_rules_preserves_valid_custom_rules_in_mixed_filtered_set(): void {
+		Functions\when( '__' )->returnArg();
+		$builtin_count = count( Action_Registry::rules() );
+
+		Functions\when( 'apply_filters' )->alias(
+			static function ( $hook, $value ) {
+				if ( 'wp_sudo_gated_actions' !== $hook ) {
+					return $value;
+				}
+
+				$value[] = array(
+					'id'       => 'custom.invalid_missing_label',
+					'category' => 'custom',
+					'admin'    => array(
+						'pagenow' => 'plugins.php',
+						'actions' => array( 'activate' ),
+						'method'  => 'GET',
+					),
+				);
+
+				$value[] = array(
+					'id'       => 'custom.valid',
+					'label'    => 'Valid custom action',
+					'category' => 'custom',
+					'admin'    => array(
+						'pagenow' => 'plugins.php',
+						'actions' => array( 'activate' ),
+						'method'  => 'GET',
+					),
+				);
+
+				return $value;
+			}
+		);
+
+		$rules = Action_Registry::get_rules();
+		$ids   = array_column( $rules, 'id' );
+
+		$this->assertSame( $builtin_count + 1, count( $rules ) );
+		$this->assertContains( 'custom.valid', $ids );
+		$this->assertNotContains( 'custom.invalid_missing_label', $ids );
+	}
+
+	/**
 	 * Test get_categories() returns unique categories.
 	 */
 	public function test_get_categories_returns_unique_list(): void {

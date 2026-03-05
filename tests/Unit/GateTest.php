@@ -862,6 +862,41 @@ class GateTest extends TestCase {
 	}
 
 	/**
+	 * Test match_request still matches built-in rules with malformed custom rules.
+	 */
+	public function test_match_request_matches_builtin_rule_with_malformed_custom_rule_present(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->alias(
+			static function ( $hook, $value ) {
+				if ( 'wp_sudo_gated_actions' !== $hook ) {
+					return $value;
+				}
+
+				return array_merge(
+					array(
+						array(
+							'id'       => 'custom.malformed',
+							'label'    => 'Malformed custom rule',
+							'category' => 'custom',
+							'admin'    => 'not-an-array',
+						),
+					),
+					$value
+				);
+			}
+		);
+
+		$GLOBALS['pagenow']        = 'plugins.php';
+		$_REQUEST['action']        = 'activate';
+		$_SERVER['REQUEST_METHOD'] = 'GET';
+
+		$rule = $this->gate->match_request( 'admin' );
+
+		$this->assertNotNull( $rule );
+		$this->assertSame( 'plugin.activate', $rule['id'] );
+	}
+
+	/**
 	 * Test match_request matches REST user role change (PUT with roles param).
 	 *
 	 * The user.promote rule covers PUT/PATCH to /wp/v2/users/{id} when the

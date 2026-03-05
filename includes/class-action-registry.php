@@ -665,7 +665,8 @@ class Action_Registry {
 		 *
 		 * @param array $rules Array of gated action rules.
 		 */
-		self::$cached_rules = apply_filters( 'wp_sudo_gated_actions', self::rules() );
+		$filtered_rules     = apply_filters( 'wp_sudo_gated_actions', self::rules() );
+		self::$cached_rules = self::normalize_filtered_rules( $filtered_rules );
 
 		return self::$cached_rules;
 	}
@@ -680,6 +681,99 @@ class Action_Registry {
 	 */
 	public static function reset_cache(): void {
 		self::$cached_rules = null;
+	}
+
+	/**
+	 * Normalize filtered rules into a matcher-safe shape.
+	 *
+	 * Fail-closed at the per-rule level: malformed entries are dropped.
+	 * If the filter output is not an array, fall back to built-in rules.
+	 *
+	 * @param mixed $filtered_rules Filtered rule output.
+	 * @return array<int, array<string, mixed>>
+	 */
+	private static function normalize_filtered_rules( mixed $filtered_rules ): array {
+		if ( ! is_array( $filtered_rules ) ) {
+			return self::rules();
+		}
+
+		$normalized = array();
+
+		foreach ( $filtered_rules as $rule ) {
+			if ( ! self::is_valid_rule( $rule ) ) {
+				continue;
+			}
+
+			/** @var array<string, mixed> $rule */
+			$rule['id']       = (string) $rule['id'];
+			$rule['label']    = (string) $rule['label'];
+			$rule['category'] = (string) $rule['category'];
+			$normalized[]     = $rule;
+		}
+
+		return $normalized;
+	}
+
+	/**
+	 * Check if a rule has the minimum schema required for safe matching.
+	 *
+	 * @param mixed $rule Rule candidate.
+	 * @return bool
+	 */
+	private static function is_valid_rule( mixed $rule ): bool {
+		if ( ! is_array( $rule ) ) {
+			return false;
+		}
+
+		if ( ! self::has_required_scalar_metadata( $rule ) ) {
+			return false;
+		}
+
+		return self::has_valid_surface_shapes( $rule );
+	}
+
+	/**
+	 * Validate required scalar metadata keys on a rule.
+	 *
+	 * @param array<string, mixed> $rule Rule candidate.
+	 * @return bool
+	 */
+	private static function has_required_scalar_metadata( array $rule ): bool {
+		foreach ( array( 'id', 'label', 'category' ) as $key ) {
+			if ( ! isset( $rule[ $key ] ) || ! is_scalar( $rule[ $key ] ) ) {
+				return false;
+			}
+
+			if ( '' === trim( (string) $rule[ $key ] ) ) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * Validate that rule surfaces are array-or-null to prevent runtime errors.
+	 *
+	 * @param array<string, mixed> $rule Rule candidate.
+	 * @return bool
+	 */
+	private static function has_valid_surface_shapes( array $rule ): bool {
+		foreach ( array( 'admin', 'ajax', 'rest' ) as $surface ) {
+			if ( ! array_key_exists( $surface, $rule ) ) {
+				continue;
+			}
+
+			if ( null === $rule[ $surface ] ) {
+				continue;
+			}
+
+			if ( ! is_array( $rule[ $surface ] ) ) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	/**
