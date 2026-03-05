@@ -9,7 +9,7 @@ Tags:              sudo, security, reauthentication, access control, admin prote
 Requires at least: 6.2
 Tested up to:      7.0
 Requires PHP:      8.0
-Stable tag:        2.10.2
+Stable tag:        2.11.0
 License:           GPL-2.0-or-later
 License URI:       https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -167,6 +167,14 @@ Extensibility: the action registry is filterable via wp_sudo_gated_actions. Nine
 7. Active sudo session — the admin bar shows a green countdown timer.
 
 == Changelog ==
+
+= 2.11.0 =
+* **Action Registry hardening (Phase 3.01)** — filtered `wp_sudo_gated_actions` input is now normalized and validated before caching. Invalid or malformed third-party rule fragments are safely discarded instead of flowing into matchers.
+* **MU-loader resilience (Phase 3.02)** — loader now resolves plugin basename/path with explicit fallback ordering and respects plugin activation state across single-site and multisite contexts.
+* **WPGraphQL persisted-query strategy (Phase 4.01)** — mutation gating now supports persisted-query detection hooks and clearer policy behavior for headless GraphQL deployments.
+* **WSAL sensor bridge (Phase 4.02)** — new optional bridge (`bridges/wp-sudo-wsal-sensor.php`) maps WP Sudo’s 9 audit hooks into WP Activity Log events.
+* **Coverage expansion** — high-value unit and integration coverage added across phases 3/4, including malformed rule inputs, MU-loader edge paths, WPGraphQL policy enforcement, and bridge emission behavior.
+* **478 unit tests, 1228 assertions. 130 integration tests in CI.**
 
 = 2.10.2 =
 * **Fix: multisite uninstall orphaned MU-plugin shim and user meta** — network-activated uninstall now unconditionally cleans all sites and network-wide data.

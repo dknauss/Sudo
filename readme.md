@@ -240,6 +240,15 @@ No production dependencies. Dev dependencies (PHPUnit, PHPStan, Psalm, PHPCS, Br
 
 ## Changelog
 
+### 2.11.0
+
+- **Phase 3 complete: Action Registry schema validation hardening** — filtered `wp_sudo_gated_actions` rules are now normalized and validated before caching, preventing malformed third-party payloads from reaching gate matchers.
+- **Phase 3 complete: MU-loader resilience** — loader basename/path resolution now follows an explicit fallback chain and correctly respects active plugin state in single-site and multisite environments.
+- **Phase 4 complete: WPGraphQL persisted-query strategy** — GraphQL policy behavior was tightened and documented for persisted-query/headless setups, with expanded integration coverage of mutation classification and bypass behavior.
+- **Phase 4 complete: WSAL sensor bridge** — added `bridges/wp-sudo-wsal-sensor.php`, mapping all 9 WP Sudo audit hooks to WP Activity Log events for security telemetry integration.
+- **Docs and planning closure** — phase summaries and roadmap/planning artifacts updated to reflect completion across Phases 1–4 of the security hardening sprint.
+- **478 unit tests, 1228 assertions. 130 integration tests in CI.**
+
 ### 2.10.2
 
 - **Fix: multisite uninstall orphaned MU-plugin shim and user meta** — network-activated uninstall now unconditionally cleans all sites and network-wide data.

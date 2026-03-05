@@ -15,7 +15,7 @@ define( 'ABSPATH', '/tmp/fake-wordpress/' );
 define( 'WP_CONTENT_DIR', '/tmp/fake-wordpress/wp-content' );
 
 // ── Plugin constants (normally defined in wp-sudo.php) ───────────────
-define( 'WP_SUDO_VERSION', '2.10.2' );
+define( 'WP_SUDO_VERSION', '2.11.0' );
 define( 'WP_SUDO_PLUGIN_DIR', dirname( __DIR__ ) . '/' );
 define( 'WP_SUDO_PLUGIN_URL', 'https://example.com/wp-content/plugins/wp-sudo/' );
 define( 'WP_SUDO_PLUGIN_BASENAME', 'wp-sudo/wp-sudo.php' );
