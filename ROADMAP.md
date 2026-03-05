@@ -1,6 +1,6 @@
 # Roadmap: Past and Future Planning — Integration Tests, WP 7.0 Prep, Collaboration, TDD, and Core Design
 
-*Updated March 4, 2026*
+*Updated March 5, 2026*
 
 ## Table of Contents
 
@@ -35,10 +35,17 @@ Identified by independent assessments from Codex, Gemini, and Claude (March 2026
 - ~~**P1 — Request Stash data minimization:** Redact sensitive fields (passwords, tokens) before transient storage; add per-user stash cap to bound growth.~~ ✅ Complete (Phase 1)
 - ~~**P1 — Upload-action coverage:** Gate `upload-plugin` and `upload-theme` ZIP upload paths (currently missing from Action Registry).~~ ✅ Complete (Phase 1)
 - ~~**P1 — Non-blocking rate limiting:** Replace `sleep()` in failed-auth path with time-based throttling to prevent PHP-FPM worker exhaustion.~~ ✅ Complete (Phase 2)
-- **P2 — Rule-schema validation:** Validate `wp_sudo_gated_actions` filter output before Gate consumes it; drop invalid rules fail-closed.
-- **P2 — MU loader path resilience:** Remove hardcoded plugin slug assumption in `mu-plugin/wp-sudo-loader.php`.
-- **P3 — WPGraphQL persisted-query strategy:** Document and optionally handle persisted-query mutations in Limited mode.
-- **P3 — WSAL sensor extension:** Ship audit log integration after core hardening.
+- ~~**P2 — Rule-schema validation:** Validate `wp_sudo_gated_actions` filter output before Gate consumes it; drop invalid rules fail-closed.~~ ✅ Complete (Phase 3)
+- ~~**P2 — MU loader path resilience:** Remove hardcoded plugin slug assumption in `mu-plugin/wp-sudo-loader.php`.~~ ✅ Complete (Phase 3)
+- ~~**P3 — WPGraphQL persisted-query strategy:** Document and optionally handle persisted-query mutations in Limited mode.~~ ✅ Complete (Phase 4)
+- ~~**P3 — WSAL sensor extension:** Ship audit log integration after core hardening.~~ ✅ Complete (Phase 4)
+
+### ✓ Completed in v2.11.0
+
+- ~~Action Registry schema validation~~ — shipped v2.11.0: `normalize_filtered_rules()` validates and normalizes `wp_sudo_gated_actions` filter output; malformed rules dropped fail-closed.
+- ~~MU loader resilience~~ — shipped v2.11.0: basename/path resolution uses explicit fallback chain (`WP_SUDO_PLUGIN_BASENAME` → derived → canonical); diagnostic action on unresolved paths.
+- ~~WPGraphQL persisted-query strategy~~ — shipped v2.11.0: `wp_sudo_wpgraphql_classification` filter enables external mutation classification for persisted-query setups; `str_contains` heuristic preserved as fallback.
+- ~~WSAL sensor bridge~~ — shipped v2.11.0: `bridges/wp-sudo-wsal-sensor.php` maps all 9 audit hooks to structured WSAL events (IDs 1900001–1900009); inert when WSAL absent.
 
 ### ✓ Completed in v2.10.0
 
@@ -74,7 +81,7 @@ Identified by independent assessments from Codex, Gemini, and Claude (March 2026
 - Public `wp_sudo_check()` / `wp_sudo_require()` API for third-party plugins
 
 **Feature Backlog (Open):**
-- WSAL (WordPress Activity Log) sensor extension — scheduled for hardening Sprint D (see [section 12](#12-security-hardening-sprint))
+- ~~WSAL (WordPress Activity Log) sensor extension~~ ✅ Shipped v2.11.0
 - Multi-dimensional rate limiting (IP + user combination)
 - Session activity dashboard widget
 - Gutenberg block editor integration
@@ -104,8 +111,8 @@ Identified by independent assessments from Codex, Gemini, and Claude (March 2026
 This is a living document covering accumulated input and thinking about the strategic
 challenges and priorities for WP Sudo. 
 
-Current project state (as of March 4, 2026):
-- **460 unit tests**, 1182 assertions, across 14 test files (Brain\Monkey mocks)
+Current project state (as of March 5, 2026):
+- **478 unit tests**, 1228 assertions, across 15 test files (Brain\Monkey mocks)
 - **130 integration tests** across 16 test files (real WordPress + MySQL via `WP_UnitTestCase`)
 - CI pipeline: PHP 8.0–8.4, WordPress 6.7 + latest + trunk, single-site + multisite + PCOV coverage job
 - WordPress 7.0 Beta 2 tested (February 27, 2026); GA is April 9, 2026
@@ -753,16 +760,11 @@ countdown, admin notice fallback, gated actions table, v2 architecture, editor
 `unfiltered_html` restriction, per-app-password policies, PHPStan level 6, CycloneDX
 SBOM, accessibility roadmap) are documented in the [CHANGELOG](CHANGELOG.md).
 
+### ✓ Shipped
+
+**~~WP Activity Log (WSAL) Sensor Extension~~** — shipped v2.11.0 as `bridges/wp-sudo-wsal-sensor.php`. Maps all 9 audit hooks to WSAL events (IDs 1900001–1900009). Inert when WSAL absent.
+
 ### Open — Medium Effort
-
-**WP Activity Log (WSAL) Sensor Extension**
-
-Optional WSAL sensor shipping as a single PHP file. Register event IDs in the
-8900+ range, create a sensor class in the `WSAL\Plugin_Sensors` namespace, and
-map existing `wp_sudo_*` action hooks to WSAL alert triggers.
-
-*Impact:* High — dramatically increases appeal to managed hosting and enterprise
-customers who already use WSAL.
 
 **Multi-Dimensional Rate Limiting (IP + User)**
 

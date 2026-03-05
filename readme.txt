@@ -174,6 +174,7 @@ Extensibility: the action registry is filterable via wp_sudo_gated_actions. Nine
 * **WPGraphQL persisted-query strategy (Phase 4.01)** — mutation gating now supports persisted-query detection hooks and clearer policy behavior for headless GraphQL deployments.
 * **WSAL sensor bridge (Phase 4.02)** — new optional bridge (`bridges/wp-sudo-wsal-sensor.php`) maps WP Sudo’s 9 audit hooks into WP Activity Log events.
 * **Coverage expansion** — high-value unit and integration coverage added across phases 3/4, including malformed rule inputs, MU-loader edge paths, WPGraphQL policy enforcement, and bridge emission behavior.
+* **Housekeeping** — Admin bar class cleanup (docblock trimming, explicit hook args); no behavioral changes.
 * **478 unit tests, 1228 assertions. 130 integration tests in CI.**
 
 = 2.10.2 =

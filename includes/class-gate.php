@@ -999,7 +999,7 @@ class Gate {
 	 * - 'query': treat as non-mutation.
 	 * Any other value falls back to the legacy heuristic (`str_contains`).
 	 *
-	 * @since 2.10.3
+	 * @since 2.11.0
 	 *
 	 * @param string $body Raw GraphQL request body.
 	 * @return bool
@@ -1016,7 +1016,7 @@ class Gate {
 		 * include inline GraphQL text (and therefore cannot be detected by a
 		 * plain "mutation" substring check).
 		 *
-		 * @since 2.10.3
+		 * @since 2.11.0
 		 *
 		 * @param string $classification Classification hint. Default ''.
 		 * @param string $body           Raw GraphQL request body.

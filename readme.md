@@ -246,6 +246,7 @@ No production dependencies. Dev dependencies (PHPUnit, PHPStan, Psalm, PHPCS, Br
 - **Phase 3 complete: MU-loader resilience** — loader basename/path resolution now follows an explicit fallback chain and correctly respects active plugin state in single-site and multisite environments.
 - **Phase 4 complete: WPGraphQL persisted-query strategy** — GraphQL policy behavior was tightened and documented for persisted-query/headless setups, with expanded integration coverage of mutation classification and bypass behavior.
 - **Phase 4 complete: WSAL sensor bridge** — added `bridges/wp-sudo-wsal-sensor.php`, mapping all 9 WP Sudo audit hooks to WP Activity Log events for security telemetry integration.
+- **Housekeeping: Admin bar class cleanup** — docblock trimming, explicit `$accepted_args` on hook registrations, no behavioral changes.
 - **Docs and planning closure** — phase summaries and roadmap/planning artifacts updated to reflect completion across Phases 1–4 of the security hardening sprint.
 - **478 unit tests, 1228 assertions. 130 integration tests in CI.**
 

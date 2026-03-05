@@ -155,7 +155,7 @@ if ( ! function_exists( 'wp_sudo_loader_signal_unresolved_plugin_path' ) ) {
 		/**
 		 * Fires when the MU loader cannot resolve the main plugin file path.
 		 *
-		 * @since 2.10.3
+		 * @since 2.11.0
 		 *
 		 * @param string[] $file_candidates Candidate plugin file paths checked by loader.
 		 */
