@@ -5,7 +5,7 @@
 ## Table of Contents
 
 - **[Planned Development Timeline](#planned-development-timeline)** — Immediate, short-term, medium-term, and later work phases
-- **[Context](#context)** — current state: 494 unit + 135 integration tests, CI matrix, WP 7.0 status
+- **[Context](#context)** — current state: 496 unit + 132 integration tests, CI matrix, WP 7.0 status
 - **[1. Integration Tests](#1-integration-tests--scope-and-value)** — Complete ✓ (80 tests), coverage analysis, remaining gaps
 - **[2. WordPress 7.0 Prep](#2-wordpress-70-prep-ga-april-9-2026)** — Beta 1 tested ✓, one task remaining: "Tested up to" bump on GA day
 - **[3. Collaboration & Sudo](#3-collaboration-and-sudo--multi-user-editing-scenarios)** — Multi-user editing, conflict resolution
@@ -37,9 +37,12 @@ The operator tooling tranche shipped in v2.12.0.
 - ~~**Stream bridge**~~ ✅ implemented (`bridges/wp-sudo-stream-bridge.php`)
 - ~~**Public `wp_sudo_check()` / `wp_sudo_require()` API**~~ ✅ implemented (session check + challenge redirect helper for third-party integrations)
 
-### Short-term: Hardening and Testing Infrastructure (v2.13+)
+### ✅ Shipped: IP + User Multidimensional Rate Limiting (v2.13.0)
 
-- **Multi-dimensional rate limiting (IP + user)** — Per-IP tracking via transients alongside existing per-user tracking. The non-blocking throttle infrastructure from Phase 2 provides the foundation. Include IP in the `wp_sudo_lockout` audit hook for logging.
+- ~~**Multi-dimensional rate limiting (IP + user)**~~ ✅ implemented — Per-IP tracking via transients alongside per-user tracking, combined lockout policy, enriched `wp_sudo_lockout` hook payload with `type` and IP address.
+
+### Short-term: Testing Infrastructure (v2.14+)
+
 - **Playwright E2E test infrastructure** — 5 PHPUnit-uncoverable scenarios (cookie attributes, admin bar JS, MU-plugin AJAX, block editor snackbar, keyboard navigation). Also enables visual regression testing against WP 7.0's admin refresh. De-risks the modal challenge and all future JS work.
 - **Phase B:** Apache + MariaDB CI job
 - **Phase C:** Manual testing checklist for managed hosts
@@ -58,9 +61,9 @@ The operator tooling tranche shipped in v2.12.0.
 - **SSO/SAML/OIDC provider framework** — Provider interface parallel to existing 2FA hooks.
 - **Phase D:** Docker Compose with switchable stacks
 
-### ✅ Security Hardening Sprint — Complete (v2.10.2–v2.11.0)
+### ✅ Security Hardening Sprint — Complete (v2.10.2–v2.13.0)
 
-All 4 phases shipped. Identified by independent assessments from Codex, Gemini, and Claude (March 2026).
+All 5 phases shipped. Identified by independent assessments from Codex, Gemini, and Claude (March 2026).
 
 - ~~**P1 — Request Stash data minimization**~~ ✅ Phase 1
 - ~~**P1 — Upload-action coverage**~~ ✅ Phase 1
@@ -69,6 +72,7 @@ All 4 phases shipped. Identified by independent assessments from Codex, Gemini, 
 - ~~**P2 — MU loader path resilience**~~ ✅ Phase 3
 - ~~**P3 — WPGraphQL persisted-query strategy**~~ ✅ Phase 4
 - ~~**P3 — WSAL sensor extension**~~ ✅ Phase 4
+- ~~**IP + user multidimensional rate limiting**~~ ✅ Phase 5
 
 ### ✓ Completed in v2.11.0
 

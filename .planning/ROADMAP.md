@@ -1,7 +1,7 @@
 # Roadmap: Security Hardening Sprint
 
 **Milestone:** Security Hardening Sprint
-**Status:** Complete (all 5 phases delivered)
+**Status:** Archived — shipped v2.10.2–v2.13.0 (all 5 phases delivered)
 **Created:** 2026-03-03
 **Depth:** Standard (5 phases)
 **Source:** ROADMAP.md section 12, .planning/review/03-03-2026/PROPOSED-NEXT-STEPS-Claude.md
