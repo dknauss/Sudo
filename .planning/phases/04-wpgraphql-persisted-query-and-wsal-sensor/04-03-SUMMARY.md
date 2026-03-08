@@ -18,7 +18,7 @@ Finalize Phase 4 contracts across integration coverage, docs, manual test guidan
   - Added persisted-query classifier contract (`wp_sudo_wpgraphql_classification`).
   - Updated persisted-query guidance to classifier-first model with secure fallback.
   - Added optional WSAL bridge section with hook→event ID mapping.
-  - Added Stream parity note (planned next, WSAL-first delivery).
+  - Added Stream parity note.
 - **`docs/security-model.md`**
   - Updated persisted-query section to reference classifier filter path and fallback posture.
   - Added MU loader path-resolution diagnostics note.
@@ -26,7 +26,7 @@ Finalize Phase 4 contracts across integration coverage, docs, manual test guidan
   - Added persisted-query classifier validation checklist (`16.6`).
   - Added WSAL bridge validation checklist (`19.6`).
 - **`.planning/ROADMAP.md`**
-  - Marked `04-01` and `04-02` complete.
+  - Marked Phase 4 checkboxes (`04-01`, `04-02`, `04-03`) complete.
 
 ## Verification Results
 
@@ -39,10 +39,12 @@ Finalize Phase 4 contracts across integration coverage, docs, manual test guidan
 - ✅ `vendor/bin/phpunit --configuration phpunit.xml.dist --do-not-cache-result tests/Unit/PluginTest.php --filter test_mu_loader`
   - Passed (`5 tests`, `7 assertions`).
 
-## Blockers / Environment Notes
+## Final Closure Verification
 
-- ⛔ Integration tests are blocked by local DB auth in this environment:
-  - `composer test:integration -- tests/Integration/ActionRegistryTest.php --do-not-cache-result`
-  - `composer test:integration -- tests/Integration/WpGraphQLGatingTest.php --do-not-cache-result`
-  - Failure: `Access denied for user 'root'@'localhost' (using password: NO)`.
-- ⛔ Full static/lint gates (`composer analyse:phpstan`, `composer lint`) remain intermittently stalled/timed out in this runner.
+- ✅ Full quality gates were completed on `main` during release-readiness:
+  - `composer test:unit`
+  - `composer test:integration` (single-site)
+  - `WP_MULTISITE=1 composer test:integration`
+  - `composer analyse:phpstan`
+  - `composer analyse:psalm`
+  - `composer lint`

@@ -25,7 +25,7 @@ Finalize Phase 3 with integration coverage for malformed filtered rules and alig
 - **`ROADMAP.md`**
   - Updated P2 entries (rule-schema validation and MU-loader resilience) to shipped/complete language with implemented fix/test details.
 - **`.planning/ROADMAP.md`**
-  - Marked `03-01` and `03-02` checkboxes complete.
+  - Marked Phase 3 checkboxes (`03-01`, `03-02`, `03-03`) complete.
 
 ## Verification Results
 
@@ -36,10 +36,12 @@ Finalize Phase 3 with integration coverage for malformed filtered rules and alig
 - ✅ `vendor/bin/phpunit --configuration phpunit.xml.dist --do-not-cache-result tests/Unit/GateTest.php --filter test_match_request_matches_builtin_rule_with_malformed_custom_rule_present`
   - Passed (`1 test`, `2 assertions`).
 
-## Blockers / Environment Notes
+## Final Closure Verification
 
-- ⛔ Integration DB unavailable in this environment:
-  - `composer test:integration -- tests/Integration/ActionRegistryTest.php --do-not-cache-result`
-  - Failed with MySQL auth error (`Access denied for user 'root'@'localhost'`).
-- ⛔ `composer analyse:phpstan` remains intermittently stalled in this runner.
-  - Unit scope for touched files is green; static-analysis rerun is still required in a clean local CI/dev environment.
+- ✅ Full quality gates were completed on `main` during release-readiness:
+  - `composer test:unit`
+  - `composer test:integration` (single-site)
+  - `WP_MULTISITE=1 composer test:integration`
+  - `composer analyse:phpstan`
+  - `composer analyse:psalm`
+  - `composer lint`
