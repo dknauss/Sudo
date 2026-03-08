@@ -20,10 +20,10 @@ Verification environment: local repo checkout at `/Users/danknauss/Documents/Git
 | Metric | Value | Verification |
 |---|---:|---|
 | Production PHP lines (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 8,652 | `find ./includes ./wp-sudo.php ./uninstall.php ./mu-plugin ./bridges -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1` |
-| Tests PHP lines (`tests/`) | 16,193 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1` |
-| Production + tests PHP lines | 24,845 | sum of the two rows above |
-| Test-to-production ratio | 1.87:1 | `16193 / 8652` |
-| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`) | 24,902 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" -print0 | xargs -0 wc -l | tail -1` |
+| Tests PHP lines (`tests/`) | 16,207 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1` |
+| Production + tests PHP lines | 24,859 | sum of the two rows above |
+| Test-to-production ratio | 1.87:1 | `16207 / 8652` |
+| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`) | 24,916 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" -print0 | xargs -0 wc -l | tail -1` |
 
 ## CI Matrix Snapshot
 
@@ -43,4 +43,5 @@ Source: `.github/workflows/phpunit.yml`
 
 1. Re-run all verification commands listed above.
 2. Update this file first.
-3. Keep other docs referencing this file instead of duplicating current counts.
+3. Run `composer verify:metrics` to confirm the document matches live counts.
+4. Keep other docs referencing this file instead of duplicating current counts.

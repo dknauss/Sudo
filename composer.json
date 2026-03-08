@@ -45,6 +45,7 @@
         "test:unit": "phpunit --configuration phpunit.xml.dist",
         "test:integration": "phpunit --configuration phpunit-integration.xml.dist",
         "test:coverage": "phpunit --configuration phpunit.xml.dist --coverage-clover coverage.xml --coverage-text",
+        "verify:metrics": "bash bin/verify-metrics.sh",
         "analyse": [
             "@analyse:phpstan",
             "@analyse:psalm"

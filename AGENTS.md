@@ -16,6 +16,7 @@ composer test                 # Alias for composer test:unit
 composer test:unit            # Run unit tests only (fast, no database, ~0.3s)
 composer test:integration     # Run integration tests (requires MySQL + WP test suite setup)
 composer test:coverage        # Run unit tests with PCOV coverage (generates coverage.xml + text summary)
+composer verify:metrics       # Verify docs/current-metrics.md against live repo counts
 composer lint                 # Run PHPCS (WordPress-Extra + WordPress-Docs + WordPressVIPMinimum)
 composer lint:fix             # Auto-fix PHPCS violations
 composer analyse              # Run PHPStan level 6 (use --memory-limit=1G if needed)
