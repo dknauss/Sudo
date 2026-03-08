@@ -29,13 +29,14 @@
 
 - **Update "Tested up to"** in readme files when WordPress 7.0 GA ships (April 9, 2026)
 
-### Next: Operator Tooling and Ecosystem Reach (v2.12)
+### ✅ Completed On `main`: Operator Tooling and Ecosystem Reach (v2.12.0 target release)
 
-The security hardening sprint is complete (Phases 1–4 shipped in v2.10.2–v2.11.0). The next priority is operator-facing tooling and ecosystem adoption.
+The operator tooling tranche has been implemented on `main` and is ready for
+the v2.12.0 release tag.
 
-- **WP-CLI `wp sudo` subcommands** — `wp sudo status`, `wp sudo revoke [--user=<id>]`, `wp sudo revoke --all`. The Session class has the primitives; this is mostly registration boilerplate + output formatting. High value for operators managing production sites. (See [section 10](#10-core-sudo-design))
-- **Stream bridge** — `bridges/wp-sudo-stream-bridge.php` following the proven WSAL bridge pattern. ~80 lines. Expands audit log ecosystem beyond WSAL. Low effort, high reach.
-- **Public `wp_sudo_check()` / `wp_sudo_require()` API** — Enables third-party plugins to gate their own actions without registering Gate rules. WP Crontrol's PHP cron events are the motivating use case. Needs design for the challenge trigger path when called outside the Gate's `admin_init` flow. (See [section 10](#10-core-sudo-design))
+- ~~**WP-CLI `wp sudo` subcommands**~~ ✅ implemented (`wp sudo status`, `wp sudo revoke [--user=<id>]`, `wp sudo revoke --all`)
+- ~~**Stream bridge**~~ ✅ implemented (`bridges/wp-sudo-stream-bridge.php`)
+- ~~**Public `wp_sudo_check()` / `wp_sudo_require()` API**~~ ✅ implemented (session check + challenge redirect helper for third-party integrations)
 
 ### Short-term: Hardening and Testing Infrastructure (v2.13+)
 
@@ -367,7 +368,7 @@ not context retrieval.
 
 ## Recommended Next Steps (Priority Order)
 
-> Steps 1–9 completed in v2.4.0–v2.10.2. Updated March 4, 2026.
+> Steps 1–12 completed in v2.4.0–v2.12.0 development. Updated March 8, 2026.
 
 1. ~~Add TDD requirement to CLAUDE.md~~ — done (v2.4.0)
 2. ~~Install WP 7.0 Beta 1, run manual testing guide~~ — done (v2.4.0)
@@ -378,10 +379,13 @@ not context retrieval.
 7. ~~Abilities API coverage documented~~ — done (v2.5.1)
 8. **Update "Tested up to"** when WP 7.0 ships (April 9, 2026)
 9. ~~**Core design features** — login=sudo, gate password changes, grace period~~ — done (v2.6.0)
-10. **Security hardening sprint** — stash redaction, upload-action gating, non-blocking rate limiting (see [section 12](#12-security-hardening-sprint))
-11. **Rule-schema validation and MU loader resilience** — P2 reliability hardening
-12. **WSAL sensor extension and GraphQL persisted-query strategy** — P3 observability and surface coverage
+10. ~~**Security hardening sprint** — stash redaction, upload-action gating, non-blocking rate limiting~~ — done (v2.10.2–v2.11.0)
+11. ~~**Rule-schema validation and MU loader resilience**~~ — done (v2.11.0)
+12. ~~**WSAL sensor extension and GraphQL persisted-query strategy**~~ — done (v2.11.0)
 13. **Plan environment diversity testing** (see section 5)
+14. **Multi-dimensional rate limiting (IP + user)** — next hardening tranche
+15. **Playwright E2E test infrastructure** — close JS/browser coverage gaps
+16. **Apache + MariaDB CI job** — expand environment diversity in CI
 
 ---
 
@@ -691,14 +695,15 @@ fully implemented in WP Sudo (through v2.5.2):
 - `unfiltered_html` capability tamper detection
 - WPGraphQL surface gating — three-tier policy for GraphQL mutations (Disabled / Limited / Unrestricted), mutation detection heuristic, headless authentication boundary documented (v2.5.0–v2.5.2)
 
-### Features to implement
+### Features Shipped Since This Analysis
 
-**Medium priority — target v2.9+**
+**Implemented on `main` (v2.12.0 target release)**
 
 | Feature | Rationale | Effort |
 |---------|-----------|--------|
-| **WP-CLI `wp sudo` subcommands** | `wp sudo status`, `wp sudo revoke [--user=<id>]`, `wp sudo revoke --all`. No tooling exists for operators to inspect or manage sudo state from the command line. | Medium |
-| **Public `wp_sudo_check()` / `wp_sudo_require()` API** | Let third-party plugins require sudo for their own actions without registering a full Gate rule. WP Crontrol's PHP cron events are the motivating example. Needs design for the challenge trigger path when called outside the Gate flow. | Medium |
+| ~~**WP-CLI `wp sudo` subcommands**~~ ✅ | `wp sudo status`, `wp sudo revoke [--user=<id>]`, `wp sudo revoke --all` implemented for operator workflows. | Medium |
+| ~~**Public `wp_sudo_check()` / `wp_sudo_require()` API**~~ ✅ | Third-party plugins can now require sudo without registering full Gate rules. | Medium |
+| ~~**Stream bridge**~~ ✅ | Optional bridge `bridges/wp-sudo-stream-bridge.php` maps 9 WP Sudo audit hooks into Stream records. | Low |
 
 ### Features to consider (need design work)
 
@@ -768,6 +773,9 @@ SBOM, accessibility roadmap) are documented in the [CHANGELOG](CHANGELOG.md).
 ### ✓ Shipped
 
 **~~WP Activity Log (WSAL) Sensor Extension~~** — shipped v2.11.0 as `bridges/wp-sudo-wsal-sensor.php`. Maps all 9 audit hooks to WSAL events (IDs 1900001–1900009). Inert when WSAL absent.
+**~~Stream bridge~~** — implemented on `main` for v2.12.0 as `bridges/wp-sudo-stream-bridge.php`. Optional mu-plugin mapping for all 9 audit hooks.
+**~~WP-CLI `wp sudo` commands~~** — implemented on `main` for v2.12.0 (`status`, `revoke --user`, `revoke --all`).
+**~~Public `wp_sudo_check()` / `wp_sudo_require()` API~~** — implemented on `main` for v2.12.0 for third-party action gating integrations.
 
 ### Open — Medium Effort
 
