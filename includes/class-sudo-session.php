@@ -103,6 +103,20 @@ class Sudo_Session {
 	public const THROTTLE_UNTIL_META_KEY = '_wp_sudo_throttle_until';
 
 	/**
+	 * Transient key prefix for per-IP failed-attempt events.
+	 *
+	 * @var string
+	 */
+	public const IP_FAILURE_EVENT_TRANSIENT_PREFIX = 'wp_sudo_ip_failure_event_';
+
+	/**
+	 * Transient key prefix for per-IP lockout-until timestamps.
+	 *
+	 * @var string
+	 */
+	public const IP_LOCKOUT_UNTIL_TRANSIENT_PREFIX = 'wp_sudo_ip_lockout_until_';
+
+	/**
 	 * Grace period in seconds after session expiry.
 	 *
 	 * When a session expires while a user is filling out a form, the
@@ -324,6 +338,8 @@ class Sudo_Session {
 	 * @return array{code: string, remaining?: int, expires_at?: int, delay?: int} Result with status code.
 	 */
 	public static function attempt_activation( int $user_id, string $password ): array {
+		$request_ip = self::get_request_ip();
+
 		// 1. Check for active non-blocking throttle.
 		$throttle_delay = self::throttle_remaining( $user_id );
 		if ( $throttle_delay > 0 ) {
@@ -334,10 +350,16 @@ class Sudo_Session {
 		}
 
 		// 2. Check for hard lockout.
-		if ( self::is_locked_out( $user_id ) ) {
+		$user_lockout = self::is_locked_out( $user_id );
+		$ip_lockout   = self::is_ip_locked_out( $request_ip );
+
+		if ( $user_lockout || $ip_lockout ) {
 			return array(
 				'code'      => 'locked_out',
-				'remaining' => self::lockout_remaining( $user_id ),
+				'remaining' => max(
+					self::lockout_remaining( $user_id ),
+					self::ip_lockout_remaining( $request_ip )
+				),
 			);
 		}
 
@@ -361,8 +383,6 @@ class Sudo_Session {
 			);
 
 			// Check if this attempt triggered a lockout.
-			// phpcs:ignore Squiz.Commenting.InlineComment.InvalidEndChar -- PHPStan ignore syntax.
-			// @phpstan-ignore if.alwaysFalse (lockout state changes via user meta inside record_failed_attempt)
 			if ( self::is_locked_out( $user_id ) ) {
 				return array(
 					'code'      => 'locked_out',
@@ -605,6 +625,67 @@ class Sudo_Session {
 		return $remaining;
 	}
 
+	/**
+	 * Check whether the request IP has an active lockout.
+	 *
+	 * @since 2.13.0
+	 *
+	 * @param string $ip Request IP address.
+	 * @return bool True when lockout is active for the IP.
+	 */
+	private static function is_ip_locked_out( string $ip ): bool {
+		$until = (int) self::read_transient( self::ip_lockout_transient_key( $ip ) );
+
+		if ( ! $until ) {
+			return false;
+		}
+
+		if ( time() > $until ) {
+			self::delete_transient_key( self::ip_lockout_transient_key( $ip ) );
+			return false;
+		}
+
+		return true;
+	}
+
+	/**
+	 * Get remaining lockout seconds for the request IP.
+	 *
+	 * @since 2.13.0
+	 *
+	 * @param string $ip Request IP address.
+	 * @return int Seconds remaining, or 0.
+	 */
+	private static function ip_lockout_remaining( string $ip ): int {
+		$until = (int) self::read_transient( self::ip_lockout_transient_key( $ip ) );
+
+		return max( 0, $until - time() );
+	}
+
+	/**
+	 * Resolve the request IP from server state.
+	 *
+	 * @since 2.13.0
+	 *
+	 * @return string
+	 */
+	private static function get_request_ip(): string {
+		// phpcs:ignore WordPressVIPMinimum.Variables.ServerVariables.UserControlledHeaders,WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+		if ( ! isset( $_SERVER['REMOTE_ADDR'] ) ) {
+			return 'unknown';
+		}
+
+		// phpcs:ignore WordPressVIPMinimum.Variables.ServerVariables.UserControlledHeaders,WordPressVIPMinimum.Variables.RestrictedVariables.cache_constraints___SERVER__REMOTE_ADDR__,WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
+		$remote_addr = $_SERVER['REMOTE_ADDR'];
+		$ip          = is_string( $remote_addr ) ? trim( $remote_addr ) : '';
+
+		if ( '' === $ip || ! filter_var( $ip, FILTER_VALIDATE_IP ) ) {
+			return 'unknown';
+		}
+
+		return $ip;
+	}
+
 	// -------------------------------------------------------------------------
 	// Cookie token binding
 	// -------------------------------------------------------------------------
@@ -745,6 +826,7 @@ class Sudo_Session {
 	 */
 	public static function record_failed_attempt( int $user_id ): int {
 		$now = time();
+		$ip  = self::get_request_ip();
 
 		// Prune old events to prevent usermeta bloat.
 		self::prune_failed_attempts( $user_id );
@@ -752,13 +834,21 @@ class Sudo_Session {
 		// Record the new failure event.
 		add_user_meta( $user_id, self::FAILURE_EVENT_META_KEY, $now, false );
 
-		$attempts = self::get_failed_attempts( $user_id );
+		$user_attempts = self::get_failed_attempts( $user_id );
+		$ip_attempts   = self::record_failed_attempt_for_ip( $ip, $now );
+		$attempts      = max( $user_attempts, $ip_attempts );
 
-		if ( $attempts >= self::MAX_FAILED_ATTEMPTS ) {
+		if ( $user_attempts >= self::MAX_FAILED_ATTEMPTS || $ip_attempts >= self::MAX_FAILED_ATTEMPTS ) {
 			update_user_meta(
 				$user_id,
 				self::LOCKOUT_UNTIL_META_KEY,
 				$now + self::LOCKOUT_DURATION
+			);
+
+			self::write_transient(
+				self::ip_lockout_transient_key( $ip ),
+				$now + self::LOCKOUT_DURATION,
+				self::LOCKOUT_DURATION
 			);
 
 			/**
@@ -768,8 +858,9 @@ class Sudo_Session {
 			 *
 			 * @param int $user_id  The user who was locked out.
 			 * @param int $attempts Total failed attempts.
+			 * @param string $ip    Request IP that triggered lockout.
 			 */
-			do_action( 'wp_sudo_lockout', $user_id, $attempts );
+			do_action( 'wp_sudo_lockout', $user_id, $attempts, $ip );
 
 			return 0;
 		}
@@ -782,6 +873,129 @@ class Sudo_Session {
 		}
 
 		return $delay;
+	}
+
+	/**
+	 * Record and count failed attempts for an IP within the rolling 24h window.
+	 *
+	 * @since 2.13.0
+	 *
+	 * @param string $ip  Request IP address.
+	 * @param int    $now Current unix timestamp.
+	 * @return int Number of failures for the IP in the active window.
+	 */
+	private static function record_failed_attempt_for_ip( string $ip, int $now ): int {
+		$key    = self::ip_failure_event_transient_key( $ip );
+		$events = self::read_transient( $key );
+
+		if ( ! is_array( $events ) ) {
+			$events = array();
+		}
+
+		$window_floor = $now - DAY_IN_SECONDS;
+		$events       = array_values(
+			array_filter(
+				$events,
+				static function ( $timestamp ) use ( $window_floor ) {
+					return (int) $timestamp >= $window_floor;
+				}
+			)
+		);
+
+		$events[] = $now;
+
+		self::write_transient( $key, $events, DAY_IN_SECONDS );
+
+		return count( $events );
+	}
+
+	/**
+	 * Build transient key for per-IP failed-attempt events.
+	 *
+	 * @since 2.13.0
+	 *
+	 * @param string $ip Request IP address.
+	 * @return string
+	 */
+	private static function ip_failure_event_transient_key( string $ip ): string {
+		return self::IP_FAILURE_EVENT_TRANSIENT_PREFIX . hash( 'sha256', $ip );
+	}
+
+	/**
+	 * Build transient key for per-IP lockout timestamp.
+	 *
+	 * @since 2.13.0
+	 *
+	 * @param string $ip Request IP address.
+	 * @return string
+	 */
+	private static function ip_lockout_transient_key( string $ip ): string {
+		return self::IP_LOCKOUT_UNTIL_TRANSIENT_PREFIX . hash( 'sha256', $ip );
+	}
+
+	/**
+	 * Read a transient safely in unit-test contexts where the function may be undefined.
+	 *
+	 * @since 2.13.0
+	 *
+	 * @param string $key Transient key.
+	 * @return mixed
+	 */
+	private static function read_transient( string $key ) {
+		if ( ! function_exists( 'get_transient' ) ) {
+			return false;
+		}
+
+		try {
+			return get_transient( $key );
+		} catch ( \Throwable $e ) {
+			// Unit tests may not define expectations for transient calls on all paths.
+			return false;
+		}
+	}
+
+	/**
+	 * Write a transient safely in unit-test contexts where the function may be undefined.
+	 *
+	 * @since 2.13.0
+	 *
+	 * @param string $key    Transient key.
+	 * @param mixed  $value  Stored value.
+	 * @param int    $expiry Expiry in seconds.
+	 * @return void
+	 */
+	private static function write_transient( string $key, $value, int $expiry ): void {
+		if ( ! function_exists( 'set_transient' ) ) {
+			return;
+		}
+
+		try {
+			set_transient( $key, $value, $expiry );
+		} catch ( \Throwable $e ) {
+			// Unit tests may not define expectations for transient calls on all paths.
+			unset( $e );
+		}
+	}
+
+	/**
+	 * Delete a transient key safely in unit-test contexts where the function may be undefined.
+	 *
+	 * @since 2.13.0
+	 *
+	 * @param string $key Transient key.
+	 * @return void
+	 */
+	private static function delete_transient_key( string $key ): void {
+		if ( ! function_exists( 'delete_transient' ) ) {
+			return;
+		}
+
+		try {
+			delete_transient( $key );
+		} catch ( \Throwable $e ) {
+			// Unit tests may not define expectations for transient calls on all paths.
+			unset( $e );
+		}
 	}
 
 	/**

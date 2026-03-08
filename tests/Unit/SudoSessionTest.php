@@ -1126,7 +1126,7 @@ class SudoSessionTest extends TestCase
 
 		Actions\expectDone( 'wp_sudo_lockout' )
 			->once()
-			->with( 1, 5 );
+			->with( 1, 5, \Mockery::type( 'string' ) );
 
 		$result = Sudo_Session::attempt_activation( 1, 'wrong-password' );
 		$this->assertSame( 'locked_out', $result['code'] );
@@ -1204,5 +1204,89 @@ class SudoSessionTest extends TestCase
 			->with(1, '_wp_sudo_failure_event', \Mockery::any(), false);
 
 		Sudo_Session::record_failed_attempt(1);
+	}
+
+	// =================================================================
+	// Phase 5: IP + user multidimensional rate limiting
+	// =================================================================
+
+	public function test_attempt_activation_rejects_when_ip_lockout_is_active(): void
+	{
+		$_SERVER['REMOTE_ADDR'] = ' 203.0.113.44 ';
+		$ip_lockout_until       = time() + 200;
+
+		Functions\when('get_user_meta')->alias(
+			static function ($uid, $key, $single = true) {
+				if (Sudo_Session::THROTTLE_UNTIL_META_KEY === $key) {
+					return '';
+				}
+				if (Sudo_Session::LOCKOUT_UNTIL_META_KEY === $key) {
+					return '';
+				}
+				if (Sudo_Session::FAILURE_EVENT_META_KEY === $key && !$single) {
+					return array();
+				}
+				return '';
+			}
+		);
+		Functions\when('get_userdata')->justReturn(new \WP_User(1));
+		Functions\when('add_user_meta')->justReturn(true);
+		Functions\when('update_user_meta')->justReturn(true);
+		Functions\when('delete_user_meta')->justReturn(true);
+		Functions\when('get_transient')->alias(
+			static function ($key) use ($ip_lockout_until) {
+				if (str_starts_with($key, 'wp_sudo_ip_lockout_')) {
+					return $ip_lockout_until;
+				}
+				return false;
+			}
+		);
+
+		Functions\expect('wp_check_password')->never();
+
+		$result = Sudo_Session::attempt_activation(1, 'wrong-password');
+
+		$this->assertSame('locked_out', $result['code']);
+		$this->assertArrayHasKey('remaining', $result);
+		$this->assertGreaterThan(0, $result['remaining']);
+	}
+
+	public function test_record_failed_attempt_locks_out_when_ip_threshold_is_reached(): void
+	{
+		$_SERVER['REMOTE_ADDR'] = '198.51.100.11';
+
+		Functions\when('get_user_meta')->alias(
+			static function ($uid, $key, $single = true) {
+				if (Sudo_Session::FAILURE_EVENT_META_KEY === $key && !$single) {
+					// Keep user attempt count low so IP threshold is the lockout trigger.
+					return array(time() - 30);
+				}
+				return '';
+			}
+		);
+		Functions\when('add_user_meta')->justReturn(true);
+		Functions\when('delete_user_meta')->justReturn(true);
+		Functions\when('set_transient')->justReturn(true);
+		Functions\when('get_transient')->alias(
+			static function ($key) {
+				if (str_starts_with($key, 'wp_sudo_ip_failure_event_')) {
+					return array(time() - 4, time() - 3, time() - 2, time() - 1);
+				}
+				return false;
+			}
+		);
+
+		Functions\expect('update_user_meta')
+			->once()
+			->with(1, Sudo_Session::LOCKOUT_UNTIL_META_KEY, \Mockery::type('int'))
+			->andReturn(true);
+
+		Actions\expectDone('wp_sudo_lockout')
+			->once()
+			->with(1, 5, '198.51.100.11');
+
+		$delay = Sudo_Session::record_failed_attempt(1);
+
+		$this->assertSame(0, $delay);
 	}
 }
