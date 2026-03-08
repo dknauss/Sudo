@@ -56,6 +56,19 @@ WP_CORE_DIR="$PWD/.tmp/wordpress" \
 WP_MULTISITE=1 composer test:integration
 ```
 
+### E2E tests against Studio/Local (Flywheel)
+
+You can run Playwright against an existing local WordPress site (Studio or Local by Flywheel) instead of `wp-env`:
+
+```bash
+WP_BASE_URL="http://your-local-site.test" \
+WP_USERNAME="admin" \
+WP_PASSWORD="your-password" \
+npm run test:e2e:local
+```
+
+Use the local site's real admin credentials. `WP_BASE_URL` can be `http://` or `https://` depending on your local environment.
+
 If `mysql` or `mysqladmin` is not found, install client tooling first:
 
 ```bash

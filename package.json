@@ -1,0 +1,17 @@
+{
+  "name": "wp-sudo",
+  "private": true,
+  "scripts": {
+    "env:start": "wp-env start",
+    "env:stop": "wp-env stop",
+    "env:clean": "wp-env destroy",
+    "test:e2e": "playwright test --config tests/e2e/playwright.config.ts",
+    "test:e2e:local": "playwright test --config tests/e2e/playwright.config.ts",
+    "test:e2e:ui": "playwright test --config tests/e2e/playwright.config.ts --ui",
+    "test:e2e:update-snapshots": "playwright test --config tests/e2e/playwright.config.ts --update-snapshots"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.58.2",
+    "@wordpress/env": "11.1.0"
+  }
+}
