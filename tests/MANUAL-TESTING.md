@@ -847,6 +847,9 @@ curl -sk "YOUR_SITE_URL/wp-cron.php" -w "HTTP: %{http_code}, body: %{size_downlo
 ## 15. WP 7.0 Visual Compatibility
 
 Run against a WP 7.0 beta/RC dev site.
+For the WP 7.0 release cycle, rerun this section for each RC build
+(RC1, RC2, etc.) and once more at GA. Record the build string and date
+for each pass.
 Document pass/fail and any visual regressions. These checks verify the plugin's
 admin UI renders correctly under the WP 7.0 admin visual refresh (Trac #64308).
 

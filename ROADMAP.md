@@ -194,7 +194,7 @@ These gaps have been closed by the integration suite:
 
 ## 2. WordPress 7.0 Prep (GA April 9, 2026)
 
-> **Status:** WP 7.0 Beta 1 manually tested February 19, 2026 — all sections PASS. One task remains: bump "Tested up to" in readme files when 7.0 GA ships.
+> **Status:** WP 7.0 Beta 1 manually tested February 19, 2026 — all sections PASS. Repeat the manual verification pass on each RC build, then do the final readme "Tested up to" bump on GA.
 
 ### Verified changes that affect WP Sudo
 
@@ -216,10 +216,11 @@ These gaps have been closed by the integration suite:
 2. ~~**Run the manual testing guide** against 7.0-beta~~ — done; all 15 sections PASS
 3. ~~**Visual check:** settings page, help tabs, admin bar timer, challenge interstitial, admin notices~~ — done; all pass against refreshed admin chrome
 4. ~~**Run `composer test`**~~ — passing on WP 7.0-alpha / 7.0-beta; CI covers WP trunk
-5. **Update version references** when 7.0 ships (April 9):
+5. **Repeat manual verification on each RC build** (RC1, RC2, etc.) and record date + build in `tests/MANUAL-TESTING.md`.
+6. **Update version references** when 7.0 ships (April 9):
    - `readme.txt` / `readme.md` — "Tested up to" bump
    - Any docs still referencing "WordPress 6.9" as latest
-6. **Remove `handle_err_admin_role()` workaround** once WP 7.0 GA ships (Trac #64690 lands in core — see table row above).
+7. **Remove `handle_err_admin_role()` workaround** once WP 7.0 GA ships (Trac #64690 lands in core — see table row above).
 
 ### Abilities API and MCP Adapter: the longer-range question
 
