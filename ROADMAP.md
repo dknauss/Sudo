@@ -5,7 +5,7 @@
 ## Table of Contents
 
 - **[Planned Development Timeline](#planned-development-timeline)** — Immediate, short-term, medium-term, and later work phases
-- **[Context](#context)** — current state: 496 unit + 132 integration tests, CI matrix, WP 7.0 status
+- **[Context](#context)** — current state, CI matrix, and WP 7.0 status (counts in `docs/current-metrics.md`)
 - **[1. Integration Tests](#1-integration-tests--scope-and-value)** — Complete ✓ (80 tests), coverage analysis, remaining gaps
 - **[2. WordPress 7.0 Prep](#2-wordpress-70-prep-ga-april-9-2026)** — Beta 1 tested ✓, one task remaining: "Tested up to" bump on GA day
 - **[3. Collaboration & Sudo](#3-collaboration-and-sudo--multi-user-editing-scenarios)** — Multi-user editing, conflict resolution
@@ -120,9 +120,8 @@ This is a living document covering accumulated input and thinking about the stra
 challenges and priorities for WP Sudo. 
 
 Current project state (as of March 8, 2026):
-- **494 unit tests**, 1286 assertions, across 18 test files (Brain\Monkey mocks)
-- **135 integration tests** across 16 test files (real WordPress + MySQL via `WP_UnitTestCase`)
-- CI pipeline: PHP 8.0–8.4, WordPress 6.7 + latest + trunk, single-site + multisite + PCOV coverage job
+- Current test and size counts are centralized in [`docs/current-metrics.md`](docs/current-metrics.md).
+- CI pipeline: unit tests on PHP 8.1–8.4; integration tests on PHP 8.1 and 8.3; WordPress 6.7 + latest + trunk; single-site + multisite + PCOV coverage job
 - WordPress 7.0 Beta 2 tested (February 27, 2026); GA is April 9, 2026
 
 ---

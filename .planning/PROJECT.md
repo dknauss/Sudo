@@ -33,7 +33,7 @@ Every destructive WordPress admin action requires proof that the person at the k
 - Public API (wp_sudo_check/wp_sudo_require) — v2.12.0
 - 9 audit hooks for external logging — v2.0+
 - Editor unfiltered_html restriction + tamper detection — v2.0+
-- 496 unit tests, 132 integration tests — v2.13.0
+- Comprehensive automated test coverage (current counts in `../docs/current-metrics.md`) — v2.13.0+
 
 ### Active
 
@@ -57,7 +57,7 @@ Every destructive WordPress admin action requires proof that the person at the k
 
 ## Context
 
-WP Sudo has comprehensive PHPUnit coverage (496 unit + 132 integration tests) but zero browser-level testing. Five specific scenarios cannot be tested with PHPUnit:
+WP Sudo has comprehensive PHPUnit coverage (see `../docs/current-metrics.md` for current counts) but zero browser-level testing. Five specific scenarios cannot be tested with PHPUnit:
 
 1. **Cookie attributes** — `setcookie()` output (httponly, SameSite, Secure) not capturable
 2. **Admin bar countdown JS** — requires real DOM + `setInterval`
@@ -67,7 +67,7 @@ WP Sudo has comprehensive PHPUnit coverage (496 unit + 132 integration tests) bu
 
 Beyond these 5, the settings page, challenge flow, and admin bar have never been tested end-to-end in a real browser. WP 7.0 GA ships April 9, 2026 with an admin visual refresh — visual regression baselines established now will catch any breakage.
 
-WordPress dev environment: PHP 8.1+, WP 6.7+. CI matrix: PHP 8.0-8.4, WP 6.7/latest/trunk, single-site + multisite.
+WordPress dev environment: PHP 8.1+, WP 6.7+. CI matrix: unit tests on PHP 8.1-8.4, integration tests on PHP 8.1/8.3, WP 6.7/latest/trunk, single-site + multisite.
 
 ## Constraints
 

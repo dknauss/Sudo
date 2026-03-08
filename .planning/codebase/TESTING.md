@@ -1,6 +1,6 @@
 # Testing Patterns
 
-**Analysis Date:** 2026-03-04 (revised; original 2026-02-19)
+**Analysis Date:** 2026-03-08 (revised; original 2026-02-19)
 
 ## Test Framework
 
@@ -82,7 +82,7 @@ tests/
     └── WpGraphQLGatingTest.php
 ```
 
-**Current counts (2026-03-04):** 460 unit tests, 1182 assertions, and 130 integration tests.
+**Current counts:** centralized in `../../docs/current-metrics.md` (single source of truth).
 
 ## Test Types
 
@@ -106,9 +106,9 @@ tests/
 
 ### E2E Tests
 
-- Not automated
+- Not committed yet
 - Manual testing checklist: `tests/MANUAL-TESTING.md` (UI/UX prompts, 19 sections)
-- No Playwright/Cypress/WebDriver tests planned
+- Playwright E2E is active roadmap work (`.planning/ROADMAP.md`, Phase 6-8)
 
 ## Test Structure
 

@@ -11,10 +11,16 @@
  * @package WP_Sudo\Tests\Integration
  */
 
+$_repo_root = dirname( __DIR__, 2 );
 $_tests_dir = getenv( 'WP_TESTS_DIR' );
 
 if ( ! $_tests_dir ) {
-	$_tests_dir = rtrim( sys_get_temp_dir(), '/\\' ) . '/wordpress-tests-lib';
+	$_repo_tests_dir = $_repo_root . '/.tmp/wordpress-tests-lib';
+	if ( file_exists( $_repo_tests_dir . '/includes/functions.php' ) ) {
+		$_tests_dir = $_repo_tests_dir;
+	} else {
+		$_tests_dir = rtrim( sys_get_temp_dir(), '/\\' ) . '/wordpress-tests-lib';
+	}
 }
 
 if ( ! file_exists( $_tests_dir . '/includes/functions.php' ) ) {
@@ -36,9 +42,17 @@ require_once $_tests_dir . '/includes/functions.php';
 // wp-sudo.php calls add_action(), which requires WordPress functions.
 tests_add_filter(
 	'muplugins_loaded',
-	static function () {
+	static function () use ( $_repo_root ) {
 		// Load Two Factor plugin if installed (required by TwoFactorTest).
-		$_wp_core = getenv( 'WP_CORE_DIR' ) ?: rtrim( sys_get_temp_dir(), '/\\' ) . '/wordpress';
+		$_wp_core = getenv( 'WP_CORE_DIR' );
+		if ( ! $_wp_core ) {
+			$_repo_wp_core = $_repo_root . '/.tmp/wordpress';
+			if ( file_exists( $_repo_wp_core . '/wp-load.php' ) ) {
+				$_wp_core = $_repo_wp_core;
+			} else {
+				$_wp_core = rtrim( sys_get_temp_dir(), '/\\' ) . '/wordpress';
+			}
+		}
 		$_tf_file = $_wp_core . '/wp-content/plugins/two-factor/two-factor.php';
 		if ( file_exists( $_tf_file ) ) {
 			require_once $_tf_file;

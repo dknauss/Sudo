@@ -180,12 +180,14 @@ Hook signatures, filter reference, custom rule structure, and testing instructio
 
 WP Sudo is built for correctness and contributor legibility, not just functionality.
 
-**Architecture.** A single SPL autoloader maps the `WP_Sudo\*` namespace to `includes/class-*.php`. The `Gate` class is the heart of the plugin: it detects the entry surface (admin UI, AJAX, REST, WP-CLI, Cron, XML-RPC, Application Passwords, WPGraphQL), matches the incoming request against a registry of 29+ rules, and either challenges, soft-blocks, or hard-blocks depending on surface and policy. All gating decisions happen server-side in PHP action hooks — JavaScript is used only for UX (countdown timer, keyboard shortcut).
+**Architecture.** A single SPL autoloader maps the `WP_Sudo\*` namespace to `includes/class-*.php`. The `Gate` class is the heart of the plugin: it detects the entry surface (admin UI, AJAX, REST, WP-CLI, Cron, XML-RPC, Application Passwords, WPGraphQL), matches the incoming request against a registry of 32 built-in rules, and either challenges, soft-blocks, or hard-blocks depending on surface and policy. All gating decisions happen server-side in PHP action hooks — JavaScript is used only for UX (countdown timer, keyboard shortcut).
 
 **Test-driven development.** New code requires a failing test before production code is written. The suite is split into two deliberate tiers:
 
-- **Unit tests** (494 tests, 1286 assertions) — use [Brain\Monkey](https://brain-wp.github.io/BrainMonkey/) to mock all WordPress functions. Run in ~0.5s with no database. Cover request matching, session state machine, policy enforcement, and hook registration.
-- **Integration tests** (135 tests) — run against real WordPress + MySQL via `WP_UnitTestCase`. Cover full reauth flows, bcrypt verification, transient TTL, REST and AJAX gating, Two Factor interaction, multisite session isolation, upgrader migrations, and all 9 audit hooks.
+- **Unit tests** — use [Brain\Monkey](https://brain-wp.github.io/BrainMonkey/) to mock all WordPress functions. Run in ~0.5s with no database. Cover request matching, session state machine, policy enforcement, and hook registration.
+- **Integration tests** — run against real WordPress + MySQL via `WP_UnitTestCase`. Cover full reauth flows, bcrypt verification, transient TTL, REST and AJAX gating, Two Factor interaction, multisite session isolation, upgrader migrations, and all 9 audit hooks.
+
+Current test counts and sizes are maintained in [Current Metrics](docs/current-metrics.md).
 
 **Static analysis and code style.** PHPStan, Psalm (with WordPress stubs/plugin), and PHPCS (WordPress-Extra + WordPress-Docs + WordPressVIPMinimum) run on every push and pull request via GitHub Actions, alongside the full test matrix (PHP 8.1–8.4, WordPress latest + trunk). A nightly scheduled run catches WordPress trunk regressions early. Type coverage is published to Shepherd on default-branch pushes (`main`/`master`).
 
@@ -195,18 +197,11 @@ WP Sudo is built for correctness and contributor legibility, not just functional
 
 ### Project Size
 
-| Component | Size |
-|---|---|
-| **Production PHP** (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 312 KB · 8,438 lines |
-| **Assets** (screenshots, banner images) | 5.0 MB |
-| **Tests** (`tests/`) | 672 KB · 16,058 lines |
-| **Docs** (`docs/` + root-level md/txt) | 348 KB |
-| **Total PHP** (production + tests, excl. vendor) | 24,496 lines |
-| **Test-to-production ratio** | 1.9:1 |
+Current project-size counts are centralized in [Current Metrics](docs/current-metrics.md).
 
 No production dependencies. Dev dependencies (PHPUnit, PHPStan, Psalm, PHPCS, Brain\Monkey, Mockery) live in `vendor/` and are not shipped.
 
-*Last updated: 2026-03-08. See CLAUDE.md for the update command.*
+*Last updated: 2026-03-08. Current counts are centralized in `docs/current-metrics.md`.*
 
 ## Screenshots
 
