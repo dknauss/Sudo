@@ -26,8 +26,13 @@ Runs in ~0.3s. No external dependencies — all WordPress functions are mocked w
 ### Integration tests (real WordPress + MySQL)
 
 ```bash
+# Recommended: pin WP test paths to the repo-local .tmp directory.
+# This avoids accidentally using stale global /tmp test configs with mismatched DB credentials.
+export WP_TESTS_DIR="$PWD/.tmp/wordpress-tests-lib"
+export WP_CORE_DIR="$PWD/.tmp/wordpress"
+
 # One-time setup: installs WordPress test library and creates test DB
-bash bin/install-wp-tests.sh wordpress_test root '' 127.0.0.1 latest
+bash bin/install-wp-tests.sh wordpress_test root root 127.0.0.1 latest
 
 # Run tests
 composer test:integration
@@ -36,6 +41,18 @@ composer test:integration
 Set `WP_MULTISITE=1` to run the multisite test suite:
 
 ```bash
+WP_MULTISITE=1 composer test:integration
+```
+
+If you do not want to export variables in your shell, prefix each command:
+
+```bash
+WP_TESTS_DIR="$PWD/.tmp/wordpress-tests-lib" \
+WP_CORE_DIR="$PWD/.tmp/wordpress" \
+composer test:integration
+
+WP_TESTS_DIR="$PWD/.tmp/wordpress-tests-lib" \
+WP_CORE_DIR="$PWD/.tmp/wordpress" \
 WP_MULTISITE=1 composer test:integration
 ```
 
