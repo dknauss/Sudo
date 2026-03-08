@@ -9,7 +9,7 @@ Tags:              sudo, security, reauthentication, access control, admin prote
 Requires at least: 6.2
 Tested up to:      7.0
 Requires PHP:      8.0
-Stable tag:        2.12.0
+Stable tag:        2.13.0
 License:           GPL-2.0-or-later
 License URI:       https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -167,6 +167,11 @@ Extensibility: the action registry is filterable via wp_sudo_gated_actions. Nine
 7. Active sudo session — the admin bar shows a green countdown timer.
 
 == Changelog ==
+
+= 2.13.0 =
+* **Feature: IP + user multidimensional rate limiting** — per-IP failed-attempt tracking alongside per-user, with combined lockout policy and enriched `wp_sudo_lockout` hook payload (`type`, IP address).
+* **Docs alignment** — security model, developer reference, and manual testing guide updated for new rate-limiting dimensions.
+* **496 unit tests, 1293 assertions. 132 integration tests in CI.**
 
 = 2.12.0 =
 * **Feature: WP-CLI operator commands** — added `wp sudo status`, `wp sudo revoke --user=<id>`, and `wp sudo revoke --all` for session inspection and revocation workflows.

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.13.0
+
+- **Feature: IP + user multidimensional rate limiting** — failed authentication attempts are now tracked per-IP alongside per-user. When the same IP address triggers failures across multiple user accounts, the IP itself is locked out, mitigating credential-stuffing attacks that rotate usernames. The `wp_sudo_lockout` hook payload now includes a `type` field (`ip`, `user`, or `combined`) and the triggering IP address for audit visibility.
+- **Docs alignment** — updated `security-model.md` with the new rate-limiting dimensions and `developer-reference.md` with the enriched lockout hook payload schema. Manual testing guide expanded with IP-based lockout verification steps.
+- **496 unit tests, 1293 assertions. 132 integration tests in CI.**
+
 ## 2.12.0
 
 - **Feature: WP-CLI operator commands** — added `wp sudo status`, `wp sudo revoke --user=<id>`, and `wp sudo revoke --all` for session inspection and revocation workflows.
