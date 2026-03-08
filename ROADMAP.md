@@ -386,7 +386,7 @@ not context retrieval.
 11. ~~**Rule-schema validation and MU loader resilience**~~ — done (v2.11.0)
 12. ~~**WSAL sensor extension and GraphQL persisted-query strategy**~~ — done (v2.11.0)
 13. **Plan environment diversity testing** (see section 5)
-14. **Multi-dimensional rate limiting (IP + user)** — next hardening tranche
+14. ~~**Multi-dimensional rate limiting (IP + user)**~~ — done (v2.13.0)
 15. **Playwright E2E test infrastructure** — close JS/browser coverage gaps
 16. **Apache + MariaDB CI job** — expand environment diversity in CI
 
@@ -779,16 +779,9 @@ SBOM, accessibility roadmap) are documented in the [CHANGELOG](CHANGELOG.md).
 **~~Stream bridge~~** — implemented on `main` for v2.12.0 as `bridges/wp-sudo-stream-bridge.php`. Optional mu-plugin mapping for all 9 audit hooks.
 **~~WP-CLI `wp sudo` commands~~** — implemented on `main` for v2.12.0 (`status`, `revoke --user`, `revoke --all`).
 **~~Public `wp_sudo_check()` / `wp_sudo_require()` API~~** — implemented on `main` for v2.12.0 for third-party action gating integrations.
+**~~Multi-Dimensional Rate Limiting (IP + User)~~** — shipped v2.13.0. Per-IP tracking via transients alongside per-user tracking, combined lockout policy, enriched `wp_sudo_lockout` hook payload.
 
 ### Open — Medium Effort
-
-**Multi-Dimensional Rate Limiting (IP + User)**
-
-Add per-IP tracking via transients alongside existing per-user tracking. Catches
-distributed attacks where multiple IPs target the same user, or one IP targets
-multiple users. Include IP in the `wp_sudo_lockout` audit hook for logging.
-
-*Impact:* High — hardens brute-force protection against coordinated attacks.
 
 **Session Activity Dashboard Widget**
 
