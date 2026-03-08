@@ -86,6 +86,16 @@ composer lint      # PHPCS (WordPress-Extra + WordPress-Docs + VIP rulesets)
 composer lint:fix  # Auto-fix PHPCS violations
 ```
 
+### Metrics refresh (when counts change)
+
+Current live counts are centralized in `docs/current-metrics.md`.
+
+```bash
+composer verify:metrics
+```
+
+If it reports drift, update `docs/current-metrics.md` first, then re-run `composer verify:metrics` until it passes.
+
 ## Test Strategy
 
 Two environments are used deliberately — choose based on what you are testing:
