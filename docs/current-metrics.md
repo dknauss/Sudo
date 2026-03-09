@@ -25,6 +25,38 @@ Verification environment: local repo checkout at `/Users/danknauss/Documents/Git
 | Test-to-production ratio | 1.87:1 | `16207 / 8652` |
 | Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`) | 24,916 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" -print0 | xargs -0 wc -l | tail -1` |
 
+## Architectural Facts
+
+Volatile counts that change when features ship. Every doc referencing these
+numbers MUST point to or be verified against this table — never hardcode
+the count in prose without a verification command.
+
+| Fact | Value | Verification | Last changed |
+|---|---:|---|---|
+| Request surfaces | 7 | `grep -c "const SURFACE_" includes/class-gate.php` | v2.5.0 (WPGraphQL) |
+| Gated rules (single-site) | 23 | `grep "'id'" includes/class-action-registry.php \| grep -v network \| grep -v "rule\[" \| wc -l` | v2.10.2 |
+| Gated rules (multisite) | 9 | `grep "'id'" includes/class-action-registry.php \| grep -c "network"` | v2.0.0 |
+| Gated rules (total) | 32 | `grep "'id'" includes/class-action-registry.php \| grep -v "rule\[" \| wc -l` | v2.10.2 |
+| Help tabs | 10 | `grep -c "add_help_tab" includes/class-admin.php` | v2.4.0 |
+| Audit hooks | 9 | `grep -c "do_action.*wp_sudo_" includes/class-*.php \| awk -F: '{sum+=$2} END{print sum}'` | v2.11.0 |
+| Settings fields (base) | 5 | 1 numeric (duration) + 4 policy dropdowns (REST, CLI, Cron, XML-RPC) | v2.0.0 |
+| Settings fields (with WPGraphQL) | 6 | +1 conditional WPGraphQL policy dropdown | v2.5.0 |
+| E2E tests | 29 | `npx playwright test --list 2>&1 \| grep -c "test"` | v2.14 |
+
+### Files that reference these counts
+
+When any fact above changes, update this table first, then grep for the old
+value across these known consumers:
+
+- `readme.md`, `readme.txt` — plugin description
+- `CLAUDE.md` — project overview
+- `docs/abilities-api-assessment.md` — Gate surfaces table
+- `docs/ui-ux-testing-prompts.md` — settings page field count
+- `docs/developer-reference.md` — hook signatures, audit hooks
+- `tests/MANUAL-TESTING.md` — gated rules count
+- `.planning/PROJECT.md` — project summary
+- `ROADMAP.md` — unit test coverage notes
+
 ## CI Matrix Snapshot
 
 Source: `.github/workflows/phpunit.yml`

@@ -62,6 +62,18 @@ See `llm_lies_log.txt` for the full record. These rules exist to prevent recurre
 - **MUST** note the query date when the number is first written or updated.
 - Never use training data for statistics. If the API is unreachable, say so.
 
+### Internal architectural counts (surfaces, rules, fields, tabs, hooks)
+
+- **MUST** check `docs/current-metrics.md` "Architectural Facts" table before
+  writing any count that appears there (surfaces, gated rules, help tabs,
+  settings fields, audit hooks, E2E tests).
+- When adding a feature that changes a count, update `current-metrics.md`
+  FIRST, then update all files listed in its "Files that reference these
+  counts" section.
+- Never hardcode a count in prose without a verification command. If the
+  count cannot be trivially verified, add a verification command to the
+  Architectural Facts table.
+
 ### Verification commands for this project
 
 ```bash
