@@ -1,7 +1,7 @@
 # Roadmap: Playwright E2E Test Infrastructure
 
 **Milestone:** v2.14 — Playwright E2E Test Infrastructure
-**Status:** Active — Phase 6 planned
+**Status:** Active — Phase 7 planned
 **Created:** 2026-03-08
 **Depth:** Standard (3 phases)
 **Source:** .planning/research/SUMMARY.md, .planning/REQUIREMENTS.md
@@ -58,22 +58,31 @@ Plans:
 
 **Requirements covered:** COOK-01, COOK-02, COOK-03, TIMR-01, TIMR-02, TIMR-03, TIMR-04, MUPG-01, MUPG-02, MUPG-03, GATE-01, GATE-02, GATE-03, CHAL-01, CHAL-02, CHAL-03, VISN-01, VISN-02, VISN-03, VISN-04
 
+**Plans:** 4 plans
+
+Plans:
+- [ ] 07-01-PLAN.md — activateSudoSession fixture helper + cookie attribute tests (COOK-01-03) + gate UI tests (GATE-01-03)
+- [ ] 07-02-PLAN.md — Admin bar timer tests with page.clock (TIMR-01-04)
+- [ ] 07-03-PLAN.md — Challenge stash-replay flow (CHAL-01-03) + MU-plugin AJAX (MUPG-01-03)
+- [ ] 07-04-PLAN.md — Visual regression baselines captured and committed (VISN-01-04)
+
 **Key decisions:**
 - Cookie verification via `context.cookies()` API — programmatic, no screenshots
 - Admin bar timer tests use `page.clock.install()` + `page.clock.tick()` for deterministic time control
 - Challenge flow tests use `Promise.all([waitForURL, click])` pattern for AJAX navigation
-- Visual snapshots use `toHaveScreenshot()` with `clip` to isolate specific elements (challenge card, settings form, admin bar node)
-- Snapshot threshold: `threshold: 0.01`, `maxDiffPixels: 100`
-- Admin bar timer masked in non-timer visual snapshots
+- activateSudoSession is a standalone exported function (not a fixture) — simpler to call with just `page`
+- Visual snapshots use `toHaveScreenshot()` clipped to specific elements (challenge card, settings form, admin bar node)
+- Snapshot threshold: `threshold: 0.05` for stable elements, `threshold: 0.1` for text-heavy admin bar
+- Admin bar timer masked in non-timer visual snapshots; clock frozen for timer snapshots
 
 **Pitfalls addressed:** 2 (AJAX navigation pattern), 4 (countdown changes DOM), 7 (iframe-break), 8 (dynamic timestamps in snapshots)
 
 **Test files:**
-- `tests/e2e/specs/session/cookie-attributes.spec.ts` — COOK-01, COOK-02, COOK-03
-- `tests/e2e/specs/session/admin-bar-timer.spec.ts` — TIMR-01, TIMR-02, TIMR-03, TIMR-04
-- `tests/e2e/specs/settings/mu-plugin-ajax.spec.ts` — MUPG-01, MUPG-02, MUPG-03
-- `tests/e2e/specs/challenge/gate-ui.spec.ts` — GATE-01, GATE-02, GATE-03
-- `tests/e2e/specs/challenge/reauth-flow.spec.ts` — CHAL-01, CHAL-02, CHAL-03
+- `tests/e2e/specs/cookie.spec.ts` — COOK-01, COOK-02, COOK-03
+- `tests/e2e/specs/admin-bar-timer.spec.ts` — TIMR-01, TIMR-02, TIMR-03, TIMR-04
+- `tests/e2e/specs/mu-plugin.spec.ts` — MUPG-01, MUPG-02, MUPG-03
+- `tests/e2e/specs/gate-ui.spec.ts` — GATE-01, GATE-02, GATE-03
+- `tests/e2e/specs/challenge.spec.ts` — CHAL-01, CHAL-02, CHAL-03
 - `tests/e2e/specs/visual/regression-baselines.spec.ts` — VISN-01, VISN-02, VISN-03, VISN-04
 
 **Success criteria:**
@@ -85,12 +94,6 @@ Plans:
 - Challenge stash-replay flow completes: gated action → challenge → auth → destination
 - Visual baselines committed for challenge card, settings form, admin bar node
 - CI passes with all tests green
-
-**Estimated plans:** 4
-- 07-01: Cookie attribute + gate UI tests (Wave 1 — simpler, establish patterns)
-- 07-02: Admin bar timer tests with clock manipulation (Wave 2)
-- 07-03: Challenge stash-replay flow + MU-plugin AJAX (Wave 3 — highest complexity)
-- 07-04: Visual regression baselines + snapshot configuration (Wave 4)
 
 ---
 
