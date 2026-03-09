@@ -1,9 +1,9 @@
 ## Current Position
 
-Phase: 7 (Core E2E Tests + Visual Regression Baselines) — in progress
-Plan: 03 complete, proceeding to 04
-Status: 3/4 plans complete
-Last activity: 2026-03-09 -- Plan 07-03 (challenge stash-replay + MU-plugin AJAX tests) complete
+Phase: 7 (Core E2E Tests + Visual Regression Baselines) — COMPLETE ✅
+Plan: 04 complete (all 4 plans done)
+Status: 4/4 plans complete — all 20 Phase 7 requirements verified
+Last activity: 2026-03-09 -- Plan 07-04 (visual regression baselines) complete; Phase 7 done
 
 ## Project Reference
 
@@ -26,6 +26,7 @@ See: .planning/PROJECT.md (updated 2026-03-08)
 - Phase 6: COMPLETE ✅ (all 3 waves, all 6 TOOL requirements verified)
 - Phase 7: 4 plans (07-01 cookie+gate, 07-02 timer, 07-03 challenge+MU-plugin, 07-04 visual regression)
 - Phase 7 plan checker: 1 blocker (MUPG mapping) + 4 warnings fixed; all selectors cross-referenced against source
+- Phase 7: COMPLETE ✅ (all 4 waves, all 20 requirements verified — 23 E2E tests passing)
 
 ## Phase 6 Execution Progress
 
@@ -56,7 +57,12 @@ See: .planning/PROJECT.md (updated 2026-03-08)
   - Deviation 3: IP-based rate limiting transients (wp_sudo_ip_*) persist between test runs — must DELETE FROM options in beforeAll/afterAll
   - Deviation 4: Two Cancel links on challenge page (password + hidden 2FA form) — scope selector to #wp-sudo-challenge-password-step
   - All 19 tests pass (7 new + 12 prior): 83s
-- **07-04 (Wave 4)** — visual-regression.spec.ts — pending
+- **07-04 (Wave 4) ✅** — regression-baselines.spec.ts (VISN-01/02/03/04) + 4 baseline PNGs
+  - Deviation 1: Clock ordering corrected — activateSudoSession() before page.clock.install() (matches Waves 2-3 pattern)
+  - Deviation 2: Page-level clip (1280x32) instead of element screenshot for admin bar (element auto-sizes to timer text width)
+  - Deviation 3: Timer text masked in admin bar snapshots — captures layout/color, not pixel-level text
+  - All 23 tests pass (4 new + 19 prior): 1.5m
+  - Committed: `09aff18`
 
 ## Key Decisions (Phase 7)
 
@@ -74,9 +80,10 @@ See: .planning/PROJECT.md (updated 2026-03-08)
 
 - wp-env start: ✅ dev=http://localhost:8889, tests=http://localhost:8890
 - WP Sudo plugin: ✅ active, v2.13.0
-- Playwright full suite: ✅ 19 passed (83s) — admin-bar-timer + challenge + cookie + gate-ui + mu-plugin + smoke
+- Playwright full suite: ✅ 23 passed (1.5m) — admin-bar-timer + challenge + cookie + gate-ui + mu-plugin + smoke + visual regression
 - COOK-01/02/03: ✅ httpOnly, sameSite=Strict, path=/ verified
 - GATE-01/02/03: ✅ aria-disabled, wp-sudo-disabled, click-no-navigate verified
 - CHAL-01/02/03: ✅ stash-replay, form elements, wrong password inline error verified
 - MUPG-01/02/03 + bonus: ✅ install/uninstall AJAX flow + 403 on no-session verified
+- VISN-01/02/03/04: ✅ challenge card, settings form, admin bar active, admin bar expiring baselines captured
 - PHP unit tests: ✅ 496 tests, 1293 assertions
