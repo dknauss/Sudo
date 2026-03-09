@@ -88,11 +88,14 @@ test.describe( 'Admin bar timer', () => {
     test( 'TIMR-02: timer text updates after 1 second (clock-controlled)', async ( {
         page,
     } ) => {
-        // CRITICAL: install clock BEFORE any navigation.
-        // Source: Playwright docs — clock.install() freezes Date and timer APIs (verified)
+        // Activate session FIRST with real clock — challenge page JS needs real timers
+        // to process the AJAX auth flow. Then install fake clock BEFORE navigating to
+        // the admin dashboard (where the admin-bar timer JS captures setInterval).
+        await activateSudoSession( page );
+
+        // Install fake clock AFTER session activation but BEFORE admin page load.
         await page.clock.install();
 
-        await activateSudoSession( page );
         await page.goto( '/wp-admin/' );
 
         // Source: wp-sudo-admin-bar.js — setInterval(fn, 1000) decrements remaining (verified)
@@ -132,10 +135,10 @@ test.describe( 'Admin bar timer', () => {
     test( 'TIMR-03: wp-sudo-expiring class added when 60 seconds remain', async ( {
         page,
     } ) => {
-        // CRITICAL: install clock BEFORE any navigation.
+        // Activate session FIRST with real clock, then install fake clock.
+        await activateSudoSession( page );
         await page.clock.install();
 
-        await activateSudoSession( page );
         await page.goto( '/wp-admin/' );
 
         const node = page.locator( '#wp-admin-bar-wp-sudo-active' );
