@@ -1,7 +1,7 @@
 # Roadmap: Playwright E2E Test Infrastructure
 
 **Milestone:** v2.14 — Playwright E2E Test Infrastructure
-**Status:** Active — Phase 7 planned
+**Status:** Active — Phase 8 planned
 **Created:** 2026-03-08
 **Depth:** Standard (3 phases)
 **Source:** .planning/research/SUMMARY.md, .planning/REQUIREMENTS.md
@@ -104,28 +104,33 @@ Plans:
 **Requirements covered:** KEYB-01, KEYB-02, KEYB-03, KEYB-04, ABAR-01, ABAR-02
 
 **Key decisions:**
-- Keyboard tests use `page.keyboard.press()` for Tab, Enter, Escape
+- All four KEYB tests consolidated in a single flat spec file (tests/e2e/specs/keyboard.spec.ts) — follows established Phase 7 flat-file pattern, not subdirectory split
+- Keyboard tests use `page.keyboard.press()` for Tab, Enter
 - Focus assertions use `page.evaluate(() => document.activeElement?.id)`
-- Shortcut tests use `page.keyboard.press('Control+Shift+S')` (or `Meta+Shift+S` on macOS)
-- Admin bar deactivation asserts URL unchanged after click (no redirect)
-- Shortcut flash verified via CSS property check (not visual snapshot — animation is 300ms)
+- Shortcut tests use `page.keyboard.press('Control+Shift+S')` — Control modifier for Linux CI (JS checks ctrlKey || metaKey)
+- KEYB-04 uses `page.emulateMedia({ reducedMotion: 'no-preference' })` before pressing shortcut — admin-bar.js guards flash on prefers-reduced-motion
+- Admin bar deactivation asserts URL unchanged after click (PHP wp_safe_redirect strips deactivation params)
+- Shortcut flash verified via inline style check immediately after keypress (synchronous style mutation, 300ms setTimeout removes it)
+- ABAR tests use beforeEach with activateSudoSession to ensure admin bar node is present for both tests
 
 **Test files:**
-- `tests/e2e/specs/challenge/keyboard-navigation.spec.ts` — KEYB-01, KEYB-02
-- `tests/e2e/specs/session/keyboard-shortcut.spec.ts` — KEYB-03, KEYB-04
-- `tests/e2e/specs/session/admin-bar-deactivate.spec.ts` — ABAR-01, ABAR-02
+- `tests/e2e/specs/keyboard.spec.ts` — KEYB-01, KEYB-02, KEYB-03, KEYB-04
+- `tests/e2e/specs/admin-bar-deactivate.spec.ts` — ABAR-01, ABAR-02
 
 **Success criteria:**
 - Tab key traverses challenge page form in correct order (password input → submit → cancel)
 - Enter submits challenge form
 - Ctrl+Shift+S navigates to challenge when no session active
-- Ctrl+Shift+S flashes admin bar when session is active
-- Admin bar click deactivates session without URL change
+- Ctrl+Shift+S flashes admin bar when session is active (inline style #4caf50 asserted)
+- Admin bar click deactivates session (cookie absent, timer node gone)
+- URL pathname unchanged after admin bar deactivation click
 - All tests pass in CI
 
-**Estimated plans:** 2
-- 08-01: Keyboard navigation + shortcut tests (Wave 1)
-- 08-02: Admin bar deactivation + CI verification + milestone docs (Wave 2)
+**Plans:** 2 plans
+
+Plans:
+- [ ] 08-01-PLAN.md — Keyboard navigation + shortcut tests (KEYB-01-04)
+- [ ] 08-02-PLAN.md — Admin bar deactivation + CI verification + milestone docs (ABAR-01-02)
 
 ---
 
