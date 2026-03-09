@@ -1,7 +1,7 @@
 # Roadmap: Playwright E2E Test Infrastructure
 
 **Milestone:** v2.14 — Playwright E2E Test Infrastructure
-**Status:** Active — Phase 8 planned
+**Status:** COMPLETE — all 3 phases done, all 32 v1 requirements verified
 **Created:** 2026-03-08
 **Depth:** Standard (3 phases)
 **Source:** .planning/research/SUMMARY.md, .planning/REQUIREMENTS.md
@@ -97,7 +97,7 @@ Plans:
 
 ---
 
-### Phase 8: Keyboard Navigation + Admin Bar Interaction E2E
+### Phase 8: Keyboard Navigation + Admin Bar Interaction E2E — COMPLETE
 
 **Goal:** Complete the E2E suite with keyboard-driven tests: Tab order on challenge page, Enter to submit, Ctrl+Shift+S shortcut behavior, and admin bar click-to-deactivate. These close the remaining user interaction gaps and establish the accessibility testing pattern for future milestones.
 
@@ -129,8 +129,8 @@ Plans:
 **Plans:** 2 plans
 
 Plans:
-- [ ] 08-01-PLAN.md — Keyboard navigation + shortcut tests (KEYB-01-04)
-- [ ] 08-02-PLAN.md — Admin bar deactivation + CI verification + milestone docs (ABAR-01-02)
+- [x] 08-01-PLAN.md — Keyboard navigation + shortcut tests (KEYB-01-04)
+- [x] 08-02-PLAN.md — Admin bar deactivation + CI verification + milestone docs (ABAR-01-02)
 
 ---
 

@@ -181,6 +181,11 @@ test.describe( 'Visual regression baselines', () => {
         // Clip dimensions: width=1280 (viewport), height=32 (WP admin bar standard height).
         // Mask the .ab-label (timer text) within the timer node to eliminate text-diff noise.
         // threshold: 0.1 — tolerate sub-pixel antialiasing differences.
+        // maxDiffPixels: 200 — tolerate timer-node width variation at mask boundary.
+        //   The .ab-label mask bounding box shifts slightly as timer text width changes
+        //   (e.g. "Sudo: 14:59" vs "Sudo: 14:58" differ by a few pixels in rendered width).
+        //   This leaves a handful of edge pixels outside the mask that vary between runs.
+        //   200px is above the observed max drift (64px) and well below any real regression.
         // This baseline primarily asserts: WP Sudo node is visible with green background.
         await expect( page ).toHaveScreenshot(
             'admin-bar-active.png',
@@ -188,6 +193,7 @@ test.describe( 'Visual regression baselines', () => {
                 clip: { x: 0, y: 0, width: 1280, height: 32 },
                 mask: [ timerNode.locator( '.ab-label' ) ],
                 threshold: 0.1,
+                maxDiffPixels: 200,
             }
         );
     } );
@@ -243,12 +249,15 @@ test.describe( 'Visual regression baselines', () => {
         // Snapshot the full admin bar (fixed 1280x32 clip) with timer text masked.
         // This baseline primarily asserts: WP Sudo node has red background (expiring state).
         // Source: admin/css/wp-sudo-admin-bar.css — .wp-sudo-expiring background: #c62828 (verified)
+        // maxDiffPixels: 200 — tolerate timer-node width variation at mask boundary (same
+        // rationale as VISN-03: .ab-label mask bounding box shifts slightly between runs).
         await expect( page ).toHaveScreenshot(
             'admin-bar-expiring.png',
             {
                 clip: { x: 0, y: 0, width: 1280, height: 32 },
                 mask: [ timerNode.locator( '.ab-label' ) ],
                 threshold: 0.1,
+                maxDiffPixels: 200,
             }
         );
     } );

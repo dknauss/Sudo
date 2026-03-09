@@ -10,62 +10,62 @@ Requirements for this milestone. Each maps to roadmap phases.
 
 ### Toolchain
 
-- [ ] **TOOL-01**: Playwright test suite runs locally with `npm test` and `npx playwright test`
-- [ ] **TOOL-02**: wp-env starts a clean WordPress instance with WP Sudo activated via `npx wp-env start`
-- [ ] **TOOL-03**: CI runs E2E tests in a separate workflow job that does not modify existing PHPUnit jobs
-- [ ] **TOOL-04**: First smoke test navigates to wp-admin and asserts WP Sudo settings page loads
-- [ ] **TOOL-05**: Global setup logs in once and persists WordPress auth cookies via `storageState`
-- [ ] **TOOL-06**: Sudo session cookies (`wp_sudo_token`) are never included in persisted `storageState`
+- [x] **TOOL-01**: Playwright test suite runs locally with `npm test` and `npx playwright test`
+- [x] **TOOL-02**: wp-env starts a clean WordPress instance with WP Sudo activated via `npx wp-env start`
+- [x] **TOOL-03**: CI runs E2E tests in a separate workflow job that does not modify existing PHPUnit jobs
+- [x] **TOOL-04**: First smoke test navigates to wp-admin and asserts WP Sudo settings page loads
+- [x] **TOOL-05**: Global setup logs in once and persists WordPress auth cookies via `storageState`
+- [x] **TOOL-06**: Sudo session cookies (`wp_sudo_token`) are never included in persisted `storageState`
 
 ### Cookie Verification
 
-- [ ] **COOK-01**: Test verifies `wp_sudo_token` cookie has `httpOnly: true` after session activation
-- [ ] **COOK-02**: Test verifies `wp_sudo_token` cookie has `sameSite: 'Strict'` after session activation
-- [ ] **COOK-03**: Test verifies `wp_sudo_token` cookie is set with correct path scope
+- [x] **COOK-01**: Test verifies `wp_sudo_token` cookie has `httpOnly: true` after session activation
+- [x] **COOK-02**: Test verifies `wp_sudo_token` cookie has `sameSite: 'Strict'` after session activation
+- [x] **COOK-03**: Test verifies `wp_sudo_token` cookie is set with correct path scope
 
 ### Admin Bar Timer
 
-- [ ] **TIMR-01**: Test verifies admin bar countdown timer is visible during active sudo session
-- [ ] **TIMR-02**: Test verifies timer text updates (is not static `--:--`)
-- [ ] **TIMR-03**: Test verifies `wp-sudo-expiring` CSS class is added when timer reaches 60s threshold
-- [ ] **TIMR-04**: Test verifies page reloads when timer reaches 0s (session expiry)
+- [x] **TIMR-01**: Test verifies admin bar countdown timer is visible during active sudo session
+- [x] **TIMR-02**: Test verifies timer text updates (is not static `--:--`)
+- [x] **TIMR-03**: Test verifies `wp-sudo-expiring` CSS class is added when timer reaches 60s threshold
+- [x] **TIMR-04**: Test verifies page reloads when timer reaches 0s (session expiry)
 
 ### MU-Plugin AJAX
 
-- [ ] **MUPG-01**: Test verifies MU-plugin install button triggers AJAX and shows spinner
-- [ ] **MUPG-02**: Test verifies success message appears after MU-plugin install completes
-- [ ] **MUPG-03**: Test verifies MU-plugin uninstall flow works via Settings page
+- [x] **MUPG-01**: Test verifies MU-plugin install button triggers AJAX and shows spinner
+- [x] **MUPG-02**: Test verifies success message appears after MU-plugin install completes
+- [x] **MUPG-03**: Test verifies MU-plugin uninstall flow works via Settings page
 
 ### Gate UI
 
-- [ ] **GATE-01**: Test verifies plugin action buttons have `aria-disabled="true"` when no sudo session is active
-- [ ] **GATE-02**: Test verifies `wp-sudo-disabled` CSS class is applied to gated buttons
-- [ ] **GATE-03**: Test verifies clicking a disabled button does not navigate away from the page
+- [x] **GATE-01**: Test verifies plugin action buttons have `aria-disabled="true"` when no sudo session is active
+- [x] **GATE-02**: Test verifies `wp-sudo-disabled` CSS class is applied to gated buttons
+- [x] **GATE-03**: Test verifies clicking a disabled button does not navigate away from the page
 
 ### Challenge Flow
 
-- [ ] **CHAL-01**: Test exercises full stash-challenge-replay flow: trigger gated action → challenge page → enter password → AJAX auth → stash replay → destination
-- [ ] **CHAL-02**: Test verifies challenge page loads with correct form elements (password input, submit button, cancel link)
-- [ ] **CHAL-03**: Test verifies failed password attempt shows error message without page reload
+- [x] **CHAL-01**: Test exercises full stash-challenge-replay flow: trigger gated action → challenge page → enter password → AJAX auth → stash replay → destination
+- [x] **CHAL-02**: Test verifies challenge page loads with correct form elements (password input, submit button, cancel link)
+- [x] **CHAL-03**: Test verifies failed password attempt shows error message without page reload
 
 ### Visual Regression
 
-- [ ] **VISN-01**: Snapshot baseline captured for challenge page card element
-- [ ] **VISN-02**: Snapshot baseline captured for settings page form element
-- [ ] **VISN-03**: Snapshot baseline captured for admin bar timer node (active session)
-- [ ] **VISN-04**: Snapshot baselines committed to repository with configurable diff thresholds
+- [x] **VISN-01**: Snapshot baseline captured for challenge page card element
+- [x] **VISN-02**: Snapshot baseline captured for settings page form element
+- [x] **VISN-03**: Snapshot baseline captured for admin bar timer node (active session)
+- [x] **VISN-04**: Snapshot baselines committed to repository with configurable diff thresholds
 
 ### Keyboard Navigation
 
-- [ ] **KEYB-01**: Test verifies Tab key traverses challenge page form fields in correct order
-- [ ] **KEYB-02**: Test verifies Enter key submits challenge form
-- [ ] **KEYB-03**: Test verifies Ctrl+Shift+S shortcut navigates to challenge page when no session is active
-- [ ] **KEYB-04**: Test verifies Ctrl+Shift+S shortcut flashes admin bar node when session is active
+- [x] **KEYB-01**: Test verifies Tab key traverses challenge page form fields in correct order
+- [x] **KEYB-02**: Test verifies Enter key submits challenge form
+- [x] **KEYB-03**: Test verifies Ctrl+Shift+S shortcut navigates to challenge page when no session is active
+- [x] **KEYB-04**: Test verifies Ctrl+Shift+S shortcut flashes admin bar node when session is active
 
 ### Admin Bar Interaction
 
-- [ ] **ABAR-01**: Test verifies clicking admin bar timer node deactivates the session
-- [ ] **ABAR-02**: Test verifies URL does not change after admin bar deactivation click
+- [x] **ABAR-01**: Test verifies clicking admin bar timer node deactivates the session
+- [x] **ABAR-02**: Test verifies URL does not change after admin bar deactivation click
 
 ## v2 Requirements
 
@@ -108,44 +108,45 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| TOOL-01 | Phase 6 | Pending |
-| TOOL-02 | Phase 6 | Pending |
-| TOOL-03 | Phase 6 | Pending |
-| TOOL-04 | Phase 6 | Pending |
-| TOOL-05 | Phase 6 | Pending |
-| TOOL-06 | Phase 6 | Pending |
-| COOK-01 | Phase 7 | Pending |
-| COOK-02 | Phase 7 | Pending |
-| COOK-03 | Phase 7 | Pending |
-| TIMR-01 | Phase 7 | Pending |
-| TIMR-02 | Phase 7 | Pending |
-| TIMR-03 | Phase 7 | Pending |
-| TIMR-04 | Phase 7 | Pending |
-| MUPG-01 | Phase 7 | Pending |
-| MUPG-02 | Phase 7 | Pending |
-| MUPG-03 | Phase 7 | Pending |
-| GATE-01 | Phase 7 | Pending |
-| GATE-02 | Phase 7 | Pending |
-| GATE-03 | Phase 7 | Pending |
-| CHAL-01 | Phase 7 | Pending |
-| CHAL-02 | Phase 7 | Pending |
-| CHAL-03 | Phase 7 | Pending |
-| VISN-01 | Phase 7 | Pending |
-| VISN-02 | Phase 7 | Pending |
-| VISN-03 | Phase 7 | Pending |
-| VISN-04 | Phase 7 | Pending |
-| KEYB-01 | Phase 8 | Pending |
-| KEYB-02 | Phase 8 | Pending |
-| KEYB-03 | Phase 8 | Pending |
-| KEYB-04 | Phase 8 | Pending |
-| ABAR-01 | Phase 8 | Pending |
-| ABAR-02 | Phase 8 | Pending |
+| TOOL-01 | Phase 6 | Complete |
+| TOOL-02 | Phase 6 | Complete |
+| TOOL-03 | Phase 6 | Complete |
+| TOOL-04 | Phase 6 | Complete |
+| TOOL-05 | Phase 6 | Complete |
+| TOOL-06 | Phase 6 | Complete |
+| COOK-01 | Phase 7 | Complete |
+| COOK-02 | Phase 7 | Complete |
+| COOK-03 | Phase 7 | Complete |
+| TIMR-01 | Phase 7 | Complete |
+| TIMR-02 | Phase 7 | Complete |
+| TIMR-03 | Phase 7 | Complete |
+| TIMR-04 | Phase 7 | Complete |
+| MUPG-01 | Phase 7 | Complete |
+| MUPG-02 | Phase 7 | Complete |
+| MUPG-03 | Phase 7 | Complete |
+| GATE-01 | Phase 7 | Complete |
+| GATE-02 | Phase 7 | Complete |
+| GATE-03 | Phase 7 | Complete |
+| CHAL-01 | Phase 7 | Complete |
+| CHAL-02 | Phase 7 | Complete |
+| CHAL-03 | Phase 7 | Complete |
+| VISN-01 | Phase 7 | Complete |
+| VISN-02 | Phase 7 | Complete |
+| VISN-03 | Phase 7 | Complete |
+| VISN-04 | Phase 7 | Complete |
+| KEYB-01 | Phase 8 | Complete |
+| KEYB-02 | Phase 8 | Complete |
+| KEYB-03 | Phase 8 | Complete |
+| KEYB-04 | Phase 8 | Complete |
+| ABAR-01 | Phase 8 | Complete |
+| ABAR-02 | Phase 8 | Complete |
 
 **Coverage:**
 - v1 requirements: 32 total
 - Mapped to phases: 32
+- Complete: 32
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-03-08*
-*Last updated: 2026-03-08 after milestone v2.14 initialization*
+*Last updated: 2026-03-09 — all 32 v1 requirements complete (Phase 6-8 done)*
