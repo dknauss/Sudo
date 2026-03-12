@@ -43,7 +43,7 @@ jobs:
           done
 
       - name: Run E2E tests
-        run: PW_EXCLUDE_VISUAL=1 npm run test:e2e
+        run: npm run test:e2e
 
       - name: Upload Playwright report on failure
         if: ${{ !cancelled() }}

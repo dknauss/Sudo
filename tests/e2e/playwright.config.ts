@@ -1,11 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const baseURL = process.env.WP_BASE_URL ?? 'http://localhost:8889';
-const excludeVisualSuites = process.env.PW_EXCLUDE_VISUAL === '1';
 
 export default defineConfig( {
     testDir: './specs',
-    testIgnore: excludeVisualSuites ? [ '**/visual/**' ] : undefined,
     outputDir: './artifacts/test-results',
     snapshotPathTemplate: '{testDir}/{testFileDir}/__snapshots__/{arg}-{projectName}{ext}',
     fullyParallel: false,
@@ -31,6 +29,12 @@ export default defineConfig( {
     projects: [
         {
             name: 'chromium',
+            testIgnore: [ '**/visual/**' ],
+            use: { ...devices[ 'Desktop Chrome' ] },
+        },
+        {
+            name: 'chromium-visual',
+            testMatch: [ '**/visual/**/*.spec.ts' ],
             use: { ...devices[ 'Desktop Chrome' ] },
         },
     ],

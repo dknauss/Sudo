@@ -69,6 +69,39 @@ npm run test:e2e:local
 
 Use the local site's real admin credentials. `WP_BASE_URL` can be `http://` or `https://` depending on your local environment.
 
+### E2E CI split: functional vs visual
+
+The Playwright suite is split into two projects:
+
+- `chromium` — required functional E2E coverage. This is what `npm run test:e2e` runs locally and what the required `E2E Tests` GitHub workflow runs in CI.
+- `chromium-visual` — visual regression baselines only. This is what `npm run test:e2e:visual` runs locally and what the separate non-blocking `E2E Visual Baselines` workflow runs.
+
+Run the functional suite locally:
+
+```bash
+npm run test:e2e
+```
+
+Run both Playwright projects locally:
+
+```bash
+npm run test:e2e:all
+```
+
+Run visual baselines only:
+
+```bash
+npm run test:e2e:visual
+```
+
+Refresh visual snapshots intentionally:
+
+```bash
+npm run test:e2e:visual -- --update-snapshots
+```
+
+Do not update visual snapshots just to make required CI pass. Review the uploaded Playwright artifacts from the `E2E Visual Baselines` workflow first, then refresh snapshots only when the UI change is intentional.
+
 If `mysql` or `mysqladmin` is not found, install client tooling first:
 
 ```bash

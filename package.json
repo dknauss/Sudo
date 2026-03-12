@@ -5,9 +5,10 @@
     "env:start": "wp-env start",
     "env:stop": "wp-env stop",
     "env:clean": "wp-env destroy",
-    "test:e2e": "playwright test --config tests/e2e/playwright.config.ts",
-    "test:e2e:local": "playwright test --config tests/e2e/playwright.config.ts",
-    "test:e2e:visual": "playwright test --config tests/e2e/playwright.config.ts tests/e2e/specs/visual/regression-baselines.spec.ts",
+    "test:e2e": "playwright test --config tests/e2e/playwright.config.ts --project=chromium",
+    "test:e2e:all": "playwright test --config tests/e2e/playwright.config.ts",
+    "test:e2e:local": "playwright test --config tests/e2e/playwright.config.ts --project=chromium",
+    "test:e2e:visual": "playwright test --config tests/e2e/playwright.config.ts --project=chromium-visual",
     "test:e2e:ui": "playwright test --config tests/e2e/playwright.config.ts --ui",
     "test:e2e:update-snapshots": "playwright test --config tests/e2e/playwright.config.ts --update-snapshots"
   },
