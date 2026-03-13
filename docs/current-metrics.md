@@ -62,7 +62,7 @@ value across these known consumers:
 Source: `.github/workflows/phpunit.yml`
 
 - Unit test matrix: PHP 8.1, 8.2, 8.3, 8.4
-- Integration matrix: PHP 8.1 and 8.3; WordPress 7.0-beta4; multisite true/false
+- Integration matrix: PHP 8.1 and 8.3; WordPress 6.7 and 7.0-beta4; multisite true/false
 
 ## Verification Notes
 

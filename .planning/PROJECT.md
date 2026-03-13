@@ -67,7 +67,7 @@ WP Sudo has comprehensive PHPUnit coverage (see `../docs/current-metrics.md` for
 
 Beyond these 5, the settings page, challenge flow, and admin bar have never been tested end-to-end in a real browser. WP 7.0 GA ships April 9, 2026 with an admin visual refresh — visual regression baselines established now will catch any breakage.
 
-WordPress dev environment: PHP 8.1+, WP 6.7+. CI matrix: unit tests on PHP 8.1-8.4, integration tests on PHP 8.1/8.3, WP 6.7/latest/trunk, single-site + multisite.
+WordPress dev environment: PHP 8.1+, WP 6.7+. CI matrix: unit tests on PHP 8.1-8.4, integration tests on PHP 8.1/8.3, WP 6.7 and 7.0-beta4, single-site + multisite.
 
 ## Constraints
 
