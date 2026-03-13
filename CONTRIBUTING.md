@@ -82,6 +82,19 @@ Run the functional suite locally:
 npm run test:e2e
 ```
 
+If `wp-env` gets stuck after a partial Docker startup, clear the generated stack
+and retry:
+
+```bash
+npm run env:stop
+npm run env:clean
+npm run env:start
+npm run env:assert-wp-version
+```
+
+The last command verifies that both `wp-env` environments are actually running
+WordPress `7.0-beta4`, not just that the containers started.
+
 Run both Playwright projects locally:
 
 ```bash

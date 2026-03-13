@@ -2,6 +2,7 @@
   "name": "wp-sudo",
   "private": true,
   "scripts": {
+    "env:assert-wp-version": "bash bin/assert-wp-env-version.sh 7.0-beta4",
     "env:start": "wp-env start",
     "env:stop": "wp-env stop",
     "env:clean": "wp-env destroy",
