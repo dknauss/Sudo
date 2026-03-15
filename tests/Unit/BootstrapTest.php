@@ -53,9 +53,9 @@ class BootstrapTest extends TestCase {
 		$plugin_file = '/Users/danknauss/Documents/GitHub/wp-sudo/wp-sudo.php';
 
 		Functions\when( 'get_option' )->justReturn( array( 'custom-public-dir/wp-sudo.php' ) );
-		Functions\expect( 'plugins_url' )
+		Functions\expect( 'content_url' )
 			->once()
-			->with( '', '/tmp/fake-wordpress/wp-content/plugins/custom-public-dir/wp-sudo.php' )
+			->with( 'plugins/custom-public-dir' )
 			->andReturn( 'https://example.com/wp-content/plugins/custom-public-dir' );
 
 		$this->assertSame(

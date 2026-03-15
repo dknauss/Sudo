@@ -52,7 +52,10 @@ class Bootstrap {
 	 * @return string
 	 */
 	public static function plugin_dir_url( string $plugin_file ): string {
-		return trailingslashit( plugins_url( '', self::public_plugin_file( $plugin_file ) ) );
+		$plugin_dirname = dirname( self::plugin_basename( $plugin_file ) );
+		$plugin_path    = '.' === $plugin_dirname ? 'plugins' : 'plugins/' . trim( $plugin_dirname, '/' );
+
+		return trailingslashit( content_url( $plugin_path ) );
 	}
 
 	/**
