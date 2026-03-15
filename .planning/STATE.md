@@ -2,12 +2,12 @@
 
 Phase: 8 (Keyboard Navigation + Admin Bar Interaction E2E) — COMPLETE
 Plan: 02 complete (2/2 plans done)
-Status: ALL COMPLETE — v2.14 Playwright E2E milestone: 32/32 v1 requirements verified, 29/29 tests passing
-Last activity: 2026-03-09 -- Plan 08-02 (ABAR-01/02 + full suite + docs) complete
+Status: ALL COMPLETE — v2.14 Playwright E2E milestone plus post-milestone multisite hardening: 32/32 v1 requirements verified, 30/30 tests passing
+Last activity: 2026-03-15 -- local multisite regression + symlink-safe bootstrap path recovery verified in unit, integration, Local browser, and hosted CI
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-09)
+See: .planning/PROJECT.md (updated 2026-03-15)
 
 **Core value:** Every destructive admin action requires proof the person at the keyboard is still the authenticated user.
 **Current focus:** Playwright E2E Test Infrastructure
@@ -27,6 +27,7 @@ See: .planning/PROJECT.md (updated 2026-03-09)
 - Phase 7: 4 plans (07-01 cookie+gate, 07-02 timer, 07-03 challenge+MU-plugin, 07-04 visual regression)
 - Phase 7 plan checker: 1 blocker (MUPG mapping) + 4 warnings fixed; all selectors cross-referenced against source
 - Phase 7: COMPLETE ✅ (all 4 waves, all 20 requirements verified — 23 E2E tests passing)
+- Post-milestone hardening: COMPLETE ✅ (Local multisite network-admin regression added; symlink-safe bootstrap path recovery covered in unit + integration + Local browser runs)
 
 ## Phase 6 Execution Progress
 
@@ -108,3 +109,12 @@ See: .planning/PROJECT.md (updated 2026-03-09)
 - MUPG-01/02/03 + bonus: ✅ install/uninstall AJAX flow + 403 on no-session verified
 - VISN-01/02/03/04: ✅ challenge card, settings form, admin bar active, admin bar expiring baselines (all passing with maxDiffPixels fix)
 - PHP unit tests: ✅ 496 tests, 1293 assertions
+
+## Post-Milestone Hardening (2026-03-15)
+
+- Local multisite target: `https://multisite-subdomains.local`
+- Drift control: `bin/local-plugin-dev.sh` supports `status`, `sync`, and `link` for copied vs symlinked Local plugin installs
+- New regression: `tests/e2e/specs/multisite-network-admin.spec.ts` verifies network-admin reauth returns to `/wp-admin/network/plugins.php`
+- Bootstrap fix: public plugin basename/path is recovered from active plugin state so symlinked Local installs do not generate filesystem-path asset URLs
+- Coverage: unit (`tests/Unit/BootstrapTest.php`), integration (`tests/Integration/BootstrapTest.php`), Local browser regression, and hosted CI all green
+- Important boundary: hosted Playwright CI is still single-site; multisite browser verification remains Local-only by design

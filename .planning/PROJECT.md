@@ -43,6 +43,7 @@ Every destructive WordPress admin action requires proof that the person at the k
 - [x] WP 7.0 visual regression baselines — v2.14
 - [x] Admin UI smoke tests in a real browser — v2.14
 - [x] E2E tests in CI on every push — v2.14
+- [x] Local multisite network-admin regression for symlinked plugin installs — v2.14.1
 
 ### Out of Scope
 
@@ -67,7 +68,7 @@ WP Sudo has comprehensive PHPUnit coverage (see `../docs/current-metrics.md` for
 
 Beyond these 5, the settings page, challenge flow, and admin bar have never been tested end-to-end in a real browser. WP 7.0 GA ships April 9, 2026 with an admin visual refresh — visual regression baselines established now will catch any breakage.
 
-WordPress dev environment: PHP 8.1+, WP 6.7+. CI matrix: unit tests on PHP 8.1-8.4, integration tests on PHP 8.1/8.3, WP 6.7 and 7.0-beta4, single-site + multisite.
+WordPress dev environment: PHP 8.1+, WP 6.7+. CI matrix: unit tests on PHP 8.1-8.4, integration tests on PHP 8.1/8.3, WP 6.7 and 7.0-beta4, single-site + multisite. Playwright hosted CI remains single-site via `wp-env`; Local `multisite-subdomains.local` now provides the dedicated multisite network-admin browser regression target.
 
 ## Constraints
 
@@ -75,6 +76,7 @@ WordPress dev environment: PHP 8.1+, WP 6.7+. CI matrix: unit tests on PHP 8.1-8
 - **WordPress test env**: Needs a running WordPress instance with WP Sudo activated (wp-env or similar)
 - **No build step pollution**: Playwright deps must not affect the plugin's zero-production-dependency stance
 - **CI time budget**: E2E suite should add no more than ~2 minutes to CI pipeline
+- **Local multisite drift**: Symlinked Local/Studio plugin installs can execute the plugin from the repo target path, not the public `wp-content/plugins/<slug>` path. Bootstrap URL logic must recover the public plugin basename from active plugin state, and browser regressions for that behavior remain local-only.
 
 ## Key Decisions
 
@@ -83,6 +85,7 @@ WordPress dev environment: PHP 8.1+, WP 6.7+. CI matrix: unit tests on PHP 8.1-8
 | Playwright over Cypress | Playwright has better multi-browser support, faster execution, and native WordPress ecosystem adoption (Gutenberg uses it) | Adopted — @playwright/test 1.58.2, Chromium only |
 | wp-env for test environment | Standard WordPress dev tool, used by Gutenberg, handles DB setup | Adopted — @wordpress/env 11.1.0, port 8889 |
 | Visual regression via screenshot comparison | Catches WP 7.0 admin refresh breakage without manual testing | Adopted — 4 baselines captured (challenge card, settings form, admin bar active/expiring) |
+| Local multisite browser verification stays outside hosted CI | GitHub-hosted `wp-env` is single-site; the multisite network-admin failure only surfaced on a symlinked Local install | Adopted — keep hosted CI single-site, add Local multisite regression + helper script + bootstrap hardening |
 
 ---
-*Last updated: 2026-03-09 — milestone v2.14 complete (32/32 requirements, 29 E2E tests)*
+*Last updated: 2026-03-15 — milestone v2.14 complete plus multisite symlink hardening (32/32 requirements, 30 E2E tests)*
