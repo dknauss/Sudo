@@ -17,7 +17,7 @@ use WP_Sudo\Tests\TestCase;
 class BootstrapTest extends TestCase {
 
 	public function test_register_plugin_realpath_uses_public_plugin_path(): void {
-		$plugin_file = '/Users/danknauss/Documents/GitHub/wp-sudo/wp-sudo.php';
+		$plugin_file = '/tmp/wp-sudo/wp-sudo.php';
 
 		Functions\when( 'get_option' )->justReturn( array( 'wp-sudo/wp-sudo.php' ) );
 		Functions\expect( 'wp_register_plugin_realpath' )
@@ -28,7 +28,7 @@ class BootstrapTest extends TestCase {
 	}
 
 	public function test_plugin_basename_prefers_active_plugin_entry_for_symlinked_install(): void {
-		$plugin_file = '/Users/danknauss/Documents/GitHub/wp-sudo/wp-sudo.php';
+		$plugin_file = '/tmp/wp-sudo/wp-sudo.php';
 
 		Functions\when( 'get_option' )->justReturn( array( 'custom-public-dir/wp-sudo.php' ) );
 
@@ -38,7 +38,7 @@ class BootstrapTest extends TestCase {
 	}
 
 	public function test_plugin_basename_falls_back_to_wordpress_when_plugin_not_active(): void {
-		$plugin_file = '/Users/danknauss/Documents/GitHub/wp-sudo/wp-sudo.php';
+		$plugin_file = '/tmp/wp-sudo/wp-sudo.php';
 
 		Functions\when( 'get_option' )->justReturn( array() );
 		Functions\expect( 'plugin_basename' )
@@ -50,7 +50,7 @@ class BootstrapTest extends TestCase {
 	}
 
 	public function test_plugin_dir_url_uses_public_plugin_basename(): void {
-		$plugin_file = '/Users/danknauss/Documents/GitHub/wp-sudo/wp-sudo.php';
+		$plugin_file = '/tmp/wp-sudo/wp-sudo.php';
 
 		Functions\when( 'get_option' )->justReturn( array( 'custom-public-dir/wp-sudo.php' ) );
 		Functions\expect( 'content_url' )
@@ -65,7 +65,7 @@ class BootstrapTest extends TestCase {
 	}
 
 	public function test_plugin_basename_reads_network_active_plugins_on_multisite(): void {
-		$plugin_file = '/Users/danknauss/Documents/GitHub/wp-sudo/wp-sudo.php';
+		$plugin_file = '/tmp/wp-sudo/wp-sudo.php';
 
 		Functions\when( 'is_multisite' )->justReturn( true );
 		Functions\when( 'get_option' )->justReturn( array() );

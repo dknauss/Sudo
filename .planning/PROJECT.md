@@ -58,7 +58,7 @@ Every destructive WordPress admin action requires proof that the person at the k
 
 ## Context
 
-WP Sudo has comprehensive PHPUnit coverage (see `../docs/current-metrics.md` for current counts) but zero browser-level testing. Five specific scenarios cannot be tested with PHPUnit:
+WP Sudo has comprehensive PHPUnit coverage (see `../docs/current-metrics.md` for current counts) plus real-browser coverage for the highest-risk flows PHPUnit cannot exercise fully. The original browser gap centered on five scenarios:
 
 1. **Cookie attributes** — `setcookie()` output (httponly, SameSite, Secure) not capturable
 2. **Admin bar countdown JS** — requires real DOM + `setInterval`
@@ -66,7 +66,7 @@ WP Sudo has comprehensive PHPUnit coverage (see `../docs/current-metrics.md` for
 4. **Block editor snackbar** (future) — requires `@wordpress/notices` API in browser
 5. **Challenge page keyboard navigation** — real focus management needs browser DOM
 
-Beyond these 5, the settings page, challenge flow, and admin bar have never been tested end-to-end in a real browser. WP 7.0 GA ships April 9, 2026 with an admin visual refresh — visual regression baselines established now will catch any breakage.
+Those five scenarios drove the Phase 6-8 Playwright work. The settings page, challenge flow, admin bar, and one Local-only multisite network-admin regression are now covered end to end in a real browser. WP 7.0 GA ships April 9, 2026 with an admin visual refresh, so keeping those baselines current remains useful for drift detection.
 
 WordPress dev environment: PHP 8.1+, WP 6.7+. CI matrix: unit tests on PHP 8.1-8.4, integration tests on PHP 8.1/8.3, WP 6.7 and 7.0-beta4, single-site + multisite. Playwright hosted CI remains single-site via `wp-env`; Local `multisite-subdomains.local` now provides the dedicated multisite network-admin browser regression target.
 
@@ -88,4 +88,4 @@ WordPress dev environment: PHP 8.1+, WP 6.7+. CI matrix: unit tests on PHP 8.1-8
 | Local multisite browser verification stays outside hosted CI | GitHub-hosted `wp-env` is single-site; the multisite network-admin failure only surfaced on a symlinked Local install | Adopted — keep hosted CI single-site, add Local multisite regression + helper script + bootstrap hardening |
 
 ---
-*Last updated: 2026-03-15 — milestone v2.14 complete plus multisite symlink hardening (32/32 requirements, 30 E2E tests)*
+*Last updated: 2026-03-20 — milestone v2.14 complete plus multisite symlink hardening and planning/workflow alignment refresh (32/32 requirements, 30 E2E tests defined)*

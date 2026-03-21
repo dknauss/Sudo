@@ -3,7 +3,7 @@
 This file is the single source of truth for current repository counts.
 
 Last verified: 2026-03-15
-Verification environment: local repo checkout at `/Users/danknauss/Documents/GitHub/wp-sudo`
+Verification environment: primary local repo checkout at `/Users/danknauss/Developer/GitHub/wp-sudo` (mirrored checkouts may differ)
 
 ## Test Metrics
 

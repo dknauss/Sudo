@@ -2,12 +2,12 @@
 
 Phase: 8 (Keyboard Navigation + Admin Bar Interaction E2E) — COMPLETE
 Plan: 02 complete (2/2 plans done)
-Status: ALL COMPLETE — v2.14 Playwright E2E milestone plus post-milestone multisite hardening: 32/32 v1 requirements verified, 30/30 tests passing
-Last activity: 2026-03-15 -- local multisite regression + symlink-safe bootstrap path recovery verified in unit, integration, Local browser, and hosted CI
+Status: ALL COMPLETE — v2.14 Playwright E2E milestone plus post-milestone multisite hardening: 32/32 v1 requirements verified, 30 E2E tests defined, default single-site verification path passes 29 with 1 Local-only multisite skip
+Last activity: 2026-03-20 -- planning, workflow, and test-fixture alignment refreshed after state audit
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-15)
+See: .planning/PROJECT.md (updated 2026-03-20)
 
 **Core value:** Every destructive admin action requires proof the person at the keyboard is still the authenticated user.
 **Current focus:** Playwright E2E Test Infrastructure

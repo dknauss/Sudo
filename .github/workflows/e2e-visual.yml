@@ -41,6 +41,9 @@ jobs:
             sleep 2
           done
 
+      - name: Assert pinned WordPress beta version
+        run: npm run env:assert-wp-version
+
       - name: Run visual baseline tests (non-blocking)
         id: visual
         continue-on-error: true
