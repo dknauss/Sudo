@@ -52,10 +52,20 @@ class Bootstrap {
 	 * @return string
 	 */
 	public static function plugin_dir_url( string $plugin_file ): string {
-		$plugin_dirname = dirname( self::plugin_basename( $plugin_file ) );
-		$plugin_path    = '.' === $plugin_dirname ? 'plugins' : 'plugins/' . trim( $plugin_dirname, '/' );
+		$plugin_basename = self::plugin_basename( $plugin_file );
+		$url             = untrailingslashit( plugins_url() );
+		$plugin_dirname  = dirname( $plugin_basename );
 
-		return trailingslashit( content_url( $plugin_path ) );
+		if ( '.' !== $plugin_dirname ) {
+			$url .= '/' . ltrim( $plugin_dirname, '/' );
+		}
+
+		/**
+		 * Mirror WordPress' `plugins_url` filter while using the recovered public basename.
+		 */
+		$url = apply_filters( 'plugins_url', $url, '', $plugin_basename );
+
+		return trailingslashit( $url );
 	}
 
 	/**

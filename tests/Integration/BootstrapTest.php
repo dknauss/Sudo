@@ -42,6 +42,33 @@ class BootstrapTest extends TestCase {
 		);
 	}
 
+	public function test_plugin_dir_url_honors_plugins_url_filter(): void {
+		$public_basename = is_multisite()
+			? 'network-public-dir/wp-sudo.php'
+			: 'custom-public-dir/wp-sudo.php';
+
+		$this->arrange_public_plugin_basename( $public_basename );
+
+		$callback = static function ( string $url, string $path, string $plugin ) use ( $public_basename ): string {
+			if ( '' === $path && $public_basename === $plugin ) {
+				return 'https://cdn.example.com/custom-plugin-url';
+			}
+
+			return $url;
+		};
+
+		add_filter( 'plugins_url', $callback, 10, 3 );
+
+		try {
+			$this->assertSame(
+				'https://cdn.example.com/custom-plugin-url/',
+				Bootstrap::plugin_dir_url( '/tmp/symlinked-target/wp-sudo.php' )
+			);
+		} finally {
+			remove_filter( 'plugins_url', $callback, 10 );
+		}
+	}
+
 	/**
 	 * Arrange a synthetic public plugin basename in the same storage WordPress uses.
 	 *

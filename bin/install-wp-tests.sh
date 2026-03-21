@@ -18,6 +18,7 @@ WP_TESTS_DIR=${WP_TESTS_DIR-$TMPDIR/wordpress-tests-lib}
 WP_CORE_DIR=${WP_CORE_DIR-$TMPDIR/wordpress}
 MYSQL_BIN=""
 MYSQLADMIN_BIN=""
+LOCAL_SOCKET_HOST_DETECTED=false
 
 download() {
     if [ `which curl` ]; then
@@ -57,6 +58,17 @@ resolve_mysql_bin() {
 		done
 	done
 
+	# Local by Flywheel bundles mysql/mysqladmin under lightning-services.
+	local local_services_dir="$HOME/Library/Application Support/Local/lightning-services"
+	if [ -d "$local_services_dir" ]; then
+		while IFS= read -r candidate; do
+			if [ -x "$candidate" ]; then
+				echo "$candidate"
+				return 0
+			fi
+		done < <(find "$local_services_dir" -path "*/bin/*/bin/$command_name" -type f 2>/dev/null | sort -r)
+	fi
+
 	return 1
 }
 
@@ -74,6 +86,52 @@ check_mysql_tools_installed() {
 		echo "  /usr/local/opt/mysql-client/bin"
 		exit 1
 	fi
+}
+
+find_local_mysql_socket() {
+	local local_run_dir="$HOME/Library/Application Support/Local/run"
+	local matches=()
+
+	if [ ! -d "$local_run_dir" ]; then
+		return 1
+	fi
+
+	while IFS= read -r socket_path; do
+		[ -n "$socket_path" ] && matches+=("$socket_path")
+	done < <(find "$local_run_dir" -name "mysqld.sock" -print 2>/dev/null)
+
+	if [ "${#matches[@]}" -ne 1 ]; then
+		return 1
+	fi
+
+	printf '%s\n' "${matches[0]}"
+}
+
+maybe_use_local_socket_host() {
+	local original_host="$DB_HOST"
+	local local_socket=""
+
+	case "$DB_HOST" in
+		localhost|127.0.0.1)
+			;;
+		*)
+			return 0
+			;;
+	esac
+
+	if "$MYSQLADMIN_BIN" ping --host="$DB_HOST" --protocol=tcp --user="$DB_USER" --password="$DB_PASS" > /dev/null 2>&1; then
+		return 0
+	fi
+
+	local_socket="$(find_local_mysql_socket || true)"
+
+	if [ -z "$local_socket" ]; then
+		return 0
+	fi
+
+	DB_HOST="localhost:$local_socket"
+	LOCAL_SOCKET_HOST_DETECTED=true
+	echo "Detected Local by Flywheel MySQL socket; using DB host $DB_HOST instead of $original_host"
 }
 
 if [[ $WP_VERSION =~ ^[0-9]+\.[0-9]+\-(beta|RC)[0-9]+$ ]]; then
@@ -241,6 +299,7 @@ install_plugins() {
 }
 
 check_mysql_tools_installed
+maybe_use_local_socket_host
 install_wp
 install_test_suite
 install_db

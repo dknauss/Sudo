@@ -53,13 +53,36 @@ class BootstrapTest extends TestCase {
 		$plugin_file = '/tmp/wp-sudo/wp-sudo.php';
 
 		Functions\when( 'get_option' )->justReturn( array( 'custom-public-dir/wp-sudo.php' ) );
-		Functions\expect( 'content_url' )
+		Functions\expect( 'plugins_url' )
 			->once()
-			->with( 'plugins/custom-public-dir' )
+			->withNoArgs()
+			->andReturn( 'https://example.com/wp-content/plugins' );
+		Functions\expect( 'apply_filters' )
+			->once()
+			->with( 'plugins_url', 'https://example.com/wp-content/plugins/custom-public-dir', '', 'custom-public-dir/wp-sudo.php' )
 			->andReturn( 'https://example.com/wp-content/plugins/custom-public-dir' );
 
 		$this->assertSame(
 			'https://example.com/wp-content/plugins/custom-public-dir/',
+			Bootstrap::plugin_dir_url( $plugin_file )
+		);
+	}
+
+	public function test_plugin_dir_url_preserves_wordpress_plugin_url_filters(): void {
+		$plugin_file = '/tmp/wp-sudo/wp-sudo.php';
+
+		Functions\when( 'get_option' )->justReturn( array( 'custom-public-dir/wp-sudo.php' ) );
+		Functions\expect( 'plugins_url' )
+			->once()
+			->withNoArgs()
+			->andReturn( 'https://example.com/wp-content/plugins' );
+		Functions\expect( 'apply_filters' )
+			->once()
+			->with( 'plugins_url', 'https://example.com/wp-content/plugins/custom-public-dir', '', 'custom-public-dir/wp-sudo.php' )
+			->andReturn( 'https://cdn.example.com/plugins/custom-public-dir' );
+
+		$this->assertSame(
+			'https://cdn.example.com/plugins/custom-public-dir/',
 			Bootstrap::plugin_dir_url( $plugin_file )
 		);
 	}
