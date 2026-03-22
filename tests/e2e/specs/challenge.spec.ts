@@ -1,5 +1,5 @@
 /**
- * Challenge flow tests — CHAL-01, CHAL-02, CHAL-03
+ * Challenge flow tests — CHAL-01 through CHAL-05
  *
  * Tests the full stash-challenge-replay flow and challenge page form elements.
  *
@@ -50,6 +50,11 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 
 const execAsync = promisify( exec );
+const WP_BASE_URL = process.env.WP_BASE_URL ?? 'http://localhost:8889';
+const E2E_TWO_FACTOR_MU_PLUGIN = 'wp-sudo-e2e-two-factor.php';
+const E2E_TWO_FACTOR_REQUIRE_META = '_wp_sudo_e2e_require_two_factor';
+const E2E_TWO_FACTOR_CODE_META = '_wp_sudo_e2e_two_factor_code';
+const E2E_TWO_FACTOR_CODE = '123456';
 
 /**
  * Extract a real plugin activate URL (with valid nonce) from plugins.php.
@@ -158,6 +163,98 @@ async function clearSudoIpTransients(): Promise<void> {
 }
 
 /**
+ * Install a dormant test-only 2FA bridge into wp-env as an MU plugin.
+ *
+ * The bridge only activates when the admin user has a specific user-meta flag,
+ * so it does not affect unrelated browser tests.
+ */
+async function installE2eTwoFactorBridge(): Promise<void> {
+    await execAsync(
+        `npx wp-env run cli bash -lc 'mkdir -p /var/www/html/wp-content/mu-plugins && cp /var/www/html/wp-content/plugins/wp-sudo/tests/e2e/fixtures/${ E2E_TWO_FACTOR_MU_PLUGIN } /var/www/html/wp-content/mu-plugins/${ E2E_TWO_FACTOR_MU_PLUGIN }'`,
+        { timeout: 30_000 }
+    );
+
+    const { stdout } = await execAsync(
+        `npx wp-env run cli wp eval 'echo has_filter( "wp_sudo_requires_two_factor" ) ? "loaded" : "missing"; echo PHP_EOL;'`,
+        { timeout: 15_000 }
+    );
+
+    if ( ! stdout.includes( 'loaded' ) ) {
+        throw new Error( 'Failed to load the test-only 2FA bridge in wp-env.' );
+    }
+}
+
+/**
+ * Remove the test-only 2FA bridge from wp-env.
+ */
+async function removeE2eTwoFactorBridge(): Promise<void> {
+    await execAsync(
+        `npx wp-env run cli bash -lc 'rm -f /var/www/html/wp-content/mu-plugins/${ E2E_TWO_FACTOR_MU_PLUGIN }'`,
+        { timeout: 30_000 }
+    );
+}
+
+/**
+ * Enable the test-only 2FA provider for the default admin user.
+ */
+async function enableE2eTwoFactor(): Promise<void> {
+    await execAsync(
+        `npx wp-env run cli wp user meta update 1 ${ E2E_TWO_FACTOR_REQUIRE_META } 1 --quiet`,
+        { timeout: 15_000 }
+    );
+    await execAsync(
+        `npx wp-env run cli wp user meta update 1 ${ E2E_TWO_FACTOR_CODE_META } ${ E2E_TWO_FACTOR_CODE } --quiet`,
+        { timeout: 15_000 }
+    );
+}
+
+/**
+ * Disable the test-only 2FA provider for the default admin user.
+ */
+async function disableE2eTwoFactor(): Promise<void> {
+    await execAsync(
+        `npx wp-env run cli wp user meta delete 1 ${ E2E_TWO_FACTOR_REQUIRE_META } --quiet 2>/dev/null || true`,
+        { timeout: 15_000 }
+    );
+    await execAsync(
+        `npx wp-env run cli wp user meta delete 1 ${ E2E_TWO_FACTOR_CODE_META } --quiet 2>/dev/null || true`,
+        { timeout: 15_000 }
+    );
+}
+
+/**
+ * Acquire a fresh sudo session through the password + 2FA challenge flow.
+ */
+async function activateSudoSessionWithTwoFactor(
+    page: Page,
+    password = 'password'
+): Promise<void> {
+    await page.goto( '/wp-admin/admin.php?page=wp-sudo-challenge' );
+
+    await page.waitForFunction(
+        () => typeof ( window as Window & { wpSudoChallenge?: unknown } ).wpSudoChallenge !== 'undefined'
+    );
+
+    await page.fill( '#wp-sudo-challenge-password', password );
+    await page.click( '#wp-sudo-challenge-submit' );
+
+    await expect(
+        page.locator( '#wp-sudo-challenge-2fa-step' ),
+        '2FA step must appear after the password succeeds'
+    ).toBeVisible( { timeout: 15_000 } );
+
+    await page.fill( '#wp-sudo-e2e-two-factor-code', E2E_TWO_FACTOR_CODE );
+
+    await Promise.all( [
+        page.waitForURL(
+            ( url ) => url.pathname.includes( '/wp-admin/' ) && ! url.search.includes( 'wp-sudo-challenge' ),
+            { timeout: 15_000 }
+        ),
+        page.click( '#wp-sudo-challenge-2fa-submit' ),
+    ] );
+}
+
+/**
  * Set the wp-env CLI policy temporarily to unrestricted, run a callback that
  * executes WP-CLI gated commands, then restore the original setting.
  *
@@ -191,6 +288,8 @@ async function withCliPolicyUnrestricted( fn: () => Promise<void> ): Promise<voi
 
 test.describe( 'Challenge flow', () => {
     test.beforeAll( async () => {
+        await installE2eTwoFactorBridge();
+
         // Ensure at least one plugin is inactive for CHAL-01 stash-replay test.
         // Without an inactive plugin, getActivateUrl() returns null and CHAL-01 skips.
         // Source: wp-env ships with Hello Dolly (hello.php) which can be deactivated (verified)
@@ -264,6 +363,9 @@ test.describe( 'Challenge flow', () => {
         // Clear IP-based lockout/failure transients accumulated during CHAL-03.
         // Source: includes/class-sudo-session.php — IP transient prefixes (verified)
         await clearSudoIpTransients();
+
+        await disableE2eTwoFactor();
+        await removeE2eTwoFactorBridge();
     } );
 
     test.beforeEach( async ( { page } ) => {
@@ -491,5 +593,38 @@ test.describe( 'Challenge flow', () => {
             page.locator( '#wp-sudo-challenge-password-form' ),
             'Recovered stale challenge must not leave the password form onscreen'
         ).toHaveCount( 0 );
+    } );
+
+    /**
+     * CHAL-05: A stale challenge URL should also recover when the current session
+     * was established through the 2FA flow.
+     */
+    test( 'CHAL-05: active 2FA session escapes stale challenge URL', async ( {
+        page,
+    } ) => {
+        await enableE2eTwoFactor();
+
+        try {
+            await activateSudoSessionWithTwoFactor( page );
+
+            await page.goto(
+                '/wp-admin/admin.php?page=wp-sudo-challenge&stash_key=expired-key&return_url=' +
+                encodeURIComponent( `${ WP_BASE_URL }/wp-admin/plugins.php` )
+            );
+
+            await page.waitForURL( /plugins\.php/, { timeout: 15_000 } );
+
+            await expect(
+                page,
+                'Active sudo session established through 2FA must recover to the requested admin page'
+            ).toHaveURL( /plugins\.php/ );
+
+            await expect(
+                page.locator( '#wp-sudo-challenge-password-form' ),
+                'Recovered stale challenge must not leave the password form onscreen'
+            ).toHaveCount( 0 );
+        } finally {
+            await disableE2eTwoFactor();
+        }
     } );
 } );
