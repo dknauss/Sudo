@@ -59,8 +59,20 @@ add_filter(
 			$submitted = sanitize_text_field( wp_unslash( $_POST['wp_sudo_e2e_two_factor_code'] ) );
 		}
 
-		return '' !== $expected && hash_equals( $expected, $submitted );
+	return '' !== $expected && hash_equals( $expected, $submitted );
 	},
 	10,
 	2
+);
+
+add_action(
+	'wp_ajax_wp_sudo_e2e_expire_two_factor',
+	static function (): void {
+		if ( ! current_user_can( 'manage_options' ) ) {
+			wp_send_json_error( array( 'message' => 'Forbidden' ), 403 );
+		}
+
+		\WP_Sudo\Sudo_Session::clear_2fa_pending();
+		wp_send_json_success();
+	}
 );

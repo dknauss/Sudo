@@ -1,5 +1,5 @@
 /**
- * Challenge flow tests — CHAL-01 through CHAL-05
+ * Challenge flow tests — CHAL-01 through CHAL-07
  *
  * Tests the full stash-challenge-replay flow and challenge page form elements.
  *
@@ -223,9 +223,9 @@ async function disableE2eTwoFactor(): Promise<void> {
 }
 
 /**
- * Acquire a fresh sudo session through the password + 2FA challenge flow.
+ * Reach the 2FA step after a correct password submission.
  */
-async function activateSudoSessionWithTwoFactor(
+async function reachTwoFactorStep(
     page: Page,
     password = 'password'
 ): Promise<void> {
@@ -242,6 +242,16 @@ async function activateSudoSessionWithTwoFactor(
         page.locator( '#wp-sudo-challenge-2fa-step' ),
         '2FA step must appear after the password succeeds'
     ).toBeVisible( { timeout: 15_000 } );
+}
+
+/**
+ * Submit a 2FA code and wait for the session-only success redirect.
+ */
+async function activateSudoSessionWithTwoFactor(
+    page: Page,
+    password = 'password'
+): Promise<void> {
+    await reachTwoFactorStep( page, password );
 
     await page.fill( '#wp-sudo-e2e-two-factor-code', E2E_TWO_FACTOR_CODE );
 
@@ -252,6 +262,44 @@ async function activateSudoSessionWithTwoFactor(
         ),
         page.click( '#wp-sudo-challenge-2fa-submit' ),
     ] );
+}
+
+/**
+ * Expire the current browser-bound 2FA challenge in wp-env.
+ *
+ * Use the test-only AJAX hook so the same browser context that owns the
+ * challenge cookie invalidates its pending 2FA state before submission.
+ */
+async function expireCurrentTwoFactorChallenge( page: Page ): Promise<void> {
+    await expect(
+        page.locator( '#wp-sudo-challenge-2fa-step' ),
+        'Expected to be on the 2FA step before expiring pending state.'
+    ).toBeVisible();
+
+    const response = await page.evaluate( async () => {
+        const result = await fetch(
+            `${ window.location.origin }/wp-admin/admin-ajax.php?action=wp_sudo_e2e_expire_two_factor`,
+            {
+                method: 'POST',
+                credentials: 'same-origin',
+            }
+        );
+
+        return {
+            status: result.status,
+            text: await result.text(),
+        };
+    } );
+
+    expect(
+        response.status,
+        `Expected test-only 2FA expiry hook to respond with 200, got ${ response.status }: ${ response.text }`
+    ).toBe( 200 );
+
+    expect(
+        response.text,
+        'Expected test-only 2FA expiry hook to return success JSON.'
+    ).toContain( '"success":true' );
 }
 
 /**
@@ -623,6 +671,99 @@ test.describe( 'Challenge flow', () => {
                 page.locator( '#wp-sudo-challenge-password-form' ),
                 'Recovered stale challenge must not leave the password form onscreen'
             ).toHaveCount( 0 );
+        } finally {
+            await disableE2eTwoFactor();
+        }
+    } );
+
+    /**
+     * CHAL-06: An invalid 2FA code should show an inline error without navigation.
+     */
+    test( 'CHAL-06: invalid 2FA code shows inline error without page reload', async ( {
+        page,
+    } ) => {
+        await enableE2eTwoFactor();
+
+        try {
+            await reachTwoFactorStep( page );
+
+            const initialUrl = page.url();
+
+            await page.fill( '#wp-sudo-e2e-two-factor-code', '000000' );
+            await page.click( '#wp-sudo-challenge-2fa-submit' );
+
+            await expect(
+                page.locator( '#wp-sudo-challenge-2fa-error' ),
+                '2FA error box must become visible after an invalid authentication code'
+            ).toBeVisible( { timeout: 10_000 } );
+
+            await expect(
+                page.locator( '#wp-sudo-challenge-2fa-error' ),
+                '2FA error message must explain that the submitted code is invalid'
+            ).toContainText( 'Invalid authentication code', { timeout: 5_000 } );
+
+            await expect(
+                page.locator( '#wp-sudo-challenge-2fa-step' ),
+                '2FA step must remain visible so the user can retry'
+            ).toBeVisible();
+
+            expect(
+                page.url(),
+                'Invalid 2FA code must not navigate away from the challenge page'
+            ).toBe( initialUrl );
+        } finally {
+            await disableE2eTwoFactor();
+        }
+    } );
+
+    /**
+     * CHAL-07: An expired 2FA pending window should require the user to start over.
+     */
+    test( 'CHAL-07: expired 2FA pending window forces restart', async ( {
+        page,
+    } ) => {
+        await enableE2eTwoFactor();
+
+        try {
+            await reachTwoFactorStep( page );
+
+            const initialUrl = page.url();
+
+            await expireCurrentTwoFactorChallenge( page );
+
+            await page.fill( '#wp-sudo-e2e-two-factor-code', E2E_TWO_FACTOR_CODE );
+            await page.click( '#wp-sudo-challenge-2fa-submit' );
+
+            await expect(
+                page.locator( '#wp-sudo-challenge-2fa-error' ),
+                'Expired 2FA pending state must surface an inline restart message'
+            ).toBeVisible( { timeout: 10_000 } );
+
+            await expect(
+                page.locator( '#wp-sudo-challenge-2fa-error' ),
+                'Expired 2FA pending state must tell the user to start over'
+            ).toContainText( 'Your authentication session has expired. Please start over.', { timeout: 5_000 } );
+
+            await expect(
+                page.locator( '#wp-sudo-challenge-2fa-step' ),
+                'Expired 2FA pending state should keep the user on the 2FA challenge instead of creating a session'
+            ).toBeVisible();
+
+            expect(
+                page.url(),
+                'Expired 2FA pending state must keep the browser on the challenge page'
+            ).toBe( initialUrl );
+
+            await expect.poll(
+                async () => {
+                    const cookies = await page.context().cookies();
+                    return cookies.some( ( cookie ) => cookie.name === 'wp_sudo_token' );
+                },
+                {
+                    message: 'Expired 2FA pending state must not create a sudo session cookie',
+                    timeout: 5_000,
+                }
+            ).toBe( false );
         } finally {
             await disableE2eTwoFactor();
         }

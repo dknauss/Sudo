@@ -20,10 +20,10 @@ Verification environment: primary local repo checkout at `/Users/danknauss/Devel
 | Metric | Value | Verification |
 |---|---:|---|
 | Production PHP lines (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 8,963 | `find ./includes ./wp-sudo.php ./uninstall.php ./mu-plugin ./bridges -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1` |
-| Tests PHP lines (`tests/`) | 16,782 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1` |
-| Production + tests PHP lines | 25,745 | sum of the two rows above |
-| Test-to-production ratio | 1.87:1 | `16782 / 8963` |
-| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`) | 25,802 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" -print0 | xargs -0 wc -l | tail -1` |
+| Tests PHP lines (`tests/`) | 16,794 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1` |
+| Production + tests PHP lines | 25,757 | sum of the two rows above |
+| Test-to-production ratio | 1.87:1 | `16794 / 8963` |
+| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`) | 25,814 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" -print0 | xargs -0 wc -l | tail -1` |
 
 ## Architectural Facts
 
@@ -41,7 +41,7 @@ the count in prose without a verification command.
 | Audit hooks | 9 | `grep -c "do_action.*wp_sudo_" includes/class-*.php \| awk -F: '{sum+=$2} END{print sum}'` | v2.11.0 |
 | Settings fields (base) | 5 | 1 numeric (duration) + 4 policy dropdowns (REST, CLI, Cron, XML-RPC) | v2.0.0 |
 | Settings fields (with WPGraphQL) | 6 | +1 conditional WPGraphQL policy dropdown | v2.5.0 |
-| E2E tests | 32 | `npx playwright test --config tests/e2e/playwright.config.ts --list` | unreleased |
+| E2E tests | 34 | `npx playwright test --config tests/e2e/playwright.config.ts --list` | unreleased |
 
 ### Files that reference these counts
 
