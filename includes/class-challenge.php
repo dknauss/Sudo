@@ -87,7 +87,7 @@ class Challenge {
 	 * @return void
 	 */
 	public function register_page(): void {
-		add_submenu_page(
+		$page_hook = add_submenu_page(
 			'', // No parent — hidden page.
 			__( 'Confirm Your Identity — Sudo', 'wp-sudo' ),
 			'',
@@ -95,6 +95,23 @@ class Challenge {
 			'wp-sudo-challenge',
 			array( $this, 'render_page' )
 		);
+
+		if ( is_string( $page_hook ) && '' !== $page_hook ) {
+			add_action( 'load-' . $page_hook, array( $this, 'prime_page_title' ), 10, 0 );
+		}
+	}
+
+	/**
+	 * Prime the global admin title for the hidden challenge page.
+	 *
+	 * Hidden submenu pages with an empty parent slug do not reliably populate
+	 * the global title early enough for wp-admin/admin-header.php. Set it on the
+	 * page load hook so core never passes null to strip_tags().
+	 *
+	 * @return void
+	 */
+	public function prime_page_title(): void {
+		$GLOBALS['title'] = __( 'Confirm Your Identity — Sudo', 'wp-sudo' ); // phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Hidden challenge page must seed the admin title before core strip_tags() runs.
 	}
 
 	/**
@@ -191,6 +208,11 @@ class Challenge {
 		$cancel_url  = $return_url
 			? wp_validate_redirect( $return_url, $default_url )
 			: $default_url;
+
+		if ( Sudo_Session::is_active( $user_id ) ) {
+			$this->render_resume_page( $user_id, $stash_key, $cancel_url );
+			return;
+		}
 
 		if ( $session_only ) {
 			// Session-only mode: no stash, just activate a sudo session.
@@ -349,6 +371,11 @@ class Challenge {
 
 		$stash_key = self::sanitize_input_string( $_POST['stash_key'] ?? '' ); // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce verified above; sanitized in helper.
 
+		if ( Sudo_Session::is_active( $user_id ) ) {
+			$this->complete_active_session_request( $user_id, $stash_key );
+			return;
+		}
+
 		// Verify the stash exists — only when a stash_key is provided (challenge page flow).
 		// Session-only auth sends no stash_key (session activation only, no replay).
 		if ( $stash_key && ! $this->stash->exists( $stash_key, $user_id ) ) {
@@ -432,6 +459,13 @@ class Challenge {
 			wp_send_json_error( array( 'message' => __( 'Invalid request.', 'wp-sudo' ) ), 400 );
 		}
 
+		$stash_key = self::sanitize_input_string( $_POST['stash_key'] ?? '' ); // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce verified above; sanitized in helper.
+
+		if ( Sudo_Session::is_active( $user_id ) ) {
+			$this->complete_active_session_request( $user_id, $stash_key );
+			return;
+		}
+
 		// Verify 2FA pending state — browser-bound via challenge cookie.
 		$pending = Sudo_Session::get_2fa_pending( $user_id );
 
@@ -473,8 +507,6 @@ class Challenge {
 				429
 			);
 		}
-
-		$stash_key = self::sanitize_input_string( $_POST['stash_key'] ?? '' ); // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce verified above; sanitized in helper.
 
 		$valid = false;
 
@@ -553,17 +585,133 @@ class Challenge {
 	 * @return void
 	 */
 	private function replay_stash( int $user_id, string $stash_key ): void {
+		wp_send_json_success( $this->build_replay_response_data( $user_id, $stash_key ) );
+	}
+
+	/**
+	 * Complete an already-active session during an AJAX challenge request.
+	 *
+	 * A stale challenge tab should not block the user once the browser already
+	 * holds an active sudo session. Replay a still-valid stash when possible;
+	 * otherwise instruct the client to leave the challenge page.
+	 *
+	 * @param int    $user_id   Current user ID.
+	 * @param string $stash_key Challenge stash key.
+	 * @return void
+	 */
+	private function complete_active_session_request( int $user_id, string $stash_key ): void {
+		if ( $stash_key && $this->stash->exists( $stash_key, $user_id ) ) {
+			$this->replay_stash( $user_id, $stash_key );
+			return;
+		}
+
+		wp_send_json_success( array( 'code' => 'authenticated' ) );
+	}
+
+	/**
+	 * Render an auto-resume screen for already-authenticated users.
+	 *
+	 * @param int    $user_id   Current user ID.
+	 * @param string $stash_key Challenge stash key.
+	 * @param string $cancel_url Safe URL to leave the challenge page.
+	 * @return void
+	 */
+	private function render_resume_page( int $user_id, string $stash_key, string $cancel_url ): void {
+		$data = array(
+			'code'     => 'authenticated',
+			'redirect' => $cancel_url,
+		);
+
+		if ( $stash_key && $this->stash->exists( $stash_key, $user_id ) ) {
+			$data = $this->build_replay_response_data( $user_id, $stash_key, $cancel_url );
+		}
+
+		$redirect_url = isset( $data['redirect'] ) && is_string( $data['redirect'] )
+			? $data['redirect']
+			: $cancel_url;
+		?>
+		<div class="wrap">
+			<div class="wp-sudo-challenge-card" id="wp-sudo-challenge-card">
+				<h1>
+					<span class="dashicons dashicons-shield" aria-hidden="true"></span>
+					<?php esc_html_e( 'Session already confirmed', 'wp-sudo' ); ?>
+				</h1>
+				<p class="description">
+					<?php esc_html_e( 'Your sudo session is already active. Continuing…', 'wp-sudo' ); ?>
+				</p>
+				<p class="submit">
+					<a href="<?php echo esc_url( $redirect_url ); ?>" class="button button-primary">
+						<?php esc_html_e( 'Continue', 'wp-sudo' ); ?>
+					</a>
+					<a href="<?php echo esc_url( $cancel_url ); ?>" class="button">
+						<?php esc_html_e( 'Cancel', 'wp-sudo' ); ?>
+					</a>
+				</p>
+			</div>
+		</div>
+		<?php if ( ! empty( $data['replay'] ) && ! empty( $data['url'] ) ) : ?>
+			<form id="wp-sudo-resume-form" method="<?php echo esc_attr( (string) ( $data['method'] ?? 'POST' ) ); ?>" action="<?php echo esc_url( (string) $data['url'] ); ?>" hidden>
+				<?php $this->render_hidden_fields( $data['post_data'] ?? array() ); ?>
+			</form>
+			<script>
+				document.addEventListener('DOMContentLoaded', function () {
+					var form = document.getElementById('wp-sudo-resume-form');
+					if (form) {
+						HTMLFormElement.prototype.submit.call(form);
+					}
+				});
+			</script>
+		<?php else : ?>
+			<script>
+				document.addEventListener('DOMContentLoaded', function () {
+					window.location.href = <?php echo wp_json_encode( $redirect_url ); ?>;
+				});
+			</script>
+		<?php endif; ?>
+		<?php
+	}
+
+	/**
+	 * Render nested hidden form fields using PHP-style bracket notation.
+	 *
+	 * @param array<string, mixed> $fields Field data.
+	 * @param string               $prefix Current name prefix.
+	 * @return void
+	 */
+	private function render_hidden_fields( array $fields, string $prefix = '' ): void {
+		foreach ( $fields as $key => $value ) {
+			$field_name = '' === $prefix ? (string) $key : $prefix . '[' . (string) $key . ']';
+
+			if ( is_array( $value ) ) {
+				$this->render_hidden_fields( $value, $field_name );
+				continue;
+			}
+			?>
+			<input type="hidden" name="<?php echo esc_attr( $field_name ); ?>" value="<?php echo esc_attr( (string) $value ); ?>" />
+			<?php
+		}
+	}
+
+	/**
+	 * Build replay response data for a stashed request.
+	 *
+	 * @param int         $user_id      The user ID.
+	 * @param string      $stash_key    The stash key.
+	 * @param string|null $fallback_url Fallback redirect when stash is missing.
+	 * @return array<string, mixed>
+	 */
+	private function build_replay_response_data( int $user_id, string $stash_key, ?string $fallback_url = null ): array {
 		$stash = $this->stash->get( $stash_key, $user_id );
 
-		if ( ! $stash ) {
+		if ( ! $fallback_url ) {
 			$fallback_url = is_network_admin() ? network_admin_url() : admin_url();
-			wp_send_json_success(
-				array(
-					'code'     => 'success',
-					'redirect' => $fallback_url,
-				)
+		}
+
+		if ( ! $stash ) {
+			return array(
+				'code'     => 'success',
+				'redirect' => $fallback_url,
 			);
-			return;
 		}
 
 		// Consume the stash (one-time use).
@@ -579,29 +727,22 @@ class Challenge {
 		 */
 		do_action( 'wp_sudo_action_replayed', $user_id, $stash['rule_id'] ?? '' );
 
-		$fallback_url = is_network_admin() ? network_admin_url() : admin_url();
-		$safe_url     = wp_validate_redirect( $stash['url'], $fallback_url );
+		$safe_url = wp_validate_redirect( $stash['url'], $fallback_url );
 
 		if ( 'GET' === ( $stash['method'] ?? 'GET' ) ) {
-			wp_send_json_success(
-				array(
-					'code'     => 'success',
-					'redirect' => $safe_url,
-				)
+			return array(
+				'code'     => 'success',
+				'redirect' => $safe_url,
 			);
-			return;
 		}
 
-		// POST replay: send the stashed data so JS can build a self-submitting form.
-		wp_send_json_success(
-			array(
-				'code'      => 'success',
-				'replay'    => true,
-				'method'    => $stash['method'],
-				'url'       => $safe_url,
-				'post_data' => $stash['post'] ?? array(),
-				'get_data'  => $stash['get'] ?? array(),
-			)
+		return array(
+			'code'      => 'success',
+			'replay'    => true,
+			'method'    => $stash['method'],
+			'url'       => $safe_url,
+			'post_data' => $stash['post'] ?? array(),
+			'get_data'  => $stash['get'] ?? array(),
 		);
 	}
 

@@ -125,8 +125,8 @@
 							return;
 						}
 
-						// Session-only mode: redirect back instead of replaying.
-						if (config.sessionOnly && response.data && response.data.code === 'authenticated') {
+						// An already-active session may escape a stale challenge without replay data.
+						if (response.data && response.data.code === 'authenticated') {
 							window.location.href = config.cancelUrl || (window.location.origin + '/wp-admin/');
 							return;
 						}
@@ -220,6 +220,12 @@
 					if (response.success) {
 						if (response.data && response.data.code === '2fa_resent') {
 							return; // Code resent — stay on 2FA step.
+						}
+
+						// An already-active session may escape a stale challenge without replay data.
+						if (response.data && response.data.code === 'authenticated') {
+							window.location.href = config.cancelUrl || (window.location.origin + '/wp-admin/');
+							return;
 						}
 
 						// Session-only mode: redirect back instead of replaying.

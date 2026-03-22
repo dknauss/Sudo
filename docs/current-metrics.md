@@ -9,9 +9,9 @@ Verification environment: primary local repo checkout at `/Users/danknauss/Devel
 
 | Metric | Value | Verification |
 |---|---:|---|
-| Unit tests | 504 tests | `composer test:unit` |
-| Unit assertions | 1311 assertions | `composer test:unit` |
-| Integration tests in suite | 135 test methods | `rg -c "function test" tests/Integration/*.php | awk -F: '{sum+=$2} END{print sum}'` |
+| Unit tests | 508 tests | `composer test:unit` |
+| Unit assertions | 1336 assertions | `composer test:unit` |
+| Integration tests in suite | 136 test methods | `rg -c "function test" tests/Integration/*.php | awk -F: '{sum+=$2} END{print sum}'` |
 | Unit test files | 19 | `ls tests/Unit/*.php | wc -l` |
 | Integration test files | 19 | `ls tests/Integration/*.php | wc -l` |
 
@@ -19,11 +19,11 @@ Verification environment: primary local repo checkout at `/Users/danknauss/Devel
 
 | Metric | Value | Verification |
 |---|---:|---|
-| Production PHP lines (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 8,822 | `find ./includes ./wp-sudo.php ./uninstall.php ./mu-plugin ./bridges -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1` |
-| Tests PHP lines (`tests/`) | 16,508 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1` |
-| Production + tests PHP lines | 25,330 | sum of the two rows above |
-| Test-to-production ratio | 1.87:1 | `16508 / 8822` |
-| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`) | 25,387 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" -print0 | xargs -0 wc -l | tail -1` |
+| Production PHP lines (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 8,963 | `find ./includes ./wp-sudo.php ./uninstall.php ./mu-plugin ./bridges -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1` |
+| Tests PHP lines (`tests/`) | 16,716 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1` |
+| Production + tests PHP lines | 25,679 | sum of the two rows above |
+| Test-to-production ratio | 1.87:1 | `16716 / 8963` |
+| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`) | 25,736 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" -print0 | xargs -0 wc -l | tail -1` |
 
 ## Architectural Facts
 
@@ -66,9 +66,9 @@ Source: `.github/workflows/phpunit.yml`
 
 ## Verification Notes
 
-- `composer test:unit` passed on 2026-03-21 (`504 tests`, `1311 assertions`).
-- `composer test:integration` passed on 2026-03-21 (`140 tests`, `433 assertions`, `8 skipped`) using the repo-local WordPress test install and a Local by Flywheel MySQL socket-backed `wordpress_test` database.
-- `WP_MULTISITE=1 composer test:integration` passed on 2026-03-21 (`140 tests`, `441 assertions`, `2 skipped`) using the same Local socket-backed test database.
+- `composer test:unit` passed on 2026-03-21 (`508 tests`, `1336 assertions`).
+- `composer test:integration` passed on 2026-03-21 (`141 tests`, `438 assertions`, `8 skipped`) using the repo-local WordPress test install and a Local by Flywheel MySQL socket-backed `wordpress_test` database.
+- `WP_MULTISITE=1 composer test:integration` passed on 2026-03-21 (`141 tests`, `446 assertions`, `2 skipped`) using the same Local socket-backed test database.
 - `composer analyse:phpstan`, `composer analyse:psalm`, and `composer lint` passed on 2026-03-21.
 
 ## Update Procedure

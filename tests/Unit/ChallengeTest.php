@@ -242,9 +242,29 @@ class ChallengeTest extends TestCase
 				'read',
 				'wp-sudo-challenge',
 				\Mockery::type('array')
-			);
+			)
+			->andReturn('admin_page_wp-sudo-challenge');
+
+		Actions\expectAdded('load-admin_page_wp-sudo-challenge')
+			->once()
+			->with(array($this->challenge, 'prime_page_title'), \Mockery::any(), 0);
 
 		$this->challenge->register_page();
+	}
+
+	/**
+	 * Test prime_page_title sets the global admin title for the hidden page.
+	 */
+	public function test_prime_page_title_sets_global_title(): void
+	{
+		global $title;
+
+		$title = null;
+		Functions\when('__')->returnArg();
+
+		$this->challenge->prime_page_title();
+
+		$this->assertSame('Confirm Your Identity — Sudo', $title);
 	}
 
 	// -----------------------------------------------------------------
@@ -389,6 +409,53 @@ class ChallengeTest extends TestCase
 		$this->challenge->handle_ajax_auth();
 
 		unset($_POST['password']);
+	}
+
+	/**
+	 * Test handle_ajax_auth exits cleanly when sudo is already active and the stash expired.
+	 */
+	public function test_handle_ajax_auth_returns_authenticated_when_session_is_already_active(): void
+	{
+		$_POST['password'] = 'correct-horse';
+		$_POST['stash_key'] = 'expired-key';
+		$_COOKIE[\WP_Sudo\Sudo_Session::TOKEN_COOKIE] = 'browser-token';
+
+		Functions\expect('check_ajax_referer')->once();
+		Functions\when('get_current_user_id')->justReturn(42);
+		Functions\when('__')->returnArg();
+		Functions\when('sanitize_text_field')->returnArg();
+
+		$expires = time() + 300;
+		Functions\when('get_user_meta')->alias(function ($uid, $key, $single = true) use ($expires) {
+			if (\WP_Sudo\Sudo_Session::META_KEY === $key) {
+				return $expires;
+			}
+			if (\WP_Sudo\Sudo_Session::TOKEN_META_KEY === $key) {
+				return hash('sha256', 'browser-token');
+			}
+			return '';
+		});
+
+		Functions\expect('wp_send_json_success')
+			->once()
+			->with(\Mockery::on(function ($data) {
+				return is_array($data)
+					&& 'authenticated' === ($data['code'] ?? '');
+			}));
+
+		Functions\expect('wp_send_json_error')->never();
+		Functions\expect('get_userdata')->never();
+		Functions\expect('wp_check_password')->never();
+
+		$this->stash->shouldReceive('exists')
+			->once()
+			->with('expired-key', 42)
+			->andReturn(false);
+		$this->stash->shouldNotReceive('get');
+
+		$this->challenge->handle_ajax_auth();
+
+		unset($_POST['password'], $_POST['stash_key'], $_COOKIE[\WP_Sudo\Sudo_Session::TOKEN_COOKIE]);
 	}
 
 	/**
@@ -1149,6 +1216,57 @@ class ChallengeTest extends TestCase
 		$this->challenge->handle_ajax_2fa();
 	}
 
+	/**
+	 * Test handle_ajax_2fa exits cleanly when sudo is already active and pending state is gone.
+	 */
+	public function test_handle_ajax_2fa_returns_authenticated_when_session_is_already_active(): void
+	{
+		$_POST['stash_key'] = 'expired-key';
+		$_COOKIE[\WP_Sudo\Sudo_Session::TOKEN_COOKIE] = 'browser-token';
+
+		Functions\expect('check_ajax_referer')->once();
+		Functions\when('get_current_user_id')->justReturn(42);
+		Functions\expect('get_userdata')->once()->andReturn(new \WP_User(42));
+		Functions\when('__')->returnArg();
+		Functions\when('sanitize_text_field')->returnArg();
+
+		$expires = time() + 300;
+		Functions\when('get_user_meta')->alias(function ($uid, $key, $single = true) use ($expires) {
+			if (\WP_Sudo\Sudo_Session::META_KEY === $key) {
+				return $expires;
+			}
+			if (\WP_Sudo\Sudo_Session::TOKEN_META_KEY === $key) {
+				return hash('sha256', 'browser-token');
+			}
+			if (\WP_Sudo\Sudo_Session::THROTTLE_UNTIL_META_KEY === $key || \WP_Sudo\Sudo_Session::LOCKOUT_UNTIL_META_KEY === $key) {
+				return '';
+			}
+			return '';
+		});
+
+		Functions\expect('wp_send_json_success')
+			->once()
+			->with(\Mockery::on(function ($data) {
+				return is_array($data)
+					&& 'authenticated' === ($data['code'] ?? '');
+			}));
+
+		Functions\expect('wp_send_json_error')->never();
+		Functions\expect('get_transient')->never();
+		Functions\expect('apply_filters')->never();
+		Functions\expect('delete_transient')->never();
+
+		$this->stash->shouldReceive('exists')
+			->once()
+			->with('expired-key', 42)
+			->andReturn(false);
+		$this->stash->shouldNotReceive('get');
+
+		$this->challenge->handle_ajax_2fa();
+
+		unset($_POST['stash_key'], $_COOKIE[\WP_Sudo\Sudo_Session::TOKEN_COOKIE]);
+	}
+
 	// -----------------------------------------------------------------
 	// render_page — wp_sudo_render_two_factor_fields action
 	// -----------------------------------------------------------------
@@ -1267,5 +1385,58 @@ class ChallengeTest extends TestCase
 		$this->assertStringContainsString('disabled', $output);
 		$this->assertMatchesRegularExpression('/Please wait \d+ seconds/', $output);
 		$this->assertStringContainsString('wp-sudo-challenge-throttle-notice', $output);
+	}
+
+	/**
+	 * Test render_page resumes instead of rendering the password form when sudo is already active.
+	 */
+	public function test_render_page_resumes_when_session_is_already_active(): void
+	{
+		$_GET['return_url'] = 'https://example.com/wp-admin/plugins.php';
+		$_COOKIE[\WP_Sudo\Sudo_Session::TOKEN_COOKIE] = 'browser-token';
+
+		Functions\when('get_current_user_id')->justReturn(42);
+		Functions\when('__')->returnArg();
+		Functions\when('esc_html__')->returnArg();
+		Functions\when('esc_html_e')->alias(function ($text) {
+			echo $text;
+		});
+		Functions\when('esc_html')->returnArg();
+		Functions\when('esc_attr')->returnArg();
+		Functions\when('esc_url')->returnArg();
+		Functions\when('esc_js')->returnArg();
+		Functions\when('wp_json_encode')->alias(function ($value) {
+			return json_encode($value);
+		});
+		Functions\when('admin_url')->justReturn('https://example.com/wp-admin/');
+		Functions\when('wp_validate_redirect')->returnArg();
+		Functions\when('sanitize_url')->returnArg();
+
+		$expires = time() + 300;
+		Functions\when('get_user_meta')->alias(function ($uid, $key, $single = true) use ($expires) {
+			if (\WP_Sudo\Sudo_Session::META_KEY === $key) {
+				return $expires;
+			}
+			if (\WP_Sudo\Sudo_Session::TOKEN_META_KEY === $key) {
+				return hash('sha256', 'browser-token');
+			}
+			return '';
+		});
+
+		Functions\expect('get_userdata')->never();
+		Functions\expect('disabled')->never();
+
+		$this->stash->shouldNotReceive('get');
+		$this->stash->shouldNotReceive('delete');
+
+		ob_start();
+		$this->challenge->render_page();
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString('Session already confirmed', $output);
+		$this->assertStringContainsString('https://example.com/wp-admin/plugins.php', $output);
+		$this->assertStringNotContainsString('wp-sudo-challenge-password-form', $output);
+
+		unset($_GET['return_url'], $_COOKIE[\WP_Sudo\Sudo_Session::TOKEN_COOKIE]);
 	}
 }

@@ -461,4 +461,41 @@ class ExitPathTest extends TestCase {
 		// Session should be active after correct password.
 		$this->assertTrue( Sudo_Session::is_active( $user->ID ), 'Session should be active after authentication.' );
 	}
+
+	/**
+	 * A stale challenge request with an already-active sudo session exits cleanly
+	 * instead of failing on an expired stash key.
+	 */
+	public function test_challenge_with_active_session_ignores_expired_stash(): void {
+		$password = 'test-password';
+		$user     = $this->make_admin( $password );
+		wp_set_current_user( $user->ID );
+
+		Sudo_Session::activate( $user->ID );
+		$this->assertTrue( Sudo_Session::is_active( $user->ID ), 'Precondition: session should already be active.' );
+
+		$challenge = new Challenge( new Request_Stash() );
+
+		$_POST['password']     = $password;
+		$_POST['stash_key']    = 'expired-key';
+		$_POST['_ajax_nonce']  = wp_create_nonce( Challenge::NONCE_ACTION );
+		$_REQUEST['_ajax_nonce'] = $_POST['_ajax_nonce'];
+		add_filter( 'wp_doing_ajax', '__return_true' );
+
+		ob_start();
+		try {
+			$challenge->handle_ajax_auth();
+			$this->fail( 'Expected WPDieException from wp_send_json_success.' );
+		} catch ( \WPDieException $e ) {
+			$this->addToAssertionCount( 1 );
+		} finally {
+			remove_filter( 'wp_doing_ajax', '__return_true' );
+			$output = ob_get_clean();
+		}
+
+		$json = json_decode( $output, true );
+		$this->assertIsArray( $json, 'Output should be valid JSON.' );
+		$this->assertTrue( $json['success'], 'Active-session stale challenge should return success.' );
+		$this->assertSame( 'authenticated', $json['data']['code'], 'Active-session stale challenge should escape the screen.' );
+	}
 }
