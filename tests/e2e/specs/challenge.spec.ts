@@ -1,5 +1,5 @@
 /**
- * Challenge flow tests — CHAL-01 through CHAL-11
+ * Challenge flow tests — CHAL-01 through CHAL-12
  *
  * Tests the full stash-challenge-replay flow and challenge page form elements.
  *
@@ -1106,5 +1106,81 @@ test.describe( 'Challenge flow', () => {
         } finally {
             await disableE2eTwoFactor();
         }
+    } );
+
+    /**
+     * CHAL-12: Repeated wrong passwords should surface the hard lockout countdown on the password step.
+     */
+    test( 'CHAL-12: repeated wrong passwords trigger the password lockout UI', async ( {
+        page,
+    } ) => {
+        await page.goto( '/wp-admin/admin.php?page=wp-sudo-challenge' );
+
+        await page.waitForFunction(
+            () => typeof ( window as Window & { wpSudoChallenge?: unknown } ).wpSudoChallenge !== 'undefined'
+        );
+
+        const initialUrl = page.url();
+
+        for ( let attempt = 1; attempt <= 3; attempt++ ) {
+            await page.fill( '#wp-sudo-challenge-password', 'this-is-wrong-password' );
+            await page.click( '#wp-sudo-challenge-submit' );
+
+            await expect(
+                page.locator( '#wp-sudo-challenge-error' ),
+                `Wrong password attempt ${ attempt } should surface the inline password error`
+            ).toBeVisible( { timeout: 10_000 } );
+
+            await expect(
+                page.locator( '#wp-sudo-challenge-error' ),
+                `Wrong password attempt ${ attempt } should still be treated as a normal auth failure`
+            ).toContainText( 'Incorrect password', { timeout: 5_000 } );
+        }
+
+        await page.fill( '#wp-sudo-challenge-password', 'this-is-wrong-password' );
+        await page.click( '#wp-sudo-challenge-submit' );
+
+        await expect(
+            page.locator( '#wp-sudo-challenge-submit' ),
+            'The 4th wrong password should trigger the short throttle before lockout'
+        ).toBeDisabled();
+
+        await expect(
+            page.locator( '#wp-sudo-challenge-submit' ),
+            'The short password throttle must expire before the lockout-triggering retry'
+        ).toBeEnabled( { timeout: 10_000 } );
+
+        await page.fill( '#wp-sudo-challenge-password', 'this-is-wrong-password' );
+        await page.click( '#wp-sudo-challenge-submit' );
+
+        await expect(
+            page.locator( '#wp-sudo-challenge-error' ),
+            'The password lockout response should remain visible on the password step'
+        ).toBeVisible( { timeout: 10_000 } );
+
+        await expect(
+            page.locator( '#wp-sudo-challenge-error' ),
+            'The password lockout UI should tell the user they are locked out and must wait'
+        ).toContainText( 'Too many failed attempts', { timeout: 5_000 } );
+
+        await expect(
+            page.locator( '#wp-sudo-challenge-submit' ),
+            'The password submit button should be disabled during the lockout countdown'
+        ).toBeDisabled();
+
+        await expect(
+            page.locator( '#wp-sudo-challenge-password-step' ),
+            'The browser must remain on the password step during lockout'
+        ).toBeVisible();
+
+        await expect(
+            page.locator( '#wp-sudo-challenge-2fa-step' ),
+            'The 2FA step should stay hidden during a password lockout'
+        ).toBeHidden();
+
+        expect(
+            page.url(),
+            'The password lockout path must not navigate away from the challenge page'
+        ).toBe( initialUrl );
     } );
 } );
