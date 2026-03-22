@@ -1,5 +1,5 @@
 /**
- * Challenge flow tests — CHAL-01 through CHAL-10
+ * Challenge flow tests — CHAL-01 through CHAL-11
  *
  * Tests the full stash-challenge-replay flow and challenge page form elements.
  *
@@ -1030,6 +1030,79 @@ test.describe( 'Challenge flow', () => {
                 page.locator( '#wp-sudo-challenge-2fa-error' ),
                 'The throttle notice should clear after the short delay expires'
             ).toBeHidden( { timeout: 10_000 } );
+        } finally {
+            await disableE2eTwoFactor();
+        }
+    } );
+
+    /**
+     * CHAL-11: A 2FA lockout should surface on the 2FA step and disable the 2FA submit button.
+     */
+    test( 'CHAL-11: repeated invalid 2FA codes trigger the lockout UI on the 2FA step', async ( {
+        page,
+    } ) => {
+        await enableE2eTwoFactor();
+
+        try {
+            await reachTwoFactorStep( page );
+
+            const initialUrl = page.url();
+
+            for ( let attempt = 1; attempt <= 3; attempt++ ) {
+                await page.fill( '#wp-sudo-e2e-two-factor-code', '000000' );
+                await page.click( '#wp-sudo-challenge-2fa-submit' );
+
+                await expect(
+                    page.locator( '#wp-sudo-challenge-2fa-error' ),
+                    `Invalid 2FA attempt ${ attempt } should show the inline error box`
+                ).toContainText( 'Invalid authentication code', { timeout: 10_000 } );
+            }
+
+            await page.fill( '#wp-sudo-e2e-two-factor-code', '000000' );
+            await page.click( '#wp-sudo-challenge-2fa-submit' );
+
+            await expect(
+                page.locator( '#wp-sudo-challenge-2fa-submit' ),
+                'The 4th invalid 2FA attempt should trigger the short throttle before lockout'
+            ).toBeDisabled();
+
+            await expect(
+                page.locator( '#wp-sudo-challenge-2fa-submit' ),
+                'The short throttle must expire before the lockout-triggering retry'
+            ).toBeEnabled( { timeout: 10_000 } );
+
+            await page.fill( '#wp-sudo-e2e-two-factor-code', '000000' );
+            await page.click( '#wp-sudo-challenge-2fa-submit' );
+
+            await expect(
+                page.locator( '#wp-sudo-challenge-2fa-error' ),
+                'The lockout response should surface in the 2FA error box, not the hidden password step'
+            ).toBeVisible( { timeout: 10_000 } );
+
+            await expect(
+                page.locator( '#wp-sudo-challenge-2fa-error' ),
+                'The lockout UI should tell the user they are locked out and must wait'
+            ).toContainText( 'Too many failed attempts', { timeout: 5_000 } );
+
+            await expect(
+                page.locator( '#wp-sudo-challenge-2fa-submit' ),
+                'The 2FA submit button should be disabled during the lockout countdown'
+            ).toBeDisabled();
+
+            await expect(
+                page.locator( '#wp-sudo-challenge-2fa-step' ),
+                'The browser must remain on the visible 2FA step during lockout'
+            ).toBeVisible();
+
+            await expect(
+                page.locator( '#wp-sudo-challenge-error' ),
+                'The password-step error box should stay hidden during a 2FA lockout'
+            ).toBeHidden();
+
+            expect(
+                page.url(),
+                'The lockout path must not navigate away from the challenge page'
+            ).toBe( initialUrl );
         } finally {
             await disableE2eTwoFactor();
         }
