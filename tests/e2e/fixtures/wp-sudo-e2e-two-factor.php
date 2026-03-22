@@ -25,6 +25,10 @@ add_action(
 			return;
 		}
 		?>
+		<?php if ( '1' === (string) get_user_meta( $user->ID, '_wp_sudo_e2e_two_factor_provider_hidden_fields', true ) ) : ?>
+			<input type="hidden" name="action" value="e2e_provider_shadow_action" />
+			<input type="hidden" name="_wpnonce" value="e2e-provider-shadow-nonce" />
+		<?php endif; ?>
 		<p>
 			<label for="wp-sudo-e2e-two-factor-code">Authentication code</label><br />
 			<input

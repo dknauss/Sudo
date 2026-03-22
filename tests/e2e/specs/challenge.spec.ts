@@ -1,5 +1,5 @@
 /**
- * Challenge flow tests — CHAL-01 through CHAL-07
+ * Challenge flow tests — CHAL-01 through CHAL-08
  *
  * Tests the full stash-challenge-replay flow and challenge page form elements.
  *
@@ -54,6 +54,8 @@ const WP_BASE_URL = process.env.WP_BASE_URL ?? 'http://localhost:8889';
 const E2E_TWO_FACTOR_MU_PLUGIN = 'wp-sudo-e2e-two-factor.php';
 const E2E_TWO_FACTOR_REQUIRE_META = '_wp_sudo_e2e_require_two_factor';
 const E2E_TWO_FACTOR_CODE_META = '_wp_sudo_e2e_two_factor_code';
+const E2E_TWO_FACTOR_HIDDEN_FIELDS_META =
+    '_wp_sudo_e2e_two_factor_provider_hidden_fields';
 const E2E_TWO_FACTOR_CODE = '123456';
 
 /**
@@ -163,6 +165,23 @@ async function clearSudoIpTransients(): Promise<void> {
 }
 
 /**
+ * Clear WP Sudo per-user failure meta so each browser case starts clean.
+ */
+async function clearSudoFailureMeta(): Promise<void> {
+    for ( const metaKey of [
+        '_wp_sudo_lockout_until',
+        '_wp_sudo_failure_event',
+        '_wp_sudo_failed_attempts',
+        '_wp_sudo_throttle_until',
+    ] ) {
+        await execAsync(
+            `npx wp-env run cli wp user meta delete 1 ${ metaKey } --quiet 2>/dev/null || true`,
+            { timeout: 15_000 }
+        );
+    }
+}
+
+/**
  * Install a dormant test-only 2FA bridge into wp-env as an MU plugin.
  *
  * The bridge only activates when the admin user has a specific user-meta flag,
@@ -218,6 +237,20 @@ async function disableE2eTwoFactor(): Promise<void> {
     );
     await execAsync(
         `npx wp-env run cli wp user meta delete 1 ${ E2E_TWO_FACTOR_CODE_META } --quiet 2>/dev/null || true`,
+        { timeout: 15_000 }
+    );
+    await execAsync(
+        `npx wp-env run cli wp user meta delete 1 ${ E2E_TWO_FACTOR_HIDDEN_FIELDS_META } --quiet 2>/dev/null || true`,
+        { timeout: 15_000 }
+    );
+}
+
+/**
+ * Enable provider-style hidden action/_wpnonce fields in the 2FA step.
+ */
+async function enableE2eTwoFactorProviderHiddenFields(): Promise<void> {
+    await execAsync(
+        `npx wp-env run cli wp user meta update 1 ${ E2E_TWO_FACTOR_HIDDEN_FIELDS_META } 1 --quiet`,
         { timeout: 15_000 }
     );
 }
@@ -355,17 +388,7 @@ test.describe( 'Challenge flow', () => {
         // If a prior run left user 1 locked out (e.g. from CHAL-03 incorrect password
         // not cleaned up), the challenge page form is disabled which causes tests to fail.
         // Source: includes/class-sudo-session.php — failure meta keys (verified)
-        for ( const metaKey of [
-            '_wp_sudo_lockout_until',
-            '_wp_sudo_failure_event',
-            '_wp_sudo_failed_attempts',
-            '_wp_sudo_throttle_until',
-        ] ) {
-            await execAsync(
-                `npx wp-env run cli wp user meta delete 1 ${ metaKey } --quiet 2>/dev/null || true`,
-                { timeout: 15_000 }
-            );
-        }
+        await clearSudoFailureMeta();
 
         // Clear IP-based lockout/failure transients from previous runs.
         // WP Sudo also tracks failures per IP address in WordPress transients
@@ -396,17 +419,7 @@ test.describe( 'Challenge flow', () => {
 
         // Clear failure meta — these do not require the unrestricted policy because
         // `wp user meta delete` is not a gated WP-CLI action.
-        for ( const metaKey of [
-            '_wp_sudo_lockout_until',
-            '_wp_sudo_failure_event',
-            '_wp_sudo_failed_attempts',
-            '_wp_sudo_throttle_until',
-        ] ) {
-            await execAsync(
-                `npx wp-env run cli wp user meta delete 1 ${ metaKey } --quiet 2>/dev/null || true`,
-                { timeout: 15_000 }
-            );
-        }
+        await clearSudoFailureMeta();
 
         // Clear IP-based lockout/failure transients accumulated during CHAL-03.
         // Source: includes/class-sudo-session.php — IP transient prefixes (verified)
@@ -421,6 +434,9 @@ test.describe( 'Challenge flow', () => {
         // Gate only fires when there is NO active session. If wp_sudo_token is present,
         // the request passes through without a challenge redirect.
         await clearSudoSession( page );
+        await disableE2eTwoFactor();
+        await clearSudoFailureMeta();
+        await clearSudoIpTransients();
     } );
 
     /**
@@ -764,6 +780,60 @@ test.describe( 'Challenge flow', () => {
                     timeout: 5_000,
                 }
             ).toBe( false );
+        } finally {
+            await disableE2eTwoFactor();
+        }
+    } );
+
+    /**
+     * CHAL-08: Provider-rendered hidden action/_wpnonce fields must not break the AJAX 2FA submit.
+     */
+    test( 'CHAL-08: provider hidden fields do not interfere with AJAX 2FA submit', async ( {
+        page,
+    } ) => {
+        await enableE2eTwoFactor();
+        await enableE2eTwoFactorProviderHiddenFields();
+
+        try {
+            await reachTwoFactorStep( page );
+
+            await expect(
+                page.locator( '#wp-sudo-challenge-2fa-form input[name="action"][value="e2e_provider_shadow_action"]' ),
+                'Test fixture must render a provider-style hidden action field for this regression'
+            ).toHaveCount( 1 );
+
+            await expect(
+                page.locator( '#wp-sudo-challenge-2fa-form input[name="_wpnonce"][value="e2e-provider-shadow-nonce"]' ),
+                'Test fixture must render a provider-style hidden nonce field for this regression'
+            ).toHaveCount( 1 );
+
+            await page.fill( '#wp-sudo-e2e-two-factor-code', E2E_TWO_FACTOR_CODE );
+
+            await Promise.all( [
+                page.waitForURL(
+                    ( url ) =>
+                        url.pathname.includes( '/wp-admin/' ) &&
+                        ! url.search.includes( 'wp-sudo-challenge' ),
+                    { timeout: 15_000 }
+                ),
+                page.click( '#wp-sudo-challenge-2fa-submit' ),
+            ] );
+
+            await expect(
+                page,
+                'Hidden provider fields must not stop WP Sudo from completing the AJAX 2FA flow'
+            ).toHaveURL( /\/wp-admin\/$/ );
+
+            await expect.poll(
+                async () => {
+                    const cookies = await page.context().cookies();
+                    return cookies.some( ( cookie ) => cookie.name === 'wp_sudo_token' );
+                },
+                {
+                    message: 'Successful 2FA submit with provider hidden fields must still create a sudo session cookie',
+                    timeout: 5_000,
+                }
+            ).toBe( true );
         } finally {
             await disableE2eTwoFactor();
         }
