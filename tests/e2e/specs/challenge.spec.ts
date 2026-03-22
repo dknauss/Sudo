@@ -1,5 +1,5 @@
 /**
- * Challenge flow tests — CHAL-01 through CHAL-08
+ * Challenge flow tests — CHAL-01 through CHAL-09
  *
  * Tests the full stash-challenge-replay flow and challenge page form elements.
  *
@@ -54,8 +54,11 @@ const WP_BASE_URL = process.env.WP_BASE_URL ?? 'http://localhost:8889';
 const E2E_TWO_FACTOR_MU_PLUGIN = 'wp-sudo-e2e-two-factor.php';
 const E2E_TWO_FACTOR_REQUIRE_META = '_wp_sudo_e2e_require_two_factor';
 const E2E_TWO_FACTOR_CODE_META = '_wp_sudo_e2e_two_factor_code';
+const E2E_TWO_FACTOR_PROVIDER_META = '_wp_sudo_e2e_two_factor_use_provider';
 const E2E_TWO_FACTOR_HIDDEN_FIELDS_META =
     '_wp_sudo_e2e_two_factor_provider_hidden_fields';
+const E2E_TWO_FACTOR_PROVIDER_EVENT_META =
+    '_wp_sudo_e2e_two_factor_last_provider_event';
 const E2E_TWO_FACTOR_CODE = '123456';
 
 /**
@@ -240,7 +243,15 @@ async function disableE2eTwoFactor(): Promise<void> {
         { timeout: 15_000 }
     );
     await execAsync(
+        `npx wp-env run cli wp user meta delete 1 ${ E2E_TWO_FACTOR_PROVIDER_META } --quiet 2>/dev/null || true`,
+        { timeout: 15_000 }
+    );
+    await execAsync(
         `npx wp-env run cli wp user meta delete 1 ${ E2E_TWO_FACTOR_HIDDEN_FIELDS_META } --quiet 2>/dev/null || true`,
+        { timeout: 15_000 }
+    );
+    await execAsync(
+        `npx wp-env run cli wp user meta delete 1 ${ E2E_TWO_FACTOR_PROVIDER_EVENT_META } --quiet 2>/dev/null || true`,
         { timeout: 15_000 }
     );
 }
@@ -253,6 +264,28 @@ async function enableE2eTwoFactorProviderHiddenFields(): Promise<void> {
         `npx wp-env run cli wp user meta update 1 ${ E2E_TWO_FACTOR_HIDDEN_FIELDS_META } 1 --quiet`,
         { timeout: 15_000 }
     );
+}
+
+/**
+ * Route the 2FA flow through the test-only provider branch.
+ */
+async function enableE2eTwoFactorProvider(): Promise<void> {
+    await execAsync(
+        `npx wp-env run cli wp user meta update 1 ${ E2E_TWO_FACTOR_PROVIDER_META } 1 --quiet`,
+        { timeout: 15_000 }
+    );
+}
+
+/**
+ * Read the last provider event marker written by the test-only fixture.
+ */
+async function getE2eTwoFactorProviderEvent(): Promise<string> {
+    const { stdout } = await execAsync(
+        `npx wp-env run cli bash -lc 'wp user meta get 1 ${ E2E_TWO_FACTOR_PROVIDER_EVENT_META } --quiet 2>/dev/null || true'`,
+        { timeout: 15_000 }
+    );
+
+    return stdout.trim();
 }
 
 /**
@@ -834,6 +867,99 @@ test.describe( 'Challenge flow', () => {
                     timeout: 5_000,
                 }
             ).toBe( true );
+        } finally {
+            await disableE2eTwoFactor();
+        }
+    } );
+
+    /**
+     * CHAL-09: A provider resend response should keep the user on the 2FA step and allow a later successful submit.
+     */
+    test( 'CHAL-09: provider resend keeps the challenge active and allows retry', async ( {
+        page,
+    } ) => {
+        await enableE2eTwoFactor();
+        await enableE2eTwoFactorProvider();
+
+        try {
+            await reachTwoFactorStep( page );
+
+            const initialUrl = page.url();
+
+            await expect(
+                page.locator( '#wp-sudo-e2e-two-factor-mode' ),
+                'Provider-mode fixture must expose a hidden mode field so the resend branch can be triggered'
+            ).toHaveValue( 'verify' );
+
+            await page.evaluate( () => {
+                const modeInput = document.getElementById(
+                    'wp-sudo-e2e-two-factor-mode'
+                ) as HTMLInputElement | null;
+
+                if ( modeInput ) {
+                    modeInput.value = 'resend';
+                }
+            } );
+
+            await page.click( '#wp-sudo-challenge-2fa-submit' );
+
+            await expect(
+                page.locator( '#wp-sudo-challenge-2fa-step' ),
+                'A provider resend response must keep the browser on the 2FA step'
+            ).toBeVisible( { timeout: 10_000 } );
+
+            await expect(
+                page.locator( '#wp-sudo-challenge-2fa-error' ),
+                'A provider resend response must not be treated as an inline 2FA failure'
+            ).toBeHidden();
+
+            expect(
+                page.url(),
+                'A provider resend response must not navigate away from the challenge page'
+            ).toBe( initialUrl );
+
+            expect(
+                await getE2eTwoFactorProviderEvent(),
+                'The test-only provider must record that the resend branch actually ran'
+            ).toBe( 'resent' );
+
+            await expect.poll(
+                async () => {
+                    const cookies = await page.context().cookies();
+                    return cookies.some( ( cookie ) => cookie.name === 'wp_sudo_token' );
+                },
+                {
+                    message: 'A resend-only response must not create a sudo session cookie',
+                    timeout: 5_000,
+                }
+            ).toBe( false );
+
+            await page.evaluate( () => {
+                const modeInput = document.getElementById(
+                    'wp-sudo-e2e-two-factor-mode'
+                ) as HTMLInputElement | null;
+
+                if ( modeInput ) {
+                    modeInput.value = 'verify';
+                }
+            } );
+
+            await page.fill( '#wp-sudo-e2e-two-factor-code', E2E_TWO_FACTOR_CODE );
+
+            await Promise.all( [
+                page.waitForURL(
+                    ( url ) =>
+                        url.pathname.includes( '/wp-admin/' ) &&
+                        ! url.search.includes( 'wp-sudo-challenge' ),
+                    { timeout: 15_000 }
+                ),
+                page.click( '#wp-sudo-challenge-2fa-submit' ),
+            ] );
+
+            expect(
+                await getE2eTwoFactorProviderEvent(),
+                'The provider should still allow a later successful validation after resend'
+            ).toBe( 'validated' );
         } finally {
             await disableE2eTwoFactor();
         }
