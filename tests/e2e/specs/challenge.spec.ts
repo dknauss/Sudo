@@ -462,4 +462,34 @@ test.describe( 'Challenge flow', () => {
             'URL must remain on challenge page after wrong password attempt'
         ).toBe( initialUrl );
     } );
+
+    /**
+     * CHAL-04: A stale challenge URL should recover when the sudo session is already active.
+     *
+     * This covers the stale-tab case fixed in class-challenge.php: if the browser already
+     * has an active sudo session, navigating to a challenge URL with an expired or bogus
+     * stash key must not trap the user on another password prompt.
+     */
+    test( 'CHAL-04: active session escapes stale challenge URL', async ( {
+        page,
+    } ) => {
+        await activateSudoSession( page );
+
+        await page.goto(
+            '/wp-admin/admin.php?page=wp-sudo-challenge&stash_key=expired-key&return_url=' +
+            encodeURIComponent( 'http://localhost:8889/wp-admin/plugins.php' )
+        );
+
+        await page.waitForURL( /plugins\.php/, { timeout: 15_000 } );
+
+        await expect(
+            page,
+            'Active sudo session must recover to the requested admin page'
+        ).toHaveURL( /plugins\.php/ );
+
+        await expect(
+            page.locator( '#wp-sudo-challenge-password-form' ),
+            'Recovered stale challenge must not leave the password form onscreen'
+        ).toHaveCount( 0 );
+    } );
 } );
