@@ -10,6 +10,7 @@ Sudo is the only solution that provides control over actions just before they're
 [![WordPress: 6.2–7.0](https://img.shields.io/badge/WordPress-6.2–7.0-0073aa.svg)](https://wordpress.org/)
 [![PHP: 8.0+](https://img.shields.io/badge/PHP-8.0%2B-777bb4.svg)](https://www.php.net/)
 [![PHPUnit](https://github.com/dknauss/wp-sudo/actions/workflows/phpunit.yml/badge.svg)](https://github.com/dknauss/wp-sudo/actions/workflows/phpunit.yml)
+[![Psalm](https://github.com/dknauss/wp-sudo/actions/workflows/psalm.yml/badge.svg)](https://github.com/dknauss/wp-sudo/actions/workflows/psalm.yml)
 [![Playwright Tests](https://github.com/dknauss/wp-sudo/actions/workflows/e2e.yml/badge.svg)](https://github.com/dknauss/wp-sudo/actions/workflows/e2e.yml)
 [![Codecov](https://codecov.io/gh/dknauss/wp-sudo/graph/badge.svg?branch=main)](https://codecov.io/gh/dknauss/wp-sudo)
 [![Type Coverage](https://shepherd.dev/github/dknauss/wp-sudo/coverage.svg)](https://shepherd.dev/github/dknauss/wp-sudo)
