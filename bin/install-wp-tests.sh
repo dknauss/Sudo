@@ -267,11 +267,13 @@ install_test_suite() {
 
 }
 
+MYSQL_EXTRA_ARGS=()
+
 recreate_db() {
 	shopt -s nocasematch
 	if [[ $1 =~ ^(y|yes)$ ]]
 	then
-		"$MYSQLADMIN_BIN" drop "$DB_NAME" -f --user="$DB_USER" --password="$DB_PASS"$EXTRA
+		"$MYSQLADMIN_BIN" drop "$DB_NAME" -f --user="$DB_USER" --password="$DB_PASS" "${MYSQL_EXTRA_ARGS[@]}"
 		create_db
 		echo "Recreated the database ($DB_NAME)."
 	else
@@ -281,7 +283,7 @@ recreate_db() {
 }
 
 create_db() {
-	"$MYSQLADMIN_BIN" create "$DB_NAME" --user="$DB_USER" --password="$DB_PASS"$EXTRA
+	"$MYSQLADMIN_BIN" create "$DB_NAME" --user="$DB_USER" --password="$DB_PASS" "${MYSQL_EXTRA_ARGS[@]}"
 }
 
 install_db() {
@@ -290,26 +292,36 @@ install_db() {
 		return 0
 	fi
 
-	# parse DB_HOST for port or socket references
-	local PARTS=(${DB_HOST//\:/ })
-	local DB_HOSTNAME=${PARTS[0]};
-	local DB_SOCK_OR_PORT=${PARTS[1]};
-	local EXTRA=""
+	# parse DB_HOST for port or socket references while preserving socket paths with spaces
+	local DB_HOSTNAME="$DB_HOST"
+	local DB_SOCK_OR_PORT=""
+	MYSQL_EXTRA_ARGS=()
 
-	if ! [ -z $DB_HOSTNAME ] ; then
+	case "$DB_HOST" in
+		*:* )
+			DB_HOSTNAME=${DB_HOST%%:*}
+			DB_SOCK_OR_PORT=${DB_HOST#*:}
+			;;
+	esac
+
+	if ! [ -z "$DB_HOSTNAME" ] ; then
 		if [ -n "$DB_SOCK_OR_PORT" ] && echo "$DB_SOCK_OR_PORT" | grep -Eq '^[0-9]+$'; then
-			EXTRA=" --host=$DB_HOSTNAME --port=$DB_SOCK_OR_PORT --protocol=tcp"
-		elif ! [ -z $DB_SOCK_OR_PORT ] ; then
-			EXTRA=" --socket=$DB_SOCK_OR_PORT"
-		elif ! [ -z $DB_HOSTNAME ] ; then
-			EXTRA=" --host=$DB_HOSTNAME --protocol=tcp"
+			MYSQL_EXTRA_ARGS=( "--host=$DB_HOSTNAME" "--port=$DB_SOCK_OR_PORT" "--protocol=tcp" )
+		elif ! [ -z "$DB_SOCK_OR_PORT" ] ; then
+			MYSQL_EXTRA_ARGS=( "--socket=$DB_SOCK_OR_PORT" )
+		elif ! [ -z "$DB_HOSTNAME" ] ; then
+			MYSQL_EXTRA_ARGS=( "--host=$DB_HOSTNAME" "--protocol=tcp" )
 		fi
 	fi
 
 	# create database
-	if "$MYSQL_BIN" --user="$DB_USER" --password="$DB_PASS"$EXTRA --execute='show databases;' 2> /dev/null | grep -q "^${DB_NAME}$"; then
+	if "$MYSQL_BIN" --user="$DB_USER" --password="$DB_PASS" "${MYSQL_EXTRA_ARGS[@]}" --execute='show databases;' 2> /dev/null | grep -q "^${DB_NAME}$"; then
 		echo "Reinstalling will delete the existing test database ($DB_NAME)"
-		read -p 'Are you sure you want to proceed? [y/N]: ' DELETE_EXISTING_DB
+		if [ "${WP_SUDO_FORCE_DROP_DB:-}" = "1" ] || [ "${CI:-}" = "true" ]; then
+			DELETE_EXISTING_DB='y'
+		else
+			read -p 'Are you sure you want to proceed? [y/N]: ' DELETE_EXISTING_DB
+		fi
 		recreate_db $DELETE_EXISTING_DB
 	else
 		create_db

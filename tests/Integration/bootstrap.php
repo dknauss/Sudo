@@ -32,7 +32,13 @@ if ( ! file_exists( $_tests_dir . '/includes/functions.php' ) ) {
 // Polyfills path: tell the WP bootstrap where to find yoast/phpunit-polyfills.
 // The WP bootstrap defaults to dirname(__DIR__, 3)/vendor/... which resolves to
 // /tmp/vendor/... (wrong). Point it to this plugin's vendor directory instead.
-define( 'WP_TESTS_PHPUNIT_POLYFILLS_PATH', dirname( __DIR__, 2 ) . '/vendor/yoast/phpunit-polyfills' );
+$polyfills_path = getenv( 'WP_SUDO_PHPUNIT_POLYFILLS_PATH' );
+
+if ( ! $polyfills_path ) {
+	$polyfills_path = dirname( __DIR__, 2 ) . '/vendor/yoast/phpunit-polyfills';
+}
+
+define( 'WP_TESTS_PHPUNIT_POLYFILLS_PATH', $polyfills_path );
 
 // Give access to tests_add_filter() before WordPress boots.
 require_once $_tests_dir . '/includes/functions.php';
@@ -65,7 +71,13 @@ tests_add_filter(
 // Composer autoloader for WP_Sudo\Tests\Integration\* classes.
 // Do NOT require tests/bootstrap.php — it defines ABSPATH and class stubs
 // that conflict with the real WordPress environment loaded below.
-require_once dirname( __DIR__, 2 ) . '/vendor/autoload.php';
+$vendor_autoload = getenv( 'WP_SUDO_VENDOR_AUTOLOAD' );
+
+if ( ! $vendor_autoload ) {
+	$vendor_autoload = dirname( __DIR__, 2 ) . '/vendor/autoload.php';
+}
+
+require_once $vendor_autoload;
 
 // Boot the real WordPress environment (connects to MySQL, fires init hooks).
 require $_tests_dir . '/includes/bootstrap.php';

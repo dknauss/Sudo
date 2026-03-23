@@ -41,15 +41,17 @@ jobs:
       - name: Install Composer dependencies
         run: |
           if [ "${{ matrix.php }}" = "8.0" ]; then
-            composer install --no-interaction --prefer-dist --ignore-platform-req=php
+            composer install --working-dir=.github/php80-tests --no-interaction --prefer-dist
           else
             composer install --no-interaction --prefer-dist
           fi
 
       - name: Run unit tests
+        env:
+          WP_SUDO_VENDOR_AUTOLOAD: ${{ github.workspace }}/.github/php80-tests/vendor/autoload.php
         run: |
           if [ "${{ matrix.php }}" = "8.0" ]; then
-            ./vendor/bin/phpunit --configuration phpunit.xml.dist
+            ./.github/php80-tests/vendor/bin/phpunit --configuration phpunit.xml.dist
           else
             composer test:unit
           fi
@@ -204,18 +206,23 @@ jobs:
       - name: Install Composer dependencies
         run: |
           if [ "${{ matrix.php }}" = "8.0" ]; then
-            composer install --no-interaction --prefer-dist --ignore-platform-req=php
+            composer install --working-dir=.github/php80-tests --no-interaction --prefer-dist
           else
             composer install --no-interaction --prefer-dist
           fi
 
       - name: Install WordPress test suite
+        env:
+          WP_SUDO_FORCE_DROP_DB: '1'
         run: bash bin/install-wp-tests.sh wordpress_test root root 127.0.0.1 ${{ matrix.wp }}
 
       - name: Run integration tests
+        env:
+          WP_SUDO_VENDOR_AUTOLOAD: ${{ github.workspace }}/.github/php80-tests/vendor/autoload.php
+          WP_SUDO_PHPUNIT_POLYFILLS_PATH: ${{ github.workspace }}/.github/php80-tests/vendor/yoast/phpunit-polyfills
         run: |
           if [ "${{ matrix.php }}" = "8.0" ]; then
-            ./vendor/bin/phpunit --configuration phpunit-integration.xml.dist
+            ./.github/php80-tests/vendor/bin/phpunit --configuration phpunit-integration.xml.dist
           else
             composer test:integration
           fi

@@ -1,0 +1,29 @@
+{
+    "name": "dknauss/wp-sudo-php80-tests",
+    "description": "Minimal PHP 8.0-compatible test dependencies for CI compatibility lanes.",
+    "require": {
+        "php": "^8.0"
+    },
+    "require-dev": {
+        "brain/monkey": "^2.7",
+        "mockery/mockery": "^1.6",
+        "phpunit/phpunit": "^9.6",
+        "yoast/phpunit-polyfills": "^4.0"
+    },
+    "autoload": {
+        "classmap": [
+            "../../includes/"
+        ]
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "WP_Sudo\\Tests\\": "../../tests/"
+        }
+    },
+    "config": {
+        "platform": {
+            "php": "8.0.30"
+        },
+        "vendor-dir": "vendor"
+    }
+}

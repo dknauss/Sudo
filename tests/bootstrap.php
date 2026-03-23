@@ -203,14 +203,17 @@ if ( ! class_exists( 'Two_Factor_Core' ) ) {
 }
 
 // ── Composer autoloader ──────────────────────────────────────────────
-$vendor_autoload      = dirname( __DIR__ ) . '/vendor/autoload.php';
-$vendor_test_autoload = dirname( __DIR__ ) . '/vendor_test/autoload.php';
+$vendor_autoload_override = getenv( 'WP_SUDO_VENDOR_AUTOLOAD' );
+$vendor_autoload          = dirname( __DIR__ ) . '/vendor/autoload.php';
+$vendor_test_autoload     = dirname( __DIR__ ) . '/vendor_test/autoload.php';
 
-if ( file_exists( $vendor_autoload ) ) {
+if ( $vendor_autoload_override && file_exists( $vendor_autoload_override ) ) {
+	require_once $vendor_autoload_override;
+} elseif ( file_exists( $vendor_autoload ) ) {
 	require_once $vendor_autoload;
 } elseif ( file_exists( $vendor_test_autoload ) ) {
 	require_once $vendor_test_autoload;
 } else {
-	fwrite( STDERR, "Unable to locate Composer autoloader in vendor/ or vendor_test/.\n" );
+	fwrite( STDERR, "Unable to locate Composer autoloader in vendor/, vendor_test/, or WP_SUDO_VENDOR_AUTOLOAD.\n" );
 	exit( 1 );
 }
