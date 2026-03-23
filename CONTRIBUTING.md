@@ -280,6 +280,21 @@ Do not optimize for a single global coverage percentage. WP Sudo is a security p
 
 Static analysis is part of the assurance target, not optional polish. `composer analyse:phpstan`, `composer analyse:psalm`, `composer lint`, and the required GitHub workflows should remain green at all times.
 
+## Current Coverage Snapshot
+
+Current live counts and matrix details are centralized in [`docs/current-metrics.md`](docs/current-metrics.md). As of the latest verification:
+
+- `514` unit tests and `1348` assertions cover core business logic, bridges, and state-machine behavior.
+- `139` integration test methods cover real-WordPress flows across admin, REST, AJAX, request stash/replay, multisite, and Two Factor interaction.
+- `47` Playwright tests cover the browser-visible challenge flow, including stale-session recovery, 2FA, resend, throttle, lockout, expiry recovery, and stash replay.
+- CI runs unit tests on PHP `8.0` through `8.4`.
+- CI runs integration tests on PHP `8.0`, `8.1`, and `8.3` against WordPress `6.2`, `6.7`, and `7.0-beta4`.
+- CI runs integration coverage on MySQL `8.0` plus one MariaDB LTS lane.
+- CI runs browser tests on the default `wp-env` Apache + MariaDB stack.
+- Studio is the recommended local path for SQLite verification. SQLite is intentionally documented as local/manual coverage, not as automated CI coverage.
+
+The strongest covered area is the challenge flow itself: password and 2FA auth, stale tabs, resend behavior, throttle/lockout UX, expiry recovery, and request replay all have automated coverage. The main remaining gaps are matrix breadth rather than core flow depth: no automated SQLite CI, no explicit nginx CI lane, and no broad WordPress `6.3`–`6.6` automation yet.
+
 ## WordPress Playground
 
 Every PR automatically gets a **"Try in WordPress Playground"** comment with a

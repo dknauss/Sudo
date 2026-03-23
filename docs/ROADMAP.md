@@ -460,6 +460,29 @@ Phase A (CI matrix expansion) is complete as of v2.9.2. Remaining phases (B–D)
 are lower priority and should be scoped as a future milestone when Apache/MariaDB
 testing or managed-host validation becomes a concern.
 
+### Current state
+
+As of 2026-03-23, the practical testing picture is:
+
+- behavioral coverage is strong in the core challenge flow
+- environment coverage is intentionally selective rather than exhaustive
+
+Specifically, the repo now has:
+- unit CI on PHP `8.0`–`8.4`
+- integration CI on PHP `8.0`/`8.1`/`8.3`
+- automated WordPress lanes for `6.2`, `6.7`, and `7.0-beta4`
+- one MariaDB integration lane in addition to the main MySQL `8.0` matrix
+- Playwright E2E on Apache + MariaDB via `wp-env`
+- local/manual SQLite verification documented for Studio
+
+Still missing from automation:
+- WordPress `6.3`–`6.6`
+- explicit nginx CI
+- automated SQLite CI
+- broader MariaDB and legacy-MySQL breadth
+
+That is a good balance for current plugin risk: the dangerous-action challenge and replay flows are well covered, while future matrix expansion should focus on compatibility breadth rather than adding more low-signal tests to already-covered flows.
+
 ---
 
 ## 6. Coverage Tooling (Baseline Established)
