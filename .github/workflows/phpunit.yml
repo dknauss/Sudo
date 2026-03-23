@@ -264,6 +264,25 @@ jobs:
       - name: Run PHPStan
         run: composer analyse:phpstan
 
+  phpunit-summary:
+    name: "PHPUnit"
+    runs-on: ubuntu-24.04
+    needs: [unit-tests, unit-tests-coverage, integration-tests, code-quality]
+    if: ${{ always() }}
+    steps:
+      - name: Enforce successful PHPUnit workflow jobs
+        run: |
+          for result in \
+            "${{ needs.unit-tests.result }}" \
+            "${{ needs.unit-tests-coverage.result }}" \
+            "${{ needs.integration-tests.result }}" \
+            "${{ needs.code-quality.result }}"; do
+            if [ "$result" != "success" ]; then
+              echo "PHPUnit workflow dependency did not succeed: $result"
+              exit 1
+            fi
+          done
+
   notify-on-failure:
     name: "Notify on failure"
     runs-on: ubuntu-24.04

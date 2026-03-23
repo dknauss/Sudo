@@ -36,3 +36,17 @@ jobs:
         uses: github/codeql-action/analyze@v4
         with:
           category: "/language:${{ matrix.language }}"
+
+  codeql-summary:
+    name: "CodeQL"
+    runs-on: ubuntu-24.04
+    needs: [analyze]
+    if: ${{ always() }}
+
+    steps:
+      - name: Enforce successful CodeQL analysis
+        run: |
+          if [ "${{ needs.analyze.result }}" != "success" ]; then
+            echo "CodeQL analysis did not succeed."
+            exit 1
+          fi

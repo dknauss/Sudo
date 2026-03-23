@@ -1,13 +1,17 @@
 name: E2E Nginx Smoke
 
 on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
   workflow_dispatch:
   schedule:
     - cron: '0 6 * * 2'
 
 jobs:
   e2e-nginx-smoke:
-    name: "E2E Stack Smoke (nginx + php-fpm + MariaDB)"
+    name: "E2E Nginx Smoke"
     runs-on: ubuntu-24.04
     timeout-minutes: 30
 
