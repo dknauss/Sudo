@@ -1,5 +1,5 @@
 /**
- * Challenge flow tests — CHAL-01 through CHAL-12
+ * Challenge flow tests — CHAL-01 through CHAL-13
  *
  * Tests the full stash-challenge-replay flow and challenge page form elements.
  *
@@ -59,6 +59,7 @@ const E2E_TWO_FACTOR_HIDDEN_FIELDS_META =
     '_wp_sudo_e2e_two_factor_provider_hidden_fields';
 const E2E_TWO_FACTOR_PROVIDER_EVENT_META =
     '_wp_sudo_e2e_two_factor_last_provider_event';
+const E2E_LOCKOUT_SECONDS_META = '_wp_sudo_e2e_lockout_seconds';
 const E2E_TWO_FACTOR_CODE = '123456';
 
 /**
@@ -176,6 +177,7 @@ async function clearSudoFailureMeta(): Promise<void> {
         '_wp_sudo_failure_event',
         '_wp_sudo_failed_attempts',
         '_wp_sudo_throttle_until',
+        E2E_LOCKOUT_SECONDS_META,
     ] ) {
         await execAsync(
             `npx wp-env run cli wp user meta delete 1 ${ metaKey } --quiet 2>/dev/null || true`,
@@ -252,6 +254,16 @@ async function disableE2eTwoFactor(): Promise<void> {
     );
     await execAsync(
         `npx wp-env run cli wp user meta delete 1 ${ E2E_TWO_FACTOR_PROVIDER_EVENT_META } --quiet 2>/dev/null || true`,
+        { timeout: 15_000 }
+    );
+}
+
+/**
+ * Override the next lockout window to a short test-only duration.
+ */
+async function setE2eLockoutSeconds( seconds: number ): Promise<void> {
+    await execAsync(
+        `npx wp-env run cli wp user meta update 1 ${ E2E_LOCKOUT_SECONDS_META } ${ seconds } --quiet`,
         { timeout: 15_000 }
     );
 }
@@ -1182,5 +1194,92 @@ test.describe( 'Challenge flow', () => {
             page.url(),
             'The password lockout path must not navigate away from the challenge page'
         ).toBe( initialUrl );
+    } );
+
+    /**
+     * CHAL-13: After the password lockout countdown ends, a correct password should recover immediately.
+     */
+    test( 'CHAL-13: password lockout expiry allows a later successful retry', async ( {
+        page,
+    } ) => {
+        await setE2eLockoutSeconds( 3 );
+
+        await page.goto( '/wp-admin/admin.php?page=wp-sudo-challenge' );
+
+        await page.waitForFunction(
+            () => typeof ( window as Window & { wpSudoChallenge?: unknown } ).wpSudoChallenge !== 'undefined'
+        );
+
+        for ( let attempt = 1; attempt <= 3; attempt++ ) {
+            await page.fill( '#wp-sudo-challenge-password', 'this-is-wrong-password' );
+            await page.click( '#wp-sudo-challenge-submit' );
+
+            await expect(
+                page.locator( '#wp-sudo-challenge-error' ),
+                `Wrong password attempt ${ attempt } should still surface the normal inline auth error`
+            ).toContainText( 'Incorrect password', { timeout: 10_000 } );
+        }
+
+        await page.fill( '#wp-sudo-challenge-password', 'this-is-wrong-password' );
+        await page.click( '#wp-sudo-challenge-submit' );
+
+        await expect(
+            page.locator( '#wp-sudo-challenge-submit' ),
+            'The 4th wrong password should trigger the short throttle before the shortened lockout'
+        ).toBeDisabled();
+
+        await expect(
+            page.locator( '#wp-sudo-challenge-submit' ),
+            'The short throttle must expire before the lockout-triggering retry'
+        ).toBeEnabled( { timeout: 10_000 } );
+
+        await page.fill( '#wp-sudo-challenge-password', 'this-is-wrong-password' );
+        await page.click( '#wp-sudo-challenge-submit' );
+
+        await expect(
+            page.locator( '#wp-sudo-challenge-error' ),
+            'The shortened lockout should render the lockout countdown on the password step'
+        ).toContainText( 'Too many failed attempts', { timeout: 10_000 } );
+
+        await expect(
+            page.locator( '#wp-sudo-challenge-submit' ),
+            'The submit button should stay disabled while the shortened lockout runs'
+        ).toBeDisabled();
+
+        await expect(
+            page.locator( '#wp-sudo-challenge-submit' ),
+            'The shortened lockout countdown should complete and re-enable the password form'
+        ).toBeEnabled( { timeout: 10_000 } );
+
+        await expect(
+            page.locator( '#wp-sudo-challenge-error' ),
+            'The lockout notice should clear when the shortened countdown ends'
+        ).toBeHidden( { timeout: 10_000 } );
+
+        await page.fill( '#wp-sudo-challenge-password', 'password' );
+
+        await Promise.all( [
+            page.waitForURL(
+                ( url ) =>
+                    url.pathname.includes( '/wp-admin/' ) &&
+                    ! url.search.includes( 'wp-sudo-challenge' ),
+                { timeout: 15_000 }
+            ),
+            page.click( '#wp-sudo-challenge-submit' ),
+        ] );
+
+        await expect(
+            page,
+            'A correct password should succeed immediately once the lockout countdown has fully expired'
+        ).toHaveURL( /\/wp-admin\// );
+
+        const hasSudoCookie = ( await page.context().cookies() ).some(
+            ( cookie ) => cookie.name === 'wp_sudo_token'
+        );
+
+        expect(
+            hasSudoCookie,
+            'The post-lockout recovery retry should create a fresh sudo session cookie'
+        ).toBe( true );
     } );
 } );

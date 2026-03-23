@@ -592,7 +592,7 @@ class Sudo_Session {
 			return false;
 		}
 
-		if ( time() > $until ) {
+		if ( time() >= $until ) {
 			// Lockout expired — reset all failure tracking.
 			self::reset_failed_attempts( $user_id );
 			return false;
@@ -640,7 +640,7 @@ class Sudo_Session {
 			return false;
 		}
 
-		if ( time() > $until ) {
+		if ( time() >= $until ) {
 			self::delete_transient_key( self::ip_lockout_transient_key( $ip ) );
 			return false;
 		}

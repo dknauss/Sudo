@@ -171,3 +171,28 @@ add_action(
 		wp_send_json_success();
 	}
 );
+
+add_action(
+	'wp_sudo_lockout',
+	static function ( int $user_id, int $attempts, string $ip ): void {
+		$seconds = (int) get_user_meta( $user_id, '_wp_sudo_e2e_lockout_seconds', true );
+		if ( $seconds <= 0 ) {
+			return;
+		}
+
+		$seconds = min( 10, $seconds );
+		$until   = time() + $seconds;
+
+		update_user_meta( $user_id, \WP_Sudo\Sudo_Session::LOCKOUT_UNTIL_META_KEY, $until );
+
+		if ( '' !== $ip && 'unknown' !== $ip ) {
+			set_transient(
+				\WP_Sudo\Sudo_Session::IP_LOCKOUT_UNTIL_TRANSIENT_PREFIX . hash( 'sha256', $ip ),
+				$until,
+				$seconds
+			);
+		}
+	},
+	10,
+	3
+);

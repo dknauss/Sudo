@@ -2,7 +2,7 @@
 
 This file is the single source of truth for current repository counts.
 
-Last verified: 2026-03-21
+Last verified: 2026-03-22
 Verification environment: primary local repo checkout at `/Users/danknauss/Developer/GitHub/wp-sudo` (mirrored checkouts may differ)
 
 ## Test Metrics
@@ -20,10 +20,10 @@ Verification environment: primary local repo checkout at `/Users/danknauss/Devel
 | Metric | Value | Verification |
 |---|---:|---|
 | Production PHP lines (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 8,963 | `find ./includes ./wp-sudo.php ./uninstall.php ./mu-plugin ./bridges -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1` |
-| Tests PHP lines (`tests/`) | 16,889 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1` |
-| Production + tests PHP lines | 25,852 | sum of the two rows above |
-| Test-to-production ratio | 1.88:1 | `16889 / 8963` |
-| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`) | 25,909 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" -print0 | xargs -0 wc -l | tail -1` |
+| Tests PHP lines (`tests/`) | 16,914 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1` |
+| Production + tests PHP lines | 25,877 | sum of the two rows above |
+| Test-to-production ratio | 1.89:1 | `16914 / 8963` |
+| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`) | 25,934 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" -print0 | xargs -0 wc -l | tail -1` |
 
 ## Architectural Facts
 
@@ -41,7 +41,7 @@ the count in prose without a verification command.
 | Audit hooks | 9 | `grep -c "do_action.*wp_sudo_" includes/class-*.php \| awk -F: '{sum+=$2} END{print sum}'` | v2.11.0 |
 | Settings fields (base) | 5 | 1 numeric (duration) + 4 policy dropdowns (REST, CLI, Cron, XML-RPC) | v2.0.0 |
 | Settings fields (with WPGraphQL) | 6 | +1 conditional WPGraphQL policy dropdown | v2.5.0 |
-| E2E tests | 39 | `npx playwright test --config tests/e2e/playwright.config.ts --list` | unreleased |
+| E2E tests | 40 | `npx playwright test --config tests/e2e/playwright.config.ts --list` | unreleased |
 
 ### Files that reference these counts
 
@@ -66,10 +66,10 @@ Source: `.github/workflows/phpunit.yml`
 
 ## Verification Notes
 
-- `composer test:unit` passed on 2026-03-21 (`508 tests`, `1336 assertions`).
-- `composer test:integration` passed on 2026-03-21 (`141 tests`, `438 assertions`, `8 skipped`) using the repo-local WordPress test install and a Local by Flywheel MySQL socket-backed `wordpress_test` database.
-- `WP_MULTISITE=1 composer test:integration` passed on 2026-03-21 (`141 tests`, `446 assertions`, `2 skipped`) using the same Local socket-backed test database.
-- `composer analyse:phpstan`, `composer analyse:psalm`, and `composer lint` passed on 2026-03-21.
+- `composer test:unit` passed on 2026-03-22 (`508 tests`, `1336 assertions`).
+- `composer test:integration` passed on 2026-03-22 (`141 tests`, `438 assertions`, `8 skipped`) using the repo-local WordPress test install and a Local by Flywheel MySQL socket-backed `wordpress_test` database.
+- `WP_MULTISITE=1 composer test:integration` passed on 2026-03-22 (`141 tests`, `446 assertions`, `2 skipped`) using the same Local socket-backed test database.
+- `composer analyse:phpstan`, `composer analyse:psalm`, and `composer lint` passed on 2026-03-22.
 
 ## Update Procedure
 
