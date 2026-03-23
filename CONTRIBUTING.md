@@ -253,6 +253,18 @@ Two environments are used deliberately — choose based on what you are testing:
 
 When in doubt: if the test needs a real database, real crypto, or calls that cross class boundaries in production, write an integration test.
 
+## Coverage Goals
+
+Do not optimize for a single global coverage percentage. WP Sudo is a security plugin, so coverage targets are risk-weighted by test category:
+
+- **Unit tests:** target `90%+` line coverage on business logic in `includes/`, and near-`100%` branch coverage on security-critical state machines and policy code such as `Sudo_Session`, `Gate`, `Challenge`, `Action_Registry`, and request replay logic.
+- **Integration tests:** target `100%` scenario coverage for security-critical WordPress flows at least once in a real environment. That includes session activation/expiry, grace-window behavior, password failure/throttle/lockout/expiry recovery, 2FA pending/validation/resend/expiry, stash save/get/delete/replay, AJAX/REST/admin exit behavior, and multisite isolation.
+- **E2E/browser tests:** target `100%` coverage of every distinct user-visible challenge/replay branch. Each visible password, 2FA, stale-session, resend, throttle, lockout, expiry-recovery, and replay path should have at least one Playwright case.
+- **Bridge files:** target `100%` unit coverage for first-party integration bridges. These adapters are thin and should be fully covered directly.
+- **Lifecycle code:** target `100%` integration coverage for activation, deactivation, uninstall, and upgrade routines.
+
+Static analysis is part of the assurance target, not optional polish. `composer analyse:phpstan`, `composer analyse:psalm`, `composer lint`, and the required GitHub workflows should remain green at all times.
+
 ## WordPress Playground
 
 Every PR automatically gets a **"Try in WordPress Playground"** comment with a

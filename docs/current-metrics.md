@@ -11,19 +11,19 @@ Verification environment: primary local repo checkout at `/Users/danknauss/Devel
 |---|---:|---|
 | Unit tests | 514 tests | `composer test:unit` |
 | Unit assertions | 1348 assertions | `composer test:unit` |
-| Integration tests in suite | 136 test methods | `rg -c "function test" tests/Integration/*.php | awk -F: '{sum+=$2} END{print sum}'` |
+| Integration tests in suite | 139 test methods | `rg -c "function test" tests/Integration/*.php | awk -F: '{sum+=$2} END{print sum}'` |
 | Unit test files | 20 | `ls tests/Unit/*.php | wc -l` |
-| Integration test files | 19 | `ls tests/Integration/*.php | wc -l` |
+| Integration test files | 20 | `ls tests/Integration/*.php | wc -l` |
 
 ## Size Metrics
 
 | Metric | Value | Verification |
 |---|---:|---|
 | Production PHP lines (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 8,963 | `find ./includes ./wp-sudo.php ./uninstall.php ./mu-plugin ./bridges -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1` |
-| Tests PHP lines (`tests/`) | 17,168 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1` |
-| Production + tests PHP lines | 26,131 | sum of the two rows above |
-| Test-to-production ratio | 1.92:1 | `17168 / 8963` |
-| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`) | 26,188 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" -print0 | xargs -0 wc -l | tail -1` |
+| Tests PHP lines (`tests/`) | 17,253 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1` |
+| Production + tests PHP lines | 26,216 | sum of the two rows above |
+| Test-to-production ratio | 1.92:1 | `17253 / 8963` |
+| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`) | 26,273 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" -print0 | xargs -0 wc -l | tail -1` |
 
 ## Architectural Facts
 
@@ -67,8 +67,8 @@ Source: `.github/workflows/phpunit.yml`
 ## Verification Notes
 
 - `composer test:unit` passed on 2026-03-23 (`514 tests`, `1348 assertions`).
-- `composer test:integration` passed on 2026-03-23 (`141 tests`, `438 assertions`, `8 skipped`) using the repo-local WordPress test install and a Local by Flywheel MySQL socket-backed `wordpress_test` database.
-- `WP_MULTISITE=1 composer test:integration` passed on 2026-03-23 (`141 tests`, `446 assertions`, `2 skipped`) using the same Local socket-backed test database.
+- `composer test:integration` passed on 2026-03-23 (`144 tests`, `444 assertions`, `8 skipped`) using the repo-local WordPress test install and a Local by Flywheel MySQL socket-backed `wordpress_test` database.
+- `WP_MULTISITE=1 composer test:integration` passed on 2026-03-23 (`144 tests`, `452 assertions`, `2 skipped`) using the same Local socket-backed test database.
 - `composer analyse:phpstan`, `composer analyse:psalm`, and `composer lint` passed on 2026-03-23.
 
 ## Update Procedure
