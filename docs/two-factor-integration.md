@@ -7,6 +7,7 @@ WP Sudo has built-in support for the [Two Factor](https://wordpress.org/plugins/
 - [Architecture Overview](#architecture-overview)
 - [The Two-Step Challenge Flow](#the-two-step-challenge-flow)
 - [How Built-In Two Factor Support Works](#how-built-in-two-factor-support-works)
+- [Compatibility Hazards](#compatibility-hazards)
 - [Hooks for Third-Party 2FA Plugins](#hooks-for-third-party-2fa-plugins)
 - [Integration Guide: Connecting Your Own 2FA Plugin](#integration-guide-connecting-your-own-2fa-plugin)
 - [Security Model](#security-model)
@@ -147,6 +148,24 @@ WP Sudo has zero-configuration support for the [Two Factor](https://wordpress.or
 All detection uses `class_exists( '\\Two_Factor_Core' )` -- there is no filename-based check. This works regardless of how the Two Factor plugin is installed (standard plugin, mu-plugin, Composer).
 
 The integration is **provider-agnostic**: WP Sudo does not know or care whether the user is using TOTP, email, backup codes, or WebAuthn. It delegates all rendering and validation to the provider's own API.
+
+---
+
+## Compatibility Hazards
+
+The built-in Two Factor support works well, but there are a few integration assumptions that matter for both upstream Two Factor providers and third-party bridges:
+
+1. **Provider fields render inside WP Sudo's form, not a provider-owned form.** Provider HTML is injected into `#wp-sudo-challenge-2fa-form` and submitted through WP Sudo's AJAX handler. Providers must not assume they control the outer `<form>` element or the request target.
+
+2. **Provider `action` and `_wpnonce` fields are not authoritative.** Some providers render hidden `action` or `_wpnonce` inputs for their normal login flow. WP Sudo strips those fields before submitting the 2FA AJAX request and replaces them with its own handler and nonce. If a provider depends on those hidden values surviving unchanged, it is not compatible with the challenge flow as-is.
+
+3. **Resend and pre-processing flows must stay on the same 2FA step.** When a provider uses `pre_process_authentication()` for actions like resending an email code, WP Sudo keeps the browser on the active 2FA screen and expects the provider to continue validating a later submission in the same challenge session.
+
+4. **Challenge tabs can become stale while the browser already has an active sudo session.** A provider or bridge should not assume that loading the challenge page always means "user is unauthenticated." Another tab may already have completed the sudo flow, including 2FA, and WP Sudo may short-circuit back to the requested admin page instead of prompting again.
+
+5. **Throttle and lockout UX is owned by WP Sudo.** Providers are responsible for rendering fields and validating codes. Countdown messaging, disabled submit states, and retry timing are handled by WP Sudo's challenge UI once the provider has returned a resend, invalid, throttled, or locked-out outcome.
+
+These assumptions are enforced by the browser test suite, including provider-hidden-field, resend, stale-session, throttle, and lockout challenge cases.
 
 ---
 
