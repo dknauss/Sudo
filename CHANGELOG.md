@@ -3,6 +3,7 @@
 ## Unreleased
 
 - **Fix: lockout-expiry recovery on the challenge page** — corrected an expiry-boundary edge case where the challenge countdown could reach zero but the server still treated the lockout as active for that exact second, blocking the immediate retry. Password and IP lockouts now expire in sync with the visible countdown, and browser coverage now verifies successful recovery after the countdown ends.
+- **Tests: expanded 2FA recovery replay coverage** — browser coverage now verifies stash replay after 2FA lockout expiry for GET and POST actions, and covers the provider resend branch before a later successful replay.
 
 ## 2.14.0
 

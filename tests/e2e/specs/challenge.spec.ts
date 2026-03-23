@@ -1,5 +1,5 @@
 /**
- * Challenge flow tests — CHAL-01 through CHAL-16
+ * Challenge flow tests — CHAL-01 through CHAL-17
  *
  * Tests the full stash-challenge-replay flow and challenge page form elements.
  *
@@ -451,6 +451,28 @@ async function reachStashedPluginActivationChallenge(
     await page.waitForURL( /page=wp-sudo-challenge/, { timeout: 10_000 } );
     await page.waitForFunction(
         () => typeof ( window as Window & { wpSudoChallenge?: unknown } ).wpSudoChallenge !== 'undefined'
+    );
+}
+
+/**
+ * Read the current configured sudo session duration from wp-env.
+ */
+async function getWpSudoSessionDuration(): Promise<number> {
+    const { stdout } = await execAsync(
+        `npx wp-env run cli wp eval 'echo (int) ( get_option( "${ 'wp_sudo_settings' }", array() )["session_duration"] ?? 15 ); echo PHP_EOL;'`,
+        { timeout: 15_000 }
+    );
+
+    return Number.parseInt( stdout.trim(), 10 ) || 15;
+}
+
+/**
+ * Set the sudo session duration directly in wp-env for settings-form replay tests.
+ */
+async function setWpSudoSessionDuration( minutes: number ): Promise<void> {
+    await execAsync(
+        `npx wp-env run cli wp eval '$settings = get_option( "${ 'wp_sudo_settings' }", array() ); if ( ! is_array( $settings ) ) { $settings = array(); } $settings["session_duration"] = ${ minutes }; update_option( "${ 'wp_sudo_settings' }", $settings );'`,
+        { timeout: 15_000 }
     );
 }
 
@@ -1623,6 +1645,110 @@ test.describe( 'Challenge flow', () => {
                 'The stashed Hello Dolly activation should complete after provider resend and 2FA lockout recovery'
             ).toBeVisible( { timeout: 10_000 } );
         } finally {
+            await disableE2eTwoFactor();
+        }
+    } );
+
+    /**
+     * CHAL-17: A stashed POST action should replay after the 2FA lockout countdown expires.
+     */
+    test( 'CHAL-17: POST stash replay survives 2FA lockout expiry recovery', async ( {
+        page,
+    } ) => {
+        const originalDuration = await getWpSudoSessionDuration();
+        const updatedDuration = 14 === originalDuration ? 13 : 14;
+
+        await enableE2eTwoFactor();
+        await setE2eLockoutSeconds( 3 );
+
+        try {
+            await setWpSudoSessionDuration( 15 );
+            await clearSudoSession( page );
+
+            await page.goto( '/wp-admin/options-general.php?page=wp-sudo-settings' );
+            await page.fill( '#session_duration', String( updatedDuration ) );
+
+            await Promise.all( [
+                page.waitForURL( /page=wp-sudo-challenge/, { timeout: 15_000 } ),
+                page.click( '#submit' ),
+            ] );
+
+            await page.waitForFunction(
+                () => typeof ( window as Window & { wpSudoChallenge?: unknown } ).wpSudoChallenge !== 'undefined'
+            );
+
+            await page.fill( '#wp-sudo-challenge-password', 'password' );
+            await page.click( '#wp-sudo-challenge-submit' );
+
+            await expect(
+                page.locator( '#wp-sudo-challenge-2fa-step' ),
+                'A correct password should advance the stashed POST flow to the 2FA step'
+            ).toBeVisible( { timeout: 15_000 } );
+
+            for ( let attempt = 1; attempt <= 3; attempt++ ) {
+                await page.fill( '#wp-sudo-e2e-two-factor-code', '000000' );
+                await page.click( '#wp-sudo-challenge-2fa-submit' );
+
+                await expect(
+                    page.locator( '#wp-sudo-challenge-2fa-error' ),
+                    `Invalid 2FA attempt ${ attempt } should still surface the normal inline auth error`
+                ).toContainText( 'Invalid authentication code', { timeout: 10_000 } );
+            }
+
+            await page.fill( '#wp-sudo-e2e-two-factor-code', '000000' );
+            await page.click( '#wp-sudo-challenge-2fa-submit' );
+
+            await expect(
+                page.locator( '#wp-sudo-challenge-2fa-submit' ),
+                'The 4th invalid 2FA code should trigger the short throttle before the shortened lockout'
+            ).toBeDisabled();
+
+            await expect(
+                page.locator( '#wp-sudo-challenge-2fa-submit' ),
+                'The short throttle must expire before the lockout-triggering POST replay retry'
+            ).toBeEnabled( { timeout: 10_000 } );
+
+            await page.fill( '#wp-sudo-e2e-two-factor-code', '000000' );
+            await page.click( '#wp-sudo-challenge-2fa-submit' );
+
+            await expect(
+                page.locator( '#wp-sudo-challenge-2fa-error' ),
+                'The shortened 2FA lockout should render the lockout countdown on the 2FA step for POST replay'
+            ).toContainText( 'Too many failed attempts', { timeout: 10_000 } );
+
+            await expect(
+                page.locator( '#wp-sudo-challenge-2fa-submit' ),
+                'The 2FA submit button should stay disabled while the shortened POST replay lockout runs'
+            ).toBeDisabled();
+
+            await expect(
+                page.locator( '#wp-sudo-challenge-2fa-submit' ),
+                'The shortened POST replay lockout countdown should complete and re-enable the 2FA form'
+            ).toBeEnabled( { timeout: 10_000 } );
+
+            await expect(
+                page.locator( '#wp-sudo-challenge-2fa-error' ),
+                'The 2FA lockout notice should clear when the shortened POST replay countdown ends'
+            ).toBeHidden( { timeout: 10_000 } );
+
+            await page.fill( '#wp-sudo-e2e-two-factor-code', E2E_TWO_FACTOR_CODE );
+
+            await Promise.all( [
+                page.waitForURL( /page=wp-sudo-settings/, { timeout: 15_000 } ),
+                page.click( '#wp-sudo-challenge-2fa-submit' ),
+            ] );
+
+            await expect(
+                page,
+                'The recovered POST replay flow must return to the WP Sudo settings page'
+            ).toHaveURL( /page=wp-sudo-settings/ );
+
+            await expect(
+                page.locator( '#session_duration' ),
+                'The stashed POST replay should save the new session duration value'
+            ).toHaveValue( String( updatedDuration ) );
+        } finally {
+            await setWpSudoSessionDuration( originalDuration );
             await disableE2eTwoFactor();
         }
     } );

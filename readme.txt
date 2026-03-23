@@ -170,6 +170,7 @@ Extensibility: the action registry is filterable via wp_sudo_gated_actions. Nine
 
 = Unreleased =
 * **Fix: lockout-expiry recovery on the challenge page** — corrected an edge case where the countdown could reach zero but the server still treated the lockout as active for that exact second, blocking the immediate retry. Password and IP lockouts now expire in sync with the visible countdown, and browser coverage verifies recovery after the countdown ends.
+* **Tests: expanded 2FA recovery replay coverage** — browser coverage now verifies stash replay after 2FA lockout expiry for GET and POST actions, and covers the provider resend branch before a later successful replay.
 
 = 2.14.0 =
 * **Feature: Playwright end-to-end coverage** — added browser-verified challenge, cookie, gate UI, admin bar timer, keyboard shortcut, MU-plugin AJAX, multisite network-admin, and visual-regression coverage to exercise the real user flows around reauthentication.

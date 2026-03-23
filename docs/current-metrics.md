@@ -41,7 +41,7 @@ the count in prose without a verification command.
 | Audit hooks | 9 | `grep -c "do_action.*wp_sudo_" includes/class-*.php \| awk -F: '{sum+=$2} END{print sum}'` | v2.11.0 |
 | Settings fields (base) | 5 | 1 numeric (duration) + 4 policy dropdowns (REST, CLI, Cron, XML-RPC) | v2.0.0 |
 | Settings fields (with WPGraphQL) | 6 | +1 conditional WPGraphQL policy dropdown | v2.5.0 |
-| E2E tests | 43 | `npx playwright test --config tests/e2e/playwright.config.ts --list` | unreleased |
+| E2E tests | 44 | `npx playwright test --config tests/e2e/playwright.config.ts --list` | unreleased |
 
 ### Files that reference these counts
 
