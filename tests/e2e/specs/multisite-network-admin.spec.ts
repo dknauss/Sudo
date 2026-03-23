@@ -16,11 +16,128 @@
  *   6. Verify redirect returns to /wp-admin/network/plugins.php with sudo active.
  */
 import { test, expect, activateSudoSession } from '../fixtures/test';
+import { exec } from 'child_process';
+import { promisify } from 'util';
 
 const LOCAL_MULTISITE_HOST = 'multisite-subdomains.local';
 const DEFAULT_PASSWORD = process.env.WP_PASSWORD ?? 'password';
+const E2E_TWO_FACTOR_CODE = '123456';
+const E2E_TWO_FACTOR_MU_PLUGIN = 'wp-sudo-e2e-two-factor.php';
+const E2E_TWO_FACTOR_REQUIRE_META = '_wp_sudo_e2e_require_two_factor';
+const E2E_TWO_FACTOR_CODE_META = '_wp_sudo_e2e_two_factor_code';
+const E2E_LOCKOUT_SECONDS_META = '_wp_sudo_e2e_lockout_seconds';
+const execAsync = promisify( exec );
+
+function getMultisiteSitePath(): string {
+    const configured = process.env.WP_E2E_SITE_PATH ?? '';
+
+    return configured.trim();
+}
+
+async function runWpCli( sitePath: string, baseUrl: string, args: string ): Promise<void> {
+    await execAsync(
+        `wp --path='${ sitePath }' --url='${ baseUrl }' ${ args }`,
+        { timeout: 30_000 }
+    );
+}
+
+async function installE2eTwoFactorBridge( sitePath: string ): Promise<void> {
+    await execAsync(
+        `mkdir -p '${ sitePath }/wp-content/mu-plugins' && cp '${ process.cwd() }/tests/e2e/fixtures/${ E2E_TWO_FACTOR_MU_PLUGIN }' '${ sitePath }/wp-content/mu-plugins/${ E2E_TWO_FACTOR_MU_PLUGIN }'`,
+        { timeout: 30_000 }
+    );
+}
+
+async function removeE2eTwoFactorBridge( sitePath: string ): Promise<void> {
+    await execAsync(
+        `rm -f '${ sitePath }/wp-content/mu-plugins/${ E2E_TWO_FACTOR_MU_PLUGIN }'`,
+        { timeout: 30_000 }
+    );
+}
+
+async function clearSudoFailureMeta( sitePath: string, baseUrl: string ): Promise<void> {
+    for ( const metaKey of [
+        '_wp_sudo_lockout_until',
+        '_wp_sudo_failure_event',
+        '_wp_sudo_failed_attempts',
+        '_wp_sudo_throttle_until',
+        E2E_LOCKOUT_SECONDS_META,
+    ] ) {
+        await runWpCli(
+            sitePath,
+            baseUrl,
+            `user meta delete 1 ${ metaKey } --quiet 2>/dev/null || true`
+        );
+    }
+}
+
+async function enableE2eTwoFactor( sitePath: string, baseUrl: string ): Promise<void> {
+    await runWpCli(
+        sitePath,
+        baseUrl,
+        `user meta update 1 ${ E2E_TWO_FACTOR_REQUIRE_META } 1 --quiet`
+    );
+    await runWpCli(
+        sitePath,
+        baseUrl,
+        `user meta update 1 ${ E2E_TWO_FACTOR_CODE_META } ${ E2E_TWO_FACTOR_CODE } --quiet`
+    );
+}
+
+async function disableE2eTwoFactor( sitePath: string, baseUrl: string ): Promise<void> {
+    await runWpCli(
+        sitePath,
+        baseUrl,
+        `user meta delete 1 ${ E2E_TWO_FACTOR_REQUIRE_META } --quiet 2>/dev/null || true`
+    );
+    await runWpCli(
+        sitePath,
+        baseUrl,
+        `user meta delete 1 ${ E2E_TWO_FACTOR_CODE_META } --quiet 2>/dev/null || true`
+    );
+}
+
+async function setE2eLockoutSeconds(
+    sitePath: string,
+    baseUrl: string,
+    seconds: number
+): Promise<void> {
+    await runWpCli(
+        sitePath,
+        baseUrl,
+        `user meta update 1 ${ E2E_LOCKOUT_SECONDS_META } ${ seconds } --quiet`
+    );
+}
 
 test.describe( 'Multisite network admin flow', () => {
+    test.beforeAll( async () => {
+        const configuredBaseUrl = process.env.WP_BASE_URL ?? '';
+        const sitePath = getMultisiteSitePath();
+
+        if (
+            configuredBaseUrl &&
+            new URL( configuredBaseUrl ).hostname === LOCAL_MULTISITE_HOST &&
+            sitePath
+        ) {
+            await installE2eTwoFactorBridge( sitePath );
+        }
+    } );
+
+    test.afterAll( async () => {
+        const configuredBaseUrl = process.env.WP_BASE_URL ?? '';
+        const sitePath = getMultisiteSitePath();
+
+        if (
+            configuredBaseUrl &&
+            new URL( configuredBaseUrl ).hostname === LOCAL_MULTISITE_HOST &&
+            sitePath
+        ) {
+            await disableE2eTwoFactor( sitePath, configuredBaseUrl );
+            await clearSudoFailureMeta( sitePath, configuredBaseUrl );
+            await removeE2eTwoFactorBridge( sitePath );
+        }
+    } );
+
     test( 'MULTI-01: network plugins reauth returns to the same network admin page', async ( {
         page,
         context,
@@ -100,5 +217,100 @@ test.describe( 'Multisite network admin flow', () => {
 
         await expect( page ).toHaveURL( networkPluginsUrl );
         await expect( page.locator( '#wp-admin-bar-wp-sudo-active' ) ).toBeVisible();
+    } );
+
+    test( 'MULTI-02: network settings POST replay survives 2FA lockout expiry recovery', async ( {
+        page,
+    } ) => {
+        const configuredBaseUrl = process.env.WP_BASE_URL ?? '';
+        const sitePath = getMultisiteSitePath();
+
+        test.skip(
+            ! configuredBaseUrl || new URL( configuredBaseUrl ).hostname !== LOCAL_MULTISITE_HOST,
+            `Requires WP_BASE_URL=http://${ LOCAL_MULTISITE_HOST }`
+        );
+        test.skip(
+            ! sitePath,
+            'Requires WP_E2E_SITE_PATH to point at the multisite local WordPress root.'
+        );
+
+        await enableE2eTwoFactor( sitePath, configuredBaseUrl );
+        await clearSudoFailureMeta( sitePath, configuredBaseUrl );
+        await setE2eLockoutSeconds( sitePath, configuredBaseUrl, 3 );
+
+        try {
+            await page.goto( '/wp-admin/network/settings.php?page=wp-sudo-settings' );
+            await expect( page ).toHaveURL( /\/wp-admin\/network\/settings\.php\?page=wp-sudo-settings$/ );
+
+            const sessionDuration = page.locator( '#session_duration' );
+            const originalValue = await sessionDuration.inputValue();
+            const updatedValue = originalValue === '14' ? '13' : '14';
+
+            await sessionDuration.fill( updatedValue );
+
+            await Promise.all( [
+                page.waitForURL( /page=wp-sudo-challenge/, { timeout: 15_000 } ),
+                page.locator( '#submit' ).click(),
+            ] );
+
+            await page.waitForFunction(
+                () => typeof ( window as Window & { wpSudoChallenge?: unknown } ).wpSudoChallenge !== 'undefined'
+            );
+
+            await page.fill( '#wp-sudo-challenge-password', DEFAULT_PASSWORD );
+            await page.click( '#wp-sudo-challenge-submit' );
+
+            await expect(
+                page.locator( '#wp-sudo-challenge-2fa-step' ),
+                'A correct password should advance the multisite POST replay flow to the 2FA step'
+            ).toBeVisible( { timeout: 15_000 } );
+
+            for ( let attempt = 1; attempt <= 3; attempt++ ) {
+                await page.fill( '#wp-sudo-e2e-two-factor-code', '000000' );
+                await page.click( '#wp-sudo-challenge-2fa-submit' );
+
+                await expect(
+                    page.locator( '#wp-sudo-challenge-2fa-error' )
+                ).toContainText( 'Invalid authentication code', { timeout: 10_000 } );
+            }
+
+            await page.fill( '#wp-sudo-e2e-two-factor-code', '000000' );
+            await page.click( '#wp-sudo-challenge-2fa-submit' );
+            await expect( page.locator( '#wp-sudo-challenge-2fa-submit' ) ).toBeDisabled();
+            await expect(
+                page.locator( '#wp-sudo-challenge-2fa-submit' )
+            ).toBeEnabled( { timeout: 10_000 } );
+
+            await page.fill( '#wp-sudo-e2e-two-factor-code', '000000' );
+            await page.click( '#wp-sudo-challenge-2fa-submit' );
+
+            await expect(
+                page.locator( '#wp-sudo-challenge-2fa-error' )
+            ).toContainText( 'Too many failed attempts', { timeout: 10_000 } );
+            await expect( page.locator( '#wp-sudo-challenge-2fa-submit' ) ).toBeDisabled();
+            await expect(
+                page.locator( '#wp-sudo-challenge-2fa-submit' )
+            ).toBeEnabled( { timeout: 10_000 } );
+            await expect(
+                page.locator( '#wp-sudo-challenge-2fa-error' )
+            ).toBeHidden( { timeout: 10_000 } );
+
+            await page.fill( '#wp-sudo-e2e-two-factor-code', E2E_TWO_FACTOR_CODE );
+
+            await Promise.all( [
+                page.waitForURL( /\/wp-admin\/network\/settings\.php\?page=wp-sudo-settings(?:&updated=true)?$/, {
+                    timeout: 15_000,
+                } ),
+                page.click( '#wp-sudo-challenge-2fa-submit' ),
+            ] );
+
+            await expect( page ).toHaveURL(
+                /\/wp-admin\/network\/settings\.php\?page=wp-sudo-settings(?:&updated=true)?$/
+            );
+            await expect( page.locator( '#session_duration' ) ).toHaveValue( updatedValue );
+        } finally {
+            await disableE2eTwoFactor( sitePath, configuredBaseUrl );
+            await clearSudoFailureMeta( sitePath, configuredBaseUrl );
+        }
     } );
 } );
