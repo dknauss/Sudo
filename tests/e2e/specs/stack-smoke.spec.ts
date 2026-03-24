@@ -184,4 +184,44 @@ test.describe( 'WP Sudo alternative stack smoke tests', () => {
             cookies.find( ( cookie ) => cookie.name === 'wp_sudo_token' )
         ).toBeUndefined();
     } );
+
+    test( 'STACK-08: MU install AJAX fails closed without an active sudo session', async ( {
+        page,
+        context,
+    } ) => {
+        const cookies = await context.cookies();
+        const authCookies = cookies.filter(
+            ( cookie ) => ! cookie.name.startsWith( 'wp_sudo' )
+        );
+        await context.clearCookies();
+        await context.addCookies( authCookies );
+
+        await page.goto( '/wp-admin/options-general.php?page=wp-sudo-settings' );
+
+        const result = await page.evaluate( async () => {
+            const body = new FormData();
+            body.append( 'action', wpSudoAdmin.installAction );
+            body.append( '_nonce', wpSudoAdmin.nonce );
+
+            const response = await fetch( wpSudoAdmin.ajaxUrl, {
+                method: 'POST',
+                credentials: 'same-origin',
+                body,
+            } );
+
+            return {
+                status: response.status,
+                json: await response.json(),
+            };
+        } );
+
+        expect( result.status ).toBe( 403 );
+        expect( result.json?.data?.code ).toBe( 'sudo_required' );
+        expect( result.json?.data?.message ).toContain( 'sudo session is required' );
+
+        const updatedCookies = await context.cookies();
+        expect(
+            updatedCookies.find( ( cookie ) => cookie.name === 'wp_sudo_token' )
+        ).toBeUndefined();
+    } );
 } );
