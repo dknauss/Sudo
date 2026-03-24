@@ -1,5 +1,5 @@
 {
-  "core": "https://downloads.wordpress.org/release/wordpress-7.0-beta4.zip",
+  "core": "https://downloads.wordpress.org/release/wordpress-7.0-RC1.zip",
   "plugins": ["."],
   "phpVersion": "8.2",
   "port": 8889,

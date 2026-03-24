@@ -110,7 +110,7 @@ All 5 phases shipped. Identified by independent assessments from Codex, Gemini, 
 
 ### ✓ CI Matrix — ~~Phase A~~ ✅ Done v2.9.2
 
-- PHP 8.0–8.4 for unit tests; targeted integration coverage for WordPress 6.2, 6.7, and 7.0-beta4; single-site + multisite + PCOV coverage
+- PHP 8.0–8.4 for unit tests; targeted integration coverage for WordPress 6.2, 6.7, and 7.0-RC1; single-site + multisite + PCOV coverage
 
 ---
 
@@ -121,8 +121,8 @@ challenges and priorities for WP Sudo.
 
 Current project state (as of March 8, 2026):
 - Current test and size counts are centralized in [`docs/current-metrics.md`](docs/current-metrics.md).
-- CI pipeline: unit tests on PHP 8.0–8.4; integration tests on PHP 8.0/8.1/8.3; WordPress 6.2, 6.7, and 7.0-beta4; single-site + multisite; MySQL 8.0 plus one MariaDB lane; PCOV coverage job
-- WordPress 7.0 Beta 2 tested (February 27, 2026); GA is April 9, 2026
+- CI pipeline: unit tests on PHP 8.0–8.4; integration tests on PHP 8.0/8.1/8.3; WordPress 6.2, 6.7, and 7.0-RC1; single-site + multisite; MySQL 8.0 plus one MariaDB lane; PCOV coverage job
+- WordPress 7.0 RC1 signoff recorded (March 24, 2026); GA is April 9, 2026
 
 ---
 
@@ -130,7 +130,7 @@ Current project state (as of March 8, 2026):
 
 > **Status: Complete.** The integration test suite shipped in v2.4.0 (55 tests) and
 > expanded in v2.4.1 (73 tests). CI now runs targeted compatibility lanes across
-> PHP 8.0/8.1/8.3 and WordPress 6.2, 6.7, and 7.0-beta4 with single-site +
+> PHP 8.0/8.1/8.3 and WordPress 6.2, 6.7, and 7.0-RC1 with single-site +
 > multisite coverage. The analysis below is preserved for context on what drove
 > the test design.
 
@@ -198,7 +198,7 @@ These gaps have been closed by the integration suite:
 
 ## 2. WordPress 7.0 Prep (GA April 9, 2026)
 
-> **Status:** WP 7.0 Beta-era automation and manual beta checks are green, but RC1 signoff is not yet recorded. Repeat the manual verification pass on each RC build, including an RC3 checkpoint on April 2, 2026, log each result in `tests/MANUAL-TESTING.md`, then do the final readme "Tested up to" bump on GA.
+> **Status:** WP 7.0 beta-era automation and manual beta checks are green, and RC1 signoff is recorded on 2026-03-24. Repeat the manual verification pass on each later RC build, including an RC3 checkpoint on April 2, 2026, log each result in `tests/MANUAL-TESTING.md`, then do the final readme "Tested up to" bump on GA.
 
 ### Verified changes that affect WP Sudo
 
@@ -406,7 +406,7 @@ Local by Flywheel sites. Gaps remain in CI and broader hosting diversity.
 | **Web server** | Apache + MariaDB (`wp-env` Playwright CI), nginx + php-fpm + MariaDB (stack-smoke CI), nginx + SQLite (Studio local), nginx/Apache + MySQL (Local manual) | full browser suite still runs only on the default Apache stack |
 | **PHP version** | 8.0–8.4 (unit CI), 8.0/8.1/8.3 (integration CI), 8.2 (Studio/wp-env local) | 8.2 and 8.4 are still missing from integration CI |
 | **Database** | MySQL 8.0 (integration CI), MariaDB LTS (`wp-env` CI + one integration lane + WP 6.4 / 6.5 compat-sweep lanes), SQLite (Playground stack-smoke CI + Studio local) | broader MariaDB/version overlap, MySQL 5.7 legacy hosts |
-| **WordPress version** | 6.2 support-floor lane, 6.3–6.6 scheduled compat sweep, 6.7 stable lane, 7.0-beta4 forward lane | 6.3–6.6 are not part of required push/PR CI yet |
+| **WordPress version** | 6.2 support-floor lane, 6.3–6.6 scheduled compat sweep, 6.7 stable lane, 7.0-RC1 forward lane | 6.3–6.6 are not part of required push/PR CI yet |
 | **OS** | macOS (dev), Ubuntu 24.04 (CI) | Windows (if any WP-CLI or path handling is OS-sensitive) |
 | **Hosting stack** | Bare local dev | Shared hosting (cPanel), managed WP (Pressable, WP Engine, Cloudways), containerized (Docker, Kubernetes) |
 
@@ -424,13 +424,13 @@ Local by Flywheel sites. Gaps remain in CI and broader hosting diversity.
   The upgrader migration chain and option serialization could behave differently.
 - **Backward compat:** The plugin declares WordPress 6.2+ minimum. CI now includes
   a dedicated 6.2 floor lane, a scheduled 6.3–6.6 compatibility sweep, plus 6.7
-  and 7.0-beta4 lanes.
+  and 7.0-RC1 lanes.
 
 ### Recommended approach
 
 **Phase A: Expand CI matrix** ✅ Done v2.9.2, extended in v2.14.x
 
-CI matrix now covers PHP 8.0–8.4 for unit tests, a 6.2 support-floor integration lane on PHP 8.0, stable/forward integration lanes on PHP 8.1 and 8.3 for WordPress 6.7 and 7.0-beta4, one dedicated MariaDB lane, and a scheduled WordPress 6.3–6.6 compatibility sweep on PHP 8.1 with additional WordPress 6.4 and 6.5 MariaDB overlap lanes.
+CI matrix now covers PHP 8.0–8.4 for unit tests, a 6.2 support-floor integration lane on PHP 8.0, stable/forward integration lanes on PHP 8.1 and 8.3 for WordPress 6.7 and 7.0-RC1, one dedicated MariaDB lane, and a scheduled WordPress 6.3–6.6 compatibility sweep on PHP 8.1 with additional WordPress 6.4 and 6.5 MariaDB overlap lanes.
 
 **Phase B: Apache + MariaDB CI job** ✅ Covered by Playwright `wp-env`
 
@@ -473,7 +473,7 @@ As of 2026-03-23, the practical testing picture is:
 Specifically, the repo now has:
 - unit CI on PHP `8.0`–`8.4`
 - integration CI on PHP `8.0`/`8.1`/`8.3`
-- automated WordPress lanes for `6.2`, `6.7`, and `7.0-beta4`
+- automated WordPress lanes for `6.2`, `6.7`, and `7.0-RC1`
 - a scheduled WordPress `6.3`–`6.6` compatibility sweep
 - one MariaDB integration lane in addition to the main MySQL `8.0` matrix, plus WordPress `6.4` and `6.5` MariaDB overlap lanes in the scheduled sweep
 - Playwright E2E on Apache + MariaDB via `wp-env`

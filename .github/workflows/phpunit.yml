@@ -6,7 +6,7 @@ on:
   pull_request:
     branches: [main]
   schedule:
-    - cron: '0 3 * * *'  # Nightly at 3 AM UTC — catches stable floor and 7.0 beta regressions.
+    - cron: '0 3 * * *'  # Nightly at 3 AM UTC — catches stable floor and 7.0 RC regressions.
 
 jobs:
   unit-tests:
@@ -136,22 +136,22 @@ jobs:
             db_label: 'MySQL 8.0'
             db_image: 'mysql:8.0'
           - php: '8.1'
-            wp: '7.0-beta4'
+            wp: '7.0-RC1'
             multisite: false
             db_label: 'MySQL 8.0'
             db_image: 'mysql:8.0'
           - php: '8.1'
-            wp: '7.0-beta4'
+            wp: '7.0-RC1'
             multisite: true
             db_label: 'MySQL 8.0'
             db_image: 'mysql:8.0'
           - php: '8.3'
-            wp: '7.0-beta4'
+            wp: '7.0-RC1'
             multisite: false
             db_label: 'MySQL 8.0'
             db_image: 'mysql:8.0'
           - php: '8.3'
-            wp: '7.0-beta4'
+            wp: '7.0-RC1'
             multisite: true
             db_label: 'MySQL 8.0'
             db_image: 'mysql:8.0'

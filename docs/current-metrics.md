@@ -62,7 +62,7 @@ value across these known consumers:
 Source: `.github/workflows/phpunit.yml`, `.github/workflows/e2e.yml`, `.github/workflows/e2e-nginx.yml`, `.github/workflows/e2e-sqlite.yml`, `.github/workflows/compat-wordpress-minors.yml`
 
 - Unit test matrix: PHP 8.0, 8.1, 8.2, 8.3, 8.4
-- Integration matrix: PHP 8.0, 8.1, 8.3; WordPress 6.2, 6.7, 7.0-beta4; MySQL 8.0 plus one MariaDB LTS lane; multisite true/false on the main MySQL lanes
+- Integration matrix: PHP 8.0, 8.1, 8.3; WordPress 6.2, 6.7, 7.0-RC1; MySQL 8.0 plus one MariaDB LTS lane; multisite true/false on the main MySQL lanes
 - Scheduled compat sweep: PHP 8.1 on WordPress 6.3, 6.4, 6.5, and 6.6, plus MariaDB LTS overlap lanes on WordPress 6.4 and 6.5
 - Browser stack smoke workflows: Apache + MariaDB (`wp-env`), nginx + php-fpm + MariaDB, and Playground SQLite
 

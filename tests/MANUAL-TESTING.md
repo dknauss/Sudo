@@ -870,7 +870,7 @@ Track the release-candidate and GA passes here so WP 7.0 readiness is explicit.
 
 | Milestone | Status | Date | Build | Environment | Notes |
 |-----------|--------|------|-------|-------------|-------|
-| RC1 | Pending | — | — | — | Manual WP 7.0 RC1 pass not yet recorded |
+| RC1 | PASS | 2026-03-24 | 7.0-RC1 | `wp-env` + Playwright | Sections 15.1-15.5 PASS after repinning forward lanes to RC1 |
 | RC2 | Pending | — | — | — | |
 | RC3 | Pending | — | — | — | Required checkpoint before GA |
 | GA | Pending | — | — | — | Final "Tested up to" bump depends on this pass |
@@ -886,6 +886,7 @@ Track the release-candidate and GA passes here so WP 7.0 readiness is explicit.
    - Gated actions table (`.widefat.striped`) renders with correct spacing.
    - MU-plugin status section renders correctly.
 3. **Result:** PASS — 2026-02-20 (WP 7.0-alpha-61698, Studio)
+4. **Result:** PASS — 2026-03-24 (WP 7.0-RC1, `wp-env` + Playwright browser verification)
 
 ### 15.2 Challenge Page
 
@@ -897,6 +898,7 @@ Track the release-candidate and GA passes here so WP 7.0 readiness is explicit.
    - "Confirm & Continue" and "Cancel" buttons render correctly.
    - No raw text or visible escape sequences appear in the card.
 4. **Result:** PASS — 2026-02-20 (WP 7.0-alpha-61698, Studio)
+5. **Result:** PASS — 2026-03-24 (WP 7.0-RC1, `wp-env` + Playwright browser verification)
 
 ### 15.3 Admin Bar Countdown
 
@@ -906,6 +908,7 @@ Track the release-candidate and GA passes here so WP 7.0 readiness is explicit.
    - Red state (#c62828) appears in the final 60 seconds.
    - Admin bar node does not conflict with WP 7.0 toolbar chrome.
 3. **Result:** PASS — 2026-02-20 (WP 7.0-alpha-61698, Studio)
+4. **Result:** PASS — 2026-03-24 (WP 7.0-RC1, `wp-env` + Playwright browser verification, including expiring-state timer check)
 
 ### 15.4 Admin Notices (Gate Notice + Blocked Notice)
 
@@ -914,6 +917,7 @@ Track the release-candidate and GA passes here so WP 7.0 readiness is explicit.
    - `.notice.notice-warning` class applies correctly under WP 7.0.
    - Link to the challenge page is visible and styled.
 3. **Result:** PASS — 2026-02-20 (WP 7.0-alpha-61698, Studio)
+4. **Result:** PASS — 2026-03-24 (WP 7.0-RC1, `wp-env` + Playwright browser verification)
 
 ### 15.5 Disabled Action Links (Plugin/Theme rows)
 
@@ -923,6 +927,7 @@ Track the release-candidate and GA passes here so WP 7.0 readiness is explicit.
    - Inline `color:#787c82; cursor:default` renders correctly.
    - No conflict with new row-action hover styles from the admin refresh.
 3. **Result:** PASS — 2026-02-20 (WP 7.0-alpha-61698, Studio)
+4. **Result:** PASS — 2026-03-24 (WP 7.0-RC1, `wp-env` + Playwright browser verification)
 
 ---
 

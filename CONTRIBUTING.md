@@ -32,7 +32,7 @@ export WP_TESTS_DIR="$PWD/.tmp/wordpress-tests-lib"
 export WP_CORE_DIR="$PWD/.tmp/wordpress"
 
 # One-time setup: installs the WordPress 7.0 beta 4 test library and creates test DB
-bash bin/install-wp-tests.sh wordpress_test root root 127.0.0.1 7.0-beta4
+bash bin/install-wp-tests.sh wordpress_test root root 127.0.0.1 7.0-RC1
 
 # Run tests
 composer test:integration
@@ -56,7 +56,7 @@ bash bin/install-wp-tests.sh \
   root \
   root \
   "localhost:$HOME/Library/Application Support/Local/run/<site-id>/mysql/mysqld.sock" \
-  7.0-beta4
+  7.0-RC1
 ```
 
 To discover the available Local sockets:
@@ -184,7 +184,7 @@ npm run env:assert-wp-version
 ```
 
 The last command verifies that both `wp-env` environments are actually running
-WordPress `7.0-beta4`, not just that the containers started.
+WordPress `7.0-RC1`, not just that the containers started.
 
 Run both Playwright projects locally:
 
@@ -316,7 +316,7 @@ Current live counts and matrix details are centralized in [`docs/current-metrics
 - `139` integration test methods cover real-WordPress flows across admin, REST, AJAX, request stash/replay, multisite, and Two Factor interaction.
 - `58` Playwright tests cover the browser-visible challenge flow, including stale-session recovery, 2FA, resend, throttle, lockout, expiry recovery, stash replay, and reusable stack-smoke subsets for alternate environments.
 - CI runs unit tests on PHP `8.0` through `8.4`.
-- CI runs integration tests on PHP `8.0`, `8.1`, and `8.3` against WordPress `6.2`, `6.7`, and `7.0-beta4`.
+- CI runs integration tests on PHP `8.0`, `8.1`, and `8.3` against WordPress `6.2`, `6.7`, and `7.0-RC1`.
 - CI runs a scheduled WordPress compatibility sweep on `6.3`, `6.4`, `6.5`, and `6.6` with PHP `8.1`, plus MariaDB overlap lanes on WordPress `6.4` and `6.5`.
 - CI runs integration coverage on MySQL `8.0` plus one MariaDB LTS lane.
 - CI runs browser tests on the default `wp-env` Apache + MariaDB stack and stack-smoke browser tests on explicit nginx + php-fpm + MariaDB, explicit nginx + php-fpm + MariaDB multisite, and Playground SQLite lanes.
@@ -347,9 +347,9 @@ Every PR automatically gets a **"Try in WordPress Playground"** comment with a
 link that installs the plugin from that PR's commit and lands you in the admin
 logged in as `admin` / `password`.
 
-Current Playground previews are pinned to WordPress `7.0-beta4` as of 2026-03-12.
+Current Playground previews are pinned to WordPress `7.0-RC1` as of 2026-03-24.
 
-For WordPress 7.0 release signoff, do not treat the green beta-era CI matrix as a substitute for the RC/GA manual pass. Record each RC and GA result in the `15.0 Release Signoff Log` table in [`tests/MANUAL-TESTING.md`](tests/MANUAL-TESTING.md) before claiming final 7.0 readiness.
+For WordPress 7.0 release signoff, do not treat the green RC-era CI matrix as a substitute for the remaining RC/GA manual passes. RC1 is recorded in the `15.0 Release Signoff Log` table in [`tests/MANUAL-TESTING.md`](tests/MANUAL-TESTING.md); repeat that signoff for each later RC and for GA before claiming final 7.0 readiness.
 
 ### What you can test in Playground
 

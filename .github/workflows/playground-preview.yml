@@ -27,7 +27,7 @@ jobs:
 
             const blueprint = {
               '$schema': 'https://playground.wordpress.net/blueprint-schema.json',
-              preferredVersions: { wp: '7.0-beta4' },
+              preferredVersions: { wp: '7.0-RC1' },
               landingPage: '/wp-admin/',
               steps: [
                 { step: 'login', username: 'admin', password: 'password' },
@@ -52,7 +52,7 @@ jobs:
               '',
               `[**Open this PR in Playground →**](${playgroundUrl})`,
               '',
-              'Preview is pinned to WordPress `7.0-beta4`.',
+              'Preview is pinned to WordPress `7.0-RC1`.',
               '',
               'Logs in as `admin` / `password` and installs the plugin from this PR\'s commit.',
               '',
