@@ -1,0 +1,89 @@
+name: E2E Nginx Multisite Smoke
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 7 * * 4'
+
+jobs:
+  e2e-nginx-multisite-smoke:
+    name: "E2E Nginx Multisite Smoke"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Start multisite nginx stack
+        run: docker compose -f .github/docker/nginx-mariadb-multisite.compose.yml up -d --wait db php nginx
+
+      - name: Wait for multisite bootstrap files
+        run: |
+          for i in $(seq 1 30); do
+            if curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:9081/wp-admin/install.php | grep -Eq "200|302"; then
+              echo "WordPress bootstrap files are ready"
+              exit 0
+            fi
+            echo "Waiting for bootstrap files... (attempt $i)"
+            sleep 2
+          done
+          exit 1
+
+      - name: Install multisite WordPress and activate WP Sudo
+        run: |
+          docker compose -f .github/docker/nginx-mariadb-multisite.compose.yml run --rm cli wp core multisite-install \
+            --path=/var/www/html \
+            --url=http://127.0.0.1:9081 \
+            --title='WP Sudo Nginx Multisite Smoke' \
+            --admin_user=admin \
+            --admin_password=password \
+            --admin_email=dev@example.com \
+            --skip-email \
+            --subdomains=false
+          docker compose -f .github/docker/nginx-mariadb-multisite.compose.yml run --rm cli wp plugin activate wp-sudo --network --path=/var/www/html
+
+      - name: Wait for multisite WordPress to be ready
+        run: |
+          for i in $(seq 1 30); do
+            if curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:9081/wp-login.php | grep -q "200"; then
+              echo "WordPress is ready"
+              exit 0
+            fi
+            echo "Waiting for WordPress... (attempt $i)"
+            sleep 2
+          done
+          exit 1
+
+      - name: Run multisite stack smoke tests
+        env:
+          WP_BASE_URL: http://127.0.0.1:9081
+          WP_REQUEST_BASE_URL: http://127.0.0.1:9081
+        run: npm run test:e2e:multisite:stack-smoke
+
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-nginx-multisite-report
+          path: |
+            playwright-report/
+            tests/e2e/artifacts/test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+      - name: Stop multisite nginx stack
+        if: always()
+        run: docker compose -f .github/docker/nginx-mariadb-multisite.compose.yml down -v

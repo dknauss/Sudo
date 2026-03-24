@@ -314,36 +314,32 @@ Current live counts and matrix details are centralized in [`docs/current-metrics
 
 - `514` unit tests and `1348` assertions cover core business logic, bridges, and state-machine behavior.
 - `139` integration test methods cover real-WordPress flows across admin, REST, AJAX, request stash/replay, multisite, and Two Factor interaction.
-- `56` Playwright tests cover the browser-visible challenge flow, including stale-session recovery, 2FA, resend, throttle, lockout, expiry recovery, stash replay, and a reusable stack-smoke subset for alternate environments.
+- `58` Playwright tests cover the browser-visible challenge flow, including stale-session recovery, 2FA, resend, throttle, lockout, expiry recovery, stash replay, and reusable stack-smoke subsets for alternate environments.
 - CI runs unit tests on PHP `8.0` through `8.4`.
 - CI runs integration tests on PHP `8.0`, `8.1`, and `8.3` against WordPress `6.2`, `6.7`, and `7.0-beta4`.
 - CI runs a scheduled WordPress compatibility sweep on `6.3`, `6.4`, `6.5`, and `6.6` with PHP `8.1`, plus MariaDB overlap lanes on WordPress `6.4` and `6.5`.
 - CI runs integration coverage on MySQL `8.0` plus one MariaDB LTS lane.
-- CI runs browser tests on the default `wp-env` Apache + MariaDB stack and stack-smoke browser tests on explicit nginx + php-fpm + MariaDB and Playground SQLite lanes.
+- CI runs browser tests on the default `wp-env` Apache + MariaDB stack and stack-smoke browser tests on explicit nginx + php-fpm + MariaDB, explicit nginx + php-fpm + MariaDB multisite, and Playground SQLite lanes.
 - Studio remains the recommended local path for deeper SQLite investigation beyond the automated smoke coverage, with a dedicated release runbook in [`docs/studio-sqlite-release-runbook.md`](docs/studio-sqlite-release-runbook.md).
 
 The strongest covered area is the challenge flow itself: password and 2FA auth, stale tabs, resend behavior, throttle/lockout UX, expiry recovery, and request replay all have automated coverage. The main remaining gaps are matrix depth on alternate stacks rather than core flow depth: the full browser suite still runs only on the default Apache + MariaDB lane, while nginx and SQLite currently run the focused stack-smoke subset.
 
-### Separate Multisite Alternate-Stack Plan
+### Separate Multisite Alternate-Stack Lane
 
-Keep the current `tests/e2e/specs/stack-smoke.spec.ts` suite single-site only. Its job is fast stack-sensitivity coverage around cookies, redirects, replay, AJAX, and REST, not full environment matrix depth.
+Keep [`tests/e2e/specs/stack-smoke.spec.ts`](tests/e2e/specs/stack-smoke.spec.ts) single-site only. Its job is fast stack-sensitivity coverage around cookies, redirects, replay, AJAX, and REST, not full environment matrix depth.
 
-When multisite alternate-stack coverage is added, build it as a separate lane with its own contract:
+Multisite alternate-stack coverage now lives in its own lane:
 
-- Start with **nginx + php-fpm + MariaDB**, not SQLite. That is the more stable way to validate multisite routing, cookies, `return_url` handling, and network-admin replay on an alternate server stack.
-- Keep the first multisite alternate-stack suite to **1–3 smoke cases** only:
-  - network-admin challenge cancel/return behavior
-  - one gated network-admin GET replay
-  - one gated network-admin POST replay
-- Reuse or adapt the existing local-only multisite scenarios in [`tests/e2e/specs/multisite-network-admin.spec.ts`](tests/e2e/specs/multisite-network-admin.spec.ts) rather than cloning the full challenge suite.
-- Do **not** add multisite cases to the existing single-site `stack-smoke` pack. Keep single-site and multisite alternate-stack signals separate so failures stay easy to interpret.
-- Keep SQLite multisite out of CI until nginx/MySQL-or-MariaDB multisite smoke is stable. SQLite remains better suited to Studio release-time verification than an early multisite merge gate.
+- workflow: [`e2e-nginx-multisite.yml`](.github/workflows/e2e-nginx-multisite.yml)
+- compose stack: [`nginx-mariadb-multisite.compose.yml`](.github/docker/nginx-mariadb-multisite.compose.yml)
+- spec: [`multisite-stack-smoke.spec.ts`](tests/e2e/specs/multisite-stack-smoke.spec.ts)
 
-Recommended execution order:
+That lane intentionally starts small:
 
-1. Add a dedicated multisite nginx stack and smoke spec.
-2. Prove one GET and one POST network-admin replay path there.
-3. Let that lane run as a breadth signal before deciding whether it is stable enough to promote.
+- network-admin challenge cancel/return behavior
+- one gated network-admin POST replay
+
+It is a breadth workflow, not a merge gate. Keep single-site and multisite alternate-stack signals separate so failures stay easy to interpret. Keep SQLite multisite out of CI until the nginx + MariaDB multisite lane proves stable over time.
 
 ## WordPress Playground
 
