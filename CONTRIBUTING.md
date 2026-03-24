@@ -356,6 +356,30 @@ Current Playground previews are pinned to WordPress `7.0-RC1` as of 2026-03-24.
 
 For WordPress 7.0 release signoff, do not treat the green RC-era CI matrix as a substitute for the remaining RC/GA manual passes. RC1 is recorded in the `15.0 Release Signoff Log` table in [`tests/MANUAL-TESTING.md`](tests/MANUAL-TESTING.md); repeat that signoff for each later RC and for GA before claiming final 7.0 readiness.
 
+### WordPress 7.0 Final Prep Checklist
+
+Use this checklist for each later RC and again at GA:
+
+1. Repin the forward WordPress lane references if the build string changed:
+   - [`.wp-env.json`](.wp-env.json)
+   - [`package.json`](package.json)
+   - [`blueprint.json`](blueprint.json)
+   - [`.github/workflows/phpunit.yml`](.github/workflows/phpunit.yml)
+   - [`.github/workflows/playground-preview.yml`](.github/workflows/playground-preview.yml)
+   - [`tests/Integration/bootstrap.php`](tests/Integration/bootstrap.php)
+2. Run section `15` in [`tests/MANUAL-TESTING.md`](tests/MANUAL-TESTING.md) and record the result in the `15.0 Release Signoff Log`.
+3. Verify the standard local checks:
+   - `composer test:integration`
+   - `WP_MULTISITE=1 composer test:integration`
+   - `composer analyse:phpstan`
+   - `composer analyse:psalm`
+   - `composer lint`
+4. At GA only, update `Tested up to` and release metadata surfaces:
+   - [`readme.txt`](readme.txt)
+   - [`readme.md`](readme.md)
+   - any release notes or changelog entry being prepared for the next tag
+5. After WordPress 7.0 GA lands, remove the temporary `handle_err_admin_role()` workaround noted in [`docs/ROADMAP.md`](docs/ROADMAP.md) if core `#64690` shipped as expected.
+
 ### What you can test in Playground
 
 | Feature | Notes |

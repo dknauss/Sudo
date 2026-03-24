@@ -198,7 +198,7 @@ These gaps have been closed by the integration suite:
 
 ## 2. WordPress 7.0 Prep (GA April 9, 2026)
 
-> **Status:** WP 7.0 beta-era automation and manual beta checks are green, and RC1 signoff is recorded on 2026-03-24. Repeat the manual verification pass on each later RC build, including an RC3 checkpoint on April 2, 2026, log each result in `tests/MANUAL-TESTING.md`, then do the final readme "Tested up to" bump on GA.
+> **Status:** WP 7.0 beta-era automation and manual beta checks are green, and RC1 signoff is recorded on 2026-03-24. Repeat the manual verification pass on each later RC build, including an RC3 checkpoint on April 2, 2026, log each result in `tests/MANUAL-TESTING.md`, keep the standard local verification set green, then do the final readme "Tested up to" bump on GA.
 
 ### Verified changes that affect WP Sudo
 
@@ -221,10 +221,16 @@ These gaps have been closed by the integration suite:
 3. ~~**Visual check:** settings page, help tabs, admin bar timer, challenge interstitial, admin notices~~ — done; all pass against refreshed admin chrome
 4. ~~**Run `composer test`**~~ — passing on WP 7.0-alpha / 7.0-beta; CI covers WP trunk
 5. **Repeat manual verification on each RC build** (RC1, RC2, etc.), with an explicit RC3 checkpoint on **April 2, 2026**, and record date + build in the `15.0 Release Signoff Log` table in `tests/MANUAL-TESTING.md`.
-6. **Update version references** when 7.0 ships (April 9):
+6. **Keep the standard local verification set green for each RC/GA checkpoint**:
+   - `composer test:integration`
+   - `WP_MULTISITE=1 composer test:integration`
+   - `composer analyse:phpstan`
+   - `composer analyse:psalm`
+   - `composer lint`
+7. **Update version references** when 7.0 ships (April 9):
    - `readme.txt` / `readme.md` — "Tested up to" bump
    - Any docs still referencing "WordPress 6.9" as latest
-7. **Remove `handle_err_admin_role()` workaround** once WP 7.0 GA ships (Trac #64690 lands in core — see table row above).
+8. **Remove `handle_err_admin_role()` workaround** once WP 7.0 GA ships (Trac #64690 lands in core — see table row above).
 
 ### Abilities API and MCP Adapter: the longer-range question
 

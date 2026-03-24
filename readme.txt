@@ -169,11 +169,13 @@ Extensibility: the action registry is filterable via wp_sudo_gated_actions. Nine
 == Changelog ==
 
 = Unreleased =
+* **WordPress 7.0 release prep** — repinned forward CI and local preview lanes to `7.0-RC1`, recorded RC1 visual signoff in `tests/MANUAL-TESTING.md`, and documented the remaining RC2/RC3/GA checklist so final 7.0 readiness can be closed out cleanly.
 * **Fix: lockout-expiry recovery on the challenge page** — corrected an edge case where the countdown could reach zero but the server still treated the lockout as active for that exact second, blocking the immediate retry. Password and IP lockouts now expire in sync with the visible countdown, and browser coverage verifies recovery after the countdown ends.
 * **Tests: expanded 2FA recovery replay coverage** — browser coverage now verifies stash replay after 2FA lockout expiry for GET and POST actions, and covers the provider resend branch before a later successful replay.
 * **Testing workflow: compatibility breadth expansion** — added a scheduled WordPress `6.3`–`6.6` integration sweep on PHP `8.1`, plus explicit browser smoke workflows for nginx + php-fpm + MariaDB and Playground SQLite.
 * **Tests: alternate-stack smoke coverage** — added a reusable Playwright smoke pack that proves admin load, session-only challenge success, and stashed settings POST replay across the default Apache stack and the new nginx/SQLite lanes.
 * **Tests: dedicated multisite alternate-stack lane** — added a separate nginx + MariaDB multisite smoke workflow for network-admin challenge cancel and stashed POST replay, and scoped those browser cases to that dedicated lane so the default single-site Playwright suite stays stable.
+* **Testing workflow: local integration fallback** — `composer test:integration` now falls back to the running `wp-env` `tests-cli` container when a local `wp-env` rebuild leaves the generated host-side MySQL endpoint stale, while CI keeps using the normal direct PHPUnit path.
 
 = 2.14.0 =
 * **Feature: Playwright end-to-end coverage** — added browser-verified challenge, cookie, gate UI, admin bar timer, keyboard shortcut, MU-plugin AJAX, multisite network-admin, and visual-regression coverage to exercise the real user flows around reauthentication.

@@ -875,6 +875,14 @@ Track the release-candidate and GA passes here so WP 7.0 readiness is explicit.
 | RC3 | Pending | — | — | — | Required checkpoint before GA |
 | GA | Pending | — | — | — | Final "Tested up to" bump depends on this pass |
 
+Before marking RC2, RC3, or GA complete, also re-run the standard local verification set:
+
+- `composer test:integration`
+- `WP_MULTISITE=1 composer test:integration`
+- `composer analyse:phpstan`
+- `composer analyse:psalm`
+- `composer lint`
+
 ### 15.1 Settings Page (Settings > Sudo)
 
 1. Load **Settings > Sudo** on a WP 7.0 site.
