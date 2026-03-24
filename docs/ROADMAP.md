@@ -874,6 +874,68 @@ be needed.
 *Impact:* Medium — useful visibility for site administrators, but not a security
 improvement.
 
+**Recommended MVP slice**
+
+Start with the smallest operator-visible version:
+
+1. **Active sudo sessions**
+   - current count
+   - top 5 users with active sessions
+   - expiry time remaining for each visible session
+2. **Recent gated operations**
+   - last 10 gated or replayed actions
+   - action label, user, site (on multisite), timestamp, outcome
+3. **Current policy summary**
+   - session duration
+   - entry-point policy summary (`REST`, `CLI`, `Cron`, `XML-RPC`, `WPGraphQL`)
+
+Do **not** start with:
+- long-term analytics
+- charts
+- per-IP forensics
+- custom filtering UI
+- full historical reporting
+
+The MVP goal is fast operational visibility, not a reporting subsystem.
+
+**Recommended data model**
+
+The preferred first implementation is a small custom audit table rather than a
+network of transients:
+
+- table name: `{$wpdb->base_prefix}wp_sudo_events`
+- columns:
+  - `id`
+  - `site_id`
+  - `user_id`
+  - `event`
+  - `rule_id`
+  - `surface`
+  - `object_type`
+  - `object_id`
+  - `ip`
+  - `created_at`
+  - `context` (`longtext` JSON for small optional metadata)
+
+Why a table first:
+- recent-activity widgets are query-shaped, not cache-shaped
+- multisite summaries are much easier from one table than from per-site transient shards
+- retention and pruning are straightforward
+- future dashboard, export, and CLI/reporting features can share the same source
+
+Recommended write scope for the first pass:
+- persist only the small subset of events the widget needs:
+  - `wp_sudo_action_gated`
+  - `wp_sudo_action_replayed`
+  - `wp_sudo_action_allowed`
+  - `wp_sudo_action_blocked`
+  - `wp_sudo_lockout`
+
+Recommended retention for the MVP:
+- prune rows older than 7 or 14 days via opportunistic cleanup or a lightweight scheduled task
+
+This keeps the schema useful without turning WP Sudo into a full audit-log product.
+
 ### Open — High Effort
 
 **Gutenberg Block Editor Integration**
@@ -888,6 +950,21 @@ editor integration.
 
 *Impact:* Medium — improves UX for block editor users, but the current
 stash-replay pattern already works for most editor operations.
+
+**Why this stays behind the dashboard widget**
+
+This is not just a UI polish item. It requires decisions about:
+
+- how a save interruption maps to a snackbar or modal flow
+- how request stash/replay works when the editor owns the request lifecycle
+- how 2FA provider rendering works outside the current full-page challenge
+- how file uploads, nonces, and nested dialogs behave in the editor UI
+- how the browser test matrix expands once challenge transport is no longer page-based
+
+So the recommended order is:
+- ship the dashboard widget first
+- use that work to establish durable audit persistence
+- then start a dedicated design phase for block-editor/modal challenge transport before writing production code
 
 **Network Policy Hierarchy for Multisite**
 
