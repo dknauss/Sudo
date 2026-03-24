@@ -147,4 +147,41 @@ test.describe( 'WP Sudo alternative stack smoke tests', () => {
             cookies.find( ( cookie ) => cookie.name === 'wp_sudo_token' )
         ).toBeUndefined();
     } );
+
+    test( 'STACK-07: canceling a stashed settings POST does not replay the change', async ( {
+        page,
+        context,
+    } ) => {
+        await page.goto( '/wp-admin/options-general.php?page=wp-sudo-settings' );
+        await expect( page ).toHaveURL(
+            /\/wp-admin\/options-general\.php\?page=wp-sudo-settings$/
+        );
+
+        const sessionDuration = page.locator( '#session_duration' );
+        const originalValue = await sessionDuration.inputValue();
+        const updatedValue = originalValue === '14' ? '13' : '14';
+
+        await sessionDuration.fill( updatedValue );
+
+        await Promise.all( [
+            page.waitForURL( /page=wp-sudo-challenge/, { timeout: 15_000 } ),
+            page.locator( '#submit' ).click(),
+        ] );
+
+        await Promise.all( [
+            page.waitForURL(
+                /\/wp-admin\/options-general\.php\?page=wp-sudo-settings$/,
+                { timeout: 15_000 }
+            ),
+            page.locator( '#wp-sudo-challenge-password-step a.button:has-text("Cancel")' ).click(),
+        ] );
+
+        await page.reload();
+        await expect( sessionDuration ).toHaveValue( originalValue );
+
+        const cookies = await context.cookies();
+        expect(
+            cookies.find( ( cookie ) => cookie.name === 'wp_sudo_token' )
+        ).toBeUndefined();
+    } );
 } );
