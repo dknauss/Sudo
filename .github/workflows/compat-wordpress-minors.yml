@@ -28,6 +28,9 @@ jobs:
           - wp: '6.4'
             db_label: 'MariaDB LTS'
             db_image: 'mariadb:lts'
+          - wp: '6.5'
+            db_label: 'MariaDB LTS'
+            db_image: 'mariadb:lts'
     services:
       db:
         image: ${{ matrix.db_image }}

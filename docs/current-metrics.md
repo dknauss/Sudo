@@ -41,7 +41,7 @@ the count in prose without a verification command.
 | Audit hooks | 9 | `grep -c "do_action.*wp_sudo_" includes/class-*.php \| awk -F: '{sum+=$2} END{print sum}'` | v2.11.0 |
 | Settings fields (base) | 5 | 1 numeric (duration) + 4 policy dropdowns (REST, CLI, Cron, XML-RPC) | v2.0.0 |
 | Settings fields (with WPGraphQL) | 6 | +1 conditional WPGraphQL policy dropdown | v2.5.0 |
-| E2E tests | 51 | `npx playwright test --config tests/e2e/playwright.config.ts --list` | unreleased |
+| E2E tests | 52 | `npx playwright test --config tests/e2e/playwright.config.ts --list` | unreleased |
 
 ### Files that reference these counts
 
@@ -63,15 +63,15 @@ Source: `.github/workflows/phpunit.yml`, `.github/workflows/e2e.yml`, `.github/w
 
 - Unit test matrix: PHP 8.0, 8.1, 8.2, 8.3, 8.4
 - Integration matrix: PHP 8.0, 8.1, 8.3; WordPress 6.2, 6.7, 7.0-beta4; MySQL 8.0 plus one MariaDB LTS lane; multisite true/false on the main MySQL lanes
-- Scheduled compat sweep: PHP 8.1 on WordPress 6.3, 6.4, 6.5, and 6.6, plus one MariaDB LTS overlap lane on WordPress 6.4
+- Scheduled compat sweep: PHP 8.1 on WordPress 6.3, 6.4, 6.5, and 6.6, plus MariaDB LTS overlap lanes on WordPress 6.4 and 6.5
 - Browser stack smoke workflows: Apache + MariaDB (`wp-env`), nginx + php-fpm + MariaDB, and Playground SQLite
 
 ## Verification Notes
 
-- `composer test:unit` passed on 2026-03-23 (`514 tests`, `1348 assertions`).
-- `composer test:integration` passed on 2026-03-23 (`144 tests`, `444 assertions`, `8 skipped`) using the repo-local WordPress test install and a Local by Flywheel MySQL socket-backed `wordpress_test` database.
-- `WP_MULTISITE=1 composer test:integration` passed on 2026-03-23 (`144 tests`, `452 assertions`, `2 skipped`) using the same Local socket-backed test database.
-- `composer analyse:phpstan`, `composer analyse:psalm`, and `composer lint` passed on 2026-03-23.
+- `composer test:unit` passed on 2026-03-24 (`514 tests`, `1348 assertions`).
+- `composer test:integration` passed on 2026-03-24 (`144 tests`, `444 assertions`, `8 skipped`) using the repo-local WordPress test install and a reachable MariaDB-backed `wordpress_test` database.
+- `WP_MULTISITE=1 composer test:integration` passed on 2026-03-24 (`144 tests`, `452 assertions`, `2 skipped`) using the same MariaDB-backed test database.
+- `composer analyse:phpstan`, `composer analyse:psalm`, and `composer lint` passed on 2026-03-24.
 
 ## Update Procedure
 

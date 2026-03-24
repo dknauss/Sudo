@@ -222,6 +222,10 @@ The scheduled compatibility sweep and SQLite smoke workflow should still be chec
 - SQLite request handling, bootstrap timing, or alternate persistence behavior
 - stack-sensitive flows such as redirects, cookies, request replay, and admin/AJAX request handling
 
+When SQLite-specific release assurance matters, run the Studio checklist in
+[`docs/studio-sqlite-release-runbook.md`](docs/studio-sqlite-release-runbook.md)
+instead of treating the CI smoke lane as a full substitute for local SQLite verification.
+
 When expanding the alternate-stack smoke pack, keep it focused on stack-sensitive behaviors only. Do not clone the full Playwright suite onto every environment. Prefer adding or extending smoke cases when a flow depends on:
 
 - cookies or session persistence
@@ -310,13 +314,13 @@ Current live counts and matrix details are centralized in [`docs/current-metrics
 
 - `514` unit tests and `1348` assertions cover core business logic, bridges, and state-machine behavior.
 - `139` integration test methods cover real-WordPress flows across admin, REST, AJAX, request stash/replay, multisite, and Two Factor interaction.
-- `51` Playwright tests cover the browser-visible challenge flow, including stale-session recovery, 2FA, resend, throttle, lockout, expiry recovery, stash replay, and a reusable stack-smoke subset for alternate environments.
+- `52` Playwright tests cover the browser-visible challenge flow, including stale-session recovery, 2FA, resend, throttle, lockout, expiry recovery, stash replay, and a reusable stack-smoke subset for alternate environments.
 - CI runs unit tests on PHP `8.0` through `8.4`.
 - CI runs integration tests on PHP `8.0`, `8.1`, and `8.3` against WordPress `6.2`, `6.7`, and `7.0-beta4`.
-- CI runs a scheduled WordPress compatibility sweep on `6.3`, `6.4`, `6.5`, and `6.6` with PHP `8.1`, plus one MariaDB overlap lane on WordPress `6.4`.
+- CI runs a scheduled WordPress compatibility sweep on `6.3`, `6.4`, `6.5`, and `6.6` with PHP `8.1`, plus MariaDB overlap lanes on WordPress `6.4` and `6.5`.
 - CI runs integration coverage on MySQL `8.0` plus one MariaDB LTS lane.
 - CI runs browser tests on the default `wp-env` Apache + MariaDB stack and stack-smoke browser tests on explicit nginx + php-fpm + MariaDB and Playground SQLite lanes.
-- Studio remains the recommended local path for deeper SQLite investigation beyond the automated smoke coverage.
+- Studio remains the recommended local path for deeper SQLite investigation beyond the automated smoke coverage, with a dedicated release runbook in [`docs/studio-sqlite-release-runbook.md`](docs/studio-sqlite-release-runbook.md).
 
 The strongest covered area is the challenge flow itself: password and 2FA auth, stale tabs, resend behavior, throttle/lockout UX, expiry recovery, and request replay all have automated coverage. The main remaining gaps are matrix depth on alternate stacks rather than core flow depth: the full browser suite still runs only on the default Apache + MariaDB lane, while nginx and SQLite currently run the focused stack-smoke subset.
 

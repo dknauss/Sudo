@@ -97,4 +97,29 @@ test.describe( 'WP Sudo alternative stack smoke tests', () => {
             cookies.find( ( cookie ) => cookie.name === 'wp_sudo_token' )
         ).toBeUndefined();
     } );
+
+    test( 'STACK-05: session-only challenge respects an explicit return_url after auth', async ( {
+        page,
+    } ) => {
+        await page.goto( '/wp-admin/options-general.php?page=wp-sudo-settings' );
+        const returnUrl = page.url();
+
+        await page.goto(
+            '/wp-admin/admin.php?page=wp-sudo-challenge&return_url=' +
+                encodeURIComponent( returnUrl )
+        );
+
+        await page.waitForFunction(
+            () => typeof ( window as Window & { wpSudoChallenge?: unknown } ).wpSudoChallenge !== 'undefined'
+        );
+
+        await page.fill( '#wp-sudo-challenge-password', 'password' );
+
+        await Promise.all( [
+            page.waitForURL( returnUrl, { timeout: 15_000 } ),
+            page.click( '#wp-sudo-challenge-submit' ),
+        ] );
+
+        await expect( page.locator( 'h1' ) ).toContainText( 'Sudo' );
+    } );
 } );
