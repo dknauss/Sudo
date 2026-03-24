@@ -864,6 +864,17 @@ for each pass.
 Document pass/fail and any visual regressions. These checks verify the plugin's
 admin UI renders correctly under the WP 7.0 admin visual refresh (Trac #64308).
 
+### 15.0 Release Signoff Log
+
+Track the release-candidate and GA passes here so WP 7.0 readiness is explicit.
+
+| Milestone | Status | Date | Build | Environment | Notes |
+|-----------|--------|------|-------|-------------|-------|
+| RC1 | Pending | — | — | — | Manual WP 7.0 RC1 pass not yet recorded |
+| RC2 | Pending | — | — | — | |
+| RC3 | Pending | — | — | — | Required checkpoint before GA |
+| GA | Pending | — | — | — | Final "Tested up to" bump depends on this pass |
+
 ### 15.1 Settings Page (Settings > Sudo)
 
 1. Load **Settings > Sudo** on a WP 7.0 site.

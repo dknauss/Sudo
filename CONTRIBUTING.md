@@ -349,6 +349,8 @@ logged in as `admin` / `password`.
 
 Current Playground previews are pinned to WordPress `7.0-beta4` as of 2026-03-12.
 
+For WordPress 7.0 release signoff, do not treat the green beta-era CI matrix as a substitute for the RC/GA manual pass. Record each RC and GA result in the `15.0 Release Signoff Log` table in [`tests/MANUAL-TESTING.md`](tests/MANUAL-TESTING.md) before claiming final 7.0 readiness.
+
 ### What you can test in Playground
 
 | Feature | Notes |

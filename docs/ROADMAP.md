@@ -198,7 +198,7 @@ These gaps have been closed by the integration suite:
 
 ## 2. WordPress 7.0 Prep (GA April 9, 2026)
 
-> **Status:** WP 7.0 Beta 1 manually tested February 19, 2026 — all sections PASS. Repeat the manual verification pass on each RC build, including an RC3 checkpoint on April 2, 2026, then do the final readme "Tested up to" bump on GA.
+> **Status:** WP 7.0 Beta-era automation and manual beta checks are green, but RC1 signoff is not yet recorded. Repeat the manual verification pass on each RC build, including an RC3 checkpoint on April 2, 2026, log each result in `tests/MANUAL-TESTING.md`, then do the final readme "Tested up to" bump on GA.
 
 ### Verified changes that affect WP Sudo
 
@@ -220,7 +220,7 @@ These gaps have been closed by the integration suite:
 2. ~~**Run the manual testing guide** against 7.0-beta~~ — done; all 15 sections PASS
 3. ~~**Visual check:** settings page, help tabs, admin bar timer, challenge interstitial, admin notices~~ — done; all pass against refreshed admin chrome
 4. ~~**Run `composer test`**~~ — passing on WP 7.0-alpha / 7.0-beta; CI covers WP trunk
-5. **Repeat manual verification on each RC build** (RC1, RC2, etc.), with an explicit RC3 checkpoint on **April 2, 2026**, and record date + build in `tests/MANUAL-TESTING.md`.
+5. **Repeat manual verification on each RC build** (RC1, RC2, etc.), with an explicit RC3 checkpoint on **April 2, 2026**, and record date + build in the `15.0 Release Signoff Log` table in `tests/MANUAL-TESTING.md`.
 6. **Update version references** when 7.0 ships (April 9):
    - `readme.txt` / `readme.md` — "Tested up to" bump
    - Any docs still referencing "WordPress 6.9" as latest
