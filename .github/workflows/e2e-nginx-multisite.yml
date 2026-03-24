@@ -71,6 +71,7 @@ jobs:
         env:
           WP_BASE_URL: http://127.0.0.1:9081
           WP_REQUEST_BASE_URL: http://127.0.0.1:9081
+          WP_SUDO_E2E_MULTISITE_STACK: '1'
         run: npm run test:e2e:multisite:stack-smoke
 
       - name: Upload Playwright report

@@ -1,8 +1,14 @@
 import { test, expect, activateSudoSession } from '../fixtures/test';
 
 const DEFAULT_PASSWORD = process.env.WP_PASSWORD ?? 'password';
+const RUN_MULTISITE_STACK_SMOKE = process.env.WP_SUDO_E2E_MULTISITE_STACK === '1';
 
 test.describe( 'WP Sudo multisite alternative stack smoke tests', () => {
+    test.skip(
+        ! RUN_MULTISITE_STACK_SMOKE,
+        'Multisite alternative stack smoke runs only in the dedicated multisite lane.'
+    );
+
     test( 'MSTACK-01: network-admin challenge cancel returns to the same page without sudo', async ( {
         page,
         context,
