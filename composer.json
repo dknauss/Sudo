@@ -43,7 +43,7 @@
         "lint:fix": "phpcbf",
         "test": "phpunit",
         "test:unit": "phpunit --configuration phpunit.xml.dist",
-        "test:integration": "phpunit --configuration phpunit-integration.xml.dist",
+        "test:integration": "bash bin/run-integration-tests.sh phpunit-integration.xml.dist",
         "test:coverage": "phpunit --configuration phpunit.xml.dist --coverage-clover coverage.xml --coverage-text",
         "verify:metrics": "bash bin/verify-metrics.sh",
         "analyse": [

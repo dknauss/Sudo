@@ -44,6 +44,11 @@ Set `WP_MULTISITE=1` to run the multisite test suite:
 WP_MULTISITE=1 composer test:integration
 ```
 
+If the generated host-side WordPress test config points at a stale or unreachable
+Docker-published MySQL port after a `wp-env` rebuild, `composer test:integration`
+now falls back automatically to the running `wp-env` `tests-cli` container and
+executes the same suite there against the `tests-mysql` service.
+
 If `127.0.0.1` is not serving MySQL but Local by Flywheel is running, `bin/install-wp-tests.sh` now auto-detects a single Local MySQL socket under `~/Library/Application Support/Local/run/*/mysql/mysqld.sock` and rewrites the generated `DB_HOST` to `localhost:/path/to/mysqld.sock`.
 
 If you have multiple Local sites running and want to choose a specific socket, pass it explicitly:
