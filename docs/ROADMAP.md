@@ -480,6 +480,7 @@ Specifically, the repo now has:
 - Playwright stack-smoke coverage on explicit nginx + php-fpm + MariaDB
 - Playwright stack-smoke coverage on Playground SQLite
 - local/manual SQLite verification documented for Studio in [`docs/studio-sqlite-release-runbook.md`](docs/studio-sqlite-release-runbook.md)
+- multisite alternate-stack smoke intentionally deferred to a dedicated lane instead of being mixed into the current single-site stack-smoke pack
 
 Still missing from automation:
 - broader MariaDB and legacy-MySQL breadth
@@ -489,6 +490,7 @@ Recommended next-step test expansion remains intentionally narrow:
 - add stack-sensitive smoke cases first, not full-suite parity on alternate stacks
 - keep SQLite as release-only assurance plus smoke CI, not a merge gate
 - add MariaDB/version overlap gradually instead of turning the compat sweep into a full cartesian matrix
+- add multisite alternate-stack coverage as a separate nginx + MariaDB lane with only 1–3 network-admin smoke cases (cancel/return, one GET replay, one POST replay) instead of folding multisite into the existing single-site smoke pack
 
 That is a good balance for current plugin risk: the dangerous-action challenge and replay flows are well covered, while future matrix expansion should focus on compatibility breadth rather than adding more low-signal tests to already-covered flows.
 
