@@ -7,6 +7,7 @@ WP Sudo has built-in support for the [Two Factor](https://wordpress.org/plugins/
 - [Architecture Overview](#architecture-overview)
 - [The Two-Step Challenge Flow](#the-two-step-challenge-flow)
 - [How Built-In Two Factor Support Works](#how-built-in-two-factor-support-works)
+- [Related Deep References](#related-deep-references)
 - [Compatibility Hazards](#compatibility-hazards)
 - [Hooks for Third-Party 2FA Plugins](#hooks-for-third-party-2fa-plugins)
 - [Integration Guide: Connecting Your Own 2FA Plugin](#integration-guide-connecting-your-own-2fa-plugin)
@@ -134,6 +135,12 @@ The server (`Challenge::handle_ajax_2fa()`) then:
 ---
 
 ## How Built-In Two Factor Support Works
+
+## Related Deep References
+
+- [WordPress Core Authentication Logic](wordpress-core-authentication.md) -- current core sign-on, cookie, and session validation flow.
+- [Two-Factor Plugin Authentication Flow](two-factor-authentication-flow.md) -- current upstream Two-Factor plugin hook order and challenge lifecycle.
+
 
 WP Sudo has zero-configuration support for the [Two Factor](https://wordpress.org/plugins/two-factor/) plugin. The integration uses three methods from `Two_Factor_Core`:
 

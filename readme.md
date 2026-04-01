@@ -177,7 +177,7 @@ For more questions, see the [full FAQ](docs/FAQ.md).
 
 ## Developer Reference
 
-Hook signatures, filter reference, custom rule structure, and testing instructions: [docs/developer-reference.md](docs/developer-reference.md).
+Hook signatures, filter reference, custom rule structure, and testing instructions: [docs/developer-reference.md](docs/developer-reference.md). For deeper authentication references, see [docs/wordpress-core-authentication.md](docs/wordpress-core-authentication.md) and [docs/two-factor-authentication-flow.md](docs/two-factor-authentication-flow.md).
 
 ### Engineering Practices
 
