@@ -1008,6 +1008,92 @@ The first pass should ship as a small set of opinionated presets, not a policy w
 
 *Impact:* High during incident response and support. Low implementation risk because it reuses the existing policy model.
 
+**Proposed MVP implementation plan**
+
+**Goal**
+- Give administrators a fast, safe way to tighten remote/non-interactive surfaces during incidents without editing each policy individually.
+
+**Phase 1 scope**
+- Add preset application for these existing settings only:
+  - `rest_app_passwords`
+  - `xmlrpc`
+  - `cli`
+  - `cron`
+  - `wpgraphql`
+- Do **not** change browser-admin gating, session duration, challenge UX, or rule definitions.
+- Do **not** add per-route, per-role, per-user, or per-IP exceptions.
+
+**Recommended preset definitions**
+- **Normal**
+  - reflects the documented recommended defaults already used by WP Sudo
+  - safe "restore baseline" action
+- **Incident Lockdown**
+  - set every supported remote/non-interactive surface to the most restrictive safe mode
+  - intended for active compromise response or temporary containment
+- **Headless Friendly**
+  - preserve expected API-driven workflows where reasonable while tightening legacy or optional remote surfaces
+  - keep this preset narrowly defined and documented so it does not become a generic compatibility escape hatch
+
+**Settings model**
+- Keep per-surface values in `wp_sudo_settings` as the authoritative stored configuration.
+- Add a lightweight preset marker such as `policy_preset` only for UX/audit display.
+- Applying a preset should write the concrete per-surface values immediately so all existing enforcement code keeps working unchanged.
+- If a user manually changes a surface after applying a preset, treat the config as `custom` in the UI.
+
+**Admin UX**
+- Add a new "Policy Presets" section near the existing surface-policy controls in `class-admin.php`.
+- Each preset should show:
+  - short label
+  - one-sentence intended use
+  - exact per-surface changes before confirmation
+- Applying a preset should require an explicit confirmation step because it changes security posture.
+- After application, show an admin notice summarizing what changed and how to revert.
+
+**Audit / observability**
+- Record preset application through either:
+  - a new dedicated action such as `wp_sudo_policy_preset_applied`, or
+  - an enriched existing settings-change event payload
+- Payload should include:
+  - preset key
+  - previous per-surface values
+  - new per-surface values
+  - current user ID
+  - site/network context
+
+**Implementation notes**
+- Add a small internal preset-definition method or class that maps preset keys to setting arrays.
+- Keep enforcement code unaware of presets; presets should remain an admin/settings concern.
+- Centralize validation so only supported preset keys and supported per-surface values can be written.
+- On multisite, confirm whether presets should be network-only to match the current network-wide policy model.
+
+**Testing plan**
+- **Unit tests**
+  - preset definition coverage
+  - preset application writes the expected surface values
+  - invalid preset keys are rejected
+  - manual per-surface edits after preset application mark config as `custom`
+- **Integration tests**
+  - settings save path applies each preset correctly in real WordPress
+  - multisite/network settings behavior
+  - audit hook payload correctness
+- **Browser/E2E tests**
+  - admin applies preset and sees confirmation/summary notice
+  - resulting surface policy summary updates correctly
+
+**Suggested implementation order**
+1. Add preset definitions + validation layer
+2. Add settings save/apply path
+3. Add admin UI + confirmation
+4. Add audit hook/event payload
+5. Add unit/integration coverage
+6. Add one browser test for the happy path
+
+**Risks / watchpoints**
+- avoid silent changes to current recommended defaults
+- avoid turning `Headless Friendly` into an underspecified compatibility bucket
+- avoid duplicating surface-policy logic in multiple places
+- keep rollback obvious: preset application must be easily reversible
+
 **Request / Rule Tester**
 
 An admin-side tool for entering a method, URL, surface, and optional context to see how WP Sudo would evaluate the request.
