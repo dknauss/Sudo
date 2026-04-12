@@ -13,6 +13,21 @@
 composer install
 ```
 
+### Git hooks
+
+Install the pre-commit hook to enforce reviewer agent approval before every AI-generated commit:
+
+```bash
+cp .githooks/pre-commit .git/hooks/pre-commit
+chmod +x .git/hooks/pre-commit
+```
+
+For your own (non-AI) commits, bypass the hook with `USER_COMMIT=1`:
+
+```bash
+USER_COMMIT=1 git commit -m "message"
+```
+
 ## Running Tests
 
 ### Unit tests (fast, no database)
