@@ -1,8 +1,9 @@
 # Connectors API Reference (WP 7.0)
 
 *Drafted 2026-04-13 from `wordpress-develop` trunk source code.*
-*No official documentation exists yet. This is a source-derived skeleton for
-WP Sudo gating analysis. Verify against the GA release before relying on it.*
+*There is now an official Core dev note for the Connectors API, but this reference remains source-derived because it goes deeper into the REST masking/write path than the high-level announcement. Verify against the GA release before relying on implementation details.*
+
+**Official dev note:** [Introducing the Connectors API in WordPress 7.0](https://make.wordpress.org/core/2026/03/18/introducing-the-connectors-api-in-wordpress-7-0/)
 
 **Source files:**
 
@@ -227,12 +228,16 @@ session cannot read existing keys via `GET /wp/v2/settings` — they only see th
 masked version (e.g., `••••••••••••fj39`).
 
 However, the attacker can **overwrite** keys via `POST /wp/v2/settings`. This
-is the attack vector: replacing a legitimate key, not reading one.
+is the real attack vector: a **credential integrity** failure rather than a
+credential disclosure failure. The attacker does not need to know the original
+secret; they only need to replace it with one they control.
 
 ### Hardened key storage bypass
 
-Keys provided via environment variable or PHP constant cannot be overwritten
-through the REST API — the database value is ignored when a higher-precedence
-source exists. This is the strongest mitigation: sites that set
-`ANTHROPIC_API_KEY` in `wp-config.php` or the environment are immune to
-credential replacement via the admin UI.
+Keys provided via environment variable or PHP constant cannot be effectively
+replaced through the REST API because the database value is ignored when a
+higher-precedence source exists. This is the strongest deployment-side
+mitigation against the admin-UI replacement vector: sites that set
+`ANTHROPIC_API_KEY` in `wp-config.php` or the environment largely neutralize
+credential replacement via Settings → Connectors, even though in-process code
+still shares the same broader trust boundary.
