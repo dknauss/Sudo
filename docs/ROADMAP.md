@@ -1013,7 +1013,6 @@ The shipped MVP uses a small set of opinionated presets, not a policy wizard:
 
 **Follow-on improvements**
 
-- Add one network-admin preset application path.
 - Consider a richer diff/confirmation experience only if operators ask for more than the current explicit apply checkbox + summary notice.
 - Evaluate whether future Site Health output should surface the active preset marker.
 - Keep avoiding silent changes to current recommended defaults, underspecified preset semantics, and duplicated policy logic.
