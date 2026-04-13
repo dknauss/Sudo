@@ -9,6 +9,7 @@ WP Sudo uses the term **reauthentication** to describe its core pattern, followi
 ## What It Protects Against
 
 - **Compromised admin sessions** — a stolen session cookie cannot perform gated actions without reauthenticating. The sudo session is cryptographically bound to the browser.
+- **Connector credential replacement** — a stolen `manage_options` browser session cannot silently replace database-backed Connectors API keys over `POST`/`PUT`/`PATCH /wp/v2/settings` without reauthenticating first. This protects credential integrity on the admin UI save path even though REST readback already masks the stored secret.
 - **Session theft → password change → lockout** — password changes on the profile/user-edit pages and via the REST API are a gated action (`user.change_password`). An attacker who steals a session cookie cannot silently change the victim's password without triggering the challenge.
 - **Insider threats** — even legitimate administrators must prove their identity before destructive operations.
 - **Automated abuse** — headless entry points (WP-CLI, Cron, XML-RPC, Application Passwords, WPGraphQL) can be disabled entirely or restricted to non-gated operations.

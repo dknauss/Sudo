@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Security: Connectors API credential writes now require sudo** — REST updates to `/wp/v2/settings` are challenged when they include `connectors_*_api_key` fields, closing the write-only key replacement path for database-backed connector credentials while leaving unrelated REST settings writes untouched.
 - **Fix: challenge lockout expiry recovery** — corrected an edge case where the visible countdown could reach zero while the server still treated the lockout as active for that exact second, blocking an immediate retry. Password and IP lockouts now expire in sync with the countdown.
 - **Fix: stale challenge and 2FA recovery flows** — hardened challenge recovery when a sudo session is already active or a user is returning from 2FA throttle/lockout flows, with expanded browser coverage for replay, resend, cancel, and recovery behavior.
 - **WordPress 7.0 readiness** — forward test and preview lanes are now pinned to `7.0-RC1`, with RC1 visual signoff recorded and the remaining RC/GA checklist documented for final release-day verification.

@@ -34,6 +34,7 @@ When the firewall misses it, the plugin hasn't patched it, and the attacker alre
 * **Users** — delete, change role, change password, create new user, create application password
 * **File editors** — plugin editor, theme editor
 * **Critical options** — `siteurl`, `home`, `admin_email`, `default_role`, `users_can_register`
+* **Connector credentials** — Settings > Connectors API key updates saved through the REST settings endpoint
 * **WordPress core** — update, reinstall
 * **Site data export** — WXR export
 * **WP Sudo settings** — settings changes are self-protected
@@ -169,6 +170,7 @@ Extensibility: the action registry is filterable via wp_sudo_gated_actions. Nine
 == Changelog ==
 
 = Unreleased =
+* **Security: Connectors API credential writes now require sudo** — REST updates to `/wp/v2/settings` are challenged when they include `connectors_*_api_key` fields, closing the write-only key replacement path for database-backed connector credentials while leaving unrelated REST settings writes untouched.
 * **Fix: challenge lockout expiry recovery** — the visible countdown and the server-side lockout state now expire in sync, so retries are no longer blocked at the exact second the countdown reaches zero.
 * **Fix: stale challenge and 2FA recovery flows** — hardened recovery when a sudo session is already active or a user is returning from 2FA throttle/lockout flows, with broader browser coverage around replay, resend, cancel, and recovery behavior.
 * **WordPress 7.0 readiness** — forward test and preview lanes are pinned to `7.0-RC1`, with RC1 visual signoff recorded and the remaining RC/GA checklist documented for final release-day verification.

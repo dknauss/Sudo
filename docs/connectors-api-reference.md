@@ -101,8 +101,10 @@ Content-Type: application/json
 - Invalid keys are silently reverted to empty string
 - Response returns the masked version of the saved key
 
-**This is the primary gating target for WP Sudo.** The `POST /wp/v2/settings`
-route is the only write path for connector credentials from the admin UI.
+**WP Sudo now gates this path.** On current `main`, REST writes to
+`/wp/v2/settings` are challenged when the request body contains connector-style
+credential keys matching `connectors_*_api_key`. This protects the Connectors
+admin UI save path without broadly gating unrelated REST settings writes.
 
 ---
 
@@ -194,31 +196,18 @@ when omitted. Connector IDs must match `/^[a-z0-9_-]+$/`.
 ### Credential save path
 
 The Connectors UI saves credentials via `POST /wp/v2/settings`. This route is
-already in scope for `Gate::intercept_rest()`. A rule matching this route with
-the connector setting names would gate credential changes:
+already in scope for `Gate::intercept_rest()`, and WP Sudo now ships a built-in
+rule:
 
-```php
-// Example rule for Action_Registry
-[
-    'id'    => 'connectors.update_credentials',
-    'label' => __( 'Update connector credentials', 'wp-sudo' ),
-    'rest'  => [
-        'route'   => '#^/wp/v2/settings$#',
-        'methods' => [ 'POST', 'PUT', 'PATCH' ],
-        'callback' => function () {
-            // Only gate when connector settings are in the request body.
-            $input = file_get_contents( 'php://input' );
-            return false !== strpos( $input, 'connectors_' );
-        },
-    ],
-],
-```
+- **Rule ID:** `connectors.update_credentials`
+- **Route:** `#^/wp/v2/settings$#`
+- **Methods:** `POST`, `PUT`, `PATCH`
+- **Matcher:** only fires when request params contain setting names matching
+  `connectors_[a-z0-9_]+_api_key`
 
-**Caveat:** `POST /wp/v2/settings` is a general-purpose endpoint. A rule
-matching it broadly would gate all settings changes via REST, not just
-connectors. The `callback` filter above narrows it to connector-related changes.
-This heuristic is similar to the WPGraphQL mutation detection approach — blunt
-but safe to over-match.
+This is intentionally narrower than gating the entire settings endpoint. Normal
+REST settings updates remain untouched unless the request is attempting to
+replace a connector credential.
 
 ### Key exposure via REST
 
@@ -227,10 +216,14 @@ masks them before the response reaches the client. An attacker with a stolen
 session cannot read existing keys via `GET /wp/v2/settings` — they only see the
 masked version (e.g., `••••••••••••fj39`).
 
-However, the attacker can **overwrite** keys via `POST /wp/v2/settings`. This
-is the real attack vector: a **credential integrity** failure rather than a
-credential disclosure failure. The attacker does not need to know the original
-secret; they only need to replace it with one they control.
+However, without an additional guard an attacker could still **overwrite** keys
+via `POST /wp/v2/settings`. That is the real attack vector: a **credential
+integrity** failure rather than a credential disclosure failure. The attacker
+does not need to know the original secret; they only need to replace it with
+one they control.
+
+Current WP Sudo `main` mitigates that path by challenging connector credential
+writes before they reach the settings save handler.
 
 ### Hardened key storage bypass
 
