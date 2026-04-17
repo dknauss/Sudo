@@ -182,11 +182,19 @@ A split does not make that concern disappear. A refactor does not make it disapp
 
 ## 4. What This Proposal Is—and Is Not
 
-This proposal has two layers, and they should be kept separate.
+The proposal is easier to evaluate when its layers are separated cleanly. One reason WordPress security discussions become muddled is that several different concerns are often collapsed into one argument: naming consequential operations, authorizing them, requiring fresh proof of intent, restricting plugin privileges, and isolating plugin runtime behavior. These are related, but they are not the same problem and they do not need to be solved in one proposal.
+
+This document therefore treats the work as a stack:
+
+1. **Actions API** — a shared registry and vocabulary for consequential operations.
+2. **Action Gate** — a proof-of-intent layer that may consume that registry later.
+3. **Future policy and manifest systems** — higher-level consumers that may use the same taxonomy.
+
+Keeping those layers distinct is not just editorial hygiene. It is the main design discipline that makes the proposal plausibly landable in core.
 
 ### 4.1 Phase 1: Actions API
 
-The Actions API is the smaller, more landable primitive. It provides:
+The Actions API is the smaller, more landable primitive. Its purpose is to let WordPress name consequential operations explicitly, attach metadata to them, and expose a stable registry that multiple systems can consume. In practical terms, it provides:
 
 - a shared registry of consequential operations
 - namespaced identifiers
@@ -194,11 +202,11 @@ The Actions API is the smaller, more landable primitive. It provides:
 - before/after execution hooks
 - queryability for core, plugins, UI, and tooling
 
-It does **not** require WordPress to settle challenge UX, recent-auth semantics, replay, or non-interactive surface policy in the same release.
+Crucially, it does **not** require core to settle challenge UX, recent-auth semantics, replay behavior, non-interactive surface policy, or operator-facing configuration in the same release. That is what makes it useful as a first primitive rather than an all-at-once security framework.
 
 ### 4.2 Phase 2: Action Gate
 
-The Action Gate is a consumer of the Actions API. It adds:
+The Action Gate is a consumer of the Actions API, not a replacement for it. It assumes that WordPress already has a stable way to say “this operation is consequential” and then asks a second question: should this request proceed immediately, should it require fresh proof of human intent, or should it be blocked by policy? At that point, the gate adds:
 
 - a decision object
 - a proof-of-intent requirement for selected registered actions
@@ -208,21 +216,25 @@ The Action Gate is a consumer of the Actions API. It adds:
 
 ### 4.3 Not a capability overhaul
 
-This proposal does not replace `current_user_can()` or change the role/capability model. Capability checks still answer whether a principal is authorized in general. The gate layer, if added later, answers whether that principal has freshly demonstrated human intent for a selected consequential operation.
+This proposal does not replace `current_user_can()` or change the role/capability model. Capability checks still answer whether a principal is authorized in general. The gate layer, if added later, answers whether that principal has freshly demonstrated human intent for a selected consequential operation. The proposal therefore sits *above* capabilities, not in place of them.
 
 ### 4.4 Not a plugin permission manifest
 
-A future plugin permission or capability-manifest system could use the Actions API’s taxonomy, but this proposal does not attempt to design that system.
+A future plugin permission or capability-manifest system could use the Actions API’s taxonomy, but this proposal does not attempt to design that system. It only tries to create a registry and vocabulary that such a system could consume later. This distinction matters because a manifest system is a much larger governance and compatibility problem than a registry of consequential actions.
 
 ### 4.5 Not runtime isolation
 
-The proposal does not claim to sandbox plugin code, restrict filesystem access, or solve WordPress’s shared-process trust problem.
+The proposal does not claim to sandbox plugin code, restrict filesystem access, or solve WordPress’s shared-process trust problem. It is intentionally weaker than that. A shared registry of consequential actions, and even a later proof-of-intent gate, can only constrain *declared operations that pass through known enforcement points*. They do not repair the fact that today’s plugin contract still grants code running inside WordPress the effective privileges of the WordPress process itself.
+
+This explicit limitation is a strength. It keeps the proposal honest about what it can and cannot do, and it prevents the Action Gate layer from being misread as a substitute for broader runtime reform.
 
 ---
 
 ## 5. Phase 1: A Core Actions API for Consequential Operations
 
-The first thing WordPress should standardize is **naming and observing consequential operations**, not universal reauthentication behavior.
+The first thing WordPress should standardize is **naming and observing consequential operations**, not universal reauthentication behavior. That ordering is deliberate. A registry of consequential actions is valuable even if WordPress never adopts a full core-managed gate, and it is much easier to introduce incrementally than a challenge, replay, and policy framework that tries to standardize every privileged surface at once.
+
+Put differently: if WordPress cannot yet agree on how to challenge a user before a sensitive action, it can still agree that the action is sensitive and deserves a first-class name.
 
 ### Goals of Phase 1
 
@@ -243,15 +255,20 @@ It gives the ecosystem:
 - **an interoperability surface** for plugins that want to declare consequential operations
 - **a foundation** for later gating, manifests, or AI-agent boundaries
 
-This is the strongest wedge because even people who are skeptical of core-managed reauthentication may still agree that WordPress needs a first-class catalog of consequential operations.
+This is the strongest wedge because even people who are skeptical of core-managed reauthentication may still agree that WordPress needs a first-class catalog of consequential operations. It is also the part of the proposal most compatible with both of the broader modernization paths now being argued in public:
+
+- under a **refactor-in-place** model, it is exactly the kind of small, structural primitive core can introduce without waiting for total consensus on broader reform;
+- under a **split / WP Next** model, it is a semantic layer that remains useful even if the underlying runtime, permission model, and enforcement mechanisms eventually change.
+
+The Actions API is therefore the proposal’s lowest-risk, highest-leverage starting point.
 
 ---
 
 ## 6. Naming, Taxonomy, and Relationship to the Abilities API
 
-The Actions API should use namespaced, action-oriented identifiers, but it should not misstate the Abilities API convention.
+The Actions API should use namespaced, action-oriented identifiers, but it should not misstate the Abilities API convention. That matters because one of the proposal’s goals is to reduce conceptual duplication inside WordPress, not create unnecessary vocabulary drift.
 
-The official Abilities API convention is `namespace/ability-name`, using lowercase alphanumerics, hyphens, and one forward slash. This proposal should align with that general shape unless it has a compelling reason to diverge.
+The official Abilities API convention is `namespace/ability-name`, using lowercase alphanumerics, hyphens, and one forward slash. This proposal should align with that general shape unless it has a compelling reason to diverge. It should not claim that dotted identifiers such as `core/plugins.activate` are themselves the Abilities convention, because they are not.
 
 ### Recommended naming convention
 
@@ -268,11 +285,11 @@ Examples:
 - `woocommerce/refund-order`
 - `memberpress/manual-grant-membership`
 
-This keeps the structure familiar and avoids claiming that dotted identifiers such as `core/plugins.activate` are the Abilities API convention.
+This keeps the structure familiar, interoperable, and easy to explain. It also lets the proposal reuse the general namespacing discipline WordPress is already introducing elsewhere instead of inventing a second, near-but-not-quite-compatible pattern.
 
 ### Taxonomy fields
 
-An action registration may carry multiple layers of meaning:
+An action registration may carry multiple layers of meaning, and those layers should be named distinctly:
 
 - **ID** — the namespaced identifier
 - **label** — human-readable text
@@ -282,12 +299,14 @@ An action registration may carry multiple layers of meaning:
 - **scope** — a grouping that a future gate layer may use when deciding how proof-of-intent is reused
 - **annotations** — optional booleans or strings such as `destructive`, `requires_recent_auth`, or `consent_required`
 
+One reason to be explicit here is that WordPress has historically overloaded terminology in security and permissions discussions. This proposal should avoid doing that again. “Category,” “consequence class,” “scope,” and “annotation” are not interchangeable and should not be treated as such.
+
 The Abilities API remains relevant in two ways:
 
 1. It demonstrates a useful registry pattern and namespacing discipline.
 2. Some future actions may map directly to ability execution paths.
 
-But actions and abilities should not be forced into one object model too early. An ability is an executable unit. An action, in this proposal, is a consequential operation worth naming, observing, and potentially gating.
+But actions and abilities should not be forced into one object model too early. An ability is an executable unit with input, permission, and output behavior. An action, in this proposal, is a consequential operation worth naming, observing, and potentially gating. Some abilities may correspond directly to actions; some actions may wrap non-ability code paths; some may eventually be backed by ability execution. The important thing is that the proposal acknowledges the relationship without pretending the two concepts are already identical.
 
 ---
 
