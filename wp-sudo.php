@@ -79,9 +79,14 @@ function wp_sudo(): WP_Sudo\Plugin {
 /**
  * Public helper: check whether a user currently has an active sudo session.
  *
+ * Only the current request's authenticated user can be checked — sudo
+ * sessions are bound to a per-browser cookie. Passing a user ID other
+ * than the current user always returns false.
+ *
  * @since 2.12.0
  *
  * @param int|null $user_id Optional user ID. Defaults to current user.
+ *                          Must match the current request's authenticated user.
  * @return bool
  */
 function wp_sudo_check( ?int $user_id = null ): bool {

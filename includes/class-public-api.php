@@ -34,9 +34,16 @@ class Public_API {
 	 *
 	 * Grace-window sessions are treated as active for gating purposes.
 	 *
+	 * Only the current request's authenticated user can be checked: sudo
+	 * sessions are bound to a per-browser cookie, and Sudo_Session::verify_token()
+	 * rejects any call where $user_id does not match get_current_user_id().
+	 * Passing a different user ID therefore always returns false.
+	 *
 	 * @since 2.12.0
 	 *
 	 * @param int|null $user_id Optional user ID. Defaults to current user.
+	 *                          Any non-null value other than the current user
+	 *                          causes this method to return false.
 	 * @return bool
 	 */
 	public static function check( ?int $user_id = null ): bool {

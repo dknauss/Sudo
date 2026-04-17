@@ -136,6 +136,11 @@ full `wp_sudo_gated_actions` rule.
 Returns `true` when the user has an active sudo session (or is within the grace
 window), otherwise `false`.
 
+Only the current request's authenticated user can be checked — sudo sessions
+are bound to a per-browser cookie, so passing a user ID other than the current
+user always returns `false`. Omit the argument (or pass `null`) to check the
+current user.
+
 ### `wp_sudo_require( array $args = array() ): bool`
 
 Returns `true` when sudo is active. If not active:

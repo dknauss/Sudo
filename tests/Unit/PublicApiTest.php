@@ -62,6 +62,44 @@ class PublicApiTest extends TestCase {
 		$this->assertTrue( Public_API::check( $user_id ) );
 	}
 
+	/**
+	 * Locks in the defense-in-depth user-ID check in Sudo_Session::verify_token().
+	 *
+	 * Even when a target user has a valid expiry and a token hash that matches
+	 * the browser's TOKEN_COOKIE, Public_API::check() must return false if the
+	 * target user differs from the current request's authenticated user. A
+	 * caller passing someone else's user ID never gets a "yes".
+	 */
+	public function test_check_returns_false_when_target_differs_from_current_user(): void {
+		$current_user_id = 5;
+		$other_user_id   = 99;
+		$token           = 'other-user-token';
+
+		Functions\when( 'get_current_user_id' )->justReturn( $current_user_id );
+
+		$_COOKIE[ Sudo_Session::TOKEN_COOKIE ] = $token;
+
+		Functions\when( 'get_user_meta' )->alias(
+			static function ( int $uid, string $meta_key, bool $single ) use ( $other_user_id, $token ) {
+				if ( $uid !== $other_user_id || true !== $single ) {
+					return '';
+				}
+
+				if ( Sudo_Session::META_KEY === $meta_key ) {
+					return time() + 300;
+				}
+
+				if ( Sudo_Session::TOKEN_META_KEY === $meta_key ) {
+					return hash( 'sha256', $token );
+				}
+
+				return '';
+			}
+		);
+
+		$this->assertFalse( Public_API::check( $other_user_id ) );
+	}
+
 	public function test_require_returns_false_when_redirect_is_disabled(): void {
 		$user_id = 7;
 
