@@ -25,6 +25,9 @@ jobs:
       - name: Install npm dependencies
         run: npm ci
 
+      - name: Patch wp-env for Composer audit compatibility
+        run: node bin/patch-wp-env.js
+
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
