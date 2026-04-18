@@ -277,12 +277,20 @@ These are UX and operational defects independent of any malicious actor.
   REST write still returns `200 OK` instead of a structured `WP_Error`.
   The stock Connectors UI does surface an inline error, but generic REST
   callers and audit tooling have to infer "failed validation and nullified"
-  from response shape rather than status code.
+  from response shape rather than status code. The harm here is ambiguity:
+  logs, scripts, and recovery tooling can record the write as a nominal
+  success even though the connector was effectively broken or cleared,
+  making outages and malicious disruption harder to distinguish from routine
+  operator error.
 - **Database writes can be ignored by higher-precedence sources.** If a
   connector is actually backed by an environment variable or PHP constant,
   a direct REST or database write to the option can succeed while the
-  runtime continues to use the env/constant value. That is real precedence
-  behavior and easy to miss in custom tooling.
+  runtime continues to use the env/constant value. The harm here is
+  operational: an admin, script, or incident-response runbook can believe a
+  key was rotated or recovered when the active credential never changed at
+  all. That creates false confidence during troubleshooting or recovery and
+  can leave unexpected billing, prompt-routing, or key-ownership behavior in
+  place.
 - **Key-source provenance is only partially explicit.** The stock UI does
   surface whether a key is coming from an environment variable or a PHP
   constant, and externally configured connectors are rendered read-only.
