@@ -50,9 +50,11 @@ class Event_Store {
 
 		$table = self::table_name();
 
-		// Skip existence check on SQLite - just try to create (suppress errors if already exists).
+		// Check if SQLite.
 		$is_sqlite = method_exists( $wpdb, 'dbhs' ) && 'sqlite' === $wpdb->dbh()->driver_name;
+
 		if ( ! $is_sqlite ) {
+			// On MySQL, check if table exists first.
 			$check_sql = 'SELECT 1 FROM ' . $table . ' LIMIT 1'; // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 			$result    = $wpdb->get_var( $check_sql );
 			if ( null !== $result ) {
@@ -61,7 +63,7 @@ class Event_Store {
 		}
 
 		// Table doesn't exist - create it. Skip if dbDelta unavailable (unit tests).
-		if ( ! function_exists( 'dbDelta' ) ) {
+		if ( ! $is_sqlite && ! function_exists( 'dbDelta' ) ) {
 			return;
 		}
 
@@ -78,7 +80,12 @@ class Event_Store {
 	public static function create_table(): void {
 		global $wpdb;
 
-		if ( ! function_exists( 'dbDelta' ) ) {
+		$table = self::table_name();
+
+		// Check if SQLite.
+		$is_sqlite = method_exists( $wpdb, 'dbhs' ) && 'sqlite' === $wpdb->dbh()->driver_name;
+
+		if ( ! function_exists( 'dbDelta' ) && ! $is_sqlite ) {
 			$upgrade_file = ABSPATH . 'wp-admin/includes/upgrade.php';
 			if ( is_readable( $upgrade_file ) ) {
 				// phpcs:ignore WordPressVIPMinimum.Files.IncludingFile.UsingVariable -- WordPress core file.
@@ -86,8 +93,28 @@ class Event_Store {
 			}
 		}
 
-		$table           = self::table_name();
 		$charset_collate = method_exists( $wpdb, 'get_charset_collate' ) ? $wpdb->get_charset_collate() : '';
+
+		if ( $is_sqlite ) {
+			// SQLite-compatible CREATE TABLE.
+			$wpdb->query(
+				"CREATE TABLE IF NOT EXISTS {$table} (
+					id INTEGER PRIMARY KEY AUTOINCREMENT,
+					site_id INTEGER NOT NULL,
+					user_id INTEGER NOT NULL,
+					event TEXT NOT NULL,
+					rule_id TEXT NOT NULL,
+					surface TEXT NOT NULL,
+					ip TEXT NOT NULL,
+					context TEXT NOT NULL,
+					created_at TEXT DEFAULT CURRENT_TIMESTAMP
+				)"
+			);
+			$wpdb->query( "CREATE INDEX IF NOT EXISTS idx_event_created ON {$table}(event, created_at)" );
+			$wpdb->query( "CREATE INDEX IF NOT EXISTS idx_site_created ON {$table}(site_id, created_at)" );
+			$wpdb->query( "CREATE INDEX IF NOT EXISTS idx_user_created ON {$table}(user_id, created_at)" );
+			return;
+		}
 
 		$sql = "CREATE TABLE {$table} (
 id bigint(20) unsigned NOT NULL auto_increment,
