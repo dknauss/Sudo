@@ -29,6 +29,7 @@
 
 - **Update "Tested up to"** in readme files when WordPress 7.0 GA ships (originally April 9, 2026; [delayed](https://make.wordpress.org/core/2026/03/31/extending-the-7-0-cycle/) for real-time collaboration architecture work)
 - **Verify Connectors GA parity** — the built-in `connectors.update_credentials` REST rule is already shipped on `main`, challenging `/wp/v2/settings` writes when request params contain `connectors_*_api_key`. When WordPress 7.0 GA ships, confirm the released Connectors implementation still matches the documented route, setting-name pattern, and masking/validation behavior.
+- **Upgrade Connectors matcher to registry-aware** — after GA parity is confirmed, replace the regex-only matcher (`is_connector_api_key_setting_name()`) with a two-tier check: (1) registry lookup via `wp_get_connectors()` matching `authentication.setting_name`, (2) regex fallback for pre-7.0 sites and timing edge cases. Add integration tests against the live API. See [`.planning/connectors-matcher-strategy.md`](../.planning/connectors-matcher-strategy.md) for the full rationale and implementation sketch.
 - **Manual release verification for Connectors gating** — run the new manual checks for cookie-auth and Application Password writes to `/wp/v2/settings` with connector credential fields and record the results in [tests/MANUAL-TESTING.md](../tests/MANUAL-TESTING.md) before the next public release.
 
 ### ✅ Shipped: Operator Tooling and Ecosystem Reach (v2.12.0)
