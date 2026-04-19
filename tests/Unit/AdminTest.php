@@ -2187,8 +2187,11 @@ class AdminTest extends TestCase {
 		$admin = new Admin();
 
 		ob_start();
-		// Use reflection to call private method (setAccessible is a no-op since PHP 8.1).
+		// Use reflection to call private method. setAccessible() is required
+		// for PHP 8.0; it's a no-op in PHP 8.1+ and deprecated in PHP 8.5+.
+		// Suppress deprecation warning for cross-version compatibility.
 		$method = new \ReflectionMethod( Admin::class, 'render_policy_preset_notice' );
+		@$method->setAccessible( true );
 		$method->invoke( $admin );
 		$output = ob_get_clean();
 
@@ -2223,6 +2226,7 @@ class AdminTest extends TestCase {
 
 		ob_start();
 		$method = new \ReflectionMethod( Admin::class, 'render_policy_preset_notice' );
+		@$method->setAccessible( true );
 		$method->invoke( $admin );
 		$output = ob_get_clean();
 
@@ -2261,6 +2265,7 @@ class AdminTest extends TestCase {
 
 		ob_start();
 		$method = new \ReflectionMethod( Admin::class, 'render_policy_preset_notice' );
+		@$method->setAccessible( true );
 		$method->invoke( $admin );
 		$output = ob_get_clean();
 

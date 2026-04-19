@@ -255,7 +255,10 @@ class UpgraderTest extends TestCase {
 
 		$upgrader = new Upgrader();
 
+		// setAccessible() is required for PHP 8.0; deprecated in PHP 8.5+.
+		// Suppress deprecation warning for cross-version compatibility.
 		$method = new \ReflectionMethod( Upgrader::class, 'upgrade_2_15_0' );
+		@$method->setAccessible( true );
 		$method->invoke( $upgrader );
 
 		$this->assertSame( 'wp_sudo_prune_events', $checked_hook );
