@@ -327,4 +327,91 @@ class RestGatingTest extends TestCase {
 		$this->assertSame( 'connectors.update_credentials', $blocked_args[1] ?? null );
 		$this->assertSame( 'rest_app_password', $blocked_args[2] ?? null );
 	}
+
+	// ─────────────────────────────────────────────────────────────────────
+	// Connector credential rule boundary tests (SURF-02)
+	// ─────────────────────────────────────────────────────────────────────
+
+	/**
+	 * SURF-02: Cookie-auth POST /wp/v2/settings with only non-connector keys
+	 * passes through — the connectors rule should NOT match.
+	 */
+	public function test_cookie_auth_non_connector_settings_write_passes_through(): void {
+		$user = $this->make_admin();
+		wp_set_current_user( $user->ID );
+
+		$request = new \WP_REST_Request(
+			'POST',
+			'/wp/v2/settings'
+		);
+		$request->set_body_params(
+			array(
+				'blogname'        => 'My Site',
+				'blogdescription' => 'Just testing',
+			)
+		);
+		$request->set_header( 'X-WP-Nonce', wp_create_nonce( 'wp_rest' ) );
+
+		$original_response = array( 'blogname' => 'My Site' );
+		$result            = $this->gate->intercept_rest( $original_response, array(), $request );
+
+		$this->assertNotWPError( $result, 'Non-connector settings write should pass through.' );
+		$this->assertSame( $original_response, $result, 'Original response should be returned unchanged.' );
+	}
+
+	/**
+	 * SURF-02: Cookie-auth POST /wp/v2/settings with a mix of a connector key
+	 * and non-connector keys still requires sudo.
+	 */
+	public function test_cookie_auth_mixed_payload_with_connector_key_gates(): void {
+		$user = $this->make_admin();
+		wp_set_current_user( $user->ID );
+
+		$request = new \WP_REST_Request(
+			'POST',
+			'/wp/v2/settings'
+		);
+		$request->set_body_params(
+			array(
+				'blogname'                    => 'My Site',
+				'connectors_ai_openai_api_key' => 'sk-test-1234',
+			)
+		);
+		$request->set_header( 'X-WP-Nonce', wp_create_nonce( 'wp_rest' ) );
+
+		$result = $this->gate->intercept_rest( null, array(), $request );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'sudo_required', $result->get_error_code() );
+		$this->assertSame( 403, $result->get_error_data()['status'] );
+		$this->assertSame( 'connectors.update_credentials', $result->get_error_data()['rule_id'] );
+	}
+
+	/**
+	 * SURF-02: Cookie-auth POST /wp/v2/settings with a non-OpenAI vendor connector
+	 * key also requires sudo — tests regex `connectors_[a-z0-9_]+_api_key` matches
+	 * non-openai vendor patterns.
+	 */
+	public function test_cookie_auth_other_vendor_connector_key_gates(): void {
+		$user = $this->make_admin();
+		wp_set_current_user( $user->ID );
+
+		$request = new \WP_REST_Request(
+			'POST',
+			'/wp/v2/settings'
+		);
+		$request->set_body_params(
+			array(
+				'connectors_anthropic_claude_api_key' => 'sk-ant-test',
+			)
+		);
+		$request->set_header( 'X-WP-Nonce', wp_create_nonce( 'wp_rest' ) );
+
+		$result = $this->gate->intercept_rest( null, array(), $request );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'sudo_required', $result->get_error_code() );
+		$this->assertSame( 403, $result->get_error_data()['status'] );
+		$this->assertSame( 'connectors.update_credentials', $result->get_error_data()['rule_id'] );
+	}
 }

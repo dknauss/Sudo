@@ -2356,6 +2356,119 @@ class GateTest extends TestCase {
 		$this->assertSame( 'hard-block', $result['decision'] );
 	}
 
+	// ── evaluate_diagnostic_request() edge cases ───────────────────
+
+	/**
+	 * Test invalid surface returns allow decision with MVP note.
+	 */
+	public function test_evaluate_diagnostic_request_returns_allow_for_unknown_surface(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		$result = $this->gate->evaluate_diagnostic_request(
+			array(
+				'surface'          => 'xmlrpc',
+				'method'           => 'GET',
+				'url'              => 'https://example.com/',
+				'is_authenticated' => true,
+				'has_active_sudo'  => false,
+			)
+		);
+
+		$this->assertSame( 'allow', $result['decision'] );
+		$this->assertNull( $result['matched_rule_id'] );
+		$this->assertContains( 'Only admin, AJAX, and REST request simulation is available in the current tester MVP.', $result['notes'] );
+	}
+
+	/**
+	 * Test unauthenticated request returns allow decision with anonymous note.
+	 */
+	public function test_evaluate_diagnostic_request_returns_allow_for_unauthenticated_user(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		$result = $this->gate->evaluate_diagnostic_request(
+			array(
+				'surface'          => 'admin',
+				'method'           => 'GET',
+				'url'              => 'https://example.com/wp-admin/plugins.php?action=activate',
+				'is_authenticated' => false,
+				'has_active_sudo'  => false,
+			)
+		);
+
+		$this->assertSame( 'allow', $result['decision'] );
+		$this->assertContains( 'WP Sudo only gates authenticated users; anonymous requests fall through to WordPress authentication and capability checks first.', $result['notes'] );
+	}
+
+	/**
+	 * Test active sudo session allows a matched gated request through.
+	 */
+	public function test_evaluate_diagnostic_request_allows_gated_request_with_active_sudo(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		$result = $this->gate->evaluate_diagnostic_request(
+			array(
+				'surface'          => 'admin',
+				'method'           => 'GET',
+				'url'              => 'https://example.com/wp-admin/plugins.php?action=activate',
+				'is_authenticated' => true,
+				'has_active_sudo'  => true,
+			)
+		);
+
+		$this->assertSame( 'allow', $result['decision'] );
+		$this->assertSame( 'plugin.activate', $result['matched_rule_id'] );
+		$this->assertContains( 'An active sudo session would allow this matched request to proceed.', $result['notes'] );
+	}
+
+	/**
+	 * Test REST URL using ?rest_route= query-param form matches the correct rule.
+	 */
+	public function test_evaluate_diagnostic_request_matches_rest_route_query_param_form(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+		Functions\when( 'get_option' )->justReturn( array() );
+
+		$result = $this->gate->evaluate_diagnostic_request(
+			array(
+				'surface'          => 'rest',
+				'method'           => 'DELETE',
+				'url'              => 'https://example.com/index.php?rest_route=/wp/v2/plugins/hello-dolly',
+				'is_authenticated' => true,
+				'has_active_sudo'  => false,
+				'rest_auth_mode'   => 'cookie',
+			)
+		);
+
+		$this->assertSame( 'plugin.delete', $result['matched_rule_id'] );
+		$this->assertSame( 'rest', $result['matched_surface'] );
+		$this->assertSame( 'soft-block', $result['decision'] );
+	}
+
+	/**
+	 * Test malformed or empty URL returns allow decision with no match.
+	 */
+	public function test_evaluate_diagnostic_request_allows_malformed_url(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		$result = $this->gate->evaluate_diagnostic_request(
+			array(
+				'surface'          => 'admin',
+				'method'           => 'GET',
+				'url'              => 'not-a-valid-url',
+				'is_authenticated' => true,
+				'has_active_sudo'  => false,
+			)
+		);
+
+		$this->assertSame( 'allow', $result['decision'] );
+		$this->assertNull( $result['matched_rule_id'] );
+		$this->assertContains( 'No gated rule matched this request shape.', $result['notes'] );
+	}
+
 	// ── render_blocked_notice() ──────────────────────────────────────
 
 	/**
