@@ -52,10 +52,13 @@ class GateLoggingTest extends TestCase {
 	 */
 	private function table_exists(): bool {
 		global $wpdb;
-		$table = Event_Store::table_name();
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching
-		$result = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
-		return is_string( $result ) && $table === $result;
+
+		$wpdb->suppress_errors( true );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- Event_Store::table_name() is a safe identifier assembled from the configured prefix.
+		$columns = $wpdb->get_results( 'DESCRIBE ' . Event_Store::table_name() );
+		$wpdb->suppress_errors( false );
+
+		return is_array( $columns ) && ! empty( $columns );
 	}
 
 	/**

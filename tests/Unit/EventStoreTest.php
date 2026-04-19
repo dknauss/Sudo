@@ -87,15 +87,18 @@ class EventStoreTest extends TestCase {
 		$this->assertStringContainsString( 'CREATE TABLE IF NOT EXISTS wp_wpsudo_events', $this->wpdb->query_calls[0] );
 	}
 
-	public function test_maybe_create_table_on_mysql_checks_show_tables_and_skips_creation_when_present(): void {
-		$this->wpdb->get_var_return = 'wp_wpsudo_events';
+	public function test_maybe_create_table_on_mysql_checks_describe_and_skips_creation_when_present(): void {
+		$this->wpdb->get_results_return = array(
+			(object) array(
+				'Field' => 'id',
+			),
+		);
 
 		Event_Store::maybe_create_table();
 
-		$this->assertCount( 1, $this->wpdb->prepare_calls );
-		$this->assertSame( 'SHOW TABLES LIKE %s', $this->wpdb->prepare_calls[0]['query'] );
-		$this->assertSame( array( 'wp_wpsudo_events' ), $this->wpdb->prepare_calls[0]['args'] );
-		$this->assertCount( 1, $this->wpdb->get_var_calls );
+		$this->assertCount( 0, $this->wpdb->prepare_calls );
+		$this->assertCount( 1, $this->wpdb->get_results_calls );
+		$this->assertSame( 'DESCRIBE wp_wpsudo_events', $this->wpdb->get_results_calls[0] );
 		$this->assertCount( 0, $this->wpdb->query_calls );
 	}
 
@@ -110,8 +113,12 @@ class EventStoreTest extends TestCase {
 
 	public function test_insert_writes_row_with_site_id_and_json_context(): void {
 		Functions\when( 'get_current_blog_id' )->justReturn( 7 );
-		$this->wpdb->insert_return  = 1;
-		$this->wpdb->get_var_return = 'wp_wpsudo_events'; // Table exists.
+		$this->wpdb->insert_return      = 1;
+		$this->wpdb->get_results_return = array(
+			(object) array(
+				'Field' => 'id',
+			),
+		);
 
 		$result = Event_Store::insert(
 			array(
@@ -140,8 +147,12 @@ class EventStoreTest extends TestCase {
 	}
 
 	public function test_insert_returns_false_on_failure(): void {
-		$this->wpdb->insert_return  = false;
-		$this->wpdb->get_var_return = 'wp_wpsudo_events'; // Table exists.
+		$this->wpdb->insert_return      = false;
+		$this->wpdb->get_results_return = array(
+			(object) array(
+				'Field' => 'id',
+			),
+		);
 
 		$result = Event_Store::insert(
 			array(
@@ -154,8 +165,8 @@ class EventStoreTest extends TestCase {
 	}
 
 	public function test_insert_returns_false_without_db_call_when_table_missing(): void {
-		// Simulate table not existing: get_var returns null for SHOW TABLES check.
-		$this->wpdb->get_var_return = null;
+		// Simulate table not existing: DESCRIBE returns no columns.
+		$this->wpdb->get_results_return = array();
 
 		$result = Event_Store::insert(
 			array(
@@ -166,8 +177,9 @@ class EventStoreTest extends TestCase {
 
 		$this->assertFalse( $result );
 		// Should have checked table existence but NOT attempted insert.
-		$this->assertCount( 1, $this->wpdb->prepare_calls );
-		$this->assertStringContainsString( 'SHOW TABLES LIKE', $this->wpdb->prepare_calls[0]['query'] );
+		$this->assertCount( 0, $this->wpdb->prepare_calls );
+		$this->assertCount( 1, $this->wpdb->get_results_calls );
+		$this->assertSame( 'DESCRIBE wp_wpsudo_events', $this->wpdb->get_results_calls[0] );
 		$this->assertCount( 0, $this->wpdb->insert_calls );
 	}
 
@@ -188,7 +200,7 @@ class EventStoreTest extends TestCase {
 		$this->assertSame( 'action_gated', $result[0]['event'] );
 		$this->assertCount( 1, $this->wpdb->prepare_calls );
 		$this->assertStringContainsString( 'WHERE site_id = %d', $this->wpdb->prepare_calls[0]['query'] );
-		$this->assertStringContainsString( 'ORDER BY created_at DESC', $this->wpdb->prepare_calls[0]['query'] );
+		$this->assertStringContainsString( 'ORDER BY created_at DESC, id DESC', $this->wpdb->prepare_calls[0]['query'] );
 		$this->assertStringContainsString( 'LIMIT %d', $this->wpdb->prepare_calls[0]['query'] );
 		$this->assertSame( array( 11, 5 ), $this->wpdb->prepare_calls[0]['args'] );
 		$this->assertCount( 1, $this->wpdb->get_results_calls );

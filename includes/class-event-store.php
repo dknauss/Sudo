@@ -62,17 +62,12 @@ class Event_Store {
 	public static function maybe_create_table(): void {
 		global $wpdb;
 
-		$table = self::table_name();
-
 		if ( self::is_sqlite() ) {
 			self::create_table();
 			return;
 		}
 
-		$check_sql = $wpdb->prepare( 'SHOW TABLES LIKE %s', $table );
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Prepared above.
-		$result = $wpdb->get_var( $check_sql );
-		if ( is_string( $result ) && $table === $result ) {
+		if ( self::table_exists() ) {
 			return;
 		}
 
@@ -203,7 +198,7 @@ KEY user_created_at (user_id, created_at)
 			$args[] = self::sanitize_event_name( $event );
 		}
 
-		$query .= ' ORDER BY created_at DESC LIMIT %d';
+		$query .= ' ORDER BY created_at DESC, id DESC LIMIT %d';
 		$args[] = max( 1, $limit );
 
 		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $query uses placeholders, table_name() is safe.
@@ -287,7 +282,9 @@ KEY user_created_at (user_id, created_at)
 	 * Check if the events table exists.
 	 *
 	 * Used for graceful degradation: operations that require the table
-	 * can bail early if it doesn't exist yet.
+	 * can bail early if it doesn't exist yet. On MySQL, use DESCRIBE
+	 * rather than SHOW TABLES so temporary tables created by the WordPress
+	 * test suite transaction layer are detected correctly.
 	 *
 	 * @return bool
 	 */
@@ -307,13 +304,12 @@ KEY user_created_at (user_id, created_at)
 			return is_string( $result ) && $table === $result;
 		}
 
-		// MySQL: SHOW TABLES.
-		$table     = self::table_name();
-		$check_sql = $wpdb->prepare( 'SHOW TABLES LIKE %s', $table );
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Prepared above.
-		$result = $wpdb->get_var( $check_sql );
+		$wpdb->suppress_errors( true );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- table_name() is a safe identifier assembled from the configured prefix.
+		$columns = $wpdb->get_results( 'DESCRIBE ' . self::table_name() );
+		$wpdb->suppress_errors( false );
 
-		return is_string( $result ) && $table === $result;
+		return is_array( $columns ) && ! empty( $columns );
 	}
 
 	/**

@@ -71,15 +71,29 @@ class EventRecorderFakeWpdb {
 	}
 
 	/**
-	 * Mock get_var().
+	 * Mock get_results().
 	 *
-	 * Returns the table name to simulate table exists.
+	 * Returns one column definition to simulate an accessible table.
 	 *
 	 * @param string $query Query.
-	 * @return string
+	 * @return array<int, object>
 	 */
-	public function get_var( string $query ): string {
-		return 'wp_wpsudo_events';
+	public function get_results( string $query ): array {
+		return [
+			(object) [
+				'Field' => 'id',
+			],
+		];
+	}
+
+	/**
+	 * Mock suppress_errors().
+	 *
+	 * @param bool $suppress Whether to suppress errors.
+	 * @return bool
+	 */
+	public function suppress_errors( bool $suppress ): bool {
+		return $suppress;
 	}
 
 }

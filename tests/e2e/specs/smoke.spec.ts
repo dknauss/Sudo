@@ -55,8 +55,9 @@ test.describe( 'WP Sudo smoke tests', () => {
                 ] );
             }
 
+            // The notice format is "{Label} preset applied. {details}"
             await expect( page.locator( '.wp-sudo-notice.notice-success' ) ).toContainText(
-                `Applied the ${ expectedLabel } preset.`
+                `${ expectedLabel } preset applied.`
             );
         };
 
