@@ -167,6 +167,62 @@ if ( ! wp_sudo_require( array( 'rule_id' => 'my-plugin.run_sensitive_task' ) ) )
 my_plugin_run_sensitive_task();
 ```
 
+## Request / Rule Tester
+
+Settings → Sudo now includes an internal **Request / Rule Tester** panel for
+diagnosing how WP Sudo would classify a representative request **without
+executing it**.
+
+The first MVP supports three request shapes only:
+
+- `admin`
+- `ajax`
+- `rest`
+
+Supported inputs:
+
+- surface
+- HTTP method
+- full URL
+- authenticated / unauthenticated toggle
+- active sudo toggle
+- network-admin context toggle
+- REST auth mode (`cookie`, `application_password`, `bearer`, or `none`)
+
+Current output includes:
+
+- matched rule label and ID
+- evaluated surface
+- decision (`allow`, `gate`, `soft-block`, `hard-block`)
+- whether stash/replay would be used
+- explanatory notes
+
+### What the decisions mean
+
+- `allow` — no matched rule, unauthenticated request, active sudo already
+  present, or a surface policy that explicitly permits the request
+- `gate` — an interactive admin request would be sent through the challenge
+  page and use stash/replay
+- `soft-block` — an AJAX or cookie-authenticated REST request would be blocked
+  in place and retried after sudo activation
+- `hard-block` — a non-browser REST request would be rejected by current
+  surface policy (for example, Application Password policy set to Limited or
+  Disabled)
+
+### Diagnostic-only behavior
+
+The tester uses `WP_Sudo\Gate::evaluate_diagnostic_request()` internally. That
+method is intentionally side-effect-free:
+
+- no redirects
+- no request stashing
+- no transients
+- no audit hooks
+- no mutation of live gate state
+
+It is meant for operator troubleshooting and rule design, not for executing or
+replaying requests.
+
 ## Audit Hook Signatures
 
 Sudo fires 10 action hooks for external logging integration with [WP Activity Log](https://wordpress.org/plugins/wp-security-audit-log/), [Stream](https://wordpress.org/plugins/stream/), and similar plugins.

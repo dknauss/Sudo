@@ -2147,6 +2147,152 @@ class GateTest extends TestCase {
 		$this->assertSame( 'options.wp_sudo', $rule['id'] );
 	}
 
+	// ── evaluate_diagnostic_request() ────────────────────────────────
+
+	/**
+	 * Test diagnostic evaluation reports admin requests as gated.
+	 */
+	public function test_evaluate_diagnostic_request_reports_admin_gate(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		$result = $this->gate->evaluate_diagnostic_request(
+			array(
+				'surface'          => 'admin',
+				'method'           => 'GET',
+				'url'              => 'https://example.com/wp-admin/plugins.php?action=activate',
+				'is_authenticated' => true,
+				'has_active_sudo'  => false,
+			)
+		);
+
+		$this->assertSame( 'plugin.activate', $result['matched_rule_id'] );
+		$this->assertSame( 'admin', $result['matched_surface'] );
+		$this->assertSame( 'gate', $result['decision'] );
+		$this->assertTrue( $result['stash_replay_eligible'] );
+		$this->assertContains( 'Interactive admin requests use challenge + stash/replay.', $result['notes'] );
+	}
+
+	/**
+	 * Test diagnostic evaluation reports AJAX requests as soft-blocked.
+	 */
+	public function test_evaluate_diagnostic_request_reports_ajax_soft_block(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		$result = $this->gate->evaluate_diagnostic_request(
+			array(
+				'surface'          => 'ajax',
+				'method'           => 'POST',
+				'url'              => 'https://example.com/wp-admin/admin-ajax.php?action=install-plugin',
+				'is_authenticated' => true,
+				'has_active_sudo'  => false,
+			)
+		);
+
+		$this->assertSame( 'plugin.install', $result['matched_rule_id'] );
+		$this->assertSame( 'ajax', $result['matched_surface'] );
+		$this->assertSame( 'soft-block', $result['decision'] );
+		$this->assertFalse( $result['stash_replay_eligible'] );
+		$this->assertContains( 'AJAX requests are blocked in-place and must be retried after activating sudo.', $result['notes'] );
+	}
+
+	/**
+	 * Test diagnostic evaluation reports cookie-auth REST as soft-blocked.
+	 */
+	public function test_evaluate_diagnostic_request_reports_rest_cookie_auth_soft_block(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		$result = $this->gate->evaluate_diagnostic_request(
+			array(
+				'surface'          => 'rest',
+				'method'           => 'PUT',
+				'url'              => 'https://example.com/wp-json/wp/v2/plugins/hello-dolly',
+				'is_authenticated' => true,
+				'has_active_sudo'  => false,
+				'rest_auth_mode'   => 'cookie',
+			)
+		);
+
+		$this->assertSame( 'plugin.activate', $result['matched_rule_id'] );
+		$this->assertSame( 'rest', $result['matched_surface'] );
+		$this->assertSame( 'soft-block', $result['decision'] );
+		$this->assertFalse( $result['stash_replay_eligible'] );
+		$this->assertContains( 'Cookie-authenticated REST requests receive sudo_required and can be retried after activating sudo.', $result['notes'] );
+	}
+
+	/**
+	 * Test diagnostic evaluation reports limited app-password REST as hard-blocked.
+	 */
+	public function test_evaluate_diagnostic_request_reports_rest_app_password_hard_block_when_limited(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+		Functions\when( 'get_option' )->justReturn( array() );
+
+		$result = $this->gate->evaluate_diagnostic_request(
+			array(
+				'surface'          => 'rest',
+				'method'           => 'DELETE',
+				'url'              => 'https://example.com/wp-json/wp/v2/plugins/hello-dolly',
+				'is_authenticated' => true,
+				'has_active_sudo'  => false,
+				'rest_auth_mode'   => 'application_password',
+			)
+		);
+
+		$this->assertSame( 'plugin.delete', $result['matched_rule_id'] );
+		$this->assertSame( 'hard-block', $result['decision'] );
+		$this->assertContains( 'REST Application Password policy is Limited, so gated requests are blocked until policy changes.', $result['notes'] );
+	}
+
+	/**
+	 * Test diagnostic evaluation allows unrestricted app-password REST.
+	 */
+	public function test_evaluate_diagnostic_request_allows_rest_app_password_when_unrestricted(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+		Functions\when( 'get_option' )->justReturn( array( 'rest_app_password_policy' => 'unrestricted' ) );
+
+		$result = $this->gate->evaluate_diagnostic_request(
+			array(
+				'surface'          => 'rest',
+				'method'           => 'DELETE',
+				'url'              => 'https://example.com/wp-json/wp/v2/plugins/hello-dolly',
+				'is_authenticated' => true,
+				'has_active_sudo'  => false,
+				'rest_auth_mode'   => 'application_password',
+			)
+		);
+
+		$this->assertSame( 'plugin.delete', $result['matched_rule_id'] );
+		$this->assertSame( 'allow', $result['decision'] );
+		$this->assertContains( 'REST Application Password policy is Unrestricted, so WP Sudo would allow the matched request.', $result['notes'] );
+	}
+
+	/**
+	 * Test diagnostic evaluation allows unmatched requests.
+	 */
+	public function test_evaluate_diagnostic_request_allows_unmatched_request(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		$result = $this->gate->evaluate_diagnostic_request(
+			array(
+				'surface'          => 'admin',
+				'method'           => 'GET',
+				'url'              => 'https://example.com/wp-admin/plugins.php?action=search',
+				'is_authenticated' => true,
+				'has_active_sudo'  => false,
+			)
+		);
+
+		$this->assertNull( $result['matched_rule_id'] );
+		$this->assertSame( 'allow', $result['decision'] );
+		$this->assertFalse( $result['stash_replay_eligible'] );
+		$this->assertContains( 'No gated rule matched this request shape.', $result['notes'] );
+	}
+
 	// ── render_blocked_notice() ──────────────────────────────────────
 
 	/**

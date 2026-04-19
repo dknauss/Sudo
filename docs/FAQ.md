@@ -64,6 +64,19 @@ Also, there is no substitute for a first-class, security-hardened server and app
 
 When a user attempts a gated action — for example, activating a plugin — Sudo intercepts the request before WordPress processes the sensitive operation. In many common browser-admin flows this happens on `admin_init`; other actions use surface-specific hooks. The original request is stashed in a transient, the user is redirected to a challenge page, and after successful reauthentication, the original request is replayed. For AJAX and REST requests, the browser receives a `sudo_required` error, and an admin notice appears on the next page load linking to the challenge page. The user authenticates, activates a sudo session, and retries the action.
 
+## How can I tell why a request was gated or blocked?
+
+Use the **Request / Rule Tester** on **Settings → Sudo**. It lets you enter a
+representative admin, AJAX, or REST request shape and see:
+
+- which rule would match
+- whether the request would be allowed, gated, soft-blocked, or hard-blocked
+- whether stash/replay would apply
+- notes about missing authentication or REST surface policy
+
+The tester is diagnostic only. It does not execute the request, stash it, or
+change live gate state.
+
 ## Does this replace WordPress roles and capabilities?
 
 No. Sudo adds a reauthentication layer on top of the existing permission model. WordPress capability checks still run after the gate. A user who does not have the `activate_plugins` capability will still be denied after reauthenticating — Sudo does not grant any new permissions.

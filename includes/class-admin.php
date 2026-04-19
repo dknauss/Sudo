@@ -56,6 +56,20 @@ class Admin {
 	public const AJAX_MU_UNINSTALL = 'wp_sudo_mu_uninstall';
 
 	/**
+	 * Nonce action for the Request / Rule Tester form.
+	 *
+	 * @var string
+	 */
+	public const REQUEST_TESTER_NONCE_ACTION = 'wp_sudo_request_tester';
+
+	/**
+	 * Nonce field name for the Request / Rule Tester form.
+	 *
+	 * @var string
+	 */
+	public const REQUEST_TESTER_NONCE_NAME = '_wp_sudo_request_tester_nonce';
+
+	/**
 	 * Stored marker for the currently active preset.
 	 *
 	 * @var string
@@ -121,6 +135,22 @@ class Admin {
 	 * @var array<string, mixed>|null
 	 */
 	private static ?array $cached_settings = null;
+
+	/**
+	 * Optional Gate instance used by the Request / Rule Tester.
+	 *
+	 * @var Gate|null
+	 */
+	private ?Gate $diagnostic_gate = null;
+
+	/**
+	 * Constructor.
+	 *
+	 * @param Gate|null $diagnostic_gate Optional Gate dependency for diagnostics/testing.
+	 */
+	public function __construct( ?Gate $diagnostic_gate = null ) {
+		$this->diagnostic_gate = $diagnostic_gate;
+	}
 
 	/**
 	 * Register admin hooks.
@@ -899,6 +929,8 @@ class Admin {
 			<?php $this->render_mu_plugin_status(); ?>
 
 			<?php $this->render_gated_actions_table(); ?>
+
+			<?php $this->render_request_rule_tester(); ?>
 		</div>
 		<?php
 	}
@@ -971,6 +1003,104 @@ class Admin {
 			<?php endif; ?>
 			</tbody>
 		</table>
+		<?php
+	}
+
+	/**
+	 * Render the Request / Rule Tester diagnostic panel.
+	 *
+	 * @return void
+	 */
+	private function render_request_rule_tester(): void {
+		$form_values = $this->get_request_tester_form_values();
+		$result      = $this->maybe_get_request_tester_result();
+		?>
+		<h2><?php esc_html_e( 'Request / Rule Tester', 'wp-sudo' ); ?></h2>
+		<p class="description">
+			<?php esc_html_e( 'See how WP Sudo would evaluate a representative request without executing it. This diagnostic tool is for admin, AJAX, and REST request shapes only.', 'wp-sudo' ); ?>
+		</p>
+		<form method="post" action="<?php echo esc_url( $this->get_request_tester_action_url() ); ?>">
+			<?php wp_nonce_field( self::REQUEST_TESTER_NONCE_ACTION, self::REQUEST_TESTER_NONCE_NAME ); ?>
+			<table class="form-table" role="presentation">
+				<tbody>
+					<tr>
+						<th scope="row"><label for="wp-sudo-request-tester-surface"><?php esc_html_e( 'Surface', 'wp-sudo' ); ?></label></th>
+						<td>
+							<select id="wp-sudo-request-tester-surface" name="wp_sudo_request_tester[surface]">
+								<?php foreach ( array( 'admin', 'ajax', 'rest' ) as $surface ) : ?>
+									<option value="<?php echo esc_attr( $surface ); ?>" <?php echo selected( $form_values['surface'], $surface, false ); ?>><?php echo esc_html( strtoupper( $surface ) ); ?></option>
+								<?php endforeach; ?>
+							</select>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="wp-sudo-request-tester-method"><?php esc_html_e( 'Method', 'wp-sudo' ); ?></label></th>
+						<td>
+							<select id="wp-sudo-request-tester-method" name="wp_sudo_request_tester[method]">
+								<?php foreach ( array( 'GET', 'POST', 'PUT', 'PATCH', 'DELETE' ) as $method ) : ?>
+									<option value="<?php echo esc_attr( $method ); ?>" <?php echo selected( $form_values['method'], $method, false ); ?>><?php echo esc_html( $method ); ?></option>
+								<?php endforeach; ?>
+							</select>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="wp-sudo-request-tester-url"><?php esc_html_e( 'URL', 'wp-sudo' ); ?></label></th>
+						<td>
+							<input type="url" class="regular-text code" id="wp-sudo-request-tester-url" name="wp_sudo_request_tester[url]" value="<?php echo esc_attr( (string) $form_values['url'] ); ?>" placeholder="<?php echo esc_attr__( 'https://example.com/wp-admin/plugins.php?action=activate', 'wp-sudo' ); ?>" />
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><?php esc_html_e( 'Context', 'wp-sudo' ); ?></th>
+						<td>
+							<label><input type="checkbox" name="wp_sudo_request_tester[is_authenticated]" value="1" <?php echo checked( $form_values['is_authenticated'], true, false ); ?> /> <?php esc_html_e( 'Authenticated user', 'wp-sudo' ); ?></label><br>
+							<label><input type="checkbox" name="wp_sudo_request_tester[has_active_sudo]" value="1" <?php echo checked( $form_values['has_active_sudo'], true, false ); ?> /> <?php esc_html_e( 'Active sudo session', 'wp-sudo' ); ?></label><br>
+							<label><input type="checkbox" name="wp_sudo_request_tester[is_network_admin]" value="1" <?php echo checked( $form_values['is_network_admin'], true, false ); ?> /> <?php esc_html_e( 'Network admin context', 'wp-sudo' ); ?></label>
+						</td>
+					</tr>
+					<tr>
+						<th scope="row"><label for="wp-sudo-request-tester-rest-auth"><?php esc_html_e( 'REST auth mode', 'wp-sudo' ); ?></label></th>
+						<td>
+							<select id="wp-sudo-request-tester-rest-auth" name="wp_sudo_request_tester[rest_auth_mode]">
+								<?php
+								$rest_modes = array(
+									'cookie'               => __( 'Cookie / browser nonce', 'wp-sudo' ),
+									'application_password' => __( 'Application Password', 'wp-sudo' ),
+									'bearer'               => __( 'Bearer / other headless auth', 'wp-sudo' ),
+									'none'                 => __( 'None / unknown', 'wp-sudo' ),
+								);
+								foreach ( $rest_modes as $mode => $label ) :
+									?>
+									<option value="<?php echo esc_attr( $mode ); ?>" <?php echo selected( $form_values['rest_auth_mode'], $mode, false ); ?>><?php echo esc_html( $label ); ?></option>
+								<?php endforeach; ?>
+							</select>
+							<p class="description"><?php esc_html_e( 'Only used for REST simulations. Admin and AJAX requests ignore this field.', 'wp-sudo' ); ?></p>
+						</td>
+					</tr>
+				</tbody>
+			</table>
+			<?php submit_button( __( 'Evaluate Request', 'wp-sudo' ), 'secondary', 'wp_sudo_request_tester_submit', false ); ?>
+		</form>
+		<?php if ( is_array( $result ) ) : ?>
+			<div class="notice notice-info inline" style="margin-top: 1em;">
+				<p>
+					<strong><?php esc_html_e( 'Matched rule:', 'wp-sudo' ); ?></strong>
+					<?php echo esc_html( (string) ( $result['matched_rule_label'] ?? '—' ) ); ?>
+					<?php if ( ! empty( $result['matched_rule_id'] ) ) : ?>
+						<code><?php echo esc_html( (string) $result['matched_rule_id'] ); ?></code>
+					<?php endif; ?>
+				</p>
+				<p><strong><?php esc_html_e( 'Decision:', 'wp-sudo' ); ?></strong> <code><?php echo esc_html( (string) ( $result['decision'] ?? 'allow' ) ); ?></code></p>
+				<p><strong><?php esc_html_e( 'Surface:', 'wp-sudo' ); ?></strong> <?php echo esc_html( (string) ( $result['matched_surface'] ?? $form_values['surface'] ) ); ?></p>
+				<p><strong><?php esc_html_e( 'Stash/replay eligible:', 'wp-sudo' ); ?></strong> <?php echo ! empty( $result['stash_replay_eligible'] ) ? esc_html__( 'Yes', 'wp-sudo' ) : esc_html__( 'No', 'wp-sudo' ); ?></p>
+				<?php if ( ! empty( $result['notes'] ) && is_array( $result['notes'] ) ) : ?>
+					<ul style="margin-left: 1.5em; list-style: disc;">
+						<?php foreach ( $result['notes'] as $note ) : ?>
+							<li><?php echo esc_html( (string) $note ); ?></li>
+						<?php endforeach; ?>
+					</ul>
+				<?php endif; ?>
+			</div>
+		<?php endif; ?>
 		<?php
 	}
 
@@ -1328,6 +1458,114 @@ class Admin {
 			: get_option( self::OPTION_KEY, self::defaults() );
 
 		return is_array( $settings ) ? array_merge( self::defaults(), $settings ) : self::defaults();
+	}
+
+	/**
+	 * Get the target URL for the Request / Rule Tester form.
+	 *
+	 * @return string
+	 */
+	private function get_request_tester_action_url(): string {
+		return is_multisite()
+			? network_admin_url( 'settings.php?page=' . self::PAGE_SLUG )
+			: admin_url( 'options-general.php?page=' . self::PAGE_SLUG );
+	}
+
+	/**
+	 * Build default/preserved Request / Rule Tester values.
+	 *
+	 * @return array<string, mixed>
+	 */
+	private function get_request_tester_form_values(): array {
+		$defaults = array(
+			'surface'          => 'admin',
+			'method'           => 'GET',
+			'url'              => '',
+			'is_authenticated' => true,
+			'has_active_sudo'  => false,
+			'is_network_admin' => false,
+			'rest_auth_mode'   => 'cookie',
+		);
+
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended,WordPress.Security.NonceVerification.Missing,WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Read-only form repopulation for the current admin page.
+		$raw = isset( $_POST['wp_sudo_request_tester'] ) && is_array( $_POST['wp_sudo_request_tester'] ) ? wp_unslash( $_POST['wp_sudo_request_tester'] ) : array();
+
+		if ( empty( $raw ) ) {
+			return $defaults;
+		}
+
+		return array(
+			'surface'          => $this->sanitize_request_tester_choice( $raw['surface'] ?? '', array( 'admin', 'ajax', 'rest' ), $defaults['surface'] ),
+			'method'           => $this->sanitize_request_tester_choice( strtoupper( sanitize_text_field( (string) ( $raw['method'] ?? '' ) ) ), array( 'GET', 'POST', 'PUT', 'PATCH', 'DELETE' ), $defaults['method'] ),
+			'url'              => esc_url_raw( (string) ( $raw['url'] ?? '' ) ),
+			'is_authenticated' => ! empty( $raw['is_authenticated'] ),
+			'has_active_sudo'  => ! empty( $raw['has_active_sudo'] ),
+			'is_network_admin' => ! empty( $raw['is_network_admin'] ),
+			'rest_auth_mode'   => $this->sanitize_request_tester_choice( $raw['rest_auth_mode'] ?? '', array( 'cookie', 'application_password', 'bearer', 'none' ), $defaults['rest_auth_mode'] ),
+		);
+	}
+
+	/**
+	 * Evaluate the Request / Rule Tester submission, if present.
+	 *
+	 * @return array<string, mixed>|null
+	 */
+	private function maybe_get_request_tester_result(): ?array {
+		if ( 'POST' !== strtoupper( sanitize_text_field( wp_unslash( $_SERVER['REQUEST_METHOD'] ?? 'GET' ) ) ) ) {
+			return null;
+		}
+
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended,WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Presence check before explicit nonce validation below.
+		if ( empty( $_POST['wp_sudo_request_tester_submit'] ) ) {
+			return null;
+		}
+
+		check_admin_referer( self::REQUEST_TESTER_NONCE_ACTION, self::REQUEST_TESTER_NONCE_NAME );
+
+		$values = $this->get_request_tester_form_values();
+
+		return $this->get_diagnostic_gate()->evaluate_diagnostic_request(
+			array(
+				'surface'          => $values['surface'],
+				'method'           => $values['method'],
+				'url'              => $values['url'],
+				'is_authenticated' => $values['is_authenticated'],
+				'has_active_sudo'  => $values['has_active_sudo'],
+				'is_network_admin' => $values['is_network_admin'],
+				'rest_auth_mode'   => $values['rest_auth_mode'],
+			)
+		);
+	}
+
+	/**
+	 * Return the Gate instance used by the tester.
+	 *
+	 * @return Gate
+	 */
+	private function get_diagnostic_gate(): Gate {
+		if ( null === $this->diagnostic_gate ) {
+			$this->diagnostic_gate = new Gate( new Sudo_Session(), new Request_Stash() );
+		}
+
+		return $this->diagnostic_gate;
+	}
+
+	/**
+	 * Normalize a Request / Rule Tester select value.
+	 *
+	 * @param mixed    $value   Raw value.
+	 * @param string[] $allowed Allowed normalized values.
+	 * @param string   $fallback Fallback value.
+	 * @return string
+	 */
+	private function sanitize_request_tester_choice( mixed $value, array $allowed, string $fallback ): string {
+		if ( ! is_string( $value ) ) {
+			return $fallback;
+		}
+
+		$value = sanitize_text_field( $value );
+
+		return in_array( $value, $allowed, true ) ? $value : $fallback;
 	}
 
 	/**

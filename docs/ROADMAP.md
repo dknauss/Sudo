@@ -1018,23 +1018,30 @@ The shipped MVP uses a small set of opinionated presets, not a policy wizard:
 - Evaluate whether future Site Health output should surface the active preset marker.
 - Keep avoiding silent changes to current recommended defaults, underspecified preset semantics, and duplicated policy logic.
 
-**Request / Rule Tester**
+**Request / Rule Tester — MVP shipped on `main` (unreleased)**
 
-An admin-side tool for entering a method, URL, surface, and optional context to see how WP Sudo would evaluate the request.
+An internal diagnostic panel now appears on **Settings → Sudo** for evaluating
+representative request shapes without executing them.
 
-Expected output:
-- matched rule ID
-- matched surface (`admin`, `ajax`, `rest`, etc.)
-- decision (`allow`, `gate`, `soft-block`, `hard-block`)
-- whether stash/replay is eligible
-- notes about policy overrides or missing prerequisites
+**Current implementation**
+- Adds a Request / Rule Tester panel to the existing settings screen
+- Supports MVP request simulation for `admin`, `ajax`, and `rest`
+- Accepts method, URL, authenticated/active-sudo toggles, network-admin toggle,
+  and REST auth mode (`cookie`, `application_password`, `bearer`, `none`)
+- Reuses `Gate` matching logic through a side-effect-free
+  `evaluate_diagnostic_request()` helper instead of reimplementing rule parsing
+  in JavaScript
+- Returns matched rule information, decision (`allow`, `gate`, `soft-block`,
+  `hard-block`), stash/replay eligibility, and explanatory notes
+- Includes unit coverage for the pure evaluator and settings-page rendering
 
-**Implementation details**
-- Build it as an internal diagnostic panel under Settings → Sudo, not a public endpoint
-- Reuse `Gate` and `Action_Registry` matching logic rather than reimplementing rule parsing in JS
-- Introduce a pure evaluation method if needed so the tester can simulate without side effects
-- Support representative inputs first: method, full URL, selected surface, authenticated/unauthenticated toggle, multisite/network-admin toggle
-- Defer advanced request-body simulation unless a real use case appears
+**Follow-on improvements**
+- Decide whether the network-admin toggle should simulate more of the multisite
+  runtime context than the current MVP does
+- Add deeper request/body simulation only if real operator use cases justify the
+  complexity
+- Consider future support for `cli`, `cron`, `xmlrpc`, or `wpgraphql` once a
+  reliable diagnostic model exists for those surfaces
 
 *Impact:* High for maintainers, site operators, and third-party integrators trying to understand why a request was gated.
 

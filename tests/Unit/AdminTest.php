@@ -584,6 +584,18 @@ class AdminTest extends TestCase {
 		Functions\when( '__' )->returnArg();
 		Functions\when( 'apply_filters' )->returnArg( 2 );
 		Functions\when( 'esc_html__' )->returnArg();
+		Functions\when( 'esc_attr__' )->returnArg();
+		Functions\when( 'esc_attr' )->returnArg();
+		Functions\when( 'esc_url' )->returnArg();
+		Functions\when( 'selected' )->alias( fn( $a, $b, $echo = false ) => (string) ( $a === $b ? 'selected="selected"' : '' ) );
+		Functions\when( 'checked' )->alias( fn( $a, $b = true, $echo = false ) => (string) ( $a === $b ? 'checked="checked"' : '' ) );
+		Functions\when( 'wp_nonce_field' )->alias(
+			function ( $action, $name ) {
+				echo '<input type="hidden" name="' . $name . '" value="nonce" />'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			}
+		);
+		Functions\when( 'admin_url' )->alias( fn( $path = '' ) => 'https://example.com/wp-admin/' . ltrim( $path, '/' ) );
+		Functions\when( 'network_admin_url' )->alias( fn( $path = '' ) => 'https://example.com/wp-admin/network/' . ltrim( $path, '/' ) );
 
 		$admin = new Admin();
 
@@ -593,6 +605,149 @@ class AdminTest extends TestCase {
 
 		$this->assertStringContainsString( 'reauthentication step', $output );
 		$this->assertStringContainsString( 'two-factor authentication', $output );
+	}
+
+	public function test_render_settings_page_includes_request_rule_tester(): void {
+		Functions\when( 'current_user_can' )->justReturn( true );
+		Functions\when( 'get_admin_page_title' )->justReturn( 'Sudo Settings' );
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'esc_html_e' )->alias(
+			function ( $text ) {
+				echo $text; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			}
+		);
+		Functions\when( 'esc_attr_e' )->alias(
+			function ( $text ) {
+				echo $text; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			}
+		);
+		Functions\when( 'settings_fields' )->justReturn( null );
+		Functions\when( 'do_settings_sections' )->justReturn( null );
+		Functions\when( 'submit_button' )->justReturn( null );
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'esc_html__' )->returnArg();
+		Functions\when( 'esc_attr__' )->returnArg();
+		Functions\when( 'esc_attr' )->returnArg();
+		Functions\when( 'esc_url' )->returnArg();
+		Functions\when( 'esc_url_raw' )->returnArg();
+		Functions\when( 'selected' )->alias( fn( $a, $b, $echo = false ) => (string) ( $a === $b ? 'selected="selected"' : '' ) );
+		Functions\when( 'checked' )->alias( fn( $a, $b = true, $echo = false ) => (string) ( $a === $b ? 'checked="checked"' : '' ) );
+		Functions\when( 'wp_nonce_field' )->alias(
+			function ( $action, $name ) {
+				echo '<input type="hidden" name="' . $name . '" value="nonce" />'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			}
+		);
+		Functions\when( 'admin_url' )->alias( fn( $path = '' ) => 'https://example.com/wp-admin/' . ltrim( $path, '/' ) );
+		Functions\when( 'network_admin_url' )->alias( fn( $path = '' ) => 'https://example.com/wp-admin/network/' . ltrim( $path, '/' ) );
+		Functions\when( 'add_query_arg' )->alias(
+			function ( array $args, string $url ) {
+				return $url . ( str_contains( $url, '?' ) ? '&' : '?' ) . http_build_query( $args );
+			}
+		);
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		$admin = new Admin();
+
+		ob_start();
+		$admin->render_settings_page();
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( 'Request / Rule Tester', $output );
+		$this->assertStringContainsString( 'See how WP Sudo would evaluate a representative request', $output );
+		$this->assertStringContainsString( 'name="wp_sudo_request_tester[url]"', $output );
+	}
+
+	public function test_render_settings_page_processes_request_tester_submission(): void {
+		$gate = \Mockery::mock( Gate::class );
+		$gate->shouldReceive( 'evaluate_diagnostic_request' )
+			->once()
+			->with(
+				array(
+					'surface'          => 'rest',
+					'method'           => 'DELETE',
+					'url'              => 'https://example.com/wp-json/wp/v2/plugins/hello-dolly',
+					'is_authenticated' => true,
+					'has_active_sudo'  => false,
+					'is_network_admin' => true,
+					'rest_auth_mode'   => 'application_password',
+				)
+			)
+			->andReturn(
+				array(
+					'matched_rule_id'       => 'plugin.delete',
+					'matched_rule_label'    => 'Delete plugin',
+					'matched_surface'       => 'rest',
+					'decision'              => 'hard-block',
+					'stash_replay_eligible' => false,
+					'notes'                 => array( 'REST Application Password policy is Limited, so gated requests are blocked until policy changes.' ),
+				)
+			);
+
+		Functions\when( 'current_user_can' )->justReturn( true );
+		Functions\when( 'get_admin_page_title' )->justReturn( 'Sudo Settings' );
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'esc_html_e' )->alias(
+			function ( $text ) {
+				echo $text; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			}
+		);
+		Functions\when( 'esc_attr_e' )->alias(
+			function ( $text ) {
+				echo $text; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			}
+		);
+		Functions\when( 'settings_fields' )->justReturn( null );
+		Functions\when( 'do_settings_sections' )->justReturn( null );
+		Functions\when( 'submit_button' )->justReturn( null );
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'esc_html__' )->returnArg();
+		Functions\when( 'esc_attr__' )->returnArg();
+		Functions\when( 'esc_attr' )->returnArg();
+		Functions\when( 'esc_url' )->returnArg();
+		Functions\when( 'esc_url_raw' )->returnArg();
+		Functions\when( 'selected' )->alias( fn( $a, $b, $echo = false ) => (string) ( $a === $b ? 'selected="selected"' : '' ) );
+		Functions\when( 'checked' )->alias( fn( $a, $b = true, $echo = false ) => (string) ( $a === $b ? 'checked="checked"' : '' ) );
+		Functions\when( 'wp_nonce_field' )->alias(
+			function ( $action, $name ) {
+				echo '<input type="hidden" name="' . $name . '" value="nonce" />'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			}
+		);
+		Functions\expect( 'check_admin_referer' )
+			->once()
+			->with( Admin::REQUEST_TESTER_NONCE_ACTION, Admin::REQUEST_TESTER_NONCE_NAME )
+			->andReturn( true );
+		Functions\when( 'admin_url' )->alias( fn( $path = '' ) => 'https://example.com/wp-admin/' . ltrim( $path, '/' ) );
+		Functions\when( 'network_admin_url' )->alias( fn( $path = '' ) => 'https://example.com/wp-admin/network/' . ltrim( $path, '/' ) );
+		Functions\when( 'add_query_arg' )->alias(
+			function ( array $args, string $url ) {
+				return $url . ( str_contains( $url, '?' ) ? '&' : '?' ) . http_build_query( $args );
+			}
+		);
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		$_SERVER['REQUEST_METHOD'] = 'POST';
+		$_POST['wp_sudo_request_tester_submit'] = '1';
+		$_POST['wp_sudo_request_tester'] = array(
+			'surface'          => 'rest',
+			'method'           => 'delete',
+			'url'              => 'https://example.com/wp-json/wp/v2/plugins/hello-dolly',
+			'is_authenticated' => '1',
+			'has_active_sudo'  => '0',
+			'is_network_admin' => '1',
+			'rest_auth_mode'   => 'application_password',
+		);
+
+		$admin = new Admin( $gate );
+
+		ob_start();
+		$admin->render_settings_page();
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( 'Delete plugin', $output );
+		$this->assertStringContainsString( 'hard-block', $output );
+		$this->assertStringContainsString( 'REST Application Password policy is Limited', $output );
+
+		unset( $_POST['wp_sudo_request_tester_submit'], $_POST['wp_sudo_request_tester'], $_SERVER['REQUEST_METHOD'] );
 	}
 
 	// -----------------------------------------------------------------

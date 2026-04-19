@@ -683,6 +683,126 @@ class Gate {
 	}
 
 	/**
+	 * Evaluate how WP Sudo would classify a representative request.
+	 *
+	 * This diagnostic helper is side-effect-free: it does not stash requests,
+	 * set transients, redirect, or fire audit hooks. It is intended for the
+	 * internal Request / Rule Tester so operators can understand which rule
+	 * would match and what the resulting gate decision would be.
+	 *
+	 * Supported inputs:
+	 * - surface (string): admin, ajax, rest.
+	 * - method (string): HTTP method, defaults to GET.
+	 * - url (string): Representative URL to evaluate.
+	 * - is_authenticated (bool): Whether the request has an authenticated user.
+	 * - has_active_sudo (bool): Whether the request already has an active sudo session.
+	 * - rest_auth_mode (string): cookie, application_password, bearer, or none.
+	 * - request_params (array): Additional request parameters for admin/ajax simulation.
+	 * - post_params (array): Additional POST parameters for admin/ajax simulation.
+	 * - rest_params (array): Additional REST params/body params.
+	 *
+	 * @since 2.14.0
+	 *
+	 * @param array<string, mixed> $input Diagnostic input.
+	 * @return array<string, mixed>
+	 */
+	public function evaluate_diagnostic_request( array $input ): array {
+		$surface          = $this->normalize_diagnostic_surface( $input['surface'] ?? '' );
+		$method           = strtoupper( self::sanitize_input_string( $input['method'] ?? 'GET' ) );
+		$url              = is_string( $input['url'] ?? null ) ? $input['url'] : '';
+		$is_authenticated = ! empty( $input['is_authenticated'] );
+		$has_active_sudo  = ! empty( $input['has_active_sudo'] );
+		$rest_auth_mode   = $this->normalize_diagnostic_rest_auth_mode( $input['rest_auth_mode'] ?? 'none' );
+		$request_params   = is_array( $input['request_params'] ?? null ) ? $input['request_params'] : array();
+		$post_params      = is_array( $input['post_params'] ?? null ) ? $input['post_params'] : array();
+		$rest_params      = is_array( $input['rest_params'] ?? null ) ? $input['rest_params'] : array();
+
+		if ( '' === $method ) {
+			$method = 'GET';
+		}
+
+		$result = array(
+			'matched_rule_id'       => null,
+			'matched_rule_label'    => null,
+			'matched_surface'       => null,
+			'decision'              => 'allow',
+			'stash_replay_eligible' => false,
+			'notes'                 => array(),
+		);
+
+		if ( ! in_array( $surface, array( 'admin', 'ajax', 'rest' ), true ) ) {
+			$result['notes'][] = __( 'Only admin, AJAX, and REST request simulation is available in the current tester MVP.', 'wp-sudo' );
+			return $result;
+		}
+
+		$matched_rule = null;
+
+		if ( 'rest' === $surface ) {
+			$matched_rule = $this->match_diagnostic_rest_request( $method, $url, $rest_params );
+		} else {
+			$matched_rule = $this->match_diagnostic_browser_request( $surface, $method, $url, $request_params, $post_params );
+		}
+
+		if ( $matched_rule ) {
+			$result['matched_rule_id']    = $matched_rule['id'] ?? null;
+			$result['matched_rule_label'] = $matched_rule['label'] ?? ( $matched_rule['id'] ?? null );
+			$result['matched_surface']    = $surface;
+		}
+
+		if ( ! $is_authenticated ) {
+			$result['notes'][] = __( 'WP Sudo only gates authenticated users; anonymous requests fall through to WordPress authentication and capability checks first.', 'wp-sudo' );
+			return $result;
+		}
+
+		if ( ! $matched_rule ) {
+			$result['notes'][] = __( 'No gated rule matched this request shape.', 'wp-sudo' );
+			return $result;
+		}
+
+		if ( $has_active_sudo ) {
+			$result['notes'][] = __( 'An active sudo session would allow this matched request to proceed.', 'wp-sudo' );
+			return $result;
+		}
+
+		if ( 'admin' === $surface ) {
+			$result['decision']              = 'gate';
+			$result['stash_replay_eligible'] = true;
+			$result['notes'][]               = __( 'Interactive admin requests use challenge + stash/replay.', 'wp-sudo' );
+			return $result;
+		}
+
+		if ( 'ajax' === $surface ) {
+			$result['decision'] = 'soft-block';
+			$result['notes'][]  = __( 'AJAX requests are blocked in-place and must be retried after activating sudo.', 'wp-sudo' );
+			return $result;
+		}
+
+		if ( 'cookie' === $rest_auth_mode ) {
+			$result['decision'] = 'soft-block';
+			$result['notes'][]  = __( 'Cookie-authenticated REST requests receive sudo_required and can be retried after activating sudo.', 'wp-sudo' );
+			return $result;
+		}
+
+		$policy = $this->get_policy( self::SETTING_REST_APP_PASS_POLICY );
+
+		if ( self::POLICY_UNRESTRICTED === $policy ) {
+			$result['notes'][] = __( 'REST Application Password policy is Unrestricted, so WP Sudo would allow the matched request.', 'wp-sudo' );
+			return $result;
+		}
+
+		$result['decision'] = 'hard-block';
+
+		if ( self::POLICY_DISABLED === $policy ) {
+			$result['notes'][] = __( 'REST Application Password policy is Disabled, so WP Sudo would reject the request at the surface level.', 'wp-sudo' );
+			return $result;
+		}
+
+		$result['notes'][] = __( 'REST Application Password policy is Limited, so gated requests are blocked until policy changes.', 'wp-sudo' );
+
+		return $result;
+	}
+
+	/**
 	 * Match the current request against the action registry for a given surface.
 	 *
 	 * @param string                $surface The surface to match against ('admin', 'ajax', or 'rest').
@@ -738,6 +858,87 @@ class Gate {
 	}
 
 	/**
+	 * Match a representative admin or AJAX request without leaving state behind.
+	 *
+	 * @param string               $surface        admin or ajax.
+	 * @param string               $method         HTTP method.
+	 * @param string               $url            Representative URL.
+	 * @param array<string, mixed> $request_params Additional request parameters.
+	 * @param array<string, mixed> $post_params    Additional POST parameters.
+	 * @return array<string, mixed>|null
+	 */
+	private function match_diagnostic_browser_request( string $surface, string $method, string $url, array $request_params, array $post_params ): ?array {
+		$parsed_url   = $this->parse_diagnostic_url( $url );
+		$query_params = $parsed_url['query_params'];
+		$merged_post  = $post_params;
+		$merged_get   = $query_params;
+		$merged_req   = array_merge( $query_params, $request_params, $post_params );
+		$pagenow      = $parsed_url['pagenow'];
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended,WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Diagnostic matching only; side-effect-free simulation.
+		$request_action  = self::sanitize_input_string( $merged_req['action'] ?? '' );
+		$request_action2 = '';
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended,WordPress.Security.NonceVerification.Missing -- Diagnostic helper only backs up and restores local request state.
+		$original_get = $_GET;
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended,WordPress.Security.NonceVerification.Missing -- Diagnostic helper only backs up and restores local request state.
+		$original_post = $_POST;
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended,WordPress.Security.NonceVerification.Missing -- Diagnostic helper only backs up and restores local request state.
+		$original_req = $_REQUEST;
+
+		if ( 'admin' === $surface && 'confirm' === $request_action ) {
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended,WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Diagnostic matching only; side-effect-free simulation.
+			$request_action2 = self::sanitize_input_string( $merged_req['action2'] ?? '' );
+		}
+
+		try {
+			$_GET     = $merged_get;
+			$_POST    = $merged_post;
+			$_REQUEST = $merged_req;
+
+			foreach ( Action_Registry::get_rules() as $rule ) {
+				if ( 'admin' === $surface && $this->matches_admin_pagenow( $rule, $pagenow, $request_action, $method ) ) {
+					return $rule;
+				}
+
+				if ( 'admin' === $surface && '' !== $request_action2 && $this->matches_admin_pagenow( $rule, $pagenow, $request_action2, $method ) ) {
+					return $rule;
+				}
+
+				if ( 'ajax' === $surface && $this->matches_ajax( $rule, $request_action ) ) {
+					return $rule;
+				}
+			}
+
+			return null;
+		} finally {
+			$_GET     = $original_get;
+			$_POST    = $original_post;
+			$_REQUEST = $original_req;
+		}
+	}
+
+	/**
+	 * Match a representative REST request without runtime side effects.
+	 *
+	 * @param string               $method      HTTP method.
+	 * @param string               $url         Representative URL.
+	 * @param array<string, mixed> $rest_params Additional REST params/body params.
+	 * @return array<string, mixed>|null
+	 */
+	private function match_diagnostic_rest_request( string $method, string $url, array $rest_params ): ?array {
+		$parsed_url   = $this->parse_diagnostic_url( $url );
+		$query_params = $parsed_url['query_params'];
+		$route        = $this->extract_rest_route_from_parsed_url( $parsed_url );
+
+		$request = new \WP_REST_Request(
+			$method,
+			$route,
+			array_merge( $query_params, $rest_params )
+		);
+
+		return $this->match_request( 'rest', $request );
+	}
+
+	/**
 	 * Check if the current admin request matches a rule's admin criteria.
 	 *
 	 * @param array<string, mixed> $rule           A gated action rule.
@@ -746,33 +947,44 @@ class Gate {
 	 * @return bool
 	 */
 	private function matches_admin( array $rule, string $request_action, string $request_method ): bool {
+		global $pagenow;
+		$current_pagenow = is_string( $pagenow ) ? $pagenow : '';
+
+		return $this->matches_admin_pagenow( $rule, $current_pagenow, $request_action, $request_method );
+	}
+
+	/**
+	 * Check if an admin request with a known pagenow matches a rule.
+	 *
+	 * @param array<string, mixed> $rule           A gated action rule.
+	 * @param string               $pagenow        The target admin page basename.
+	 * @param string               $request_action Pre-sanitized request action.
+	 * @param string               $request_method Pre-sanitized request method.
+	 * @return bool
+	 */
+	private function matches_admin_pagenow( array $rule, string $pagenow, string $request_action, string $request_method ): bool {
 		if ( empty( $rule['admin'] ) ) {
 			return false;
 		}
 
 		$admin = $rule['admin'];
-		global $pagenow;
 
-		// Match pagenow.
 		$pagenow_list = (array) ( $admin['pagenow'] ?? array() );
 		if ( ! in_array( $pagenow, $pagenow_list, true ) ) {
 			return false;
 		}
 
-		// Match action parameter.
 		$actions = (array) ( $admin['actions'] ?? array() );
 
 		if ( ! in_array( $request_action, $actions, true ) ) {
 			return false;
 		}
 
-		// Match HTTP method.
 		$method = $admin['method'] ?? 'ANY';
 		if ( 'ANY' !== $method && $request_method !== $method ) {
 			return false;
 		}
 
-		// Optional callback for extra conditions.
 		if ( isset( $admin['callback'] ) && is_callable( $admin['callback'] ) ) {
 			if ( ! call_user_func( $admin['callback'] ) ) {
 				return false;
@@ -1518,6 +1730,86 @@ class Gate {
 		}
 
 		return $actions;
+	}
+
+	/**
+	 * Normalize a diagnostic surface value.
+	 *
+	 * @param mixed $surface Raw surface value.
+	 * @return string
+	 */
+	private function normalize_diagnostic_surface( mixed $surface ): string {
+		$surface = strtolower( self::sanitize_input_string( $surface ) );
+
+		return in_array( $surface, array( 'admin', 'ajax', 'rest' ), true ) ? $surface : '';
+	}
+
+	/**
+	 * Normalize a diagnostic REST auth mode.
+	 *
+	 * @param mixed $auth_mode Raw auth-mode value.
+	 * @return string
+	 */
+	private function normalize_diagnostic_rest_auth_mode( mixed $auth_mode ): string {
+		$auth_mode = strtolower( self::sanitize_input_string( $auth_mode ) );
+		$valid     = array( 'cookie', 'application_password', 'bearer', 'none' );
+
+		return in_array( $auth_mode, $valid, true ) ? $auth_mode : 'none';
+	}
+
+	/**
+	 * Parse a representative URL for diagnostic matching.
+	 *
+	 * @param string $url Representative URL.
+	 * @return array{path:string,request_uri:string,pagenow:string,query_params:array<string,mixed>}
+	 */
+	private function parse_diagnostic_url( string $url ): array {
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.parse_url_parse_url -- Local representative URLs are fine here; no cross-version parsing edge cases affect the tester.
+		$parts        = parse_url( $url );
+		$path         = is_array( $parts ) && isset( $parts['path'] ) && is_string( $parts['path'] ) ? $parts['path'] : '';
+		$query        = is_array( $parts ) && isset( $parts['query'] ) && is_string( $parts['query'] ) ? $parts['query'] : '';
+		$request_uri  = $path;
+		$query_params = array();
+
+		if ( '' !== $query ) {
+			parse_str( $query, $query_params );
+			$request_uri .= '?' . $query;
+		}
+
+		$pagenow = basename( $path );
+
+		return array(
+			'path'         => $path,
+			'request_uri'  => '' !== $request_uri ? $request_uri : '/',
+			'pagenow'      => $pagenow,
+			'query_params' => $query_params,
+		);
+	}
+
+	/**
+	 * Extract a REST route from parsed diagnostic URL data.
+	 *
+	 * @param array{path:string,request_uri:string,pagenow:string,query_params:array<string,mixed>} $parsed_url Parsed URL data.
+	 * @return string
+	 */
+	private function extract_rest_route_from_parsed_url( array $parsed_url ): string {
+		$query_params = $parsed_url['query_params'];
+		$path         = $parsed_url['path'];
+
+		if ( isset( $query_params['rest_route'] ) && is_string( $query_params['rest_route'] ) && '' !== $query_params['rest_route'] ) {
+			$route = $query_params['rest_route'];
+			return '/' === $route[0] ? $route : '/' . $route;
+		}
+
+		$wp_json_marker = '/wp-json/';
+		$marker_pos     = strpos( $path, $wp_json_marker );
+
+		if ( false !== $marker_pos ) {
+			$route = substr( $path, $marker_pos + strlen( $wp_json_marker ) );
+			return '/' . ltrim( $route, '/' );
+		}
+
+		return '/' . ltrim( $path, '/' );
 	}
 
 	/**
