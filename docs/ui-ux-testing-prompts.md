@@ -291,3 +291,66 @@ These are quick checks beyond a full WCAG audit. For the resolved accessibility 
 - [ ] On the challenge page, verify the loading spinner does not animate (CSS `@media (prefers-reduced-motion: reduce)` rule in `wp-sudo-challenge.css`).
 - [ ] On the admin bar, press Cmd/Ctrl+Shift+S during an active session. Verify the green flash animation is skipped (the JS checks `matchMedia`).
 - [ ] Verify the admin bar CSS (`wp-sudo-admin-bar.css`) disables transitions under `prefers-reduced-motion: reduce`.
+
+---
+
+## 5. Rule Tester Sample Requests
+
+The Rule Tester (Settings > Sudo > Rule Tester tab) is a side-effect-free diagnostic tool. These sample requests demonstrate matching across surfaces and HTTP methods. See also the "Rule Tester" help tab on the settings page.
+
+### 5a. Admin surface — plugin activation
+
+| Field | Value |
+|-------|-------|
+| **Surface** | Admin |
+| **Method** | GET |
+| **URL** | `https://example.com/wp-admin/plugins.php?action=activate` |
+| **Authenticated** | checked |
+| **Active sudo** | unchecked |
+
+- [ ] Result shows matched rule `plugin.activate`, decision **gate**, surface **admin**.
+- [ ] Change **Active sudo** to checked. Result decision changes to **allow** (session bypasses the gate).
+
+### 5b. REST surface — method-sensitive matching on one URL
+
+Use the URL `https://example.com/wp-json/wp/v2/plugins/hello-dolly%2Fhello.php` with **Surface** set to REST, **Auth mode** set to Cookie, and **Authenticated** checked.
+
+- [ ] **DELETE** — matches `plugin.delete`, decision **gate**.
+- [ ] **PUT** — matches `plugin.activate`, decision **gate**.
+- [ ] **GET** — no match, decision **allow**.
+- [ ] This confirms the same URL produces different decisions depending on the HTTP method.
+
+### 5c. REST surface — auth mode interaction
+
+Keep the URL from 5b, method DELETE:
+
+- [ ] Set **Auth mode** to Cookie. Decision is **gate** (interactive reauthentication available).
+- [ ] Set **Auth mode** to App Password. Decision depends on the REST App Password Policy setting:
+  - If **Disabled**: decision is **block** (surface shut off entirely).
+  - If **Limited**: decision is **block** (gated action blocked on non-interactive surface).
+  - If **Unrestricted**: decision is **allow** (no checks on this surface).
+- [ ] This demonstrates how surface policies interact with rule matching.
+
+### 5d. REST surface — callback-based matching (Connectors)
+
+| Field | Value |
+|-------|-------|
+| **Surface** | REST |
+| **Method** | POST |
+| **URL** | `https://example.com/wp-json/wp/v2/settings` |
+| **Auth mode** | Cookie |
+| **REST Params** | `{"jetpack_sync_non_public_post_stati": true}` |
+
+- [ ] Result shows matched rule `connectors.update_credentials`, decision **gate**.
+- [ ] Remove the REST Params or change to `{"blogname": "Test"}`. Now matches `options.critical` instead.
+- [ ] Clear REST Params entirely and change method to GET. No match (allowed).
+
+### 5e. AJAX surface — plugin deletion
+
+| Field | Value |
+|-------|-------|
+| **Surface** | AJAX |
+| **Method** | POST |
+| **URL** | `https://example.com/wp-admin/admin-ajax.php?action=delete-plugin` |
+
+- [ ] Result shows matched rule `plugin.delete`, decision **gate** (or block depending on session state).

@@ -468,7 +468,17 @@ class Admin {
 					. '<p>' . __( 'The Rule Tester is a side-effect-free diagnostic tool. It evaluates how WP Sudo would handle a request with the shape you describe, without actually performing the action.', 'wp-sudo' ) . '</p>'
 					. '<p>' . __( 'You can test across three surfaces: Admin (screen + action), AJAX (action name), and REST (method + route). For REST requests, choose the authentication mode (Cookie or App Password) to see how surface policies interact with the matched rule.', 'wp-sudo' ) . '</p>'
 					. '<p>' . __( 'Some rules use callback-based matching that inspects request parameters. For example, the <code>connectors.update_credentials</code> rule checks whether REST request body params contain connector API key fields. Use the REST Params field to supply JSON body parameters for testing these rules.', 'wp-sudo' ) . '</p>'
-					. '<p>' . __( 'Results show the matched rule (if any), the decision (gated, blocked, allowed, or no match), and the surface that was evaluated.', 'wp-sudo' ) . '</p>',
+					. '<p>' . __( 'Results show the matched rule (if any), the decision (gated, blocked, allowed, or no match), and the surface that was evaluated.', 'wp-sudo' ) . '</p>'
+					. '<h4>' . __( 'Sample URLs to Try', 'wp-sudo' ) . '</h4>'
+					. '<p>' . __( '<strong>Admin surface:</strong> Use the placeholder URL (<code>plugins.php?action=activate</code>) with method GET. It matches the <code>plugin.activate</code> rule.', 'wp-sudo' ) . '</p>'
+					// translators: %2F is a URL-encoded forward slash in the example REST route, not a placeholder.
+					. '<p>' . __( '<strong>REST surface:</strong> Enter <code>https://example.com/wp-json/wp/v2/plugins/hello-dolly%2Fhello.php</code> and change the method to see different outcomes:', 'wp-sudo' ) . '</p>'
+					. '<ul>'
+					. '<li>' . __( '<strong>DELETE</strong> — matches <code>plugin.delete</code> (gated)', 'wp-sudo' ) . '</li>'
+					. '<li>' . __( '<strong>PUT</strong> — matches <code>plugin.activate</code> (gated)', 'wp-sudo' ) . '</li>'
+					. '<li>' . __( '<strong>GET</strong> — no match (allowed)', 'wp-sudo' ) . '</li>'
+					. '</ul>'
+					. '<p>' . __( 'This demonstrates how the same URL produces different decisions depending on the HTTP method. Try toggling the authentication mode between Cookie and App Password to see how surface policies interact with rule matching.', 'wp-sudo' ) . '</p>',
 			)
 		);
 
