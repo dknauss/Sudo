@@ -1,6 +1,6 @@
 # Roadmap: Past and Future Planning — Integration Tests, WP 7.0 Prep, Collaboration, TDD, and Core Design
 
-*Updated April 17, 2026*
+*Updated April 19, 2026*
 
 ## Table of Contents
 
@@ -18,6 +18,7 @@
 - **[9. Code Review Findings](#9-code-review-findings-gpt-53-codex-verified-addendum)** — Triaged findings from line-verified code review
 - **[10. Core Sudo Design](#10-core-sudo-design)** — Already achieved (13), to implement (6), to consider (4), discarded (5)
 - **[11. Feature Backlog](#11-feature-backlog)** — WSAL sensor, IP+user rate limiting, dashboard widget, Gutenberg, network policy
+- **[11.1 Multisite Network Admin Tools](#111-multisite-network-admin-tools)** — Network dashboard widget, super admin widget visibility controls, cross-site activity aggregation
 - **[12. Security Hardening Sprint](#12-security-hardening-sprint)** — Stash redaction, upload-action coverage, non-blocking rate limiting, rule validation, MU loader
 - **[Appendix A: Accessibility](#appendix-a-accessibility-roadmap)** — 15 resolved WCAG items (v2.2.0–v2.3.1)
 
@@ -51,9 +52,25 @@ The operator tooling tranche shipped in v2.12.0.
 - **Phase B:** Apache + MariaDB CI job
 - **Phase C:** Manual testing checklist for managed hosts
 
-### Medium-term: UX and Architecture Features (v2.14+)
+### ✅ Shipped: Major Operator Tooling and Visibility (v3.0.0)
 
-- **Session activity dashboard widget** — Active sudo sessions, recent gated operations, policy summary. Requires audit data persistence (lightweight custom table or transient ring buffer).
+The v3.0.0 release consolidates Phases 7–9 work plus pre-release fixes:
+
+- ~~**Connectors API gating**~~ ✅ — Gates `/wp/v2/settings` writes containing `connectors_*_api_key` fields
+- ~~**Policy presets**~~ ✅ — One-click Normal, Incident Lockdown, and Headless Friendly presets
+- ~~**Request / Rule Tester**~~ ✅ — Diagnostic panel for evaluating request shapes against gate rules
+- ~~**Settings UI revision**~~ ✅ — Tabbed navigation, dropdown policies, improved preset UX
+- ~~**Event_Store persistence layer**~~ ✅ — `wpsudo_events` table with 14-day retention, cron pruning, SQLite compat
+- ~~**Session Activity Dashboard Widget**~~ ✅ — Active sessions, recent events, policy summary for site admins
+
+### Medium-term: Multisite Network Admin Tools (v3.1+)
+
+- **Network Dashboard Widget** — Cross-site session visibility and event aggregation for super admins (see §11.1)
+- **Super Admin Widget Visibility Controls** — Network-level setting to restrict dashboard widget to super admins only
+- **Cross-Site Session Revocation** — Network-wide session revocation for incident response
+
+### Medium-term: UX and Architecture Features (v3.1+)
+
 - **Gutenberg block editor integration** — Detect block editor context, queue reauthentication via `@wordpress/notices` snackbar instead of page redirect. Natural trigger for Playwright E2E tests.
 - **Network policy hierarchy for multisite** — Super admins set minimum session duration and maximum entry-point policies; site admins can only tighten.
 
@@ -123,9 +140,10 @@ All 5 phases shipped. Identified by independent assessments from Codex, Gemini, 
 This is a living document covering accumulated input and thinking about the strategic
 challenges and priorities for WP Sudo. 
 
-Current project state (as of April 17, 2026):
+Current project state (as of April 19, 2026):
+- **v3.0.0 release imminent** — Connectors gating, policy presets, Rule Tester, settings UI revision, Event_Store, and Dashboard Widget all shipped on `main`. Pre-release audit complete with no blockers.
 - Current test and size counts are centralized in [`docs/current-metrics.md`](current-metrics.md).
-- CI pipeline: unit tests on PHP 8.0–8.4; integration tests on PHP 8.0/8.1/8.3; WordPress 6.2, 6.7, and 7.0-RC1; single-site + multisite; MySQL 8.0 plus one MariaDB lane; PCOV coverage job
+- CI pipeline: unit tests on PHP 8.0–8.4; integration tests on PHP 8.0/8.1/8.3; WordPress 6.2, 6.7, and 7.0-RC1; single-site + multisite; MySQL 8.0 plus one MariaDB lane; PCOV coverage job; 60 Playwright E2E tests
 - WordPress 7.0 RC1 signoff recorded (March 24, 2026); the scheduled April 9 final was delayed on March 31, 2026 and no replacement final date is published yet. See `docs/release-status.md`.
 
 ---
@@ -416,28 +434,33 @@ the recommended implementation order is:
    - Keep SQLite as smoke/release assurance, not a required merge gate
    - Add breadth only where a real compatibility signal is missing
    - **Effort:** Low to medium
-3. **Build the Session Activity Dashboard Widget**
-   - This is the smallest meaningful product feature still open
-   - It adds operator value without forcing a major challenge-flow redesign
-   - It will also establish the audit-data persistence layer that other visibility features could reuse
+3. ~~**Build the Session Activity Dashboard Widget**~~ ✅ Done (v3.0.0)
+   - ~~This is the smallest meaningful product feature still open~~
+   - ~~It adds operator value without forcing a major challenge-flow redesign~~
+   - ~~It will also establish the audit-data persistence layer that other visibility features could reuse~~
+   - ~~**Effort:** Medium~~
+4. **Extend Dashboard Widget for Multisite Network Admin** (see §11.1)
+   - Build on the v3.0.0 foundation with cross-site aggregation
+   - Add super admin visibility controls
+   - This is the natural next step now that Event_Store and the per-site widget exist
    - **Effort:** Medium
-4. **Design Gutenberg Block Editor integration before implementation**
+5. **Design Gutenberg Block Editor integration before implementation**
    - Treat this as the next major UX milestone, not an opportunistic patch
    - Start with a design phase: challenge transport, snackbar UX, replay model, and test strategy
    - Only implement after the challenge component boundaries are explicit
    - **Effort:** High
-5. **Re-evaluate multisite Network Policy Hierarchy after the dashboard/audit work**
+6. **Re-evaluate multisite Network Policy Hierarchy after the dashboard/audit work**
    - This remains valuable, but only for a narrower audience
    - It becomes easier once policy state and audit visibility are clearer
    - **Effort:** High
 
-### Post-7.0 Backlog Triage
+### Post-v3.0.0 Backlog Triage
 
-Use this default order after the GA release unless a real user need overrides it:
+Use this default order after the v3.0.0 release unless a real user need overrides it:
 
-- **Do next:** Session Activity Dashboard Widget
+- **Do next:** Network Dashboard Widget + Super Admin Visibility Controls
 - **Plan next:** Gutenberg Block Editor Integration
-- **Do later if demand exists:** Network Policy Hierarchy for Multisite
+- **Do later if demand exists:** Network Policy Hierarchy for Multisite, Cross-Site Session Revocation
 - **Keep as design backlog:** client-side modal challenge, per-session sudo isolation, REST sudo grant endpoint, SSO/SAML/OIDC framework
 
 ---
@@ -1157,6 +1180,135 @@ trigger is Gutenberg integration, which would require browser-level testing anyw
 |---------|--------|
 | Session extension (extend without reauth) | Undermines the time-bounded trust model and violates zero-trust principles. The keyboard shortcut (`Cmd+Shift+S` / `Ctrl+Shift+S`) makes re-authentication fast enough. |
 | Passkey/WebAuthn as a standalone reauthentication method | Evaluated and declined (2026-02-28). OS-level biometric autofill (Touch ID, Windows Hello, Face ID) already provides a smooth passwordless-like UX for the password field — a custom WebAuthn button saves one click at significant engineering cost. TOTP-only reauth is the strongest alternative but requires bridge hook redesign. Email OTP standalone has enumeration risk; backup codes standalone are too weak. The password-first + optional 2FA flow is correct for reauthentication. See [§9 reauthentication flow design](#9-code-review-findings-gpt-53-codex-verified-addendum). WebAuthn key *registration/deletion gating* is a separate concern, addressed by the bridge plugin (`bridges/wp-sudo-webauthn-bridge.php`, shipped v2.10.0). |
+
+---
+
+## 11.1 Multisite Network Admin Tools
+
+*Added April 19, 2026*
+
+For multisite networks, WP Sudo's current dashboard widget operates at the per-site level only. Super admins managing large networks need cross-site visibility and control. This section outlines the multisite-specific feature roadmap.
+
+### Network Dashboard Widget
+
+**Problem:** The current `Dashboard_Widget` (`includes/class-dashboard-widget.php`) shows active sessions and recent events for the current site only. Super admins in the network admin dashboard have no aggregated view of sudo activity across all sites.
+
+**Proposed solution:** Add a network-level dashboard widget at `wp-admin/network/index.php` for super admins only.
+
+**Network widget sections:**
+
+1. **Network-wide active sessions**
+   - Total count of active sudo sessions across all sites
+   - Top 5 users with active sessions (any site)
+   - Per-user breakdown showing which sites they have active sessions on
+   - Click-through to individual site dashboards
+
+2. **Network event aggregation**
+   - Last 10–20 events from `wpsudo_events` table across all sites
+   - Site column showing which site each event occurred on
+   - Filter by event type (lockout, gated, blocked, allowed, replayed)
+   - Optional date range filter
+
+3. **Network policy overview**
+   - Summary of which sites diverge from the network default policy (if Network Policy Hierarchy is implemented)
+   - Count of sites using each preset (Normal, Incident Lockdown, Headless Friendly)
+   - Warning indicators for sites with Unrestricted policies on sensitive surfaces
+
+**Implementation details:**
+
+- Register widget on `wp_network_dashboard_setup` hook
+- Require `manage_network_options` capability
+- Query `wpsudo_events` table without `site_id` filter for cross-site aggregation
+- Active sessions query: iterate sites with `get_sites()` or use a network-wide user meta query
+- Consider pagination or lazy-load for networks with many sites (100+)
+- Reuse `Dashboard_Widget` rendering patterns where possible
+
+**Effort:** Medium. The data layer (`Event_Store`) already supports cross-site queries. Main work is the network dashboard hook integration and UI expansion.
+
+### Super Admin Widget Visibility Controls
+
+**Problem:** Site admins (users with `manage_options` but not `manage_network`) see the per-site dashboard widget. Some super admins may want to:
+- Hide the widget from site admins entirely (security through obscurity, or to reduce UI clutter)
+- Restrict visibility to super admins only across the network
+- Allow site admins to see their own site's activity but not network-aggregated data
+
+**Proposed solution:** Add network-level settings for widget visibility.
+
+**Setting options:**
+
+| Setting | Behavior |
+|---------|----------|
+| **Default** (current) | Widget visible to any user with `manage_options` on their site |
+| **Super Admins only** | Widget hidden from site admins; only super admins see it (even on per-site dashboards) |
+| **Network Dashboard only** | Per-site widget hidden from all users; only the network dashboard widget is available (super admins only) |
+| **Disabled** | No dashboard widgets anywhere |
+
+**Implementation details:**
+
+- Store setting in `wp_sitemeta` as `wp_sudo_network_widget_visibility`
+- Check setting in `Dashboard_Widget::register()` before adding widget
+- For "Super Admins only" mode: `current_user_can( 'manage_network' )` instead of `manage_options`
+- Network settings page: add a Widget Visibility section under Network Settings → Sudo (if network settings page exists) or as a field on the network admin settings screen
+- Graceful fallback: if setting is missing, use current behavior (visible to `manage_options`)
+
+**Effort:** Low. This is a capability check and network option, not a new data layer.
+
+### Cross-Site Session Revocation (Network Admin)
+
+**Problem:** Super admins may need to revoke sudo sessions network-wide during an incident (e.g., compromised super admin account, coordinated attack).
+
+**Proposed solution:** Add network-level revocation controls.
+
+**Features:**
+
+1. **Revoke All Network Sessions** — One-click button in network dashboard widget or network settings to expire all active sudo sessions across all sites
+2. **Revoke by User** — Search for a user and revoke their sessions on all sites where they have one
+3. **Revoke by Site** — Select a site and revoke all sessions on that site
+
+**Implementation details:**
+
+- Reuse `Sudo_Session::deactivate()` per-user
+- For network-wide revocation: iterate all users with `_wp_sudo_expires` meta > now
+- Consider batching for large networks to avoid timeout
+- Fire `wp_sudo_deactivated` hook for each revocation (audit trail)
+- Add `wp_sudo_network_session_revoked` action for network-level logging
+
+**Effort:** Medium. The revocation logic exists; this is UI + network iteration.
+
+### Network Policy Hierarchy Enhancements
+
+The existing Network Policy Hierarchy concept (§11 Feature Backlog) defines super admin policy floors. This section adds complementary multisite controls.
+
+**Additional controls:**
+
+1. **Network-level preset enforcement** — Super admin can lock all sites to a specific preset (e.g., "Incident Lockdown" network-wide during an active threat)
+2. **Per-site policy overrides visibility** — Network settings page shows which sites have custom policies diverging from the network default
+3. **Policy audit log** — Record when site admins change policies, visible in network dashboard widget
+
+**Implementation details:**
+
+- Store network preset lock in `wp_sitemeta`
+- On site settings load: if network lock is active, disable per-site controls and show notice
+- Policy change logging: extend `Event_Recorder` to capture `wp_sudo_settings` option updates
+
+**Effort:** High. This touches the settings architecture and adds a new audit event type.
+
+### Recommended Implementation Order
+
+1. **Network Dashboard Widget** — Highest value, reuses existing data layer
+2. **Super Admin Widget Visibility Controls** — Low effort, addresses immediate operator need
+3. **Cross-Site Session Revocation** — Medium effort, valuable for incident response
+4. **Network Policy Hierarchy Enhancements** — High effort, defer until base multisite tooling is stable
+
+### Non-Goals for This Slice
+
+To avoid scope creep, this multisite expansion does **not** include:
+
+- Per-site customization of the dashboard widget layout
+- Real-time activity streaming / WebSocket push
+- Site grouping or tagging for partial network views
+- Integration with third-party network management plugins
+- Cross-network federation (multiple WordPress networks)
 
 ---
 
