@@ -209,8 +209,11 @@ class DashboardWidgetTest extends TestCase {
 	private function setUpRenderStubs(): void {
 		Functions\when( 'esc_html__' )->returnArg( 1 );
 		Functions\when( 'esc_html' )->returnArg( 1 );
+		Functions\when( 'esc_attr' )->returnArg( 1 );
 		Functions\when( '_n' )->returnArg( 2 ); // Return plural form.
 		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
+		Functions\when( 'get_avatar' )->justReturn( '<img src="avatar.jpg" />' );
+		Functions\when( 'get_role' )->justReturn( null );
 		$this->setUpFakeWpdb();
 	}
 

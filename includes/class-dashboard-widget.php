@@ -13,12 +13,14 @@ namespace WP_Sudo;
 /**
  * Dashboard widget showing sudo session activity and policy status.
  *
- * Three sections:
- * - Active Sessions: current users with unexpired sudo sessions.
- * - Recent Events: last 10 events from Event_Store.
- * - Policy Summary: session duration and surface policies.
+ * Four sections:
+ * - Session Duration: at-a-glance timer setting (at top).
+ * - Active Sessions: current users with gravatars.
+ * - Recent Events: filterable event log.
+ * - Policy Summary: surface policies with spacing.
  *
  * @since 2.15.0
+ * @since 3.0.0 Added gravatars, filters, and layout improvements.
  */
 class Dashboard_Widget {
 
@@ -63,9 +65,11 @@ class Dashboard_Widget {
 	 * @return void
 	 */
 	public static function render(): void {
+		self::render_session_duration();
 		self::render_active_sessions();
 		self::render_recent_events();
 		self::render_policy_summary();
+		self::render_inline_styles();
 	}
 
 	/**
@@ -76,9 +80,46 @@ class Dashboard_Widget {
 	private const MAX_DISPLAY_USERS = 5;
 
 	/**
+	 * Default settings for display.
+	 *
+	 * @var array<string, mixed>
+	 */
+	private const DEFAULTS = array(
+		'session_duration'         => 15,
+		'log_passthrough'          => false,
+		'rest_app_password_policy' => 'limited',
+		'cli_policy'               => 'limited',
+		'cron_policy'              => 'disabled',
+		'xmlrpc_policy'            => 'disabled',
+		'wpgraphql_policy'         => 'disabled',
+	);
+
+	/**
+	 * Render session duration at the top.
+	 *
+	 * Shows the configured sudo session duration at the top of the widget
+	 * for quick at-a-glance reference.
+	 *
+	 * @return void
+	 */
+	private static function render_session_duration(): void {
+		$settings = get_option( 'wp_sudo_settings', array() );
+		if ( ! is_array( $settings ) ) {
+			$settings = array();
+		}
+
+		$duration = isset( $settings['session_duration'] ) ? (int) $settings['session_duration'] : self::DEFAULTS['session_duration'];
+
+		echo '<div class="wp-sudo-session-duration">';
+		echo '<span class="duration-value">' . esc_html( (string) $duration ) . '</span>';
+		echo '<span class="duration-label">' . esc_html__( 'min session', 'wp-sudo' ) . '</span>';
+		echo '</div>';
+	}
+
+	/**
 	 * Render active sessions section.
 	 *
-	 * Queries users with unexpired sudo sessions and displays count + usernames.
+	 * Queries users with unexpired sudo sessions and displays with gravatars.
 	 *
 	 * @return void
 	 */
@@ -102,14 +143,14 @@ class Dashboard_Widget {
 		echo '<h3>' . esc_html__( 'Active Sessions', 'wp-sudo' ) . '</h3>';
 
 		if ( 0 === $count ) {
-			echo '<p>' . esc_html__( 'No active sessions', 'wp-sudo' ) . '</p>';
+			echo '<p class="wp-sudo-empty">' . esc_html__( 'No active sessions', 'wp-sudo' ) . '</p>';
 			return;
 		}
 
 		// phpcs:ignore WordPress.WP.I18n.MissingTranslatorsComment -- Simple count.
-		echo '<p><strong>' . esc_html( sprintf( _n( '%d active session', '%d active sessions', $count, 'wp-sudo' ), $count ) ) . '</strong></p>';
+		echo '<p class="wp-sudo-active-count"><strong>' . esc_html( sprintf( _n( '%d active session', '%d active sessions', $count, 'wp-sudo' ), $count ) ) . '</strong></p>';
 
-		echo '<ul>';
+		echo '<ul class="wp-sudo-user-list">';
 		$displayed = 0;
 		foreach ( $users as $user_id ) {
 			if ( $displayed >= self::MAX_DISPLAY_USERS ) {
@@ -121,11 +162,51 @@ class Dashboard_Widget {
 				continue;
 			}
 
-			$expires    = (int) get_user_meta( (int) $user_id, '_wp_sudo_expires', true );
-			$time_left  = human_time_diff( time(), $expires );
-			$user_login = isset( $user->user_login ) && is_string( $user->user_login ) ? $user->user_login : 'User ' . $user_id;
+			$expires      = (int) get_user_meta( (int) $user_id, '_wp_sudo_expires', true );
+			$time_left    = human_time_diff( time(), $expires );
+			$user_login   = isset( $user->user_login ) && is_string( $user->user_login ) ? $user->user_login : 'User ' . $user_id;
+			$display_name = isset( $user->display_name ) && is_string( $user->display_name ) ? $user->display_name : '';
+			$first_name   = isset( $user->first_name ) && is_string( $user->first_name ) ? $user->first_name : '';
+			$last_name    = isset( $user->last_name ) && is_string( $user->last_name ) ? $user->last_name : '';
+			$full_name    = trim( $first_name . ' ' . $last_name );
 
-			echo '<li>' . esc_html( $user_login ) . ' — ' . esc_html( $time_left ) . ' ' . esc_html__( 'remaining', 'wp-sudo' ) . '</li>';
+			// Role - simplified to avoid WordPress type issues in widget.
+			$role = '';
+			if ( ! empty( $user->roles ) && is_array( $user->roles ) ) {
+				$role = $user->roles[0];
+			}
+
+			// Gravatar.
+			$avatar = get_avatar(
+				(int) $user_id,
+				32,
+				'',
+				'',
+				array(
+					'force' => true,
+				)
+			);
+
+			echo '<li class="wp-sudo-user-row">';
+			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- get_avatar is trusted WP function.
+			echo '<div class="wp-sudo-user-gravatar">' . $avatar . '</div>';
+			echo '<div class="wp-sudo-user-info">';
+			echo '<div class="wp-sudo-user-primary">';
+			echo '<span class="wp-sudo-username">' . esc_html( $user_login ) . '</span>';
+			if ( $role ) {
+				echo '<span class="wp-sudo-user-role">' . esc_html( $role ) . '</span>';
+			}
+			echo '</div>';
+			echo '<div class="wp-sudo-user-secondary">';
+			if ( $full_name ) {
+				echo '<span class="wp-sudo-fullname">' . esc_html( $full_name ) . '</span>';
+			} elseif ( $display_name && $display_name !== $user_login ) {
+				echo '<span class="wp-sudo-displayname">' . esc_html( $display_name ) . '</span>';
+			}
+			echo '<span class="wp-sudo-time-remaining">' . esc_html( $time_left ) . ' ' . esc_html__( 'left', 'wp-sudo' ) . '</span>';
+			echo '</div>';
+			echo '</div>';
+			echo '</li>';
 			++$displayed;
 		}
 		echo '</ul>';
@@ -153,23 +234,79 @@ class Dashboard_Widget {
 	/**
 	 * Render recent events section.
 	 *
-	 * Displays the last 10 events from Event_Store in a table.
+	 * Displays the last 10 events from Event_Store in a table with filters.
 	 *
 	 * @return void
 	 */
 	private static function render_recent_events(): void {
+		$settings = get_option( 'wp_sudo_settings', array() );
+		if ( ! is_array( $settings ) ) {
+			$settings = array();
+		}
+		$log_passthrough = ! empty( $settings['log_passthrough'] );
+
 		// Ensure the events table exists before querying.
 		Event_Store::maybe_create_table();
-		$events = Event_Store::recent( 10 );
+		$events = Event_Store::recent( 50 ); // Get more for client-side filtering.
 
 		echo '<h3>' . esc_html__( 'Recent Events', 'wp-sudo' ) . '</h3>';
 
+		// Filter controls.
+		echo '<div class="wp-sudo-event-filters">';
+
+		// Time buttons.
+		echo '<div class="wp-sudo-filter-group wp-sudo-filter-time">';
+		echo '<button type="button" class="wp-sudo-filter-btn" data-filter="time" data-value="all">' . esc_html__( 'All', 'wp-sudo' ) . '</button>';
+		echo '<button type="button" class="wp-sudo-filter-btn active" data-filter="time" data-value="24h">' . esc_html__( '24h', 'wp-sudo' ) . '</button>';
+		echo '<button type="button" class="wp-sudo-filter-btn" data-filter="time" data-value="7d">' . esc_html__( '7d', 'wp-sudo' ) . '</button>';
+		echo '</div>';
+
+		// Event type dropdown.
+		echo '<div class="wp-sudo-filter-group">';
+		echo '<select class="wp-sudo-filter-select" data-filter="event">';
+		echo '<option value="all">' . esc_html__( 'All events', 'wp-sudo' ) . '</option>';
+		echo '<option value="lockout">' . esc_html__( 'Lockout', 'wp-sudo' ) . '</option>';
+		echo '<option value="action_gated">' . esc_html__( 'Gated', 'wp-sudo' ) . '</option>';
+		echo '<option value="action_blocked">' . esc_html__( 'Blocked', 'wp-sudo' ) . '</option>';
+		echo '<option value="action_allowed">' . esc_html__( 'Allowed', 'wp-sudo' ) . '</option>';
+		echo '<option value="action_passed"' . ( $log_passthrough ? '' : ' disabled' ) . '>';
+		echo esc_html__( 'Passed', 'wp-sudo' );
+		if ( ! $log_passthrough ) {
+			echo ' *';
+		}
+		echo '</option>';
+		echo '<option value="action_replayed">' . esc_html__( 'Replayed', 'wp-sudo' ) . '</option>';
+		echo '</select>';
+		echo '</div>';
+
+		// Surface dropdown.
+		echo '<div class="wp-sudo-filter-group">';
+		echo '<select class="wp-sudo-filter-select" data-filter="surface">';
+		echo '<option value="all">' . esc_html__( 'All surfaces', 'wp-sudo' ) . '</option>';
+		echo '<option value="admin">' . esc_html__( 'Admin', 'wp-sudo' ) . '</option>';
+		echo '<option value="ajax">' . esc_html__( 'AJAX', 'wp-sudo' ) . '</option>';
+		echo '<option value="rest">' . esc_html__( 'REST', 'wp-sudo' ) . '</option>';
+		echo '<option value="rest_app_password">' . esc_html__( 'App Password', 'wp-sudo' ) . '</option>';
+		echo '<option value="cli">' . esc_html__( 'CLI', 'wp-sudo' ) . '</option>';
+		echo '<option value="cron">' . esc_html__( 'Cron', 'wp-sudo' ) . '</option>';
+		echo '<option value="xmlrpc">' . esc_html__( 'XML-RPC', 'wp-sudo' ) . '</option>';
+		echo '<option value="wpgraphql">' . esc_html__( 'WPGraphQL', 'wp-sudo' ) . '</option>';
+		echo '</select>';
+		echo '</div>';
+
+		echo '</div>';
+
+		// Pass-through notice.
+		if ( ! $log_passthrough ) {
+			echo '<p class="wp-sudo-filter-notice"><em>' . esc_html__( '* Enable "Log Session Pass-Throughs" in Settings to track Passed events.', 'wp-sudo' ) . '</em></p>';
+		}
+
 		if ( empty( $events ) ) {
-			echo '<p>' . esc_html__( 'No recent activity', 'wp-sudo' ) . '</p>';
+			echo '<p class="wp-sudo-empty">' . esc_html__( 'No recent activity', 'wp-sudo' ) . '</p>';
 			return;
 		}
 
-		echo '<table class="widefat striped">';
+		echo '<table class="widefat striped wp-sudo-events-table">';
 		echo '<caption class="screen-reader-text">' . esc_html__( 'Recent sudo session events', 'wp-sudo' ) . '</caption>';
 		echo '<thead><tr>';
 		echo '<th scope="col">' . esc_html__( 'Time', 'wp-sudo' ) . '</th>';
@@ -180,8 +317,7 @@ class Dashboard_Widget {
 		echo '</tr></thead><tbody>';
 
 		foreach ( $events as $event ) {
-			$event_obj = is_array( $event ) ? (object) $event : $event;
-
+			$event_obj   = is_array( $event ) ? (object) $event : $event;
 			$created_at  = isset( $event_obj->created_at ) ? strtotime( (string) $event_obj->created_at ) : 0;
 			$time_ago    = $created_at > 0 ? human_time_diff( $created_at, time() ) : '—';
 			$user_id     = isset( $event_obj->user_id ) ? (int) $event_obj->user_id : 0;
@@ -193,7 +329,7 @@ class Dashboard_Widget {
 			$rule_label  = self::get_rule_label( $rule_id );
 			$surface     = isset( $event_obj->surface ) ? (string) $event_obj->surface : '';
 
-			echo '<tr>';
+			echo '<tr data-time="' . esc_attr( (string) $created_at ) . '" data-event="' . esc_attr( $event_type ) . '" data-surface="' . esc_attr( $surface ) . '">';
 			echo '<td>' . esc_html( $time_ago ) . '</td>';
 			echo '<td>' . esc_html( $username ) . '</td>';
 			echo '<td>' . esc_html( $event_label ) . '</td>';
@@ -238,23 +374,9 @@ class Dashboard_Widget {
 	);
 
 	/**
-	 * Default settings for display.
-	 *
-	 * @var array<string, mixed>
-	 */
-	private const DEFAULTS = array(
-		'session_duration'         => 5,
-		'rest_app_password_policy' => 'limited',
-		'cli_policy'               => 'limited',
-		'cron_policy'              => 'disabled',
-		'xmlrpc_policy'            => 'disabled',
-		'wpgraphql_policy'         => 'disabled',
-	);
-
-	/**
 	 * Render policy summary section.
 	 *
-	 * Displays current session duration and entry-point policies.
+	 * Displays entry-point surface policies (session duration shown at top).
 	 *
 	 * @return void
 	 */
@@ -264,14 +386,7 @@ class Dashboard_Widget {
 			$settings = array();
 		}
 
-		$duration = isset( $settings['session_duration'] ) ? (int) $settings['session_duration'] : self::DEFAULTS['session_duration'];
-
-		echo '<h3>' . esc_html__( 'Policy Summary', 'wp-sudo' ) . '</h3>';
-
-		echo '<p><strong>' . esc_html__( 'Session Duration:', 'wp-sudo' ) . '</strong> ';
-		// phpcs:ignore WordPress.WP.I18n.MissingTranslatorsComment -- Simple duration.
-		echo esc_html( sprintf( _n( '%d minute', '%d minutes', $duration, 'wp-sudo' ), $duration ) );
-		echo '</p>';
+		echo '<h3 class="wp-sudo-policy-heading">' . esc_html__( 'Policy Summary', 'wp-sudo' ) . '</h3>';
 
 		echo '<table class="widefat striped">';
 		echo '<caption class="screen-reader-text">' . esc_html__( 'Entry-point surface policies', 'wp-sudo' ) . '</caption>';
@@ -303,5 +418,237 @@ class Dashboard_Widget {
 		}
 
 		echo '</tbody></table>';
+	}
+
+	/**
+	 * Render inline styles and JavaScript for widget interactivity.
+	 *
+	 * @return void
+	 */
+	private static function render_inline_styles(): void {
+		?>
+<style>
+#dashboard_wp_sudo_activity .wp-sudo-session-duration {
+	display: inline-flex;
+	align-items: baseline;
+	gap: 0.25em;
+	margin-bottom: 1em;
+	padding: 0.5em 0.75em;
+	background: #f0f6fc;
+	border-radius: 4px;
+	font-size: 0.9em;
+}
+#dashboard_wp_sudo_activity .wp-sudo-session-duration .duration-value {
+	font-size: 1.5em;
+	font-weight: 600;
+	color: #1d2327;
+}
+#dashboard_wp_sudo_activity .wp-sudo-session-duration .duration-label {
+	color: #646970;
+}
+
+#dashboard_wp_sudo_activity h3 {
+	margin-top: 1.25em;
+	margin-bottom: 0.5em;
+}
+
+/* Active sessions with gravatars */
+#dashboard_wp_sudo_activity .wp-sudo-user-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+#dashboard_wp_sudo_activity .wp-sudo-user-row {
+	display: flex;
+	align-items: center;
+	gap: 0.75em;
+	padding: 0.5em 0;
+	border-bottom: 1px solid #f0f0f1;
+}
+#dashboard_wp_sudo_activity .wp-sudo-user-row:last-child {
+	border-bottom: none;
+}
+#dashboard_wp_sudo_activity .wp-sudo-user-gravatar img {
+	width: 32px;
+	height: 32px;
+	border-radius: 50%;
+}
+#dashboard_wp_sudo_activity .wp-sudo-user-info {
+	flex: 1;
+	min-width: 0;
+}
+#dashboard_wp_sudo_activity .wp-sudo-user-primary {
+	display: flex;
+	align-items: center;
+	gap: 0.5em;
+	flex-wrap: wrap;
+}
+#dashboard_wp_sudo_activity .wp-sudo-username {
+	font-weight: 600;
+	color: #1d2327;
+}
+#dashboard_wp_sudo_activity .wp-sudo-user-role {
+	font-size: 0.75em;
+	padding: 0.15em 0.5em;
+	background: #ddefe3;
+	color: #1a7f37;
+	border-radius: 3px;
+}
+#dashboard_wp_sudo_activity .wp-sudo-user-secondary {
+	font-size: 0.85em;
+	color: #646970;
+}
+#dashboard_wp_sudo_activity .wp-sudo-user-secondary .wp-sudo-fullname,
+#dashboard_wp_sudo_activity .wp-sudo-user-secondary .wp-sudo-displayname {
+	margin-right: 0.5em;
+}
+
+/* Event filters */
+#dashboard_wp_sudo_activity .wp-sudo-event-filters {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.5em;
+	margin-bottom: 0.75em;
+}
+#dashboard_wp_sudo_activity .wp-sudo-filter-group {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.25em;
+}
+#dashboard_wp_sudo_activity .wp-sudo-filter-btn {
+	padding: 0.25em 0.5em;
+	font-size: 0.8em;
+	border: 1px solid #c3c4c7;
+	background: #f6f7f8;
+	color: #3c434a;
+	cursor: pointer;
+	border-radius: 3px;
+}
+#dashboard_wp_sudo_activity .wp-sudo-filter-btn:hover {
+	background: #f0f0f1;
+}
+#dashboard_wp_sudo_activity .wp-sudo-filter-btn.active {
+	background: #2271b1;
+	border-color: #2271b1;
+	color: #fff;
+}
+#dashboard_wp_sudo_activity .wp-sudo-filter-select {
+	font-size: 0.85em;
+	padding: 0.25em 0.5em;
+	border: 1px solid #c3c4c7;
+	border-radius: 3px;
+	background: #fff;
+}
+#dashboard_wp_sudo_activity .wp-sudo-filter-notice {
+	font-size: 0.75em;
+	color: #646970;
+	margin: 0 0 0.5em;
+}
+
+/* Policy Summary spacing */
+#dashboard_wp_sudo_activity .wp-sudo-policy-heading {
+	margin-top: 1.5em;
+	padding-top: 1em;
+	border-top: 1px solid #e0e0e0;
+}
+
+/* Mobile responsive */
+@media screen and (max-width: 600px) {
+	#dashboard_wp_sudo_activity .wp-sudo-user-gravatar {
+		display: none;
+	}
+	#dashboard_wp_sudo_activity .wp-sudo-user-secondary .wp-sudo-fullname,
+	#dashboard_wp_sudo_activity .wp-sudo-user-secondary .wp-sudo-displayname {
+		display: none;
+	}
+	#dashboard_wp_sudo_activity .wp-sudo-event-filters {
+		flex-direction: column;
+	}
+}
+</style>
+<script>
+(function() {
+	var widget = document.getElementById('dashboard_wp_sudo_activity');
+	if (!widget) return;
+
+	var table = widget.querySelector('.wp-sudo-events-table');
+	if (!table) return;
+
+	var tbody = table.querySelector('tbody');
+	if (!tbody) return;
+
+	var rows = tbody.querySelectorAll('tr');
+
+	var timeBtns = widget.querySelectorAll('.wp-sudo-filter-btn');
+	var eventSelect = widget.querySelector('select[data-filter="event"]');
+	var surfaceSelect = widget.querySelector('select[data-filter="surface"]');
+
+	var filterTime = '24h';
+	var filterEvent = 'all';
+	var filterSurface = 'all';
+
+	function filterRows() {
+		var now = Math.floor(Date.now() / 1000);
+		var periods = { 'all': 0, '24h': 3600, '7d': 604800 };
+
+		rows.forEach(function(row) {
+			var rowTime = parseInt(row.dataset.time, 10) || 0;
+			var rowEvent = row.dataset.event || '';
+			var rowSurface = row.dataset.surface || '';
+
+			var show = true;
+
+			// Time filter.
+			if (filterTime !== 'all' && periods[filterTime]) {
+				if (now - rowTime > periods[filterTime]) {
+					show = false;
+				}
+			}
+
+			// Event filter.
+			if (filterEvent !== 'all' && rowEvent !== filterEvent) {
+				show = false;
+			}
+
+			// Surface filter.
+			if (filterSurface !== 'all' && rowSurface !== filterSurface) {
+				show = false;
+			}
+
+			row.style.display = show ? '' : 'none';
+		});
+	}
+
+	// Time button clicks.
+	timeBtns.forEach(function(btn) {
+		btn.addEventListener('click', function() {
+			timeBtns.forEach(function(b) { b.classList.remove('active'); });
+			this.classList.add('active');
+			filterTime = this.dataset.value;
+			filterRows();
+		});
+	});
+
+	// Event dropdown change.
+	if (eventSelect) {
+		eventSelect.addEventListener('change', function() {
+			filterEvent = this.value;
+			filterRows();
+		});
+	}
+
+	// Surface dropdown change.
+	if (surfaceSelect) {
+		surfaceSelect.addEventListener('change', function() {
+			filterSurface = this.value;
+			filterRows();
+		});
+	}
+
+	// Initial filter.
+	filterRows();
+})();
+</script>
+		<?php
 	}
 }
