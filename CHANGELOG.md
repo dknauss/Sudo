@@ -17,6 +17,12 @@
 - **Challenge lockout expiry recovery** — corrected an edge case where the visible countdown could reach zero while the server still treated the lockout as active for that exact second, blocking an immediate retry. Password and IP lockouts now expire in sync with the countdown.
 - **Stale challenge and 2FA recovery flows** — hardened recovery when a sudo session is already active or a user is returning from 2FA throttle/lockout flows, with expanded browser coverage for replay, resend, cancel, and recovery behavior.
 
+### Dashboard widget UX
+
+- **Active sessions: identity context** — sessions panel now shows gravatars, username, role badge, display name, and time remaining for each active session. Responsive layout hides gravatars and names on small screens.
+- **Recent events: client-side filtering** — dropdown filters for Time (1h / 24h / 7d), Event type, and Surface, applied client-side against 50 stored events. Filters laid out horizontally in a single row.
+- **Passthrough logging** — new `log_passthrough` toggle in Settings → Sudo → Session Settings. When enabled, gated actions that pass through an active sudo session are recorded as "Passed" events in the widget via the new `wp_sudo_action_passed` audit hook (fires on admin, REST, and WPGraphQL surfaces).
+
 ### Accessibility
 
 - **Dashboard widget table semantics** — added `scope="col"` to table headers and screen-reader-only `<caption>` elements for the Recent Events and Policy Summary tables.
@@ -26,6 +32,7 @@
 - **WordPress 7.0 readiness** — forward test and preview lanes are now pinned to `7.0-RC1`, with RC1 visual signoff recorded and the remaining RC/GA checklist documented for final release-day verification.
 - **Testing and compatibility breadth** — added scheduled WordPress `6.3`–`6.6` compatibility coverage, explicit nginx + php-fpm + MariaDB and Playground SQLite browser smoke workflows, and a dedicated nginx + MariaDB multisite smoke lane.
 - **Testing workflow: local integration fallback** — `composer test:integration` now falls back to the running `wp-env` `tests-cli` container when a local rebuild leaves the generated host-side MySQL endpoint stale, while CI continues to use the normal direct PHPUnit path.
+- **609 unit tests, 1709 assertions. 157 integration tests in CI. 60 E2E tests.**
 
 ## 2.14.0
 

@@ -544,7 +544,7 @@ class Dashboard_Widget {
 
 	function filterRows() {
 		var now = Math.floor(Date.now() / 1000);
-		var periods = { 'all': 0, '24h': 3600, '7d': 604800 };
+		var periods = { 'all': 0, '24h': 86400, '7d': 604800 };
 
 		rows.forEach(function(row) {
 			var rowTime = parseInt(row.dataset.time, 10) || 0;
