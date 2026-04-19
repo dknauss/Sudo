@@ -1668,6 +1668,64 @@ class AdminTest extends TestCase {
 		unset( $_GET['page'] );
 	}
 
+	public function test_enqueue_assets_includes_preset_policies(): void {
+		$_GET['page'] = Admin::PAGE_SLUG;
+
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'esc_html__' )->returnArg();
+		Functions\expect( 'wp_enqueue_style' )->once();
+		Functions\expect( 'wp_enqueue_script' )->once();
+
+		Functions\expect( 'admin_url' )
+			->with( 'admin-ajax.php' )
+			->andReturn( 'https://example.com/wp-admin/admin-ajax.php' );
+
+		Functions\expect( 'wp_create_nonce' )
+			->with( 'wp_sudo_mu_plugin' )
+			->andReturn( 'test-nonce' );
+
+		$captured = null;
+		Functions\expect( 'wp_localize_script' )
+			->once()
+			->with(
+				'wp-sudo-admin',
+				'wpSudoAdmin',
+				\Mockery::on(
+					function ( $data ) use ( &$captured ) {
+						$captured = $data;
+						return true;
+					}
+				)
+			);
+
+		$admin = new Admin();
+		$admin->enqueue_assets( 'settings_page_' . Admin::PAGE_SLUG );
+
+		// presetPolicies present with all 3 presets.
+		$this->assertArrayHasKey( 'presetPolicies', $captured );
+		$policies = $captured['presetPolicies'];
+
+		$this->assertArrayHasKey( Admin::POLICY_PRESET_NORMAL, $policies );
+		$this->assertArrayHasKey( Admin::POLICY_PRESET_INCIDENT_LOCKDOWN, $policies );
+		$this->assertArrayHasKey( Admin::POLICY_PRESET_HEADLESS_FRIENDLY, $policies );
+
+		// Each preset maps setting keys to policy values.
+		$normal = $policies[ Admin::POLICY_PRESET_NORMAL ];
+		$this->assertArrayHasKey( Gate::SETTING_REST_APP_PASS_POLICY, $normal );
+		$this->assertArrayHasKey( Gate::SETTING_CLI_POLICY, $normal );
+		$this->assertArrayHasKey( Gate::SETTING_CRON_POLICY, $normal );
+		$this->assertArrayHasKey( Gate::SETTING_XMLRPC_POLICY, $normal );
+		$this->assertArrayHasKey( Gate::SETTING_WPGRAPHQL_POLICY, $normal );
+		$this->assertSame( Gate::POLICY_LIMITED, $normal[ Gate::SETTING_CLI_POLICY ] );
+
+		// surfaceKeys present listing all policy setting keys.
+		$this->assertArrayHasKey( 'surfaceKeys', $captured );
+		$this->assertContains( Gate::SETTING_REST_APP_PASS_POLICY, $captured['surfaceKeys'] );
+		$this->assertContains( Gate::SETTING_WPGRAPHQL_POLICY, $captured['surfaceKeys'] );
+
+		unset( $_GET['page'] );
+	}
+
 	public function test_render_field_policy_presets_description_has_js_target_id(): void {
 		Functions\when( 'get_option' )->justReturn( Admin::defaults() );
 		Functions\when( '__' )->returnArg();

@@ -728,6 +728,40 @@ class Admin {
 	}
 
 	/**
+	 * Build a key → policies map for all presets.
+	 *
+	 * Used by wp_localize_script so the JS change handler can cascade
+	 * preset selection to individual surface dropdowns.
+	 *
+	 * @return array<string, array<string, string>>
+	 */
+	private static function get_preset_policies(): array {
+		$policies = array();
+		foreach ( self::policy_presets() as $key => $preset ) {
+			$policies[ $key ] = $preset['policies'];
+		}
+		return $policies;
+	}
+
+	/**
+	 * Return the list of surface policy setting keys.
+	 *
+	 * Used by wp_localize_script so the JS reverse-sync handler knows
+	 * which <select> elements to read when detecting a matching preset.
+	 *
+	 * @return list<string>
+	 */
+	private static function get_surface_keys(): array {
+		return array(
+			Gate::SETTING_REST_APP_PASS_POLICY,
+			Gate::SETTING_CLI_POLICY,
+			Gate::SETTING_CRON_POLICY,
+			Gate::SETTING_XMLRPC_POLICY,
+			Gate::SETTING_WPGRAPHQL_POLICY,
+		);
+	}
+
+	/**
 	 * Get a single setting value.
 	 *
 	 * On multisite, settings are stored as a network-wide site option.
@@ -898,6 +932,8 @@ class Admin {
 				'installAction'      => self::AJAX_MU_INSTALL,
 				'uninstallAction'    => self::AJAX_MU_UNINSTALL,
 				'presetDescriptions' => self::get_preset_descriptions(),
+				'presetPolicies'     => self::get_preset_policies(),
+				'surfaceKeys'        => self::get_surface_keys(),
 				'strings'            => array(
 					'genericError' => __( 'An error occurred.', 'wp-sudo' ),
 					'networkError' => __( 'A network error occurred. Please try again.', 'wp-sudo' ),
