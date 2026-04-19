@@ -325,6 +325,12 @@ class Plugin {
 	 * changed — routine profile saves (display name, email, etc.) must not disturb
 	 * an active session.
 	 *
+	 * Timing note: `profile_update` fires after the new password hash is already
+	 * written to the database. An attacker with a stolen cookie would have at most
+	 * one request before the session is invalidated on the next `is_active()` check.
+	 * The 120-second grace window does not apply here — `deactivate()` ends the
+	 * session immediately without waiting for the grace window to close.
+	 *
 	 * @since 2.8.0
 	 *
 	 * @param int                 $user_id       The user whose profile was updated.

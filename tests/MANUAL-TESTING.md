@@ -670,9 +670,10 @@ curl -sk "YOUR_SITE_URL/wp-cron.php" -w "HTTP: %{http_code}, body: %{size_downlo
 ### 9.3 Help Tabs
 
 1. Click the **Help** button (top-right of Settings > Sudo).
-2. **Expected:** 10 help tabs: How Sudo Works, Session & Policies,
+2. **Expected:** 12 help tabs: How Sudo Works, Session & Policies,
    App Passwords, MU-Plugin, Security Features, Security Model,
-   Environment, Recommended Plugins, Extending, Audit Hooks.
+   Environment, Recommended Plugins, Extending, Audit Hooks,
+   Policy Presets, Rule Tester.
 
 ### 9.4 Gated Actions Table
 
@@ -948,25 +949,105 @@ Before marking RC2, RC3, or GA complete, also re-run the standard local verifica
 
 ### 15.1a Policy Presets
 
-1. Load **Settings > Sudo**.
-2. **Expected:** A **Policy Presets** section appears above the per-surface
-   policy dropdowns.
-   - The current configuration label is visible.
-   - The preset list includes **Normal**, **Incident Lockdown**, and
-     **Headless Friendly** with short descriptions and per-surface summaries.
-   - Applying a preset requires checking the explicit confirmation checkbox.
-3. Select **Incident Lockdown**, check the apply-confirmation checkbox, and
-   save.
+1. Load **Settings > Sudo** and click the **Settings** tab.
+2. **Expected:** A **Policy Presets** dropdown appears in the Settings tab
+   (above the per-surface policy dropdowns).
+   - The dropdown includes **Normal**, **Incident Lockdown**, and
+     **Headless Friendly** options.
+   - Selecting an option shows a short description for that preset below
+     the dropdown; the description updates without a page reload.
+   - There is **no** confirmation checkbox (removed in the tabbed UI).
+3. Select **Incident Lockdown** from the dropdown and click **Save Settings**.
 4. **Expected:** A success notice confirms that the **Incident Lockdown**
-   preset was applied.
+   preset was applied with plain-language surface names (e.g. "REST (App
+   Passwords)", not setting-key names).
    - REST App Passwords, WP-CLI, and XML-RPC show the expected locked-down
      values.
    - Cron remains **Limited**.
    - If WPGraphQL is installed, its policy reflects the preset as well.
-5. Re-open the page, select **Normal**, check the apply-confirmation checkbox,
-   and save.
+5. Re-open the page, select **Normal**, and save.
 6. **Expected:** A success notice confirms that the **Normal** preset was
    applied and the per-surface policies return to the documented defaults.
+
+### 15.1b Rule Tester
+
+The Rule Tester is a diagnostic panel on the Settings → Sudo page. It simulates
+admin, AJAX, and REST request shapes side-effect-free — no requests are executed,
+no stash transients are written, and no audit hooks fire.
+
+#### Opening the Rule Tester
+
+1. Load **Settings > Sudo**.
+2. **Expected:** A **Request / Rule Tester** panel is visible on the page (scroll
+   down past the entry-point policy fields if necessary).
+   - The panel contains surface, method, URL, and optional parameter inputs.
+   - A **"Has active sudo session"** checkbox is present.
+   - A submit control triggers the diagnostic evaluation.
+
+#### Test A — Admin surface: plugin activate
+
+1. Set **Surface** to `admin`, **Method** to `GET`.
+2. Enter **URL**: `https://example.com/wp-admin/plugins.php?action=activate`
+3. Leave all other fields at their defaults (authenticated, no active sudo).
+4. Submit the form.
+5. **Expected:**
+   - Matched rule: `plugin.activate`
+   - Decision: `gate`
+   - Stash/replay eligible: yes
+   - A note indicates that interactive admin requests use challenge + stash/replay.
+
+#### Test B — AJAX surface: install plugin
+
+1. Set **Surface** to `ajax`, **Method** to `POST`.
+2. Enter **URL**: `https://example.com/wp-admin/admin-ajax.php?action=install-plugin`
+3. Submit the form.
+4. **Expected:**
+   - Matched rule: `plugin.install`
+   - Decision: `soft-block`
+   - Stash/replay eligible: no
+   - A note indicates that AJAX requests must be retried after activating sudo.
+
+#### Test C — REST surface: connector credential write
+
+1. Set **Surface** to `rest`, **Method** to `PUT`.
+2. Enter **URL**: `https://example.com/wp-json/wp/v2/settings`
+3. In the **REST params** field, add a key `connectors_ai_openai_api_key` with any
+   non-empty value.
+4. Submit the form **with REST auth mode set to `cookie`**.
+5. **Expected:**
+   - Matched rule: `connectors.update_credentials`
+   - Decision: `soft-block`
+   - A note indicates that cookie-authenticated REST requests receive a
+     `sudo_required` response and can be retried after activating sudo.
+6. Re-submit with **REST auth mode set to `application_password`** (or any
+   non-cookie mode).
+7. **Expected:**
+   - Matched rule: `connectors.update_credentials`
+   - Decision: `hard-block`
+   - A note indicates the REST App Passwords policy is Limited and gated requests
+     are blocked until the policy changes (or until it explains the current policy
+     setting).
+
+#### Test D — Unmatched request
+
+1. Set **Surface** to `admin`, **Method** to `GET`.
+2. Enter **URL**: `https://example.com/wp-admin/plugins.php?action=search`
+3. Submit the form.
+4. **Expected:**
+   - No matched rule.
+   - Decision: `allow`
+   - A note indicates no gated rule matched this request shape.
+
+#### Test E — Active sudo bypass
+
+1. Use any matched request from Test A or Test B.
+2. Check the **"Has active sudo session"** checkbox.
+3. Submit the form.
+4. **Expected:**
+   - Rule still matches (matched rule ID shown as normal).
+   - Decision: `allow`
+   - A note indicates an active sudo session would allow the matched request to
+     proceed.
 
 ### 15.2 Challenge Page
 

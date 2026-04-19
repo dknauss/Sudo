@@ -61,6 +61,11 @@ function wp_sudo_cleanup_mu_shim(): void {
 /**
  * Remove all sudo-related user meta from the network.
  *
+ * Uses delete_metadata() with object_id=0 and $delete_all=true to
+ * delete matching meta across every user in a single query — the same
+ * pattern WordPress core uses for bulk meta cleanup on uninstall.
+ * This pattern is supported since WordPress 3.0.
+ *
  * @return void
  */
 function wp_sudo_cleanup_user_meta(): void {

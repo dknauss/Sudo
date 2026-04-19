@@ -69,7 +69,7 @@ Developers can add custom rules via the `wp_sudo_gated_actions` filter.
 * **Admin bar countdown** — a live M:SS timer shows remaining session time. Turns red in the final 60 seconds.
 * **Keyboard shortcut** — press Ctrl+Shift+S (Windows/Linux) or Cmd+Shift+S (Mac) to proactively start a sudo session.
 * **Accessible** — WCAG 2.1 AA throughout (screen-reader announcements, ARIA labels, focus management, keyboard support).
-* **Contextual help** — 10 help tabs on the settings page.
+* **Contextual help** — 12 help tabs on the settings page.
 
 = MU-plugin for early loading =
 

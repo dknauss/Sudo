@@ -1758,6 +1758,15 @@ class Gate {
 	/**
 	 * Parse a representative URL for diagnostic matching.
 	 *
+	 * This method is used exclusively by the side-effect-free Rule Tester —
+	 * it is not a security boundary. parse_url() is used directly because
+	 * diagnostic URLs are developer-supplied representative shapes, not
+	 * end-user input that needs sanitization or WordPress-compat wrapping.
+	 *
+	 * parse_str() is used for query parsing. It uses last-key-wins semantics
+	 * for duplicate keys (e.g. `?foo=a&foo=b` → `foo = 'b'`). This is
+	 * intentional and acceptable for tester purposes.
+	 *
 	 * @param string $url Representative URL.
 	 * @return array{path:string,request_uri:string,pagenow:string,query_params:array<string,mixed>}
 	 */

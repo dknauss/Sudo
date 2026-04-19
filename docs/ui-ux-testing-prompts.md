@@ -3,7 +3,7 @@
 Structured checklists for evaluating the three UI surfaces of WP Sudo:
 
 1. **Challenge Page**: Interstitial reauthentication (password step, optional 2FA step, lockout countdown, request replay, Escape key navigation)
-2. **Settings Page**: Settings › Sudo (session duration, 5 entry point policy dropdowns, MU-plugin status section, gated actions table, 10 help tabs)
+2. **Settings Page**: Settings › Sudo (tabbed: Settings, Gated Actions, Rule Tester; session duration, policy dropdown presets, 5 entry point policy dropdowns, MU-plugin status section, gated actions table, 12 help tabs)
 3. **Admin Bar Timer**: Live M:SS countdown during active sessions, turns red at 60s, click to deactivate, keyboard shortcut Cmd/Ctrl+Shift+S
 
 Each section uses `- [ ]` checkboxes so the document works as a runnable checklist.
@@ -65,7 +65,7 @@ Each section uses `- [ ]` checkboxes so the document works as a runnable checkli
 - [ ] **Challenge page:** The gated action label is displayed in the challenge description so the user knows what they are confirming without needing to remember.
 - [ ] **Challenge page:** 2FA step heading "Two-Factor Verification" and the step-transition announcement make it clear which phase the user is in.
 - [ ] **Settings page:** Each policy dropdown has an inline description explaining what the three values mean for that specific entry point.
-- [ ] **Settings page:** 10 help tabs provide contextual reference (How Sudo Works, Session &amp; Policies, App Passwords, MU-Plugin, Security Features, Security Model, Environment, Recommended Plugins, Extending, Audit Hooks) without leaving the page.
+- [ ] **Settings page:** 12 help tabs provide contextual reference (How Sudo Works, Session &amp; Policies, App Passwords, MU-Plugin, Security Features, Security Model, Environment, Recommended Plugins, Extending, Audit Hooks, Policy Presets, Rule Tester) without leaving the page.
 - [ ] **Settings page:** Gated actions table shows all registered rules and their surfaces so the administrator does not need to consult code or docs.
 
 ### H7 – Flexibility and Efficiency of Use
@@ -99,7 +99,7 @@ Each section uses `- [ ]` checkboxes so the document works as a runnable checkli
 
 ### H10 – Help and Documentation
 
-- [ ] **Settings page:** 10 help tabs cover all aspects of the plugin: How Sudo Works, Session &amp; Policies, App Passwords, MU-Plugin, Security Features, Security Model, Environment, Recommended Plugins, Extending, Audit Hooks.
+- [ ] **Settings page:** 12 help tabs cover all aspects of the plugin: How Sudo Works, Session &amp; Policies, App Passwords, MU-Plugin, Security Features, Security Model, Environment, Recommended Plugins, Extending, Audit Hooks, Policy Presets, Rule Tester.
 - [ ] **Settings page:** Help sidebar links to external resources: Wikipedia sudo article, Two Factor plugin, WebAuthn Provider, WP Activity Log, Stream, Roles & Capabilities developer documentation.
 - [ ] **Settings page:** Inline descriptions on the session duration field and each policy dropdown explain defaults and implications.
 - [ ] **Settings page:** MU-plugin status section explains what the shim does and why it is optional.

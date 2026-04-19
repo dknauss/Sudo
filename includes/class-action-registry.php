@@ -675,10 +675,29 @@ class Action_Registry {
 		 * Filter the list of gated actions that require sudo reauthentication.
 		 *
 		 * Developers can use this filter to add, remove, or modify gated actions.
+		 * Malformed rules are silently dropped (fail-closed); see normalize_filtered_rules().
+		 * If the filter returns a non-array, the built-in rule set is used as a fallback.
+		 *
+		 * Each rule must be an associative array with at minimum:
+		 *   - `id`       (string)  — unique machine key, e.g. 'vendor.action_name'
+		 *   - `label`    (string)  — human-readable label for UI display
+		 *   - `category` (string)  — rule category for grouping in the Gated Actions table
+		 *
+		 * And one or more surface-matcher keys:
+		 *   - `action`     (string) — `$_GET['action']` / `$_POST['action']` for admin/AJAX
+		 *   - `page`       (string) — `$_GET['page']` for admin page matches
+		 *   - `post_type`  (string) — `$_GET['post_type']` for CPT-specific admin matches
+		 *   - `rest_route` (string) — PCRE regex (with delimiter) for REST route matching,
+		 *                             e.g. `'#^/wp/v2/plugins(?:/|$)#'`
+		 *   - `rest_method`(string|string[]) — HTTP method or array of methods ('POST','PUT')
+		 *   - `rest_callback` (callable) — called as ($route, $method, $request) → bool for
+		 *                                  fine-grained REST param inspection
+		 *   - `network`    (bool)  — if true, rule applies in multisite network-admin context
 		 *
 		 * @since 2.0.0
 		 *
-		 * @param array $rules Array of gated action rules.
+		 * @param array<int, array<string, mixed>> $rules Indexed array of gated action rule arrays.
+		 * @return array<int, array<string, mixed>>
 		 */
 		$filtered_rules     = apply_filters( 'wp_sudo_gated_actions', self::rules() );
 		self::$cached_rules = self::normalize_filtered_rules( $filtered_rules );
