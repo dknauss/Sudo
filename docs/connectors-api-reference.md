@@ -402,7 +402,12 @@ hijack, stolen cookie, compromised admin credentials, XSS-escalated
 privileges, or a rogue admin. No filesystem write, no plugin install, no
 code execution. Reachable with one REST call.
 
-**Attacker model assumption:** these scenarios assume the attacker writes
+> [!NOTE]
+> The WordPress-side credential-routing change is runtime-verified.
+> Provider-side prompt visibility depends on vendor logging, retention, and
+> account features and is not uniform across providers.
+
+**Attacker model assumption:** These scenarios assume the attacker writes
 directly to `POST /wp/v2/settings`, not through the stock Connectors UI. The
 UI's inline error handling on lossy saves and its read-only treatment of
 env/constant-backed connectors do not apply to raw REST callers. An attacker
@@ -410,7 +415,7 @@ with a stolen or rogue `manage_options` session has no reason to route
 through the UI, which is why "but the UI shows an error" is not a mitigation
 for this threat model.
 
-- **Prompt exfiltration via same-provider key swap.** *(runtime + inferred)* For a database-backed
+- **Prompt diversion via same-provider key swap.** *(runtime + inferred)* For a database-backed
   connector that is actually in use, an attacker can replace the stored key
   with one they control via `POST /wp/v2/settings`. Future requests made
   through that connector then authenticate as the replacement credential. For
@@ -433,22 +438,12 @@ for this threat model.
   credential, so any provider-side logging or usage visibility attached to
   that credential will also follow the replacement account.
 
-  > [!NOTE]
-  > The WordPress-side credential-routing change is runtime-verified.
-  > Provider-side prompt visibility depends on vendor logging, retention, and
-  > account features and is not uniform across providers.
-
   Official examples of provider-side visibility controls and retention:
-  Google Gemini API / AI Studio logs and datasets
-  (`https://ai.google.dev/gemini-api/docs/logs-datasets`), Google Vertex AI
-  request-response logging
-  (`https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/request-response-logging`),
-  OpenAI data controls
-  (`https://platform.openai.com/docs/models/default-usage-policies-by-endpoint`)
-  and admin/audit logs
-  (`https://help.openai.com/en/articles/9687866-admin-and-audit-logs-api-for-the-api-platform%23.apk`),
-  and Anthropic API/data-retention docs
-  (`https://platform.claude.com/docs/en/build-with-claude/api-and-data-retention`).
+  - [Google Gemini API / AI Studio logs and datasets](https://ai.google.dev/gemini-api/docs/logs-datasets)
+  - [Google Vertex AI request-response logging](https://cloud.google.com/vertex-ai/generative-ai/docs/multimodal/request-response-logging)
+  - [OpenAI data controls](https://platform.openai.com/docs/models/default-usage-policies-by-endpoint)
+  - [OpenAI admin/audit logs](https://help.openai.com/en/articles/9687866-admin-and-audit-logs-api-for-the-api-platform%23.apk)
+  - [Anthropic API/data-retention docs](https://platform.claude.com/docs/en/build-with-claude/api-and-data-retention)
 - **Ping-pong swap weakens simple forensic detection.** *(structural)* An attacker can
   swap in their key, allow a window of AI traffic, and then restore the
   original value. If the site only inspects the current stored key after the
@@ -460,7 +455,7 @@ for this threat model.
   `wp_options`. Resetting the admin password, invalidating sessions, and
   enrolling 2FA do not touch `wp_options`. An incident-response playbook
   that doesn't explicitly rotate connector credentials leaves the
-  exfiltration channel open after the original intrusion is "remediated."
+  diverted-traffic channel open after the original intrusion is "remediated."
 - **Weaponized nullification / breakage.** *(runtime)* Attacker deliberately writes a
   malformed key. The server clears the stored option and returns `200 OK`.
   The stock UI will show an error if it initiated the save, but the lossy
@@ -500,7 +495,7 @@ investigating a suspected key-swap incident still need to check these too.
 
 | Consequence | Admin session only | Filesystem access required |
 |---|---|---|
-| Prompt exfiltration | Yes | — |
+| Prompt diversion to replacement account | Yes | — |
 | Ping-pong weakens simple final-state detection | Yes | — |
 | Persistence past password reset / 2FA enrollment | Yes | — |
 | Weaponized nullification / breakage | Yes | — |
