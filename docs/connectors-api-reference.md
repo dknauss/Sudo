@@ -458,19 +458,19 @@ investigating a suspected key-swap incident still need to check these too.
 | Response tampering / MITM | — | Yes |
 | Rogue provider registration | — | Yes |
 
-The distinction matters for remediation design. Everything in the left
-column is reachable from a single option write and needs option-layer
-mitigations (fingerprint diffing, change notifications, narrower
-capability, dedicated action hook, UI indicator for active key source).
-The right column is a code-execution problem and falls outside the
-Connectors API's own surface.
+The difference between admin-session attacks and filesystem/code-execution
+attacks matters because they need different fixes. The admin-session
+scenarios can happen through an ordinary connector-key write, so they need
+safeguards around key changes themselves: clearer source/fingerprint
+display, better change signals, narrower permissions, and better visibility
+when a credential is replaced. The filesystem scenarios are broader
+post-compromise problems and are not specific to Connectors, but they are
+still relevant when investigating a suspected key-swap incident.
 
-**The two columns are not alternatives — they compose.** The realistic
-code-execution attack chain is: swap the key through the REST write
-(admin-session column), then plant a `pre_http_request` filter or custom
-provider (filesystem column) to also proxy responses. Either half alone
-is strictly less than the sum. Readers evaluating whether to treat the
-left column as in-scope for the Connectors API should not be reassured by
-"that column only matters with shell access" — shell access attackers use
-the left-column write as the cheapest persistence-plus-data-channel
-primitive in the chain.
+The two groups can also reinforce each other. An attacker with code
+execution can do more than edit `wp-config.php` or plant a filter; they can
+also use the same REST/settings write path to replace a stored connector
+key. That write path is attractive because it is simple, blends in with
+normal settings activity, and can survive session cleanup if the stored key
+is left in place. In other words, filesystem access does not make the
+settings-write risk irrelevant — it makes it easier to use.
