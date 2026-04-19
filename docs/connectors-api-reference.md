@@ -305,7 +305,7 @@ Each scenario below carries a compact provenance tag:
 - *(runtime)* — behavior reproduced end-to-end on `7.0-RC2-62241`
 - *(source)* — derived from inspection of `src/wp-includes/connectors.php` trunk
 - *(structural)* — follows from WordPress framework rules (option precedence, hook lifecycle, `wp_options` persistence) without needing a per-scenario runtime reproduction
-- Combined tags (e.g. *(source + inferred)*) flag claims where the on-WordPress mechanism is source- or runtime-verified but an off-platform consequence (such as what appears in a third-party provider's usage dashboard) is not independently verified here.
+- Combined tags (e.g. *(runtime + inferred)*) flag claims where the on-WordPress mechanism is runtime-verified but an off-platform consequence (such as what appears in a third-party provider's usage dashboard) is not independently verified here.
 
 ### Non-malicious operational failure modes
 
@@ -365,16 +365,20 @@ with a stolen or rogue `manage_options` session has no reason to route
 through the UI, which is why "but the UI shows an error" is not a mitigation
 for this threat model.
 
-- **Prompt exfiltration via same-provider key swap.** *(source + inferred)* For a database-backed
+- **Prompt exfiltration via same-provider key swap.** *(runtime + inferred)* For a database-backed
   connector that is actually in use, an attacker can replace the stored key
   with one they control via `POST /wp/v2/settings`. Future requests made
   through that connector then authenticate as the replacement credential. For
   same-provider swaps (for example, OpenAI-to-OpenAI), outbound traffic still
   goes to the same provider hostname; the security consequence is changed
   account ownership, billing, and prompt visibility rather than a visible
-  endpoint change. This consequence follows from the connector write path and
-  runtime precedence rules; I did not independently verify a third-party
-  provider dashboard showing the prompts.
+  endpoint change. The on-WordPress half of this was runtime-verified in
+  local Studio using a temporary AI-client harness: after replacing the
+  stored key through `/wp/v2/settings`, the outbound `Authorization` header
+  used by subsequent AI-client requests changed from the baseline key to the
+  replacement key. I did not independently verify a third-party provider
+  dashboard showing the prompts; that remains the inferred off-platform
+  consequence of provider-side authentication and logging.
 - **Ping-pong swap weakens simple forensic detection.** *(structural)* An attacker can
   swap in their key, allow a window of AI traffic, and then restore the
   original value. If the site only inspects the current stored key after the
