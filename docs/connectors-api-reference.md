@@ -32,8 +32,9 @@ The page is a script-module-driven UI, not a traditional PHP form. There is no
 
 ## Credential Storage
 
-API keys are stored as **plaintext WordPress options** via `register_setting()`.
-No encryption at rest.
+For **database-backed** connectors, API keys are stored as plaintext
+WordPress options via `register_setting()`. There is no built-in encryption for
+option-stored keys.
 
 ### Setting name pattern
 
@@ -241,15 +242,16 @@ one they control.
 Current WP Sudo `main` mitigates that path by challenging connector credential
 writes before they reach the settings save handler.
 
-### Hardened key storage bypass
+### Higher-precedence key sources
 
 Keys provided via environment variable or PHP constant cannot be effectively
 replaced through the REST API because the database value is ignored when a
-higher-precedence source exists. This is the strongest deployment-side
-mitigation against the admin-UI replacement vector: sites that set
+higher-precedence source exists. This is a strong deployment-side mitigation
+against database-backed credential replacement: sites that set
 `ANTHROPIC_API_KEY` in `wp-config.php` or the environment largely neutralize
-credential replacement via Settings → Connectors, even though in-process code
-still shares the same broader trust boundary.
+replacement through the Connectors settings flow, direct REST writes, or other
+tooling that only updates the option value, even though in-process code still
+shares the same broader trust boundary.
 
 ---
 
@@ -267,7 +269,7 @@ testing in WordPress Studio on `7.0-RC2-62241` plus source inspection of the
 bundled Connectors UI build. Where a claim is conditional rather than
 end-to-end runtime-proven, that is stated explicitly.
 
-### No attacker — ordinary failure modes
+### Non-malicious operational failure modes
 
 These are UX and operational defects independent of any malicious actor.
 
@@ -306,14 +308,14 @@ code execution. Reachable with one REST call.
 
 - **Prompt exfiltration via same-provider key swap.** For a database-backed
   connector that is actually in use, an attacker can replace the stored key
-  with one they control via `POST /wp/v2/settings`. Future requests for that
-  provider then authenticate as the replacement credential. For same-provider
-  swaps (for example, OpenAI-to-OpenAI), outbound traffic still goes to the
-  same provider hostname; the security consequence is changed account
-  ownership, billing, and prompt visibility rather than a visible endpoint
-  change. This consequence follows from the connector write path and runtime
-  precedence rules; I did not independently verify a third-party provider
-  dashboard showing the prompts.
+  with one they control via `POST /wp/v2/settings`. Future requests made
+  through that connector then authenticate as the replacement credential. For
+  same-provider swaps (for example, OpenAI-to-OpenAI), outbound traffic still
+  goes to the same provider hostname; the security consequence is changed
+  account ownership, billing, and prompt visibility rather than a visible
+  endpoint change. This consequence follows from the connector write path and
+  runtime precedence rules; I did not independently verify a third-party
+  provider dashboard showing the prompts.
 - **Ping-pong swap weakens simple forensic detection.** An attacker can
   swap in their key, allow a window of AI traffic, and then restore the
   original value. If the site only inspects the current stored key after the
@@ -343,9 +345,9 @@ code execution. Reachable with one REST call.
 
 These scenarios require code-execution-adjacent capability (editing
 `wp-config.php`, adding a mu-plugin, or plugin/theme edit). They compose
-with the admin-session scenarios above but are not the core-ticket concern.
-Listed here for completeness because operators investigating a suspected
-key-swap incident need to check these too.
+with the admin-session scenarios above but are not specific to the
+Connectors API itself. Listed here for completeness because operators
+investigating a suspected key-swap incident still need to check these too.
 
 - **Constant or env override defeats database rotation attempts outside the
   stock UI.** Attacker drops
@@ -365,10 +367,11 @@ key-swap incident need to check these too.
   control responses. If AI responses are rendered into site content
   (summaries, moderation verdicts, generated copy), tampered responses
   become a content-integrity and potentially XSS vector.
-- **Custom provider registration.** Attacker registers a malicious
-  provider in the AI client registry pointing at their own endpoint, with
-  a legitimate-looking display name. Admin may not notice an extra entry
-  in the provider list.
+- **Custom provider registration or wiring changes.** Attacker registers a
+  malicious provider in the AI client registry, or alters provider wiring in
+  code to point at their own endpoint, with a legitimate-looking display name
+  or otherwise subtle presentation. Admin may not notice the change in the
+  provider list or request flow.
 
 ### Summary table
 
