@@ -50,8 +50,9 @@ class Event_Store {
 
 		$table = self::table_name();
 
-		// On MySQL, check if table exists first.
-		if ( ! method_exists( $wpdb, 'dbhs' ) || 'sqlite' !== $wpdb->dbh()->driver_name ) {
+		// Skip existence check on SQLite - just try to create (suppress errors if already exists).
+		$is_sqlite = method_exists( $wpdb, 'dbhs' ) && 'sqlite' === $wpdb->dbh()->driver_name;
+		if ( ! $is_sqlite ) {
 			$check_sql = 'SELECT 1 FROM ' . $table . ' LIMIT 1'; // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
 			$result    = $wpdb->get_var( $check_sql );
 			if ( null !== $result ) {

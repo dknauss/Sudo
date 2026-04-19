@@ -4,6 +4,25 @@
 *Updated 2026-04-18 with local runtime verification in WordPress Studio (`7.0-RC2-62241`) for REST save behavior, key-source precedence, and Connectors admin UI state handling.*
 *There is now an official Core dev note for the Connectors API, but this reference remains source-derived because it goes deeper into the REST masking/write path than the high-level announcement. Verify against the GA release before relying on implementation details.*
 
+This document focuses mostly on AI-provider connectors because those are the
+practical Connectors surfaces currently relevant to WP Sudo.
+
+> [!IMPORTANT]
+> Quick summary:
+>
+> - Database-backed connector credentials are stored as ordinary WordPress
+>   options.
+> - In multisite, those database-backed keys are **per-site**.
+> - Environment-variable and `wp-config.php` constant sources can still make the
+>   **effective** key install-wide across the whole network.
+> - Connectors credential writes currently flow through `/wp/v2/settings`.
+> - Current WP Sudo `main` gates connector credential writes on that path.
+> - Re-verify these implementation details against WordPress 7.0 GA before
+>   relying on them.
+
+The detailed sections below are still based on RC2 / trunk-era behavior and
+should be treated as source-derived until the final 7.0 release is confirmed.
+
 > [!WARNING]
 > This reference is source-derived from WordPress 7.0 RC2 / trunk-era code and
 > should be re-verified against the final GA release before relying on
@@ -20,7 +39,9 @@
 
 ---
 
-## Admin Page
+## Part I — Core Connectors Reference
+
+### Admin Page
 
 | Property | Value |
 |---|---|
@@ -35,13 +56,13 @@ The page is a script-module-driven UI, not a traditional PHP form. There is no
 
 ---
 
-## Credential Storage
+### Credential Storage
 
 For **database-backed** connectors, API keys are stored as plaintext
 WordPress options via `register_setting()`. There is no built-in encryption for
 option-stored keys.
 
-### Setting name pattern
+#### Setting name pattern
 
 ```
 connectors_{type}_{id}_api_key
@@ -49,7 +70,7 @@ connectors_{type}_{id}_api_key
 
 Hyphens in `{type}` and `{id}` are normalized to underscores.
 
-### Built-in connectors (WP 7.0 defaults)
+#### Built-in connectors (WP 7.0 defaults)
 
 These are the **default connector definitions** core registers when AI support
 is enabled. Their metadata exists in core even on a bare install, but the
@@ -70,7 +91,7 @@ default connector IDs and naming conventions, not a guarantee that every
 | `google` | `connectors_ai_google_api_key` | `GOOGLE_API_KEY` | `GOOGLE_API_KEY` | `https://aistudio.google.com/api-keys` |
 | `openai` | `connectors_ai_openai_api_key` | `OPENAI_API_KEY` | `OPENAI_API_KEY` | `https://platform.openai.com/api-keys` |
 
-### Key resolution order
+#### Key resolution order
 
 `_wp_connectors_get_api_key_source()` checks in this order:
 
@@ -80,7 +101,7 @@ default connector IDs and naming conventions, not a guarantee that every
 
 If an env var or constant provides the key, the database value is not used.
 
-### Multisite scope
+#### Multisite scope
 
 For **database-backed** connectors, the stored credential is still **per-site**
 in multisite. Core registers connector settings with `register_setting()`,
@@ -100,7 +121,7 @@ operator can have:
 - a **per-site** database key saved in the Connectors UI, but
 - an **install-wide** env/constant key actually in effect.
 
-### Key validation
+#### Key validation
 
 On save via **POST** or **PUT** to `/wp/v2/settings`, AI provider keys are
 validated against the provider's API via
@@ -119,13 +140,13 @@ string. Non-AI connectors accept keys without validation.
 
 ---
 
-## REST API Surface
+### REST API Surface
 
 Connector settings are registered with `show_in_rest => true` and setting group
 `'connectors'`. They are read and written through the standard WordPress settings
 endpoint.
 
-### Read credentials
+#### Read credentials
 
 ```
 GET /wp/v2/settings
@@ -145,7 +166,7 @@ masked."
 > This is not a realistic LLM-key risk, but it means masking is not literally
 > universal.
 
-### Write credentials
+#### Write credentials
 
 ```
 POST /wp/v2/settings
@@ -170,30 +191,27 @@ returned value is empty or unchanged after save, it shows an inline error
 instead of treating the connector as successfully configured.
 
 > [!NOTE]
-> **WP Sudo now gates this path.** On current `main`, REST writes to
-> `/wp/v2/settings` are challenged when the request body contains
-> connector-style credential keys matching `connectors_*_api_key`. This
-> protects the Connectors admin UI save path without broadly gating unrelated
-> REST settings writes.
+> For WP Sudo's treatment of the Connectors credential-write path, see
+> [Part II — WP Sudo Security Analysis](#part-ii--wp-sudo-security-analysis).
 
 ---
 
-## Hooks
+### Hooks
 
-### Actions
+#### Actions
 
 | Hook | Fires when | Parameters |
 |---|---|---|
 | `wp_connectors_init` | Registry is ready for plugin registration (during `init`) | `WP_Connector_Registry $registry` |
 
-### Filters
+#### Filters
 
 | Hook | Purpose | Parameters |
 |---|---|---|
 | `rest_post_dispatch` | Masks API keys in REST responses; validates on save | `WP_REST_Response, WP_REST_Server, WP_REST_Request` |
 | `script_module_data_options-connectors-wp-admin` | Exposes connector data to the admin JS module | `array $data` |
 
-### Settings registration
+#### Settings registration
 
 Connector settings are registered at `init` priority 20 via
 `_wp_register_default_connector_settings()`. Each `api_key` connector gets a
@@ -209,7 +227,7 @@ register_setting( 'connectors', $setting_name, array(
 
 ---
 
-## Public API Functions
+### Public API Functions
 
 | Function | Purpose | Returns |
 |---|---|---|
@@ -217,7 +235,7 @@ register_setting( 'connectors', $setting_name, array(
 | `wp_get_connector( $id )` | Retrieve a single connector's data | `array\|null` |
 | `wp_get_connectors()` | Retrieve all registered connectors | `array` |
 
-### Connector data structure
+#### Connector data structure
 
 ```php
 array(
@@ -240,7 +258,7 @@ array(
 
 ---
 
-## Registering a Custom Connector
+### Registering a Custom Connector
 
 ```php
 add_action( 'wp_connectors_init', function ( WP_Connector_Registry $registry ) {
@@ -261,14 +279,16 @@ when omitted. Connector IDs must match `/^[a-z0-9_-]+$/`.
 
 ---
 
-## WP Sudo Gating Analysis
+## Part II — WP Sudo Security Analysis
+
+### WP Sudo Gating Analysis
 
 > [!IMPORTANT]
 > This section is specific to the **WP Sudo** plugin in this repository. It is
 > not describing stock WordPress core behavior; it explains how WP Sudo treats
 > the Connectors credential-write path.
 
-### Credential save path
+#### Credential save path
 
 The Connectors UI saves credentials via `POST /wp/v2/settings`. This route is
 already in scope for `Gate::intercept_rest()`, and WP Sudo now ships a built-in
@@ -284,7 +304,7 @@ This is intentionally narrower than gating the entire settings endpoint. Normal
 REST settings updates remain untouched unless the request is attempting to
 replace a connector credential.
 
-### Key exposure via REST
+#### Key exposure via REST
 
 In ordinary cases, raw API keys are not returned by the REST API. The
 `rest_post_dispatch` filter masks them before the response reaches the client.
@@ -302,19 +322,17 @@ one they control.
 
 > [!NOTE]
 > Current WP Sudo `main` mitigates that path by challenging connector
-> credential writes before they reach the settings save handler.
-
-> [!NOTE]
-> The built-in **Request / Rule Tester** in Settings → Sudo can validate this
-> mitigation at the WP Sudo layer: it can show whether a representative
-> Connectors REST write would match `connectors.update_credentials` and whether
-> WP Sudo would `soft-block`, `hard-block`, or allow it under the simulated
-> auth mode and REST policy. But the tester is diagnostic only — it does not
-> execute core's Connectors save flow — so it cannot by itself prove end-to-end
-> exploit behavior such as lossy invalid-save semantics, masking, env/constant
+> credential writes before they reach the settings save handler. The built-in
+> **Request / Rule Tester** in Settings → Sudo can validate this mitigation at
+> the WP Sudo layer: it can show whether a representative Connectors REST write
+> would match `connectors.update_credentials` and whether WP Sudo would
+> `soft-block`, `hard-block`, or allow it under the simulated auth mode and
+> REST policy. But the tester is diagnostic only — it does not execute core's
+> Connectors save flow — so it cannot by itself prove end-to-end exploit
+> behavior such as lossy invalid-save semantics, masking, env/constant
 > precedence, or provider-side consequences after a key swap.
 
-### Higher-precedence key sources
+#### Higher-precedence key sources
 
 Keys provided via environment variable or PHP constant cannot be effectively
 replaced through the REST API because the database value is ignored when a
@@ -327,7 +345,7 @@ shares the same broader trust boundary.
 
 ---
 
-## Failure and Exploit Scenarios
+### Failure and Exploit Scenarios
 
 This section enumerates the ways connector credential integrity can fail in
 practice. Scenarios are grouped by attacker capability so readers don't
@@ -337,7 +355,7 @@ most important consequences in that category are reachable from a single
 `POST /wp/v2/settings` write, with no filesystem access, no plugin install,
 and no code execution.
 
-### Threat context
+#### Threat context
 
 Two industry framings are worth naming up front, because they locate the
 Connectors write-side risk in vocabulary that enterprise security reviewers
@@ -382,7 +400,7 @@ Each scenario below carries a compact provenance tag:
 - *(structural)* — follows from WordPress framework rules (option precedence, hook lifecycle, `wp_options` persistence) without needing a per-scenario runtime reproduction
 - Combined tags (e.g. *(runtime + inferred)*) flag claims where the on-WordPress mechanism is runtime-verified but an off-platform consequence (such as what appears in a third-party provider's usage dashboard) is not independently verified here.
 
-### Non-malicious operational failure modes
+#### Non-malicious operational failure modes
 
 These are UX and operational defects independent of any malicious actor.
 
@@ -425,7 +443,7 @@ These are UX and operational defects independent of any malicious actor.
   However, database-backed keys are not called out with equally explicit
   provenance beyond normal editable-state behavior.
 
-### Attacker with `manage_options` session only
+#### Attacker with `manage_options` session only
 
 These scenarios require nothing beyond a valid admin REST session — session
 hijack, stolen cookie, compromised admin credentials, XSS-escalated
@@ -499,7 +517,7 @@ for this threat model.
   `wp_options` has better options — but it is still a probe capability that
   comes "for free" with the save path.
 
-### Attacker with filesystem access
+#### Attacker with filesystem access
 
 These scenarios require code-execution-adjacent capability (editing
 `wp-config.php`, adding a mu-plugin, or plugin/theme edit). They compose
@@ -521,7 +539,7 @@ investigating a suspected key-swap incident still need to check these too.
   or otherwise subtle presentation. Admin may not notice the change in the
   provider list or request flow.
 
-### Summary table
+#### Summary table
 
 | Consequence | Admin session only | Filesystem access required |
 |---|---|---|
