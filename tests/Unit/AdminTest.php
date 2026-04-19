@@ -794,6 +794,8 @@ class AdminTest extends TestCase {
 		Functions\when( 'esc_attr' )->returnArg();
 		Functions\when( 'esc_url' )->returnArg();
 		Functions\when( 'esc_url_raw' )->returnArg();
+		Functions\when( 'esc_textarea' )->returnArg();
+		Functions\when( 'sanitize_textarea_field' )->returnArg();
 		Functions\when( 'wp_nonce_field' )->justReturn( null );
 		Functions\when( 'submit_button' )->justReturn( null );
 		Functions\when( 'selected' )->alias( fn( $a, $b, $echo = false ) => (string) ( $a === $b ? 'selected="selected"' : '' ) );
@@ -915,6 +917,8 @@ class AdminTest extends TestCase {
 		Functions\when( 'esc_attr' )->returnArg();
 		Functions\when( 'esc_url' )->returnArg();
 		Functions\when( 'esc_url_raw' )->returnArg();
+		Functions\when( 'esc_textarea' )->returnArg();
+		Functions\when( 'sanitize_textarea_field' )->returnArg();
 		Functions\when( 'selected' )->alias( fn( $a, $b, $echo = false ) => (string) ( $a === $b ? 'selected="selected"' : '' ) );
 		Functions\when( 'checked' )->alias( fn( $a, $b = true, $echo = false ) => (string) ( $a === $b ? 'checked="checked"' : '' ) );
 		Functions\when( 'wp_nonce_field' )->alias(
@@ -961,6 +965,7 @@ class AdminTest extends TestCase {
 					'has_active_sudo'  => false,
 					'is_network_admin' => true,
 					'rest_auth_mode'   => 'application_password',
+					'rest_params'      => array(),
 				)
 			)
 			->andReturn(
@@ -1016,6 +1021,8 @@ class AdminTest extends TestCase {
 		);
 		Functions\when( 'apply_filters' )->returnArg( 2 );
 		Functions\when( 'sanitize_text_field' )->returnArg();
+		Functions\when( 'sanitize_textarea_field' )->returnArg();
+		Functions\when( 'esc_textarea' )->returnArg();
 		Functions\when( 'wp_unslash' )->returnArg();
 
 		$_SERVER['REQUEST_METHOD'] = 'POST';
@@ -1028,6 +1035,7 @@ class AdminTest extends TestCase {
 			'has_active_sudo'  => '0',
 			'is_network_admin' => '1',
 			'rest_auth_mode'   => 'application_password',
+			'rest_params'      => '',
 		);
 
 		$admin = new Admin( $gate );
@@ -1039,6 +1047,161 @@ class AdminTest extends TestCase {
 		$this->assertStringContainsString( 'Delete plugin', $output );
 		$this->assertStringContainsString( 'hard-block', $output );
 		$this->assertStringContainsString( 'REST Application Password policy is Limited', $output );
+
+		unset( $_POST['wp_sudo_request_tester_submit'], $_POST['wp_sudo_request_tester'], $_SERVER['REQUEST_METHOD'], $_GET['tab'] );
+	}
+
+	public function test_render_settings_page_includes_rest_params_textarea(): void {
+		$_GET['tab'] = 'tester';
+
+		Functions\when( 'current_user_can' )->justReturn( true );
+		Functions\when( 'get_admin_page_title' )->justReturn( 'Sudo Settings' );
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'esc_html_e' )->alias(
+			function ( $text ) {
+				echo $text; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			}
+		);
+		Functions\when( 'esc_attr_e' )->alias(
+			function ( $text ) {
+				echo $text; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			}
+		);
+		Functions\when( 'settings_fields' )->justReturn( null );
+		Functions\when( 'do_settings_sections' )->justReturn( null );
+		Functions\when( 'submit_button' )->justReturn( null );
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'esc_html__' )->returnArg();
+		Functions\when( 'esc_attr__' )->returnArg();
+		Functions\when( 'esc_attr' )->returnArg();
+		Functions\when( 'esc_url' )->returnArg();
+		Functions\when( 'esc_url_raw' )->returnArg();
+		Functions\when( 'esc_textarea' )->returnArg();
+		Functions\when( 'sanitize_textarea_field' )->returnArg();
+		Functions\when( 'selected' )->alias( fn( $a, $b, $echo = false ) => (string) ( $a === $b ? 'selected="selected"' : '' ) );
+		Functions\when( 'checked' )->alias( fn( $a, $b = true, $echo = false ) => (string) ( $a === $b ? 'checked="checked"' : '' ) );
+		Functions\when( 'wp_nonce_field' )->alias(
+			function ( $action, $name ) {
+				echo '<input type="hidden" name="' . $name . '" value="nonce" />'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			}
+		);
+		Functions\when( 'admin_url' )->alias( fn( $path = '' ) => 'https://example.com/wp-admin/' . ltrim( $path, '/' ) );
+		Functions\when( 'network_admin_url' )->alias( fn( $path = '' ) => 'https://example.com/wp-admin/network/' . ltrim( $path, '/' ) );
+		Functions\when( 'add_query_arg' )->alias(
+			function ( array $args, string $url ) {
+				return $url . ( str_contains( $url, '?' ) ? '&' : '?' ) . http_build_query( $args );
+			}
+		);
+		Functions\when( 'sanitize_text_field' )->returnArg();
+		Functions\when( 'wp_unslash' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		$admin = new Admin();
+
+		ob_start();
+		$admin->render_settings_page();
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( 'name="wp_sudo_request_tester[rest_params]"', $output );
+		$this->assertStringContainsString( 'REST Params', $output );
+		$this->assertStringContainsString( 'textarea', $output );
+
+		unset( $_GET['tab'] );
+	}
+
+	public function test_render_settings_page_passes_rest_params_to_gate_evaluator(): void {
+		$_GET['tab'] = 'tester';
+
+		$gate = \Mockery::mock( Gate::class );
+		$gate->shouldReceive( 'evaluate_diagnostic_request' )
+			->once()
+			->with(
+				array(
+					'surface'          => 'rest',
+					'method'           => 'PUT',
+					'url'              => 'https://example.com/wp-json/wp/v2/settings',
+					'is_authenticated' => true,
+					'has_active_sudo'  => false,
+					'is_network_admin' => false,
+					'rest_auth_mode'   => 'cookie',
+					'rest_params'      => array( 'connectors_ai_openai_api_key' => 'sk-test' ),
+				)
+			)
+			->andReturn(
+				array(
+					'matched_rule_id'       => 'connectors.update_credentials',
+					'matched_rule_label'    => 'Update connector credentials',
+					'matched_surface'       => 'rest',
+					'decision'              => 'gate',
+					'stash_replay_eligible' => false,
+					'notes'                 => array(),
+				)
+			);
+
+		Functions\when( 'current_user_can' )->justReturn( true );
+		Functions\when( 'get_admin_page_title' )->justReturn( 'Sudo Settings' );
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'esc_html_e' )->alias(
+			function ( $text ) {
+				echo $text; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			}
+		);
+		Functions\when( 'esc_attr_e' )->alias(
+			function ( $text ) {
+				echo $text; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			}
+		);
+		Functions\when( 'settings_fields' )->justReturn( null );
+		Functions\when( 'do_settings_sections' )->justReturn( null );
+		Functions\when( 'submit_button' )->justReturn( null );
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'esc_html__' )->returnArg();
+		Functions\when( 'esc_attr__' )->returnArg();
+		Functions\when( 'esc_attr' )->returnArg();
+		Functions\when( 'esc_url' )->returnArg();
+		Functions\when( 'esc_url_raw' )->returnArg();
+		Functions\when( 'esc_textarea' )->returnArg();
+		Functions\when( 'sanitize_textarea_field' )->returnArg();
+		Functions\when( 'selected' )->alias( fn( $a, $b, $echo = false ) => (string) ( $a === $b ? 'selected="selected"' : '' ) );
+		Functions\when( 'checked' )->alias( fn( $a, $b = true, $echo = false ) => (string) ( $a === $b ? 'checked="checked"' : '' ) );
+		Functions\when( 'wp_nonce_field' )->alias(
+			function ( $action, $name ) {
+				echo '<input type="hidden" name="' . $name . '" value="nonce" />'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			}
+		);
+		Functions\when( 'check_admin_referer' )->justReturn( true );
+		Functions\when( 'admin_url' )->alias( fn( $path = '' ) => 'https://example.com/wp-admin/' . ltrim( $path, '/' ) );
+		Functions\when( 'network_admin_url' )->alias( fn( $path = '' ) => 'https://example.com/wp-admin/network/' . ltrim( $path, '/' ) );
+		Functions\when( 'add_query_arg' )->alias(
+			function ( array $args, string $url ) {
+				return $url . ( str_contains( $url, '?' ) ? '&' : '?' ) . http_build_query( $args );
+			}
+		);
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+		Functions\when( 'sanitize_text_field' )->returnArg();
+		Functions\when( 'wp_unslash' )->returnArg();
+
+		$_SERVER['REQUEST_METHOD'] = 'POST';
+		$_POST['wp_sudo_request_tester_submit'] = '1';
+		$_POST['wp_sudo_request_tester'] = array(
+			'surface'          => 'rest',
+			'method'           => 'put',
+			'url'              => 'https://example.com/wp-json/wp/v2/settings',
+			'is_authenticated' => '1',
+			'has_active_sudo'  => '0',
+			'is_network_admin' => '0',
+			'rest_auth_mode'   => 'cookie',
+			'rest_params'      => '{"connectors_ai_openai_api_key": "sk-test"}',
+		);
+
+		$admin = new Admin( $gate );
+
+		ob_start();
+		$admin->render_settings_page();
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( 'connectors.update_credentials', $output );
+		$this->assertStringContainsString( 'Update connector credentials', $output );
 
 		unset( $_POST['wp_sudo_request_tester_submit'], $_POST['wp_sudo_request_tester'], $_SERVER['REQUEST_METHOD'], $_GET['tab'] );
 	}

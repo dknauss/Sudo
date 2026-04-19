@@ -1210,6 +1210,13 @@ class Admin {
 							<p class="description"><?php esc_html_e( 'Only used for REST simulations. Admin and AJAX requests ignore this field.', 'wp-sudo' ); ?></p>
 						</td>
 					</tr>
+					<tr>
+						<th scope="row"><label for="wp-sudo-request-tester-rest-params"><?php esc_html_e( 'REST Params', 'wp-sudo' ); ?></label></th>
+						<td>
+							<textarea id="wp-sudo-request-tester-rest-params" name="wp_sudo_request_tester[rest_params]" class="large-text code" rows="3" placeholder='<?php echo esc_attr( '{"connectors_ai_openai_api_key": "sk-test"}' ); ?>'><?php echo esc_textarea( (string) $form_values['rest_params'] ); ?></textarea>
+							<p class="description"><?php esc_html_e( 'Optional JSON body for REST requests. Used by callback-based rules like connectors.update_credentials.', 'wp-sudo' ); ?></p>
+						</td>
+					</tr>
 				</tbody>
 			</table>
 			<?php submit_button( __( 'Evaluate Request', 'wp-sudo' ), 'secondary', 'wp_sudo_request_tester_submit', false ); ?>
@@ -1612,6 +1619,7 @@ class Admin {
 			'has_active_sudo'  => false,
 			'is_network_admin' => false,
 			'rest_auth_mode'   => 'cookie',
+			'rest_params'      => '',
 		);
 
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended,WordPress.Security.NonceVerification.Missing,WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Read-only form repopulation for the current admin page.
@@ -1629,6 +1637,7 @@ class Admin {
 			'has_active_sudo'  => ! empty( $raw['has_active_sudo'] ),
 			'is_network_admin' => ! empty( $raw['is_network_admin'] ),
 			'rest_auth_mode'   => $this->sanitize_request_tester_choice( $raw['rest_auth_mode'] ?? '', array( 'cookie', 'application_password', 'bearer', 'none' ), $defaults['rest_auth_mode'] ),
+			'rest_params'      => sanitize_textarea_field( (string) ( $raw['rest_params'] ?? '' ) ),
 		);
 	}
 
@@ -1651,6 +1660,15 @@ class Admin {
 
 		$values = $this->get_request_tester_form_values();
 
+		// Decode rest_params JSON; fall back to empty array on invalid JSON.
+		$rest_params = array();
+		if ( '' !== $values['rest_params'] ) {
+			$decoded = json_decode( $values['rest_params'], true );
+			if ( is_array( $decoded ) ) {
+				$rest_params = $decoded;
+			}
+		}
+
 		return $this->get_diagnostic_gate()->evaluate_diagnostic_request(
 			array(
 				'surface'          => $values['surface'],
@@ -1660,6 +1678,7 @@ class Admin {
 				'has_active_sudo'  => $values['has_active_sudo'],
 				'is_network_admin' => $values['is_network_admin'],
 				'rest_auth_mode'   => $values['rest_auth_mode'],
+				'rest_params'      => $rest_params,
 			)
 		);
 	}
