@@ -216,7 +216,6 @@ class AdminTest extends TestCase {
 				'xmlrpc_policy'            => Gate::POLICY_LIMITED,
 				'wpgraphql_policy'         => Gate::POLICY_LIMITED,
 				'policy_preset_selection'  => Admin::POLICY_PRESET_HEADLESS_FRIENDLY,
-				'apply_policy_preset'      => '1',
 			)
 		);
 
@@ -241,7 +240,6 @@ class AdminTest extends TestCase {
 				'xmlrpc_policy'            => Gate::POLICY_LIMITED,
 				'wpgraphql_policy'         => Gate::POLICY_LIMITED,
 				'policy_preset_selection'  => 'not-a-real-preset',
-				'apply_policy_preset'      => '1',
 			)
 		);
 
@@ -356,7 +354,7 @@ class AdminTest extends TestCase {
 	// add_help_tabs()
 	// -----------------------------------------------------------------
 
-	public function test_add_help_tabs_registers_ten_tabs(): void {
+	public function test_add_help_tabs_registers_twelve_tabs(): void {
 		$screen = new \WP_Screen();
 
 		Functions\when( 'get_current_screen' )->justReturn( $screen );
@@ -366,7 +364,7 @@ class AdminTest extends TestCase {
 		$admin = new Admin();
 		$admin->add_help_tabs();
 
-		$this->assertCount( 10, $screen->get_help_tabs() );
+		$this->assertCount( 12, $screen->get_help_tabs() );
 	}
 
 	public function test_add_help_tabs_has_expected_tab_ids(): void {
@@ -384,6 +382,7 @@ class AdminTest extends TestCase {
 
 		$this->assertContains( 'wp-sudo-how-it-works', $ids );
 		$this->assertContains( 'wp-sudo-session-policies', $ids );
+		$this->assertContains( 'wp-sudo-policy-presets', $ids );
 		$this->assertContains( 'wp-sudo-app-passwords', $ids );
 		$this->assertContains( 'wp-sudo-mu-plugin', $ids );
 		$this->assertContains( 'wp-sudo-security', $ids );
@@ -392,6 +391,7 @@ class AdminTest extends TestCase {
 		$this->assertContains( 'wp-sudo-recommended-plugins', $ids );
 		$this->assertContains( 'wp-sudo-extending', $ids );
 		$this->assertContains( 'wp-sudo-audit-hooks', $ids );
+		$this->assertContains( 'wp-sudo-rule-tester', $ids );
 	}
 
 	public function test_add_help_tabs_sets_sidebar(): void {
@@ -560,6 +560,61 @@ class AdminTest extends TestCase {
 		$this->assertStringContainsString( 'two-factor', $sidebar );
 	}
 
+	public function test_help_tab_presets_describes_three_presets(): void {
+		$screen = new \WP_Screen();
+
+		Functions\when( 'get_current_screen' )->justReturn( $screen );
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'esc_html' )->returnArg();
+
+		$admin = new Admin();
+		$admin->add_help_tabs();
+
+		$tabs    = $screen->get_help_tabs();
+		$content = $tabs['wp-sudo-policy-presets']['content'] ?? '';
+
+		$this->assertStringContainsString( 'Normal', $content );
+		$this->assertStringContainsString( 'Incident Lockdown', $content );
+		$this->assertStringContainsString( 'Headless Friendly', $content );
+		$this->assertStringContainsString( 'Custom', $content );
+	}
+
+	public function test_help_tab_rule_tester_describes_diagnostic_tool(): void {
+		$screen = new \WP_Screen();
+
+		Functions\when( 'get_current_screen' )->justReturn( $screen );
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'esc_html' )->returnArg();
+
+		$admin = new Admin();
+		$admin->add_help_tabs();
+
+		$tabs    = $screen->get_help_tabs();
+		$content = $tabs['wp-sudo-rule-tester']['content'] ?? '';
+
+		$this->assertStringContainsString( 'side-effect-free diagnostic', $content );
+		$this->assertStringContainsString( 'connectors.update_credentials', $content );
+		$this->assertStringContainsString( 'REST Params', $content );
+	}
+
+	public function test_session_policies_tab_mentions_connectors(): void {
+		$screen = new \WP_Screen();
+
+		Functions\when( 'get_current_screen' )->justReturn( $screen );
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'esc_html' )->returnArg();
+
+		$admin = new Admin();
+		$admin->add_help_tabs();
+
+		$tabs    = $screen->get_help_tabs();
+		$content = $tabs['wp-sudo-session-policies']['content'] ?? '';
+
+		$this->assertStringContainsString( 'Connectors', $content );
+		$this->assertStringContainsString( 'AI provider API keys', $content );
+		$this->assertStringContainsString( 'connectors.update_credentials', $content );
+	}
+
 	// -----------------------------------------------------------------
 	// render_settings_page()
 	// -----------------------------------------------------------------
@@ -596,6 +651,13 @@ class AdminTest extends TestCase {
 		);
 		Functions\when( 'admin_url' )->alias( fn( $path = '' ) => 'https://example.com/wp-admin/' . ltrim( $path, '/' ) );
 		Functions\when( 'network_admin_url' )->alias( fn( $path = '' ) => 'https://example.com/wp-admin/network/' . ltrim( $path, '/' ) );
+		Functions\when( 'add_query_arg' )->alias(
+			function ( array $args, string $url ) {
+				return $url . ( str_contains( $url, '?' ) ? '&' : '?' ) . http_build_query( $args );
+			}
+		);
+		Functions\when( 'sanitize_text_field' )->returnArg();
+		Functions\when( 'wp_unslash' )->returnArg();
 
 		$admin = new Admin();
 
@@ -605,9 +667,232 @@ class AdminTest extends TestCase {
 
 		$this->assertStringContainsString( 'reauthentication step', $output );
 		$this->assertStringContainsString( 'two-factor authentication', $output );
+		$this->assertStringContainsString( 'nav-tab-wrapper', $output );
+	}
+
+	public function test_render_settings_page_outputs_tab_navigation(): void {
+		Functions\when( 'current_user_can' )->justReturn( true );
+		Functions\when( 'get_admin_page_title' )->justReturn( 'Sudo Settings' );
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'esc_html_e' )->alias( function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		Functions\when( 'esc_attr_e' )->alias( function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		Functions\when( 'settings_fields' )->justReturn( null );
+		Functions\when( 'do_settings_sections' )->justReturn( null );
+		Functions\when( 'submit_button' )->justReturn( null );
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+		Functions\when( 'esc_html__' )->returnArg();
+		Functions\when( 'esc_attr__' )->returnArg();
+		Functions\when( 'esc_attr' )->returnArg();
+		Functions\when( 'esc_url' )->returnArg();
+		Functions\when( 'selected' )->alias( fn( $a, $b, $echo = false ) => (string) ( $a === $b ? 'selected="selected"' : '' ) );
+		Functions\when( 'checked' )->alias( fn( $a, $b = true, $echo = false ) => (string) ( $a === $b ? 'checked="checked"' : '' ) );
+		Functions\when( 'wp_nonce_field' )->alias( function ( $action, $name ) { echo '<input type="hidden" name="' . $name . '" value="nonce" />'; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		Functions\when( 'admin_url' )->alias( fn( $path = '' ) => 'https://example.com/wp-admin/' . ltrim( $path, '/' ) );
+		Functions\when( 'network_admin_url' )->alias( fn( $path = '' ) => 'https://example.com/wp-admin/network/' . ltrim( $path, '/' ) );
+		Functions\when( 'add_query_arg' )->alias( function ( array $args, string $url ) { return $url . ( str_contains( $url, '?' ) ? '&' : '?' ) . http_build_query( $args ); } );
+		Functions\when( 'sanitize_text_field' )->returnArg();
+		Functions\when( 'wp_unslash' )->returnArg();
+
+		$admin = new Admin();
+
+		ob_start();
+		$admin->render_settings_page();
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( 'nav-tab-wrapper', $output );
+		$this->assertStringContainsString( '>Settings</a>', $output );
+		$this->assertStringContainsString( '>Gated Actions</a>', $output );
+		$this->assertStringContainsString( '>Rule Tester</a>', $output );
+	}
+
+	public function test_render_settings_page_defaults_to_settings_tab(): void {
+		unset( $_GET['tab'] );
+
+		Functions\when( 'current_user_can' )->justReturn( true );
+		Functions\when( 'get_admin_page_title' )->justReturn( 'Sudo Settings' );
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'esc_html_e' )->alias( function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		Functions\when( 'esc_attr_e' )->alias( function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		Functions\when( 'settings_fields' )->justReturn( null );
+		Functions\when( 'do_settings_sections' )->justReturn( null );
+		Functions\when( 'submit_button' )->justReturn( null );
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+		Functions\when( 'esc_html__' )->returnArg();
+		Functions\when( 'esc_attr__' )->returnArg();
+		Functions\when( 'esc_attr' )->returnArg();
+		Functions\when( 'esc_url' )->returnArg();
+		Functions\when( 'selected' )->alias( fn( $a, $b, $echo = false ) => (string) ( $a === $b ? 'selected="selected"' : '' ) );
+		Functions\when( 'checked' )->alias( fn( $a, $b = true, $echo = false ) => (string) ( $a === $b ? 'checked="checked"' : '' ) );
+		Functions\when( 'wp_nonce_field' )->alias( function ( $action, $name ) { echo '<input type="hidden" name="' . $name . '" value="nonce" />'; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		Functions\when( 'admin_url' )->alias( fn( $path = '' ) => 'https://example.com/wp-admin/' . ltrim( $path, '/' ) );
+		Functions\when( 'network_admin_url' )->alias( fn( $path = '' ) => 'https://example.com/wp-admin/network/' . ltrim( $path, '/' ) );
+		Functions\when( 'add_query_arg' )->alias( function ( array $args, string $url ) { return $url . ( str_contains( $url, '?' ) ? '&' : '?' ) . http_build_query( $args ); } );
+		Functions\when( 'sanitize_text_field' )->returnArg();
+		Functions\when( 'wp_unslash' )->returnArg();
+
+		$admin = new Admin();
+
+		ob_start();
+		$admin->render_settings_page();
+		$output = ob_get_clean();
+
+		// Default tab renders the form with settings_fields.
+		$this->assertStringContainsString( 'nav-tab-active', $output );
+		$this->assertStringContainsString( 'options.php', $output );
+		// Should NOT contain tester or gated actions table content.
+		$this->assertStringNotContainsString( 'Request / Rule Tester', $output );
+	}
+
+	public function test_render_settings_page_renders_actions_tab(): void {
+		$_GET['tab'] = 'actions';
+
+		Functions\when( 'current_user_can' )->justReturn( true );
+		Functions\when( 'get_admin_page_title' )->justReturn( 'Sudo Settings' );
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'esc_html_e' )->alias( function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		Functions\when( 'esc_attr_e' )->alias( function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+		Functions\when( 'esc_html__' )->returnArg();
+		Functions\when( 'esc_attr__' )->returnArg();
+		Functions\when( 'esc_attr' )->returnArg();
+		Functions\when( 'esc_url' )->returnArg();
+		Functions\when( 'admin_url' )->alias( fn( $path = '' ) => 'https://example.com/wp-admin/' . ltrim( $path, '/' ) );
+		Functions\when( 'network_admin_url' )->alias( fn( $path = '' ) => 'https://example.com/wp-admin/network/' . ltrim( $path, '/' ) );
+		Functions\when( 'add_query_arg' )->alias( function ( array $args, string $url ) { return $url . ( str_contains( $url, '?' ) ? '&' : '?' ) . http_build_query( $args ); } );
+		Functions\when( 'sanitize_text_field' )->returnArg();
+		Functions\when( 'wp_unslash' )->returnArg();
+
+		$admin = new Admin();
+
+		ob_start();
+		$admin->render_settings_page();
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( 'Gated Actions', $output );
+		$this->assertStringContainsString( 'plugin.activate', $output );
+		// Should NOT contain the settings form.
+		$this->assertStringNotContainsString( 'options.php', $output );
+
+		unset( $_GET['tab'] );
+	}
+
+	public function test_render_settings_page_renders_tester_tab(): void {
+		$_GET['tab'] = 'tester';
+
+		Functions\when( 'current_user_can' )->justReturn( true );
+		Functions\when( 'get_admin_page_title' )->justReturn( 'Sudo Settings' );
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'esc_html_e' )->alias( function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		Functions\when( 'esc_attr_e' )->alias( function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+		Functions\when( 'esc_html__' )->returnArg();
+		Functions\when( 'esc_attr__' )->returnArg();
+		Functions\when( 'esc_attr' )->returnArg();
+		Functions\when( 'esc_url' )->returnArg();
+		Functions\when( 'esc_url_raw' )->returnArg();
+		Functions\when( 'wp_nonce_field' )->justReturn( null );
+		Functions\when( 'submit_button' )->justReturn( null );
+		Functions\when( 'selected' )->alias( fn( $a, $b, $echo = false ) => (string) ( $a === $b ? 'selected="selected"' : '' ) );
+		Functions\when( 'checked' )->alias( fn( $a, $b = true, $echo = false ) => (string) ( $a === $b ? 'checked="checked"' : '' ) );
+		Functions\when( 'admin_url' )->alias( fn( $path = '' ) => 'https://example.com/wp-admin/' . ltrim( $path, '/' ) );
+		Functions\when( 'network_admin_url' )->alias( fn( $path = '' ) => 'https://example.com/wp-admin/network/' . ltrim( $path, '/' ) );
+		Functions\when( 'add_query_arg' )->alias( function ( array $args, string $url ) { return $url . ( str_contains( $url, '?' ) ? '&' : '?' ) . http_build_query( $args ); } );
+		Functions\when( 'sanitize_text_field' )->returnArg();
+		Functions\when( 'wp_unslash' )->returnArg();
+
+		$admin = new Admin();
+
+		ob_start();
+		$admin->render_settings_page();
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( 'Request / Rule Tester', $output );
+		$this->assertStringNotContainsString( 'options.php', $output );
+
+		unset( $_GET['tab'] );
+	}
+
+	public function test_render_settings_page_sanitizes_invalid_tab_to_default(): void {
+		$_GET['tab'] = 'invalid_tab_name';
+
+		Functions\when( 'current_user_can' )->justReturn( true );
+		Functions\when( 'get_admin_page_title' )->justReturn( 'Sudo Settings' );
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'esc_html_e' )->alias( function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		Functions\when( 'esc_attr_e' )->alias( function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		Functions\when( 'settings_fields' )->justReturn( null );
+		Functions\when( 'do_settings_sections' )->justReturn( null );
+		Functions\when( 'submit_button' )->justReturn( null );
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+		Functions\when( 'esc_html__' )->returnArg();
+		Functions\when( 'esc_attr__' )->returnArg();
+		Functions\when( 'esc_attr' )->returnArg();
+		Functions\when( 'esc_url' )->returnArg();
+		Functions\when( 'selected' )->alias( fn( $a, $b, $echo = false ) => (string) ( $a === $b ? 'selected="selected"' : '' ) );
+		Functions\when( 'checked' )->alias( fn( $a, $b = true, $echo = false ) => (string) ( $a === $b ? 'checked="checked"' : '' ) );
+		Functions\when( 'wp_nonce_field' )->alias( function ( $action, $name ) { echo '<input type="hidden" name="' . $name . '" value="nonce" />'; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		Functions\when( 'admin_url' )->alias( fn( $path = '' ) => 'https://example.com/wp-admin/' . ltrim( $path, '/' ) );
+		Functions\when( 'network_admin_url' )->alias( fn( $path = '' ) => 'https://example.com/wp-admin/network/' . ltrim( $path, '/' ) );
+		Functions\when( 'add_query_arg' )->alias( function ( array $args, string $url ) { return $url . ( str_contains( $url, '?' ) ? '&' : '?' ) . http_build_query( $args ); } );
+		Functions\when( 'sanitize_text_field' )->returnArg();
+		Functions\when( 'wp_unslash' )->returnArg();
+
+		$admin = new Admin();
+
+		ob_start();
+		$admin->render_settings_page();
+		$output = ob_get_clean();
+
+		// Falls back to settings tab — renders the form.
+		$this->assertStringContainsString( 'options.php', $output );
+		$this->assertStringNotContainsString( 'Request / Rule Tester', $output );
+
+		unset( $_GET['tab'] );
+	}
+
+	public function test_render_settings_page_tab_links_use_network_admin_url_on_multisite(): void {
+		Functions\when( 'is_multisite' )->justReturn( true );
+		Functions\when( 'current_user_can' )->justReturn( true );
+		Functions\when( 'get_admin_page_title' )->justReturn( 'Sudo Settings' );
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'esc_html_e' )->alias( function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		Functions\when( 'esc_attr_e' )->alias( function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		Functions\when( 'settings_fields' )->justReturn( null );
+		Functions\when( 'do_settings_sections' )->justReturn( null );
+		Functions\when( 'submit_button' )->justReturn( null );
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+		Functions\when( 'esc_html__' )->returnArg();
+		Functions\when( 'esc_attr__' )->returnArg();
+		Functions\when( 'esc_attr' )->returnArg();
+		Functions\when( 'esc_url' )->returnArg();
+		Functions\when( 'selected' )->alias( fn( $a, $b, $echo = false ) => (string) ( $a === $b ? 'selected="selected"' : '' ) );
+		Functions\when( 'checked' )->alias( fn( $a, $b = true, $echo = false ) => (string) ( $a === $b ? 'checked="checked"' : '' ) );
+		Functions\when( 'wp_nonce_field' )->justReturn( null );
+		Functions\when( 'admin_url' )->alias( fn( $path = '' ) => 'https://example.com/wp-admin/' . ltrim( $path, '/' ) );
+		Functions\when( 'network_admin_url' )->alias( fn( $path = '' ) => 'https://example.com/wp-admin/network/' . ltrim( $path, '/' ) );
+		Functions\when( 'add_query_arg' )->alias( function ( array $args, string $url ) { return $url . ( str_contains( $url, '?' ) ? '&' : '?' ) . http_build_query( $args ); } );
+		Functions\when( 'sanitize_text_field' )->returnArg();
+		Functions\when( 'wp_unslash' )->returnArg();
+
+		$admin = new Admin();
+
+		ob_start();
+		$admin->render_settings_page();
+		$output = ob_get_clean();
+
+		// Tab links should use the network admin URL.
+		$this->assertStringContainsString( 'wp-admin/network/', $output );
 	}
 
 	public function test_render_settings_page_includes_request_rule_tester(): void {
+		$_GET['tab'] = 'tester';
+
 		Functions\when( 'current_user_can' )->justReturn( true );
 		Functions\when( 'get_admin_page_title' )->justReturn( 'Sudo Settings' );
 		Functions\when( 'esc_html' )->returnArg();
@@ -644,6 +929,8 @@ class AdminTest extends TestCase {
 				return $url . ( str_contains( $url, '?' ) ? '&' : '?' ) . http_build_query( $args );
 			}
 		);
+		Functions\when( 'sanitize_text_field' )->returnArg();
+		Functions\when( 'wp_unslash' )->returnArg();
 		Functions\when( 'apply_filters' )->returnArg( 2 );
 
 		$admin = new Admin();
@@ -655,9 +942,13 @@ class AdminTest extends TestCase {
 		$this->assertStringContainsString( 'Request / Rule Tester', $output );
 		$this->assertStringContainsString( 'See how WP Sudo would evaluate a representative request', $output );
 		$this->assertStringContainsString( 'name="wp_sudo_request_tester[url]"', $output );
+
+		unset( $_GET['tab'] );
 	}
 
 	public function test_render_settings_page_processes_request_tester_submission(): void {
+		$_GET['tab'] = 'tester';
+
 		$gate = \Mockery::mock( Gate::class );
 		$gate->shouldReceive( 'evaluate_diagnostic_request' )
 			->once()
@@ -724,6 +1015,8 @@ class AdminTest extends TestCase {
 			}
 		);
 		Functions\when( 'apply_filters' )->returnArg( 2 );
+		Functions\when( 'sanitize_text_field' )->returnArg();
+		Functions\when( 'wp_unslash' )->returnArg();
 
 		$_SERVER['REQUEST_METHOD'] = 'POST';
 		$_POST['wp_sudo_request_tester_submit'] = '1';
@@ -747,7 +1040,7 @@ class AdminTest extends TestCase {
 		$this->assertStringContainsString( 'hard-block', $output );
 		$this->assertStringContainsString( 'REST Application Password policy is Limited', $output );
 
-		unset( $_POST['wp_sudo_request_tester_submit'], $_POST['wp_sudo_request_tester'], $_SERVER['REQUEST_METHOD'] );
+		unset( $_POST['wp_sudo_request_tester_submit'], $_POST['wp_sudo_request_tester'], $_SERVER['REQUEST_METHOD'], $_GET['tab'] );
 	}
 
 	// -----------------------------------------------------------------
@@ -1409,5 +1702,278 @@ class AdminTest extends TestCase {
 		}
 
 		unset( $_GET['user_id'] );
+	}
+
+	// =================================================================
+	// render_field_policy_presets() — dropdown (Phase 10)
+	// =================================================================
+
+	public function test_render_field_policy_presets_outputs_select_dropdown(): void {
+		Functions\when( 'get_option' )->justReturn( Admin::defaults() );
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'esc_attr' )->returnArg();
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'esc_html__' )->returnArg();
+		Functions\when( 'selected' )->alias( fn( $a, $b, $echo = false ) => (string) ( $a === $b ? 'selected="selected"' : '' ) );
+
+		$admin = new Admin();
+
+		ob_start();
+		$admin->render_field_policy_presets();
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( '<select', $output );
+		$this->assertStringContainsString( 'policy_preset_selection', $output );
+		$this->assertStringContainsString( 'Normal', $output );
+		$this->assertStringContainsString( 'Incident Lockdown', $output );
+		$this->assertStringContainsString( 'Headless Friendly', $output );
+		// No radio buttons.
+		$this->assertStringNotContainsString( 'type="radio"', $output );
+	}
+
+	public function test_render_field_policy_presets_shows_selected_description(): void {
+		Functions\when( 'get_option' )->justReturn( Admin::defaults() );
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'esc_attr' )->returnArg();
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'esc_html__' )->returnArg();
+		Functions\when( 'selected' )->alias( fn( $a, $b, $echo = false ) => (string) ( $a === $b ? 'selected="selected"' : '' ) );
+
+		$admin = new Admin();
+
+		ob_start();
+		$admin->render_field_policy_presets();
+		$output = ob_get_clean();
+
+		// Normal is the default, its description should appear.
+		$this->assertStringContainsString( '<p class="description">', $output );
+		$this->assertStringContainsString( 'recommended baseline', $output );
+	}
+
+	public function test_render_field_policy_presets_shows_custom_when_no_match(): void {
+		// Return settings that don't match any preset.
+		Functions\when( 'get_option' )->justReturn(
+			array_merge( Admin::defaults(), array(
+				'cli_policy'    => Gate::POLICY_UNRESTRICTED,
+				'cron_policy'   => Gate::POLICY_DISABLED,
+				'policy_preset' => Admin::POLICY_PRESET_CUSTOM,
+			) )
+		);
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'esc_attr' )->returnArg();
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'esc_html__' )->returnArg();
+		Functions\when( 'selected' )->alias( fn( $a, $b, $echo = false ) => (string) ( $a === $b ? 'selected="selected"' : '' ) );
+
+		$admin = new Admin();
+
+		ob_start();
+		$admin->render_field_policy_presets();
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( 'Custom', $output );
+		$this->assertStringContainsString( 'disabled', $output );
+		$this->assertStringContainsString( 'do not match any preset', $output );
+	}
+
+	// =================================================================
+	// sanitize_settings() — preset logic (Phase 10)
+	// =================================================================
+
+	public function test_sanitize_applies_preset_when_selection_changes(): void {
+		Functions\when( 'get_option' )->justReturn( Admin::defaults() );
+
+		$admin  = new Admin();
+		$result = $admin->sanitize_settings(
+			array(
+				'session_duration'        => 15,
+				'policy_preset_selection' => Admin::POLICY_PRESET_INCIDENT_LOCKDOWN,
+			)
+		);
+
+		$this->assertSame( Admin::POLICY_PRESET_INCIDENT_LOCKDOWN, $result['policy_preset'] );
+		$this->assertSame( Gate::POLICY_DISABLED, $result['rest_app_password_policy'] );
+		$this->assertSame( Gate::POLICY_DISABLED, $result['cli_policy'] );
+		$this->assertSame( Gate::POLICY_LIMITED, $result['cron_policy'] );
+		$this->assertSame( Gate::POLICY_DISABLED, $result['xmlrpc_policy'] );
+	}
+
+	public function test_sanitize_skips_preset_when_selection_unchanged(): void {
+		Functions\when( 'get_option' )->justReturn(
+			array_merge( Admin::defaults(), array(
+				'policy_preset' => Admin::POLICY_PRESET_NORMAL,
+			) )
+		);
+
+		$admin  = new Admin();
+		$result = $admin->sanitize_settings(
+			array(
+				'session_duration'         => 10,
+				'rest_app_password_policy' => Gate::POLICY_LIMITED,
+				'cli_policy'               => Gate::POLICY_LIMITED,
+				'cron_policy'              => Gate::POLICY_LIMITED,
+				'xmlrpc_policy'            => Gate::POLICY_LIMITED,
+				'wpgraphql_policy'         => Gate::POLICY_LIMITED,
+				'policy_preset_selection'  => Admin::POLICY_PRESET_NORMAL,
+			)
+		);
+
+		// Preset stays normal, duration was updated.
+		$this->assertSame( Admin::POLICY_PRESET_NORMAL, $result['policy_preset'] );
+		$this->assertSame( 10, $result['session_duration'] );
+	}
+
+	public function test_sanitize_marks_custom_when_policies_diverge_from_preset(): void {
+		Functions\when( 'get_option' )->justReturn(
+			array_merge( Admin::defaults(), array(
+				'policy_preset' => Admin::POLICY_PRESET_NORMAL,
+			) )
+		);
+
+		$admin  = new Admin();
+		$result = $admin->sanitize_settings(
+			array(
+				'session_duration'         => 15,
+				'rest_app_password_policy' => Gate::POLICY_UNRESTRICTED,
+				'cli_policy'               => Gate::POLICY_LIMITED,
+				'cron_policy'              => Gate::POLICY_LIMITED,
+				'xmlrpc_policy'            => Gate::POLICY_LIMITED,
+				'wpgraphql_policy'         => Gate::POLICY_LIMITED,
+				'policy_preset_selection'  => Admin::POLICY_PRESET_NORMAL,
+			)
+		);
+
+		$this->assertSame( Admin::POLICY_PRESET_CUSTOM, $result['policy_preset'] );
+	}
+
+	// =================================================================
+	// render_gated_actions_table() — Connectors (Phase 10)
+	// =================================================================
+
+	public function test_render_gated_actions_table_includes_connector_credentials(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'esc_html__' )->returnArg();
+		Functions\when( 'esc_html_e' )->alias(
+			function ( $text ) {
+				echo $text; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+			}
+		);
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		$admin = new Admin();
+
+		ob_start();
+		$admin->render_gated_actions_table();
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( 'connectors.update_credentials', $output );
+		$this->assertStringContainsString( 'REST', $output );
+	}
+
+	// =================================================================
+	// render_policy_preset_notice() — plain language (Phase 10)
+	// =================================================================
+
+	public function test_preset_notice_uses_plain_language_surface_names(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'get_current_user_id' )->justReturn( 1 );
+		Functions\when( 'get_transient' )->justReturn(
+			array(
+				'preset'  => Admin::POLICY_PRESET_HEADLESS_FRIENDLY,
+				'current' => array(
+					Gate::SETTING_REST_APP_PASS_POLICY => Gate::POLICY_UNRESTRICTED,
+					Gate::SETTING_CLI_POLICY           => Gate::POLICY_LIMITED,
+					Gate::SETTING_CRON_POLICY          => Gate::POLICY_LIMITED,
+					Gate::SETTING_XMLRPC_POLICY        => Gate::POLICY_DISABLED,
+					Gate::SETTING_WPGRAPHQL_POLICY     => Gate::POLICY_UNRESTRICTED,
+				),
+			)
+		);
+		Functions\when( 'delete_transient' )->justReturn( true );
+
+		$admin = new Admin();
+
+		ob_start();
+		// Use reflection to call private method (setAccessible is a no-op since PHP 8.1).
+		$method = new \ReflectionMethod( Admin::class, 'render_policy_preset_notice' );
+		$method->invoke( $admin );
+		$output = ob_get_clean();
+
+		// Uses plain names, not setting keys.
+		$this->assertStringContainsString( 'REST', $output );
+		$this->assertStringContainsString( 'CLI', $output );
+		$this->assertStringContainsString( 'XML-RPC', $output );
+		$this->assertStringContainsString( 'GraphQL', $output );
+		$this->assertStringNotContainsString( 'rest_app_password_policy', $output );
+		$this->assertStringNotContainsString( 'cli_policy', $output );
+	}
+
+	public function test_preset_notice_groups_by_policy_value(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'get_current_user_id' )->justReturn( 1 );
+		Functions\when( 'get_transient' )->justReturn(
+			array(
+				'preset'  => Admin::POLICY_PRESET_HEADLESS_FRIENDLY,
+				'current' => array(
+					Gate::SETTING_REST_APP_PASS_POLICY => Gate::POLICY_UNRESTRICTED,
+					Gate::SETTING_CLI_POLICY           => Gate::POLICY_LIMITED,
+					Gate::SETTING_CRON_POLICY          => Gate::POLICY_LIMITED,
+					Gate::SETTING_XMLRPC_POLICY        => Gate::POLICY_DISABLED,
+					Gate::SETTING_WPGRAPHQL_POLICY     => Gate::POLICY_UNRESTRICTED,
+				),
+			)
+		);
+		Functions\when( 'delete_transient' )->justReturn( true );
+
+		$admin = new Admin();
+
+		ob_start();
+		$method = new \ReflectionMethod( Admin::class, 'render_policy_preset_notice' );
+		$method->invoke( $admin );
+		$output = ob_get_clean();
+
+		// Surfaces are grouped: "REST and GraphQL are now unrestricted"
+		$this->assertStringContainsString( 'REST and GraphQL', $output );
+		$this->assertStringContainsString( 'unrestricted', $output );
+		// "CLI and Cron are now limited"
+		$this->assertStringContainsString( 'CLI and Cron', $output );
+		$this->assertStringContainsString( 'limited', $output );
+		// "XML-RPC is now disabled"
+		$this->assertStringContainsString( 'XML-RPC', $output );
+		$this->assertStringContainsString( 'disabled', $output );
+		// Semicolons join groups.
+		$this->assertStringContainsString( ';', $output );
+	}
+
+	public function test_preset_notice_simplifies_when_all_same_value(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'get_current_user_id' )->justReturn( 1 );
+		Functions\when( 'get_transient' )->justReturn(
+			array(
+				'preset'  => Admin::POLICY_PRESET_NORMAL,
+				'current' => array(
+					Gate::SETTING_REST_APP_PASS_POLICY => Gate::POLICY_LIMITED,
+					Gate::SETTING_CLI_POLICY           => Gate::POLICY_LIMITED,
+					Gate::SETTING_CRON_POLICY          => Gate::POLICY_LIMITED,
+					Gate::SETTING_XMLRPC_POLICY        => Gate::POLICY_LIMITED,
+					Gate::SETTING_WPGRAPHQL_POLICY     => Gate::POLICY_LIMITED,
+				),
+			)
+		);
+		Functions\when( 'delete_transient' )->justReturn( true );
+
+		$admin = new Admin();
+
+		ob_start();
+		$method = new \ReflectionMethod( Admin::class, 'render_policy_preset_notice' );
+		$method->invoke( $admin );
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( 'All surfaces are now limited', $output );
+		$this->assertStringNotContainsString( ';', $output );
 	}
 }

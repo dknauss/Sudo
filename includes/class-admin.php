@@ -303,9 +303,27 @@ class Admin {
 					. '<li>' . __( '<strong>Limited</strong> (default) — Only gated (dangerous) actions are blocked and logged. Non-gated operations work normally.', 'wp-sudo' ) . '</li>'
 					. '<li>' . __( '<strong>Unrestricted</strong> — Everything passes through as if WP Sudo is not installed. No checks, no logging.', 'wp-sudo' ) . '</li>'
 					. '</ul>'
-					. ( function_exists( 'graphql' )
-						? '<p>' . __( 'WPGraphQL works differently from the other surfaces: when set to Limited, all GraphQL mutations require an active sudo session — the block is at the surface level rather than per-action.', 'wp-sudo' ) . '</p>'
-						: '<p>' . __( 'WPGraphQL is also supported as an entry point — its policy setting appears on this page when WPGraphQL is installed.', 'wp-sudo' ) . '</p>' ),
+				. ( function_exists( 'graphql' )
+					? '<p>' . __( 'WPGraphQL works differently from the other surfaces: when set to Limited, all GraphQL mutations require an active sudo session — the block is at the surface level rather than per-action.', 'wp-sudo' ) . '</p>'
+					: '<p>' . __( 'WPGraphQL is also supported as an entry point — its policy setting appears on this page when WPGraphQL is installed.', 'wp-sudo' ) . '</p>' )
+				. '<h3>' . __( 'Connectors', 'wp-sudo' ) . '</h3>'
+				. '<p>' . __( 'Settings updates that include AI provider API keys — such as those managed by the WordPress 7.0 Connectors feature, when present — are gated separately via the <code>connectors.update_credentials</code> rule. This rule matches REST API requests that write connector credential fields, regardless of surface policy.', 'wp-sudo' ) . '</p>',
+			)
+		);
+
+		$screen->add_help_tab(
+			array(
+				'id'      => 'wp-sudo-policy-presets',
+				'title'   => __( 'Policy Presets', 'wp-sudo' ),
+				'content' =>
+					'<h3>' . __( 'Policy Presets', 'wp-sudo' ) . '</h3>'
+					. '<p>' . __( 'Presets apply a named set of entry-point policies in one step. Selecting a preset overwrites the individual surface policy fields.', 'wp-sudo' ) . '</p>'
+					. '<ul>'
+					. '<li>' . __( '<strong>Normal</strong> — All surfaces set to Limited. This is the recommended baseline: every remote surface remains available, but gated operations are blocked.', 'wp-sudo' ) . '</li>'
+					. '<li>' . __( '<strong>Incident Lockdown</strong> — Disables REST, CLI, XML-RPC, and GraphQL. Cron stays Limited so scheduled maintenance can continue. Use during active incident response.', 'wp-sudo' ) . '</li>'
+					. '<li>' . __( '<strong>Headless Friendly</strong> — REST and GraphQL are Unrestricted for headless front-ends and API consumers. CLI and Cron stay Limited. XML-RPC is Disabled.', 'wp-sudo' ) . '</li>'
+					. '</ul>'
+					. '<p>' . __( 'After selecting a preset, manually editing any individual policy changes the configuration to Custom. Select a preset again to return to a named configuration.', 'wp-sudo' ) . '</p>',
 			)
 		);
 
@@ -437,7 +455,20 @@ class Admin {
 					. '<li><code>wp_sudo_action_replayed</code> — ' . __( 'Stashed request replayed.', 'wp-sudo' ) . '</li>'
 					. '<li><code>wp_sudo_policy_preset_applied</code> — ' . __( 'Named surface-policy preset applied.', 'wp-sudo' ) . '</li>'
 					. '<li><code>wp_sudo_capability_tampered</code> — ' . __( 'Removed capability re-detected (possible database tampering).', 'wp-sudo' ) . '</li>'
-					. '</ul>',
+				. '</ul>',
+			)
+		);
+
+		$screen->add_help_tab(
+			array(
+				'id'      => 'wp-sudo-rule-tester',
+				'title'   => __( 'Rule Tester', 'wp-sudo' ),
+				'content' =>
+					'<h3>' . __( 'Rule Tester', 'wp-sudo' ) . '</h3>'
+					. '<p>' . __( 'The Rule Tester is a side-effect-free diagnostic tool. It evaluates how WP Sudo would handle a request with the shape you describe, without actually performing the action.', 'wp-sudo' ) . '</p>'
+					. '<p>' . __( 'You can test across three surfaces: Admin (screen + action), AJAX (action name), and REST (method + route). For REST requests, choose the authentication mode (Cookie or App Password) to see how surface policies interact with the matched rule.', 'wp-sudo' ) . '</p>'
+					. '<p>' . __( 'Some rules use callback-based matching that inspects request parameters. For example, the <code>connectors.update_credentials</code> rule checks whether REST request body params contain connector API key fields. Use the REST Params field to supply JSON body parameters for testing these rules.', 'wp-sudo' ) . '</p>'
+					. '<p>' . __( 'Results show the matched rule (if any), the decision (gated, blocked, allowed, or no match), and the surface that was evaluated.', 'wp-sudo' ) . '</p>',
 			)
 		);
 
@@ -753,10 +784,10 @@ class Admin {
 		}
 		$sanitized['app_password_policies'] = $app_password_policies;
 
-		$selected_preset = $this->sanitize_policy_preset_key( $input[ self::SETTING_POLICY_PRESET_SELECTION ] ?? '' );
-		$apply_preset    = ! empty( $input[ self::SETTING_APPLY_POLICY_PRESET ] );
+		$selected_preset       = $this->sanitize_policy_preset_key( $input[ self::SETTING_POLICY_PRESET_SELECTION ] ?? '' );
+		$current_stored_preset = $this->sanitize_policy_preset_key( $current[ self::SETTING_POLICY_PRESET ] ?? self::POLICY_PRESET_NORMAL );
 
-		if ( '' !== $selected_preset && $apply_preset ) {
+		if ( '' !== $selected_preset && $selected_preset !== $current_stored_preset ) {
 			$previous_policies = $this->extract_policy_values( $current );
 			$preset_policies   = self::policy_presets()[ $selected_preset ]['policies'];
 
@@ -896,6 +927,16 @@ class Admin {
 		}
 
 		$is_network = is_multisite();
+		$valid_tabs = array( 'settings', 'actions', 'tester' );
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Tab routing only, no state change.
+		$active_tab = isset( $_GET['tab'] ) ? sanitize_text_field( wp_unslash( $_GET['tab'] ) ) : 'settings';
+		if ( ! in_array( $active_tab, $valid_tabs, true ) ) {
+			$active_tab = 'settings';
+		}
+
+		$base_url = $is_network
+			? network_admin_url( 'settings.php?page=' . self::PAGE_SLUG )
+			: admin_url( 'options-general.php?page=' . self::PAGE_SLUG );
 		?>
 		<div class="wrap">
 			<h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
@@ -908,29 +949,58 @@ class Admin {
 			<p class="description">
 				<?php esc_html_e( 'WP Sudo adds a reauthentication step before dangerous operations like activating plugins, deleting users, or changing critical settings. Any user who attempts a gated action must re-enter their password — and complete two-factor authentication if enabled — before proceeding.', 'wp-sudo' ); ?>
 			</p>
-			<?php if ( $is_network ) : ?>
-				<form action="<?php echo esc_url( network_admin_url( 'edit.php?action=wp_sudo_settings' ) ); ?>" method="post">
-					<?php
-					wp_nonce_field( self::PAGE_SLUG . '-options' );
-					do_settings_sections( self::PAGE_SLUG );
-					submit_button( __( 'Save Settings', 'wp-sudo' ) );
+
+			<h2 class="nav-tab-wrapper">
+				<?php
+				$tabs = array(
+					'settings' => __( 'Settings', 'wp-sudo' ),
+					'actions'  => __( 'Gated Actions', 'wp-sudo' ),
+					'tester'   => __( 'Rule Tester', 'wp-sudo' ),
+				);
+				foreach ( $tabs as $tab_key => $tab_label ) :
+					$class = ( $active_tab === $tab_key ) ? 'nav-tab nav-tab-active' : 'nav-tab';
+					$url   = add_query_arg( array( 'tab' => $tab_key ), $base_url );
 					?>
-				</form>
-			<?php else : ?>
-				<form action="options.php" method="post">
-					<?php
-					settings_fields( self::PAGE_SLUG );
-					do_settings_sections( self::PAGE_SLUG );
-					submit_button( __( 'Save Settings', 'wp-sudo' ) );
-					?>
-				</form>
-			<?php endif; ?>
+					<a href="<?php echo esc_url( $url ); ?>" class="<?php echo esc_attr( $class ); ?>"><?php echo esc_html( $tab_label ); ?></a>
+				<?php endforeach; ?>
+			</h2>
 
-			<?php $this->render_mu_plugin_status(); ?>
+			<?php
+			switch ( $active_tab ) {
+				case 'actions':
+					$this->render_gated_actions_table();
+					break;
 
-			<?php $this->render_gated_actions_table(); ?>
+				case 'tester':
+					$this->render_request_rule_tester();
+					break;
 
-			<?php $this->render_request_rule_tester(); ?>
+				default: // 'settings'.
+					$this->render_mu_plugin_status();
+					if ( $is_network ) :
+						?>
+						<form action="<?php echo esc_url( network_admin_url( 'edit.php?action=wp_sudo_settings' ) ); ?>" method="post">
+							<?php
+							wp_nonce_field( self::PAGE_SLUG . '-options' );
+							do_settings_sections( self::PAGE_SLUG );
+							submit_button( __( 'Save Settings', 'wp-sudo' ) );
+							?>
+						</form>
+						<?php
+					else :
+						?>
+						<form action="options.php" method="post">
+							<?php
+							settings_fields( self::PAGE_SLUG );
+							do_settings_sections( self::PAGE_SLUG );
+							submit_button( __( 'Save Settings', 'wp-sudo' ) );
+							?>
+						</form>
+						<?php
+					endif;
+					break;
+			}
+			?>
 		</div>
 		<?php
 	}
@@ -1365,45 +1435,36 @@ class Admin {
 		$current_preset = $this->detect_matching_policy_preset( $this->get_stored_settings() ) ?? self::POLICY_PRESET_CUSTOM;
 		$presets        = self::policy_presets();
 
-		printf(
-			'<p class="description"><strong>%s</strong> %s</p>',
-			esc_html__( 'Current configuration:', 'wp-sudo' ),
-			esc_html( $this->policy_preset_label( $current_preset ) )
-		);
+		$select_name = self::OPTION_KEY . '[' . self::SETTING_POLICY_PRESET_SELECTION . ']';
 
-		echo '<fieldset id="' . esc_attr( self::SETTING_POLICY_PRESET_SELECTION ) . '">';
-		echo '<legend class="screen-reader-text">' . esc_html__( 'Policy presets', 'wp-sudo' ) . '</legend>';
+		echo '<select id="' . esc_attr( self::SETTING_POLICY_PRESET_SELECTION ) . '" name="' . esc_attr( $select_name ) . '">';
 
 		foreach ( $presets as $preset_key => $preset ) {
-			echo '<div class="wp-sudo-policy-preset" style="margin-bottom: 1em;">';
 			printf(
-				'<label><input type="radio" name="%1$s[%2$s]" value="%3$s" %4$s /> <strong>%5$s</strong></label>',
-				esc_attr( self::OPTION_KEY ),
-				esc_attr( self::SETTING_POLICY_PRESET_SELECTION ),
+				'<option value="%1$s" %2$s>%3$s</option>',
 				esc_attr( $preset_key ),
-				checked( $current_preset, $preset_key, false ),
+				selected( $current_preset, $preset_key, false ),
 				esc_html( $preset['label'] )
 			);
-			echo '<p class="description" style="margin: 0.25em 0 0.5em;">' . esc_html( $preset['description'] ) . '</p>';
-			echo '<ul style="margin: 0 0 0 1.5em; list-style: disc;">';
-			foreach ( $preset['policies'] as $key => $value ) {
-				printf(
-					'<li><code>%1$s</code>: %2$s</li>',
-					esc_html( $key ),
-					esc_html( $this->policy_value_label( $value ) )
-				);
-			}
-			echo '</ul>';
-			echo '</div>';
 		}
 
-		printf(
-			'<label><input type="checkbox" name="%1$s[%2$s]" value="1" /> %3$s</label>',
-			esc_attr( self::OPTION_KEY ),
-			esc_attr( self::SETTING_APPLY_POLICY_PRESET ),
-			esc_html__( 'Apply the selected preset when saving. This will overwrite the entry-point policy fields below.', 'wp-sudo' )
-		);
-		echo '</fieldset>';
+		// Show a disabled "Custom" option when current config doesn't match any preset.
+		if ( self::POLICY_PRESET_CUSTOM === $current_preset ) {
+			printf(
+				'<option value="%1$s" selected="selected" disabled>%2$s</option>',
+				esc_attr( self::POLICY_PRESET_CUSTOM ),
+				esc_html__( 'Custom', 'wp-sudo' )
+			);
+		}
+
+		echo '</select>';
+
+		// Show the selected preset's description.
+		if ( self::POLICY_PRESET_CUSTOM !== $current_preset && isset( $presets[ $current_preset ] ) ) {
+			echo '<p class="description">' . esc_html( $presets[ $current_preset ]['description'] ) . '</p>';
+		} else {
+			echo '<p class="description">' . esc_html__( 'Current settings do not match any preset. Selecting a preset will overwrite the entry-point policy fields below.', 'wp-sudo' ) . '</p>';
+		}
 	}
 
 	/**
@@ -1467,8 +1528,8 @@ class Admin {
 	 */
 	private function get_request_tester_action_url(): string {
 		$base = is_multisite()
-			? network_admin_url( 'settings.php?page=' . self::PAGE_SLUG )
-			: admin_url( 'options-general.php?page=' . self::PAGE_SLUG );
+			? network_admin_url( 'settings.php?page=' . self::PAGE_SLUG . '&tab=tester' )
+			: admin_url( 'options-general.php?page=' . self::PAGE_SLUG . '&tab=tester' );
 
 		return $base . '#wp-sudo-tester-result';
 	}
@@ -1691,29 +1752,55 @@ class Admin {
 		delete_transient( self::PRESET_NOTICE_TRANSIENT_PREFIX . $user_id );
 
 		$current = is_array( $notice['current'] ?? null ) ? $notice['current'] : array();
-		$parts   = array();
+
+		// Group surfaces by policy value.
+		$groups = array();
 		foreach ( self::policy_setting_keys() as $key ) {
 			if ( ! isset( $current[ $key ] ) || ! is_string( $current[ $key ] ) ) {
 				continue;
 			}
+			$groups[ $current[ $key ] ][] = self::surface_label_for_key( $key );
+		}
 
-			$parts[] = sprintf(
-				'%1$s: %2$s',
-				$key,
-				$this->policy_value_label( $current[ $key ] )
+		$preset_label = $this->policy_preset_label(
+			is_string( $notice['preset'] ?? '' ) ? $notice['preset'] : self::POLICY_PRESET_CUSTOM
+		);
+
+		// When all surfaces share the same value, simplify.
+		if ( 1 === count( $groups ) ) {
+			$value_label = $this->policy_value_label( array_key_first( $groups ) );
+			$summary     = sprintf(
+				/* translators: 1: preset label, 2: policy value (e.g. "limited"). */
+				__( '%1$s preset applied. All surfaces are now %2$s.', 'wp-sudo' ),
+				$preset_label,
+				strtolower( $value_label )
+			);
+		} else {
+			// Build grouped fragments: "REST and GraphQL are now unrestricted".
+			$fragments = array();
+			foreach ( $groups as $value => $names ) {
+				$value_label = strtolower( $this->policy_value_label( $value ) );
+				$names_str   = self::join_surface_names( $names );
+				$verb        = count( $names ) > 1 ? 'are' : 'is';
+				$fragments[] = sprintf(
+					/* translators: 1: surface names, 2: is/are, 3: policy value. */
+					__( '%1$s %2$s now %3$s', 'wp-sudo' ),
+					$names_str,
+					$verb,
+					$value_label
+				);
+			}
+			$summary = sprintf(
+				/* translators: 1: preset label, 2: semicolon-separated policy summary. */
+				__( '%1$s preset applied. %2$s.', 'wp-sudo' ),
+				$preset_label,
+				implode( '; ', $fragments )
 			);
 		}
 
 		printf(
 			'<div class="notice notice-success is-dismissible wp-sudo-notice"><p>%1$s</p></div>',
-			esc_html(
-				sprintf(
-					/* translators: 1: preset label, 2: comma-separated policy summary. */
-					__( 'Applied the %1$s preset. New surface policies: %2$s', 'wp-sudo' ),
-					$this->policy_preset_label( is_string( $notice['preset'] ?? '' ) ? $notice['preset'] : self::POLICY_PRESET_CUSTOM ),
-					implode( ', ', $parts )
-				)
-			)
+			esc_html( $summary )
 		);
 	}
 
@@ -1744,6 +1831,45 @@ class Admin {
 			Gate::POLICY_UNRESTRICTED => __( 'Unrestricted', 'wp-sudo' ),
 			default => __( 'Limited', 'wp-sudo' ),
 		};
+	}
+
+	/**
+	 * Map a policy-setting key to a short human-readable surface name.
+	 *
+	 * @param string $key Setting key (e.g. Gate::SETTING_CLI_POLICY).
+	 * @return string Short surface name (e.g. "CLI").
+	 */
+	private static function surface_label_for_key( string $key ): string {
+		return match ( $key ) {
+			Gate::SETTING_REST_APP_PASS_POLICY => 'REST',
+			Gate::SETTING_CLI_POLICY           => 'CLI',
+			Gate::SETTING_CRON_POLICY          => 'Cron',
+			Gate::SETTING_XMLRPC_POLICY        => 'XML-RPC',
+			Gate::SETTING_WPGRAPHQL_POLICY     => 'GraphQL',
+			default                            => $key,
+		};
+	}
+
+	/**
+	 * Join an array of surface names with commas and "and".
+	 *
+	 * @param string[] $names Surface names.
+	 * @return string Joined string (e.g. "REST, CLI, and Cron").
+	 */
+	private static function join_surface_names( array $names ): string {
+		$count = count( $names );
+		if ( 0 === $count ) {
+			return '';
+		}
+		if ( 1 === $count ) {
+			return $names[0];
+		}
+		if ( 2 === $count ) {
+			return $names[0] . ' and ' . $names[1];
+		}
+
+		$last = array_pop( $names );
+		return implode( ', ', $names ) . ', and ' . $last;
 	}
 
 	/**
