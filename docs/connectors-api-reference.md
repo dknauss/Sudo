@@ -261,6 +261,39 @@ case for core is the first one: the most important consequences listed under
 **admin session only** are reachable from a single `POST /wp/v2/settings`
 write, with no filesystem access, no plugin install, and no code execution.
 
+### Threat context
+
+Two industry framings are worth naming up front, because they locate the
+Connectors write-side risk in vocabulary that enterprise security reviewers
+already use.
+
+**LLMjacking** ([Sysdig Threat Research,
+2024](https://sysdig.com/blog/llmjacking-stolen-cloud-credentials-used-in-new-ai-attack/))
+is the term of art for attacks that compromise credentials in order to abuse
+hosted LLM APIs. The Connectors scenario is an *inverse variant*: the
+attacker does not need to steal the victim's API key — reads are masked and
+the raw value is not usefully recoverable over REST. They instead **plant**
+their own key into the victim site, so the victim's subsequent AI traffic
+authenticates as the attacker. The victim's infrastructure and billing carry
+the load; the attacker reads the prompts. Economic target (access to paid
+LLM inference) and detection gaps (no per-credential audit surface, no
+change fingerprint, no notification) are the same as classical LLMjacking;
+the direction of key flow is reversed.
+
+**Non-human identity** (NHI) is the umbrella term for long-lived bearer
+credentials held by systems rather than people — API keys, service account
+tokens, machine OAuth credentials. Connector API keys are textbook NHIs:
+long-lived, no individual owner, no rotation SLA, no scope minimization, no
+lifecycle tooling, no change attestation. The NHI security vocabulary
+(rotation hygiene, attribution, change notification, diff-able state for
+tamper detection) names the gaps enumerated in this section one-to-one. The
+Connectors API currently treats AI credentials as "just another setting,"
+which is precisely the failure mode the NHI category was named to address.
+
+Neither framing is essential to understanding the scenarios, but both are
+useful as search anchors for security practitioners triaging similar
+findings elsewhere in their stack.
+
 **Verification note (2026-04-18):** The corrections below reflect local runtime
 testing in WordPress Studio on `7.0-RC2-62241` plus source inspection of the
 bundled Connectors UI build. Where a claim is conditional rather than
