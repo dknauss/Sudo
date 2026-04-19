@@ -1049,6 +1049,63 @@ no stash transients are written, and no audit hooks fire.
    - A note indicates an active sudo session would allow the matched request to
      proceed.
 
+#### Test F — CLI surface policy (Limited vs Unrestricted)
+
+1. Set **Surface** to `cli`, **Method** to `GET`.
+2. Enter **URL**: `https://example.com/wp-admin/plugins.php?action=activate`
+3. Submit the form.
+4. **Expected (default Limited policy):**
+   - Matched rule: `plugin.activate`
+   - Decision: `hard-block`
+   - A note indicates CLI requests are blocked under the Limited policy.
+5. Change **Settings → Sudo → CLI Policy** to `Unrestricted`.
+6. Re-submit the same request.
+7. **Expected:**
+   - Matched rule: `plugin.activate`
+   - Decision: `allow`
+   - A note indicates gated actions are allowed under the Unrestricted policy.
+
+#### Test G — Multisite network rule (network admin only)
+
+*Skip this test on single-site installs.*
+
+1. Set **Surface** to `admin`, **Method** to `GET`.
+2. Enter **URL**: `https://example.com/wp-admin/network/sites.php?action=delete`
+3. Submit the form.
+4. **Expected:**
+   - Matched rule: `network.site.delete`
+   - Decision: `gate`
+   - A note indicates network-admin rules are evaluated correctly.
+
+#### Test H — Invalid/malformed URL handling
+
+1. Set **Surface** to `admin`, **Method** to `GET`.
+2. Enter **URL**: `not-a-valid-url`
+3. Submit the form.
+4. **Expected:**
+   - No matched rule (or graceful error message).
+   - The form does not crash or produce a PHP error.
+   - Decision: `allow` (no rule matched).
+
+#### Test I — Empty URL handling
+
+1. Set **Surface** to `admin`, **Method** to `GET`.
+2. Leave **URL** field empty.
+3. Submit the form.
+4. **Expected:**
+   - Validation message or graceful handling.
+   - No PHP errors or white screen.
+
+#### Test J — Keyboard navigation (accessibility)
+
+1. Load **Settings → Sudo** and Tab to the Rule Tester panel.
+2. **Expected:**
+   - All form fields are reachable via Tab key.
+   - Dropdowns are operable with arrow keys.
+   - Submit button is reachable and activates with Enter/Space.
+   - Focus indicator is visible on each control.
+3. Submit a test and verify results are announced or focusable.
+
 ### 15.2 Challenge Page
 
 1. Ensure no sudo session is active.
