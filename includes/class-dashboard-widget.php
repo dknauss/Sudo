@@ -271,7 +271,18 @@ class Dashboard_Widget {
 
 		// Pass-through notice.
 		if ( ! $log_passthrough ) {
-			echo '<p class="wp-sudo-filter-notice"><em>' . esc_html__( '* Enable "Log Session Pass-Throughs" in Settings to track Passed events.', 'wp-sudo' ) . '</em></p>';
+			$settings_url = esc_url( admin_url( 'options-general.php?page=wp-sudo-settings#log_passthrough' ) );
+			echo '<p class="wp-sudo-filter-notice"><em>';
+			echo wp_kses(
+				sprintf(
+					/* translators: %1$s: opening link tag, %2$s: closing link tag */
+					__( '* Enable "Log Session Pass-Throughs" in %1$sSettings%2$s to track Passed events.', 'wp-sudo' ),
+					'<a href="' . $settings_url . '">',
+					'</a>'
+				),
+				array( 'a' => array( 'href' => array() ) )
+			);
+			echo '</em></p>';
 		}
 
 		if ( empty( $events ) ) {

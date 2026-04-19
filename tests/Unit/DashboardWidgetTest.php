@@ -210,6 +210,9 @@ class DashboardWidgetTest extends TestCase {
 		Functions\when( 'esc_html__' )->returnArg( 1 );
 		Functions\when( 'esc_html' )->returnArg( 1 );
 		Functions\when( 'esc_attr' )->returnArg( 1 );
+		Functions\when( 'esc_url' )->returnArg( 1 );
+		Functions\when( 'admin_url' )->returnArg( 1 );
+		Functions\when( 'wp_kses' )->returnArg( 1 );
 		Functions\when( '_n' )->returnArg( 2 ); // Return plural form.
 		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
 		Functions\when( 'get_avatar' )->justReturn( '<img src="avatar.jpg" />' );
@@ -521,6 +524,9 @@ class DashboardWidgetTest extends TestCase {
 		Functions\when( 'get_users' )->justReturn( [] );
 		Functions\when( 'esc_html__' )->returnArg( 1 );
 		Functions\when( 'esc_html' )->returnArg( 1 );
+		Functions\when( 'esc_url' )->returnArg( 1 );
+		Functions\when( 'admin_url' )->returnArg( 1 );
+		Functions\when( 'wp_kses' )->returnArg( 1 );
 		Functions\when( '_n' )->returnArg( 2 );
 		Functions\when( 'get_option' )->alias(
 			function ( $name, $default = [] ) {
@@ -552,6 +558,9 @@ class DashboardWidgetTest extends TestCase {
 		Functions\when( 'get_users' )->justReturn( [] );
 		Functions\when( 'esc_html__' )->returnArg( 1 );
 		Functions\when( 'esc_html' )->returnArg( 1 );
+		Functions\when( 'esc_url' )->returnArg( 1 );
+		Functions\when( 'admin_url' )->returnArg( 1 );
+		Functions\when( 'wp_kses' )->returnArg( 1 );
 		Functions\when( '_n' )->returnArg( 2 );
 		Functions\when( 'get_option' )->alias(
 			function ( $name, $default = [] ) {
@@ -592,6 +601,9 @@ class DashboardWidgetTest extends TestCase {
 		Functions\when( 'get_users' )->justReturn( [] );
 		Functions\when( 'esc_html__' )->returnArg( 1 );
 		Functions\when( 'esc_html' )->returnArg( 1 );
+		Functions\when( 'esc_url' )->returnArg( 1 );
+		Functions\when( 'admin_url' )->returnArg( 1 );
+		Functions\when( 'wp_kses' )->returnArg( 1 );
 		Functions\when( '_n' )->returnArg( 2 );
 		Functions\when( 'get_option' )->justReturn( [] ); // Empty settings.
 		Functions\when( 'get_current_blog_id' )->justReturn( 1 );

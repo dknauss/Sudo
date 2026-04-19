@@ -21,6 +21,10 @@
         "slug": "two-factor"
       },
       "options": { "activate": true }
+    },
+    {
+      "step": "runPHP",
+      "code": "<?php require_once 'wordpress/wp-load.php'; $expires = time() + 900; update_user_meta(1, '_wp_sudo_expires', $expires); update_user_meta(1, '_wp_sudo_token', wp_hash(wp_generate_password(32, true, true))); $users = array( array('janesmith', 'jane@example.com', 'Jane', 'Smith', 'editor'), array('bobdev', 'bob@example.com', 'Bob', 'Developer', 'author'), array('carlosadmin', 'carlos@example.com', 'Carlos', 'García', 'administrator'), array('sarahops', 'sarah@example.com', 'Sarah', 'Nakamura', 'editor'), array('liwei', 'li@example.com', 'Li', 'Wei', 'contributor') ); foreach ($users as $u) { $uid = wp_insert_user(array('user_login' => $u[0], 'user_email' => $u[1], 'user_pass' => 'password', 'first_name' => $u[2], 'last_name' => $u[3], 'role' => $u[4])); if (!is_wp_error($uid)) { update_user_meta($uid, '_wp_sudo_expires', $expires); update_user_meta($uid, '_wp_sudo_token', wp_hash(wp_generate_password(32, true, true))); } } echo 'Created 5 test users with active sudo sessions';"
     }
   ]
 }
