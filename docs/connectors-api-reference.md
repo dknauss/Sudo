@@ -4,6 +4,11 @@
 *Updated 2026-04-18 with local runtime verification in WordPress Studio (`7.0-RC2-62241`) for REST save behavior, key-source precedence, and Connectors admin UI state handling.*
 *There is now an official Core dev note for the Connectors API, but this reference remains source-derived because it goes deeper into the REST masking/write path than the high-level announcement. Verify against the GA release before relying on implementation details.*
 
+> [!WARNING]
+> This reference is source-derived from WordPress 7.0 RC2 / trunk-era code and
+> should be re-verified against the final GA release before relying on
+> implementation details.
+
 **Official dev note:** [Introducing the Connectors API in WordPress 7.0](https://make.wordpress.org/core/2026/03/18/introducing-the-connectors-api-in-wordpress-7-0/)
 
 **Source files:**
@@ -53,6 +58,12 @@ the WP AI Client registry. In other words, the table below describes the
 default connector IDs and naming conventions, not a guarantee that every
 `connectors_ai_*_api_key` field is exposed on every 7.0 install.
 
+> [!IMPORTANT]
+> The built-in connector table describes default connector definitions, not a
+> guarantee that every `connectors_ai_*_api_key` setting is registered on every
+> install. REST settings registration depends on the provider being present in
+> the WP AI Client registry.
+
 | Connector ID | Setting name | PHP constant | Env var | Credentials URL |
 |---|---|---|---|---|
 | `anthropic` | `connectors_ai_anthropic_api_key` | `ANTHROPIC_API_KEY` | `ANTHROPIC_API_KEY` | `https://platform.claude.com/settings/keys` |
@@ -81,6 +92,11 @@ string. Non-AI connectors accept keys without validation.
 `PUT` as update methods for the validation branch. Masking still applies on
 `PATCH`, but the AI-provider validation path does not.
 
+> [!WARNING]
+> The `/wp/v2/settings` endpoint accepts `PATCH`, but core's Connectors
+> validation logic currently only treats `POST` and `PUT` as update methods for
+> AI-key validation.
+
 ---
 
 ## REST API Surface
@@ -103,6 +119,11 @@ the response (last 4 characters visible, rest replaced with bullets) by the
 length 4 or fewer unchanged. That is not a realistic concern for ordinary LLM
 provider keys, but it means the implementation is not literally "always
 masked."
+
+> [!CAUTION]
+> `_wp_connectors_mask_api_key()` returns values of length 4 or fewer unchanged.
+> This is not a realistic LLM-key risk, but it means masking is not literally
+> universal.
 
 ### Write credentials
 
@@ -128,10 +149,12 @@ The stock Connectors UI compensates for this lossy REST contract: if the
 returned value is empty or unchanged after save, it shows an inline error
 instead of treating the connector as successfully configured.
 
-**WP Sudo now gates this path.** On current `main`, REST writes to
-`/wp/v2/settings` are challenged when the request body contains connector-style
-credential keys matching `connectors_*_api_key`. This protects the Connectors
-admin UI save path without broadly gating unrelated REST settings writes.
+> [!NOTE]
+> **WP Sudo now gates this path.** On current `main`, REST writes to
+> `/wp/v2/settings` are challenged when the request body contains
+> connector-style credential keys matching `connectors_*_api_key`. This
+> protects the Connectors admin UI save path without broadly gating unrelated
+> REST settings writes.
 
 ---
 
@@ -220,6 +243,11 @@ when omitted. Connector IDs must match `/^[a-z0-9_-]+$/`.
 
 ## WP Sudo Gating Analysis
 
+> [!IMPORTANT]
+> This section is specific to the **WP Sudo** plugin in this repository. It is
+> not describing stock WordPress core behavior; it explains how WP Sudo treats
+> the Connectors credential-write path.
+
 ### Credential save path
 
 The Connectors UI saves credentials via `POST /wp/v2/settings`. This route is
@@ -252,8 +280,9 @@ integrity** failure rather than a credential disclosure failure. The attacker
 does not need to know the original secret; they only need to replace it with
 one they control.
 
-Current WP Sudo `main` mitigates that path by challenging connector credential
-writes before they reach the settings save handler.
+> [!NOTE]
+> Current WP Sudo `main` mitigates that path by challenging connector
+> credential writes before they reach the settings save handler.
 
 ### Higher-precedence key sources
 
@@ -403,6 +432,11 @@ for this threat model.
   replaced, subsequent outbound requests authenticate as the replacement
   credential, so any provider-side logging or usage visibility attached to
   that credential will also follow the replacement account.
+
+  > [!NOTE]
+  > The WordPress-side credential-routing change is runtime-verified.
+  > Provider-side prompt visibility depends on vendor logging, retention, and
+  > account features and is not uniform across providers.
 
   Official examples of provider-side visibility controls and retention:
   Google Gemini API / AI Studio logs and datasets
