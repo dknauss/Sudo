@@ -1,4 +1,4 @@
-_This exploratory plugin is not production-ready. Please test it and share your feedback on what works and what doesn't._
+_WP Sudo 3.0.0 is the first major milestone release of action-gated reauthentication for WordPress, adding policy presets, Connectors credential protection, request diagnostics, and operator activity visibility._
 
 [Try it in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/dknauss/wp-sudo/main/blueprint.json)
 
@@ -9,7 +9,7 @@ Tags:              sudo, security, reauthentication, access control, admin prote
 Requires at least: 6.2
 Tested up to:      6.9
 Requires PHP:      8.0
-Stable tag:        2.15.0
+Stable tag:        3.0.0
 License:           GPL-2.0-or-later
 License URI:       https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -20,6 +20,14 @@ WordPress security plugins guard the door. Sudo governs what can happen inside t
 WordPress has rich access control — roles, capabilities, policies on who can do what. It has no native control over when those capabilities can be exercised within a session. Sudo fills that gap. By gating consequential actions behind reauthentication whenever no active sudo window is already in place, it lets site owners directly define the blast radius of many session-compromise paths. The attack surface becomes a policy decision.
 
 This is not role-based escalation. Every logged-in user is treated the same: attempt a gated action without an active sudo session, get challenged. Sessions are time-bounded and non-extendable, enforcing the zero-trust principle that trust must be continuously earned, never assumed. WordPress capability checks still run after the gate, so Sudo adds a security layer without changing the permission model.
+
+= What’s new in 3.0.0? =
+
+* **Policy presets** — one-click **Normal**, **Incident Lockdown**, and **Headless Friendly** presets for the non-interactive surfaces
+* **Connectors protection** — built-in gating for connector credential writes saved through `/wp/v2/settings`
+* **Request / Rule Tester** — a diagnostic panel for simulating representative admin, AJAX, and REST request shapes without executing them
+* **Session Activity Dashboard Widget** — dashboard visibility for active sessions, recent events, and current policy posture
+* **Recovery hardening** — stronger challenge, lockout, and 2FA recovery behavior around edge-case retry flows
 
 = Why Sudo? =
 
@@ -175,14 +183,14 @@ Extensibility: the action registry is filterable via wp_sudo_gated_actions. Ten 
 
 == Changelog ==
 
-= Unreleased =
-* **Feature: Lockdown policy presets** — Settings → Sudo now includes one-click **Normal**, **Incident Lockdown**, and **Headless Friendly** presets for the non-interactive surfaces, with explicit apply confirmation, audit logging, and summary notices after application.
-* **Security: Connectors API credential writes now require sudo** — REST updates to `/wp/v2/settings` are challenged when they include `connectors_*_api_key` fields, closing the write-only key replacement path for database-backed connector credentials while leaving unrelated REST settings writes untouched.
-* **Fix: challenge lockout expiry recovery** — the visible countdown and the server-side lockout state now expire in sync, so retries are no longer blocked at the exact second the countdown reaches zero.
-* **Fix: stale challenge and 2FA recovery flows** — hardened recovery when a sudo session is already active or a user is returning from 2FA throttle/lockout flows, with broader browser coverage around replay, resend, cancel, and recovery behavior.
-* **WordPress 7.0 readiness** — forward test and preview lanes are pinned to `7.0-RC1`, with RC1 visual signoff recorded and the remaining RC/GA checklist documented for final release-day verification.
-* **Testing and compatibility breadth** — added scheduled WordPress `6.3`–`6.6` compatibility coverage, explicit nginx + php-fpm + MariaDB and Playground SQLite browser smoke workflows, and a dedicated nginx + MariaDB multisite smoke lane.
-* **Testing workflow: local integration fallback** — `composer test:integration` now falls back to the running `wp-env` `tests-cli` container when a local rebuild leaves the generated host-side MySQL endpoint stale, while CI continues to use the normal direct PHPUnit path.
+= 3.0.0 =
+* **Major milestone: operator tooling and visibility** — adds the Request / Rule Tester plus a new Session Activity Dashboard Widget with active sessions, recent events, and policy summary.
+* **Major milestone: policy control** — adds one-click **Normal**, **Incident Lockdown**, and **Headless Friendly** presets for the non-interactive surfaces.
+* **Security: Connectors API credential writes now require sudo** — REST updates to `/wp/v2/settings` are challenged when they include `connectors_*_api_key` fields, protecting database-backed connector credentials without over-gating unrelated settings writes.
+* **Platform: lightweight event persistence** — adds an internal event store and recorder with daily pruning, enabling dashboard visibility and future reporting.
+* **Fix: challenge and lockout recovery hardening** — improves retry behavior around exact-expiry lockouts and stale challenge / 2FA return flows.
+* **Compatibility and testing breadth** — expands WordPress minor coverage, nginx + MariaDB and Playground SQLite browser lanes, and local integration fallback behavior for `wp-env`.
+* **WordPress 7.0 readiness** — forward test and preview lanes remain pinned to `7.0-RC1` pending final release-day verification.
 
 = 2.14.0 =
 * **Feature: Playwright end-to-end coverage** — added browser-verified challenge, cookie, gate UI, admin bar timer, keyboard shortcut, MU-plugin AJAX, multisite network-admin, and visual-regression coverage to exercise the real user flows around reauthentication.

@@ -1,15 +1,28 @@
 # Changelog
 
-## Unreleased
+## 3.0.0
 
-- **Feature: Lockdown policy presets** — Settings → Sudo now includes one-click **Normal**, **Incident Lockdown**, and **Headless Friendly** presets for the non-interactive surfaces, with explicit apply confirmation, audit logging, and summary notices after application.
-- **Security: Connectors API credential writes now require sudo** — REST updates to `/wp/v2/settings` are challenged when they include `connectors_*_api_key` fields, closing the write-only key replacement path for database-backed connector credentials while leaving unrelated REST settings writes untouched.
-- **Feature: Request / Rule Tester** — Settings → Sudo now includes a diagnostic panel for simulating representative admin, AJAX, and REST request shapes without executing them. The tester reports the matched rule, decision (`allow`, `gate`, `soft-block`, `hard-block`), stash/replay eligibility, and explanatory notes using a side-effect-free `Gate::evaluate_diagnostic_request()` helper.
-- **Feature: Session Activity Dashboard Widget** — Dashboard now includes a "Sudo Session Activity" widget showing active sessions with time remaining, recent events (gated, blocked, allowed, replayed, lockout), and current policy summary. Events are persisted to a new `wpsudo_events` table with 14-day retention and daily cron pruning.
-- **Feature: Event_Store persistence layer** — audit events are now recorded to the database via `Event_Store::insert()` and `Event_Recorder` hooks, enabling the Dashboard Widget and future reporting. Includes graceful degradation when the table is missing and SQLite compatibility for Playground environments.
-- **Fix: challenge lockout expiry recovery** — corrected an edge case where the visible countdown could reach zero while the server still treated the lockout as active for that exact second, blocking an immediate retry. Password and IP lockouts now expire in sync with the countdown.
-- **Fix: stale challenge and 2FA recovery flows** — hardened challenge recovery when a sudo session is already active or a user is returning from 2FA throttle/lockout flows, with expanded browser coverage for replay, resend, cancel, and recovery behavior.
-- **Accessibility: Dashboard Widget tables** — added `scope="col"` to table headers and screen-reader-only `<caption>` elements for Recent Events and Policy Summary tables.
+### Headline changes
+
+- **Major milestone: operator tooling and visibility** — WP Sudo now includes a **Request / Rule Tester** for representative admin, AJAX, and REST request shapes plus a **Session Activity Dashboard Widget** for active sessions, recent events, and current policy posture.
+- **Major milestone: policy control** — Settings → Sudo now includes one-click **Normal**, **Incident Lockdown**, and **Headless Friendly** presets for the non-interactive surfaces, with confirmation, audit logging, and summary notices.
+- **Major milestone: ecosystem hardening** — Connectors API credential writes saved through `/wp/v2/settings` now require sudo when they include `connectors_*_api_key` fields, protecting database-backed connector credentials without over-gating unrelated settings writes.
+
+### New platform capabilities
+
+- **Event persistence layer** — audit events are now recorded through `Event_Store` and `Event_Recorder`, enabling the dashboard widget and future reporting. The shared `wpsudo_events` table includes 14-day retention, daily cron pruning, graceful degradation when the table is unavailable, and SQLite compatibility for Playground-style environments.
+
+### Security and recovery hardening
+
+- **Challenge lockout expiry recovery** — corrected an edge case where the visible countdown could reach zero while the server still treated the lockout as active for that exact second, blocking an immediate retry. Password and IP lockouts now expire in sync with the countdown.
+- **Stale challenge and 2FA recovery flows** — hardened recovery when a sudo session is already active or a user is returning from 2FA throttle/lockout flows, with expanded browser coverage for replay, resend, cancel, and recovery behavior.
+
+### Accessibility
+
+- **Dashboard widget table semantics** — added `scope="col"` to table headers and screen-reader-only `<caption>` elements for the Recent Events and Policy Summary tables.
+
+### Compatibility and testing
+
 - **WordPress 7.0 readiness** — forward test and preview lanes are now pinned to `7.0-RC1`, with RC1 visual signoff recorded and the remaining RC/GA checklist documented for final release-day verification.
 - **Testing and compatibility breadth** — added scheduled WordPress `6.3`–`6.6` compatibility coverage, explicit nginx + php-fpm + MariaDB and Playground SQLite browser smoke workflows, and a dedicated nginx + MariaDB multisite smoke lane.
 - **Testing workflow: local integration fallback** — `composer test:integration` now falls back to the running `wp-env` `tests-cli` container when a local rebuild leaves the generated host-side MySQL endpoint stale, while CI continues to use the normal direct PHPUnit path.

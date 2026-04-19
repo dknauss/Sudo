@@ -10,7 +10,7 @@
  */
 
 // Plugin constants (defined in wp-sudo.php at runtime).
-define( 'WP_SUDO_VERSION', '2.15.0' );
+define( 'WP_SUDO_VERSION', '3.0.0' );
 define( 'WP_SUDO_PLUGIN_DIR', __DIR__ . '/' );
 define( 'WP_SUDO_PLUGIN_URL', 'https://example.com/wp-content/plugins/wp-sudo/' );
 define( 'WP_SUDO_PLUGIN_BASENAME', 'wp-sudo/wp-sudo.php' );

@@ -13,7 +13,15 @@ WP Sudo adds **action-gated reauthentication** to WordPress so high-risk operati
 [![Type Coverage](https://shepherd.dev/github/dknauss/wp-sudo/coverage.svg)](https://shepherd.dev/github/dknauss/wp-sudo)
 [![Try in Playground](https://img.shields.io/badge/Try%20it-Playground-3858e9?logo=wordpress&logoColor=white)](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/dknauss/wp-sudo/main/blueprint.json)
 
-> **Status:** exploratory plugin, not yet production-ready. See [docs/release-status.md](docs/release-status.md) for current stable-vs-`main` status and [tests/MANUAL-TESTING.md](tests/MANUAL-TESTING.md) if you want to help evaluate it.
+> **3.0.0 milestone:** WP Sudo now combines action-gated reauthentication with policy presets, Connectors credential protection, request diagnostics, and operator activity visibility. See [docs/release-status.md](docs/release-status.md) for current release posture.
+
+## What’s new in 3.0.0
+
+- **Policy control:** one-click **Normal**, **Incident Lockdown**, and **Headless Friendly** presets for non-interactive surfaces
+- **Ecosystem hardening:** built-in gating for Connectors API credential writes through `/wp/v2/settings`
+- **Operator diagnostics:** a **Request / Rule Tester** for representative admin, AJAX, and REST request shapes
+- **Operator visibility:** a **Session Activity Dashboard Widget** backed by a lightweight event store and recorder
+- **Recovery hardening:** cleaner challenge, lockout, and 2FA recovery behavior around edge-case retry flows
 
 ## Why WP Sudo exists
 

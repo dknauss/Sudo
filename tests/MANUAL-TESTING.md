@@ -1,6 +1,6 @@
 # WP Sudo Manual Testing Guide
 
-Manual verification tests for WP Sudo v2.12.0+. These complement the
+Manual verification tests for WP Sudo v3.0.0+. These complement the
 automated PHPUnit suite (`composer test`) and should be run against a
 real WordPress environment before each release.
 
@@ -1686,3 +1686,99 @@ curl -sk -X POST "YOUR_SITE_URL/graphql" \
 2. **Expected:** `false` when sudo is inactive.
 3. Activate a sudo session, rerun the command.
 4. **Expected:** `true`.
+
+---
+
+## 22. Dashboard Widget (Session Activity)
+
+> Requires WP Sudo 3.0+. The Dashboard Widget displays a summary of recent
+> sudo session activity drawn from the Event_Store persistence layer.
+
+### 22.1 Widget Visibility (Administrator)
+
+1. Log in as an administrator.
+2. Go to **Dashboard**.
+3. **Expected:** A "WP Sudo: Session Activity" widget appears. If no
+   events exist yet, the widget displays "No session activity recorded."
+
+### 22.2 Widget Not Visible (Non-Admin)
+
+1. Log in as an Editor or Subscriber.
+2. Go to **Dashboard**.
+3. **Expected:** The "WP Sudo: Session Activity" widget does **not** appear.
+   Only users with `manage_options` capability see the widget.
+
+### 22.3 Event Recording — Session Activation
+
+1. Log in as an administrator (grants sudo automatically on browser login).
+2. Go to **Dashboard**.
+3. **Expected:** The widget shows a recent "session_started" event for
+   your user. The timestamp should match your login time.
+
+### 22.4 Event Recording — Session Expiry
+
+1. Set session duration to **1 minute** in Settings > Sudo.
+2. Activate sudo and wait for the timer to expire.
+3. Reload the Dashboard.
+4. **Expected:** The widget shows a "session_expired" event for your user.
+
+### 22.5 Event Recording — Session Deactivation
+
+1. Activate sudo.
+2. Click the deactivation link in the admin bar timer.
+3. Go to **Dashboard**.
+4. **Expected:** The widget shows a "session_deactivated" event.
+
+### 22.6 Event Recording — Challenge Passed
+
+1. Ensure no sudo session is active.
+2. Trigger a gated action (e.g., **Settings > General > Save Changes**).
+3. Enter your password on the challenge page.
+4. Go to **Dashboard**.
+5. **Expected:** The widget shows a "challenge_passed" event.
+
+### 22.7 Event Recording — Lockout
+
+1. Open the challenge page.
+2. Enter an incorrect password 5 times to trigger lockout.
+3. After lockout, go to **Dashboard** (via direct URL or wait for lockout
+   to expire).
+4. **Expected:** The widget shows a "lockout_started" event.
+
+### 22.8 Widget Table Accessibility
+
+1. Use a screen reader or inspect the widget HTML.
+2. **Expected:**
+   - The table has a visually-hidden `<caption>` element: "Recent sudo
+     session events."
+   - Column headers have `scope="col"` attributes.
+   - The widget title is a proper heading level.
+
+### 22.9 Widget with Many Events
+
+1. Generate multiple events by activating/deactivating sudo several times.
+2. Go to **Dashboard**.
+3. **Expected:** The widget shows the 10 most recent events. Older events
+   are not displayed (pruned display, not pruned from DB).
+
+### 22.10 Event Pruning (Cron)
+
+1. Verify that `wp_sudo_prune_events` is scheduled:
+   `wp cron event list | grep wp_sudo_prune_events`
+2. **Expected:** A daily cron event is scheduled.
+3. Optionally, trigger the cron manually:
+   `wp cron event run wp_sudo_prune_events`
+4. **Expected:** Events older than 30 days are pruned from the database.
+   Recent events remain visible in the widget.
+
+### 22.11 Graceful Degradation (Missing Table)
+
+1. Temporarily drop the events table:
+   `wp db query "DROP TABLE IF EXISTS wp_wp_sudo_events;"`
+2. Load the Dashboard.
+3. **Expected:** The widget displays gracefully — either "No session
+   activity recorded" or a subtle error. No PHP fatal errors or white
+   screen.
+4. **Cleanup:** Reactivate the plugin or run the upgrader to recreate the
+   table:
+   `wp plugin deactivate wp-sudo && wp plugin activate wp-sudo`

@@ -19,7 +19,7 @@ define( 'WPMU_PLUGIN_DIR', WP_CONTENT_DIR . '/mu-plugins' );
 define( 'WPMU_PLUGIN_URL', 'https://example.com/wp-content/mu-plugins' );
 
 // ── Plugin constants (normally defined in wp-sudo.php) ───────────────
-define( 'WP_SUDO_VERSION', '2.15.0' );
+define( 'WP_SUDO_VERSION', '3.0.0' );
 define( 'WP_SUDO_PLUGIN_DIR', dirname( __DIR__ ) . '/' );
 define( 'WP_SUDO_PLUGIN_URL', 'https://example.com/wp-content/plugins/wp-sudo/' );
 define( 'WP_SUDO_PLUGIN_BASENAME', 'wp-sudo/wp-sudo.php' );

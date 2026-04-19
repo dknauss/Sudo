@@ -10,15 +10,20 @@ This file is the canonical source for **current release state** in this reposito
 - the forward WordPress lane used in CI, Playground, and manual verification
 - the current status of the delayed WordPress 7.0 final release
 
-## Stable plugin release
+## Latest public/tagged release
 
-- **Stable tag:** `2.14.0`
-- **Runtime version constant:** `2.14.0`
-- **Public metadata should match:** `readme.txt` stable tag, `wp-sudo.php`, `tests/bootstrap.php`, `phpstan-bootstrap.php`
+- **Latest tagged release:** `2.14.0`
+- **Latest git tag observed:** `v2.14.0`
+
+## Current `main` release target
+
+- **Next planned release:** `3.0.0`
+- **Current `main` runtime version constant:** `3.0.0`
+- **Current `main` metadata should match:** `readme.txt` stable tag, `wp-sudo.php`, `tests/bootstrap.php`, `phpstan-bootstrap.php`
 
 ## Unreleased work already on `main`
 
-These items are implemented on `main` but not yet part of a tagged public release:
+These items are implemented on `main` and currently grouped into the planned `3.0.0` release:
 
 - Lockdown policy presets
 - Connectors API credential-write gating
@@ -29,7 +34,7 @@ These items are implemented on `main` but not yet part of a tagged public releas
 - Accessibility improvements (table scope/caption attributes)
 - Additional local/CI/browser testing workflow improvements
 
-Canonical source for this list: `CHANGELOG.md` → `## Unreleased`
+Canonical source for this list: `CHANGELOG.md` → `## 3.0.0`
 
 ## WordPress release posture
 
@@ -78,7 +83,7 @@ Until WordPress 7.0 final actually ships:
 
 Update this file whenever any of the following changes:
 
-1. `Stable tag` / `WP_SUDO_VERSION`
+1. latest tagged public release or current `main` target version
 2. `CHANGELOG.md` unreleased feature list in a way that changes current `main` status
 3. latest stable WordPress release line
 4. forward WordPress lane (`7.0-RC1`, final `7.0`, etc.)
