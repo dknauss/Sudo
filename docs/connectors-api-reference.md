@@ -46,6 +46,13 @@ Hyphens in `{type}` and `{id}` are normalized to underscores.
 
 ### Built-in connectors (WP 7.0 defaults)
 
+These are the **default connector definitions** core registers when AI support
+is enabled. Their metadata exists in core even on a bare install, but the
+corresponding REST settings are only registered when the provider is present in
+the WP AI Client registry. In other words, the table below describes the
+default connector IDs and naming conventions, not a guarantee that every
+`connectors_ai_*_api_key` field is exposed on every 7.0 install.
+
 | Connector ID | Setting name | PHP constant | Env var | Credentials URL |
 |---|---|---|---|---|
 | `anthropic` | `connectors_ai_anthropic_api_key` | `ANTHROPIC_API_KEY` | `ANTHROPIC_API_KEY` | `https://platform.claude.com/settings/keys` |
@@ -64,9 +71,15 @@ If an env var or constant provides the key, the database value is not used.
 
 ### Key validation
 
-On save (POST/PUT to `/wp/v2/settings`), AI provider keys are validated against
-the provider's API via `_wp_connectors_is_ai_api_key_valid()`. Invalid keys are
-reverted to an empty string. Non-AI connectors accept keys without validation.
+On save via **POST** or **PUT** to `/wp/v2/settings`, AI provider keys are
+validated against the provider's API via
+`_wp_connectors_is_ai_api_key_valid()`. Invalid keys are reverted to an empty
+string. Non-AI connectors accept keys without validation.
+
+**PATCH caveat:** the settings endpoint itself accepts `PATCH`, but
+`_wp_connectors_rest_settings_dispatch()` currently only treats `POST` and
+`PUT` as update methods for the validation branch. Masking still applies on
+`PATCH`, but the AI-provider validation path does not.
 
 ---
 
@@ -103,10 +116,13 @@ Content-Type: application/json
 ```
 
 - Requires `manage_options` capability (standard settings endpoint auth)
-- AI provider keys are validated against the provider before storage
+- AI provider keys are validated against the provider before storage on
+  **POST/PUT** requests
 - Invalid AI-provider keys are reverted to empty string server-side; the raw
   REST write still returns `200 OK`
 - Response returns the masked version of the saved key
+- `PATCH` is accepted by the settings endpoint, but core's connector validation
+  logic currently only runs on `POST` and `PUT`
 
 The stock Connectors UI compensates for this lossy REST contract: if the
 returned value is empty or unchanged after save, it shows an inline error
