@@ -121,6 +121,9 @@ class Plugin {
 		// Event recorder: log security events to database.
 		Event_Recorder::init();
 
+		// Cron: prune old event rows daily.
+		add_action( 'wp_sudo_prune_events', array( self::class, 'prune_events' ), 10, 0 );
+
 		// Enforce unfiltered_html restriction on every request (tamper detection).
 		add_action( 'init', array( $this, 'enforce_editor_unfiltered_html' ), 1, 0 );
 
@@ -414,6 +417,9 @@ class Plugin {
 		// Remove unfiltered_html from editors (single-site only).
 		self::strip_editor_unfiltered_html();
 
+		// Schedule the daily prune cron event.
+		self::schedule_prune_cron();
+
 		// Set a flag so we know the plugin has been activated.
 		update_option( 'wp_sudo_activated', true );
 	}
@@ -434,6 +440,9 @@ class Plugin {
 		$upgrader = new Upgrader();
 		$upgrader->maybe_upgrade();
 
+		// Schedule the daily prune cron event.
+		self::schedule_prune_cron();
+
 		// Set a flag so we know the plugin has been network-activated.
 		update_site_option( 'wp_sudo_activated', true );
 	}
@@ -446,6 +455,9 @@ class Plugin {
 	public function deactivate(): void {
 		// Restore unfiltered_html to editors (single-site only).
 		self::restore_editor_unfiltered_html();
+
+		// Clear the daily prune cron event.
+		wp_clear_scheduled_hook( 'wp_sudo_prune_events' );
 
 		if ( is_multisite() ) {
 			delete_site_option( 'wp_sudo_activated' );
@@ -601,5 +613,27 @@ class Plugin {
 		if ( $editor ) {
 			$editor->add_cap( 'unfiltered_html' );
 		}
+	}
+
+	/**
+	 * Schedule the daily prune cron event if not already scheduled.
+	 *
+	 * @since 2.15.0
+	 * @return void
+	 */
+	public static function schedule_prune_cron(): void {
+		if ( ! wp_next_scheduled( 'wp_sudo_prune_events' ) ) {
+			wp_schedule_event( time(), 'daily', 'wp_sudo_prune_events' );
+		}
+	}
+
+	/**
+	 * Cron callback: prune event rows older than the retention period.
+	 *
+	 * @since 2.15.0
+	 * @return void
+	 */
+	public static function prune_events(): void {
+		Event_Store::prune( 14 );
 	}
 }

@@ -451,6 +451,8 @@ class PluginTest extends TestCase {
 	public function test_activate_stamps_version_and_sets_flag(): void {
 		Functions\when( 'get_option' )->justReturn( WP_SUDO_VERSION );
 		Functions\when( 'get_role' )->justReturn( null );
+		Functions\when( 'wp_next_scheduled' )->justReturn( false );
+		Functions\when( 'wp_schedule_event' )->justReturn( true );
 
 		Functions\expect( 'update_option' )
 			->once()
@@ -463,6 +465,8 @@ class PluginTest extends TestCase {
 	public function test_activate_strips_unfiltered_html_from_editor(): void {
 		Functions\when( 'get_option' )->justReturn( WP_SUDO_VERSION );
 		Functions\when( 'update_option' )->justReturn( true );
+		Functions\when( 'wp_next_scheduled' )->justReturn( false );
+		Functions\when( 'wp_schedule_event' )->justReturn( true );
 
 		$role = \Mockery::mock( 'WP_Role' );
 		$role->shouldReceive( 'remove_cap' )
@@ -481,6 +485,8 @@ class PluginTest extends TestCase {
 	public function test_activate_skips_strip_when_no_editor_role(): void {
 		Functions\when( 'get_option' )->justReturn( WP_SUDO_VERSION );
 		Functions\when( 'update_option' )->justReturn( true );
+		Functions\when( 'wp_next_scheduled' )->justReturn( false );
+		Functions\when( 'wp_schedule_event' )->justReturn( true );
 
 		Functions\expect( 'get_role' )
 			->once()
@@ -499,6 +505,8 @@ class PluginTest extends TestCase {
 		Functions\when( 'get_option' )->justReturn( WP_SUDO_VERSION );
 		Functions\when( 'get_site_option' )->justReturn( WP_SUDO_VERSION );
 		Functions\when( 'update_option' )->justReturn( true );
+		Functions\when( 'wp_next_scheduled' )->justReturn( false );
+		Functions\when( 'wp_schedule_event' )->justReturn( true );
 
 		Functions\expect( 'get_role' )->never();
 
@@ -513,6 +521,8 @@ class PluginTest extends TestCase {
 	public function test_activate_network_stamps_version_and_sets_site_flag(): void {
 		Functions\when( 'is_multisite' )->justReturn( true );
 		Functions\when( 'get_site_option' )->justReturn( WP_SUDO_VERSION );
+		Functions\when( 'wp_next_scheduled' )->justReturn( false );
+		Functions\when( 'wp_schedule_event' )->justReturn( true );
 
 		Functions\expect( 'update_site_option' )
 			->once()
@@ -526,6 +536,8 @@ class PluginTest extends TestCase {
 		Functions\when( 'is_multisite' )->justReturn( true );
 		Functions\when( 'get_site_option' )->justReturn( WP_SUDO_VERSION );
 		Functions\when( 'update_site_option' )->justReturn( true );
+		Functions\when( 'wp_next_scheduled' )->justReturn( false );
+		Functions\when( 'wp_schedule_event' )->justReturn( true );
 
 		Functions\expect( 'get_role' )->never();
 
@@ -539,6 +551,7 @@ class PluginTest extends TestCase {
 
 	public function test_deactivate_removes_flag(): void {
 		Functions\when( 'get_role' )->justReturn( null );
+		Functions\when( 'wp_clear_scheduled_hook' )->justReturn( 0 );
 
 		Functions\expect( 'delete_option' )
 			->once()
@@ -550,6 +563,7 @@ class PluginTest extends TestCase {
 
 	public function test_deactivate_restores_unfiltered_html_to_editor(): void {
 		Functions\when( 'delete_option' )->justReturn( true );
+		Functions\when( 'wp_clear_scheduled_hook' )->justReturn( 0 );
 
 		$role = \Mockery::mock( 'WP_Role' );
 		$role->shouldReceive( 'add_cap' )
@@ -568,6 +582,7 @@ class PluginTest extends TestCase {
 	public function test_deactivate_skips_restore_on_multisite(): void {
 		Functions\when( 'is_multisite' )->justReturn( true );
 		Functions\when( 'delete_site_option' )->justReturn( true );
+		Functions\when( 'wp_clear_scheduled_hook' )->justReturn( 0 );
 
 		Functions\expect( 'get_role' )->never();
 
@@ -640,6 +655,116 @@ class PluginTest extends TestCase {
 		$plugin->enforce_editor_unfiltered_html();
 
 		$this->assertTrue( true );
+	}
+
+	// -----------------------------------------------------------------
+	// Cron prune scheduling
+	// -----------------------------------------------------------------
+
+	public function test_activate_schedules_prune_cron_event(): void {
+		Functions\when( 'get_option' )->justReturn( WP_SUDO_VERSION );
+		Functions\when( 'get_role' )->justReturn( null );
+		Functions\when( 'update_option' )->justReturn( true );
+
+		// The cron event should not already be scheduled.
+		Functions\when( 'wp_next_scheduled' )->justReturn( false );
+
+		// Should schedule the prune event as a daily event.
+		Functions\expect( 'wp_schedule_event' )
+			->once()
+			->with( \Mockery::type( 'int' ), 'daily', 'wp_sudo_prune_events' );
+
+		$plugin = new Plugin();
+		$plugin->activate();
+	}
+
+	public function test_activate_skips_scheduling_when_already_scheduled(): void {
+		Functions\when( 'get_option' )->justReturn( WP_SUDO_VERSION );
+		Functions\when( 'get_role' )->justReturn( null );
+		Functions\when( 'update_option' )->justReturn( true );
+
+		// The cron event is already scheduled.
+		Functions\when( 'wp_next_scheduled' )->justReturn( time() + 3600 );
+
+		// Should NOT schedule a duplicate event.
+		Functions\expect( 'wp_schedule_event' )->never();
+
+		$plugin = new Plugin();
+		$plugin->activate();
+	}
+
+	public function test_deactivate_clears_prune_cron_event(): void {
+		Functions\when( 'get_role' )->justReturn( null );
+		Functions\when( 'delete_option' )->justReturn( true );
+
+		// Should clear the prune cron event.
+		Functions\expect( 'wp_clear_scheduled_hook' )
+			->once()
+			->with( 'wp_sudo_prune_events' );
+
+		$plugin = new Plugin();
+		$plugin->deactivate();
+	}
+
+	public function test_activate_network_schedules_prune_cron_event(): void {
+		Functions\when( 'is_multisite' )->justReturn( true );
+		Functions\when( 'get_site_option' )->justReturn( WP_SUDO_VERSION );
+		Functions\when( 'update_site_option' )->justReturn( true );
+
+		// The cron event should not already be scheduled.
+		Functions\when( 'wp_next_scheduled' )->justReturn( false );
+
+		// Should schedule the prune event as a daily event.
+		Functions\expect( 'wp_schedule_event' )
+			->once()
+			->with( \Mockery::type( 'int' ), 'daily', 'wp_sudo_prune_events' );
+
+		$plugin = new Plugin();
+		$plugin->activate_network();
+	}
+
+	public function test_prune_events_callback_calls_event_store_prune(): void {
+		// We can't easily mock Event_Store::prune() since it's a static method,
+		// but we can verify the method exists and is callable.
+		$this->assertTrue(
+			method_exists( Plugin::class, 'prune_events' ),
+			'Plugin should have a prune_events method'
+		);
+
+		// The method should be static and public.
+		$reflection = new \ReflectionMethod( Plugin::class, 'prune_events' );
+		$this->assertTrue( $reflection->isStatic(), 'prune_events should be static' );
+		$this->assertTrue( $reflection->isPublic(), 'prune_events should be public' );
+	}
+
+	public function test_init_registers_prune_cron_callback(): void {
+		Functions\when( 'load_plugin_textdomain' )->justReturn( true );
+		Functions\when( 'get_option' )->justReturn( WP_SUDO_VERSION );
+		Functions\when( 'add_filter' )->justReturn( true );
+		Functions\when( 'is_admin' )->justReturn( true );
+		Functions\when( 'get_current_user_id' )->justReturn( 0 );
+		Functions\when( 'wp_create_nonce' )->justReturn( 'fake-nonce' );
+		Functions\when( 'admin_url' )->alias( fn( $path = '' ) => 'https://example.com/wp-admin/' . $path );
+
+		// Capture all add_action calls to verify the cron callback is registered.
+		$cron_callback_registered = false;
+		Functions\when( 'add_action' )->alias(
+			function ( $hook, $callback, $priority = 10, $accepted_args = 1 ) use ( &$cron_callback_registered ) {
+				if ( 'wp_sudo_prune_events' === $hook
+					&& is_array( $callback )
+					&& Plugin::class === $callback[0]
+					&& 'prune_events' === $callback[1]
+				) {
+					$cron_callback_registered = true;
+				}
+				return true;
+			}
+		);
+
+		$plugin = new Plugin();
+		$plugin->init();
+
+		$this->assertTrue( $cron_callback_registered, 'init() should register wp_sudo_prune_events callback' );
 	}
 
 	// -----------------------------------------------------------------

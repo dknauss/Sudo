@@ -39,6 +39,20 @@ class Event_Store {
 	}
 
 	/**
+	 * Check if the database is SQLite.
+	 *
+	 * @return bool
+	 */
+	private static function is_sqlite(): bool {
+		global $wpdb;
+		// phpcs:disable WordPress.Caps.UseTitle -- WordPress global.
+		$dbh = is_object( $wpdb ) && method_exists( $wpdb, 'dbh' ) ? $wpdb->dbh() : null;
+		// phpcs:enable
+
+		return is_object( $dbh ) && isset( $dbh->driver_name ) && is_string( $dbh->driver_name ) && 'sqlite' === strtolower( $dbh->driver_name );
+	}
+
+	/**
 	 * Create the events table if it doesn't exist.
 	 *
 	 * Uses a lightweight check to avoid errors on first load.
@@ -50,20 +64,15 @@ class Event_Store {
 
 		$table = self::table_name();
 
-		// Check if SQLite.
-		$is_sqlite = method_exists( $wpdb, 'dbhs' ) && 'sqlite' === $wpdb->dbh()->driver_name;
-
-		if ( ! $is_sqlite ) {
-			// On MySQL, check if table exists first.
-			$check_sql = 'SELECT 1 FROM ' . $table . ' LIMIT 1'; // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared
-			$result    = $wpdb->get_var( $check_sql );
-			if ( null !== $result ) {
-				return;
-			}
+		if ( self::is_sqlite() ) {
+			self::create_table();
+			return;
 		}
 
-		// Table doesn't exist - create it. Skip if dbDelta unavailable (unit tests).
-		if ( ! $is_sqlite && ! function_exists( 'dbDelta' ) ) {
+		$check_sql = $wpdb->prepare( 'SHOW TABLES LIKE %s', $table );
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Prepared above.
+		$result = $wpdb->get_var( $check_sql );
+		if ( is_string( $result ) && $table === $result ) {
 			return;
 		}
 
@@ -83,7 +92,7 @@ class Event_Store {
 		$table = self::table_name();
 
 		// Check if SQLite.
-		$is_sqlite = method_exists( $wpdb, 'dbhs' ) && 'sqlite' === $wpdb->dbh()->driver_name;
+		$is_sqlite = self::is_sqlite();
 
 		if ( ! function_exists( 'dbDelta' ) && ! $is_sqlite ) {
 			$upgrade_file = ABSPATH . 'wp-admin/includes/upgrade.php';
@@ -93,10 +102,14 @@ class Event_Store {
 			}
 		}
 
+		if ( ! $is_sqlite && ! function_exists( 'dbDelta' ) ) {
+			return;
+		}
+
 		$charset_collate = method_exists( $wpdb, 'get_charset_collate' ) ? $wpdb->get_charset_collate() : '';
 
 		if ( $is_sqlite ) {
-			// SQLite-compatible CREATE TABLE.
+			// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.SchemaChange
 			$wpdb->query(
 				"CREATE TABLE IF NOT EXISTS {$table} (
 					id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -113,6 +126,7 @@ class Event_Store {
 			$wpdb->query( "CREATE INDEX IF NOT EXISTS idx_event_created ON {$table}(event, created_at)" );
 			$wpdb->query( "CREATE INDEX IF NOT EXISTS idx_site_created ON {$table}(site_id, created_at)" );
 			$wpdb->query( "CREATE INDEX IF NOT EXISTS idx_user_created ON {$table}(user_id, created_at)" );
+			// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.SchemaChange
 			return;
 		}
 
@@ -132,17 +146,27 @@ KEY site_created_at (site_id, created_at),
 KEY user_created_at (user_id, created_at)
 ) {$charset_collate};";
 
-		dbDelta( $sql );
+		if ( function_exists( 'dbDelta' ) ) {
+			dbDelta( $sql );
+		}
 	}
 
 	/**
 	 * Insert an event row.
+	 *
+	 * Gracefully returns false if the events table does not exist,
+	 * allowing the plugin to function even when event logging is unavailable.
 	 *
 	 * @param array<string, mixed> $data Row data.
 	 * @return bool
 	 */
 	public static function insert( array $data ): bool {
 		global $wpdb;
+
+		// Graceful degradation: skip insert if table doesn't exist.
+		if ( ! self::table_exists() ) {
+			return false;
+		}
 
 		$row = array(
 			'site_id'    => self::current_site_id(),
@@ -257,6 +281,39 @@ KEY user_created_at (user_id, created_at)
 
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.NotPrepared -- table_name() is safe, DROP is idempotent.
 		$wpdb->query( 'DROP TABLE IF EXISTS ' . self::table_name() );
+	}
+
+	/**
+	 * Check if the events table exists.
+	 *
+	 * Used for graceful degradation: operations that require the table
+	 * can bail early if it doesn't exist yet.
+	 *
+	 * @return bool
+	 */
+	private static function table_exists(): bool {
+		global $wpdb;
+
+		// SQLite: use sqlite_master.
+		if ( self::is_sqlite() ) {
+			$table = self::table_name();
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- table_name() is safe.
+			$result = $wpdb->get_var(
+				$wpdb->prepare(
+					"SELECT name FROM sqlite_master WHERE type='table' AND name=%s",
+					$table
+				)
+			);
+			return is_string( $result ) && $table === $result;
+		}
+
+		// MySQL: SHOW TABLES.
+		$table     = self::table_name();
+		$check_sql = $wpdb->prepare( 'SHOW TABLES LIKE %s', $table );
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching -- Prepared above.
+		$result = $wpdb->get_var( $check_sql );
+
+		return is_string( $result ) && $table === $result;
 	}
 
 	/**

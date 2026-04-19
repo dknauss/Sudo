@@ -77,6 +77,28 @@ class EventStoreTest extends TestCase {
 		Event_Store::create_table();
 	}
 
+	public function test_maybe_create_table_on_sqlite_skips_existence_probe_and_creates_table(): void {
+		$this->wpdb->is_sqlite = true;
+
+		Event_Store::maybe_create_table();
+
+		$this->assertCount( 0, $this->wpdb->get_var_calls );
+		$this->assertNotEmpty( $this->wpdb->query_calls );
+		$this->assertStringContainsString( 'CREATE TABLE IF NOT EXISTS wp_wpsudo_events', $this->wpdb->query_calls[0] );
+	}
+
+	public function test_maybe_create_table_on_mysql_checks_show_tables_and_skips_creation_when_present(): void {
+		$this->wpdb->get_var_return = 'wp_wpsudo_events';
+
+		Event_Store::maybe_create_table();
+
+		$this->assertCount( 1, $this->wpdb->prepare_calls );
+		$this->assertSame( 'SHOW TABLES LIKE %s', $this->wpdb->prepare_calls[0]['query'] );
+		$this->assertSame( array( 'wp_wpsudo_events' ), $this->wpdb->prepare_calls[0]['args'] );
+		$this->assertCount( 1, $this->wpdb->get_var_calls );
+		$this->assertCount( 0, $this->wpdb->query_calls );
+	}
+
 	public function test_drop_table_queries_drop_statement(): void {
 		$this->wpdb->query_return = 1;
 
@@ -88,7 +110,8 @@ class EventStoreTest extends TestCase {
 
 	public function test_insert_writes_row_with_site_id_and_json_context(): void {
 		Functions\when( 'get_current_blog_id' )->justReturn( 7 );
-		$this->wpdb->insert_return = 1;
+		$this->wpdb->insert_return  = 1;
+		$this->wpdb->get_var_return = 'wp_wpsudo_events'; // Table exists.
 
 		$result = Event_Store::insert(
 			array(
@@ -117,7 +140,8 @@ class EventStoreTest extends TestCase {
 	}
 
 	public function test_insert_returns_false_on_failure(): void {
-		$this->wpdb->insert_return = false;
+		$this->wpdb->insert_return  = false;
+		$this->wpdb->get_var_return = 'wp_wpsudo_events'; // Table exists.
 
 		$result = Event_Store::insert(
 			array(
@@ -127,6 +151,24 @@ class EventStoreTest extends TestCase {
 		);
 
 		$this->assertFalse( $result );
+	}
+
+	public function test_insert_returns_false_without_db_call_when_table_missing(): void {
+		// Simulate table not existing: get_var returns null for SHOW TABLES check.
+		$this->wpdb->get_var_return = null;
+
+		$result = Event_Store::insert(
+			array(
+				'user_id' => 12,
+				'event'   => 'action_blocked',
+			)
+		);
+
+		$this->assertFalse( $result );
+		// Should have checked table existence but NOT attempted insert.
+		$this->assertCount( 1, $this->wpdb->prepare_calls );
+		$this->assertStringContainsString( 'SHOW TABLES LIKE', $this->wpdb->prepare_calls[0]['query'] );
+		$this->assertCount( 0, $this->wpdb->insert_calls );
 	}
 
 	public function test_recent_queries_current_site_and_orders_descending(): void {
@@ -204,6 +246,7 @@ final class FakeWpdb {
 
 	public string $prefix      = 'wp_';
 	public string $base_prefix = 'wp_';
+	public bool $is_sqlite     = false;
 
 	/** @var array<int, array{table: string, data: array<string, mixed>, format: array<int, string>|null}> */
 	public array $insert_calls = [];
@@ -227,7 +270,7 @@ final class FakeWpdb {
 	public array $get_results_return = [];
 
 	/** @var string|int|null */
-	public $get_var_return = 0;
+	public $get_var_return = null;
 
 	public int $query_return   = 0;
 	public int $rows_affected  = 0;
@@ -271,6 +314,27 @@ final class FakeWpdb {
 	public function query( string $query ): int {
 		$this->query_calls[] = $query;
 		return $this->query_return;
+	}
+
+	/**
+	 * Fake SQLite integration handle accessor.
+	 *
+	 * @return object
+	 */
+	public function dbh(): object {
+		return (object) array(
+			'driver_name' => $this->is_sqlite ? 'sqlite' : 'mysql',
+		);
+	}
+
+	/**
+	 * Fake suppress_errors toggle.
+	 *
+	 * @param bool $suppress Whether to suppress errors.
+	 * @return bool
+	 */
+	public function suppress_errors( bool $suppress ): bool {
+		return $suppress;
 	}
 
 	/**

@@ -9,9 +9,9 @@ Verification environment: primary local repo checkout at `/Users/danknauss/Devel
 
 | Metric | Value | Verification |
 |---|---:|---|
-| Unit tests | 561 tests | `composer test:unit` |
-| Unit assertions | 1525 assertions | `composer test:unit` |
-| Integration tests in suite | 145 test methods | `rg -c "function test" tests/Integration/*.php | awk -F: '{sum+=$2} END{print sum}'` |
+| Unit tests | 607 tests | `composer test:unit` |
+| Unit assertions | 1700 assertions | `composer test:unit` |
+| Integration tests in suite | 148 test methods | `rg -c "function test" tests/Integration/*.php | awk -F: '{sum+=$2} END{print sum}'` |
 | Unit test files | 20 | `ls tests/Unit/*.php | wc -l` |
 | Integration test files | 20 | `ls tests/Integration/*.php | wc -l` |
 
@@ -66,9 +66,9 @@ Source: `.github/workflows/phpunit.yml`, `.github/workflows/e2e.yml`, `.github/w
 
 ## Verification Notes
 
-- `composer test:unit` passed on 2026-04-19 (`561 tests`, `1525 assertions`).
-- `composer test:integration` passed on 2026-04-18 (`150 tests`, `474 assertions`, `9 skipped`) using the repo wrapper's `wp-env` `tests-cli` fallback against the containerized `wordpress_test` database.
-- `WP_MULTISITE=1 composer test:integration` passed on 2026-04-18 (`150 tests`, `488 assertions`, `2 skipped`) using the same `wp-env` `tests-cli` fallback and database.
+- `composer test:unit` passed on 2026-04-19 (`607 tests`, `1700 assertions`).
+- `composer test:integration` passed on 2026-04-19 (`153 tests`, `486 assertions`, `9 skipped`) using the repo wrapper's `wp-env` `tests-cli` fallback against the containerized `wordpress_test` database.
+- `WP_MULTISITE=1 composer test:integration` passed on 2026-04-19 (`153 tests`, `500 assertions`, `2 skipped`) using the same `wp-env` `tests-cli` fallback and database.
 - `composer analyse:phpstan`, `composer analyse:psalm`, and `composer lint` passed on 2026-04-19.
 
 ## Update Procedure

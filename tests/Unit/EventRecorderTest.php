@@ -59,6 +59,29 @@ class EventRecorderFakeWpdb {
 		return '';
 	}
 
+	/**
+	 * Mock prepare().
+	 *
+	 * @param string       $query Query with placeholders.
+	 * @param mixed ...$args      Parameters.
+	 * @return string
+	 */
+	public function prepare( string $query, ...$args ): string {
+		return $query;
+	}
+
+	/**
+	 * Mock get_var().
+	 *
+	 * Returns the table name to simulate table exists.
+	 *
+	 * @param string $query Query.
+	 * @return string
+	 */
+	public function get_var( string $query ): string {
+		return 'wp_wpsudo_events';
+	}
+
 }
 
 /**
