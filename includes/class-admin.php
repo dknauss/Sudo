@@ -1081,7 +1081,7 @@ class Admin {
 			<?php submit_button( __( 'Evaluate Request', 'wp-sudo' ), 'secondary', 'wp_sudo_request_tester_submit', false ); ?>
 		</form>
 		<?php if ( is_array( $result ) ) : ?>
-			<div class="notice notice-info inline" style="margin-top: 1em;">
+			<div id="wp-sudo-tester-result" class="notice notice-info inline" style="margin-top: 1em;">
 				<p>
 					<strong><?php esc_html_e( 'Matched rule:', 'wp-sudo' ); ?></strong>
 					<?php echo esc_html( (string) ( $result['matched_rule_label'] ?? '—' ) ); ?>
@@ -1466,9 +1466,11 @@ class Admin {
 	 * @return string
 	 */
 	private function get_request_tester_action_url(): string {
-		return is_multisite()
+		$base = is_multisite()
 			? network_admin_url( 'settings.php?page=' . self::PAGE_SLUG )
 			: admin_url( 'options-general.php?page=' . self::PAGE_SLUG );
+
+		return $base . '#wp-sudo-tester-result';
 	}
 
 	/**
