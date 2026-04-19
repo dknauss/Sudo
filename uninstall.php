@@ -20,6 +20,10 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 	exit;
 }
 
+if ( ! class_exists( '\WP_Sudo\Event_Store' ) ) {
+	require_once __DIR__ . '/includes/class-event-store.php';
+}
+
 /**
  * Clean up all per-site data: role and options.
  *
@@ -40,6 +44,15 @@ function wp_sudo_cleanup_site(): void {
 	delete_option( 'wp_sudo_activated' );
 	delete_option( 'wp_sudo_role_version' );
 	delete_option( 'wp_sudo_db_version' );
+}
+
+/**
+ * Drop the shared events table.
+ *
+ * @return void
+ */
+function wp_sudo_cleanup_events_table(): void {
+	\WP_Sudo\Event_Store::drop_table();
 }
 
 /**
@@ -98,6 +111,7 @@ if ( is_multisite() ) {
 	// Clean network-wide data.
 	wp_sudo_cleanup_user_meta();
 	wp_sudo_cleanup_mu_shim();
+	wp_sudo_cleanup_events_table();
 
 	// Clean network-wide options (stored in wp_sitemeta).
 	delete_site_option( 'wp_sudo_settings' );
@@ -110,4 +124,5 @@ if ( is_multisite() ) {
 	wp_sudo_cleanup_site();
 	wp_sudo_cleanup_user_meta();
 	wp_sudo_cleanup_mu_shim();
+	wp_sudo_cleanup_events_table();
 }

@@ -48,9 +48,10 @@ class Upgrader {
 	 * @var array<string, string>
 	 */
 	private const UPGRADES = array(
-		'2.0.0' => 'upgrade_2_0_0',
-		'2.1.0' => 'upgrade_2_1_0',
-		'2.2.0' => 'upgrade_2_2_0',
+		'2.0.0'  => 'upgrade_2_0_0',
+		'2.1.0'  => 'upgrade_2_1_0',
+		'2.2.0'  => 'upgrade_2_2_0',
+		'2.15.0' => 'upgrade_2_15_0',
 	);
 
 	/**
@@ -219,5 +220,14 @@ class Upgrader {
 
 			Admin::reset_cache();
 		}
+	}
+
+	/**
+	 * 2.15.0 migration: create the shared events table for dashboard visibility.
+	 *
+	 * @return void
+	 */
+	private function upgrade_2_15_0(): void {
+		Event_Store::create_table();
 	}
 }

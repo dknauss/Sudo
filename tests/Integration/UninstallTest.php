@@ -12,6 +12,7 @@
 
 namespace WP_Sudo\Tests\Integration;
 
+use WP_Sudo\Event_Store;
 use WP_Sudo\Sudo_Session;
 
 class UninstallTest extends TestCase {
@@ -52,6 +53,11 @@ class UninstallTest extends TestCase {
 		update_option( 'wp_sudo_settings', array( 'session_duration' => 5 ) );
 		$this->assertNotFalse( get_option( 'wp_sudo_settings' ), 'Settings option should exist before uninstall.' );
 
+		global $wpdb;
+		Event_Store::create_table();
+		$table = $wpdb->base_prefix . 'wpsudo_events';
+		$this->assertSame( $table, $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ), 'Events table should exist before uninstall.' );
+
 		// Act: run uninstall.
 		if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 			define( 'WP_UNINSTALL_PLUGIN', 'wp-sudo/wp-sudo.php' );
@@ -63,6 +69,7 @@ class UninstallTest extends TestCase {
 		$this->assertFalse( get_option( 'wp_sudo_activated' ), 'wp_sudo_activated should be deleted.' );
 		$this->assertFalse( get_option( 'wp_sudo_role_version' ), 'wp_sudo_role_version should be deleted.' );
 		$this->assertFalse( get_option( 'wp_sudo_db_version' ), 'wp_sudo_db_version should be deleted.' );
+		$this->assertNull( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ), 'Events table should be dropped on uninstall.' );
 
 		// Assert: user meta is removed.
 		$this->assertEmpty( get_user_meta( $user->ID, '_wp_sudo_expires', true ), 'Expiry meta should be deleted.' );
@@ -112,6 +119,11 @@ class UninstallTest extends TestCase {
 		// Set site options.
 		update_site_option( 'wp_sudo_settings', array( 'session_duration' => 5 ) );
 
+		global $wpdb;
+		Event_Store::create_table();
+		$table = $wpdb->base_prefix . 'wpsudo_events';
+		$this->assertSame( $table, $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ), 'Events table should exist before uninstall.' );
+
 		// Ensure the plugin is NOT in the active plugins list for the current site
 		// (simulates the state after WordPress has already deactivated the plugin
 		// but before the uninstall routine runs).
@@ -140,5 +152,6 @@ class UninstallTest extends TestCase {
 
 		// Assert: network options are cleaned.
 		$this->assertFalse( get_site_option( 'wp_sudo_settings' ), 'Network settings option should be deleted.' );
+		$this->assertNull( $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) ), 'Events table should be dropped on multisite uninstall.' );
 	}
 }

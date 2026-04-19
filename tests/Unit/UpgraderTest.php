@@ -17,6 +17,40 @@ use Brain\Monkey\Functions;
  */
 class UpgraderTest extends TestCase {
 
+	/**
+	 * Original global wpdb instance, if any.
+	 *
+	 * @var object|null
+	 */
+	private ?object $original_wpdb = null;
+
+	protected function setUp(): void {
+		parent::setUp();
+
+		// Preserve any existing wpdb.
+		$this->original_wpdb = isset( $GLOBALS['wpdb'] ) && is_object( $GLOBALS['wpdb'] ) ? $GLOBALS['wpdb'] : null;
+
+		// Minimal wpdb mock for Event_Store::create_table() called by upgrade_2_15_0().
+		$GLOBALS['wpdb'] = new class {
+			public string $prefix      = 'wp_';
+			public string $base_prefix = 'wp_';
+
+			public function get_charset_collate(): string {
+				return '';
+			}
+		};
+	}
+
+	protected function tearDown(): void {
+		if ( null !== $this->original_wpdb ) {
+			$GLOBALS['wpdb'] = $this->original_wpdb;
+		} else {
+			unset( $GLOBALS['wpdb'] );
+		}
+
+		parent::tearDown();
+	}
+
 	// ── Framework ────────────────────────────────────────────────────
 
 	public function test_skips_when_version_is_current(): void {
@@ -40,6 +74,7 @@ class UpgraderTest extends TestCase {
 		Functions\when( 'remove_role' )->justReturn( null );
 		Functions\when( 'delete_option' )->justReturn( true );
 		Functions\when( 'get_role' )->justReturn( null );
+		Functions\when( 'dbDelta' )->justReturn( array() );
 
 		Functions\expect( 'update_option' )
 			->once()
@@ -65,6 +100,7 @@ class UpgraderTest extends TestCase {
 		Functions\when( 'update_option' )->justReturn( true );
 		Functions\when( 'delete_option' )->justReturn( true );
 		Functions\when( 'get_role' )->justReturn( null );
+		Functions\when( 'dbDelta' )->justReturn( array() );
 
 		Functions\expect( 'remove_role' )
 			->once()
@@ -93,6 +129,7 @@ class UpgraderTest extends TestCase {
 		Functions\when( 'remove_role' )->justReturn( null );
 		Functions\when( 'delete_option' )->justReturn( true );
 		Functions\when( 'get_role' )->justReturn( null );
+		Functions\when( 'dbDelta' )->justReturn( array() );
 
 		// Should update settings without allowed_roles.
 		Functions\expect( 'update_option' )
@@ -128,6 +165,7 @@ class UpgraderTest extends TestCase {
 		Functions\when( 'remove_role' )->justReturn( null );
 		Functions\when( 'update_option' )->justReturn( true );
 		Functions\when( 'get_role' )->justReturn( null );
+		Functions\when( 'dbDelta' )->justReturn( array() );
 
 		Functions\expect( 'delete_option' )
 			->once()
@@ -153,6 +191,7 @@ class UpgraderTest extends TestCase {
 		Functions\when( 'remove_role' )->justReturn( null );
 		Functions\when( 'delete_option' )->justReturn( true );
 		Functions\when( 'get_role' )->justReturn( null );
+		Functions\when( 'dbDelta' )->justReturn( array() );
 
 		// Should only update the version stamp, not the settings.
 		Functions\expect( 'update_option' )
@@ -167,6 +206,43 @@ class UpgraderTest extends TestCase {
 
 	public function test_version_option_constant(): void {
 		$this->assertSame( 'wp_sudo_db_version', Upgrader::VERSION_OPTION );
+	}
+
+	public function test_upgrades_include_2150_events_table_migration(): void {
+		$reflection = new \ReflectionClass( Upgrader::class );
+		$upgrades   = $reflection->getConstant( 'UPGRADES' );
+
+		$this->assertIsArray( $upgrades );
+		$this->assertArrayHasKey( '2.15.0', $upgrades );
+		$this->assertSame( 'upgrade_2_15_0', $upgrades['2.15.0'] );
+	}
+
+	public function test_2150_creates_events_table(): void {
+		$original_wpdb  = isset( $GLOBALS['wpdb'] ) && is_object( $GLOBALS['wpdb'] ) ? $GLOBALS['wpdb'] : null;
+		$GLOBALS['wpdb'] = new class() {
+			public string $prefix      = 'wp_';
+			public string $base_prefix = 'wp_';
+
+			public function get_charset_collate(): string {
+				return 'DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci';
+			}
+		};
+
+		Functions\expect( 'dbDelta' )
+			->once()
+			->with( \Mockery::type( 'string' ) )
+			->andReturn( array() );
+
+		$upgrader = new Upgrader();
+
+		$method = new \ReflectionMethod( Upgrader::class, 'upgrade_2_15_0' );
+		$method->invoke( $upgrader );
+
+		if ( null !== $original_wpdb ) {
+			$GLOBALS['wpdb'] = $original_wpdb;
+		} else {
+			unset( $GLOBALS['wpdb'] );
+		}
 	}
 
 	// ── Multisite: site options ──────────────────────────────────────
@@ -203,6 +279,7 @@ class UpgraderTest extends TestCase {
 		Functions\when( 'remove_role' )->justReturn( null );
 		Functions\when( 'get_option' )->justReturn( array() );
 		Functions\when( 'delete_option' )->justReturn( true );
+		Functions\when( 'dbDelta' )->justReturn( array() );
 
 		Functions\expect( 'update_site_option' )
 			->once()
@@ -222,6 +299,7 @@ class UpgraderTest extends TestCase {
 			return $default;
 		} );
 		Functions\when( 'update_option' )->justReturn( true );
+		Functions\when( 'dbDelta' )->justReturn( array() );
 
 		$role = \Mockery::mock( 'WP_Role' );
 		$role->shouldReceive( 'remove_cap' )
@@ -259,6 +337,7 @@ class UpgraderTest extends TestCase {
 		} );
 
 		Functions\when( 'get_role' )->justReturn( null );
+		Functions\when( 'dbDelta' )->justReturn( array() );
 
 		Functions\expect( 'update_option' )
 			->with(
@@ -301,6 +380,7 @@ class UpgraderTest extends TestCase {
 		} );
 
 		Functions\when( 'get_role' )->justReturn( null );
+		Functions\when( 'dbDelta' )->justReturn( array() );
 
 		Functions\expect( 'update_option' )
 			->with(
@@ -342,6 +422,7 @@ class UpgraderTest extends TestCase {
 		} );
 
 		Functions\when( 'get_role' )->justReturn( null );
+		Functions\when( 'dbDelta' )->justReturn( array() );
 
 		// No changes needed — should only stamp the version.
 		Functions\expect( 'update_option' )
@@ -372,6 +453,7 @@ class UpgraderTest extends TestCase {
 		} );
 
 		Functions\when( 'get_role' )->justReturn( null );
+		Functions\when( 'dbDelta' )->justReturn( array() );
 
 		// Should only update the version stamp, not settings.
 		Functions\expect( 'update_option' )
@@ -404,6 +486,7 @@ class UpgraderTest extends TestCase {
 		} );
 
 		Functions\when( 'get_role' )->justReturn( null );
+		Functions\when( 'dbDelta' )->justReturn( array() );
 
 		$updated_settings = null;
 		$version_stamped  = false;
@@ -438,6 +521,7 @@ class UpgraderTest extends TestCase {
 			->andReturn( '2.0.0' );
 
 		Functions\when( 'update_site_option' )->justReturn( true );
+		Functions\when( 'dbDelta' )->justReturn( array() );
 
 		// On multisite, strip_editor_unfiltered_html is a no-op,
 		// so get_role should never be called.
