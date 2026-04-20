@@ -134,9 +134,11 @@ else
   # Build
   if [ -n "$REVIEWER_BUILD_CMD" ]; then
     echo "   Running build..."
-    if ! eval "$REVIEWER_BUILD_CMD" > /tmp/reviewer-build-log.txt 2>&1; then
+    # Use $TMPDIR when set (respects sandboxed shells); fall back to /tmp.
+    REVIEWER_BUILD_LOG="${TMPDIR:-/tmp}/reviewer-build-log.txt"
+    if ! eval "$REVIEWER_BUILD_CMD" > "$REVIEWER_BUILD_LOG" 2>&1; then
       echo -e "${RED}❌ BLOCKED: Build failed${NC}"
-      tail -20 /tmp/reviewer-build-log.txt
+      tail -20 "$REVIEWER_BUILD_LOG"
       exit 1
     fi
     echo -e "${GREEN}✅ Build successful${NC}"
