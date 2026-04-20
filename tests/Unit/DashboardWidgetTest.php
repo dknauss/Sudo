@@ -295,29 +295,22 @@ class DashboardWidgetTest extends TestCase {
 	 * @return void
 	 */
 	public function testActiveSessionsQueriesUsersWithFutureExpiry(): void {
-		$captured_args = null;
-
-		Functions\expect( 'get_users' )
-			->once()
-			->andReturnUsing(
-				function ( $args ) use ( &$captured_args ) {
-					$captured_args = $args;
-					return [];
-				}
-			);
-
 		// Stub functions used in render.
 		$this->setUpRenderStubs();
 		Functions\when( 'get_option' )->justReturn( [] );
+		\WP_User_Query::$mock_total   = 0;
+		\WP_User_Query::$mock_results = [];
 
 		ob_start();
 		Dashboard_Widget::render();
 		ob_end_clean();
 
-		$this->assertNotNull( $captured_args );
-		$this->assertArrayHasKey( 'meta_query', $captured_args );
-		$this->assertSame( '_wp_sudo_expires', $captured_args['meta_query'][0]['key'] );
-		$this->assertSame( '>', $captured_args['meta_query'][0]['compare'] );
+		$this->assertArrayHasKey( 'meta_query', \WP_User_Query::$last_query_vars );
+		$this->assertSame( '_wp_sudo_expires', \WP_User_Query::$last_query_vars['meta_query'][0]['key'] );
+		$this->assertSame( '>', \WP_User_Query::$last_query_vars['meta_query'][0]['compare'] );
+		$this->assertSame( 'all', \WP_User_Query::$last_query_vars['fields'] );
+		$this->assertSame( 6, \WP_User_Query::$last_query_vars['number'] );
+		$this->assertTrue( \WP_User_Query::$last_query_vars['count_total'] );
 
 		$this->restoreWpdb();
 	}
@@ -328,9 +321,10 @@ class DashboardWidgetTest extends TestCase {
 	 * @return void
 	 */
 	public function testActiveSessionsRendersNoSessionsMessage(): void {
-		Functions\when( 'get_users' )->justReturn( [] );
 		$this->setUpRenderStubs();
 		Functions\when( 'get_option' )->justReturn( [] );
+		\WP_User_Query::$mock_total   = 0;
+		\WP_User_Query::$mock_results = [];
 
 		ob_start();
 		Dashboard_Widget::render();
@@ -355,14 +349,10 @@ class DashboardWidgetTest extends TestCase {
 		$user2->ID         = 2;
 		$user2->user_login = 'editor';
 
-		Functions\when( 'get_users' )->justReturn( [ 1, 2 ] );
 		$this->setUpRenderStubs();
+		\WP_User_Query::$mock_total   = 2;
+		\WP_User_Query::$mock_results = [ $user1, $user2 ];
 		Functions\when( 'get_user_meta' )->justReturn( time() + 300 ); // 5 min from now.
-		Functions\when( 'get_userdata' )->alias(
-			function ( $id ) use ( $user1, $user2 ) {
-				return $id === 1 ? $user1 : $user2;
-			}
-		);
 		Functions\when( 'human_time_diff' )->justReturn( '5 mins' );
 		Functions\when( 'get_option' )->justReturn( [] );
 
@@ -377,24 +367,23 @@ class DashboardWidgetTest extends TestCase {
 	}
 
 	/**
-	 * Test active sessions limits display to 5 users max.
+	 * Test active sessions caps display and shows a "View all" indicator link.
 	 *
 	 * @return void
 	 */
-	public function testActiveSessionsLimitsToFiveUsers(): void {
+	public function testActiveSessionsShowsViewAllIndicatorWhenCountExceedsDisplayCap(): void {
 		$users = [];
-		for ( $i = 1; $i <= 7; $i++ ) {
+		for ( $i = 1; $i <= 6; $i++ ) {
 			$user              = new \WP_User( $i, [ 'subscriber' ] );
 			$user->ID          = $i;
 			$user->user_login  = 'user' . $i;
 			$users[ $i ]       = $user;
 		}
 
-		// Return IDs (since we use fields => ID).
-		Functions\when( 'get_users' )->justReturn( array_keys( $users ) );
 		$this->setUpRenderStubs();
+		\WP_User_Query::$mock_total   = 12;
+		\WP_User_Query::$mock_results = array_values( $users );
 		Functions\when( 'get_user_meta' )->justReturn( time() + 300 );
-		Functions\when( 'get_userdata' )->alias( fn( $id ) => $users[ $id ] ?? null );
 		Functions\when( 'human_time_diff' )->justReturn( '5 mins' );
 		Functions\when( 'get_option' )->justReturn( [] );
 
@@ -402,8 +391,9 @@ class DashboardWidgetTest extends TestCase {
 		Dashboard_Widget::render();
 		$output = ob_get_clean();
 
-		// Count should show total (7), but UI should indicate limited display.
-		$this->assertStringContainsString( '7', $output );
+		$this->assertStringContainsString( '12', $output );
+		$this->assertStringContainsString( 'View all sudo-active users (12)', $output );
+		$this->assertStringContainsString( 'users.php?sudo_active=1', $output );
 
 		$this->restoreWpdb();
 	}
@@ -416,9 +406,10 @@ class DashboardWidgetTest extends TestCase {
 	 * @return void
 	 */
 	public function testRecentEventsCallsEventStoreRecent(): void {
-		Functions\when( 'get_users' )->justReturn( [] );
 		$this->setUpRenderStubs();
 		Functions\when( 'get_option' )->justReturn( [] );
+		\WP_User_Query::$mock_total   = 0;
+		\WP_User_Query::$mock_results = [];
 
 		// Event_Store::recent() will call $wpdb->get_results().
 		// We'll verify it's called by checking no errors occur.
@@ -438,9 +429,10 @@ class DashboardWidgetTest extends TestCase {
 	 * @return void
 	 */
 	public function testRecentEventsRendersNoActivityMessage(): void {
-		Functions\when( 'get_users' )->justReturn( [] );
 		$this->setUpRenderStubs();
 		Functions\when( 'get_option' )->justReturn( [] );
+		\WP_User_Query::$mock_total   = 0;
+		\WP_User_Query::$mock_results = [];
 
 		ob_start();
 		Dashboard_Widget::render();
@@ -458,15 +450,21 @@ class DashboardWidgetTest extends TestCase {
 	 * @return void
 	 */
 	public function testRecentEventsRendersEventTable(): void {
-		Functions\when( 'get_users' )->justReturn( [] );
 		$this->setUpRenderStubs();
+		\WP_User_Query::$mock_total   = 0;
+		\WP_User_Query::$mock_results = [];
 		Functions\when( 'human_time_diff' )->justReturn( '2 mins ago' );
 		Functions\when( 'get_option' )->justReturn( [] );
-		Functions\when( 'get_userdata' )->alias(
-			function ( $id ) {
-				$user             = new \WP_User( $id, [] );
-				$user->user_login = 'testuser';
-				return $user;
+		Functions\when( 'get_users' )->alias(
+			function ( array $args ): array {
+				if ( isset( $args['include'] ) ) {
+					$user             = (object) array();
+					$user->ID         = 1;
+					$user->user_login = 'testuser';
+					return array( $user );
+				}
+
+				return array();
 			}
 		);
 
@@ -491,15 +489,21 @@ class DashboardWidgetTest extends TestCase {
 	 * @return void
 	 */
 	public function testRecentEventsUsesHumanReadableLabels(): void {
-		Functions\when( 'get_users' )->justReturn( [] );
 		$this->setUpRenderStubs();
+		\WP_User_Query::$mock_total   = 0;
+		\WP_User_Query::$mock_results = [];
 		Functions\when( 'human_time_diff' )->justReturn( '2 mins ago' );
 		Functions\when( 'get_option' )->justReturn( [] );
-		Functions\when( 'get_userdata' )->alias(
-			function ( $id ) {
-				$user             = new \WP_User( $id, [] );
-				$user->user_login = 'admin';
-				return $user;
+		Functions\when( 'get_users' )->alias(
+			function ( array $args ): array {
+				if ( isset( $args['include'] ) ) {
+					$user             = (object) array();
+					$user->ID         = 1;
+					$user->user_login = 'admin';
+					return array( $user );
+				}
+
+				return array();
 			}
 		);
 
@@ -525,13 +529,15 @@ class DashboardWidgetTest extends TestCase {
 	 * @return void
 	 */
 	public function testPolicySummaryRendersSessionDuration(): void {
-		Functions\when( 'get_users' )->justReturn( [] );
+		\WP_User_Query::$mock_total   = 0;
+		\WP_User_Query::$mock_results = [];
 		Functions\when( 'esc_html__' )->returnArg( 1 );
 		Functions\when( 'esc_html' )->returnArg( 1 );
 		Functions\when( 'esc_url' )->returnArg( 1 );
 		Functions\when( 'admin_url' )->returnArg( 1 );
 		Functions\when( 'wp_kses' )->returnArg( 1 );
 		Functions\when( '_n' )->returnArg( 2 );
+		Functions\when( 'get_users' )->justReturn( [] );
 		Functions\when( 'get_option' )->alias(
 			function ( $name, $default = [] ) {
 				if ( 'wp_sudo_settings' === $name ) {
@@ -559,13 +565,15 @@ class DashboardWidgetTest extends TestCase {
 	 * @return void
 	 */
 	public function testPolicySummaryRendersSurfacePolicies(): void {
-		Functions\when( 'get_users' )->justReturn( [] );
+		\WP_User_Query::$mock_total   = 0;
+		\WP_User_Query::$mock_results = [];
 		Functions\when( 'esc_html__' )->returnArg( 1 );
 		Functions\when( 'esc_html' )->returnArg( 1 );
 		Functions\when( 'esc_url' )->returnArg( 1 );
 		Functions\when( 'admin_url' )->returnArg( 1 );
 		Functions\when( 'wp_kses' )->returnArg( 1 );
 		Functions\when( '_n' )->returnArg( 2 );
+		Functions\when( 'get_users' )->justReturn( [] );
 		Functions\when( 'get_option' )->alias(
 			function ( $name, $default = [] ) {
 				if ( 'wp_sudo_settings' === $name ) {
@@ -602,13 +610,15 @@ class DashboardWidgetTest extends TestCase {
 	 * @return void
 	 */
 	public function testPolicySummaryUsesDefaultsWhenOptionMissing(): void {
-		Functions\when( 'get_users' )->justReturn( [] );
+		\WP_User_Query::$mock_total   = 0;
+		\WP_User_Query::$mock_results = [];
 		Functions\when( 'esc_html__' )->returnArg( 1 );
 		Functions\when( 'esc_html' )->returnArg( 1 );
 		Functions\when( 'esc_url' )->returnArg( 1 );
 		Functions\when( 'admin_url' )->returnArg( 1 );
 		Functions\when( 'wp_kses' )->returnArg( 1 );
 		Functions\when( '_n' )->returnArg( 2 );
+		Functions\when( 'get_users' )->justReturn( [] );
 		Functions\when( 'get_option' )->justReturn( [] ); // Empty settings.
 		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
 		$this->setUpFakeWpdb();

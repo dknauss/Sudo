@@ -80,7 +80,7 @@ class Dashboard_Widget {
 	 *
 	 * @var int
 	 */
-	private const MAX_DISPLAY_USERS = 10;
+	private const MAX_DISPLAY_USERS = 6;
 
 	/**
 	 * Default settings for display.
@@ -105,9 +105,9 @@ class Dashboard_Widget {
 	 * @return void
 	 */
 	private static function render_active_sessions(): void {
-		$users = get_users(
+		$query = new \WP_User_Query(
 			array(
-				'meta_query' => array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
+				'meta_query'  => array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
 					array(
 						'key'     => '_wp_sudo_expires',
 						'value'   => time(),
@@ -115,11 +115,17 @@ class Dashboard_Widget {
 						'type'    => 'NUMERIC',
 					),
 				),
-				'fields'     => 'ID',
+				'fields'      => 'all',
+				'number'      => self::MAX_DISPLAY_USERS,
+				'count_total' => true,
 			)
 		);
 
-		$count = count( $users );
+		$users = $query->get_results();
+		if ( ! is_array( $users ) ) {
+			$users = array();
+		}
+		$count = (int) $query->get_total();
 
 		echo '<h3>' . esc_html__( 'Active Sessions', 'wp-sudo' ) . '</h3>';
 
@@ -132,18 +138,13 @@ class Dashboard_Widget {
 		echo '<p class="wp-sudo-active-count"><strong>' . esc_html( sprintf( _n( '%d active session', '%d active sessions', $count, 'wp-sudo' ), $count ) ) . '</strong></p>';
 
 		echo '<ul class="wp-sudo-user-list">';
-		$displayed = 0;
-		foreach ( $users as $user_id ) {
-			if ( $displayed >= self::MAX_DISPLAY_USERS ) {
-				break;
-			}
-
-			$user = get_userdata( (int) $user_id );
-			if ( ! $user ) {
+		foreach ( $users as $user ) {
+			if ( ! is_object( $user ) || ! isset( $user->ID ) ) {
 				continue;
 			}
 
-			$expires      = (int) get_user_meta( (int) $user_id, '_wp_sudo_expires', true );
+			$user_id      = (int) $user->ID;
+			$expires      = (int) get_user_meta( $user_id, '_wp_sudo_expires', true );
 			$time_left    = human_time_diff( time(), $expires );
 			$user_login   = isset( $user->user_login ) && is_string( $user->user_login ) ? $user->user_login : 'User ' . $user_id;
 			$display_name = isset( $user->display_name ) && is_string( $user->display_name ) ? $user->display_name : '';
@@ -190,13 +191,15 @@ class Dashboard_Widget {
 			echo '</div>';
 			echo '</div>';
 			echo '</li>';
-			++$displayed;
 		}
 		echo '</ul>';
 
 		if ( $count > self::MAX_DISPLAY_USERS ) {
-			// phpcs:ignore WordPress.WP.I18n.MissingTranslatorsComment -- Simple count.
-			echo '<p><em>' . esc_html( sprintf( __( '+ %d more', 'wp-sudo' ), $count - self::MAX_DISPLAY_USERS ) ) . '</em></p>';
+			echo '<p class="wp-sudo-view-all">';
+			echo '<a href="' . esc_url( admin_url( 'users.php?sudo_active=1' ) ) . '">';
+			/* translators: %d is the number of users with active sudo sessions. */
+			echo esc_html( sprintf( __( 'View all sudo-active users (%d) →', 'wp-sudo' ), $count ) );
+			echo '</a></p>';
 		}
 	}
 
@@ -296,6 +299,8 @@ class Dashboard_Widget {
 			return;
 		}
 
+		$user_logins = self::get_event_user_login_map( $events );
+
 		echo '<table class="widefat striped wp-sudo-events-table">';
 		echo '<caption class="screen-reader-text">' . esc_html__( 'Recent sudo session events', 'wp-sudo' ) . '</caption>';
 		echo '<thead><tr>';
@@ -311,8 +316,7 @@ class Dashboard_Widget {
 			$created_at  = isset( $event_obj->created_at ) ? strtotime( (string) $event_obj->created_at ) : 0;
 			$time_ago    = $created_at > 0 ? human_time_diff( $created_at, time() ) : '—';
 			$user_id     = isset( $event_obj->user_id ) ? (int) $event_obj->user_id : 0;
-			$user        = $user_id > 0 ? get_userdata( $user_id ) : null;
-			$username    = $user && isset( $user->user_login ) ? $user->user_login : '—';
+			$username    = $user_id > 0 && isset( $user_logins[ $user_id ] ) ? $user_logins[ $user_id ] : '—';
 			$event_type  = isset( $event_obj->event ) ? (string) $event_obj->event : '';
 			$event_label = self::EVENT_LABELS[ $event_type ] ?? $event_type;
 			$rule_id     = isset( $event_obj->rule_id ) ? (string) $event_obj->rule_id : '';
@@ -329,6 +333,55 @@ class Dashboard_Widget {
 		}
 
 		echo '</tbody></table>';
+	}
+
+	/**
+	 * Build a user_id => user_login map for Recent Events rows in one query.
+	 *
+	 * @param array<int, mixed> $events Event rows from Event_Store::recent().
+	 * @return array<int, string>
+	 */
+	private static function get_event_user_login_map( array $events ): array {
+		$user_ids = array();
+
+		foreach ( $events as $event ) {
+			$event_obj = is_array( $event ) ? (object) $event : $event;
+			$user_id   = isset( $event_obj->user_id ) ? (int) $event_obj->user_id : 0;
+			if ( $user_id > 0 ) {
+				$user_ids[ $user_id ] = $user_id;
+			}
+		}
+
+		if ( empty( $user_ids ) ) {
+			return array();
+		}
+
+		$users = get_users(
+			array(
+				'include' => array_values( $user_ids ),
+				'orderby' => 'include',
+				'fields'  => array( 'ID', 'user_login' ),
+			)
+		);
+
+		$map = array();
+		foreach ( $users as $user ) {
+			if ( ! is_object( $user ) || ! isset( $user->ID ) ) {
+				continue;
+			}
+
+			$id = (int) $user->ID;
+			if ( $id <= 0 ) {
+				continue;
+			}
+
+			$login = isset( $user->user_login ) && is_string( $user->user_login ) ? $user->user_login : '';
+			if ( '' !== $login ) {
+				$map[ $id ] = $login;
+			}
+		}
+
+		return $map;
 	}
 
 	/**
@@ -450,8 +503,6 @@ class Dashboard_Widget {
 	display: grid;
 	grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
 	gap: 8px;
-	max-height: 280px;
-	overflow-y: auto;
 }
 #wp_sudo_activity .wp-sudo-user-row {
 	display: flex;
@@ -500,6 +551,17 @@ class Dashboard_Widget {
 #wp_sudo_activity .wp-sudo-user-secondary .wp-sudo-fullname,
 #wp_sudo_activity .wp-sudo-user-secondary .wp-sudo-displayname {
 	margin-right: 0.5em;
+}
+
+#wp_sudo_activity .wp-sudo-view-all {
+	margin-top: 0.75em;
+	margin-bottom: 0;
+	text-align: right;
+}
+#wp_sudo_activity .wp-sudo-view-all a {
+	font-size: 0.85em;
+	font-weight: 600;
+	text-decoration: none;
 }
 
 /* Event filters — compact inline row matching WP dashboard patterns */

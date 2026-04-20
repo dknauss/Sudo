@@ -41,6 +41,10 @@ class UpgraderTest extends TestCase {
 			public function get_charset_collate(): string {
 				return '';
 			}
+
+			public function get_results( string $query ): array {
+				return [];
+			}
 		};
 	}
 
