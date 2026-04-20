@@ -346,6 +346,7 @@ class Dashboard_Widget {
 		'xmlrpc'            => 'xml-rpc',
 		'wpgraphql'         => 'graphql',
 		'public_api'        => 'public-api',
+		'reauth'            => 'reauth',
 	);
 
 	/**
@@ -419,6 +420,7 @@ class Dashboard_Widget {
 		}
 
 		$user_logins = self::get_event_user_login_map( $events );
+		$user_links  = self::get_event_user_profile_url_map( $user_logins );
 
 		echo '<div class="wp-sudo-events-scroll" aria-label="' . esc_attr__( 'Recent event history', 'wp-sudo' ) . '" style="max-height:' . esc_attr( (string) $event_scroll_height ) . 'px">';
 		echo '<table class="widefat striped wp-sudo-events-table">';
@@ -433,12 +435,21 @@ class Dashboard_Widget {
 
 		$row_index = 0;
 		foreach ( $events as $event ) {
-			$event_obj     = is_array( $event ) ? (object) $event : $event;
-			$created_at    = isset( $event_obj->created_at ) ? self::parse_created_at_timestamp( (string) $event_obj->created_at ) : 0;
-			$time_ago      = $created_at > 0 ? self::format_compact_duration( time() - $created_at ) : '—';
-			$time_title    = $created_at > 0 ? self::format_absolute_event_time( $created_at ) : '';
-			$user_id       = isset( $event_obj->user_id ) ? (int) $event_obj->user_id : 0;
-			$username      = $user_id > 0 && isset( $user_logins[ $user_id ] ) ? $user_logins[ $user_id ] : '—';
+			$event_obj       = is_array( $event ) ? (object) $event : $event;
+			$created_at      = isset( $event_obj->created_at ) ? self::parse_created_at_timestamp( (string) $event_obj->created_at ) : 0;
+			$time_ago        = $created_at > 0 ? self::format_compact_duration( time() - $created_at ) : '—';
+			$time_title      = $created_at > 0 ? self::format_absolute_event_time( $created_at ) : '';
+			$user_id         = isset( $event_obj->user_id ) ? (int) $event_obj->user_id : 0;
+			$is_deleted_user = false;
+			if ( $user_id > 0 && isset( $user_logins[ $user_id ] ) ) {
+				$username = $user_logins[ $user_id ];
+			} elseif ( $user_id > 0 ) {
+				$is_deleted_user = true;
+				/* translators: %d is the deleted user's numeric ID. */
+				$username = sprintf( __( 'Deleted user (#%d)', 'wp-sudo' ), $user_id );
+			} else {
+				$username = '—';
+			}
 			$event_type    = isset( $event_obj->event ) ? (string) $event_obj->event : '';
 			$event_label   = self::EVENT_LABELS[ $event_type ] ?? $event_type;
 			$event_class   = 'wp-sudo-event-pill wp-sudo-event-pill-' . str_replace( '_', '-', $event_type );
@@ -447,6 +458,9 @@ class Dashboard_Widget {
 			$rule_label    = $rule_metadata['label'];
 			$is_critical   = $rule_metadata['is_critical'];
 			$surface       = isset( $event_obj->surface ) ? (string) $event_obj->surface : '';
+			if ( '' === $surface && 'action_replayed' === $event_type ) {
+				$surface = 'reauth';
+			}
 			$surface_label = self::SURFACE_LABELS[ $surface ] ?? $surface;
 
 			$cell_bg = 1 === ( $row_index % 2 ) ? '#eef1f5' : '#ffffff';
@@ -457,7 +471,15 @@ class Dashboard_Widget {
 			}
 			echo ' data-time="' . esc_attr( (string) $created_at ) . '" data-event="' . esc_attr( $event_type ) . '" data-surface="' . esc_attr( $surface ) . '" data-sort-user="' . esc_attr( strtolower( $username ) ) . '" data-sort-event="' . esc_attr( strtolower( $event_label ) ) . '" data-sort-action="' . esc_attr( strtolower( $rule_label ) ) . '" data-sort-surface="' . esc_attr( strtolower( $surface_label ) ) . '">';
 			echo '<td style="background:' . esc_attr( $cell_bg ) . ';"' . ( '' !== $time_title ? ' title="' . esc_attr( $time_title ) . '"' : '' ) . '>' . esc_html( $time_ago ) . '</td>';
-			echo '<td style="background:' . esc_attr( $cell_bg ) . ';">' . esc_html( $username ) . '</td>';
+			echo '<td style="background:' . esc_attr( $cell_bg ) . ';">';
+			if ( $user_id > 0 && isset( $user_links[ $user_id ] ) ) {
+				echo '<a href="' . esc_url( $user_links[ $user_id ] ) . '" class="wp-sudo-event-user-link">' . esc_html( $username ) . '</a>';
+			} elseif ( $is_deleted_user ) {
+				echo '<em class="wp-sudo-event-user-deleted">' . esc_html( $username ) . '</em>';
+			} else {
+				echo esc_html( $username );
+			}
+			echo '</td>';
 			echo '<td style="background:' . esc_attr( $cell_bg ) . ';"><span class="' . esc_attr( $event_class ) . '">' . esc_html( $event_label ) . '</span></td>';
 			echo '<td style="background:' . esc_attr( $cell_bg ) . ';"><span class="wp-sudo-action-label">' . esc_html( $rule_label ) . '</span>';
 			if ( $is_critical ) {
@@ -523,6 +545,34 @@ class Dashboard_Widget {
 		}
 
 		return $map;
+	}
+
+	/**
+	 * Build a user_id => profile-edit URL map for users the viewer can edit.
+	 *
+	 * @param array<int, string> $user_logins user_id => user_login map.
+	 * @return array<int, string>
+	 */
+	private static function get_event_user_profile_url_map( array $user_logins ): array {
+		if ( empty( $user_logins ) ) {
+			return array();
+		}
+
+		$links = array();
+		foreach ( array_keys( $user_logins ) as $user_id ) {
+			$id = (int) $user_id;
+			if ( $id <= 0 ) {
+				continue;
+			}
+
+			if ( ! current_user_can( 'edit_user', $id ) ) {
+				continue;
+			}
+
+			$links[ $id ] = admin_url( 'user-edit.php?user_id=' . $id );
+		}
+
+		return $links;
 	}
 
 	/**

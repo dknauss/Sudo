@@ -242,6 +242,85 @@ class DashboardWidgetFakeWpdbWithCriticalEvent {
 }
 
 /**
+ * Fake wpdb that returns a replayed event with no surface.
+ */
+class DashboardWidgetFakeWpdbWithReplayedEvent {
+
+	/** @var string */
+	public string $prefix = 'wp_';
+
+	/** @var string */
+	public string $base_prefix = 'wp_';
+
+	/** @var string|null */
+	public ?string $last_get_results_query = null;
+
+	/**
+	 * Mock get_results() - returns one replayed event row.
+	 *
+	 * @param string $query SQL query.
+	 * @return array<int, object>
+	 */
+	public function get_results( string $query ): array {
+		$this->last_get_results_query = $query;
+		if ( strpos( $query, 'wpsudo_events' ) !== false ) {
+			return [
+				(object) [
+					'id'         => 3,
+					'user_id'    => 1,
+					'event'      => 'action_replayed',
+					'rule_id'    => 'options.update',
+					'surface'    => '',
+					'created_at' => gmdate( 'Y-m-d H:i:s', time() - 60 ),
+				],
+			];
+		}
+
+		return [];
+	}
+
+	/**
+	 * Mock prepare().
+	 *
+	 * @param string $query  Query.
+	 * @param mixed  ...$args Arguments.
+	 * @return string
+	 */
+	public function prepare( string $query, ...$args ): string {
+		return $query;
+	}
+
+	/**
+	 * Mock get_charset_collate().
+	 *
+	 * @return string
+	 */
+	public function get_charset_collate(): string {
+		return '';
+	}
+
+	/**
+	 * Mock get_var().
+	 *
+	 * @param string $query SQL query.
+	 * @return string|null
+	 */
+	public function get_var( string $query ): ?string {
+		return null;
+	}
+
+	/**
+	 * Mock suppress_errors().
+	 *
+	 * @param bool $suppress True to suppress.
+	 * @return void
+	 */
+	public function suppress_errors( bool $suppress = false ): void {
+		// No-op.
+	}
+}
+
+/**
  * @covers \WP_Sudo\Dashboard_Widget
  */
 class DashboardWidgetTest extends TestCase {
@@ -304,6 +383,7 @@ class DashboardWidgetTest extends TestCase {
 		Functions\when( 'esc_attr' )->returnArg( 1 );
 		Functions\when( 'esc_url' )->returnArg( 1 );
 		Functions\when( 'admin_url' )->returnArg( 1 );
+		Functions\when( 'current_user_can' )->justReturn( true );
 		Functions\when( 'wp_kses' )->returnArg( 1 );
 		Functions\when( 'apply_filters' )->returnArg( 2 );
 		Functions\when( '_n' )->returnArg( 2 ); // Return plural form.
@@ -757,6 +837,111 @@ class DashboardWidgetTest extends TestCase {
 	}
 
 	/**
+	 * Test event usernames link to user-edit pages when editable.
+	 *
+	 * @return void
+	 */
+	public function testRecentEventsUsernamesLinkToEditableProfiles(): void {
+		$this->setUpRenderStubs();
+		\WP_User_Query::$mock_total   = 0;
+		\WP_User_Query::$mock_results = [];
+		Functions\when( 'get_option' )->justReturn( [] );
+		Functions\when( 'get_users' )->alias(
+			function ( array $args ): array {
+				if ( isset( $args['include'] ) ) {
+					$user             = (object) array();
+					$user->ID         = 1;
+					$user->user_login = 'testuser';
+					return array( $user );
+				}
+
+				return array();
+			}
+		);
+
+		$GLOBALS['wpdb'] = new DashboardWidgetFakeWpdbWithEvents();
+
+		ob_start();
+		Dashboard_Widget::render();
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( 'class="wp-sudo-event-user-link"', $output );
+		$this->assertStringContainsString( 'href="user-edit.php?user_id=1"', $output );
+		$this->assertStringContainsString( '>testuser</a>', $output );
+
+		$this->restoreWpdb();
+	}
+
+	/**
+	 * Test event usernames render as plain text when edit access is denied.
+	 *
+	 * @return void
+	 */
+	public function testRecentEventsUsernamesNotLinkedWhenEditAccessDenied(): void {
+		$this->setUpRenderStubs();
+		\WP_User_Query::$mock_total   = 0;
+		\WP_User_Query::$mock_results = [];
+		Functions\when( 'get_option' )->justReturn( [] );
+		Functions\when( 'get_users' )->alias(
+			function ( array $args ): array {
+				if ( isset( $args['include'] ) ) {
+					$user             = (object) array();
+					$user->ID         = 1;
+					$user->user_login = 'testuser';
+					return array( $user );
+				}
+
+				return array();
+			}
+		);
+		Functions\when( 'current_user_can' )->alias(
+			function ( string $capability ): bool {
+				if ( 'edit_user' === $capability ) {
+					return false;
+				}
+
+				return true;
+			}
+		);
+
+		$GLOBALS['wpdb'] = new DashboardWidgetFakeWpdbWithEvents();
+
+		ob_start();
+		Dashboard_Widget::render();
+		$output = ob_get_clean();
+
+		$this->assertStringNotContainsString( 'class="wp-sudo-event-user-link"', $output );
+		$this->assertMatchesRegularExpression( '/<td[^>]*>testuser<\\/td>/', $output );
+
+		$this->restoreWpdb();
+	}
+
+	/**
+	 * Test missing event users are rendered as an explicit deleted-user label.
+	 *
+	 * @return void
+	 */
+	public function testRecentEventsRenderDeletedUserLabelWhenUserMissing(): void {
+		$this->setUpRenderStubs();
+		\WP_User_Query::$mock_total   = 0;
+		\WP_User_Query::$mock_results = [];
+		Functions\when( 'get_option' )->justReturn( [] );
+		Functions\when( 'get_users' )->justReturn( [] );
+
+		$GLOBALS['wpdb'] = new DashboardWidgetFakeWpdbWithEvents();
+
+		ob_start();
+		Dashboard_Widget::render();
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( 'class="wp-sudo-event-user-deleted"', $output );
+		$this->assertStringContainsString( 'Deleted user (#1)', $output );
+		$this->assertStringNotContainsString( 'class="wp-sudo-event-user-link"', $output );
+
+		$this->restoreWpdb();
+	}
+
+	/**
 	 * Test recent events table renders sortable column toggles.
 	 *
 	 * @return void
@@ -866,6 +1051,40 @@ class DashboardWidgetTest extends TestCase {
 		// Event labels should be present (translated).
 		// The implementation should map 'lockout' -> 'Lockout' etc.
 		$this->assertStringContainsString( 'Gated', $output );
+
+		$this->restoreWpdb();
+	}
+
+	/**
+	 * Test replayed events render "reauth" surface code when source surface is empty.
+	 *
+	 * @return void
+	 */
+	public function testReplayedEventsRenderReauthSurfaceCode(): void {
+		$this->setUpRenderStubs();
+		\WP_User_Query::$mock_total   = 0;
+		\WP_User_Query::$mock_results = [];
+		Functions\when( 'get_option' )->justReturn( [] );
+		Functions\when( 'get_users' )->alias(
+			function ( array $args ): array {
+				if ( isset( $args['include'] ) ) {
+					$user             = (object) array();
+					$user->ID         = 1;
+					$user->user_login = 'admin';
+					return array( $user );
+				}
+
+				return array();
+			}
+		);
+
+		$GLOBALS['wpdb'] = new DashboardWidgetFakeWpdbWithReplayedEvent();
+
+		ob_start();
+		Dashboard_Widget::render();
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( '<code class="wp-sudo-surface-code">reauth</code>', $output );
 
 		$this->restoreWpdb();
 	}
