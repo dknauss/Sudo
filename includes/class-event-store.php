@@ -23,6 +23,16 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Event_Store {
 
 	/**
+	 * Maximum rows deleted per batch during prune().
+	 *
+	 * Keeps InnoDB row-lock duration bounded on large tables so the prune
+	 * cron cycle doesn't block concurrent event inserts on a busy site.
+	 *
+	 * @var int
+	 */
+	public const PRUNE_BATCH_SIZE = 1000;
+
+	/**
 	 * Per-request cache of events-table existence.
 	 *
 	 * Null = unknown for current request, true/false = cached result.
@@ -273,17 +283,56 @@ KEY user_created_at (user_id, created_at)
 		global $wpdb;
 
 		$threshold = gmdate( 'Y-m-d H:i:s', time() - ( max( 0, $days ) * DAY_IN_SECONDS ) );
-		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared -- table_name() is safe, uses placeholder.
-		$prepared = $wpdb->prepare(
-			'DELETE FROM ' . self::table_name() . ' WHERE created_at < %s',
-			$threshold
-		);
-		// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared
+		$table     = self::table_name();
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- $prepared is output of prepare().
-		$wpdb->query( $prepared );
+		// SQLite builds are not guaranteed to include DELETE...LIMIT support
+		// (needs SQLITE_ENABLE_UPDATE_DELETE_LIMIT at compile time). The SQLite
+		// path is dev/Playground only, so a single DELETE is safe there.
+		if ( self::is_sqlite() ) {
+			// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared -- table_name() is safe, uses placeholder.
+			$prepared = $wpdb->prepare(
+				'DELETE FROM ' . $table . ' WHERE created_at < %s',
+				$threshold
+			);
+			// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared
 
-		return isset( $wpdb->rows_affected ) ? (int) $wpdb->rows_affected : 0;
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- $prepared is output of prepare().
+			$wpdb->query( $prepared );
+
+			return isset( $wpdb->rows_affected ) ? (int) $wpdb->rows_affected : 0;
+		}
+
+		// MySQL: batch the DELETE so InnoDB row locks are held briefly. A large
+		// unbounded DELETE on a busy events table can stall concurrent inserts
+		// from gate dispatch. Loop until a batch returns fewer rows than the
+		// batch size (or zero), meaning we've caught up.
+		$batch_size = self::PRUNE_BATCH_SIZE;
+		$total      = 0;
+
+		while ( true ) {
+			// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared -- table_name() is safe, uses placeholders.
+			$prepared = $wpdb->prepare(
+				'DELETE FROM ' . $table . ' WHERE created_at < %s LIMIT %d',
+				$threshold,
+				$batch_size
+			);
+			// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared
+
+			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- $prepared is output of prepare().
+			$wpdb->query( $prepared );
+
+			$affected = isset( $wpdb->rows_affected ) ? (int) $wpdb->rows_affected : 0;
+			$total   += $affected;
+
+			// Partial batch = caught up. Full batch = more rows may remain;
+			// loop again. Guards against runaway loops by also stopping if
+			// rows_affected is not reported (0).
+			if ( $affected < $batch_size ) {
+				break;
+			}
+		}
+
+		return $total;
 	}
 
 	/**

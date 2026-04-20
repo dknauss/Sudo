@@ -277,6 +277,59 @@ class EventStoreTest extends TestCase {
 		$this->assertGreaterThanOrEqual( time() - ( 14 * DAY_IN_SECONDS ) - 1, $threshold );
 		$this->assertLessThanOrEqual( time() - ( 14 * DAY_IN_SECONDS ) + 1, $threshold );
 	}
+
+	public function test_prune_batches_delete_when_each_batch_fills_batch_size(): void {
+		$batch_size = Event_Store::PRUNE_BATCH_SIZE;
+
+		$this->wpdb->rows_affected_sequence = array( $batch_size, $batch_size, 500 );
+
+		$deleted = Event_Store::prune( 14 );
+
+		$this->assertSame( ( 2 * $batch_size ) + 500, $deleted );
+		$this->assertCount( 3, $this->wpdb->query_calls );
+		$this->assertCount( 3, $this->wpdb->prepare_calls );
+		foreach ( $this->wpdb->prepare_calls as $call ) {
+			$this->assertStringContainsString( 'DELETE FROM wp_wpsudo_events', $call['query'] );
+			$this->assertStringContainsString( 'WHERE created_at < %s', $call['query'] );
+			$this->assertStringContainsString( 'LIMIT %d', $call['query'] );
+			$this->assertSame( $batch_size, $call['args'][1] );
+		}
+	}
+
+	public function test_prune_stops_when_batch_returns_fewer_than_batch_size(): void {
+		$batch_size = Event_Store::PRUNE_BATCH_SIZE;
+
+		$this->wpdb->rows_affected_sequence = array( max( 1, $batch_size - 1 ) );
+
+		$deleted = Event_Store::prune( 14 );
+
+		$this->assertSame( $batch_size - 1, $deleted );
+		$this->assertCount( 1, $this->wpdb->query_calls );
+	}
+
+	public function test_prune_stops_when_batch_returns_zero_after_full_batch(): void {
+		$batch_size = Event_Store::PRUNE_BATCH_SIZE;
+
+		$this->wpdb->rows_affected_sequence = array( $batch_size, 0 );
+
+		$deleted = Event_Store::prune( 14 );
+
+		$this->assertSame( $batch_size, $deleted );
+		$this->assertCount( 2, $this->wpdb->query_calls );
+	}
+
+	public function test_prune_uses_unbatched_delete_on_sqlite(): void {
+		$this->wpdb->is_sqlite     = true;
+		$this->wpdb->rows_affected = 7;
+		$this->wpdb->query_return  = 7;
+
+		$deleted = Event_Store::prune( 14 );
+
+		$this->assertSame( 7, $deleted );
+		$this->assertCount( 1, $this->wpdb->query_calls );
+		$this->assertCount( 1, $this->wpdb->prepare_calls );
+		$this->assertStringNotContainsString( 'LIMIT', $this->wpdb->prepare_calls[0]['query'] );
+	}
 }
 
 /**
@@ -314,6 +367,13 @@ final class FakeWpdb {
 
 	public int $query_return   = 0;
 	public int $rows_affected  = 0;
+
+	/**
+	 * Optional sequence of rows_affected values, one popped per query() call.
+	 *
+	 * @var array<int, int>
+	 */
+	public array $rows_affected_sequence = array();
 
 	public function get_charset_collate(): string {
 		return 'DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci';
@@ -353,6 +413,10 @@ final class FakeWpdb {
 
 	public function query( string $query ): int {
 		$this->query_calls[] = $query;
+		if ( ! empty( $this->rows_affected_sequence ) ) {
+			$this->rows_affected = (int) array_shift( $this->rows_affected_sequence );
+			return $this->rows_affected;
+		}
 		return $this->query_return;
 	}
 

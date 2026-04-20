@@ -15,6 +15,7 @@ namespace WP_Sudo\Tests\Integration;
 
 use WP_Sudo\Action_Registry;
 use WP_Sudo\Admin;
+use WP_Sudo\Event_Store;
 use WP_Sudo\Sudo_Session;
 
 /**
@@ -42,6 +43,10 @@ class TestCase extends \WP_UnitTestCase {
 	public function set_up(): void {
 		parent::set_up();
 
+		// Integration tests run many cases in one PHP process. Reset any runtime
+		// caches that are request-scoped in production to avoid cross-test leakage.
+		Event_Store::reset_runtime_cache();
+
 		$this->server_snapshot  = $_SERVER;
 		$this->get_snapshot     = $_GET;
 		$this->post_snapshot    = $_POST;
@@ -67,6 +72,7 @@ class TestCase extends \WP_UnitTestCase {
 		Sudo_Session::reset_cache();
 		Action_Registry::reset_cache();
 		Admin::reset_cache();
+		Event_Store::reset_runtime_cache();
 
 		// Gate reads $GLOBALS['pagenow'] for admin request matching.
 		unset( $GLOBALS['pagenow'] );
