@@ -371,14 +371,14 @@ class Dashboard_Widget {
 		echo '<div class="wp-sudo-event-filters" aria-label="' . esc_attr__( 'Recent events filters', 'wp-sudo' ) . '">';
 
 		// Time dropdown.
-		echo '<select class="wp-sudo-filter-select" data-filter="time">';
+		echo '<select class="wp-sudo-filter-select" data-filter="time" aria-label="' . esc_attr__( 'Filter events by time range', 'wp-sudo' ) . '">';
 		echo '<option value="all">' . esc_html__( 'All Time', 'wp-sudo' ) . '</option>';
 		echo '<option value="24h" selected>' . esc_html__( 'Last 24 Hours', 'wp-sudo' ) . '</option>';
 		echo '<option value="7d">' . esc_html__( 'Last 7 Days', 'wp-sudo' ) . '</option>';
 		echo '</select>';
 
 		// Event type dropdown.
-		echo '<select class="wp-sudo-filter-select" data-filter="event">';
+		echo '<select class="wp-sudo-filter-select" data-filter="event" aria-label="' . esc_attr__( 'Filter events by session event type', 'wp-sudo' ) . '">';
 		echo '<option value="all">' . esc_html__( 'All Sessions', 'wp-sudo' ) . '</option>';
 		echo '<option value="lockout">' . esc_html__( 'Lockout', 'wp-sudo' ) . '</option>';
 		echo '<option value="action_gated">' . esc_html__( 'Gated', 'wp-sudo' ) . '</option>';
@@ -391,7 +391,7 @@ class Dashboard_Widget {
 		echo '</select>';
 
 		// Surface dropdown.
-		echo '<select class="wp-sudo-filter-select" data-filter="surface">';
+		echo '<select class="wp-sudo-filter-select" data-filter="surface" aria-label="' . esc_attr__( 'Filter events by request surface', 'wp-sudo' ) . '">';
 		echo '<option value="all">' . esc_html__( 'All Surfaces', 'wp-sudo' ) . '</option>';
 		echo '<option value="admin">' . esc_html__( 'Admin', 'wp-sudo' ) . '</option>';
 		echo '<option value="ajax">' . esc_html__( 'AJAX', 'wp-sudo' ) . '</option>';
@@ -462,6 +462,10 @@ class Dashboard_Widget {
 				$surface = 'reauth';
 			}
 			$surface_label = self::SURFACE_LABELS[ $surface ] ?? $surface;
+			$user_title    = $username;
+			$event_title   = $event_label;
+			$action_title  = $rule_label;
+			$surface_title = '' !== $surface_label ? $surface_label : '—';
 
 			$cell_bg = 1 === ( $row_index % 2 ) ? '#eef1f5' : '#ffffff';
 
@@ -471,7 +475,7 @@ class Dashboard_Widget {
 			}
 			echo ' data-time="' . esc_attr( (string) $created_at ) . '" data-event="' . esc_attr( $event_type ) . '" data-surface="' . esc_attr( $surface ) . '" data-sort-user="' . esc_attr( strtolower( $username ) ) . '" data-sort-event="' . esc_attr( strtolower( $event_label ) ) . '" data-sort-action="' . esc_attr( strtolower( $rule_label ) ) . '" data-sort-surface="' . esc_attr( strtolower( $surface_label ) ) . '">';
 			echo '<td style="background:' . esc_attr( $cell_bg ) . ';"' . ( '' !== $time_title ? ' title="' . esc_attr( $time_title ) . '"' : '' ) . '>' . esc_html( $time_ago ) . '</td>';
-			echo '<td style="background:' . esc_attr( $cell_bg ) . ';">';
+			echo '<td style="background:' . esc_attr( $cell_bg ) . ';" title="' . esc_attr( $user_title ) . '">';
 			if ( $user_id > 0 && isset( $user_links[ $user_id ] ) ) {
 				echo '<a href="' . esc_url( $user_links[ $user_id ] ) . '" class="wp-sudo-event-user-link">' . esc_html( $username ) . '</a>';
 			} elseif ( $is_deleted_user ) {
@@ -480,16 +484,18 @@ class Dashboard_Widget {
 				echo esc_html( $username );
 			}
 			echo '</td>';
-			echo '<td style="background:' . esc_attr( $cell_bg ) . ';"><span class="' . esc_attr( $event_class ) . '">' . esc_html( $event_label ) . '</span></td>';
-			echo '<td style="background:' . esc_attr( $cell_bg ) . ';"><span class="wp-sudo-action-label">' . esc_html( $rule_label ) . '</span>';
+			echo '<td style="background:' . esc_attr( $cell_bg ) . ';" title="' . esc_attr( $event_title ) . '"><span class="' . esc_attr( $event_class ) . '">' . esc_html( $event_label ) . '</span></td>';
+			echo '<td style="background:' . esc_attr( $cell_bg ) . ';" title="' . esc_attr( $action_title ) . '"><span class="wp-sudo-action-label">' . esc_html( $rule_label ) . '</span>';
 			if ( $is_critical ) {
 				echo ' <span class="wp-sudo-critical-badge">' . esc_html__( 'Critical', 'wp-sudo' ) . '</span>';
 			}
 			if ( '' !== $rule_id ) {
-				echo ' <code class="wp-sudo-action-id" title="' . esc_attr__( 'Technical action ID', 'wp-sudo' ) . '">' . esc_html( $rule_id ) . '</code>';
+				/* translators: %s is the technical action ID (for example options.wp_sudo). */
+				$action_id_tooltip = sprintf( __( 'Technical action ID: %s', 'wp-sudo' ), $rule_id );
+				echo ' <code class="wp-sudo-action-id" title="' . esc_attr( $action_id_tooltip ) . '">' . esc_html( $rule_id ) . '</code>';
 			}
 			echo '</td>';
-			echo '<td style="background:' . esc_attr( $cell_bg ) . ';">' . ( '' !== $surface_label ? '<code class="wp-sudo-surface-code">' . esc_html( $surface_label ) . '</code>' : '—' ) . '</td>';
+			echo '<td style="background:' . esc_attr( $cell_bg ) . ';" title="' . esc_attr( $surface_title ) . '">' . ( '' !== $surface_label ? '<code class="wp-sudo-surface-code">' . esc_html( $surface_label ) . '</code>' : '—' ) . '</td>';
 			echo '</tr>';
 			++$row_index;
 		}
@@ -1010,27 +1016,24 @@ class Dashboard_Widget {
 	text-decoration: none;
 }
 
-/* Recent events header row: title left, filters right. */
+/* Recent events header and filters follow standard WP stacked controls. */
 #wp_sudo_activity .wp-sudo-events-header {
-	display: flex;
-	align-items: center;
-	justify-content: space-between;
-	gap: 8px;
+	display: block;
 	margin-top: 1.2em;
 	margin-bottom: 0.35em;
 }
 #wp_sudo_activity .wp-sudo-events-heading {
-	margin: 0;
+	margin: 0 0 0.35em;
 }
 
-/* Event filters — compact inline row matching WP dashboard patterns */
+/* Event filters — compact row that can wrap cleanly in narrow side columns. */
 #wp_sudo_activity .wp-sudo-event-filters {
 	display: flex;
-	flex-wrap: nowrap;
+	flex-wrap: wrap;
 	align-items: center;
 	gap: 4px;
 	margin: 0;
-	justify-content: flex-end;
+	justify-content: flex-start;
 }
 #wp_sudo_activity .wp-sudo-event-filters select {
 	font-size: 11px !important;
@@ -1056,6 +1059,23 @@ class Dashboard_Widget {
 	overflow-y: auto;
 	overflow-x: hidden;
 }
+#wp_sudo_activity .wp-sudo-events-table {
+	width: 100%;
+	table-layout: auto;
+}
+#wp_sudo_activity .wp-sudo-events-table th,
+#wp_sudo_activity .wp-sudo-events-table td {
+	vertical-align: top;
+}
+#wp_sudo_activity .wp-sudo-events-table th[data-sort-column="action"],
+#wp_sudo_activity .wp-sudo-events-table td:nth-child(4) {
+	width: 34%;
+}
+#wp_sudo_activity .wp-sudo-events-table th[data-sort-column="surface"],
+#wp_sudo_activity .wp-sudo-events-table td:nth-child(5) {
+	width: 20%;
+	white-space: nowrap;
+}
 
 #wp_sudo_activity .wp-sudo-sort-button {
 	display: inline-flex;
@@ -1069,10 +1089,26 @@ class Dashboard_Widget {
 	font: inherit;
 	cursor: pointer;
 }
+#wp_sudo_activity .wp-sudo-sort-button:focus-visible,
+#wp_sudo_activity .wp-sudo-event-user-link:focus-visible,
+#wp_sudo_activity .wp-sudo-event-filters select:focus-visible {
+	outline: 2px solid #2271b1;
+	outline-offset: 2px;
+}
 #wp_sudo_activity .wp-sudo-sort-indicator {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 1em;
+	min-width: 1em;
 	font-size: 11px;
 	line-height: 1;
 	color: #646970;
+}
+#wp_sudo_activity .wp-sudo-sort-indicator::before {
+	display: block;
+	width: 100%;
+	text-align: center;
 }
 #wp_sudo_activity th[aria-sort="ascending"] .wp-sudo-sort-indicator::before {
 	content: "▲";
@@ -1148,8 +1184,14 @@ class Dashboard_Widget {
 	line-height: 1.3;
 	vertical-align: middle;
 }
+#wp_sudo_activity .wp-sudo-action-label {
+	display: block;
+}
 #wp_sudo_activity .wp-sudo-action-id {
-	margin-left: 4px;
+	display: inline-block;
+	max-width: none;
+	margin-top: 3px;
+	margin-left: 0;
 	padding: 1px 5px;
 	border-radius: 3px;
 	border: 1px solid #dcdcde;
@@ -1157,6 +1199,10 @@ class Dashboard_Widget {
 	color: #646970;
 	font-size: 11px;
 	line-height: 1.35;
+	white-space: normal;
+	overflow: visible;
+	text-overflow: clip;
+	overflow-wrap: anywhere;
 	vertical-align: middle;
 }
 
@@ -1246,13 +1292,7 @@ class Dashboard_Widget {
 	}
 	#wp_sudo_activity .wp-sudo-event-filters {
 		gap: 3px;
-		flex-wrap: wrap;
 		justify-content: flex-start;
-	}
-	#wp_sudo_activity .wp-sudo-events-header {
-		align-items: flex-start;
-		flex-direction: column;
-		gap: 6px;
 	}
 	#wp_sudo_activity .wp-sudo-empty-container {
 		grid-template-columns: 1fr;

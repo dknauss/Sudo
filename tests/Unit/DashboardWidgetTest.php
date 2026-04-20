@@ -828,10 +828,16 @@ class DashboardWidgetTest extends TestCase {
 		// Should contain table structure.
 		$this->assertStringContainsString( '<table', $output );
 		$this->assertStringContainsString( 'Gated', $output ); // Human-readable label.
-		$this->assertStringContainsString( 'title="', $output );
 		$this->assertStringContainsString( 'UTC', $output );
 		$this->assertStringContainsString( 'Update options', $output );
-		$this->assertStringContainsString( '<code class="wp-sudo-action-id" title="Technical action ID">options.update</code>', $output );
+		$this->assertStringContainsString( 'aria-label="Filter events by time range"', $output );
+		$this->assertStringContainsString( 'aria-label="Filter events by session event type"', $output );
+		$this->assertStringContainsString( 'aria-label="Filter events by request surface"', $output );
+		$this->assertStringContainsString( 'title="testuser"', $output );
+		$this->assertStringContainsString( 'title="Gated"', $output );
+		$this->assertStringContainsString( 'title="Update options"', $output );
+		$this->assertStringContainsString( 'title="admin"', $output );
+		$this->assertStringContainsString( '<code class="wp-sudo-action-id" title="Technical action ID: options.update">options.update</code>', $output );
 
 		$this->restoreWpdb();
 	}
@@ -1012,7 +1018,7 @@ class DashboardWidgetTest extends TestCase {
 		$this->assertStringContainsString( 'Delete user', $output );
 		$this->assertStringContainsString( 'wp-sudo-critical-badge', $output );
 		$this->assertStringContainsString( 'Critical', $output );
-		$this->assertStringContainsString( '<code class="wp-sudo-action-id" title="Technical action ID">user.delete</code>', $output );
+		$this->assertStringContainsString( '<code class="wp-sudo-action-id" title="Technical action ID: user.delete">user.delete</code>', $output );
 
 		$this->restoreWpdb();
 	}
@@ -1085,6 +1091,7 @@ class DashboardWidgetTest extends TestCase {
 		$output = ob_get_clean();
 
 		$this->assertStringContainsString( '<code class="wp-sudo-surface-code">reauth</code>', $output );
+		$this->assertStringContainsString( 'title="reauth"', $output );
 
 		$this->restoreWpdb();
 	}

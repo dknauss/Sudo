@@ -719,6 +719,7 @@ class AdminTest extends TestCase {
 		$output = ob_get_clean();
 
 		$this->assertStringContainsString( 'nav-tab-wrapper', $output );
+		$this->assertStringContainsString( 'aria-current="page"', $output );
 		$this->assertStringContainsString( '>Settings</a>', $output );
 		$this->assertStringContainsString( '>Gated Actions</a>', $output );
 		$this->assertStringContainsString( '>Rule Tester</a>', $output );

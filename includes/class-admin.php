@@ -1142,10 +1142,11 @@ class Admin {
 					'tester'   => __( 'Rule Tester', 'wp-sudo' ),
 				);
 				foreach ( $tabs as $tab_key => $tab_label ) :
-					$class = ( $active_tab === $tab_key ) ? 'nav-tab nav-tab-active' : 'nav-tab';
-					$url   = add_query_arg( array( 'tab' => $tab_key ), $base_url );
+					$class        = ( $active_tab === $tab_key ) ? 'nav-tab nav-tab-active' : 'nav-tab';
+					$url          = add_query_arg( array( 'tab' => $tab_key ), $base_url );
+					$aria_current = ( $active_tab === $tab_key ) ? ' aria-current="page"' : '';
 					?>
-					<a href="<?php echo esc_url( $url ); ?>" class="<?php echo esc_attr( $class ); ?>"><?php echo esc_html( $tab_label ); ?></a>
+					<a href="<?php echo esc_url( $url ); ?>" class="<?php echo esc_attr( $class ); ?>"<?php echo $aria_current; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Static attribute fragment. ?>><?php echo esc_html( $tab_label ); ?></a>
 				<?php endforeach; ?>
 			</h2>
 
