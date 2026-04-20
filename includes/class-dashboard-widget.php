@@ -130,7 +130,18 @@ class Dashboard_Widget {
 		echo '<h3>' . esc_html__( 'Active Sessions', 'wp-sudo' ) . '</h3>';
 
 		if ( 0 === $count ) {
-			echo '<p class="wp-sudo-empty">' . esc_html__( 'No active sessions', 'wp-sudo' ) . '</p>';
+			echo '<div class="wp-sudo-empty-container">';
+			echo '<div class="wp-sudo-empty-status"><strong>' . esc_html__( 'No active sessions now...', 'wp-sudo' ) . '</strong></div>';
+			echo '<div class="wp-sudo-empty-desc">';
+			echo '<p>' . esc_html__( 'Sudo monitors gated actions to ensure high-privilege operations are authorized. Events are logged here to provide visibility into who is performing sensitive tasks.', 'wp-sudo' ) . '</p>';
+			echo '<p>' . sprintf(
+				/* translators: %1$s: opening link tag, %2$s: closing link tag */
+				esc_html__( 'You can also %1$svisit the Sudo Settings page%2$s to configure session durations and logging.', 'wp-sudo' ),
+				'<a href="' . esc_url( admin_url( 'options-general.php?page=wp-sudo-settings' ) ) . '">',
+				'</a>'
+			) . '</p>';
+			echo '</div>';
+			echo '</div>';
 			return;
 		}
 
@@ -233,9 +244,25 @@ class Dashboard_Widget {
 
 		// Ensure the events table exists before querying.
 		Event_Store::maybe_create_table();
-		$events = Event_Store::recent( 50 ); // Get more for client-side filtering.
+		$events = Event_Store::recent_for_dashboard( 50 ); // Get more for client-side filtering.
 
 		echo '<h3>' . esc_html__( 'Recent Events', 'wp-sudo' ) . '</h3>';
+
+		// Pass-through notice.
+		if ( ! $log_passthrough ) {
+			$settings_url = esc_url( admin_url( 'options-general.php?page=wp-sudo-settings#log_passthrough' ) );
+			echo '<p class="wp-sudo-filter-notice">';
+			echo wp_kses(
+				sprintf(
+					/* translators: %1$s: opening link tag, %2$s: closing link tag */
+					__( 'Enable "Log Passed Sessions" in %1$sSettings%2$s to track Passed events.', 'wp-sudo' ),
+					'<a href="' . $settings_url . '">',
+					'</a>'
+				),
+				array( 'a' => array( 'href' => array() ) )
+			);
+			echo '</p>';
+		}
 
 		// Filter controls - all in a single row.
 		echo '<div class="wp-sudo-event-filters">';
@@ -256,9 +283,6 @@ class Dashboard_Widget {
 		echo '<option value="action_allowed">' . esc_html__( 'Allowed', 'wp-sudo' ) . '</option>';
 		echo '<option value="action_passed"' . ( $log_passthrough ? '' : ' disabled' ) . '>';
 		echo esc_html__( 'Passed', 'wp-sudo' );
-		if ( ! $log_passthrough ) {
-			echo ' *';
-		}
 		echo '</option>';
 		echo '<option value="action_replayed">' . esc_html__( 'Replayed', 'wp-sudo' ) . '</option>';
 		echo '</select>';
@@ -277,22 +301,6 @@ class Dashboard_Widget {
 		echo '</select>';
 
 		echo '</div>';
-
-		// Pass-through notice.
-		if ( ! $log_passthrough ) {
-			$settings_url = esc_url( admin_url( 'options-general.php?page=wp-sudo-settings#log_passthrough' ) );
-			echo '<p class="wp-sudo-filter-notice"><em>';
-			echo wp_kses(
-				sprintf(
-					/* translators: %1$s: opening link tag, %2$s: closing link tag */
-					__( '* Enable "Log Session Pass-Throughs" in %1$sSettings%2$s to track Passed events.', 'wp-sudo' ),
-					'<a href="' . $settings_url . '">',
-					'</a>'
-				),
-				array( 'a' => array( 'href' => array() ) )
-			);
-			echo '</em></p>';
-		}
 
 		if ( empty( $events ) ) {
 			echo '<p class="wp-sudo-empty">' . esc_html__( 'No recent activity', 'wp-sudo' ) . '</p>';
@@ -551,6 +559,29 @@ class Dashboard_Widget {
 #wp_sudo_activity .wp-sudo-user-secondary .wp-sudo-fullname,
 #wp_sudo_activity .wp-sudo-user-secondary .wp-sudo-displayname {
 	margin-right: 0.5em;
+}
+
+#wp_sudo_activity .wp-sudo-empty-container {
+	display: flex;
+	gap: 1.5em;
+	align-items: flex-start;
+	margin-bottom: 1em;
+}
+#wp_sudo_activity .wp-sudo-empty-status {
+	font-weight: 600;
+	min-width: 140px;
+	flex-shrink: 0;
+}
+#wp_sudo_activity .wp-sudo-empty-desc {
+	font-size: 0.85em;
+	color: #646970;
+	line-height: 1.4;
+}
+#wp_sudo_activity .wp-sudo-empty-desc p {
+	margin: 0 0 0.5em;
+}
+#wp_sudo_activity .wp-sudo-empty-desc p:last-child {
+	margin-bottom: 0;
 }
 
 #wp_sudo_activity .wp-sudo-view-all {
