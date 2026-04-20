@@ -1,6 +1,6 @@
 # Release Status (Canonical Current State)
 
-Last verified: 2026-04-19
+Last verified: 2026-04-20
 
 This file is the canonical source for **current release state** in this repository:
 
@@ -20,6 +20,7 @@ This file is the canonical source for **current release state** in this reposito
 - **Next planned release:** `3.0.0`
 - **Current `main` runtime version constant:** `3.0.0`
 - **Current `main` metadata should match:** `readme.txt` stable tag, `wp-sudo.php`, `tests/bootstrap.php`, `phpstan-bootstrap.php`
+- **Release execution checklist:** `docs/release-3.0.0-checklist.md`
 
 ## Unreleased work already on `main`
 
