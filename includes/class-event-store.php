@@ -225,6 +225,69 @@ KEY site_event_created_at (site_id, event, created_at)
 	}
 
 	/**
+	 * Insert multiple event rows in a single query.
+	 *
+	 * Used by Event_Recorder to flush request-lifetime buffered events on
+	 * the WordPress shutdown hook, collapsing N synchronous single-row
+	 * inserts into one multi-row INSERT. On a busy headless/hybrid site
+	 * with many admin users hitting multiple gated actions per request,
+	 * this removes per-insert round-trips (and their InnoDB row-lock
+	 * acquisitions) from the hot path.
+	 *
+	 * @param array<int, array<string, mixed>> $rows Raw event rows shaped like insert() input.
+	 * @return int Rows written. Zero if $rows is empty or the table does not exist.
+	 */
+	public static function bulk_insert( array $rows ): int {
+		if ( empty( $rows ) ) {
+			return 0;
+		}
+
+		global $wpdb;
+
+		if ( ! self::table_exists() ) {
+			return 0;
+		}
+
+		$placeholders = array();
+		$args         = array();
+
+		foreach ( $rows as $data ) {
+			if ( ! is_array( $data ) ) {
+				continue;
+			}
+
+			$placeholders[] = '(%d, %d, %s, %s, %s, %s, %s, %s)';
+
+			$args[] = self::current_site_id();
+			$args[] = isset( $data['user_id'] ) ? (int) $data['user_id'] : 0;
+			$args[] = self::sanitize_event_name( $data['event'] ?? '' );
+			$args[] = isset( $data['rule_id'] ) ? (string) $data['rule_id'] : '';
+			$args[] = isset( $data['surface'] ) ? (string) $data['surface'] : '';
+			$args[] = isset( $data['ip'] ) ? (string) $data['ip'] : '';
+			$args[] = self::normalize_context( $data['context'] ?? array() );
+			$args[] = isset( $data['created_at'] ) && is_string( $data['created_at'] ) && '' !== $data['created_at']
+				? $data['created_at']
+				: gmdate( 'Y-m-d H:i:s' );
+		}
+
+		if ( empty( $placeholders ) ) {
+			return 0;
+		}
+
+		$query = 'INSERT INTO ' . self::table_name() .
+			' (site_id, user_id, event, rule_id, surface, ip, context, created_at) VALUES ' .
+			implode( ', ', $placeholders );
+
+		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- table_name() is safe, placeholders controlled internally.
+		$prepared = $wpdb->prepare( $query, ...$args );
+
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- $prepared is output of prepare().
+		$wpdb->query( $prepared );
+
+		return isset( $wpdb->rows_affected ) ? (int) $wpdb->rows_affected : 0;
+	}
+
+	/**
 	 * Fetch recent events for the current site.
 	 *
 	 * @param int         $limit Maximum number of rows.

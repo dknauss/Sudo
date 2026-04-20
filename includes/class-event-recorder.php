@@ -41,12 +41,107 @@ class Event_Recorder {
 	);
 
 	/**
+	 * Whether the per-request buffer is armed.
+	 *
+	 * When armed, hook callbacks enqueue rows instead of writing them
+	 * synchronously, and a WordPress `shutdown` hook flushes the queue
+	 * as a single bulk INSERT. This collapses N blocking round-trips
+	 * per request into one, which matters on busy headless/hybrid sites
+	 * where many admin users trip multiple gated actions per request.
+	 *
+	 * @var bool
+	 */
+	private static bool $buffer_armed = false;
+
+	/**
+	 * Pending event rows awaiting flush.
+	 *
+	 * @var array<int, array<string, mixed>>
+	 */
+	private static array $pending = array();
+
+	/**
+	 * Whether the shutdown flush hook has already been registered.
+	 *
+	 * @var bool
+	 */
+	private static bool $shutdown_registered = false;
+
+	/**
 	 * Register hooks.
 	 *
 	 * @return void
 	 */
 	public static function init(): void {
 		new self();
+	}
+
+	/**
+	 * Arm the per-request event buffer.
+	 *
+	 * After this call, hook callbacks accumulate rows in memory and a
+	 * single `shutdown` hook writes them via Event_Store::bulk_insert().
+	 * Idempotent: safe to call multiple times; only one shutdown handler
+	 * is registered per request.
+	 *
+	 * @return void
+	 */
+	public static function arm_buffer(): void {
+		if ( self::$shutdown_registered ) {
+			self::$buffer_armed = true;
+			return;
+		}
+
+		self::$buffer_armed        = true;
+		self::$shutdown_registered = true;
+
+		add_action( 'shutdown', array( self::class, 'flush' ), PHP_INT_MAX, 0 );
+	}
+
+	/**
+	 * Flush all buffered rows via a single bulk INSERT.
+	 *
+	 * No-op when the buffer is empty. Clears the buffer after flushing so
+	 * subsequent calls within the same request don't re-emit rows.
+	 *
+	 * @return void
+	 */
+	public static function flush(): void {
+		if ( empty( self::$pending ) ) {
+			return;
+		}
+
+		$rows          = self::$pending;
+		self::$pending = array();
+
+		Event_Store::bulk_insert( $rows );
+	}
+
+	/**
+	 * Reset buffering state for tests.
+	 *
+	 * @return void
+	 */
+	public static function reset_buffer(): void {
+		self::$buffer_armed        = false;
+		self::$shutdown_registered = false;
+		self::$pending             = array();
+	}
+
+	/**
+	 * Route an event row to either the per-request buffer or the direct
+	 * single-row insert path, depending on whether the buffer is armed.
+	 *
+	 * @param array<string, mixed> $row Event row payload.
+	 * @return void
+	 */
+	private static function enqueue( array $row ): void {
+		if ( self::$buffer_armed ) {
+			self::$pending[] = $row;
+			return;
+		}
+
+		Event_Store::insert( $row );
 	}
 
 	/**
@@ -79,7 +174,7 @@ class Event_Recorder {
 	 * @return void
 	 */
 	public static function on_lockout( int $user_id, int $attempts, string $ip ): void {
-		Event_Store::insert(
+		self::enqueue(
 			array(
 				'user_id' => $user_id,
 				'event'   => 'lockout',
@@ -102,7 +197,7 @@ class Event_Recorder {
 	 * @return void
 	 */
 	public static function on_action_gated( int $user_id, string $rule_id, string $surface ): void {
-		Event_Store::insert(
+		self::enqueue(
 			array(
 				'user_id' => $user_id,
 				'event'   => 'action_gated',
@@ -123,7 +218,7 @@ class Event_Recorder {
 	 * @return void
 	 */
 	public static function on_action_blocked( int $user_id, string $rule_id, string $surface ): void {
-		Event_Store::insert(
+		self::enqueue(
 			array(
 				'user_id' => $user_id,
 				'event'   => 'action_blocked',
@@ -144,7 +239,7 @@ class Event_Recorder {
 	 * @return void
 	 */
 	public static function on_action_allowed( int $user_id, string $rule_id, string $surface ): void {
-		Event_Store::insert(
+		self::enqueue(
 			array(
 				'user_id' => $user_id,
 				'event'   => 'action_allowed',
@@ -164,7 +259,7 @@ class Event_Recorder {
 	 * @return void
 	 */
 	public static function on_action_replayed( int $user_id, string $rule_id ): void {
-		Event_Store::insert(
+		self::enqueue(
 			array(
 				'user_id' => $user_id,
 				'event'   => 'action_replayed',
@@ -193,7 +288,7 @@ class Event_Recorder {
 			return;
 		}
 
-		Event_Store::insert(
+		self::enqueue(
 			array(
 				'user_id' => $user_id,
 				'event'   => 'action_passed',

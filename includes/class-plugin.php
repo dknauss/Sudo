@@ -118,8 +118,11 @@ class Plugin {
 		// Dashboard widget: session activity overview.
 		Dashboard_Widget::init();
 
-		// Event recorder: log security events to database.
+		// Event recorder: log security events to database. Arm the per-request
+		// buffer so multiple audit events in one request collapse into a single
+		// bulk INSERT on shutdown instead of N synchronous round-trips.
 		Event_Recorder::init();
+		Event_Recorder::arm_buffer();
 
 		// Cron: prune old event rows daily.
 		add_action( 'wp_sudo_prune_events', array( self::class, 'prune_events' ), 10, 0 );

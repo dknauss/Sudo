@@ -355,6 +355,103 @@ class EventStoreTest extends TestCase {
 		$this->assertCount( 2, $this->wpdb->query_calls );
 	}
 
+	public function test_bulk_insert_executes_single_query_for_multiple_rows(): void {
+		$rows = array(
+			array(
+				'user_id' => 1,
+				'event'   => 'action_gated',
+				'rule_id' => 'plugins.activate',
+				'surface' => 'admin',
+			),
+			array(
+				'user_id' => 2,
+				'event'   => 'action_passed',
+				'rule_id' => 'users.delete',
+				'surface' => 'ajax',
+			),
+			array(
+				'user_id' => 3,
+				'event'   => 'lockout',
+				'rule_id' => '',
+				'surface' => '',
+				'ip'      => '10.0.0.1',
+				'context' => array( 'attempts' => 6 ),
+			),
+		);
+
+		$this->wpdb->rows_affected      = 3;
+		$this->wpdb->query_return       = 3;
+		$this->wpdb->get_results_return = array( (object) array( 'Field' => 'id' ) );
+
+		$written = Event_Store::bulk_insert( $rows );
+
+		$this->assertSame( 3, $written );
+		$this->assertCount( 1, $this->wpdb->query_calls );
+		$this->assertCount( 1, $this->wpdb->prepare_calls );
+
+		$query = $this->wpdb->prepare_calls[0]['query'];
+		$this->assertStringContainsString( 'INSERT INTO wp_wpsudo_events', $query );
+		$this->assertStringContainsString( '(site_id, user_id, event, rule_id, surface, ip, context, created_at)', $query );
+		// Three value tuples => three groups of placeholders.
+		$this->assertSame( 3, substr_count( $query, '(%d, %d, %s, %s, %s, %s, %s, %s)' ) );
+
+		// 8 columns * 3 rows = 24 args.
+		$this->assertCount( 24, $this->wpdb->prepare_calls[0]['args'] );
+	}
+
+	public function test_bulk_insert_with_empty_array_returns_zero_and_does_not_query(): void {
+		$written = Event_Store::bulk_insert( array() );
+
+		$this->assertSame( 0, $written );
+		$this->assertCount( 0, $this->wpdb->query_calls );
+		$this->assertCount( 0, $this->wpdb->prepare_calls );
+	}
+
+	public function test_bulk_insert_returns_rows_affected(): void {
+		$this->wpdb->rows_affected      = 2;
+		$this->wpdb->query_return       = 2;
+		$this->wpdb->get_results_return = array( (object) array( 'Field' => 'id' ) );
+
+		$written = Event_Store::bulk_insert(
+			array(
+				array(
+					'user_id' => 1,
+					'event'   => 'action_gated',
+					'rule_id' => 'a',
+					'surface' => 'admin',
+				),
+				array(
+					'user_id' => 2,
+					'event'   => 'action_passed',
+					'rule_id' => 'b',
+					'surface' => 'rest',
+				),
+			)
+		);
+
+		$this->assertSame( 2, $written );
+	}
+
+	public function test_bulk_insert_returns_zero_when_table_missing(): void {
+		// Simulate table missing: DESCRIBE returns no columns.
+		$this->wpdb->get_results_return = array();
+
+		$written = Event_Store::bulk_insert(
+			array(
+				array(
+					'user_id' => 1,
+					'event'   => 'action_gated',
+					'rule_id' => 'a',
+					'surface' => 'admin',
+				),
+			)
+		);
+
+		$this->assertSame( 0, $written );
+		$this->assertCount( 0, $this->wpdb->query_calls );
+		$this->assertCount( 0, $this->wpdb->prepare_calls );
+	}
+
 	public function test_prune_uses_unbatched_delete_on_sqlite(): void {
 		$this->wpdb->is_sqlite     = true;
 		$this->wpdb->rows_affected = 7;

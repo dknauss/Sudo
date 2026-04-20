@@ -37,6 +37,27 @@ class EventRecorderFakeWpdb {
 	public array $inserts = [];
 
 	/**
+	 * Captured query() calls (bulk writes land here).
+	 *
+	 * @var list<string>
+	 */
+	public array $queries = [];
+
+	/**
+	 * Captured prepare() calls.
+	 *
+	 * @var list<array{query: string, args: list<mixed>}>
+	 */
+	public array $prepares = [];
+
+	/**
+	 * Simulated rows_affected returned by query().
+	 *
+	 * @var int
+	 */
+	public int $rows_affected = 0;
+
+	/**
 	 * Mock insert().
 	 *
 	 * @param string               $table Table name.
@@ -68,7 +89,25 @@ class EventRecorderFakeWpdb {
 	 * @return string
 	 */
 	public function prepare( string $query, ...$args ): string {
+		if ( 1 === count( $args ) && is_array( $args[0] ) ) {
+			$args = array_values( $args[0] );
+		}
+		$this->prepares[] = [
+			'query' => $query,
+			'args'  => $args,
+		];
 		return $query;
+	}
+
+	/**
+	 * Mock query() to capture bulk-insert calls.
+	 *
+	 * @param string $query Query string.
+	 * @return int
+	 */
+	public function query( string $query ): int {
+		$this->queries[] = $query;
+		return $this->rows_affected;
 	}
 
 	/**
@@ -437,6 +476,157 @@ class EventRecorderTest extends TestCase {
 		Event_Recorder::on_action_passed( 18, 'options.update', 'admin' );
 
 		$this->assertCount( 0, $this->fake_wpdb->inserts );
+
+		$this->restoreWpdb();
+	}
+
+	// ─── Buffering tests ─────────────────────────────────────────────────
+
+	/**
+	 * Test that arm_buffer() registers a shutdown hook that calls flush().
+	 *
+	 * @return void
+	 */
+	public function testArmBufferRegistersShutdownFlushHook(): void {
+		Event_Recorder::reset_buffer();
+
+		Actions\expectAdded( 'shutdown' )
+			->once()
+			->with( [ Event_Recorder::class, 'flush' ], \Mockery::type( 'int' ), 0 );
+
+		Event_Recorder::arm_buffer();
+	}
+
+	/**
+	 * Test that arm_buffer() is idempotent: calling it twice registers the
+	 * shutdown hook only once.
+	 *
+	 * @return void
+	 */
+	public function testArmBufferIdempotent(): void {
+		Event_Recorder::reset_buffer();
+
+		Actions\expectAdded( 'shutdown' )
+			->once()
+			->with( [ Event_Recorder::class, 'flush' ], \Mockery::type( 'int' ), 0 );
+
+		Event_Recorder::arm_buffer();
+		Event_Recorder::arm_buffer();
+	}
+
+	/**
+	 * Test that handlers buffer rows rather than inserting when armed.
+	 *
+	 * @return void
+	 */
+	public function testHandlerBuffersWhenArmed(): void {
+		Event_Recorder::reset_buffer();
+		$this->setUpFakeWpdb();
+		Functions\when( 'add_action' )->justReturn( true );
+
+		Event_Recorder::arm_buffer();
+
+		Event_Recorder::on_action_gated( 5, 'plugins.activate', 'admin' );
+		Event_Recorder::on_action_blocked( 6, 'users.delete', 'cli' );
+
+		$this->assertCount( 0, $this->fake_wpdb->inserts, 'Buffered rows must not hit insert() directly' );
+		$this->assertCount( 0, $this->fake_wpdb->queries, 'Nothing should be written until flush()' );
+
+		Event_Recorder::reset_buffer();
+		$this->restoreWpdb();
+	}
+
+	/**
+	 * Test that flush() writes all buffered rows as a single bulk query.
+	 *
+	 * @return void
+	 */
+	public function testFlushBulkWritesBufferedRowsAsSingleQuery(): void {
+		Event_Recorder::reset_buffer();
+		$this->setUpFakeWpdb();
+		Functions\when( 'add_action' )->justReturn( true );
+		$this->fake_wpdb->rows_affected = 3;
+
+		Event_Recorder::arm_buffer();
+
+		Event_Recorder::on_action_gated( 1, 'plugins.activate', 'admin' );
+		Event_Recorder::on_action_gated( 2, 'users.delete', 'admin' );
+		Event_Recorder::on_action_passed( 3, 'options.update', 'admin' );
+
+		Event_Recorder::flush();
+
+		$this->assertCount( 0, $this->fake_wpdb->inserts, 'Rows must be written via bulk query, not single insert()' );
+		$this->assertCount( 1, $this->fake_wpdb->queries, 'All buffered rows must collapse to one query' );
+		$this->assertStringContainsString( 'INSERT INTO wp_wpsudo_events', $this->fake_wpdb->prepares[0]['query'] );
+		$this->assertSame( 3, substr_count( $this->fake_wpdb->prepares[0]['query'], '(%d, %d, %s, %s, %s, %s, %s, %s)' ) );
+
+		Event_Recorder::reset_buffer();
+		$this->restoreWpdb();
+	}
+
+	/**
+	 * Test that flush() clears the buffer so subsequent flushes don't re-emit.
+	 *
+	 * @return void
+	 */
+	public function testFlushClearsBufferAfterWrite(): void {
+		Event_Recorder::reset_buffer();
+		$this->setUpFakeWpdb();
+		Functions\when( 'add_action' )->justReturn( true );
+
+		Event_Recorder::arm_buffer();
+		Event_Recorder::on_action_gated( 1, 'a.b', 'admin' );
+		Event_Recorder::on_action_gated( 2, 'c.d', 'admin' );
+
+		Event_Recorder::flush();
+		$this->assertCount( 1, $this->fake_wpdb->queries );
+
+		// Second flush with nothing new must be a no-op.
+		Event_Recorder::flush();
+		$this->assertCount( 1, $this->fake_wpdb->queries, 'Empty buffer must not trigger a second query' );
+
+		// New event after flush should appear in its own query.
+		Event_Recorder::on_action_gated( 3, 'e.f', 'admin' );
+		Event_Recorder::flush();
+		$this->assertCount( 2, $this->fake_wpdb->queries );
+		$this->assertSame( 1, substr_count( $this->fake_wpdb->prepares[1]['query'], '(%d, %d, %s, %s, %s, %s, %s, %s)' ) );
+
+		Event_Recorder::reset_buffer();
+		$this->restoreWpdb();
+	}
+
+	/**
+	 * Test that flush() is a no-op when no rows are buffered.
+	 *
+	 * @return void
+	 */
+	public function testFlushNoopWhenBufferEmpty(): void {
+		Event_Recorder::reset_buffer();
+		$this->setUpFakeWpdb();
+
+		Event_Recorder::flush();
+
+		$this->assertCount( 0, $this->fake_wpdb->queries );
+		$this->assertCount( 0, $this->fake_wpdb->inserts );
+
+		$this->restoreWpdb();
+	}
+
+	/**
+	 * Test that handlers write directly when the buffer is not armed.
+	 * Regression guard: buffering is opt-in; existing hot-path callers that
+	 * don't arm it must still see immediate persistence.
+	 *
+	 * @return void
+	 */
+	public function testHandlerWritesDirectlyWhenBufferNotArmed(): void {
+		Event_Recorder::reset_buffer();
+		$this->setUpFakeWpdb();
+
+		Event_Recorder::on_action_gated( 11, 'plugins.activate', 'admin' );
+
+		$this->assertCount( 1, $this->fake_wpdb->inserts );
+		$this->assertCount( 0, $this->fake_wpdb->queries );
 
 		$this->restoreWpdb();
 	}
