@@ -231,6 +231,55 @@ Each option below was evaluated against the same criteria:
 
 ---
 
+## Additional Alternatives Considered
+
+These alternatives are worth documenting, but are currently lower-ranked than
+Options 1–3 for WP Sudo's long-term direction.
+
+## Option 4: Keep Usermeta Authoritative + Query-Shape Hardening
+
+### Model
+
+- Keep session truth in user meta.
+- Continue optimizing high-frequency reads with query-shape improvements and
+  short-lived caches.
+- Defer any new session table.
+
+### Pros
+
+- Lowest migration risk.
+- Lowest test churn.
+- Fastest delivery for near-term performance wins.
+
+### Cons
+
+- Aggregate reads (active-session counts/lists) remain constrained by usermeta
+  query behavior at larger scale.
+- Multisite/network-level reporting remains harder than a table-backed model.
+- Defers, rather than resolves, long-term session-read architecture limits.
+
+## Option 5: Cache-First Overlay (Object Cache Read Model)
+
+### Model
+
+- Keep user meta as authority.
+- Maintain cache-backed active-session indexes/counters for dashboard and users
+  screens.
+
+### Pros
+
+- Can reduce read latency significantly on deployments with persistent object
+  cache.
+- Avoids immediate session-table migration complexity.
+
+### Cons
+
+- Higher invalidation complexity; correctness depends on cache coherence.
+- Uneven portability across hosts without persistent object cache.
+- Adds operational fragility compared with a database-backed authoritative model.
+
+---
+
 ## Option Comparison
 
 | Criterion | Option 1: authoritative table + shadow | Option 2: mirror table | Option 3: full cutover |
@@ -272,6 +321,20 @@ Why:
 - It is too abrupt for the current plugin maturity and release cadence.
 - It would force the most invasive migration and fixture churn.
 - It does not buy enough additional value over Option 1 to justify the rollback risk.
+
+### Why not Option 4
+
+- It is a valid short-term posture, but it does not materially change the
+  long-term scaling characteristics of aggregate session reads.
+- It delays, rather than solves, the architecture problem this evaluation was
+  intended to address.
+
+### Why not Option 5
+
+- It can be useful as an optimization layer, but is not a strong primary design
+  because behavior varies widely by hosting/cache configuration.
+- Cache invalidation complexity creates additional failure modes for security
+  visibility features.
 
 ---
 
