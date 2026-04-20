@@ -1353,40 +1353,55 @@ To avoid scope creep, this multisite expansion does **not** include:
 
 ## 11.2 Internal Admin Least-Privilege & Governance
 
-*Added April 20, 2026*
+*Added April 20, 2026. Revised April 20, 2026 to reflect clean-launch framing (no public install base to migrate).*
 
 WP Sudo's threat model already includes compromised admin sessions, but current
 control surfaces are still tied to broad admin capabilities (`manage_options`
 on single-site and `manage_network_options` on multisite). This section
 tracks the hardening plan to make Sudo governance explicit and least-privilege.
 
+### Framing
+
+The plugin has not yet shipped to the WordPress.org directory. There is no
+existing install base to protect from a capability-model transition, so the
+rollout is compressed from the original three-phase compatibility-first plan:
+strict-capability mode ships as the default in v3.1. Compatibility mode exists
+as an opt-in (for single-admin smoke testing and CI fixtures), but is not a
+migration endpoint.
+
 ### Spec and design source
 
 - [`docs/internal-admin-governance-spec.md`](internal-admin-governance-spec.md)
 
-### Planned phased rollout
+### Rollout
 
-1. **Phase 1 (v3.1) — capability scaffolding + compatibility mode**
-   - Introduce dedicated Sudo capabilities (`manage_wp_sudo`,
-     `view_wp_sudo_activity`, `revoke_wp_sudo_sessions`) and centralize checks.
-   - Keep compatibility fallback for upgrades to prevent lockouts.
-   - Add Access Overview UI and audit hooks for assignment changes.
+1. **Phase 1 (v3.1) — ship strict governance as the default.**
+   - Introduce the full capability surface (`manage_wp_sudo`,
+     `view_wp_sudo_activity`, `export_wp_sudo_activity`,
+     `revoke_wp_sudo_sessions`) with a centralized `sudo_can()` helper.
+   - Strict mode is the default; compatibility mode available via
+     `wp_sudo_governance_mode` option.
+   - Add the `options.wp_sudo_access` gated rule so grants, revokes, and
+     session revocations are all subject to the reauth challenge.
+   - Add Access tab with drift detection, "last manager" guard, and audit
+     hooks (`wp_sudo_capability_granted`, `wp_sudo_capability_revoked`,
+     `wp_sudo_session_revoked`).
+   - Add `WP_SUDO_RECOVERY_MODE` break-glass constant per the spec's
+     Break-glass section.
+   - Replace all `current_user_can('manage_options')` checks in governance
+     surfaces with `sudo_can()`. Exit criterion: zero direct checks remain.
 
-2. **Phase 2 (v3.2) — explicit grants for new installs + guided migration**
-   - New installs default to installer/super-admin ownership for management.
-   - Existing installs remain compatible until migration is explicitly completed.
-   - Add guided assignment flow and rollback toggle.
-
-3. **Phase 3 (v3.3) — hardened post-migration default**
-   - Move migrated sites to strict-capability mode by default.
-   - Keep compatibility mode as explicit fallback with warning/audit visibility.
-   - Add integrity warnings when effective visibility is broader than intended.
+2. **Phase 2 (v3.2, optional) — governance polish.**
+   - Integrity warnings when effective visibility is broader than intended.
+   - Opt-in 2FA-enrollment requirement for `manage_wp_sudo` holders.
+   - Audit visibility on governance-mode transitions.
 
 ### Priority rationale
 
 - This is a security-governance control, not a cosmetic UX feature.
 - It reduces insider-risk and accidental policy drift in organizations with many admins.
 - It complements (not replaces) external logging/audit systems.
+- Shipping strict from v3.1 is practical specifically because there is no install base to migrate; deferring to a multi-version guided migration would buy no safety and add real complexity.
 
 ---
 
