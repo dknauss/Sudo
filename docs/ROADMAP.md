@@ -11,6 +11,7 @@
 - **[3. Collaboration & Sudo](#3-collaboration-and-sudo--multi-user-editing-scenarios)** — Multi-user editing, conflict resolution
 - **[4. Context Collapse & TDD](#4-context-collapse-and-tdd)** — LLM confabulation defense, test-driven development
 - **[Recommended Next Steps](#recommended-next-steps-priority-order)** — Immediate, short-term, medium-term priorities
+- **[Execution Companion (v3.1–v3.3)](#execution-companion-v31v33)** — prioritized backlog + phased GSD delivery plan
 - **[5. Environment Diversity Testing](#5-environment-diversity-testing-future-milestone)** — Apache, PHP 8.0, MariaDB, backward compat
 - **[6. Coverage Tooling](#6-coverage-tooling-baseline-established)** — PCOV baseline established, full matrix deferred
 - **[7. Mutation Testing](#7-mutation-testing-deferred-to-post-environment-diversity)** — Deferred until integration suite is fast enough
@@ -465,6 +466,15 @@ Use this default order after the v3.0.0 release unless a real user need override
 - **Plan next:** Gutenberg Block Editor Integration
 - **Do later if demand exists:** Network Policy Hierarchy for Multisite, Cross-Site Session Revocation, network-enforced Passed-event logging policy (super admins can require immutable Passed-event audit visibility across subsites), Security Administrator governance mode (dedicated `manage_wp_sudo` capability, settings/widget visibility scoped to that capability, optional strict-mode assignee workflow, and documented recovery path for misconfiguration)
 - **Keep as design backlog:** client-side modal challenge, per-session sudo isolation, REST sudo grant endpoint, SSO/SAML/OIDC framework
+
+## Execution Companion (v3.1–v3.3)
+
+For the normalized priority stack and phased GSD execution plan, use:
+
+- [`docs/execution-plan-v3.1-v3.3.md`](execution-plan-v3.1-v3.3.md)
+
+This companion doc is the canonical implementation sequence for post-v3.0.0
+feature work and should be updated when backlog priority changes.
 
 ### Activity UX follow-up (easy-first execution order)
 
