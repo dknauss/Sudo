@@ -1,6 +1,6 @@
 # Session Store Evaluation for WP Sudo
 
-*Created April 19, 2026*
+*Created April 19, 2026. Updated April 20, 2026 to reflect the 3.0.0 pre-release performance pass (widget and Users-list transient caches, Event_Recorder write buffering, batched event-log prune).*
 
 ## Summary
 
@@ -47,8 +47,8 @@ Current hot-path session reads/writes live in:
 | `Sudo_Session::is_active()` / token verification | point reads from user meta | frequent gate-path check |
 | `Sudo_Session::is_within_grace()` | point reads from user meta | frequent near-expiry check |
 | admin bar | repeated sudo-state checks while browsing admin | high-request-frequency path |
-| dashboard widget active sessions | `WP_User_Query` meta query on `_wp_sudo_expires` | expensive on large user tables |
-| Users screen `sudo_active=1` | count + filtered list via `_wp_sudo_expires` meta query | same scaling limit as widget |
+| dashboard widget active sessions | `WP_User_Query` meta query on `_wp_sudo_expires`, cached in a 30 s per-site transient (3.0.0) | warm path is cheap; cold rebuild still meta-query-bound at large user counts |
+| Users screen `sudo_active=1` count badge | `WP_User_Query::get_total()` via `_wp_sudo_expires` meta query, cached in a 30 s per-site transient (3.0.0) | warm path is cheap; filtered Users-list render still hits the meta query uncached |
 | uninstall cleanup | deletes `_wp_sudo_*` keys across users/sites | migration/rollback concern |
 
 ---
@@ -278,6 +278,26 @@ Options 1–3 for WP Sudo's long-term direction.
 - Uneven portability across hosts without persistent object cache.
 - Adds operational fragility compared with a database-backed authoritative model.
 
+### Current partial adoption (3.0.0)
+
+A bounded, TTL-based variant of this option shipped in 3.0.0 for the two
+aggregate-read hot paths most sensitive to user-table size:
+
+- `Dashboard_Widget::get_active_sessions_payload()` — 30 s transient
+  `wp_sudo_active_sessions_{blog_id}`.
+- `Admin::get_sudo_active_user_count()` — 30 s transient
+  `wp_sudo_active_count_{blog_id}`.
+
+These use the WordPress transient API (object-cache-backed when a persistent
+cache is configured, `wp_options`-backed otherwise). The short TTL sidesteps
+the invalidation-correctness concerns above: stale reads decay within 30 s of
+a session create/expire rather than requiring coherent invalidation on every
+session write.
+
+This is **interim mitigation, not the long-term design.** Gate-path reads
+(`Sudo_Session::is_active()`, `is_within_grace()`) are untouched and still
+read user meta per request. Option 1 remains the recommended direction.
+
 ---
 
 ## Option Comparison
@@ -309,6 +329,12 @@ Why:
 - It keeps rollback practical.
 - It supports future multisite/network operator tooling better than a mirror-only model.
 - It avoids the operational risk of a hard cutover.
+
+The 3.0.0 widget/Users-list transient caches (see Option 5 → Current partial
+adoption) mitigate aggregate-read cost but do not touch the per-request
+gate-path meta reads on `_wp_sudo_token` / `_wp_sudo_expires` that fire on
+every gated admin request. Option 1 is still required to retire those reads
+and to support network-admin cross-site session views.
 
 ### Why not Option 2
 

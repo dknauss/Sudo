@@ -167,6 +167,10 @@ Install [WP Activity Log](https://wordpress.org/plugins/wp-security-audit-log/) 
 
 WP Sudo keeps dashboard event rows for **14 days** by default. A daily WP-Cron task (`wp_sudo_prune_events`) removes older rows. Pruning runs in bounded batches (`Event_Store::PRUNE_BATCH_SIZE`, currently 1000 rows per batch) to avoid long table locks on busy sites.
 
+## Why does the "Sudo Active" count on the Users screen sometimes lag?
+
+The active-session count badge on the Users list and the active-sessions panel in the dashboard widget are backed by a 30-second per-site transient cache. After a user's sudo session activates or expires, the displayed count can be up to 30 seconds stale before the next rebuild. This is deliberate — the underlying `WP_User_Query` with a `_wp_sudo_expires` meta query would otherwise run on every admin page load, which becomes expensive on sites with many users. Gate enforcement itself is never cached: every gated action re-reads the live session state.
+
 ## Does it support two-factor authentication?
 
 Yes. If the [Two Factor](https://wordpress.org/plugins/two-factor/) plugin is installed and the user has 2FA enabled, the sudo challenge becomes a two-step process: password first, then the configured 2FA method (TOTP, email code, backup codes, etc.). For passkey and security key support, add the [WebAuthn Provider for Two Factor](https://wordpress.org/plugins/two-factor-provider-webauthn/) plugin. A visible countdown timer shows how long the user has to enter their code. Third-party 2FA plugins can integrate via filter hooks — see [Developer Reference](developer-reference.md).
