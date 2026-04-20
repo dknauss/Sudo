@@ -11,6 +11,7 @@
 
 namespace WP_Sudo\Tests\Integration;
 
+use WP_Sudo\Event_Recorder;
 use WP_Sudo\Event_Store;
 
 /**
@@ -33,6 +34,11 @@ class GateLoggingTest extends TestCase {
 
 		// Ensure events table exists.
 		Event_Store::maybe_create_table();
+
+		// Event_Recorder buffers writes until the shutdown hook in production.
+		// Integration tests fire hooks then read the store within the same
+		// request, so disable buffering here — unit tests cover the buffer path.
+		Event_Recorder::reset_buffer();
 
 		// Skip if table creation failed (e.g., dbDelta unavailable).
 		if ( ! $this->table_exists() ) {
