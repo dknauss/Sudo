@@ -16,6 +16,30 @@ WP Sudo uses the term **reauthentication** to describe its core pattern, followi
 - **2FA replay** — the two-factor challenge is bound to the originating browser via a one-time cookie, preventing cross-browser replay.
 - **Capability tampering** — direct database modifications to restore `unfiltered_html` on the Editor role are detected and reversed at `init`.
 
+## Internal Admin Users and Governance Boundary
+
+WP Sudo reduces risk from stolen sessions, but internal admin governance is a
+separate control plane:
+
+- On single-site today, users with `manage_options` can access Sudo settings and
+  dashboard activity.
+- On multisite today, users with `manage_network_options` can manage Sudo at
+  network scope.
+
+That means WP Sudo currently treats these administrators as trusted operators for
+policy/configuration decisions, even though compromised-admin scenarios are in
+scope for action gating.
+
+Operationally, this implies:
+
+- WP Sudo should be paired with external immutable logging where possible.
+- Organizations with many admins should treat Sudo settings access as a distinct
+  governance concern, not "all admins by default."
+
+Planned hardening introduces dedicated Sudo capabilities and explicit grant
+controls (instead of broad admin-cap inheritance). See:
+[`docs/internal-admin-governance-spec.md`](internal-admin-governance-spec.md).
+
 ## Threat Model: The Kill Chain
 
 Model a WordPress compromise as a kill chain:

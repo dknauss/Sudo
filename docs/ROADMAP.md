@@ -1,6 +1,6 @@
 # Roadmap: Past and Future Planning — Integration Tests, WP 7.0 Prep, Collaboration, TDD, and Core Design
 
-*Updated April 19, 2026*
+*Updated April 20, 2026*
 
 ## Table of Contents
 
@@ -19,6 +19,7 @@
 - **[10. Core Sudo Design](#10-core-sudo-design)** — Already achieved (13), to implement (6), to consider (4), discarded (5)
 - **[11. Feature Backlog](#11-feature-backlog)** — WSAL sensor, IP+user rate limiting, dashboard widget, Gutenberg, network policy
 - **[11.1 Multisite Network Admin Tools](#111-multisite-network-admin-tools)** — Network dashboard widget, super admin widget visibility controls, cross-site activity aggregation
+- **[11.2 Internal Admin Least-Privilege & Governance](#112-internal-admin-least-privilege--governance)** — dedicated Sudo capabilities, explicit grants, migration-safe rollout
 - **[12. Security Hardening Sprint](#12-security-hardening-sprint)** — Stash redaction, upload-action coverage, non-blocking rate limiting, rule validation, MU loader
 - **[Appendix A: Accessibility](#appendix-a-accessibility-roadmap)** — 15 resolved WCAG items (v2.2.0–v2.3.1)
 
@@ -74,6 +75,7 @@ The v3.0.0 release consolidates Phases 7–9 work plus pre-release fixes:
 - **Gutenberg block editor integration** — Detect block editor context, queue reauthentication via `@wordpress/notices` snackbar instead of page redirect. Natural trigger for Playwright E2E tests.
 - **Network policy hierarchy for multisite** — Super admins set minimum session duration and maximum entry-point policies; site admins can only tighten.
 - **Session-store architecture follow-up** — Evaluate and likely implement a dedicated sudo-session table, with the current recommendation favoring an authoritative table plus usermeta shadow writes. See [`docs/session-store-evaluation.md`](session-store-evaluation.md).
+- **Internal admin governance hardening** — Move Sudo management away from broad `manage_options` defaults by introducing dedicated capabilities and explicit grants. Implement with migration-safe phases documented in [`docs/internal-admin-governance-spec.md`](internal-admin-governance-spec.md) and roadmap §11.2.
 
 ### Later: Major Features (Need Design Work)
 
@@ -1339,43 +1341,42 @@ To avoid scope creep, this multisite expansion does **not** include:
 
 ---
 
-## 11.2 Security Administrator Capability + Visibility Scope
+## 11.2 Internal Admin Least-Privilege & Governance
 
-*Backlog candidate added April 20, 2026*
+*Added April 20, 2026*
 
-Introduce an explicit WP Sudo governance model that decouples plugin control
-from broad `manage_options` access.
+WP Sudo's threat model already includes compromised admin sessions, but current
+control surfaces are still tied to broad admin capabilities (`manage_options`
+on single-site and `manage_network_options` on multisite). This section
+tracks the hardening plan to make Sudo governance explicit and least-privilege.
 
-### Goal
+### Spec and design source
 
-Allow site/network owners to scope WP Sudo control and visibility to a smaller,
-explicit set of users without requiring custom code.
+- [`docs/internal-admin-governance-spec.md`](internal-admin-governance-spec.md)
 
-### Proposed rollout
+### Planned phased rollout
 
-1. **Dedicated capability**
-   - Add `manage_wp_sudo` capability.
-   - Gate WP Sudo settings and dashboard widget visibility by this capability.
+1. **Phase 1 (v3.1) — capability scaffolding + compatibility mode**
+   - Introduce dedicated Sudo capabilities (`manage_wp_sudo`,
+     `view_wp_sudo_activity`, `revoke_wp_sudo_sessions`) and centralize checks.
+   - Keep compatibility fallback for upgrades to prevent lockouts.
+   - Add Access Overview UI and audit hooks for assignment changes.
 
-2. **Safe default mapping**
-   - Default-map `manage_wp_sudo` to administrators on single-site and super admins on multisite.
-   - Preserve current behavior unless the owner explicitly opts into stricter governance.
+2. **Phase 2 (v3.2) — explicit grants for new installs + guided migration**
+   - New installs default to installer/super-admin ownership for management.
+   - Existing installs remain compatible until migration is explicitly completed.
+   - Add guided assignment flow and rollback toggle.
 
-3. **Optional strict mode**
-   - Add an opt-in mode where only explicitly assigned users can access WP Sudo controls.
-   - Include a guided assignment workflow to reduce accidental lockout risk.
+3. **Phase 3 (v3.3) — hardened post-migration default**
+   - Move migrated sites to strict-capability mode by default.
+   - Keep compatibility mode as explicit fallback with warning/audit visibility.
+   - Add integrity warnings when effective visibility is broader than intended.
 
-4. **Recovery path**
-   - Provide documented recovery via WP-CLI and/or constant-based override when no valid assignee remains.
+### Priority rationale
 
-5. **Multisite semantics**
-   - Define how network vs subsite visibility works under this model.
-   - Ensure network admins can enforce floors while allowing controlled subsite delegation where appropriate.
-
-### Notes
-
-- This should be treated as a governance/security-hardening feature, not a cosmetic UX change.
-- Initial implementation should avoid mandatory first-install assignment flow to limit lockout/support burden.
+- This is a security-governance control, not a cosmetic UX feature.
+- It reduces insider-risk and accidental policy drift in organizations with many admins.
+- It complements (not replaces) external logging/audit systems.
 
 ---
 
