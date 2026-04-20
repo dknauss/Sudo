@@ -190,6 +190,32 @@ if ( ! class_exists( 'WP_Screen' ) ) {
 	}
 }
 
+if ( ! class_exists( 'WP_User_Query' ) ) {
+	class WP_User_Query {
+		public static int   $mock_total      = 0;
+		public static array $last_query_vars = array();
+
+		private array $query_vars = array();
+
+		public function __construct( array $query = array() ) {
+			$this->query_vars            = $query;
+			self::$last_query_vars = $query;
+		}
+
+		public function get_total(): int {
+			return self::$mock_total;
+		}
+
+		public function get( string $query_var ) {
+			return $this->query_vars[ $query_var ] ?? null;
+		}
+
+		public function set( string $query_var, $value ): void {
+			$this->query_vars[ $query_var ] = $value;
+		}
+	}
+}
+
 // ── Two Factor plugin stubs ──────────────────────────────────────────
 // Minimal stubs so tests can exercise the class_exists('Two_Factor_Core')
 // branches in Challenge::handle_ajax_2fa() and Challenge::render_page().

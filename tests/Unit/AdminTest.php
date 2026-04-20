@@ -2283,9 +2283,11 @@ class AdminTest extends TestCase {
 	 * @return void
 	 */
 	public function test_filter_user_views_adds_sudo_active_link(): void {
-		Functions\when( 'get_users' )->justReturn( [ 1, 2, 3 ] );
 		Functions\when( 'esc_url' )->returnArg( 1 );
 		Functions\when( 'admin_url' )->returnArg( 1 );
+		Functions\expect( 'get_users' )->never();
+
+		\WP_User_Query::$mock_total = 3;
 
 		$admin = new Admin();
 		$views = $admin->filter_user_views( array( 'all' => '<a>All</a>' ) );
@@ -2293,6 +2295,9 @@ class AdminTest extends TestCase {
 		$this->assertArrayHasKey( 'sudo_active', $views );
 		$this->assertStringContainsString( 'sudo_active=1', $views['sudo_active'] );
 		$this->assertStringContainsString( '3', $views['sudo_active'] );
+		$this->assertSame( 1, \WP_User_Query::$last_query_vars['number'] );
+		$this->assertTrue( \WP_User_Query::$last_query_vars['count_total'] );
+		$this->assertSame( 'ID', \WP_User_Query::$last_query_vars['fields'] );
 	}
 
 	/**
@@ -2301,7 +2306,7 @@ class AdminTest extends TestCase {
 	 * @return void
 	 */
 	public function test_filter_user_views_omitted_when_zero(): void {
-		Functions\when( 'get_users' )->justReturn( [] );
+		\WP_User_Query::$mock_total = 0;
 
 		$admin = new Admin();
 		$views = $admin->filter_user_views( array( 'all' => '<a>All</a>' ) );
@@ -2315,9 +2320,9 @@ class AdminTest extends TestCase {
 	 * @return void
 	 */
 	public function test_filter_user_views_current_class_when_active(): void {
-		Functions\when( 'get_users' )->justReturn( [ 1 ] );
 		Functions\when( 'esc_url' )->returnArg( 1 );
 		Functions\when( 'admin_url' )->returnArg( 1 );
+		\WP_User_Query::$mock_total = 1;
 
 		$_GET['sudo_active'] = '1';
 
@@ -2325,6 +2330,79 @@ class AdminTest extends TestCase {
 		$views = $admin->filter_user_views( array( 'all' => '<a>All</a>' ) );
 
 		$this->assertStringContainsString( 'current', $views['sudo_active'] );
+
+		unset( $_GET['sudo_active'] );
+	}
+
+	/**
+	 * Test filter_user_views does not mark the tab current for non-matching values.
+	 *
+	 * @return void
+	 */
+	public function test_filter_user_views_not_current_for_non_matching_value(): void {
+		Functions\when( 'esc_url' )->returnArg( 1 );
+		Functions\when( 'admin_url' )->returnArg( 1 );
+		\WP_User_Query::$mock_total = 1;
+
+		$_GET['sudo_active'] = '2';
+
+		$admin = new Admin();
+		$views = $admin->filter_user_views( array( 'all' => '<a>All</a>' ) );
+
+		$this->assertStringNotContainsString( 'current', $views['sudo_active'] );
+
+		unset( $_GET['sudo_active'] );
+	}
+
+	/**
+	 * Test filter_users_by_sudo_active adds the meta query for sudo_active=1.
+	 *
+	 * @return void
+	 */
+	public function test_filter_users_by_sudo_active_adds_meta_query_for_explicit_filter(): void {
+		Functions\when( 'is_admin' )->justReturn( true );
+
+		$_GET['sudo_active'] = '1';
+
+		$query = new \WP_User_Query(
+			array(
+				'meta_query' => array(),
+			)
+		);
+
+		$admin = new Admin();
+		$admin->filter_users_by_sudo_active( $query );
+
+		$meta_query = $query->get( 'meta_query' );
+
+		$this->assertIsArray( $meta_query );
+		$this->assertCount( 1, $meta_query );
+		$this->assertSame( '_wp_sudo_expires', $meta_query[0]['key'] );
+		$this->assertSame( '>', $meta_query[0]['compare'] );
+
+		unset( $_GET['sudo_active'] );
+	}
+
+	/**
+	 * Test filter_users_by_sudo_active ignores non-matching values.
+	 *
+	 * @return void
+	 */
+	public function test_filter_users_by_sudo_active_ignores_non_matching_value(): void {
+		Functions\when( 'is_admin' )->justReturn( true );
+
+		$_GET['sudo_active'] = '2';
+
+		$query = new \WP_User_Query(
+			array(
+				'meta_query' => array(),
+			)
+		);
+
+		$admin = new Admin();
+		$admin->filter_users_by_sudo_active( $query );
+
+		$this->assertSame( array(), $query->get( 'meta_query' ) );
 
 		unset( $_GET['sudo_active'] );
 	}

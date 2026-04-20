@@ -62,6 +62,11 @@ abstract class TestCase extends PHPUnitTestCase {
 	protected function tearDown(): void {
 		unset( $_COOKIE[ \WP_Sudo\Sudo_Session::CHALLENGE_COOKIE ] );
 
+		if ( class_exists( 'WP_User_Query' ) && property_exists( 'WP_User_Query', 'mock_total' ) ) {
+			\WP_User_Query::$mock_total      = 0;
+			\WP_User_Query::$last_query_vars = array();
+		}
+
 		// Clear per-request static caches to prevent cross-test contamination.
 		\WP_Sudo\Action_Registry::reset_cache();
 		\WP_Sudo\Sudo_Session::reset_cache();

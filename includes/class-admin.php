@@ -1004,27 +1004,13 @@ class Admin {
 	 * @return array<string, string>
 	 */
 	public function filter_user_views( array $views ): array {
-		$active_ids = get_users(
-			array(
-				'meta_query' => array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
-					array(
-						'key'     => '_wp_sudo_expires',
-						'value'   => time(),
-						'compare' => '>',
-						'type'    => 'NUMERIC',
-					),
-				),
-				'fields'     => 'ID',
-			)
-		);
-
-		$count = count( $active_ids );
+		$count = $this->get_sudo_active_user_count();
 		if ( 0 === $count ) {
 			return $views;
 		}
 
 		$url     = admin_url( 'users.php?sudo_active=1' );
-		$current = isset( $_GET['sudo_active'] ) ? ' class="current" aria-current="page"' : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		$current = $this->is_sudo_active_filter_requested() ? ' class="current" aria-current="page"' : '';
 
 		$views['sudo_active'] = sprintf(
 			'<a href="%s"%s>%s <span class="count">(%d)</span></a>',
@@ -1035,6 +1021,31 @@ class Admin {
 		);
 
 		return $views;
+	}
+
+	/**
+	 * Return the number of users with active sudo sessions.
+	 *
+	 * Uses a count-oriented query so the Users screen does not materialize every
+	 * matching user ID just to render the filter badge.
+	 *
+	 * @since 3.0.0
+	 *
+	 * @return int
+	 */
+	private function get_sudo_active_user_count(): int {
+		$query = new \WP_User_Query(
+			array(
+				'meta_query'  => array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
+					$this->get_sudo_active_meta_query_clause(),
+				),
+				'fields'      => 'ID',
+				'number'      => 1,
+				'count_total' => true,
+			)
+		);
+
+		return (int) $query->get_total();
 	}
 
 	/**
@@ -1050,7 +1061,7 @@ class Admin {
 			return;
 		}
 
-		if ( empty( $_GET['sudo_active'] ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+		if ( ! $this->is_sudo_active_filter_requested() ) {
 			return;
 		}
 
@@ -1059,14 +1070,39 @@ class Admin {
 			$meta_query = array();
 		}
 
-		$meta_query[] = array(
+		$meta_query[] = $this->get_sudo_active_meta_query_clause();
+
+		$query->set( 'meta_query', $meta_query ); // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
+	}
+
+	/**
+	 * Return whether the explicit sudo_active users filter is requested.
+	 *
+	 * @since 3.0.0
+	 *
+	 * @return bool
+	 */
+	private function is_sudo_active_filter_requested(): bool {
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only list-table filter state.
+		$value = isset( $_GET['sudo_active'] ) ? sanitize_text_field( wp_unslash( (string) $_GET['sudo_active'] ) ) : '';
+
+		return '1' === $value;
+	}
+
+	/**
+	 * Return the meta query clause for active sudo sessions.
+	 *
+	 * @since 3.0.0
+	 *
+	 * @return array<string, int|string>
+	 */
+	private function get_sudo_active_meta_query_clause(): array {
+		return array(
 			'key'     => '_wp_sudo_expires',
 			'value'   => time(),
 			'compare' => '>',
 			'type'    => 'NUMERIC',
 		);
-
-		$query->set( 'meta_query', $meta_query ); // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query
 	}
 
 	// -------------------------------------------------------------------------
