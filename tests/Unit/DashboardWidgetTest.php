@@ -11,6 +11,7 @@ namespace WP_Sudo\Tests\Unit;
 
 use Brain\Monkey\Actions;
 use Brain\Monkey\Functions;
+use WP_Sudo\Admin;
 use WP_Sudo\Dashboard_Widget;
 use WP_Sudo\Tests\TestCase;
 
@@ -218,6 +219,7 @@ class DashboardWidgetTest extends TestCase {
 		Functions\when( 'esc_url' )->returnArg( 1 );
 		Functions\when( 'admin_url' )->returnArg( 1 );
 		Functions\when( 'wp_kses' )->returnArg( 1 );
+		Functions\when( 'apply_filters' )->returnArg( 2 );
 		Functions\when( '_n' )->returnArg( 2 ); // Return plural form.
 		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
 		Functions\when( 'get_avatar' )->justReturn( '<img src="avatar.jpg" />' );
@@ -466,6 +468,36 @@ class DashboardWidgetTest extends TestCase {
 	}
 
 	/**
+	 * Test recent events show policy notice and disable Passed filter when disabled by code.
+	 *
+	 * @return void
+	 */
+	public function testRecentEventsShowPassedLoggingOverrideNoticeWhenDisabled(): void {
+		$this->setUpRenderStubs();
+		Functions\when( 'apply_filters' )->alias(
+			function ( string $hook, $value ) {
+				if ( Admin::PASSED_EVENT_LOGGING_FILTER === $hook ) {
+					return false;
+				}
+
+				return $value;
+			}
+		);
+		Functions\when( 'get_option' )->justReturn( [] );
+		\WP_User_Query::$mock_total   = 0;
+		\WP_User_Query::$mock_results = [];
+
+		ob_start();
+		Dashboard_Widget::render();
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( 'Passed events are currently hidden by a code-level policy override.', $output );
+		$this->assertStringContainsString( '<option value="action_passed" disabled>', $output );
+
+		$this->restoreWpdb();
+	}
+
+	/**
 	 * Test recent events renders event table with rows.
 	 *
 	 * @return void
@@ -554,6 +586,7 @@ class DashboardWidgetTest extends TestCase {
 		\WP_User_Query::$mock_results = [];
 		Functions\when( 'esc_html__' )->returnArg( 1 );
 		Functions\when( 'esc_html' )->returnArg( 1 );
+		Functions\when( 'esc_attr' )->returnArg( 1 );
 		Functions\when( 'esc_url' )->returnArg( 1 );
 		Functions\when( 'admin_url' )->returnArg( 1 );
 		Functions\when( 'wp_kses' )->returnArg( 1 );
@@ -590,6 +623,7 @@ class DashboardWidgetTest extends TestCase {
 		\WP_User_Query::$mock_results = [];
 		Functions\when( 'esc_html__' )->returnArg( 1 );
 		Functions\when( 'esc_html' )->returnArg( 1 );
+		Functions\when( 'esc_attr' )->returnArg( 1 );
 		Functions\when( 'esc_url' )->returnArg( 1 );
 		Functions\when( 'admin_url' )->returnArg( 1 );
 		Functions\when( 'wp_kses' )->returnArg( 1 );
@@ -635,6 +669,7 @@ class DashboardWidgetTest extends TestCase {
 		\WP_User_Query::$mock_results = [];
 		Functions\when( 'esc_html__' )->returnArg( 1 );
 		Functions\when( 'esc_html' )->returnArg( 1 );
+		Functions\when( 'esc_attr' )->returnArg( 1 );
 		Functions\when( 'esc_url' )->returnArg( 1 );
 		Functions\when( 'admin_url' )->returnArg( 1 );
 		Functions\when( 'wp_kses' )->returnArg( 1 );

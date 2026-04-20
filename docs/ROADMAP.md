@@ -461,7 +461,7 @@ Use this default order after the v3.0.0 release unless a real user need override
 
 - **Do next:** Network Dashboard Widget + Super Admin Visibility Controls
 - **Plan next:** Gutenberg Block Editor Integration
-- **Do later if demand exists:** Network Policy Hierarchy for Multisite, Cross-Site Session Revocation
+- **Do later if demand exists:** Network Policy Hierarchy for Multisite, Cross-Site Session Revocation, network-enforced Passed-event logging policy (super admins can require immutable Passed-event audit visibility across subsites)
 - **Keep as design backlog:** client-side modal challenge, per-session sudo isolation, REST sudo grant endpoint, SSO/SAML/OIDC framework
 
 ---

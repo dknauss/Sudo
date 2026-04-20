@@ -85,6 +85,30 @@ class AdminTest extends TestCase {
 	}
 
 	// -----------------------------------------------------------------
+	// is_passed_event_logging_enabled()
+	// -----------------------------------------------------------------
+
+	public function test_passed_event_logging_enabled_by_default(): void {
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		$this->assertTrue( Admin::is_passed_event_logging_enabled() );
+	}
+
+	public function test_passed_event_logging_can_be_disabled_via_filter(): void {
+		Functions\when( 'apply_filters' )->alias(
+			function ( string $hook, $value ) {
+				if ( Admin::PASSED_EVENT_LOGGING_FILTER === $hook ) {
+					return false;
+				}
+
+				return $value;
+			}
+		);
+
+		$this->assertFalse( Admin::is_passed_event_logging_enabled() );
+	}
+
+	// -----------------------------------------------------------------
 	// sanitize_settings()
 	// -----------------------------------------------------------------
 

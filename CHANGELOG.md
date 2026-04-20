@@ -21,8 +21,8 @@
 
 - **Active sessions: identity context** — sessions panel now shows gravatars, username, role badge, display name, and time remaining for each active session. Responsive layout hides gravatars and names on small screens.
 - **Recent events: client-side filtering** — dropdown filters for Time (1h / 24h / 7d), Event type, and Surface, applied client-side against 50 stored events. Filters laid out horizontally in a single row.
-- **Passthrough logging** — new `log_passthrough` toggle in Settings → Sudo → Session Settings. When enabled, gated actions that pass through an active sudo session are recorded as "Passed" events in the widget via the new `wp_sudo_action_passed` audit hook (fires on admin, REST, and WPGraphQL surfaces).
-- **Widget placement and layout** — widget renders in the side column at high priority, active session cards use CSS Grid (`repeat(auto-fit, minmax(180px, 1fr))`) with scrollable container, usernames link to user-edit.php, Settings link in passthrough notice.
+- **Passed-event audit visibility defaults** — `wp_sudo_action_passed` events (admin, REST, WPGraphQL) are now recorded by default so active-session actions stay visible in the audit timeline. Disabling passed-event logging now requires an explicit code override (constant/filter), and WP Sudo shows a warning notice when that override is active.
+- **Widget placement and layout** — widget renders in the side column at high priority, active session cards use CSS Grid (`repeat(auto-fit, minmax(180px, 1fr))`) with scrollable container, usernames link to user-edit.php, and the empty-state panel now uses a clearer Site Health–style status layout.
 - **Users list "Sudo Active" filter** — the Users → All Users screen gains a "Sudo Active (N)" view link that filters the list to users with an active sudo session via `_wp_sudo_expires` meta query.
 
 ### Accessibility

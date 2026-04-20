@@ -12,6 +12,7 @@ namespace WP_Sudo\Tests\Unit;
 
 use Brain\Monkey\Actions;
 use Brain\Monkey\Functions;
+use WP_Sudo\Admin;
 use WP_Sudo\Event_Recorder;
 use WP_Sudo\Tests\TestCase;
 
@@ -120,12 +121,12 @@ class EventRecorderTest extends TestCase {
 	// ─── Hook subscription tests ────────────────────────────────────────
 
 	/**
-	 * Test that constructor registers add_action for only the 5 MVP widget hooks.
+	 * Test that constructor registers add_action for only the MVP widget hooks.
 	 *
 	 * @return void
 	 */
 	public function testConstructorRegistersOnlyMvpHooks(): void {
-		// Expect exactly these 5 hooks to be registered.
+		// Expect exactly these hooks to be registered.
 		Actions\expectAdded( 'wp_sudo_lockout' )
 			->once()
 			->with( [ Event_Recorder::class, 'on_lockout' ], 10, 3 );
@@ -142,6 +143,10 @@ class EventRecorderTest extends TestCase {
 			->once()
 			->with( [ Event_Recorder::class, 'on_action_allowed' ], 10, 3 );
 
+		Actions\expectAdded( 'wp_sudo_action_passed' )
+			->once()
+			->with( [ Event_Recorder::class, 'on_action_passed' ], 10, 3 );
+
 		Actions\expectAdded( 'wp_sudo_action_replayed' )
 			->once()
 			->with( [ Event_Recorder::class, 'on_action_replayed' ], 10, 2 );
@@ -154,7 +159,7 @@ class EventRecorderTest extends TestCase {
 	 *
 	 * The full audit hook set includes wp_sudo_activated, wp_sudo_deactivated,
 	 * wp_sudo_reauth_failed, etc. — but the Event_Recorder only subscribes to
-	 * the 5 hooks that produce immediate operator value in the dashboard widget.
+	 * the hooks that produce immediate operator value in the dashboard widget.
 	 *
 	 * @return void
 	 */
@@ -171,6 +176,7 @@ class EventRecorderTest extends TestCase {
 		Actions\expectAdded( 'wp_sudo_action_gated' )->once();
 		Actions\expectAdded( 'wp_sudo_action_blocked' )->once();
 		Actions\expectAdded( 'wp_sudo_action_allowed' )->once();
+		Actions\expectAdded( 'wp_sudo_action_passed' )->once();
 		Actions\expectAdded( 'wp_sudo_action_replayed' )->once();
 
 		new Event_Recorder();
@@ -189,6 +195,7 @@ class EventRecorderTest extends TestCase {
 			'wp_sudo_action_gated'     => 3,
 			'wp_sudo_action_blocked'   => 3,
 			'wp_sudo_action_allowed'   => 3,
+			'wp_sudo_action_passed'    => 3,
 			'wp_sudo_action_replayed'  => 2,
 		];
 
@@ -236,6 +243,7 @@ class EventRecorderTest extends TestCase {
 			'wp_sudo_action_gated'    => 3,
 			'wp_sudo_action_blocked'  => 3,
 			'wp_sudo_action_allowed'  => 3,
+			'wp_sudo_action_passed'   => 3,
 			'wp_sudo_action_replayed' => 2,
 		];
 
@@ -383,6 +391,52 @@ class EventRecorderTest extends TestCase {
 		$this->assertSame( 'themes.switch', $data['rule_id'] );
 		// Replayed events have no surface (originated from admin UI).
 		$this->assertSame( '', $data['surface'] );
+
+		$this->restoreWpdb();
+	}
+
+	/**
+	 * Test on_action_passed() inserts event when passed logging is enabled.
+	 *
+	 * @return void
+	 */
+	public function testOnActionPassedInsertsEventWhenLoggingEnabled(): void {
+		$this->setUpFakeWpdb();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		Event_Recorder::on_action_passed( 18, 'options.update', 'admin' );
+
+		$this->assertCount( 1, $this->fake_wpdb->inserts );
+
+		$data = $this->fake_wpdb->inserts[0]['data'];
+		$this->assertSame( 18, $data['user_id'] );
+		$this->assertSame( 'action_passed', $data['event'] );
+		$this->assertSame( 'options.update', $data['rule_id'] );
+		$this->assertSame( 'admin', $data['surface'] );
+
+		$this->restoreWpdb();
+	}
+
+	/**
+	 * Test on_action_passed() skips insert when disabled by policy override.
+	 *
+	 * @return void
+	 */
+	public function testOnActionPassedSkipsInsertWhenLoggingDisabledByFilter(): void {
+		$this->setUpFakeWpdb();
+		Functions\when( 'apply_filters' )->alias(
+			function ( string $hook, $value ) {
+				if ( Admin::PASSED_EVENT_LOGGING_FILTER === $hook ) {
+					return false;
+				}
+
+				return $value;
+			}
+		);
+
+		Event_Recorder::on_action_passed( 18, 'options.update', 'admin' );
+
+		$this->assertCount( 0, $this->fake_wpdb->inserts );
 
 		$this->restoreWpdb();
 	}

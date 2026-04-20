@@ -315,6 +315,7 @@ needed. It remains inert when Stream APIs are unavailable.
 | `wp_sudo_requires_two_factor` | Whether a user needs 2FA for sudo (for third-party 2FA plugins). |
 | `wp_sudo_validate_two_factor` | Validate a 2FA code (for third-party 2FA plugins). |
 | `wp_sudo_render_two_factor_fields` | Render 2FA input fields (for third-party 2FA plugins). |
+| `wp_sudo_log_passed_events_enabled` | Toggle recording of `action_passed` dashboard events. Default `true`; intended for explicit code-level overrides only. |
 | `wp_sudo_wpgraphql_classification` | Classify WPGraphQL body as `mutation` or `query` (persisted-query support). |
 | `wp_sudo_wpgraphql_bypass` | Bypass WPGraphQL Limited-mode gating for specific requests. |
 

@@ -119,6 +119,20 @@ class Admin {
 	public const POLICY_PRESET_CUSTOM = 'custom';
 
 	/**
+	 * Constant name for disabling Passed-event logging via code.
+	 *
+	 * @var string
+	 */
+	public const DISABLE_PASSED_EVENT_LOGGING_CONSTANT = 'WP_SUDO_DISABLE_PASSED_EVENT_LOGGING';
+
+	/**
+	 * Filter name for enabling/disabling Passed-event logging via code.
+	 *
+	 * @var string
+	 */
+	public const PASSED_EVENT_LOGGING_FILTER = 'wp_sudo_log_passed_events_enabled';
+
+	/**
 	 * Transient prefix for one-shot preset summary notices.
 	 *
 	 * @var string
@@ -580,15 +594,6 @@ class Admin {
 			array( 'label_for' => 'session_duration' )
 		);
 
-		add_settings_field(
-			'log_passthrough',
-			__( 'Log Session Pass-Throughs', 'wp-sudo' ),
-			array( $this, 'render_field_log_passthrough' ),
-			self::PAGE_SLUG,
-			'wp_sudo_session',
-			array( 'label_for' => 'log_passthrough' )
-		);
-
 		// Entry point policies section.
 		add_settings_section(
 			'wp_sudo_policies',
@@ -833,6 +838,41 @@ class Admin {
 	}
 
 	/**
+	 * Return whether Passed-event logging is enabled.
+	 *
+	 * Passed-event logging is enabled by default and intentionally not
+	 * configurable from the UI. It may only be disabled via a code-level
+	 * override (constant/filter) for exceptional environments.
+	 *
+	 * @since 3.0.0
+	 *
+	 * @return bool
+	 */
+	public static function is_passed_event_logging_enabled(): bool {
+		$enabled = true;
+
+		if ( defined( self::DISABLE_PASSED_EVENT_LOGGING_CONSTANT ) && constant( self::DISABLE_PASSED_EVENT_LOGGING_CONSTANT ) ) {
+			$enabled = false;
+		}
+
+		if ( function_exists( 'apply_filters' ) ) {
+			/**
+			 * Filter whether WP Sudo records action_passed events.
+			 *
+			 * Return false only when a deployment intentionally accepts reduced
+			 * audit visibility for actions performed during active sudo sessions.
+			 *
+			 * @since 3.0.0
+			 *
+			 * @param bool $enabled Default true unless disabled by constant.
+			 */
+			$enabled = (bool) apply_filters( self::PASSED_EVENT_LOGGING_FILTER, $enabled );
+		}
+
+		return $enabled;
+	}
+
+	/**
 	 * Sanitize settings input.
 	 *
 	 * @param array<string, mixed> $input Raw input from the settings form.
@@ -847,9 +887,6 @@ class Admin {
 		if ( $sanitized['session_duration'] < 1 || $sanitized['session_duration'] > 15 ) {
 			$sanitized['session_duration'] = 15;
 		}
-
-		// Log passthrough: boolean toggle.
-		$sanitized['log_passthrough'] = ! empty( $input['log_passthrough'] );
 
 		// Entry point policies: disabled, limited, or unrestricted.
 		$policy_keys = self::policy_setting_keys();
@@ -1176,6 +1213,7 @@ class Admin {
 		<div class="wrap">
 			<h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
 			<?php $this->render_policy_preset_notice(); ?>
+			<?php $this->render_passed_event_logging_override_notice(); ?>
 			<?php if ( $is_network && isset( $_GET['updated'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>
 				<div class="notice notice-success is-dismissible wp-sudo-notice">
 					<p><?php esc_html_e( 'Settings saved.', 'wp-sudo' ); ?></p>
@@ -1669,21 +1707,6 @@ class Admin {
 	}
 
 	/**
-	 * Render the log_passthrough toggle field.
-	 *
-	 * @return void
-	 */
-	public function render_field_log_passthrough(): void {
-		$value = self::get( 'log_passthrough', false );
-		printf(
-			'<input type="checkbox" id="log_passthrough" name="%s[log_passthrough]" value="1" %s />',
-			esc_attr( self::OPTION_KEY ),
-			checked( $value, true, false )
-		);
-		echo '<p class="description">' . esc_html__( 'Log each gated action that succeeds during an active sudo session. Disable to see only gate friction (challenges, blocks, replays) in the dashboard widget. Enable to see a complete audit trail including actions that passed through due to an active session. Default: off.', 'wp-sudo' ) . '</p>';
-	}
-
-	/**
 	 * Render the policy preset chooser.
 	 *
 	 * @return void
@@ -2071,6 +2094,33 @@ class Admin {
 			'<div class="notice notice-success is-dismissible wp-sudo-notice"><p>%1$s</p></div>',
 			esc_html( $summary )
 		);
+	}
+
+	/**
+	 * Render an explicit warning when Passed-event logging is code-disabled.
+	 *
+	 * @return void
+	 */
+	private function render_passed_event_logging_override_notice(): void {
+		if ( self::is_passed_event_logging_enabled() ) {
+			return;
+		}
+
+		$message = __( 'Passed event logging is disabled by code override (constant/filter). Actions performed during active sudo sessions will not appear in dashboard event history.', 'wp-sudo' );
+
+		if ( function_exists( 'wp_get_admin_notice' ) ) {
+			$notice_html = wp_get_admin_notice(
+				$message,
+				array(
+					'type'               => 'warning',
+					'additional_classes' => array( 'wp-sudo-notice' ),
+				)
+			);
+			echo wp_kses_post( $notice_html );
+			return;
+		}
+
+		echo '<div class="notice notice-warning wp-sudo-notice"><p>' . esc_html( $message ) . '</p></div>';
 	}
 
 	/**

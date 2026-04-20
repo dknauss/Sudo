@@ -178,7 +178,8 @@ class Event_Recorder {
 	 * Handle wp_sudo_action_passed event.
 	 *
 	 * Fired when a gated action passes through due to an active sudo session.
-	 * Only logs when the log_passthrough setting is enabled.
+	 * Logging is enabled by default and may only be disabled by explicit
+	 * code-level override (constant/filter).
 	 *
 	 * @since 3.0.0
 	 *
@@ -188,10 +189,8 @@ class Event_Recorder {
 	 * @return void
 	 */
 	public static function on_action_passed( int $user_id, string $rule_id, string $surface ): void {
-		// Check the log_passthrough setting.
-		$log_passthrough = Admin::get( 'log_passthrough', false );
-		if ( ! $log_passthrough ) {
-			return; // User opted out of passthrough logging.
+		if ( ! Admin::is_passed_event_logging_enabled() ) {
+			return;
 		}
 
 		Event_Store::insert(

@@ -89,7 +89,6 @@ class Dashboard_Widget {
 	 */
 	private const DEFAULTS = array(
 		'session_duration'         => 15,
-		'log_passthrough'          => false,
 		'rest_app_password_policy' => 'limited',
 		'cli_policy'               => 'limited',
 		'cron_policy'              => 'disabled',
@@ -131,12 +130,15 @@ class Dashboard_Widget {
 
 		if ( 0 === $count ) {
 			echo '<div class="wp-sudo-empty-container">';
-			echo '<div class="wp-sudo-empty-status"><strong>' . esc_html__( 'No active sessions now...', 'wp-sudo' ) . '</strong></div>';
+			echo '<div class="wp-sudo-empty-status">';
+			echo '<span class="wp-sudo-empty-status-icon" aria-hidden="true"><span class="dashicons dashicons-lock"></span></span>';
+			echo '<strong>' . esc_html__( 'No active sessions now...', 'wp-sudo' ) . '</strong>';
+			echo '</div>';
 			echo '<div class="wp-sudo-empty-desc">';
 			echo '<p>' . esc_html__( 'Sudo monitors gated actions to ensure high-privilege operations are authorized. Events are logged here to provide visibility into who is performing sensitive tasks.', 'wp-sudo' ) . '</p>';
 			echo '<p>' . sprintf(
 				/* translators: %1$s: opening link tag, %2$s: closing link tag */
-				esc_html__( 'You can also %1$svisit the Sudo Settings page%2$s to configure session durations and logging.', 'wp-sudo' ),
+				esc_html__( 'You can also %1$svisit the Sudo Settings page%2$s to configure session durations and policies.', 'wp-sudo' ),
 				'<a href="' . esc_url( admin_url( 'options-general.php?page=wp-sudo-settings' ) ) . '">',
 				'</a>'
 			) . '</p>';
@@ -236,11 +238,7 @@ class Dashboard_Widget {
 	 * @return void
 	 */
 	private static function render_recent_events(): void {
-		$settings = get_option( 'wp_sudo_settings', array() );
-		if ( ! is_array( $settings ) ) {
-			$settings = array();
-		}
-		$log_passthrough = ! empty( $settings['log_passthrough'] );
+		$passed_event_logging_enabled = Admin::is_passed_event_logging_enabled();
 
 		// Ensure the events table exists before querying.
 		Event_Store::maybe_create_table();
@@ -248,19 +246,10 @@ class Dashboard_Widget {
 
 		echo '<h3>' . esc_html__( 'Recent Events', 'wp-sudo' ) . '</h3>';
 
-		// Pass-through notice.
-		if ( ! $log_passthrough ) {
-			$settings_url = esc_url( admin_url( 'options-general.php?page=wp-sudo-settings#log_passthrough' ) );
+		// Code-override notice.
+		if ( ! $passed_event_logging_enabled ) {
 			echo '<p class="wp-sudo-filter-notice">';
-			echo wp_kses(
-				sprintf(
-					/* translators: %1$s: opening link tag, %2$s: closing link tag */
-					__( 'Enable "Log Passed Sessions" in %1$sSettings%2$s to track Passed events.', 'wp-sudo' ),
-					'<a href="' . $settings_url . '">',
-					'</a>'
-				),
-				array( 'a' => array( 'href' => array() ) )
-			);
+			echo esc_html__( 'Passed events are currently hidden by a code-level policy override.', 'wp-sudo' );
 			echo '</p>';
 		}
 
@@ -281,7 +270,7 @@ class Dashboard_Widget {
 		echo '<option value="action_gated">' . esc_html__( 'Gated', 'wp-sudo' ) . '</option>';
 		echo '<option value="action_blocked">' . esc_html__( 'Blocked', 'wp-sudo' ) . '</option>';
 		echo '<option value="action_allowed">' . esc_html__( 'Allowed', 'wp-sudo' ) . '</option>';
-		echo '<option value="action_passed"' . ( $log_passthrough ? '' : ' disabled' ) . '>';
+		echo '<option value="action_passed"' . ( $passed_event_logging_enabled ? '' : ' disabled' ) . '>';
 		echo esc_html__( 'Passed', 'wp-sudo' );
 		echo '</option>';
 		echo '<option value="action_replayed">' . esc_html__( 'Replayed', 'wp-sudo' ) . '</option>';
@@ -562,15 +551,43 @@ class Dashboard_Widget {
 }
 
 #wp_sudo_activity .wp-sudo-empty-container {
-	display: flex;
-	gap: 1.5em;
+	display: grid;
+	grid-template-columns: minmax(140px, 30%) 1fr;
+	gap: 1.25em;
 	align-items: flex-start;
 	margin-bottom: 1em;
 }
 #wp_sudo_activity .wp-sudo-empty-status {
-	font-weight: 600;
-	min-width: 140px;
-	flex-shrink: 0;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 0.4em;
+	padding: 0.75em 0.5em;
+	border: 1px solid #e0e0e0;
+	border-radius: 4px;
+	background: #f8f9fa;
+	min-height: 120px;
+	text-align: center;
+}
+#wp_sudo_activity .wp-sudo-empty-status strong {
+	font-size: 1.05em;
+	line-height: 1.25;
+}
+#wp_sudo_activity .wp-sudo-empty-status-icon {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 32px;
+	height: 32px;
+	border-radius: 999px;
+	background: #f0f6fc;
+	color: #2271b1;
+}
+#wp_sudo_activity .wp-sudo-empty-status-icon .dashicons {
+	width: 18px;
+	height: 18px;
+	font-size: 18px;
 }
 #wp_sudo_activity .wp-sudo-empty-desc {
 	font-size: 0.85em;
@@ -638,6 +655,13 @@ class Dashboard_Widget {
 	}
 	#wp_sudo_activity .wp-sudo-event-filters {
 		gap: 3px;
+	}
+	#wp_sudo_activity .wp-sudo-empty-container {
+		grid-template-columns: 1fr;
+		gap: 0.75em;
+	}
+	#wp_sudo_activity .wp-sudo-empty-status {
+		min-height: 0;
 	}
 }
 </style>
