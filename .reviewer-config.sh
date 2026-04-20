@@ -4,7 +4,7 @@
 
 REVIEWER_TEST_CMD="composer test:unit"
 REVIEWER_LINT_CMD="composer lint"
-REVIEWER_BUILD_CMD=""
+REVIEWER_BUILD_CMD="composer analyse:phpstan"
 REVIEWER_E2E_CMD=""
 
 REVIEWER_MAX_FILES=10
