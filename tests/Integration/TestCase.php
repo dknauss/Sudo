@@ -41,6 +41,20 @@ class TestCase extends \WP_UnitTestCase {
 	 * Always call parent::set_up() first (starts DB transaction).
 	 */
 	public function set_up(): void {
+		$upload_dirs = array(
+			ABSPATH . 'wp-content/uploads',
+		);
+
+		if ( defined( 'WP_CONTENT_DIR' ) && is_string( WP_CONTENT_DIR ) ) {
+			$upload_dirs[] = WP_CONTENT_DIR . '/uploads';
+		}
+
+		foreach ( array_unique( $upload_dirs ) as $uploads_dir ) {
+			if ( ! is_dir( $uploads_dir ) ) {
+				wp_mkdir_p( $uploads_dir );
+			}
+		}
+
 		parent::set_up();
 
 		// Integration tests run many cases in one PHP process. Reset any runtime

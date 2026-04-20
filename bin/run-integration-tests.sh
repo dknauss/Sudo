@@ -125,6 +125,8 @@ run_inside_wp_env_tests_container() {
 
 	echo "Host DB connection is unavailable; running integration suite inside wp-env container $container_name"
 
+	docker exec -u root "$container_name" sh -lc "mkdir -p /tmp/wordpress/wp-content/uploads && chmod 0777 /tmp/wordpress/wp-content/uploads"
+
 	inner_command="cd /var/www/html/wp-content/plugins/wp-sudo && "
 	inner_command="${inner_command}WP_SUDO_FORCE_DROP_DB=1 bash bin/install-wp-tests.sh wordpress_test root password tests-mysql $wp_version >/dev/null && "
 	inner_command="${inner_command}${multisite_env}WP_TESTS_DIR=/wordpress-phpunit ./vendor/bin/phpunit --configuration $PHPUNIT_CONFIG"
