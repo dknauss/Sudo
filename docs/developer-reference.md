@@ -306,6 +306,18 @@ The bridge supports late Stream availability (mu-plugin loads before
 regular plugins) by deferring registration to `plugins_loaded` when
 needed. It remains inert when Stream APIs are unavailable.
 
+### Future: External Audit Mode (v3.2 candidate)
+
+For operators who treat Stream or WSAL as their canonical audit destination,
+a planned **External Audit Mode** setting will allow WP Sudo to stop writing
+to its own `wpsudo_events` table while keeping all audit hooks (and
+therefore both bridges) firing normally. The dashboard widget's Active
+Sessions and Policy Summary panels are unaffected; the Recent Events panel
+switches to a bridge-status tile linking to the destination plugin.
+Activation is gated by a bridge-presence preflight to prevent silent audit
+loss. See [`docs/external-audit-mode-spec.md`](external-audit-mode-spec.md)
+for the full design. Not scheduled; optional Phase 5 of the v3.1–v3.3 plan.
+
 ## Filters
 
 | Filter | Description |

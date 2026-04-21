@@ -43,6 +43,10 @@ execution after v3.0.0.
    - Integrity warnings when effective visibility is broader than intended.
    - Opt-in 2FA-enrollment requirement for `manage_wp_sudo` holders.
    - Audit visibility on governance-mode transitions (`strict` ↔ `compatibility`).
+   - External Audit Mode: let operators route Sudo events solely to Stream or
+     WSAL bridges and suppress `wpsudo_events` writes, with bridge-presence
+     preflight and integrity warnings. See
+     [`docs/external-audit-mode-spec.md`](external-audit-mode-spec.md).
 
    Phase 2 is scope-bounded and non-blocking; none of it is required to close
    the governance story, but real delegation patterns will surface edge cases
@@ -142,12 +146,28 @@ Additive improvements that benefit from production field data from Phase 1.
 - Integrity warnings when effective visibility is broader than intended.
 - Opt-in 2FA-enrollment requirement for `manage_wp_sudo` holders.
 - Audit visibility for governance-mode transitions (`strict` ↔ `compatibility`).
+- External Audit Mode for Stream / WSAL operators. See
+  [`docs/external-audit-mode-spec.md`](external-audit-mode-spec.md).
+  - New `wp_sudo_external_audit` option (`off` default, `stream`, `wsal`).
+  - Preflight: refuse activation when the chosen bridge is not loaded.
+  - Event-store writes short-circuit while audit hooks keep firing.
+  - Dashboard widget Recent Events panel swaps to a bridge-status tile;
+    Active Sessions and Policy Summary panels unchanged.
+  - Integrity warning when bridge deactivates while mode is active.
+  - New audit hooks: `wp_sudo_external_audit_enabled`,
+    `wp_sudo_external_audit_disabled`; event type
+    `governance.external_audit_toggled`.
+  - Gated by `options.wp_sudo_access` (changing audit destination is a
+    privilege-sensitive operation).
 
 Exit criteria:
 - Drift-detection panel (Phase 1) can fire active warnings, not only passive
   display.
 - Operators can opt in to 2FA requirements for management caps without
   breaking single-site installs that don't use a 2FA plugin.
+- Stream and WSAL operators can fully delegate Sudo audit without losing
+  session or policy visibility in the dashboard widget, and cannot silently
+  lose audit coverage if the bridge is deactivated.
 
 Phase 5 is non-blocking; the governance model is complete after Phase 1.
 
@@ -194,3 +214,4 @@ Across all phases:
 - Primary roadmap source: [`docs/ROADMAP.md`](ROADMAP.md)
 - Governance spec: [`docs/internal-admin-governance-spec.md`](internal-admin-governance-spec.md)
 - Session-store options: [`docs/session-store-evaluation.md`](session-store-evaluation.md)
+- External Audit Mode spec: [`docs/external-audit-mode-spec.md`](external-audit-mode-spec.md)
