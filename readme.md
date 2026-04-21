@@ -9,9 +9,9 @@ WP Sudo adds **action-gated reauthentication** to WordPress so high-risk operati
 [![Psalm](https://github.com/dknauss/Sudo/actions/workflows/psalm.yml/badge.svg)](https://github.com/dknauss/Sudo/actions/workflows/psalm.yml)
 [![Playwright Tests](https://github.com/dknauss/Sudo/actions/workflows/e2e.yml/badge.svg)](https://github.com/dknauss/Sudo/actions/workflows/e2e.yml)
 [![CodeQL](https://github.com/dknauss/Sudo/actions/workflows/codeql.yml/badge.svg)](https://github.com/dknauss/Sudo/actions/workflows/codeql.yml)
-[![Codecov](https://codecov.io/gh/dknauss/wp-sudo/graph/badge.svg?branch=main)](https://codecov.io/gh/dknauss/wp-sudo)
-[![Type Coverage](https://shepherd.dev/github/dknauss/wp-sudo/coverage.svg)](https://shepherd.dev/github/dknauss/wp-sudo)
-[![Try in Playground](https://img.shields.io/badge/Try%20it-Playground-3858e9?logo=wordpress&logoColor=white)](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/dknauss/wp-sudo/main/blueprint.json)
+[![Codecov](https://codecov.io/gh/dknauss/Sudo/graph/badge.svg?branch=main)](https://codecov.io/gh/dknauss/Sudo)
+[![Type Coverage](https://shepherd.dev/github/dknauss/Sudo/coverage.svg)](https://shepherd.dev/github/dknauss/Sudo)
+[![Try in Playground](https://img.shields.io/badge/Try%20it-Playground-3858e9?logo=wordpress&logoColor=white)](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/dknauss/Sudo/main/blueprint.json)
 
 > **3.0.0 milestone:** WP Sudo now combines action-gated reauthentication with policy presets, Connectors credential protection, request diagnostics, and operator activity visibility. See [docs/release-status.md](docs/release-status.md) for current release posture.
 

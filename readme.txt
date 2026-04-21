@@ -1,6 +1,6 @@
 _WP Sudo 3.0.0 is the first major milestone release of action-gated reauthentication for WordPress, adding policy presets, Connectors credential protection, request diagnostics, and operator activity visibility._
 
-[Try it in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/dknauss/wp-sudo/main/blueprint.json)
+[Try it in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/dknauss/Sudo/main/blueprint.json)
 
 === Sudo ===
 Contributors:      dpknauss
