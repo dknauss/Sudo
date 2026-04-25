@@ -108,14 +108,10 @@ test.describe( 'WP Sudo multisite alternative stack smoke tests', () => {
     test( 'MSTACK-03: network-admin policy preset applies and can be restored', async ( {
         page,
     } ) => {
+        const presetSelection = page.locator( '#policy_preset_selection' );
+
         const applyPresetAndWait = async ( preset: string, expectedLabel: string ) => {
-            await page
-                .locator( '#policy_preset_selection' )
-                .locator( `input[value="${ preset }"]` )
-                .check();
-            await page
-                .locator( 'input[name="wp_sudo_settings[apply_policy_preset]"]' )
-                .check();
+            await presetSelection.selectOption( preset );
 
             await page.locator( '#submit' ).click();
 
@@ -143,7 +139,7 @@ test.describe( 'WP Sudo multisite alternative stack smoke tests', () => {
             }
 
             await expect( page.locator( '.wp-sudo-notice.notice-success' ) ).toContainText(
-                `Applied the ${ expectedLabel } preset.`
+                `${ expectedLabel } preset applied.`
             );
         };
 

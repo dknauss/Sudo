@@ -7,12 +7,14 @@
 import { test, expect, activateSudoSession } from '../fixtures/test';
 import type { Page } from '@playwright/test';
 import { exec } from 'child_process';
+import path from 'path';
 import { promisify } from 'util';
 
 const execAsync = promisify( exec );
 const DEFAULT_PASSWORD = process.env.WP_PASSWORD ?? 'password';
 const E2E_PUBLIC_API_MU_PLUGIN = 'wp-sudo-e2e-public-api.php';
 const LOCAL_SITE_PATH = ( process.env.WP_E2E_SITE_PATH ?? '' ).trim();
+const WP_ENV_PLUGIN_DIR = process.env.WP_E2E_PLUGIN_DIR?.trim() || path.basename( process.cwd() );
 
 async function installPublicApiMuPlugin(): Promise<void> {
     if ( LOCAL_SITE_PATH ) {
@@ -24,7 +26,7 @@ async function installPublicApiMuPlugin(): Promise<void> {
     }
 
     await execAsync(
-        `npx wp-env run cli bash -lc 'mkdir -p /var/www/html/wp-content/mu-plugins && cp /var/www/html/wp-content/plugins/wp-sudo/tests/e2e/fixtures/${ E2E_PUBLIC_API_MU_PLUGIN } /var/www/html/wp-content/mu-plugins/${ E2E_PUBLIC_API_MU_PLUGIN }'`,
+        `npx wp-env run cli bash -lc 'mkdir -p /var/www/html/wp-content/mu-plugins && cp /var/www/html/wp-content/plugins/${ WP_ENV_PLUGIN_DIR }/tests/e2e/fixtures/${ E2E_PUBLIC_API_MU_PLUGIN } /var/www/html/wp-content/mu-plugins/${ E2E_PUBLIC_API_MU_PLUGIN }'`,
         { timeout: 30_000 }
     );
 }

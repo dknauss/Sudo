@@ -118,7 +118,7 @@ The widget's `render_events_panel()` method branches on the setting:
   > **Audit routed to Stream** ✓
   >
   > Recent WP Sudo events are recorded in Stream.
-  > [Open Stream →](/wp-admin/admin.php?page=wp_stream)
+  > Open Stream in wp-admin: `/wp-admin/admin.php?page=wp_stream`
   > *Last event received: 3 minutes ago.*
 
   "Last event received" uses a 60-second transient updated on each

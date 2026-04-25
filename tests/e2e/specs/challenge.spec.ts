@@ -47,6 +47,7 @@
 import { test, expect, activateSudoSession } from '../fixtures/test';
 import type { Page } from '@playwright/test';
 import { exec } from 'child_process';
+import path from 'path';
 import { promisify } from 'util';
 
 const execAsync = promisify( exec );
@@ -61,6 +62,7 @@ const E2E_TWO_FACTOR_PROVIDER_EVENT_META =
     '_wp_sudo_e2e_two_factor_last_provider_event';
 const E2E_LOCKOUT_SECONDS_META = '_wp_sudo_e2e_lockout_seconds';
 const E2E_TWO_FACTOR_CODE = '123456';
+const WP_ENV_PLUGIN_DIR = process.env.WP_E2E_PLUGIN_DIR?.trim() || path.basename( process.cwd() );
 
 /**
  * Extract a real plugin activate URL (with valid nonce) from plugins.php.
@@ -201,7 +203,7 @@ async function clearSudoFailureMeta(): Promise<void> {
  */
 async function installE2eTwoFactorBridge(): Promise<void> {
     await execAsync(
-        `npx wp-env run cli bash -lc 'mkdir -p /var/www/html/wp-content/mu-plugins && cp /var/www/html/wp-content/plugins/wp-sudo/tests/e2e/fixtures/${ E2E_TWO_FACTOR_MU_PLUGIN } /var/www/html/wp-content/mu-plugins/${ E2E_TWO_FACTOR_MU_PLUGIN }'`,
+        `npx wp-env run cli bash -lc 'mkdir -p /var/www/html/wp-content/mu-plugins && cp /var/www/html/wp-content/plugins/${ WP_ENV_PLUGIN_DIR }/tests/e2e/fixtures/${ E2E_TWO_FACTOR_MU_PLUGIN } /var/www/html/wp-content/mu-plugins/${ E2E_TWO_FACTOR_MU_PLUGIN }'`,
         { timeout: 30_000 }
     );
 
