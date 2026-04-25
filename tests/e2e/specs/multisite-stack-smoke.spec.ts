@@ -138,9 +138,12 @@ test.describe( 'WP Sudo multisite alternative stack smoke tests', () => {
                 ] );
             }
 
-            await expect( page.locator( '.wp-sudo-notice.notice-success' ) ).toContainText(
-                `${ expectedLabel } preset applied.`
-            );
+            await expect(
+                page
+                    .locator( '.wp-sudo-notice.notice-success' )
+                    .filter( { hasText: `${ expectedLabel } preset applied.` } )
+                    .first()
+            ).toContainText( `${ expectedLabel } preset applied.` );
         };
 
         await page.goto( '/wp-admin/network/settings.php?page=wp-sudo-settings' );
