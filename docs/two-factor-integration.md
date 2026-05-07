@@ -350,6 +350,41 @@ The bridge uses the `wp_sudo_gated_actions` filter to add AJAX rules for the Web
 
 See `bridges/wp-sudo-webauthn-bridge.php` for the complete implementation, or the [Developer Reference](developer-reference.md#gating-third-party-plugin-actions) for a general guide to adding custom gated actions.
 
+#### Planned: Gating Two Factor Recovery Codes and TOTP Lifecycle
+
+WP Sudo's built-in Two Factor integration validates second factors during the
+sudo challenge, but it does not currently gate all Two Factor factor-management
+actions. This matters because factor lifecycle changes can create credentials
+that satisfy future sudo challenges.
+
+Verified against WordPress/two-factor commit
+[`38cd183`](https://github.com/WordPress/two-factor/tree/38cd183d099ca3597d9bd0f6152a08e824f02a54)
+on 2026-04-29. Source files:
+[`providers/class-two-factor-backup-codes.php`](https://github.com/WordPress/two-factor/blob/38cd183d099ca3597d9bd0f6152a08e824f02a54/providers/class-two-factor-backup-codes.php),
+[`providers/class-two-factor-totp.php`](https://github.com/WordPress/two-factor/blob/38cd183d099ca3597d9bd0f6152a08e824f02a54/providers/class-two-factor-totp.php), and
+[`class-two-factor-core.php`](https://github.com/WordPress/two-factor/blob/38cd183d099ca3597d9bd0f6152a08e824f02a54/class-two-factor-core.php):
+
+- Recovery-code generation uses `POST /two-factor/1.0/generate-backup-codes`.
+  The callback stores hashed codes in `_two_factor_backup_codes` and returns the
+  new plaintext codes in the REST response.
+- TOTP setup/deletion uses `POST` and `DELETE` on `/two-factor/1.0/totp` and
+  writes or deletes `_two_factor_totp_key`.
+- Profile form saves can change `_two_factor_enabled_providers` and
+  `_two_factor_provider` via `profile.php` / `user-edit.php` `action=update`.
+
+This should be handled by a Two Factor lifecycle bridge that gates:
+
+1. recovery-code generation;
+2. TOTP setup/reset/delete;
+3. profile-form Two Factor provider changes.
+
+Threat model note: Two Factor's own revalidation window can still allow factor
+management when WP Sudo's shorter sudo session is inactive. If a session is
+compromised and the attacker also knows or phishes the password, newly generated
+recovery codes can satisfy the later WP Sudo 2FA step. The bridge should require
+an active WP Sudo session before creating or replacing factors that can satisfy
+future sudo challenges.
+
 ---
 
 ## Security Model
