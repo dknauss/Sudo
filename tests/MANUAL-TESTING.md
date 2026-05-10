@@ -910,7 +910,8 @@ curl -sk "YOUR_SITE_URL/wp-cron.php" -w "HTTP: %{http_code}, body: %{size_downlo
 
 Run against a WP 7.0 beta/RC dev site.
 For the WP 7.0 release cycle, rerun this section for each RC build
-(RC1, RC2, etc.) and once more at GA. Record the build string and date
+(including RC3 on May 8, 2026 and RC4 on May 14, 2026) and once more at GA,
+currently planned for May 20, 2026. Record the build string and date
 for each pass.
 Document pass/fail and any visual regressions. These checks verify the plugin's
 admin UI renders correctly under the WP 7.0 admin visual refresh (Trac #64308).
@@ -923,10 +924,11 @@ Track the release-candidate and GA passes here so WP 7.0 readiness is explicit.
 |-----------|--------|------|-------|-------------|-------|
 | RC1 | PASS | 2026-03-24 | 7.0-RC1 | `wp-env` + Playwright | Sections 15.1-15.5 PASS after repinning forward lanes to RC1 |
 | RC2 | Pending | — | — | — | |
-| RC3 | Pending | — | — | — | Required checkpoint before GA |
-| GA | Pending | — | — | — | Final "Tested up to" bump depends on this pass |
+| RC3 | Pending | — | — | — | Official schedule: May 8, 2026; treated as a new Beta 1 |
+| RC4 | Pending | — | — | — | Official schedule: May 14, 2026; treated as a new RC1 |
+| GA | Pending | — | — | — | Planned May 20, 2026; final "Tested up to" bump depends on this pass |
 
-Before marking RC2, RC3, or GA complete, also re-run the standard local verification set:
+Before marking RC2, RC3, RC4, or GA complete, also re-run the standard local verification set:
 
 - `composer test:integration`
 - `WP_MULTISITE=1 composer test:integration`

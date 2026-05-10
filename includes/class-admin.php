@@ -1600,7 +1600,7 @@ class Admin {
 	 * @return void
 	 */
 	public function render_section_policies(): void {
-		echo '<p>' . esc_html__( 'Control how non-interactive entry points handle gated operations. Disabled shuts off the entire surface. Limited (default) blocks only gated actions and logs them. Unrestricted lets everything through with no checks or logging. Browser-based requests (admin UI, AJAX, REST with cookie auth) always get the interactive reauthentication challenge regardless of these settings.', 'wp-sudo' ) . '</p>';
+		echo '<p>' . esc_html__( 'Control how non-interactive entry points handle gated operations. Disabled shuts off the entire surface. Limited (default) blocks only gated actions and logs them. Unrestricted lets everything through with no blocking checks; allowed gated actions are still logged for audit visibility. Browser-based requests (admin UI, AJAX, REST with cookie auth) always get the interactive reauthentication challenge regardless of these settings.', 'wp-sudo' ) . '</p>';
 	}
 
 	/**

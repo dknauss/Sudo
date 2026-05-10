@@ -1,6 +1,6 @@
 # Release Status (Canonical Current State)
 
-Last verified: 2026-04-21
+Last verified: 2026-05-09
 
 This file is the canonical source for **current release state** in this repository:
 
@@ -8,7 +8,7 @@ This file is the canonical source for **current release state** in this reposito
 - unreleased work already present on `main`
 - the latest stable WordPress release WP Sudo should advertise in public metadata
 - the forward WordPress lane used in CI, Playground, and manual verification
-- the current status of the delayed WordPress 7.0 final release
+- the current status of the delayed/rescheduled WordPress 7.0 final release
 
 ## Latest public/tagged release
 
@@ -28,6 +28,8 @@ Current commits ahead of `v3.0.0`:
 
 - Repository URL/name cleanup from `wp-sudo` to `Sudo` references.
 - Draft governance spec for External Audit Mode (`v3.2` planning).
+- Multisite smoke test fixes following the repository rename.
+- Development dependency updates from Dependabot.
 
 Canonical source for post-tag drift: `git log v3.0.0..main --oneline`
 
@@ -36,7 +38,7 @@ Canonical source for post-tag drift: `git log v3.0.0..main --oneline`
 ### Latest stable WordPress release
 
 - **Latest stable major/minor branch:** `6.9`
-- **Latest stable patch release observed:** `6.9.4`
+- **Latest stable patch release observed:** `6.9.4` (released March 11, 2026; verified as latest stable on May 9, 2026)
 
 ### Forward lane used by this repository
 
@@ -46,8 +48,9 @@ Canonical source for post-tag drift: `git log v3.0.0..main --oneline`
 ### WordPress 7.0 final release status
 
 - The previously scheduled **April 9, 2026** WordPress 7.0 final release was delayed on **March 31, 2026**.
-- As of **April 17, 2026**, no replacement final release date is published.
-- The Make/Core 7.0 release page says an updated final-stretch schedule will be published **no later than April 22, 2026**.
+- The updated Make/Core schedule published on **April 22, 2026** sets the new WordPress 7.0 final release date at **May 20, 2026**.
+- Current final-stretch checkpoints are **RC3 on May 8, 2026**, **RC4 on May 14, 2026**, **dry run/code freeze on May 19, 2026**, and **general release on May 20, 2026**.
+- As of **May 9, 2026**, WordPress 7.0 is still unreleased; the latest stable public release remains **6.9.4**.
 
 ## Public metadata rule
 
@@ -72,6 +75,7 @@ Until WordPress 7.0 final actually ships:
 - WordPress release archive: <https://wordpress.org/download/releases/>
 - WordPress download page: <https://wordpress.org/download/>
 - WordPress 7.0 release page: <https://make.wordpress.org/core/7-0/>
+- WordPress 7.0 updated release party schedule: <https://make.wordpress.org/core/2026/04/22/wordpress-7-0-release-party-updated-schedule/>
 - Delay announcement: <https://make.wordpress.org/core/2026/03/31/extending-the-7-0-cycle/>
 
 ## Update procedure

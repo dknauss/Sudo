@@ -1,13 +1,13 @@
 # Roadmap: Past and Future Planning — Integration Tests, WP 7.0 Prep, Collaboration, TDD, and Core Design
 
-*Updated April 20, 2026*
+*Updated May 9, 2026*
 
 ## Table of Contents
 
 - **[Planned Development Timeline](#planned-development-timeline)** — Immediate, short-term, medium-term, and later work phases
 - **[Context](#context)** — current state, CI matrix, and WP 7.0 status (counts in `docs/current-metrics.md`)
 - **[1. Integration Tests](#1-integration-tests--scope-and-value)** — Complete ✓ (80 tests), coverage analysis, remaining gaps
-- **[2. WordPress 7.0 Prep](#2-wordpress-70-prep-final-date-tbd)** — Beta/RC checks recorded; final readme bump and Connectors parity check remain after 7.0 final ships
+- **[2. WordPress 7.0 Prep](#2-wordpress-70-prep-planned-may-20-2026)** — Beta/RC checks recorded; final readme bump and Connectors parity check remain after 7.0 final ships
 - **[3. Collaboration & Sudo](#3-collaboration-and-sudo--multi-user-editing-scenarios)** — Multi-user editing, conflict resolution
 - **[4. Context Collapse & TDD](#4-context-collapse-and-tdd)** — LLM confabulation defense, test-driven development
 - **[Recommended Next Steps](#recommended-next-steps-priority-order)** — Immediate, short-term, medium-term priorities
@@ -28,9 +28,9 @@
 
 ## Planned Development Timeline
 
-### Immediate (WP 7.0 GA — delayed, no confirmed date)
+### Immediate (WP 7.0 GA planned May 20, 2026)
 
-- **Update "Tested up to"** in readme files when WordPress 7.0 GA ships (originally April 9, 2026; [delayed](https://make.wordpress.org/core/2026/03/31/extending-the-7-0-cycle/) for real-time collaboration architecture work)
+- **Update "Tested up to"** in readme files when WordPress 7.0 GA ships (originally April 9, 2026; [delayed](https://make.wordpress.org/core/2026/03/31/extending-the-7-0-cycle/) for real-time collaboration architecture work; currently planned for May 20, 2026)
 - **Verify Connectors GA parity** — the built-in `connectors.update_credentials` REST rule is already shipped on `main`, challenging `/wp/v2/settings` writes when request params contain `connectors_*_api_key`. When WordPress 7.0 GA ships, confirm the released Connectors implementation still matches the documented route, setting-name pattern, and masking/validation behavior.
 - **Revisit and split the Connectors reference doc after 7.0 GA** — once GA parity is confirmed, refactor [`docs/connectors-api-reference.md`](connectors-api-reference.md) into a leaner core/reference document plus a separate security-analysis companion so the reference stops mixing API details with the longer exploit memo.
 - **Upgrade Connectors matcher to registry-aware** — after GA parity is confirmed, replace the regex-only matcher (`is_connector_api_key_setting_name()`) with a two-tier check: (1) registry lookup via `wp_get_connectors()` matching `authentication.setting_name`, (2) regex fallback for pre-7.0 sites and timing edge cases. Add integration tests against the live API. See [`.planning/connectors-matcher-strategy.md`](../.planning/connectors-matcher-strategy.md) for the full rationale and implementation sketch.
@@ -144,11 +144,11 @@ All 5 phases shipped. Identified by independent assessments from Codex, Gemini, 
 This is a living document covering accumulated input and thinking about the strategic
 challenges and priorities for WP Sudo. 
 
-Current project state (as of April 19, 2026):
-- **v3.0.0 release imminent** — Connectors gating, policy presets, Rule Tester, settings UI revision, Event_Store, and Dashboard Widget all shipped on `main`. Pre-release audit complete with no blockers.
+Current project state (as of May 9, 2026):
+- **v3.0.0 is the latest tagged release** — Connectors gating, policy presets, Rule Tester, settings UI revision, Event_Store, and Dashboard Widget have shipped. `main` is now in the v3.1.0 planning lane.
 - Current test and size counts are centralized in [`docs/current-metrics.md`](current-metrics.md).
 - CI pipeline: unit tests on PHP 8.0–8.4; integration tests on PHP 8.0/8.1/8.3; WordPress 6.2, 6.7, and 7.0-RC1; single-site + multisite; MySQL 8.0 plus one MariaDB lane; PCOV coverage job; 60 Playwright E2E tests
-- WordPress 7.0 RC1 signoff recorded (March 24, 2026); the scheduled April 9 final was delayed on March 31, 2026 and no replacement final date is published yet. See `docs/release-status.md`.
+- WordPress 7.0 RC1 signoff recorded (March 24, 2026); the scheduled April 9 final was delayed on March 31, 2026, and the official Make/Core schedule now plans final release for May 20, 2026. See `docs/release-status.md`.
 
 ---
 
@@ -222,9 +222,9 @@ These gaps have been closed by the integration suite:
 
 ---
 
-## 2. WordPress 7.0 Prep (final date TBD)
+## 2. WordPress 7.0 Prep (planned May 20, 2026)
 
-> **Status:** WP 7.0 beta-era automation and manual beta checks are green, and RC1 signoff is recorded on 2026-03-24. Repeat the manual verification pass on each later RC build and on the final 7.0 release, log each result in `tests/MANUAL-TESTING.md`, keep the standard local verification set green, then do the final readme `Tested up to` bump only after the final release ships.
+> **Status:** WP 7.0 beta-era automation and manual beta checks are green, and RC1 signoff is recorded on 2026-03-24. The updated official schedule lists RC3 on May 8, RC4 on May 14, dry run/code freeze on May 19, and final release on May 20, 2026. Repeat the manual verification pass on each remaining RC build and on the final 7.0 release, log each result in `tests/MANUAL-TESTING.md`, keep the standard local verification set green, then do the final readme `Tested up to` bump only after the final release ships.
 
 ### Verified changes that affect WP Sudo
 
@@ -253,7 +253,7 @@ These gaps have been closed by the integration suite:
    - `composer analyse:phpstan`
    - `composer analyse:psalm`
    - `composer lint`
-7. **Update version references** when WordPress 7.0 final ships (date currently TBD):
+7. **Update version references** when WordPress 7.0 final ships (currently planned for May 20, 2026):
    - `readme.txt` / `readme.md` — "Tested up to" bump
    - Any docs still referencing "WordPress 6.9" as latest
 8. **Remove `handle_err_admin_role()` workaround** once WP 7.0 GA ships (Trac #64690 lands in core — see table row above).
@@ -413,7 +413,7 @@ not context retrieval.
 5. ~~Visual review against 7.0 admin refresh~~ — done (v2.4.0)
 6. ~~WPGraphQL surface gating~~ — done (v2.5.0–v2.5.2)
 7. ~~Abilities API coverage documented~~ — done (v2.5.1)
-8. **Update `Tested up to`** when WordPress 7.0 final ships (date currently TBD)
+8. **Update `Tested up to`** when WordPress 7.0 final ships (currently planned for May 20, 2026)
 9. ~~**Core design features** — login=sudo, gate password changes, grace period~~ — done (v2.6.0)
 10. ~~**Security hardening sprint** — stash redaction, upload-action gating, non-blocking rate limiting~~ — done (v2.10.2–v2.11.0)
 11. ~~**Rule-schema validation and MU loader resilience**~~ — done (v2.11.0)
@@ -1488,7 +1488,7 @@ WP Sudo ran a focused hardening sprint before new UX or architecture expansion. 
 2. ~~**Sprint A** (Security core): Stash redaction + per-user cap, upload-action coverage.~~ ✅ Complete.
 3. ~~**Sprint B** (Auth resilience): Non-blocking rate limiting.~~ ✅ Complete.
 4. **Sprint C** (Reliability): Rule-schema validation, MU loader hardening.
-5. After WordPress 7.0 final ships: Phase 5 `05-03` `Tested up to: 7.0` readme bump.
+5. After WordPress 7.0 final ships (currently planned for May 20, 2026): Phase 5 `05-03` `Tested up to: 7.0` readme bump.
 6. **Sprint D** (Surface + Observability): WPGraphQL persisted-query strategy, WSAL sensor.
 
 ### Release Gates

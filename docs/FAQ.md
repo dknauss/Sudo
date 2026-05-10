@@ -96,9 +96,9 @@ No. Sudo adds a reauthentication layer on top of the existing permission model. 
 | **WP Sudo settings** | Self-protected — settings changes require reauthentication |
 | **Multisite** | Network theme enable/disable, site delete/deactivate/archive/spam, super admin grant/revoke, network settings |
 
-Sudo's settings page includes a read-only Gated Actions table showing all registered rules and their covered surfaces: Admin, AJAX, WP-CLI, Cron, REST, XML-RPC, and GraphQL, if it's installed and active. 
+Sudo's settings page includes a read-only Gated Actions table showing registered rules and their covered surfaces: Admin, AJAX, REST, and GraphQL if it's installed and active, plus the built-in non-interactive hook coverage for core WP Sudo rules.
 
-Note: the surfaces shown reflect WordPress's actual API coverage — not all operations have REST endpoints. However, all gated actions are protected on non-interactive entry points (WP-CLI, Cron, XML-RPC, Application Passwords) via the configurable policy settings. Developers can add custom rules via the `wp_sudo_gated_actions` filter.
+Note: the surfaces shown reflect WordPress's actual API coverage — not all operations have REST endpoints. Custom rules added via the `wp_sudo_gated_actions` filter protect the admin, AJAX, and/or REST surfaces they define. Application Password requests are covered when the custom rule defines REST criteria. WP-CLI, Cron, and XML-RPC Limited mode use WP Sudo's built-in function-hook coverage for core rules; custom non-interactive workflows need an explicit integration or a stricter surface policy.
 
 ## What about REST API and Application Passwords?
 

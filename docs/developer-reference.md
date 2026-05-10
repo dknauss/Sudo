@@ -9,7 +9,7 @@ fail-closed per rule (required scalar metadata: `id`, `label`, `category`;
 surface shapes must be array-or-null for `admin`, `ajax`, `rest`). If the
 filter returns a non-array payload, WP Sudo falls back to built-in rules.
 
-All rules — including custom rules — are automatically protected on non-interactive surfaces (WP-CLI, Cron, XML-RPC, Application Passwords) via the configurable policy settings, even if they don't define AJAX or REST criteria. WPGraphQL is gated by its own surface-level policy rather than per-rule matching — in Limited mode, all mutations require a sudo session regardless of which action they perform. See [WPGraphQL Surface](#wpgraphql-surface) below.
+Custom rules protect only the surfaces they define: admin, AJAX, and/or REST. Application Password requests are covered when a custom rule defines REST criteria, because Application Passwords enter through the REST API. WP-CLI, Cron, and XML-RPC Limited mode use a built-in function-hook map for WP Sudo's core rules; they do not automatically discover arbitrary custom rules. If a third-party workflow needs non-interactive protection, either add an explicit integration with `wp_sudo_check()` / `wp_sudo_require()`, expose it through a REST rule that WP Sudo can match, or use the surface policy to disable the entry point. WPGraphQL is gated by its own surface-level policy rather than per-rule matching — in Limited mode, all mutations require a sudo session regardless of which action they perform. See [WPGraphQL Surface](#wpgraphql-surface) below.
 
 ```php
 add_filter( 'wp_sudo_gated_actions', function ( array $rules ): array {

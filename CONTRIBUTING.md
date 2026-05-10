@@ -367,7 +367,7 @@ logged in as `admin` / `password`.
 
 Current Playground previews are pinned to WordPress `7.0-RC1`. See [`docs/release-status.md`](docs/release-status.md) for the current forward-lane posture and latest stable WordPress release.
 
-For WordPress 7.0 release signoff, do not treat the green RC-era CI matrix as a substitute for the remaining RC/GA manual passes. RC1 is recorded in the `15.0 Release Signoff Log` table in [`tests/MANUAL-TESTING.md`](tests/MANUAL-TESTING.md); repeat that signoff for each later RC and again for the final 7.0 release before claiming final readiness.
+For WordPress 7.0 release signoff, do not treat the green RC-era CI matrix as a substitute for the remaining RC/GA manual passes. RC1 is recorded in the `15.0 Release Signoff Log` table in [`tests/MANUAL-TESTING.md`](tests/MANUAL-TESTING.md); repeat that signoff for the scheduled RC3/RC4 checkpoints and again for the final 7.0 release before claiming final readiness. See [`docs/release-status.md`](docs/release-status.md) for the current dates.
 
 ### WordPress 7.0 Final Prep Checklist
 
