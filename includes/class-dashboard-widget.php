@@ -38,6 +38,8 @@ class Dashboard_Widget {
 	 */
 	public static function init(): void {
 		add_action( 'wp_dashboard_setup', array( self::class, 'register' ) );
+		add_action( 'wp_sudo_activated', array( self::class, 'flush_active_sessions_cache' ), 10, 0 );
+		add_action( 'wp_sudo_deactivated', array( self::class, 'flush_active_sessions_cache' ), 10, 0 );
 	}
 
 	/**
@@ -167,9 +169,6 @@ class Dashboard_Widget {
 			return;
 		}
 
-		// phpcs:ignore WordPress.WP.I18n.MissingTranslatorsComment -- Simple count.
-		echo '<p class="wp-sudo-active-count"><strong>' . esc_html( sprintf( _n( '%d active session', '%d active sessions', $count, 'wp-sudo' ), $count ) ) . '</strong></p>';
-
 		echo '<ul class="wp-sudo-user-list">';
 		foreach ( $users as $user ) {
 			if ( ! is_object( $user ) || ! isset( $user->ID ) ) {
@@ -234,6 +233,20 @@ class Dashboard_Widget {
 			echo esc_html( sprintf( __( 'View all sudo-active users (%d) →', 'wp-sudo' ), $count ) );
 			echo '</a></p>';
 		}
+	}
+
+	/**
+	 * Clear the active-sessions payload cache for the current site.
+	 *
+	 * @return void
+	 */
+	public static function flush_active_sessions_cache(): void {
+		if ( ! function_exists( 'delete_transient' ) ) {
+			return;
+		}
+
+		$blog_id = function_exists( 'get_current_blog_id' ) ? (int) get_current_blog_id() : 0;
+		delete_transient( self::ACTIVE_SESSIONS_CACHE_KEY . $blog_id );
 	}
 
 	/**

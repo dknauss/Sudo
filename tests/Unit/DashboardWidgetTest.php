@@ -405,6 +405,14 @@ class DashboardWidgetTest extends TestCase {
 			->once()
 			->with( [ Dashboard_Widget::class, 'register' ] );
 
+		Actions\expectAdded( 'wp_sudo_activated' )
+			->once()
+			->with( [ Dashboard_Widget::class, 'flush_active_sessions_cache' ], 10, 0 );
+
+		Actions\expectAdded( 'wp_sudo_deactivated' )
+			->once()
+			->with( [ Dashboard_Widget::class, 'flush_active_sessions_cache' ], 10, 0 );
+
 		Dashboard_Widget::init();
 	}
 
@@ -509,11 +517,11 @@ class DashboardWidgetTest extends TestCase {
 	}
 
 	/**
-	 * Test active sessions renders count and usernames.
+	 * Test active sessions renders usernames without a redundant count line.
 	 *
 	 * @return void
 	 */
-	public function testActiveSessionsRendersCountAndUsernames(): void {
+	public function testActiveSessionsRendersUsernamesWithoutRedundantCount(): void {
 		$user1             = new \WP_User( 1, [ 'administrator' ] );
 		$user1->ID         = 1;
 		$user1->user_login = 'admin';
@@ -533,8 +541,10 @@ class DashboardWidgetTest extends TestCase {
 		Dashboard_Widget::render();
 		$output = ob_get_clean();
 
-		// Should show count of 2.
-		$this->assertStringContainsString( '2', $output );
+		$this->assertStringContainsString( 'admin', $output );
+		$this->assertStringContainsString( 'editor', $output );
+		$this->assertStringNotContainsString( 'wp-sudo-active-count', $output );
+		$this->assertStringNotContainsString( '2 active sessions', $output );
 
 		$this->restoreWpdb();
 	}
@@ -611,10 +621,27 @@ class DashboardWidgetTest extends TestCase {
 			\WP_User_Query::$last_query_vars,
 			'WP_User_Query must not be built on a transient cache hit'
 		);
-		$this->assertStringContainsString( '3 active sessions', $output );
+		$this->assertStringContainsString( 'cached_user', $output );
+		$this->assertStringNotContainsString( '3 active sessions', $output );
 		$this->assertStringNotContainsString( '99 active sessions', $output );
 
 		$this->restoreWpdb();
+	}
+
+	/**
+	 * Test active-sessions cache flushing deletes the current site's transient.
+	 *
+	 * @return void
+	 */
+	public function testFlushActiveSessionsCacheDeletesSiteScopedTransient(): void {
+		Functions\when( 'get_current_blog_id' )->justReturn( 42 );
+
+		Functions\expect( 'delete_transient' )
+			->once()
+			->with( 'wp_sudo_active_sessions_42' )
+			->andReturn( true );
+
+		Dashboard_Widget::flush_active_sessions_cache();
 	}
 
 	/**

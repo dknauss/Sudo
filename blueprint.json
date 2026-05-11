@@ -1,14 +1,19 @@
 {
   "$schema": "https://playground.wordpress.net/blueprint-schema.json",
   "preferredVersions": {
+    "php": "8.2",
     "wp": "7.0-RC1"
   },
   "landingPage": "/wp-admin/",
   "steps": [
-    { "step": "login", "username": "admin", "password": "password" },
+    {
+      "step": "runPHP",
+      "code": "<?php require_once '/wordpress/wp-load.php'; $user = get_user_by('login', 'admin'); if ($user) { wp_set_password('password', $user->ID); }"
+    },
+    { "step": "login", "username": "admin" },
     {
       "step": "installPlugin",
-      "pluginZipFile": {
+      "pluginData": {
         "resource": "url",
         "url": "https://github.com/dknauss/Sudo/archive/refs/tags/v3.1.1.zip"
       },
@@ -16,7 +21,7 @@
     },
     {
       "step": "installPlugin",
-      "pluginZipFile": {
+      "pluginData": {
         "resource": "wordpress.org/plugins",
         "slug": "two-factor"
       },

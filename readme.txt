@@ -2,6 +2,8 @@ _WP Sudo 3.1.1 is a hardening release for action-gated reauthentication, tighten
 
 [Try it in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/dknauss/Sudo/main/blueprint.json)
 
+Playground demo credentials are `admin` / `password`. When WP Sudo asks for reauthentication, enter the same password: `password`.
+
 === Sudo ===
 Contributors:      dpknauss
 Donate link:       https://dan.knauss.ca

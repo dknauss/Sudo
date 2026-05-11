@@ -13,6 +13,8 @@ WP Sudo adds **action-gated reauthentication** to WordPress so high-risk operati
 [![Type Coverage](https://shepherd.dev/github/dknauss/Sudo/coverage.svg)](https://shepherd.dev/github/dknauss/Sudo)
 [![Try in Playground](https://img.shields.io/badge/Try%20it-Playground-3858e9?logo=wordpress&logoColor=white)](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/dknauss/Sudo/main/blueprint.json)
 
+Playground demo credentials are `admin` / `password`. When WP Sudo asks for reauthentication, enter the same password: `password`.
+
 > **3.1.1 hardening release:** WP Sudo tightens role-change interception, sensitive request replay, MU-plugin loading, audit bridge parity, and development dependency security. See [docs/release-status.md](docs/release-status.md) for current release posture.
 
 ## What’s new in 3.1.1
