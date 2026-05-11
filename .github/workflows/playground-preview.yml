@@ -5,6 +5,8 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
 
 permissions:
+  contents: read
+  issues: write
   pull-requests: write
 
 jobs:
@@ -12,36 +14,36 @@ jobs:
     name: "Post Playground preview link"
     runs-on: ubuntu-24.04
     steps:
+      - name: Check out PR
+        uses: actions/checkout@v6
+
       - name: Post Playground preview comment
         uses: actions/github-script@v8
         with:
           script: |
+            const fs = require('fs');
             const pr = context.payload.pull_request;
             const sha = pr.head.sha;
+            const repoUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}`;
 
-            // GitHub archive zips have a top-level dir named `wp-sudo-{sha}/`.
-            // WordPress identifies plugins by the Plugin Name header, not the
-            // directory name, so activation still works correctly.
-            const zipUrl =
-              `https://github.com/${context.repo.owner}/${context.repo.repo}/archive/${sha}.zip`;
+            const blueprint = JSON.parse(fs.readFileSync('blueprint.json', 'utf8'));
+            const pluginStep = blueprint.steps.find(
+              step =>
+                step.step === 'installPlugin' &&
+                step.pluginData &&
+                step.pluginData.resource === 'git:directory',
+            );
 
-            const blueprint = {
-              '$schema': 'https://playground.wordpress.net/blueprint-schema.json',
-              preferredVersions: { wp: '7.0-RC1' },
-              landingPage: '/wp-admin/',
-              steps: [
-                { step: 'login', username: 'admin', password: 'password' },
-                {
-                  step: 'installPlugin',
-                  pluginZipFile: { resource: 'url', url: zipUrl },
-                  options: { activate: true },
-                },
-                {
-                  step: 'installPlugin',
-                  pluginZipFile: { resource: 'wordpress.org/plugins', slug: 'two-factor' },
-                  options: { activate: true },
-                },
-              ],
+            if (!pluginStep) {
+              core.setFailed('blueprint.json does not contain a git:directory plugin install step.');
+              return;
+            }
+
+            pluginStep.pluginData = {
+              resource: 'git:directory',
+              url: repoUrl,
+              ref: sha,
+              refType: 'commit',
             };
 
             const encoded = encodeURIComponent(JSON.stringify(blueprint));
@@ -54,7 +56,9 @@ jobs:
               '',
               'Preview is pinned to WordPress `7.0-RC1`.',
               '',
-              'Logs in as `admin` / `password` and installs the plugin from this PR\'s commit.',
+              `Uses the checked-in \`blueprint.json\` from this PR, with the plugin install pinned to commit \`${sha}\` through Playground's CORS-safe \`git:directory\` resource.`,
+              '',
+              'Logs in as `admin` / `password`; use `password` again for the WP Sudo reauthentication challenge.',
               '',
               '### ✅ What you can test',
               '',

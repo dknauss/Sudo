@@ -12,30 +12,28 @@ This file is the canonical source for **current release state** in this reposito
 
 ## Latest public/tagged release
 
-- **Latest tagged release:** `3.1.1`
-- **Latest git tag observed:** `v3.1.1`
+- **Latest tagged release:** `3.1.2`
+- **Latest git tag observed:** `v3.1.2`
 
 ## Current `main` release target
 
 - **Next planned release:** `3.2.0` (planning lane; post-release development bump pending)
-- **Current `main` runtime version constant:** `3.1.1`
+- **Current `main` runtime version constant:** `3.1.2`
 - **Current metadata should match:** `readme.txt` stable tag, `wp-sudo.php`, `tests/bootstrap.php`, `phpstan-bootstrap.php`
-- **Current public stable metadata:** `readme.txt` stable tag `3.1.1`
+- **Current public stable metadata:** `readme.txt` stable tag `3.1.2`
 - **Last completed release checklist:** `docs/release-3.0.0-checklist.md`
 
 ## Latest release contents
 
-`3.1.1` includes the post-`v3.0.0` work that landed on `main`:
+`3.1.2` includes the post-`v3.1.1` Playground and preview fixes that landed on `main`:
 
-- Repository URL/name cleanup from `wp-sudo` to `Sudo` references.
-- Draft governance spec for External Audit Mode (`v3.2` planning).
-- Multisite smoke test fixes following the repository rename.
-- WordPress 7.0 schedule/release-date documentation refresh.
-- Security hardening for pre-write role-change gating, sensitive request replay, MU-plugin shim path resilience, and audit bridge passed-event parity.
-- PHP 8.0 reflection compatibility fix for unit tests.
-- Development dependency security updates, including the `fast-xml-parser` Dependabot alert fixed on 2026-05-11.
+- Playground login and sudo challenge reauthentication now use the documented `admin` / `password` credential.
+- The Sudo toolbar item cancels active sessions correctly from front-end admin-bar contexts.
+- Dashboard widget active-session counts refresh after cancellation.
+- Playground demo data now includes recent privilege-action samples and staggered 5-15 minute demo sudo sessions.
+- Pull request Playground preview links now use the checked-in Blueprint and Playground's CORS-safe `git:directory` resource.
 
-Canonical source for post-tag drift after this release: `git log v3.1.1..main --oneline`
+Canonical source for post-tag drift after this release: `git log v3.1.2..main --oneline`
 
 ## WordPress release posture
 

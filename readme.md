@@ -15,15 +15,15 @@ WP Sudo adds **action-gated reauthentication** to WordPress so high-risk operati
 
 Playground demo credentials are `admin` / `password`. When WP Sudo asks for reauthentication, enter the same password: `password`.
 
-> **3.1.1 hardening release:** WP Sudo tightens role-change interception, sensitive request replay, MU-plugin loading, audit bridge parity, and development dependency security. See [docs/release-status.md](docs/release-status.md) for current release posture.
+> **3.1.2 Playground patch:** WP Sudo fixes Playground reauthentication, front-end toolbar session cancellation, dashboard demo data, and PR preview links. See [docs/release-status.md](docs/release-status.md) for current release posture.
 
-## What’s new in 3.1.1
+## What’s new in 3.1.2
 
-- **Role-change hardening:** role and capability metadata writes are now blocked before mutation when sudo is required
-- **Sensitive replay safety:** requests with omitted password/secret fields return with a warning instead of replaying partial POST data
-- **MU-loader resilience:** copied and static MU shims now recover more reliably across renamed plugin directories
-- **Audit bridge parity:** Stream and WP Activity Log bridges now include passed-event audit visibility
-- **Dependency security:** vulnerable transitive npm development dependencies were updated and the npm audit report is clean
+- **Playground authentication:** the demo explicitly resets `admin` to `password`, so login and sudo reauthentication use the same documented credential
+- **Toolbar cancellation:** clicking the Sudo toolbar item cancels an active session from wp-admin or the front end without navigating away unexpectedly
+- **Dashboard widget freshness:** active-session counts refresh immediately after session cancellation
+- **Demo activity:** Playground seeds recent privilege-action events and active demo users with varied 5-15 minute sudo windows
+- **Preview links:** pull request Playground previews now use the checked-in Blueprint with a CORS-safe `git:directory` plugin install
 
 ## Why WP Sudo exists
 

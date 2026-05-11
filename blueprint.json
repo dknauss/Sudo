@@ -20,8 +20,8 @@
       "pluginData": {
         "resource": "git:directory",
         "url": "https://github.com/dknauss/Sudo",
-        "ref": "main",
-        "refType": "branch"
+        "ref": "v3.1.2",
+        "refType": "tag"
       },
       "options": { "activate": true }
     },

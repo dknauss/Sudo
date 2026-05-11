@@ -1,4 +1,4 @@
-_WP Sudo 3.1.1 is a hardening release for action-gated reauthentication, tightening role-change interception, sensitive request replay, MU-plugin loading, audit bridges, and development dependency security._
+_WP Sudo 3.1.2 is a Playground compatibility patch for action-gated reauthentication, fixing demo login, sudo challenge auth, toolbar cancellation, dashboard demo data, and PR preview links._
 
 [Try it in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/dknauss/Sudo/main/blueprint.json)
 
@@ -11,7 +11,7 @@ Tags:              sudo, security, reauthentication, access control, admin prote
 Requires at least: 6.2
 Tested up to:      6.9
 Requires PHP:      8.0
-Stable tag:        3.1.1
+Stable tag:        3.1.2
 License:           GPL-2.0-or-later
 License URI:       https://spdx.org/licenses/GPL-2.0-or-later.html
 
@@ -23,13 +23,13 @@ WordPress has rich access control — roles, capabilities, policies on who can d
 
 This is not role-based escalation. Every logged-in user is treated the same: attempt a gated action without an active sudo session, get challenged. Sessions are time-bounded and non-extendable, enforcing the zero-trust principle that trust must be continuously earned, never assumed. WordPress capability checks still run after the gate, so Sudo adds a security layer without changing the permission model.
 
-= What’s new in 3.1.1? =
+= What’s new in 3.1.2? =
 
-* **Role-change hardening** — role and capability metadata writes are now blocked before mutation when sudo is required
-* **Sensitive replay safety** — requests with omitted password/secret fields return with a warning instead of replaying partial POST data
-* **MU-loader resilience** — copied and static MU shims now recover more reliably across renamed plugin directories
-* **Audit bridge parity** — Stream and WP Activity Log bridges now include passed-event audit visibility
-* **Dependency security** — vulnerable transitive npm development dependencies were updated and the npm audit report is clean
+* **Playground authentication** — the demo explicitly resets `admin` to `password`, so login and sudo reauthentication use the same documented credential
+* **Toolbar cancellation** — clicking the Sudo toolbar item cancels an active session from wp-admin or the front end without navigating away unexpectedly
+* **Dashboard widget freshness** — active-session counts refresh immediately after session cancellation
+* **Demo activity** — Playground seeds recent privilege-action events and active demo users with varied 5-15 minute sudo windows
+* **Preview links** — pull request Playground previews now use the checked-in Blueprint with a CORS-safe `git:directory` plugin install
 
 = Why Sudo? =
 
@@ -184,6 +184,13 @@ Extensibility: the action registry is filterable via wp_sudo_gated_actions. Ten 
 7. Active sudo session — the admin bar shows a green countdown timer.
 
 == Changelog ==
+
+= 3.1.2 =
+* **Fix: Playground authentication** — the demo resets the `admin` user password before login so `admin` / `password` works for both WordPress login and WP Sudo reauthentication.
+* **Fix: toolbar session cancellation** — the Sudo admin bar item now cancels active sessions reliably from wp-admin and front-end contexts.
+* **Fix: dashboard widget freshness** — active-session transients are invalidated when sessions are cancelled, so the dashboard widget updates without needing a manual refresh.
+* **Demo data** — Playground now seeds recent privilege-action samples and active demo sudo sessions with staggered 5-15 minute durations.
+* **CI preview** — PR Playground preview links now use the checked-in Blueprint and a CORS-safe `git:directory` plugin install instead of GitHub archive ZIP URLs.
 
 = 3.1.1 =
 * **Security: role-change interception hardening** — role and capability metadata writes are now blocked before mutation when they require an active sudo session.

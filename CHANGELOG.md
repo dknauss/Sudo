@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.1.2 - 2026-05-11
+
+### Playground and preview fixes
+
+- **Playground authentication:** the demo Blueprint now resets the `admin` user password before login so `admin` / `password` works for both WordPress login and WP Sudo reauthentication.
+- **Front-end toolbar cancellation:** clicking the Sudo toolbar item now cancels an active sudo session from front-end admin-bar contexts without navigating away unexpectedly.
+- **Dashboard widget freshness:** active-session transients are invalidated when sessions are cancelled, so the dashboard widget updates without needing a manual refresh.
+- **Demo activity:** Playground now seeds recent privilege-action samples and active demo sudo sessions with staggered 5-15 minute durations.
+- **PR preview links:** the Playground Preview workflow now uses the checked-in Blueprint and pins the plugin install to the PR commit through Playground's CORS-safe `git:directory` resource.
+
 ## 3.1.1 - 2026-05-11
 
 ### Security hardening
