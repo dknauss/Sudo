@@ -196,6 +196,13 @@ behavior that the model cannot hold in working memory.
 - Always run tests and PHPStan before committing.
 - Use conventional commit format.
 
+## E2E Validation Policy
+
+- Do not automatically block on the full Playwright E2E suite for every push.
+- Run or wait for full E2E only for release-grade deployments, changes to browser/admin UX flows, request gating/replay behavior, wp-env/Playwright infrastructure, or changes with realistic cross-surface risk.
+- For docs-only, metadata-only, dependency-lockfile-only, or Blueprint-only changes, run targeted validation first. Ask the user before waiting for full E2E unless they already requested release-grade confidence.
+- If GitHub starts full E2E automatically for a low-risk change, report that it is running asynchronously instead of holding the thread open by default.
+
 ## Architecture
 
 **Entry point:** `wp-sudo.php` — defines constants, registers an SPL autoloader (maps `WP_Sudo\Class_Name` to `includes/class-class-name.php`), and wires lifecycle hooks. The `wp_sudo()` function returns the singleton Plugin instance.
