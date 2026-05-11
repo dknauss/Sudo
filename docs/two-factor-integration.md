@@ -102,7 +102,7 @@ When the user submits their password, the JavaScript sends an AJAX request to `w
 2. Validates the password with `wp_check_password()`.
 3. Calls `Sudo_Session::needs_two_factor( $user_id )`.
 
-If 2FA is **not** required, the session activates immediately and the original request is replayed.
+If 2FA is **not** required, the session activates immediately and the original request is replayed. If the stashed request contained redacted password, token, API-key, or secret fields, WP Sudo redirects the user back instead and asks them to re-enter the secret while the sudo session is active.
 
 If 2FA **is** required, the server:
 

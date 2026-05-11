@@ -1503,6 +1503,18 @@ class AdminTest extends TestCase {
 		$this->assertSame( 'wp_sudo_mu_uninstall', Admin::AJAX_MU_UNINSTALL );
 	}
 
+	public function test_mu_shim_contents_are_personalized_with_current_loader_path(): void {
+		$template = "<?php\n\$wp_sudo_loader = '__WP_SUDO_LOADER_PATH__';\n";
+		$loader   = "/var/www/html/wp-content/plugins/sudo-renamed/mu-plugin/wp-sudo-loader.php";
+
+		$method = new \ReflectionMethod( Admin::class, 'personalize_mu_shim_contents' );
+
+		$result = $method->invoke( null, $template, $loader );
+
+		$this->assertStringContainsString( 'sudo-renamed/mu-plugin/wp-sudo-loader.php', $result );
+		$this->assertStringNotContainsString( '__WP_SUDO_LOADER_PATH__', $result );
+	}
+
 	// -----------------------------------------------------------------
 	// render_mu_plugin_status()
 	// -----------------------------------------------------------------

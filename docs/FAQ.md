@@ -62,7 +62,7 @@ Also, there is no substitute for a first-class, security-hardened server and app
 
 ## How does sudo gating work?
 
-When a user attempts a gated action — for example, activating a plugin — Sudo intercepts the request before WordPress processes the sensitive operation. In many common browser-admin flows this happens on `admin_init`; other actions use surface-specific hooks. The original request is stashed in a transient, the user is redirected to a challenge page, and after successful reauthentication, the original request is replayed. For AJAX and REST requests, the browser receives a `sudo_required` error, and an admin notice appears on the next page load linking to the challenge page. The user authenticates, activates a sudo session, and retries the action.
+When a user attempts a gated action — for example, activating a plugin — Sudo intercepts the request before WordPress processes the sensitive operation. In many common browser-admin flows this happens on `admin_init`; other actions use surface-specific hooks. The original request is stashed in a transient, the user is redirected to a challenge page, and after successful reauthentication, the original request is replayed. Passwords, tokens, API keys, and other configured secret fields are omitted from the stash; if one was present, Sudo activates the session and redirects the user back to re-enter the secret instead of replaying a partial POST. For AJAX and REST requests, the browser receives a `sudo_required` error, and an admin notice appears on the next page load linking to the challenge page. The user authenticates, activates a sudo session, and retries the action.
 
 ## How can I tell why a request was gated or blocked?
 

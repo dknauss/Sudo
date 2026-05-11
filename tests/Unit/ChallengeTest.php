@@ -70,6 +70,14 @@ class ChallengeTest extends TestCase
 			->once()
 			->with(array($this->challenge, 'enqueue_assets'), \Mockery::any(), 0);
 
+		Actions\expectAdded('admin_notices')
+			->once()
+			->with(array($this->challenge, 'render_redacted_replay_notice'), \Mockery::any(), 0);
+
+		Actions\expectAdded('network_admin_notices')
+			->once()
+			->with(array($this->challenge, 'render_redacted_replay_notice'), \Mockery::any(), 0);
+
 		$this->challenge->register();
 	}
 
@@ -1078,6 +1086,51 @@ class ChallengeTest extends TestCase
 		$this->challenge->handle_ajax_2fa();
 
 		unset($_POST['stash_key']);
+	}
+
+	/**
+	 * Test redacted secret fields redirect back instead of replaying partial POST data.
+	 */
+	public function test_redacted_secret_stash_redirects_instead_of_post_replay(): void
+	{
+		$this->stash->shouldReceive('get')
+			->once()
+			->with('redacted-stash-key', 42)
+			->andReturn(array(
+				'method' => 'POST',
+				'url' => 'https://example.com/wp-admin/user-edit.php?user_id=42',
+				'return_url' => 'https://example.com/wp-admin/profile.php',
+				'rule_id' => 'user.change_password',
+				'post' => array(
+					'_wpnonce' => 'abc123',
+				),
+				'redacted_fields_omitted' => true,
+			));
+
+		$this->stash->shouldReceive('delete')
+			->once()
+			->with('redacted-stash-key', 42);
+
+		Functions\when('wp_validate_redirect')->returnArg();
+		Functions\when('add_query_arg')->alias(
+			static function ( string $key, string $value, string $url ): string {
+				$separator = str_contains($url, '?') ? '&' : '?';
+				return $url . $separator . $key . '=' . $value;
+			}
+		);
+
+		Actions\expectDone('wp_sudo_action_replayed')->never();
+
+		$method = new \ReflectionMethod($this->challenge, 'build_replay_response_data');
+		$data = $method->invoke($this->challenge, 42, 'redacted-stash-key', 'https://example.com/wp-admin/');
+
+		$this->assertSame('success', $data['code']);
+		$this->assertArrayHasKey('redirect', $data);
+		$this->assertStringContainsString('profile.php', $data['redirect']);
+		$this->assertStringContainsString('wp_sudo_redacted_replay=1', $data['redirect']);
+		$this->assertTrue($data['redacted_fields_omitted']);
+		$this->assertArrayNotHasKey('replay', $data);
+		$this->assertArrayNotHasKey('post_data', $data);
 	}
 
 	// -----------------------------------------------------------------

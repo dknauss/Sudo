@@ -82,15 +82,19 @@ class Request_Stash {
 		// Enforce per-user cap BEFORE writing (evicts oldest if at limit).
 		$this->enforce_stash_cap( $user_id );
 
+		$redacted_fields_omitted = false;
+
 		$data = array(
-			'user_id' => $user_id,
-			'rule_id' => $matched_rule['id'] ?? '',
-			'label'   => $matched_rule['label'] ?? '',
-			'method'  => $this->get_request_method(),
-			'url'     => $this->build_original_url(),
-			'get'     => $this->sanitize_params( $_GET ), // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-			'post'    => $this->sanitize_params( $_POST ), // phpcs:ignore WordPress.Security.NonceVerification.Missing
-			'created' => time(),
+			'user_id'                 => $user_id,
+			'rule_id'                 => $matched_rule['id'] ?? '',
+			'label'                   => $matched_rule['label'] ?? '',
+			'method'                  => $this->get_request_method(),
+			'url'                     => $this->build_original_url(),
+			'return_url'              => $this->get_return_url(),
+			'get'                     => $this->sanitize_params( $_GET, $redacted_fields_omitted ), // phpcs:ignore WordPress.Security.NonceVerification.Recommended
+			'post'                    => $this->sanitize_params( $_POST, $redacted_fields_omitted ), // phpcs:ignore WordPress.Security.NonceVerification.Missing
+			'redacted_fields_omitted' => $redacted_fields_omitted,
+			'created'                 => time(),
 		);
 
 		$this->set_stash_transient( self::TRANSIENT_PREFIX . $key, $data, self::TTL );
@@ -99,6 +103,17 @@ class Request_Stash {
 		$this->add_to_stash_index( $user_id, $key );
 
 		return $key;
+	}
+
+	/**
+	 * Get a safe return URL for flows that cannot replay redacted secrets.
+	 *
+	 * @return string Referrer URL or an empty string.
+	 */
+	private function get_return_url(): string {
+		$return_url = wp_get_referer();
+
+		return is_string( $return_url ) ? $return_url : '';
 	}
 
 	/**
@@ -328,18 +343,21 @@ class Request_Stash {
 	 *
 	 * @since 2.11.0
 	 *
-	 * @param array<string, mixed> $params Raw request parameters.
+	 * @param array<string, mixed> $params                  Raw request parameters.
+	 * @param bool                 $redacted_fields_omitted Whether any sensitive field was omitted.
 	 * @return array<string, mixed> Sanitized parameters with sensitive keys omitted.
 	 */
-	private function sanitize_params( array $params ): array {
+	private function sanitize_params( array $params, bool &$redacted_fields_omitted ): array {
 		$sensitive = $this->sensitive_field_keys();
 
 		$result = array();
 		foreach ( $params as $key => $value ) {
 			if ( is_array( $value ) ) {
-				$result[ $key ] = $this->sanitize_params( $value );
+				$result[ $key ] = $this->sanitize_params( $value, $redacted_fields_omitted );
 			} elseif ( ! in_array( strtolower( (string) $key ), $sensitive, true ) ) {
 				$result[ $key ] = $value;
+			} else {
+				$redacted_fields_omitted = true;
 			}
 			// Sensitive keys are omitted entirely — not stored, not sent to JS replay.
 		}

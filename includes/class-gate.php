@@ -48,7 +48,8 @@ class Gate {
 
 	/**
 	 * Policy value: everything passes through as if WP Sudo
-	 * is not installed. No checks, no logging.
+	 * is not installed. Gated operations may still emit allowed-action
+	 * audit hooks when a surface-specific hook sees them.
 	 *
 	 * @since 2.2.0
 	 * @var string
@@ -202,7 +203,7 @@ class Gate {
 	 * Three modes:
 	 * - Disabled: block ALL CLI commands immediately.
 	 * - Limited:  block only gated operations; non-gated commands work normally.
-	 * - Unrestricted: no checks, no logging.
+	 * - Unrestricted: no blocking checks; allowed gated actions are logged when seen.
 	 *
 	 * In Limited and Unrestricted modes, `wp cron` subcommands also
 	 * respect the Cron policy — if Cron is Disabled, `wp cron event run`
@@ -276,7 +277,7 @@ class Gate {
 	 *   jobs hitting wp-cron.php directly, since both set DOING_CRON
 	 *   before init fires.
 	 * - Limited:  block only gated operations; non-gated events run normally.
-	 * - Unrestricted: no checks, no logging.
+	 * - Unrestricted: no blocking checks; allowed gated actions are logged when seen.
 	 *
 	 * @since 2.0.0
 	 * @since 2.2.0 Three-tier model.
@@ -306,7 +307,7 @@ class Gate {
 	 * Three modes:
 	 * - Disabled: shut off the entire XML-RPC protocol.
 	 * - Limited:  block only gated operations; non-gated methods work normally.
-	 * - Unrestricted: no checks, no logging.
+	 * - Unrestricted: no blocking checks; allowed gated actions are logged when seen.
 	 *
 	 * @since 2.0.0
 	 * @since 2.2.0 Three-tier model.
@@ -507,15 +508,19 @@ class Gate {
 		);
 
 		// ── User role change ─────────────────────────────────────────
-		// set_user_role fires AFTER the change but before the request completes.
-		// On CLI/Cron, wp_die() here still prevents the success output.
-		add_action(
-			'set_user_role',
-			function () use ( $callback ) {
+		// WP_User::set_role() writes the capabilities user meta before it
+		// fires set_user_role, so block at the metadata layer instead.
+		$user_role_meta_filter = function ( $check, $_user_id, $meta_key, $_meta_value, $_prev_value ) use ( $callback ) {
+			unset( $_user_id, $_meta_value, $_prev_value );
+
+			if ( $this->is_user_capabilities_meta_key( (string) $meta_key ) ) {
 				$callback( 'user.promote', __( 'Change user role', 'wp-sudo' ) );
-			},
-			0
-		);
+			}
+			return $check;
+		};
+
+		add_filter( 'add_user_metadata', $user_role_meta_filter, 0, 5 );
+		add_filter( 'update_user_metadata', $user_role_meta_filter, 0, 5 );
 
 		// ── Critical options ─────────────────────────────────────────
 		$critical_options = Action_Registry::critical_option_names();
@@ -542,6 +547,40 @@ class Gate {
 			},
 			0
 		);
+	}
+
+	/**
+	 * Determine whether a user meta key stores WordPress role capabilities.
+	 *
+	 * WordPress stores user roles in a site-scoped capabilities meta key such
+	 * as `wp_capabilities` or `wp_2_capabilities`. Matching exact keys avoids
+	 * treating unrelated plugin metadata as a role mutation.
+	 *
+	 * @param string $meta_key User meta key.
+	 * @return bool True when the key stores role capabilities.
+	 */
+	private function is_user_capabilities_meta_key( string $meta_key ): bool {
+		$keys = array( 'wp_capabilities' );
+
+		if ( isset( $GLOBALS['wpdb'] ) && is_object( $GLOBALS['wpdb'] ) ) {
+			$wpdb = $GLOBALS['wpdb'];
+
+			if ( method_exists( $wpdb, 'get_blog_prefix' ) ) {
+				$keys[] = (string) $wpdb->get_blog_prefix() . 'capabilities';
+			}
+
+			if ( isset( $wpdb->prefix ) ) {
+				$keys[] = (string) $wpdb->prefix . 'capabilities';
+			}
+
+			if ( isset( $wpdb->base_prefix ) ) {
+				$keys[] = (string) $wpdb->base_prefix . 'capabilities';
+			}
+		}
+
+		$keys = array_values( array_unique( $keys ) );
+
+		return in_array( $meta_key, $keys, true );
 	}
 
 	/**

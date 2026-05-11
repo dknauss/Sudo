@@ -60,6 +60,7 @@ if ( ! function_exists( 'wp_sudo_wsal_bridge_event_payload' ) ) {
 			case 'wp_sudo_action_gated':
 			case 'wp_sudo_action_blocked':
 			case 'wp_sudo_action_allowed':
+			case 'wp_sudo_action_passed':
 				$payload['user_id'] = (int) ( $args[0] ?? 0 );
 				$payload['rule_id'] = (string) ( $args[1] ?? '' );
 				$payload['surface'] = (string) ( $args[2] ?? '' );
@@ -134,9 +135,10 @@ $wp_sudo_wsal_event_map = array(
 	'wp_sudo_action_gated'        => array( 'event_id' => 1900005, 'accepted_args' => 3 ),
 	'wp_sudo_action_blocked'      => array( 'event_id' => 1900006, 'accepted_args' => 3 ),
 	'wp_sudo_action_allowed'      => array( 'event_id' => 1900007, 'accepted_args' => 3 ),
-	'wp_sudo_action_replayed'     => array( 'event_id' => 1900008, 'accepted_args' => 2 ),
-	'wp_sudo_capability_tampered' => array( 'event_id' => 1900009, 'accepted_args' => 2 ),
-	'wp_sudo_policy_preset_applied' => array( 'event_id' => 1900010, 'accepted_args' => 5 ),
+	'wp_sudo_action_passed'       => array( 'event_id' => 1900008, 'accepted_args' => 3 ),
+	'wp_sudo_action_replayed'     => array( 'event_id' => 1900009, 'accepted_args' => 2 ),
+	'wp_sudo_capability_tampered' => array( 'event_id' => 1900010, 'accepted_args' => 2 ),
+	'wp_sudo_policy_preset_applied' => array( 'event_id' => 1900011, 'accepted_args' => 5 ),
 );
 
 foreach ( $wp_sudo_wsal_event_map as $hook => $meta ) {

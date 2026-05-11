@@ -48,6 +48,14 @@ class Challenge {
 	public const AJAX_2FA_ACTION = 'wp_sudo_challenge_2fa';
 
 	/**
+	 * Query arg used to show a notice after redirecting instead of replaying
+	 * a POST that contained redacted secret fields.
+	 *
+	 * @var string
+	 */
+	public const REDACTED_REPLAY_QUERY_ARG = 'wp_sudo_redacted_replay';
+
+	/**
 	 * Request stash instance.
 	 *
 	 * @var Request_Stash
@@ -79,6 +87,25 @@ class Challenge {
 		add_action( 'wp_ajax_' . self::AJAX_AUTH_ACTION, array( $this, 'handle_ajax_auth' ), 10, 0 );
 		add_action( 'wp_ajax_' . self::AJAX_2FA_ACTION, array( $this, 'handle_ajax_2fa' ), 10, 0 );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ), 10, 0 );
+		add_action( 'admin_notices', array( $this, 'render_redacted_replay_notice' ), 10, 0 );
+		add_action( 'network_admin_notices', array( $this, 'render_redacted_replay_notice' ), 10, 0 );
+	}
+
+	/**
+	 * Render a notice when a redacted secret prevented automatic POST replay.
+	 *
+	 * @return void
+	 */
+	public function render_redacted_replay_notice(): void {
+		$notice = self::sanitize_input_string( $_GET[ self::REDACTED_REPLAY_QUERY_ARG ] ?? '' ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Notice flag only; sanitized in helper.
+
+		if ( '1' !== $notice ) {
+			return;
+		}
+
+		echo '<div class="notice notice-warning is-dismissible"><p>'
+			. esc_html__( 'Reauthentication complete. For your security, password and secret fields were not replayed. Re-enter them to finish the change.', 'wp-sudo' )
+			. '</p></div>';
 	}
 
 	/**
@@ -714,8 +741,25 @@ class Challenge {
 			);
 		}
 
+		$safe_url = wp_validate_redirect( $stash['url'], $fallback_url );
+
 		// Consume the stash (one-time use).
 		$this->stash->delete( $stash_key, $user_id );
+
+		if ( ! empty( $stash['redacted_fields_omitted'] ) ) {
+			$return_url = ! empty( $stash['return_url'] ) && is_string( $stash['return_url'] )
+				? $stash['return_url']
+				: $safe_url;
+
+			$redirect_url = wp_validate_redirect( $return_url, $safe_url );
+			$redirect_url = add_query_arg( self::REDACTED_REPLAY_QUERY_ARG, '1', $redirect_url );
+
+			return array(
+				'code'                    => 'success',
+				'redirect'                => $redirect_url,
+				'redacted_fields_omitted' => true,
+			);
+		}
 
 		/**
 		 * Fires when a stashed request is about to be replayed.
@@ -726,8 +770,6 @@ class Challenge {
 		 * @param string $rule_id The rule ID that was gated.
 		 */
 		do_action( 'wp_sudo_action_replayed', $user_id, $stash['rule_id'] ?? '' );
-
-		$safe_url = wp_validate_redirect( $stash['url'], $fallback_url );
 
 		if ( 'GET' === ( $stash['method'] ?? 'GET' ) ) {
 			return array(

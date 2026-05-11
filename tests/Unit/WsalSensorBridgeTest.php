@@ -57,6 +57,7 @@ class WsalSensorBridgeTest extends TestCase {
 			'wp_sudo_action_gated',
 			'wp_sudo_action_blocked',
 			'wp_sudo_action_allowed',
+			'wp_sudo_action_passed',
 			'wp_sudo_action_replayed',
 			'wp_sudo_capability_tampered',
 			'wp_sudo_policy_preset_applied',
@@ -155,13 +156,43 @@ class WsalSensorBridgeTest extends TestCase {
 		$this->assertNotEmpty( \WSAL\Controllers\Alert_Manager::$events );
 
 		$event = \WSAL\Controllers\Alert_Manager::$events[0];
-		$this->assertSame( 1900010, $event[0] );
+		$this->assertSame( 1900011, $event[0] );
 		$this->assertSame( 'wp_sudo_policy_preset_applied', $event[1]['hook'] ?? null );
 		$this->assertSame( 7, $event[1]['user_id'] ?? null );
 		$this->assertSame( 'incident_lockdown', $event[1]['preset_key'] ?? null );
 		$this->assertSame( 'limited', $event[1]['previous']['cli_policy'] ?? null );
 		$this->assertSame( 'disabled', $event[1]['current']['cli_policy'] ?? null );
 		$this->assertTrue( $event[1]['is_network'] ?? false );
+	}
+
+	/**
+	 * Test passed action payloads use the documented WSAL event ID.
+	 */
+	public function test_06_bridge_maps_action_passed_to_documented_wsal_event_id(): void {
+		$this->define_wsal_alert_manager_stub();
+
+		$callbacks = array();
+		Functions\when( 'add_action' )->alias(
+			static function ( string $hook, callable $callback ) use ( &$callbacks ): bool {
+				$callbacks[ $hook ] = $callback;
+				return true;
+			}
+		);
+
+		include __DIR__ . '/../../bridges/wp-sudo-wsal-sensor.php';
+
+		$this->assertArrayHasKey( 'wp_sudo_action_passed', $callbacks );
+
+		$callbacks['wp_sudo_action_passed']( 42, 'plugin.activate', 'admin' );
+
+		$this->assertNotEmpty( \WSAL\Controllers\Alert_Manager::$events );
+
+		$event = \WSAL\Controllers\Alert_Manager::$events[0];
+		$this->assertSame( 1900008, $event[0] );
+		$this->assertSame( 'wp_sudo_action_passed', $event[1]['hook'] ?? null );
+		$this->assertSame( 42, $event[1]['user_id'] ?? null );
+		$this->assertSame( 'plugin.activate', $event[1]['rule_id'] ?? null );
+		$this->assertSame( 'admin', $event[1]['surface'] ?? null );
 	}
 
 	/**

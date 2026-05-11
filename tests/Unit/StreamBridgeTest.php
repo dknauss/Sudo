@@ -80,6 +80,7 @@ class StreamBridgeTest extends TestCase {
 			'wp_sudo_action_gated',
 			'wp_sudo_action_blocked',
 			'wp_sudo_action_allowed',
+			'wp_sudo_action_passed',
 			'wp_sudo_action_replayed',
 			'wp_sudo_capability_tampered',
 			'wp_sudo_policy_preset_applied',
@@ -178,6 +179,45 @@ class StreamBridgeTest extends TestCase {
 		$this->assertSame( 'limited', $event['args']['previous']['rest_app_password_policy'] ?? null );
 		$this->assertSame( 'unrestricted', $event['args']['current']['rest_app_password_policy'] ?? null );
 		$this->assertFalse( $event['args']['is_network'] ?? true );
+
+		\Brain\Monkey\tearDown();
+	}
+
+	/**
+	 * Test passed action payloads are mapped into Stream log entries.
+	 *
+	 * @runInSeparateProcess
+	 * @preserveGlobalState disabled
+	 */
+	public function test_03c_bridge_maps_action_passed_payload_to_stream_log(): void {
+		\Brain\Monkey\setUp();
+		$this->define_stream_stub();
+
+		$GLOBALS['wp_sudo_stream_test_instance'] = (object) array(
+			'log' => new \WP_Sudo_Stream_Test_Log(),
+		);
+
+		$callbacks = array();
+		Functions\when( 'add_action' )->alias(
+			static function ( string $hook, callable $callback, int $priority = 10, int $accepted_args = 1 ) use ( &$callbacks ): bool {
+				$callbacks[ $hook ] = $callback;
+				return true;
+			}
+		);
+
+		include __DIR__ . '/../../bridges/wp-sudo-stream-bridge.php';
+
+		$this->assertArrayHasKey( 'wp_sudo_action_passed', $callbacks );
+		$callbacks['wp_sudo_action_passed']( 42, 'plugin.activate', 'admin' );
+
+		$this->assertNotEmpty( \WP_Sudo_Stream_Test_Log::$events );
+
+		$event = \WP_Sudo_Stream_Test_Log::$events[0];
+		$this->assertSame( 'passed', $event['action'] ?? null );
+		$this->assertSame( 42, $event['user_id'] ?? null );
+		$this->assertSame( 'wp_sudo_action_passed', $event['args']['hook'] ?? null );
+		$this->assertSame( 'plugin.activate', $event['args']['rule_id'] ?? null );
+		$this->assertSame( 'admin', $event['args']['surface'] ?? null );
 
 		\Brain\Monkey\tearDown();
 	}

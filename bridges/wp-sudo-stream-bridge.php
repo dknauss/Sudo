@@ -94,6 +94,7 @@ if ( ! function_exists( 'wp_sudo_stream_bridge_record_data' ) ) {
 			case 'wp_sudo_action_gated':
 			case 'wp_sudo_action_blocked':
 			case 'wp_sudo_action_allowed':
+			case 'wp_sudo_action_passed':
 				$record['message']            = 'WP Sudo policy decision';
 				$record['action']             = str_replace( 'wp_sudo_action_', '', $hook );
 				$record['user_id']            = (int) ( $args[0] ?? 0 );
@@ -193,6 +194,7 @@ if ( ! function_exists( 'wp_sudo_stream_bridge_register' ) ) {
 			'wp_sudo_action_gated'        => 3,
 			'wp_sudo_action_blocked'      => 3,
 			'wp_sudo_action_allowed'      => 3,
+			'wp_sudo_action_passed'       => 3,
 			'wp_sudo_action_replayed'     => 2,
 			'wp_sudo_capability_tampered' => 2,
 			'wp_sudo_policy_preset_applied' => 5,

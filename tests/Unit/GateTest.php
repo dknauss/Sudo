@@ -14,6 +14,7 @@ use WP_Sudo\Action_Registry;
 use WP_Sudo\Tests\TestCase;
 use Brain\Monkey\Functions;
 use Brain\Monkey\Actions;
+use Brain\Monkey\Filters;
 
 /**
  * @covers \WP_Sudo\Gate
@@ -62,7 +63,8 @@ class GateTest extends TestCase {
 			$_POST['plugin'],
 			$_GET['download'],
 			$_SERVER['REQUEST_METHOD'],
-			$GLOBALS['pagenow']
+			$GLOBALS['pagenow'],
+			$GLOBALS['wpdb']
 		);
 		parent::tearDown();
 	}
@@ -1774,10 +1776,99 @@ class GateTest extends TestCase {
 		Actions\expectAdded( 'delete_plugin' )->once();
 		Actions\expectAdded( 'delete_theme' )->once();
 		Actions\expectAdded( 'delete_user' )->once();
-		Actions\expectAdded( 'set_user_role' )->once();
+		Actions\expectAdded( 'set_user_role' )->never();
 		Actions\expectAdded( 'export_wp' )->once();
+		Filters\expectAdded( 'add_user_metadata' )->once();
+		Filters\expectAdded( 'update_user_metadata' )->once();
 
 		$this->gate->gate_cli();
+	}
+
+	/**
+	 * Test role capability metadata writes are blocked before mutation.
+	 */
+	public function test_cli_limited_blocks_role_capability_meta_write_before_update(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'esc_html' )->returnArg();
+
+		$GLOBALS['wpdb'] = new class() {
+			public string $prefix = 'wp_';
+
+			public function get_blog_prefix(): string {
+				return 'wp_';
+			}
+		};
+
+		$callback = null;
+		Filters\expectAdded( 'update_user_metadata' )
+			->once()
+			->with(
+				\Mockery::on(
+					static function ( $candidate ) use ( &$callback ): bool {
+						$callback = $candidate;
+						return is_callable( $candidate );
+					}
+				),
+				0,
+				5
+			);
+
+		Actions\expectDone( 'wp_sudo_action_blocked' )
+			->once()
+			->with( 0, 'user.promote', 'cli' );
+
+		Functions\expect( 'wp_die' )
+			->once()
+			->with( \Mockery::type( 'string' ), '', array( 'response' => 403 ) );
+
+		$this->gate->register_function_hooks( 'cli' );
+
+		$this->assertIsCallable( $callback );
+		$result = $callback( null, 42, 'wp_capabilities', array( 'administrator' => true ), '' );
+
+		$this->assertNull( $result );
+	}
+
+	/**
+	 * Test unrestricted policy audits role capability metadata writes but allows update.
+	 */
+	public function test_cli_unrestricted_audits_role_capability_meta_write_without_blocking(): void {
+		Functions\when( '__' )->returnArg();
+
+		$GLOBALS['wpdb'] = new class() {
+			public string $prefix = 'wp_';
+
+			public function get_blog_prefix(): string {
+				return 'wp_';
+			}
+		};
+
+		$callback = null;
+		Filters\expectAdded( 'update_user_metadata' )
+			->once()
+			->with(
+				\Mockery::on(
+					static function ( $candidate ) use ( &$callback ): bool {
+						$callback = $candidate;
+						return is_callable( $candidate );
+					}
+				),
+				0,
+				5
+			);
+
+		Actions\expectDone( 'wp_sudo_action_allowed' )
+			->once()
+			->with( 0, 'user.promote', 'cli' );
+
+		Functions\expect( 'wp_die' )->never();
+
+		$this->gate->register_function_hooks( 'cli', 'audit' );
+
+		$this->assertIsCallable( $callback );
+		$result = $callback( null, 42, 'wp_capabilities', array( 'administrator' => true ), '' );
+
+		$this->assertNull( $result );
 	}
 
 	/**

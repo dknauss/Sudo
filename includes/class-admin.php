@@ -1208,7 +1208,7 @@ class Admin {
 		?>
 		<h2><?php esc_html_e( 'Gated Actions', 'wp-sudo' ); ?></h2>
 		<p class="description">
-			<?php esc_html_e( 'The following actions require reauthentication before execution. The surfaces shown (Admin, AJAX, REST) reflect interactive entry points where WordPress provides APIs. All gated actions are also protected on non-interactive surfaces (WP-CLI, Cron, XML-RPC, Application Passwords) via the configurable policy settings above. WPGraphQL is governed separately at the surface level — when the WPGraphQL policy is Limited, all mutations require an active sudo session regardless of which operation is being performed. Developers can add custom rules via the wp_sudo_gated_actions filter.', 'wp-sudo' ); ?>
+			<?php esc_html_e( 'The following actions require reauthentication before execution. The surfaces shown (Admin, AJAX, REST) reflect interactive entry points where WordPress provides APIs. WP-CLI, Cron, and XML-RPC Limited mode use WP Sudo\'s built-in function-hook coverage for core rules; custom non-interactive workflows need an explicit integration or a stricter surface policy. Application Password requests are covered when a rule defines REST criteria. WPGraphQL is governed separately at the surface level — when the WPGraphQL policy is Limited, all mutations require an active sudo session regardless of which operation is being performed. Developers can add custom rules via the wp_sudo_gated_actions filter.', 'wp-sudo' ); ?>
 		</p>
 		<table class="widefat striped">
 			<caption class="screen-reader-text"><?php esc_html_e( 'Gated actions requiring reauthentication, grouped by category', 'wp-sudo' ); ?></caption>
@@ -1413,7 +1413,7 @@ class Admin {
 								<ol style="margin: 0.5em 0 0 1.5em;">
 									<li>
 										<?php esc_html_e( 'Locate the shim file inside the plugin directory:', 'wp-sudo' ); ?><br>
-										<code>wp-content/plugins/wp-sudo/mu-plugin/wp-sudo-gate.php</code>
+										<code>wp-content/plugins/&lt;current-plugin-directory&gt;/mu-plugin/wp-sudo-gate.php</code>
 									</li>
 									<li>
 										<?php esc_html_e( 'Copy it into your mu-plugins directory:', 'wp-sudo' ); ?><br>
@@ -1432,7 +1432,7 @@ class Admin {
 								<ol style="margin: 0.5em 0 0 1.5em;">
 									<li>
 										<?php esc_html_e( 'Locate the shim file inside the plugin directory:', 'wp-sudo' ); ?><br>
-										<code>wp-content/plugins/wp-sudo/mu-plugin/wp-sudo-gate.php</code>
+										<code>wp-content/plugins/&lt;current-plugin-directory&gt;/mu-plugin/wp-sudo-gate.php</code>
 									</li>
 									<li>
 										<?php esc_html_e( 'Copy it into your mu-plugins directory:', 'wp-sudo' ); ?><br>
@@ -1526,6 +1526,8 @@ class Admin {
 			wp_send_json_error( array( 'message' => __( 'Could not read source shim file.', 'wp-sudo' ) ) );
 		}
 
+		$contents = self::personalize_mu_shim_contents( $contents, self::plugin_dir() . 'mu-plugin/wp-sudo-loader.php' );
+
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents, WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_file_put_contents
 		$written = file_put_contents( $dest, $contents );
 		if ( false === $written ) {
@@ -1574,6 +1576,27 @@ class Admin {
 		}
 
 		wp_send_json_success( array( 'message' => __( 'MU-plugin removed. It will be inactive on the next page load.', 'wp-sudo' ) ) );
+	}
+
+	/**
+	 * Personalize the MU shim template with the current plugin loader path.
+	 *
+	 * The copied shim embeds the resolved loader path so renamed plugin
+	 * directories keep early gate coverage. The shim still contains fallback
+	 * discovery for manual copies and later directory moves.
+	 *
+	 * @param string $contents    Shim template contents.
+	 * @param string $loader_path Absolute loader path.
+	 * @return string Personalized shim contents.
+	 */
+	private static function personalize_mu_shim_contents( string $contents, string $loader_path ): string {
+		$escaped_loader_path = str_replace(
+			array( '\\', "'" ),
+			array( '\\\\', "\\'" ),
+			$loader_path
+		);
+
+		return str_replace( '__WP_SUDO_LOADER_PATH__', $escaped_loader_path, $contents );
 	}
 
 	/**

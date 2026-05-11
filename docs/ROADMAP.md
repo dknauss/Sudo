@@ -104,7 +104,7 @@ All 5 phases shipped. Identified by independent assessments from Codex, Gemini, 
 - ~~Action Registry schema validation~~ — `normalize_filtered_rules()` validates and normalizes `wp_sudo_gated_actions` filter output; malformed rules dropped fail-closed.
 - ~~MU loader resilience~~ — basename/path resolution uses explicit fallback chain (`WP_SUDO_PLUGIN_BASENAME` → derived → canonical); diagnostic action on unresolved paths.
 - ~~WPGraphQL persisted-query strategy~~ — `wp_sudo_wpgraphql_classification` filter enables external mutation classification for persisted-query setups; `str_contains` heuristic preserved as fallback.
-- ~~WSAL sensor bridge~~ — `bridges/wp-sudo-wsal-sensor.php` now maps all 10 audit hooks to structured WSAL events (IDs 1900001–1900010); inert when WSAL absent.
+- ~~WSAL sensor bridge~~ — `bridges/wp-sudo-wsal-sensor.php` now maps all 11 audit hooks to structured WSAL events (IDs 1900001–1900011); inert when WSAL absent.
 
 ### ✓ Completed in v2.10.0
 
@@ -920,8 +920,8 @@ SBOM, accessibility roadmap) are documented in the [CHANGELOG](../CHANGELOG.md).
 
 ### ✓ Shipped
 
-**~~WP Activity Log (WSAL) Sensor Extension~~** — shipped v2.11.0 as `bridges/wp-sudo-wsal-sensor.php`. It now maps all 10 audit hooks to WSAL events (IDs 1900001–1900010). Inert when WSAL absent.
-**~~Stream bridge~~** — implemented on `main` for v2.12.0 as `bridges/wp-sudo-stream-bridge.php`. Optional mu-plugin mapping for all 10 audit hooks.
+**~~WP Activity Log (WSAL) Sensor Extension~~** — shipped v2.11.0 as `bridges/wp-sudo-wsal-sensor.php`. It now maps all 11 audit hooks to WSAL events (IDs 1900001–1900011). Inert when WSAL absent.
+**~~Stream bridge~~** — implemented on `main` for v2.12.0 as `bridges/wp-sudo-stream-bridge.php`. Optional mu-plugin mapping for all 11 audit hooks.
 **~~WP-CLI `wp sudo` commands~~** — implemented on `main` for v2.12.0 (`status`, `revoke --user`, `revoke --all`).
 **~~Public `wp_sudo_check()` / `wp_sudo_require()` API~~** — implemented on `main` for v2.12.0 for third-party action gating integrations.
 **~~Multi-Dimensional Rate Limiting (IP + User)~~** — shipped v2.13.0. Per-IP tracking via transients alongside per-user tracking, combined lockout policy, and the triggering IP address added as the third `wp_sudo_lockout` hook argument.

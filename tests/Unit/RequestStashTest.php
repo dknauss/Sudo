@@ -445,6 +445,44 @@ class RequestStashTest extends TestCase {
 		$this->assertArrayNotHasKey( 'pass2', $stored_data['post'], 'pass2 must be omitted' );
 		$this->assertArrayNotHasKey( 'user_pass', $stored_data['post'], 'user_pass must be omitted' );
 		$this->assertArrayNotHasKey( 'token', $stored_data['post'], 'token must be omitted' );
+		$this->assertTrue( $stored_data['redacted_fields_omitted'], 'Stash must record that sensitive fields were omitted' );
+
+		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'] );
+		$_POST = array();
+	}
+
+	/**
+	 * Test save() records when no sensitive fields were omitted.
+	 */
+	public function test_save_records_no_redacted_fields_for_plain_post(): void {
+		$this->stub_stash_index_meta_io();
+
+		$_SERVER['REQUEST_METHOD'] = 'POST';
+		$_SERVER['HTTP_HOST']      = 'example.com';
+		$_SERVER['REQUEST_URI']    = '/wp-admin/options-general.php';
+		$_POST                     = array(
+			'blogname' => 'Example Site',
+			'_wpnonce' => 'abc123',
+		);
+
+		Functions\expect( 'wp_generate_password' )->once()->andReturn( 'plainpost012345' );
+		Functions\expect( 'is_ssl' )->once()->andReturn( false );
+		Functions\when( 'esc_url_raw' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		$stored_data = null;
+		Functions\expect( 'set_transient' )
+			->once()
+			->andReturnUsing(
+				function ( $name, $data ) use ( &$stored_data ) {
+					$stored_data = $data;
+					return true;
+				}
+			);
+
+		$this->stash->save( 1, array( 'id' => 'options.critical', 'label' => 'Change site setting' ) );
+
+		$this->assertFalse( $stored_data['redacted_fields_omitted'] );
 
 		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'] );
 		$_POST = array();

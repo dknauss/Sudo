@@ -267,9 +267,11 @@ authentication, the original POST request is replayed automatically.
 4. **Expected:** Redirected to the challenge page. Action label shows
    "Change password."
 5. Authenticate.
-6. **Expected:** Profile is updated (password changed). Redirected back
-   to the profile page.
-7. Verify: changing **only bio, email address, or display name** (with
+6. **Expected:** Redirected back to the profile page with a warning that
+   password and secret fields were not replayed. Re-enter the new password
+   while the sudo session is active and click **Update Profile**.
+7. **Expected:** Profile is updated (password changed).
+8. Verify: changing **only bio, email address, or display name** (with
    no password field filled in) does **not** trigger a challenge.
 
 ### 2.16 Change Password (Edit User Page)
@@ -282,7 +284,10 @@ authentication, the original POST request is replayed automatically.
 4. **Expected:** Redirected to the challenge page. Action label shows
    "Change password."
 5. Authenticate.
-6. **Expected:** User's password is updated.
+6. **Expected:** Redirected back to the edit-user page with a warning that
+   password and secret fields were not replayed. Re-enter the new password
+   while the sudo session is active and click **Update User**.
+7. **Expected:** User's password is updated.
 
 ---
 
@@ -1581,7 +1586,8 @@ curl -sk -X POST "YOUR_SITE_URL/graphql" \
    `surface`.
 5. Activate sudo and repeat on a gated action that is allowed in policy flow.
 6. **Expected:** Corresponding WSAL event IDs fire based on hook type (for
-   example `1900005` gated, `1900007` allowed, `1900008` replayed).
+   example `1900005` gated, `1900007` allowed, `1900008` passed,
+   `1900009` replayed).
 7. Temporarily deactivate/uninstall WSAL while leaving the bridge file in place.
 8. **Expected:** No fatal errors; bridge remains inert when WSAL APIs are absent.
 
