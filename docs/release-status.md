@@ -12,28 +12,27 @@ This file is the canonical source for **current release state** in this reposito
 
 ## Latest public/tagged release
 
-- **Latest tagged release:** `3.1.2`
-- **Latest git tag observed:** `v3.1.2`
+- **Latest tagged release:** `3.1.3`
+- **Latest git tag observed:** `v3.1.3`
 
 ## Current `main` release target
 
 - **Next planned release:** `3.2.0` (planning lane; post-release development bump pending)
-- **Current `main` runtime version constant:** `3.1.2`
+- **Current `main` runtime version constant:** `3.1.3`
 - **Current metadata should match:** `readme.txt` stable tag, `wp-sudo.php`, `tests/bootstrap.php`, `phpstan-bootstrap.php`
-- **Current public stable metadata:** `readme.txt` stable tag `3.1.2`
+- **Current public stable metadata:** `readme.txt` stable tag `3.1.3`
 - **Last completed release checklist:** `docs/release-3.0.0-checklist.md`
 
 ## Latest release contents
 
-`3.1.2` includes the post-`v3.1.1` Playground and preview fixes that landed on `main`:
+`3.1.3` includes the post-`v3.1.2` Playground release-link fixes that landed on `main`:
 
-- Playground login and sudo challenge reauthentication now use the documented `admin` / `password` credential.
-- The Sudo toolbar item cancels active sessions correctly from front-end admin-bar contexts.
-- Dashboard widget active-session counts refresh after cancellation.
-- Playground demo data now includes recent privilege-action samples and staggered 5-15 minute demo sudo sessions.
-- Pull request Playground preview links now use the checked-in Blueprint and Playground's CORS-safe `git:directory` resource.
+- Stable release Playground links use the tagged raw Blueprint and install the tag ZIP through `pluginData`.
+- Current `main` Playground links use `blueprint-main.json` and install the main branch ZIP.
+- Pull request Playground previews continue to use the checked-in Blueprint but pin the plugin install to the PR commit.
+- Demo admin password seeding uses WordPress core's `wp_set_password()` API instead of a direct `$wpdb->users` update.
 
-Canonical source for post-tag drift after this release: `git log v3.1.2..main --oneline`
+Canonical source for post-tag drift after `3.1.3`: `git log v3.1.3..main --oneline`
 
 ## WordPress release posture
 

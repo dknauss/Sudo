@@ -11,19 +11,20 @@ WP Sudo adds **action-gated reauthentication** to WordPress so high-risk operati
 [![CodeQL](https://github.com/dknauss/Sudo/actions/workflows/codeql.yml/badge.svg)](https://github.com/dknauss/Sudo/actions/workflows/codeql.yml)
 [![Codecov](https://codecov.io/gh/dknauss/Sudo/graph/badge.svg?branch=main)](https://codecov.io/gh/dknauss/Sudo)
 [![Type Coverage](https://shepherd.dev/github/dknauss/Sudo/coverage.svg)](https://shepherd.dev/github/dknauss/Sudo)
-[![Try in Playground](https://img.shields.io/badge/Try%20it-Playground-3858e9?logo=wordpress&logoColor=white)](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/dknauss/Sudo/main/blueprint.json)
+[![Try latest release in Playground](https://img.shields.io/badge/Try%20release-Playground-3858e9?logo=wordpress&logoColor=white)](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fv3.1.3%2Fblueprint.json)
+[![Try main in Playground](https://img.shields.io/badge/Try%20main-Playground-23282d?logo=wordpress&logoColor=white)](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint-main.json)
 
 Playground demo credentials are `admin` / `password`. When WP Sudo asks for reauthentication, enter the same password: `password`.
 
-> **3.1.2 Playground patch:** WP Sudo fixes Playground reauthentication, front-end toolbar session cancellation, dashboard demo data, and PR preview links. See [docs/release-status.md](docs/release-status.md) for current release posture.
+> **3.1.3 Playground patch:** WP Sudo fixes Playground reauthentication, front-end toolbar session cancellation, dashboard demo data, and stable/main preview links. See [docs/release-status.md](docs/release-status.md) for current release posture.
 
-## What’s new in 3.1.2
+## What’s new in 3.1.3
 
 - **Playground authentication:** the demo explicitly resets `admin` to `password`, so login and sudo reauthentication use the same documented credential
 - **Toolbar cancellation:** clicking the Sudo toolbar item cancels an active session from wp-admin or the front end without navigating away unexpectedly
 - **Dashboard widget freshness:** active-session counts refresh immediately after session cancellation
 - **Demo activity:** Playground seeds recent privilege-action events and active demo users with varied 5-15 minute sudo windows
-- **Preview links:** pull request Playground previews now use the checked-in Blueprint with a CORS-safe `git:directory` plugin install
+- **Preview links:** release and main Playground demos are separate; pull request previews still pin to the PR commit
 
 ## Why WP Sudo exists
 

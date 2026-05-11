@@ -1,6 +1,7 @@
-_WP Sudo 3.1.2 is a Playground compatibility patch for action-gated reauthentication, fixing demo login, sudo challenge auth, toolbar cancellation, dashboard demo data, and PR preview links._
+_WP Sudo 3.1.3 is a Playground compatibility patch for action-gated reauthentication, fixing demo login, sudo challenge auth, toolbar cancellation, dashboard demo data, and stable/main preview links._
 
-[Try it in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/dknauss/Sudo/main/blueprint.json)
+[Try the latest release in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fv3.1.3%2Fblueprint.json)
+[Try current main in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint-main.json)
 
 Playground demo credentials are `admin` / `password`. When WP Sudo asks for reauthentication, enter the same password: `password`.
 
@@ -11,7 +12,7 @@ Tags:              sudo, security, reauthentication, access control, admin prote
 Requires at least: 6.2
 Tested up to:      6.9
 Requires PHP:      8.0
-Stable tag:        3.1.2
+Stable tag:        3.1.3
 License:           GPL-2.0-or-later
 License URI:       https://spdx.org/licenses/GPL-2.0-or-later.html
 
@@ -23,13 +24,13 @@ WordPress has rich access control — roles, capabilities, policies on who can d
 
 This is not role-based escalation. Every logged-in user is treated the same: attempt a gated action without an active sudo session, get challenged. Sessions are time-bounded and non-extendable, enforcing the zero-trust principle that trust must be continuously earned, never assumed. WordPress capability checks still run after the gate, so Sudo adds a security layer without changing the permission model.
 
-= What’s new in 3.1.2? =
+= What’s new in 3.1.3? =
 
 * **Playground authentication** — the demo explicitly resets `admin` to `password`, so login and sudo reauthentication use the same documented credential
 * **Toolbar cancellation** — clicking the Sudo toolbar item cancels an active session from wp-admin or the front end without navigating away unexpectedly
 * **Dashboard widget freshness** — active-session counts refresh immediately after session cancellation
 * **Demo activity** — Playground seeds recent privilege-action events and active demo users with varied 5-15 minute sudo windows
-* **Preview links** — pull request Playground previews now use the checked-in Blueprint with a CORS-safe `git:directory` plugin install
+* **Preview links** — release and main Playground demos are separate; pull request previews still pin to the PR commit
 
 = Why Sudo? =
 
@@ -184,6 +185,11 @@ Extensibility: the action registry is filterable via wp_sudo_gated_actions. Ten 
 7. Active sudo session — the admin bar shows a green countdown timer.
 
 == Changelog ==
+
+= 3.1.3 =
+* **Fix: release Playground link** — the stable release Blueprint installs the tag ZIP through `pluginData` instead of using Playground's currently brittle `git:directory` tag fetch path.
+* **Playground link posture** — README Playground links now distinguish the immutable latest-release demo from the current `main` demo.
+* **Blueprint password seeding** — the demo Blueprint now uses WordPress core's `wp_set_password()` API instead of writing the password hash directly through `$wpdb`.
 
 = 3.1.2 =
 * **Fix: Playground authentication** — the demo resets the `admin` user password before login so `admin` / `password` works for both WordPress login and WP Sudo reauthentication.
