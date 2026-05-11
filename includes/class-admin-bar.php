@@ -184,7 +184,7 @@ class Admin_Bar {
 
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Nonce is verified before this helper is called.
 		if ( isset( $_GET[ self::REDIRECT_PARAM ] ) && is_string( $_GET[ self::REDIRECT_PARAM ] ) ) {
-			// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- esc_url_raw() preserves and sanitizes full URLs.
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce verified; esc_url_raw() sanitizes the full URL.
 			$candidate = esc_url_raw( wp_unslash( $_GET[ self::REDIRECT_PARAM ] ) );
 
 			if ( '' !== $candidate ) {
