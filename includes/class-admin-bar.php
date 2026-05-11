@@ -36,13 +36,20 @@ class Admin_Bar {
 	public const DEACTIVATE_PARAM = 'wp_sudo_deactivate';
 
 	/**
+	 * Query parameter for the post-deactivation redirect target.
+	 *
+	 * @var string
+	 */
+	public const REDIRECT_PARAM = 'wp_sudo_redirect_to';
+
+	/**
 	 * Register hooks.
 	 *
 	 * @return void
 	 */
 	public function register(): void {
 		add_action( 'admin_bar_menu', array( $this, 'admin_bar_node' ), 100 );
-		add_action( 'admin_init', array( $this, 'handle_deactivate' ), 5, 0 );
+		add_action( 'init', array( $this, 'handle_deactivate' ), 5, 0 );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ), 10, 0 );
 	}
 
@@ -72,13 +79,16 @@ class Admin_Bar {
 		$minutes = floor( $remaining / 60 );
 		$seconds = $remaining % 60;
 
-		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotValidated -- Fallback handles missing key.
-		$current_url = isset( $_SERVER['REQUEST_URI'] )
-			? set_url_scheme( home_url( sanitize_text_field( wp_unslash( $_SERVER['REQUEST_URI'] ) ) ) )
-			: admin_url();
+		$current_url = self::current_url();
 
 		$deactivate_url = wp_nonce_url(
-			add_query_arg( self::DEACTIVATE_PARAM, '1', $current_url ),
+			add_query_arg(
+				array(
+					self::DEACTIVATE_PARAM => '1',
+					self::REDIRECT_PARAM   => $current_url,
+				),
+				admin_url()
+			),
 			self::DEACTIVATE_NONCE,
 			'_wpnonce'
 		);
@@ -138,8 +148,51 @@ class Admin_Bar {
 
 		Sudo_Session::deactivate( $user_id );
 
-		wp_safe_redirect( remove_query_arg( array( self::DEACTIVATE_PARAM, '_wpnonce' ) ) );
+		wp_safe_redirect( self::deactivation_redirect_url() );
 		exit;
+	}
+
+	/**
+	 * Resolve the current URL used as the return target after deactivation.
+	 *
+	 * @return string
+	 */
+	private static function current_url(): string {
+		if ( ! isset( $_SERVER['REQUEST_URI'] ) ) {
+			return admin_url();
+		}
+
+		$scheme = is_ssl() ? 'https' : 'http';
+		$host   = sanitize_text_field( wp_unslash( $_SERVER['HTTP_HOST'] ?? '' ) );
+		// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- esc_url_raw() sanitizes the full URL; sanitize_text_field() would corrupt encoded path/query segments.
+		$uri = wp_unslash( $_SERVER['REQUEST_URI'] );
+
+		if ( '' === $host ) {
+			return admin_url();
+		}
+
+		return esc_url_raw( $scheme . '://' . $host . $uri );
+	}
+
+	/**
+	 * Resolve and clean the post-deactivation redirect URL.
+	 *
+	 * @return string
+	 */
+	private static function deactivation_redirect_url(): string {
+		$redirect_url = admin_url();
+
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Nonce is verified before this helper is called.
+		if ( isset( $_GET[ self::REDIRECT_PARAM ] ) && is_string( $_GET[ self::REDIRECT_PARAM ] ) ) {
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce verified; esc_url_raw() sanitizes the full URL.
+			$candidate = esc_url_raw( wp_unslash( $_GET[ self::REDIRECT_PARAM ] ) );
+
+			if ( '' !== $candidate ) {
+				$redirect_url = $candidate;
+			}
+		}
+
+		return remove_query_arg( array( self::DEACTIVATE_PARAM, self::REDIRECT_PARAM, '_wpnonce' ), $redirect_url );
 	}
 
 	/**

@@ -19,8 +19,26 @@
 	// The challenge page must render at the top level so the full admin
 	// chrome is visible and the redirect/replay targets the correct frame.
 	if (window.top !== window.self) {
-		window.top.location.href = window.location.href;
-		return;
+		var canNavigateTop = true;
+		try {
+			var frame = window.frameElement;
+			if (frame && frame.hasAttribute('sandbox')) {
+				var sandboxTokens = (frame.getAttribute('sandbox') || '').split(/\s+/);
+				canNavigateTop = sandboxTokens.indexOf('allow-top-navigation') !== -1;
+			}
+		} catch (e) {
+			canNavigateTop = false;
+		}
+
+		if (canNavigateTop) {
+			try {
+				window.top.location.href = window.location.href;
+				return;
+			} catch (e) {
+				// Cross-origin/sandboxed hosts such as WordPress Playground must
+				// keep the challenge functional inside the embedded frame.
+			}
+		}
 	}
 
 	var config = window.wpSudoChallenge || {};
