@@ -13,15 +13,15 @@ WP Sudo adds **action-gated reauthentication** to WordPress so high-risk operati
 [![Type Coverage](https://shepherd.dev/github/dknauss/Sudo/coverage.svg)](https://shepherd.dev/github/dknauss/Sudo)
 [![Try in Playground](https://img.shields.io/badge/Try%20it-Playground-3858e9?logo=wordpress&logoColor=white)](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/dknauss/Sudo/main/blueprint.json)
 
-> **3.0.0 milestone:** WP Sudo now combines action-gated reauthentication with policy presets, Connectors credential protection, request diagnostics, and operator activity visibility. See [docs/release-status.md](docs/release-status.md) for current release posture.
+> **3.1.1 hardening release:** WP Sudo tightens role-change interception, sensitive request replay, MU-plugin loading, audit bridge parity, and development dependency security. See [docs/release-status.md](docs/release-status.md) for current release posture.
 
-## What’s new in 3.0.0
+## What’s new in 3.1.1
 
-- **Policy control:** one-click **Normal**, **Incident Lockdown**, and **Headless Friendly** presets for non-interactive surfaces
-- **Ecosystem hardening:** built-in gating for Connectors API credential writes through `/wp/v2/settings`
-- **Operator diagnostics:** a **Request / Rule Tester** for representative admin, AJAX, and REST request shapes
-- **Operator visibility:** a **Session Activity Dashboard Widget** backed by a lightweight event store and recorder
-- **Recovery hardening:** cleaner challenge, lockout, and 2FA recovery behavior around edge-case retry flows
+- **Role-change hardening:** role and capability metadata writes are now blocked before mutation when sudo is required
+- **Sensitive replay safety:** requests with omitted password/secret fields return with a warning instead of replaying partial POST data
+- **MU-loader resilience:** copied and static MU shims now recover more reliably across renamed plugin directories
+- **Audit bridge parity:** Stream and WP Activity Log bridges now include passed-event audit visibility
+- **Dependency security:** vulnerable transitive npm development dependencies were updated and the npm audit report is clean
 
 ## Why WP Sudo exists
 

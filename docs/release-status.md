@@ -12,20 +12,20 @@ This file is the canonical source for **current release state** in this reposito
 
 ## Latest public/tagged release
 
-- **Latest tagged release:** `3.0.0`
-- **Latest git tag observed:** `v3.0.0`
+- **Latest tagged release:** `3.1.1`
+- **Latest git tag observed:** `v3.1.1`
 
 ## Current `main` release target
 
-- **Next planned release:** `3.1.0` (development lane)
-- **Current `main` runtime version constant:** `3.1.0`
-- **Current `main` development metadata should match:** `wp-sudo.php`, `tests/bootstrap.php`, `phpstan-bootstrap.php`
-- **Current public stable metadata remains:** `readme.txt` stable tag `3.0.0`
+- **Next planned release:** `3.2.0` (planning lane; post-release development bump pending)
+- **Current `main` runtime version constant:** `3.1.1`
+- **Current metadata should match:** `readme.txt` stable tag, `wp-sudo.php`, `tests/bootstrap.php`, `phpstan-bootstrap.php`
+- **Current public stable metadata:** `readme.txt` stable tag `3.1.1`
 - **Last completed release checklist:** `docs/release-3.0.0-checklist.md`
 
-## Unreleased work already on `main`
+## Latest release contents
 
-Current commits ahead of `v3.0.0`:
+`3.1.1` includes the post-`v3.0.0` work that landed on `main`:
 
 - Repository URL/name cleanup from `wp-sudo` to `Sudo` references.
 - Draft governance spec for External Audit Mode (`v3.2` planning).
@@ -35,7 +35,7 @@ Current commits ahead of `v3.0.0`:
 - PHP 8.0 reflection compatibility fix for unit tests.
 - Development dependency security updates, including the `fast-xml-parser` Dependabot alert fixed on 2026-05-11.
 
-Canonical source for post-tag drift: `git log v3.0.0..main --oneline`
+Canonical source for post-tag drift after this release: `git log v3.1.1..main --oneline`
 
 ## WordPress release posture
 

@@ -145,7 +145,7 @@ This is a living document covering accumulated input and thinking about the stra
 challenges and priorities for WP Sudo. 
 
 Current project state (as of May 11, 2026):
-- **v3.0.0 is the latest tagged release** — Connectors gating, policy presets, Rule Tester, settings UI revision, Event_Store, and Dashboard Widget have shipped. `main` is now in the v3.1.0 development lane.
+- **v3.1.1 is the latest tagged release** — post-v3.0.0 security hardening, audit bridge parity, PHP 8.0 test compatibility, and npm dependency security cleanup have shipped. `main` is now in the v3.2.0 planning lane.
 - Current test and size counts are centralized in [`docs/current-metrics.md`](current-metrics.md).
 - CI pipeline: unit tests on PHP 8.0–8.4; integration tests on PHP 8.0/8.1/8.3; WordPress 6.2, 6.7, and 7.0-RC1; single-site + multisite; MySQL 8.0 plus one MariaDB lane; PCOV coverage job; 60 Playwright E2E tests
 - WordPress 7.0 RC1 signoff recorded (March 24, 2026); the scheduled April 9 final was delayed on March 31, 2026, and the official Make/Core schedule still plans final release for May 20, 2026. See `docs/release-status.md`.

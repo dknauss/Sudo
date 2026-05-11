@@ -1,4 +1,4 @@
-_WP Sudo 3.0.0 is the first major milestone release of action-gated reauthentication for WordPress, adding policy presets, Connectors credential protection, request diagnostics, and operator activity visibility._
+_WP Sudo 3.1.1 is a hardening release for action-gated reauthentication, tightening role-change interception, sensitive request replay, MU-plugin loading, audit bridges, and development dependency security._
 
 [Try it in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https://raw.githubusercontent.com/dknauss/Sudo/main/blueprint.json)
 
@@ -9,7 +9,7 @@ Tags:              sudo, security, reauthentication, access control, admin prote
 Requires at least: 6.2
 Tested up to:      6.9
 Requires PHP:      8.0
-Stable tag:        3.0.0
+Stable tag:        3.1.1
 License:           GPL-2.0-or-later
 License URI:       https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -21,13 +21,13 @@ WordPress has rich access control — roles, capabilities, policies on who can d
 
 This is not role-based escalation. Every logged-in user is treated the same: attempt a gated action without an active sudo session, get challenged. Sessions are time-bounded and non-extendable, enforcing the zero-trust principle that trust must be continuously earned, never assumed. WordPress capability checks still run after the gate, so Sudo adds a security layer without changing the permission model.
 
-= What’s new in 3.0.0? =
+= What’s new in 3.1.1? =
 
-* **Policy presets** — one-click **Normal**, **Incident Lockdown**, and **Headless Friendly** presets for the non-interactive surfaces
-* **Connectors protection** — built-in gating for connector credential writes saved through `/wp/v2/settings`
-* **Request / Rule Tester** — a diagnostic panel for simulating representative admin, AJAX, and REST request shapes without executing them
-* **Session Activity Dashboard Widget** — dashboard visibility for active sessions, recent events, and current policy posture
-* **Recovery hardening** — stronger challenge, lockout, and 2FA recovery behavior around edge-case retry flows
+* **Role-change hardening** — role and capability metadata writes are now blocked before mutation when sudo is required
+* **Sensitive replay safety** — requests with omitted password/secret fields return with a warning instead of replaying partial POST data
+* **MU-loader resilience** — copied and static MU shims now recover more reliably across renamed plugin directories
+* **Audit bridge parity** — Stream and WP Activity Log bridges now include passed-event audit visibility
+* **Dependency security** — vulnerable transitive npm development dependencies were updated and the npm audit report is clean
 
 = Why Sudo? =
 
@@ -182,6 +182,14 @@ Extensibility: the action registry is filterable via wp_sudo_gated_actions. Ten 
 7. Active sudo session — the admin bar shows a green countdown timer.
 
 == Changelog ==
+
+= 3.1.1 =
+* **Security: role-change interception hardening** — role and capability metadata writes are now blocked before mutation when they require an active sudo session.
+* **Security: sensitive request replay safety** — intercepted requests that include password/secret fields no longer replay partial POST data after those fields are omitted from the stash; users are returned with a warning instead.
+* **Fix: MU-plugin loader resilience** — copied MU shims now preserve the actual plugin loader path, and the static shim can recover when the plugin directory is renamed.
+* **Audit bridge parity** — Stream and WP Activity Log bridges now include `wp_sudo_action_passed` events.
+* **Compatibility: PHP 8.0 test support** — reflection-based unit tests avoid PHP 8.1-only reflection behavior when running under PHP 8.0.
+* **Dependency security** — updated vulnerable transitive development dependencies, including `fast-xml-parser`, and cleared the npm audit report.
 
 = 3.0.0 =
 * **Major milestone: operator tooling and visibility** — adds the Request / Rule Tester plus a new Session Activity Dashboard Widget with active sessions, recent events, and policy summary.
