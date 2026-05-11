@@ -2,7 +2,7 @@
 
 WP Sudo adds **action-gated reauthentication** to WordPress so high-risk operations require fresh confirmation before they proceed.
 
-[![License: GPL v2+](https://img.shields.io/badge/License-GPL%20v2%2B-blue.svg)](https://www.gnu.org/licenses/old-licenses/gpl-2.0.html)
+[![License: GPL v2+](https://img.shields.io/badge/License-GPL%20v2%2B-blue.svg)](https://spdx.org/licenses/GPL-2.0-or-later.html)
 [![WordPress: 6.2+](https://img.shields.io/badge/WordPress-6.2%2B-0073aa.svg)](https://wordpress.org/)
 [![PHP: 8.0+](https://img.shields.io/badge/PHP-8.0%2B-777bb4.svg)](https://www.php.net/)
 [![PHPUnit](https://github.com/dknauss/Sudo/actions/workflows/phpunit.yml/badge.svg)](https://github.com/dknauss/Sudo/actions/workflows/phpunit.yml)

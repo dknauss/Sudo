@@ -9,7 +9,7 @@
  * Author:            Dan Knauss
  * Author URI:        https://profiles.wordpress.org/danknauss/
  * License:           GPL-2.0-or-later
- * License URI:       https://www.gnu.org/licenses/gpl-2.0.html
+ * License URI:       https://spdx.org/licenses/GPL-2.0-or-later.html
  * Text Domain:       wp-sudo
  * Domain Path:       /languages
  *
