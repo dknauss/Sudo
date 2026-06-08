@@ -114,47 +114,47 @@ jobs:
             wp: '6.2'
             multisite: false
             db_label: 'MySQL 8.0'
-            db_image: 'mysql:8.0'
+            db_image: 'public.ecr.aws/docker/library/mysql:8.0'
           - php: '8.1'
             wp: '6.7'
             multisite: false
             db_label: 'MySQL 8.0'
-            db_image: 'mysql:8.0'
+            db_image: 'public.ecr.aws/docker/library/mysql:8.0'
           - php: '8.1'
             wp: '6.7'
             multisite: true
             db_label: 'MySQL 8.0'
-            db_image: 'mysql:8.0'
+            db_image: 'public.ecr.aws/docker/library/mysql:8.0'
           - php: '8.3'
             wp: '6.7'
             multisite: false
             db_label: 'MySQL 8.0'
-            db_image: 'mysql:8.0'
+            db_image: 'public.ecr.aws/docker/library/mysql:8.0'
           - php: '8.3'
             wp: '6.7'
             multisite: true
             db_label: 'MySQL 8.0'
-            db_image: 'mysql:8.0'
+            db_image: 'public.ecr.aws/docker/library/mysql:8.0'
           - php: '8.1'
             wp: '7.0-RC1'
             multisite: false
             db_label: 'MySQL 8.0'
-            db_image: 'mysql:8.0'
+            db_image: 'public.ecr.aws/docker/library/mysql:8.0'
           - php: '8.1'
             wp: '7.0-RC1'
             multisite: true
             db_label: 'MySQL 8.0'
-            db_image: 'mysql:8.0'
+            db_image: 'public.ecr.aws/docker/library/mysql:8.0'
           - php: '8.3'
             wp: '7.0-RC1'
             multisite: false
             db_label: 'MySQL 8.0'
-            db_image: 'mysql:8.0'
+            db_image: 'public.ecr.aws/docker/library/mysql:8.0'
           - php: '8.3'
             wp: '7.0-RC1'
             multisite: true
             db_label: 'MySQL 8.0'
-            db_image: 'mysql:8.0'
+            db_image: 'public.ecr.aws/docker/library/mysql:8.0'
           - php: '8.1'
             wp: '6.7'
             multisite: false
