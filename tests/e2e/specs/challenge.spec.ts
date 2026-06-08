@@ -53,6 +53,7 @@ import { wpEnvRun } from '../fixtures/wp-env';
 
 const execAsync = promisify( exec );
 const WP_ENV_RUN_CLI = wpEnvRun( 'cli' );
+const WP_ENV_RUN_WP_SKIP_PLUGINS = `${ WP_ENV_RUN_CLI } wp --skip-plugins`;
 const WP_BASE_URL = process.env.WP_BASE_URL ?? 'http://localhost:8889';
 const E2E_TWO_FACTOR_MU_PLUGIN = 'wp-sudo-e2e-two-factor.php';
 const E2E_TWO_FACTOR_REQUIRE_META = '_wp_sudo_e2e_require_two_factor';
@@ -68,22 +69,6 @@ const E2E_ACTIVATABLE_PLUGIN_DIR = 'wp-sudo-e2e-activatable';
 const E2E_ACTIVATABLE_PLUGIN_FILE =
     `${ E2E_ACTIVATABLE_PLUGIN_DIR }/wp-sudo-e2e-activatable.php`;
 const WP_ENV_PLUGIN_DIR = process.env.WP_E2E_PLUGIN_DIR?.trim() || path.basename( process.cwd() );
-
-function shellQuote( value: string ): string {
-    return `'${ value.replace( /'/g, "'\\''" ) }'`;
-}
-
-function parseSettingsJson( value: string | null ): Record<string, unknown> {
-    if ( ! value ) {
-        return {};
-    }
-
-    const parsed = JSON.parse( value );
-
-    return parsed && typeof parsed === 'object' && ! Array.isArray( parsed )
-        ? parsed
-        : {};
-}
 
 /**
  * Extract a real plugin activate URL (with valid nonce) from plugins.php.
@@ -260,12 +245,10 @@ async function installE2eActivatablePlugin(): Promise<void> {
  * Remove the inert plugin fixture from wp-env.
  */
 async function removeE2eActivatablePlugin(): Promise<void> {
-    await withCliPolicyUnrestricted( async () => {
-        await execAsync(
-            `${ WP_ENV_RUN_CLI } wp plugin deactivate ${ E2E_ACTIVATABLE_PLUGIN_DIR } --quiet 2>/dev/null || true`,
-            { timeout: 30_000 }
-        );
-    } );
+    await execAsync(
+        `${ WP_ENV_RUN_WP_SKIP_PLUGINS } plugin deactivate ${ E2E_ACTIVATABLE_PLUGIN_DIR } --quiet 2>/dev/null || true`,
+        { timeout: 30_000 }
+    );
 
     await execAsync(
         `${ WP_ENV_RUN_CLI } bash -lc 'rm -rf /var/www/html/wp-content/plugins/${ E2E_ACTIVATABLE_PLUGIN_DIR }'`,
@@ -436,91 +419,13 @@ async function expireCurrentTwoFactorChallenge( page: Page ): Promise<void> {
 }
 
 /**
- * Set the wp-env CLI policy temporarily to unrestricted, run a callback that
- * executes WP-CLI gated commands, then restore the original setting.
- *
- * WP Sudo's default cli_policy is 'limited', which blocks gated WP-CLI commands
- * like `wp plugin deactivate`. To run them in test setup/teardown, we temporarily
- * override the policy via `wp option set` (not a gated action), execute the
- * commands, then restore.
- *
- * Source: includes/class-gate.php — CLI policy check in intercept() (verified)
- * Source: includes/class-admin.php — default cli_policy = 'limited' (verified)
- */
-async function withCliPolicyUnrestricted( fn: () => Promise<void> ): Promise<void> {
-    let originalSettings: string | null = null;
-    let originalCliPolicy: unknown;
-
-    try {
-        const { stdout } = await execAsync(
-            `${ WP_ENV_RUN_CLI } wp option get wp_sudo_settings --format=json 2>/dev/null`,
-            { timeout: 15_000 }
-        );
-        originalSettings = stdout.trim();
-    } catch {
-        originalSettings = null;
-    }
-
-    const temporarySettings = parseSettingsJson( originalSettings );
-    originalCliPolicy = Object.prototype.hasOwnProperty.call( temporarySettings, 'cli_policy' )
-        ? temporarySettings.cli_policy
-        : undefined;
-    temporarySettings.cli_policy = 'unrestricted';
-
-    try {
-        await execAsync(
-            `${ WP_ENV_RUN_CLI } wp option set wp_sudo_settings ${ shellQuote( JSON.stringify( temporarySettings ) ) } --format=json --quiet 2>/dev/null`,
-            { timeout: 15_000 }
-        );
-    } catch {
-        // Ignore — settings may not exist yet (first run).
-    }
-    try {
-        await fn();
-    } finally {
-        // Always restore only the temporary CLI policy override.
-        let currentSettings: string | null = null;
-        try {
-            const { stdout } = await execAsync(
-                `${ WP_ENV_RUN_CLI } wp option get wp_sudo_settings --format=json 2>/dev/null`,
-                { timeout: 15_000 }
-            );
-            currentSettings = stdout.trim();
-        } catch {
-            currentSettings = null;
-        }
-
-        const restoredSettings = parseSettingsJson( currentSettings );
-        if ( undefined === originalCliPolicy ) {
-            delete restoredSettings.cli_policy;
-        } else {
-            restoredSettings.cli_policy = originalCliPolicy;
-        }
-
-        if ( Object.keys( restoredSettings ).length > 0 || originalSettings ) {
-            await execAsync(
-                `${ WP_ENV_RUN_CLI } wp option set wp_sudo_settings ${ shellQuote( JSON.stringify( restoredSettings ) ) } --format=json --quiet 2>/dev/null`,
-                { timeout: 15_000 }
-            );
-        } else {
-            await execAsync(
-                `${ WP_ENV_RUN_CLI } wp option delete wp_sudo_settings --quiet 2>/dev/null || true`,
-                { timeout: 15_000 }
-            );
-        }
-    }
-}
-
-/**
  * Ensure the inert fixture plugin is inactive so a real activate link exists.
  */
 async function ensureE2eActivatablePluginInactive(): Promise<void> {
-    await withCliPolicyUnrestricted( async () => {
-        await execAsync(
-            `${ WP_ENV_RUN_CLI } wp plugin deactivate ${ E2E_ACTIVATABLE_PLUGIN_DIR } --quiet 2>/dev/null || true`,
-            { timeout: 30_000 }
-        );
-    } );
+    await execAsync(
+        `${ WP_ENV_RUN_WP_SKIP_PLUGINS } plugin deactivate ${ E2E_ACTIVATABLE_PLUGIN_DIR } --quiet 2>/dev/null || true`,
+        { timeout: 30_000 }
+    );
 }
 
 /**
@@ -551,7 +456,7 @@ async function reachStashedPluginActivationChallenge(
  */
 async function getWpSudoSessionDuration(): Promise<number> {
     const { stdout } = await execAsync(
-        `${ WP_ENV_RUN_CLI } wp eval 'echo (int) ( get_option( "${ 'wp_sudo_settings' }", array() )["session_duration"] ?? 15 ); echo PHP_EOL;'`,
+        `${ WP_ENV_RUN_WP_SKIP_PLUGINS } eval 'echo (int) ( get_option( "${ 'wp_sudo_settings' }", array() )["session_duration"] ?? 15 ); echo PHP_EOL;'`,
         { timeout: 15_000 }
     );
 
@@ -562,12 +467,10 @@ async function getWpSudoSessionDuration(): Promise<number> {
  * Set the sudo session duration directly in wp-env for settings-form replay tests.
  */
 async function setWpSudoSessionDuration( minutes: number ): Promise<void> {
-    await withCliPolicyUnrestricted( async () => {
-        await execAsync(
-            `${ WP_ENV_RUN_CLI } wp eval '$settings = get_option( "${ 'wp_sudo_settings' }", array() ); if ( ! is_array( $settings ) ) { $settings = array(); } $settings["session_duration"] = ${ minutes }; update_option( "${ 'wp_sudo_settings' }", $settings );'`,
-            { timeout: 15_000 }
-        );
-    } );
+    await execAsync(
+        `${ WP_ENV_RUN_WP_SKIP_PLUGINS } eval '$settings = get_option( "${ 'wp_sudo_settings' }", array() ); if ( ! is_array( $settings ) ) { $settings = array(); } $settings["session_duration"] = ${ minutes }; update_option( "${ 'wp_sudo_settings' }", $settings );'`,
+        { timeout: 15_000 }
+    );
 }
 
 test.describe( 'Challenge flow', () => {
