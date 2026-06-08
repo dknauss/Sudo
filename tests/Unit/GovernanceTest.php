@@ -22,6 +22,68 @@ use WP_Sudo\Tests\TestCase;
 class GovernanceTest extends TestCase {
 
 	// ----------------------------------------------------------------
+	// wp_sudo_map_governance_meta_cap()
+	// ----------------------------------------------------------------
+
+	public function test_map_governance_meta_cap_leaves_unrelated_caps_unchanged(): void {
+		$this->assertSame(
+			array( 'edit_posts' ),
+			wp_sudo_map_governance_meta_cap( array( 'edit_posts' ), 'edit_posts', 42 )
+		);
+	}
+
+	public function test_map_governance_meta_cap_strict_mode_maps_to_requested_cap(): void {
+		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( false );
+		Functions\when( 'get_option' )->justReturn( 'strict' );
+
+		$this->assertSame(
+			array( 'manage_wp_sudo' ),
+			wp_sudo_map_governance_meta_cap( array( 'do_not_allow' ), 'manage_wp_sudo', 42 )
+		);
+	}
+
+	public function test_map_governance_meta_cap_compatibility_single_site_maps_to_manage_options(): void {
+		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( false );
+		Functions\when( 'get_option' )->justReturn( 'compatibility' );
+		Functions\when( 'is_multisite' )->justReturn( false );
+
+		$this->assertSame(
+			array( 'manage_options' ),
+			wp_sudo_map_governance_meta_cap( array(), 'manage_wp_sudo', 42 )
+		);
+	}
+
+	public function test_map_governance_meta_cap_compatibility_multisite_maps_to_manage_network_options(): void {
+		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( false );
+		Functions\when( 'get_option' )->justReturn( 'compatibility' );
+		Functions\when( 'is_multisite' )->justReturn( true );
+
+		$this->assertSame(
+			array( 'manage_network_options' ),
+			wp_sudo_map_governance_meta_cap( array(), 'view_wp_sudo_activity', 42 )
+		);
+	}
+
+	public function test_map_governance_meta_cap_recovery_mode_grants_manage_wp_sudo_to_current_user(): void {
+		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( true );
+
+		$this->assertSame(
+			array( 'exist' ),
+			wp_sudo_map_governance_meta_cap( array( 'do_not_allow' ), 'manage_wp_sudo', 0 )
+		);
+	}
+
+	public function test_map_governance_meta_cap_recovery_mode_does_not_grant_other_caps(): void {
+		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( true );
+		Functions\when( 'get_option' )->justReturn( 'strict' );
+
+		$this->assertSame(
+			array( 'view_wp_sudo_activity' ),
+			wp_sudo_map_governance_meta_cap( array( 'do_not_allow' ), 'view_wp_sudo_activity', 0 )
+		);
+	}
+
+	// ----------------------------------------------------------------
 	// sudo_can() — strict mode (default)
 	// ----------------------------------------------------------------
 

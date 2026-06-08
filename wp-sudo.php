@@ -24,6 +24,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 require_once __DIR__ . '/includes/class-bootstrap.php';
 require_once __DIR__ . '/includes/functions-governance.php';
 
+add_filter( 'map_meta_cap', 'wp_sudo_map_governance_meta_cap', 10, 4 );
+
 // Plugin version.
 define( 'WP_SUDO_VERSION', '3.1.3' );
 

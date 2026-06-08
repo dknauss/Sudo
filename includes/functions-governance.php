@@ -78,6 +78,49 @@ function sudo_can( string $cap, ?int $user_id = null ): bool {
 }
 
 /**
+ * Map WP Sudo governance meta capabilities into WordPress primitive caps.
+ *
+ * WordPress checks menu-page capabilities before page callbacks run, so
+ * UI surfaces registered with `manage_wp_sudo` must be understood by core's
+ * capability system as well as by sudo_can().
+ *
+ * @since 3.2.0
+ *
+ * @param array<string> $caps    Primitive caps WordPress already mapped.
+ * @param string        $cap     Requested capability.
+ * @param int           $user_id User being checked.
+ * @param array<mixed>  $args    Additional map_meta_cap arguments.
+ * @return array<string>
+ */
+function wp_sudo_map_governance_meta_cap( array $caps, string $cap, int $user_id, array $args = array() ): array {
+	unset( $args );
+
+	$governance_caps = array(
+		'manage_wp_sudo',
+		'view_wp_sudo_activity',
+		'export_wp_sudo_activity',
+		'revoke_wp_sudo_sessions',
+	);
+
+	if ( ! in_array( $cap, $governance_caps, true ) ) {
+		return $caps;
+	}
+
+	if ( 'manage_wp_sudo' === $cap
+		&& wp_sudo_is_recovery_mode()
+		&& get_current_user_id() === $user_id
+	) {
+		return array( 'exist' );
+	}
+
+	if ( 'compatibility' === get_option( 'wp_sudo_governance_mode', 'strict' ) ) {
+		return array( is_multisite() ? 'manage_network_options' : 'manage_options' );
+	}
+
+	return array( $cap );
+}
+
+/**
  * Whether WP Sudo break-glass recovery mode is currently active.
  *
  * Implemented as a standalone function so unit tests can stub it with
