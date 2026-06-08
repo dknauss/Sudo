@@ -356,8 +356,28 @@ class ActionRegistryTest extends TestCase {
 		$this->assertContains( 'siteurl', $options );
 		$this->assertContains( 'home', $options );
 		$this->assertContains( 'admin_email', $options );
+		$this->assertContains( 'new_admin_email', $options );
 		$this->assertContains( 'default_role', $options );
 		$this->assertContains( 'users_can_register', $options );
+	}
+
+	/**
+	 * Test options.critical gates the pending admin email field used by General Settings.
+	 */
+	public function test_options_critical_callback_matches_pending_admin_email_change(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		$rule = Action_Registry::find( 'options.critical' );
+
+		$this->assertNotNull( $rule );
+		$this->assertNotNull( $rule['admin']['callback'] );
+
+		$_POST['new_admin_email'] = 'new-owner@example.test';
+
+		$this->assertTrue( call_user_func( $rule['admin']['callback'] ) );
+
+		unset( $_POST['new_admin_email'] );
 	}
 
 	// -----------------------------------------------------------------

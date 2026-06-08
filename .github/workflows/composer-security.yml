@@ -1,0 +1,40 @@
+name: Composer Security
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - composer.json
+      - composer.lock
+      - .github/workflows/composer-security.yml
+  pull_request:
+    branches: [main]
+    paths:
+      - composer.json
+      - composer.lock
+      - .github/workflows/composer-security.yml
+  schedule:
+    - cron: '43 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  composer-audit:
+    name: Composer Audit
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: composer:v2
+          coverage: none
+
+      - name: Audit locked Composer dependencies
+        run: composer audit --locked --no-interaction

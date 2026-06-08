@@ -47,7 +47,7 @@ class CLI_Command {
 		if ( $remaining > 0 ) {
 			\WP_CLI::success(
 				sprintf(
-					'Sudo session is active for user %d (%d seconds remaining).',
+					'Sudo session expiry is in the future for user %d (%d seconds remaining); token binding cannot be verified from WP-CLI.',
 					$user_id,
 					$remaining
 				)

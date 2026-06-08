@@ -376,7 +376,7 @@ class DashboardWidgetTest extends TestCase {
 	 *
 	 * @return void
 	 */
-	private function setUpRenderStubs(): void {
+	private function setUpRenderStubs( bool $stub_json_encode = true ): void {
 		Functions\when( 'esc_html__' )->returnArg( 1 );
 		Functions\when( 'esc_attr__' )->returnArg( 1 );
 		Functions\when( 'esc_html' )->returnArg( 1 );
@@ -390,6 +390,9 @@ class DashboardWidgetTest extends TestCase {
 		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
 		Functions\when( 'get_avatar' )->justReturn( '<img src="avatar.jpg" />' );
 		Functions\when( 'get_role' )->justReturn( null );
+		if ( $stub_json_encode ) {
+			Functions\when( 'wp_json_encode' )->alias( 'json_encode' );
+		}
 		$this->setUpFakeWpdb(); // Includes transient stubs (cache miss by default).
 	}
 
@@ -545,6 +548,64 @@ class DashboardWidgetTest extends TestCase {
 		$this->assertStringContainsString( 'editor', $output );
 		$this->assertStringNotContainsString( 'wp-sudo-active-count', $output );
 		$this->assertStringNotContainsString( '2 active sessions', $output );
+
+		$this->restoreWpdb();
+	}
+
+	/**
+	 * Test active-session usernames are not linked when edit_user is denied.
+	 *
+	 * @return void
+	 */
+	public function testActiveSessionsRenderPlainUsernameWhenEditUserDenied(): void {
+		$user             = new \WP_User( 7, [ 'administrator' ] );
+		$user->ID         = 7;
+		$user->user_login = 'restricted-admin';
+
+		$this->setUpRenderStubs();
+		\WP_User_Query::$mock_total   = 1;
+		\WP_User_Query::$mock_results = [ $user ];
+		Functions\when( 'get_user_meta' )->justReturn( time() + 300 );
+		Functions\when( 'human_time_diff' )->justReturn( '5 mins' );
+		Functions\when( 'get_option' )->justReturn( [] );
+		Functions\when( 'current_user_can' )->alias(
+			static function ( string $capability, $user_id = null ): bool {
+				if ( 'edit_user' === $capability && 7 === (int) $user_id ) {
+					return false;
+				}
+
+				return true;
+			}
+		);
+
+		ob_start();
+		Dashboard_Widget::render();
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( '<span class="wp-sudo-username">restricted-admin</span>', $output );
+		$this->assertStringNotContainsString( 'href="user-edit.php?user_id=7"', $output );
+
+		$this->restoreWpdb();
+	}
+
+	/**
+	 * Test inline widget i18n JSON is encoded with explicit HTML-safe flags.
+	 *
+	 * @return void
+	 */
+	public function testInlineWidgetJsonUsesHexEncodingFlags(): void {
+		$this->setUpRenderStubs( false );
+		\WP_User_Query::$mock_total   = 0;
+		\WP_User_Query::$mock_results = [];
+		Functions\when( 'get_option' )->justReturn( [] );
+		Functions\expect( 'wp_json_encode' )
+			->once()
+			->with( \Mockery::type( 'array' ), JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT )
+			->andReturn( '{}' );
+
+		ob_start();
+		Dashboard_Widget::render();
+		ob_end_clean();
 
 		$this->restoreWpdb();
 	}

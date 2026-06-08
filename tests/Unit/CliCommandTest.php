@@ -39,6 +39,9 @@ class CliCommandTest extends TestCase {
 
 		$this->assertSame( 'success', \WP_CLI::$messages[0]['type'] ?? null );
 		$this->assertStringContainsString( 'user 7', \WP_CLI::$messages[0]['message'] ?? '' );
+		$this->assertStringContainsString( 'expiry is in the future', \WP_CLI::$messages[0]['message'] ?? '' );
+		$this->assertStringContainsString( 'token binding cannot be verified from WP-CLI', \WP_CLI::$messages[0]['message'] ?? '' );
+		$this->assertStringNotContainsString( 'is active', \WP_CLI::$messages[0]['message'] ?? '' );
 	}
 
 	public function test_status_reports_missing_session_for_current_user(): void {

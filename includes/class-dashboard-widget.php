@@ -201,14 +201,20 @@ class Dashboard_Widget {
 				)
 			);
 
-			$edit_url = esc_url( admin_url( 'user-edit.php?user_id=' . (int) $user_id ) );
+			$edit_url = current_user_can( 'edit_user', $user_id )
+				? esc_url( admin_url( 'user-edit.php?user_id=' . (int) $user_id ) )
+				: '';
 
 			echo '<li class="wp-sudo-user-row">';
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- get_avatar is trusted WP function.
 			echo '<div class="wp-sudo-user-gravatar">' . $avatar . '</div>';
 			echo '<div class="wp-sudo-user-info">';
 			echo '<div class="wp-sudo-user-primary">';
-			echo '<a href="' . esc_url( $edit_url ) . '" class="wp-sudo-username">' . esc_html( $user_login ) . '</a>';
+			if ( '' !== $edit_url ) {
+				echo '<a href="' . esc_url( $edit_url ) . '" class="wp-sudo-username">' . esc_html( $user_login ) . '</a>';
+			} else {
+				echo '<span class="wp-sudo-username">' . esc_html( $user_login ) . '</span>';
+			}
 			if ( $role ) {
 				echo '<span class="wp-sudo-user-role">' . esc_html( $role ) . '</span>';
 			}
@@ -893,7 +899,7 @@ class Dashboard_Widget {
 			'ascending'        => __( 'ascending', 'wp-sudo' ),
 			'descending'       => __( 'descending', 'wp-sudo' ),
 		);
-		$widget_i18n_json = wp_json_encode( $widget_i18n );
+		$widget_i18n_json = wp_json_encode( $widget_i18n, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT );
 		if ( ! is_string( $widget_i18n_json ) ) {
 			$widget_i18n_json = '{}';
 		}

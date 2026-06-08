@@ -966,6 +966,7 @@ class Action_Registry {
 				'siteurl',
 				'home',
 				'admin_email',
+				'new_admin_email',
 				'default_role',
 				'users_can_register',
 			)
