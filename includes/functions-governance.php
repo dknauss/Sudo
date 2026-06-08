@@ -44,7 +44,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  *    - `strict`        (default) — delegates to user_can($user_id, $cap).
  *    - `compatibility` (opt-in)  — delegates to manage_options / manage_network_options.
  *
- * @since 3.2.0
+ * @since 3.1.0
  *
  * @param string   $cap     Governance capability slug. One of:
  *                          'manage_wp_sudo', 'view_wp_sudo_activity',
@@ -84,7 +84,7 @@ function sudo_can( string $cap, ?int $user_id = null ): bool {
  * UI surfaces registered with `manage_wp_sudo` must be understood by core's
  * capability system as well as by sudo_can().
  *
- * @since 3.2.0
+ * @since 3.1.0
  *
  * @param array<string> $caps    Primitive caps WordPress already mapped.
  * @param string        $cap     Requested capability.
@@ -96,6 +96,8 @@ function wp_sudo_map_governance_meta_cap( array $caps, string $cap, int $user_id
 	unset( $args );
 
 	$governance_caps = array(
+		// TODO: Keep this in sync with Admin::GOVERNANCE_CAPS until the shared
+		// cap list can move to a bootstrap-safe constant or helper.
 		'manage_wp_sudo',
 		'view_wp_sudo_activity',
 		'export_wp_sudo_activity',
@@ -133,7 +135,7 @@ function wp_sudo_map_governance_meta_cap( array $caps, string $cap, int $user_id
  * the "last manager locked out" scenario. Leaving it enabled permanently
  * effectively bypasses the governance capability model.
  *
- * @since 3.2.0
+ * @since 3.1.0
  *
  * @return bool
  */
