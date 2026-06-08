@@ -25,18 +25,7 @@ This file is the canonical source for **current release state** in this reposito
 
 ## Latest release contents
 
-`3.1.3` includes the post-`v3.1.2` Playground release-link fixes that landed on `main`:
-
-- Stable release Playground links use the tagged raw Blueprint and install the tag ZIP through `pluginData`.
-- Current `main` Playground links use `blueprint-main.json` and install the main branch ZIP.
-- Pull request Playground previews continue to use the checked-in Blueprint but pin the plugin install to the PR commit.
-- Demo admin password seeding uses WordPress core's `wp_set_password()` API instead of a direct `$wpdb->users` update.
-
-Canonical source for post-tag drift after `3.1.3`: `git log v3.1.3..main --oneline`
-
-## Unreleased `main` work
-
-Current `main` contains security hardening beyond `3.1.3`, including:
+`3.2.0` includes the post-`v3.1.3` security hardening and release-readiness work that landed on `main`:
 
 - fine-grained Sudo governance capabilities and Access-tab management
 - WPGraphQL classifier hardening and GET/form/multipart coverage
@@ -50,6 +39,13 @@ Current `main` contains security hardening beyond `3.1.3`, including:
 - request-stash minimization, suffix-based secret redaction, and replay allowlists
 - Site Health visibility for missing built-in gated action rules
 - uninstall defense-in-depth that preserves WP-CLI uninstall behavior
+- stable and `main` Playground links with CORS-safe raw Blueprint URLs
+
+Canonical source for post-tag drift after `3.2.0`: `git log v3.2.0..main --oneline`
+
+## Unreleased `main` work
+
+No post-`v3.2.0` development work is currently expected on `main` after the release tag is moved to the final green release commit.
 
 ## WordPress release posture
 

@@ -109,7 +109,7 @@ design hardening opportunities that should interrupt lower-priority feature work
   patch if validated.
 - ~~**Surface hardening:** WPGraphQL Limited mode should decode request payloads
   before fallback classification and fail closed for unknown persisted operations.~~
-  Shipped in unreleased hardening: JSON bodies, GET/form `query` params,
+  Shipped in v3.2.0: JSON bodies, GET/form `query` params,
   multipart `operations`, batched payloads, parser edge cases, and
   persisted-operation fail-safe are covered by unit tests.
 - **Data minimization follow-up:** Request stash redaction is exact-key based; add
@@ -168,11 +168,11 @@ and acceptance criteria.
 This is a living document covering accumulated input and thinking about the strategic
 challenges and priorities for WP Sudo. 
 
-Current project state (as of June 7, 2026):
-- **v3.1.3 is the latest tagged release** — post-v3.0.0 security hardening, audit bridge parity, PHP 8.0 test compatibility, npm dependency security cleanup, and Playground release-link fixes have shipped. `main` is now in the v3.2.0 planning lane.
+Current project state (as of June 8, 2026):
+- **v3.2.0 is the latest tagged release** — governance capabilities, WPGraphQL classifier hardening, REST/plugin-rule hardening, request-stash minimization, lockout/2FA hardening, uninstall defense-in-depth, and release Playground fixes have shipped. `main` is now in the v3.3.0 planning lane.
 - Current test and size counts are centralized in [`docs/current-metrics.md`](current-metrics.md).
-- CI pipeline: unit tests on PHP 8.0–8.4; integration tests on PHP 8.0/8.1/8.3; WordPress 6.2, 6.7, and 7.0-RC1; single-site + multisite; MySQL 8.0 plus one MariaDB lane; PCOV coverage job; 60 Playwright E2E tests
-- WordPress 7.0 RC1 signoff recorded (March 24, 2026); the scheduled April 9 final was delayed on March 31, 2026, and the official Make/Core schedule still plans final release for May 20, 2026. See `docs/release-status.md`.
+- CI pipeline: unit tests on PHP 8.0–8.4; integration tests on PHP 8.0/8.1/8.3; WordPress 6.2, 6.7, and 7.0; single-site + multisite; MySQL 8.0 plus one MariaDB lane; PCOV coverage job; 61 Playwright E2E tests
+- WordPress 7.0 GA shipped on May 20, 2026, and the forward lane is now pinned to the final 7.0 release. See `docs/release-status.md`.
 
 ---
 
@@ -548,7 +548,7 @@ Local by Flywheel sites. Gaps remain in CI and broader hosting diversity.
 | **Web server** | Apache + MariaDB (`wp-env` Playwright CI), nginx + php-fpm + MariaDB (stack-smoke CI), nginx + SQLite (Studio local), nginx/Apache + MySQL (Local manual) | full browser suite still runs only on the default Apache stack |
 | **PHP version** | 8.0–8.4 (unit CI), 8.0/8.1/8.3 (integration CI), 8.2 (Studio/wp-env local) | 8.2 and 8.4 are still missing from integration CI |
 | **Database** | MySQL 8.0 (integration CI), MariaDB LTS (`wp-env` CI + one integration lane + WP 6.4 / 6.5 compat-sweep lanes), SQLite (Playground stack-smoke CI + Studio local) | broader MariaDB/version overlap, MySQL 5.7 legacy hosts |
-| **WordPress version** | 6.2 support-floor lane, 6.3–6.6 scheduled compat sweep, 6.7 stable lane, 7.0-RC1 forward lane | 6.3–6.6 are not part of required push/PR CI yet |
+| **WordPress version** | 6.2 support-floor lane, 6.3–6.6 scheduled compat sweep, 6.7 stable lane, 7.0 forward lane | 6.3–6.6 are not part of required push/PR CI yet |
 | **OS** | macOS (dev), Ubuntu 24.04 (CI) | Windows (if any WP-CLI or path handling is OS-sensitive) |
 | **Hosting stack** | Bare local dev | Shared hosting (cPanel), managed WP (Pressable, WP Engine, Cloudways), containerized (Docker, Kubernetes) |
 
@@ -566,13 +566,13 @@ Local by Flywheel sites. Gaps remain in CI and broader hosting diversity.
   The upgrader migration chain and option serialization could behave differently.
 - **Backward compat:** The plugin declares WordPress 6.2+ minimum. CI now includes
   a dedicated 6.2 floor lane, a scheduled 6.3–6.6 compatibility sweep, plus 6.7
-  and 7.0-RC1 lanes.
+  and 7.0 lanes.
 
 ### Recommended approach
 
 **Phase A: Expand CI matrix** ✅ Done v2.9.2, extended in v2.14.x
 
-CI matrix now covers PHP 8.0–8.4 for unit tests, a 6.2 support-floor integration lane on PHP 8.0, stable/forward integration lanes on PHP 8.1 and 8.3 for WordPress 6.7 and 7.0-RC1, one dedicated MariaDB lane, and a scheduled WordPress 6.3–6.6 compatibility sweep on PHP 8.1 with additional WordPress 6.4 and 6.5 MariaDB overlap lanes.
+CI matrix now covers PHP 8.0–8.4 for unit tests, a 6.2 support-floor integration lane on PHP 8.0, stable/forward integration lanes on PHP 8.1 and 8.3 for WordPress 6.7 and 7.0, one dedicated MariaDB lane, and a scheduled WordPress 6.3–6.6 compatibility sweep on PHP 8.1 with additional WordPress 6.4 and 6.5 MariaDB overlap lanes.
 
 **Phase B: Apache + MariaDB CI job** ✅ Covered by Playwright `wp-env`
 
@@ -615,7 +615,7 @@ As of 2026-03-23, the practical testing picture is:
 Specifically, the repo now has:
 - unit CI on PHP `8.0`–`8.4`
 - integration CI on PHP `8.0`/`8.1`/`8.3`
-- automated WordPress lanes for `6.2`, `6.7`, and `7.0-RC1`
+- automated WordPress lanes for `6.2`, `6.7`, and `7.0`
 - a scheduled WordPress `6.3`–`6.6` compatibility sweep
 - one MariaDB integration lane in addition to the main MySQL `8.0` matrix, plus WordPress `6.4` and `6.5` MariaDB overlap lanes in the scheduled sweep
 - Playwright E2E on Apache + MariaDB via `wp-env`
@@ -1512,7 +1512,7 @@ should shape the next phases.
 - Persisted query/APQ requests can also omit the operation text unless a site
   supplies a classifier through `wp_sudo_wpgraphql_classification`.
 
-**Fix (shipped in unreleased hardening):**
+**Fix (shipped in v3.2.0):**
 - Decode JSON bodies, GET/form `query` params, and multipart `operations`
   GraphQL request payloads before fallback classification.
 - Handle batched GraphQL payloads conservatively: any decoded mutation should
