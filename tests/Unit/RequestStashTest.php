@@ -39,6 +39,25 @@ class RequestStashTest extends TestCase {
 	}
 
 	/**
+	 * Build a rule with POST replay allowlist metadata.
+	 *
+	 * @param string   $id          Rule ID.
+	 * @param string   $label       Rule label.
+	 * @param string[] $post_fields Allowed top-level POST fields.
+	 * @return array<string, mixed>
+	 */
+	private function rule_with_post_fields( string $id, string $label, array $post_fields ): array {
+		return array(
+			'id'    => $id,
+			'label' => $label,
+			'stash' => array(
+				'post_mode'   => 'allowlist',
+				'post_fields' => $post_fields,
+			),
+		);
+	}
+
+	/**
 	 * Test save() stores data and returns a key.
 	 */
 	public function test_save_returns_key(): void {
@@ -140,15 +159,16 @@ class RequestStashTest extends TestCase {
 				}
 			);
 
-		$this->stash->save( 42, array( 'id' => 'plugin.activate', 'label' => 'Activate plugin' ) );
+		$this->stash->save( 42, $this->rule_with_post_fields( 'plugin.activate', 'Activate plugin', array( 'plugin' ) ) );
 
 		$this->assertSame( 42, $stored_data['user_id'] );
 		$this->assertSame( 'plugin.activate', $stored_data['rule_id'] );
 		$this->assertSame( 'Activate plugin', $stored_data['label'] );
 		$this->assertSame( 'POST', $stored_data['method'] );
 		$this->assertSame( 'http://example.com/wp-admin/plugins.php', $stored_data['url'] );
-		$this->assertArrayHasKey( 'action', $stored_data['get'] );
+		$this->assertArrayNotHasKey( 'get', $stored_data );
 		$this->assertArrayHasKey( 'plugin', $stored_data['post'] );
+		$this->assertFalse( $stored_data['post_replay_blocked'] );
 		$this->assertIsInt( $stored_data['created'] );
 
 		unset(
@@ -158,6 +178,48 @@ class RequestStashTest extends TestCase {
 			$_GET['action'],
 			$_POST['plugin']
 		);
+	}
+
+	/**
+	 * Test save() does not store GET params separately from the original URL.
+	 */
+	public function test_save_does_not_store_get_params(): void {
+		$this->stub_stash_index_meta_io();
+
+		$_SERVER['REQUEST_METHOD'] = 'POST';
+		$_SERVER['HTTP_HOST']      = 'example.com';
+		$_SERVER['REQUEST_URI']    = '/wp-admin/user-new.php?action=createuser';
+		$_GET                      = array( 'action' => 'createuser' );
+		$_POST                     = array(
+			'user_login' => 'newuser',
+			'_wpnonce'   => 'abc123',
+		);
+
+		Functions\expect( 'wp_generate_password' )->once()->andReturn( 'getdroptest1234' );
+		Functions\expect( 'is_ssl' )->once()->andReturn( false );
+		Functions\when( 'esc_url_raw' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		$stored_data = null;
+		Functions\expect( 'set_transient' )
+			->once()
+			->andReturnUsing(
+				function ( $name, $data ) use ( &$stored_data ) {
+					$stored_data = $data;
+					return true;
+				}
+			);
+
+		$this->stash->save( 1, $this->rule_with_post_fields( 'user.create', 'Create user', array( 'user_login', '_wpnonce' ) ) );
+
+		$this->assertArrayNotHasKey( 'get', $stored_data, 'GET params must not be stored in the stash.' );
+		$this->assertArrayHasKey( 'post', $stored_data );
+		$this->assertArrayHasKey( 'url', $stored_data, 'Full URL with query string remains the replay target.' );
+		$this->assertSame( 'http://example.com/wp-admin/user-new.php?action=createuser', $stored_data['url'] );
+
+		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'] );
+		$_GET  = array();
+		$_POST = array();
 	}
 
 	/**
@@ -437,7 +499,7 @@ class RequestStashTest extends TestCase {
 				}
 			);
 
-		$this->stash->save( 1, array( 'id' => 'user.create', 'label' => 'Create user' ) );
+		$this->stash->save( 1, $this->rule_with_post_fields( 'user.create', 'Create user', array( 'user_login', 'pass1', 'pass2', 'user_pass', 'token', '_wpnonce' ) ) );
 
 		$this->assertArrayHasKey( 'user_login', $stored_data['post'], 'user_login must survive redaction' );
 		$this->assertArrayHasKey( '_wpnonce', $stored_data['post'], '_wpnonce must survive redaction' );
@@ -446,6 +508,7 @@ class RequestStashTest extends TestCase {
 		$this->assertArrayNotHasKey( 'user_pass', $stored_data['post'], 'user_pass must be omitted' );
 		$this->assertArrayNotHasKey( 'token', $stored_data['post'], 'token must be omitted' );
 		$this->assertTrue( $stored_data['redacted_fields_omitted'], 'Stash must record that sensitive fields were omitted' );
+		$this->assertTrue( $stored_data['post_replay_blocked'], 'POST replay must be blocked when secrets were omitted' );
 
 		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'] );
 		$_POST = array();
@@ -480,9 +543,10 @@ class RequestStashTest extends TestCase {
 				}
 			);
 
-		$this->stash->save( 1, array( 'id' => 'options.critical', 'label' => 'Change site setting' ) );
+		$this->stash->save( 1, $this->rule_with_post_fields( 'options.critical', 'Change site setting', array( 'blogname', '_wpnonce' ) ) );
 
 		$this->assertFalse( $stored_data['redacted_fields_omitted'] );
+		$this->assertFalse( $stored_data['post_replay_blocked'] );
 
 		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'] );
 		$_POST = array();
@@ -519,7 +583,7 @@ class RequestStashTest extends TestCase {
 				}
 			);
 
-		$this->stash->save( 1, array( 'id' => 'user.change_password', 'label' => 'Change password' ) );
+		$this->stash->save( 1, $this->rule_with_post_fields( 'user.change_password', 'Change password', array( 'PASS1', 'Password', 'USER_PASS', 'email' ) ) );
 
 		$this->assertArrayNotHasKey( 'PASS1', $stored_data['post'], 'PASS1 (uppercase) must be omitted' );
 		$this->assertArrayNotHasKey( 'Password', $stored_data['post'], 'Password (mixed case) must be omitted' );
@@ -562,7 +626,7 @@ class RequestStashTest extends TestCase {
 				}
 			);
 
-		$this->stash->save( 1, array( 'id' => 'user.change_password', 'label' => 'Change password' ) );
+		$this->stash->save( 1, $this->rule_with_post_fields( 'user.change_password', 'Change password', array( 'user', 'normal_field' ) ) );
 
 		$this->assertArrayHasKey( 'user', $stored_data['post'] );
 		$this->assertArrayHasKey( 'name', $stored_data['post']['user'], 'Non-sensitive nested key must survive' );
@@ -593,7 +657,7 @@ class RequestStashTest extends TestCase {
 
 		// apply_filters returns the default list PLUS a custom key.
 		Functions\expect( 'apply_filters' )
-			->twice()
+			->once()
 			->with( 'wp_sudo_sensitive_stash_keys', \Mockery::type( 'array' ) )
 			->andReturnUsing(
 				function ( $tag, $keys ) {
@@ -612,10 +676,141 @@ class RequestStashTest extends TestCase {
 				}
 			);
 
-		$this->stash->save( 1, array( 'id' => 'options.general', 'label' => 'Save options' ) );
+		$this->stash->save( 1, $this->rule_with_post_fields( 'options.general', 'Save options', array( 'my_custom_secret', 'normal_field' ) ) );
 
 		$this->assertArrayNotHasKey( 'my_custom_secret', $stored_data['post'], 'Custom secret added via filter must be omitted' );
 		$this->assertArrayHasKey( 'normal_field', $stored_data['post'], 'Normal field must survive' );
+
+		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'] );
+		$_POST = array();
+	}
+
+	/**
+	 * Test compound secret field names are omitted by high-signal suffix.
+	 */
+	public function test_compound_secret_suffixes_are_omitted(): void {
+		$this->stub_stash_index_meta_io();
+
+		$_SERVER['REQUEST_METHOD'] = 'POST';
+		$_SERVER['HTTP_HOST']      = 'example.com';
+		$_SERVER['REQUEST_URI']    = '/wp-admin/options.php';
+		$_POST                     = array(
+			'connectors_openai_api_key' => 'sk-test',
+			'stripe_secret_key'         => 'stripe-secret',
+			'smtpPassword'              => 'smtp-secret',
+			'mailgun-api-key'           => 'mailgun-secret',
+			'oauth_access_token'        => 'access-secret',
+			'display_name'              => 'Visible Name',
+		);
+
+		Functions\expect( 'wp_generate_password' )->once()->andReturn( 'suffixtest12345' );
+		Functions\expect( 'is_ssl' )->once()->andReturn( false );
+		Functions\when( 'esc_url_raw' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		$stored_data = null;
+		Functions\expect( 'set_transient' )
+			->once()
+			->andReturnUsing(
+				function ( $name, $data ) use ( &$stored_data ) {
+					$stored_data = $data;
+					return true;
+				}
+			);
+
+		$this->stash->save(
+			1,
+			$this->rule_with_post_fields(
+				'options.credentials',
+				'Update credentials',
+				array( 'connectors_openai_api_key', 'stripe_secret_key', 'smtpPassword', 'mailgun-api-key', 'oauth_access_token', 'display_name' )
+			)
+		);
+
+		$this->assertArrayNotHasKey( 'connectors_openai_api_key', $stored_data['post'] );
+		$this->assertArrayNotHasKey( 'stripe_secret_key', $stored_data['post'] );
+		$this->assertArrayNotHasKey( 'smtpPassword', $stored_data['post'] );
+		$this->assertArrayNotHasKey( 'mailgun-api-key', $stored_data['post'] );
+		$this->assertArrayNotHasKey( 'oauth_access_token', $stored_data['post'] );
+		$this->assertArrayHasKey( 'display_name', $stored_data['post'] );
+		$this->assertTrue( $stored_data['redacted_fields_omitted'] );
+		$this->assertTrue( $stored_data['post_replay_blocked'] );
+
+		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'] );
+		$_POST = array();
+	}
+
+	/**
+	 * Test POST fields outside the rule allowlist are not stashed.
+	 */
+	public function test_save_stores_only_rule_allowlisted_post_fields(): void {
+		$this->stub_stash_index_meta_io();
+
+		$_SERVER['REQUEST_METHOD'] = 'POST';
+		$_SERVER['HTTP_HOST']      = 'example.com';
+		$_SERVER['REQUEST_URI']    = '/wp-admin/options.php';
+		$_POST                     = array(
+			'option_page' => 'wp-sudo-settings',
+			'action'      => 'update',
+			'_wpnonce'    => 'abc123',
+			'unexpected'  => 'must-not-store',
+		);
+
+		Functions\expect( 'wp_generate_password' )->once()->andReturn( 'allowlist123456' );
+		Functions\expect( 'is_ssl' )->once()->andReturn( false );
+		Functions\when( 'esc_url_raw' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		$stored_data = null;
+		Functions\expect( 'set_transient' )
+			->once()
+			->andReturnUsing(
+				function ( $name, $data ) use ( &$stored_data ) {
+					$stored_data = $data;
+					return true;
+				}
+			);
+
+		$this->stash->save( 1, $this->rule_with_post_fields( 'options.wp_sudo', 'Change Sudo settings', array( 'option_page', 'action', '_wpnonce' ) ) );
+
+		$this->assertSame( 'wp-sudo-settings', $stored_data['post']['option_page'] );
+		$this->assertArrayNotHasKey( 'unexpected', $stored_data['post'] );
+		$this->assertFalse( $stored_data['post_replay_blocked'] );
+
+		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'] );
+		$_POST = array();
+	}
+
+	/**
+	 * Test POST rules without an allowlist are not replayed.
+	 */
+	public function test_save_blocks_post_replay_without_allowlist(): void {
+		$this->stub_stash_index_meta_io();
+
+		$_SERVER['REQUEST_METHOD'] = 'POST';
+		$_SERVER['HTTP_HOST']      = 'example.com';
+		$_SERVER['REQUEST_URI']    = '/wp-admin/admin.php';
+		$_POST                     = array( 'arbitrary' => 'value' );
+
+		Functions\expect( 'wp_generate_password' )->once()->andReturn( 'noallowlist1234' );
+		Functions\expect( 'is_ssl' )->once()->andReturn( false );
+		Functions\when( 'esc_url_raw' )->returnArg();
+
+		$stored_data = null;
+		Functions\expect( 'set_transient' )
+			->once()
+			->andReturnUsing(
+				function ( $name, $data ) use ( &$stored_data ) {
+					$stored_data = $data;
+					return true;
+				}
+			);
+
+		$this->stash->save( 1, array( 'id' => 'custom.unsafe', 'label' => 'Custom unsafe action' ) );
+
+		$this->assertSame( array(), $stored_data['post'] );
+		$this->assertTrue( $stored_data['post_replay_blocked'] );
+		$this->assertSame( Request_Stash::REPLAY_BLOCKED_NO_ALLOWLIST, $stored_data['post_replay_block_reason'] );
 
 		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'] );
 		$_POST = array();

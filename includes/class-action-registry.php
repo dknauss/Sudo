@@ -53,6 +53,20 @@ class Action_Registry {
 	private static ?array $cached_builtin_ids = null;
 
 	/**
+	 * Default WordPress form fields that are replay-safe when paired with a rule allowlist.
+	 *
+	 * @var string[]
+	 */
+	private const DEFAULT_REPLAY_POST_FIELDS = array(
+		'_wpnonce',
+		'_wp_http_referer',
+		'option_page',
+		'action',
+		'action2',
+		'submit',
+	);
+
+	/**
 	 * Built-in gated action rules.
 	 *
 	 * Each rule is an associative array with:
@@ -84,6 +98,7 @@ class Action_Registry {
 					'route'   => '#^/wp/v2/plugins/[^/]+(?:/[^/]+)?$#',
 					'methods' => array( 'PUT', 'PATCH' ),
 				),
+				'stash'    => self::stash_allowlist( array( 'plugin', 'checked', 'plugin_status', 'paged', 's' ) ),
 			),
 
 			array(
@@ -100,6 +115,7 @@ class Action_Registry {
 					'route'   => '#^/wp/v2/plugins/[^/]+(?:/[^/]+)?$#',
 					'methods' => array( 'PUT', 'PATCH' ),
 				),
+				'stash'    => self::stash_allowlist( array( 'plugin', 'checked', 'plugin_status', 'paged', 's' ) ),
 			),
 
 			array(
@@ -118,6 +134,7 @@ class Action_Registry {
 					'route'   => '#^/wp/v2/plugins/[^/]+(?:/[^/]+)?$#',
 					'methods' => array( 'DELETE' ),
 				),
+				'stash'    => self::stash_allowlist( array( 'checked', 'plugin_status', 'paged', 's' ) ),
 			),
 
 			array(
@@ -136,6 +153,7 @@ class Action_Registry {
 					'route'   => '#^/wp/v2/plugins$#',
 					'methods' => array( 'POST' ),
 				),
+				'stash'    => self::stash_allowlist( array( 'plugin' ) ),
 			),
 
 			array(
@@ -149,6 +167,7 @@ class Action_Registry {
 				),
 				'ajax'     => null,
 				'rest'     => null,
+				'stash'    => self::stash_no_replay(),
 			),
 
 			array(
@@ -164,6 +183,7 @@ class Action_Registry {
 					'actions' => array( 'update-plugin' ),
 				),
 				'rest'     => null,
+				'stash'    => self::stash_allowlist( array( 'plugin', 'checked', 'plugins', 'plugin_status', 'paged', 's' ) ),
 			),
 
 			// ── Themes ──────────────────────────────────────────────────
@@ -179,6 +199,7 @@ class Action_Registry {
 				),
 				'ajax'     => null,
 				'rest'     => null,
+				'stash'    => self::stash_allowlist( array( 'checked' ) ),
 			),
 
 			array(
@@ -194,6 +215,7 @@ class Action_Registry {
 					'actions' => array( 'delete-theme' ),
 				),
 				'rest'     => null,
+				'stash'    => self::stash_allowlist( array( 'stylesheet' ) ),
 			),
 
 			array(
@@ -209,6 +231,7 @@ class Action_Registry {
 					'actions' => array( 'install-theme' ),
 				),
 				'rest'     => null,
+				'stash'    => self::stash_allowlist( array( 'theme' ) ),
 			),
 
 			array(
@@ -222,6 +245,7 @@ class Action_Registry {
 				),
 				'ajax'     => null,
 				'rest'     => null,
+				'stash'    => self::stash_no_replay(),
 			),
 
 			array(
@@ -237,6 +261,7 @@ class Action_Registry {
 					'actions' => array( 'update-theme' ),
 				),
 				'rest'     => null,
+				'stash'    => self::stash_allowlist( array( 'theme', 'checked', 'themes' ) ),
 			),
 
 			// ── Users ───────────────────────────────────────────────────
@@ -255,6 +280,7 @@ class Action_Registry {
 					'route'   => '#^/wp/v2/users/\d+$#',
 					'methods' => array( 'DELETE' ),
 				),
+				'stash'    => self::stash_allowlist( array( 'users', 'delete_option', 'reassign_user' ) ),
 			),
 
 			array(
@@ -285,6 +311,7 @@ class Action_Registry {
 						return isset( $params['roles'] );
 					},
 				),
+				'stash'    => self::stash_allowlist( array( 'users', 'new_role', 'changeit' ) ),
 			),
 
 			array(
@@ -303,6 +330,7 @@ class Action_Registry {
 				),
 				'ajax'     => null,
 				'rest'     => null,
+				'stash'    => self::stash_allowlist( array( 'user_id', 'role' ) ),
 			),
 
 			array(
@@ -335,6 +363,7 @@ class Action_Registry {
 						return array_key_exists( 'password', $request->get_params() );
 					},
 				),
+				'stash'    => self::stash_allowlist( array( 'user_id', 'pass1', 'pass2', 'pass1-text', 'pw_weak' ) ),
 			),
 
 			array(
@@ -351,6 +380,7 @@ class Action_Registry {
 					'route'   => '#^/wp/v2/users$#',
 					'methods' => array( 'POST' ),
 				),
+				'stash'    => self::stash_allowlist( array( 'user_login', 'email', 'first_name', 'last_name', 'url', 'role', 'locale', 'send_user_notification', 'noconfirmation', 'pass1', 'pass2', 'pass1-text', 'pw_weak' ) ),
 			),
 
 			array(
@@ -372,6 +402,7 @@ class Action_Registry {
 					'route'   => '#^/wp/v2/users/(?:\d+|me)/application-passwords$#',
 					'methods' => array( 'POST' ),
 				),
+				'stash'    => self::stash_allowlist( array( 'approve', 'app_name', 'app_id', 'success_url', 'reject_url' ) ),
 			),
 
 			// ── File Editors ────────────────────────────────────────────
@@ -389,6 +420,7 @@ class Action_Registry {
 					'actions' => array( 'edit-theme-plugin-file' ),
 				),
 				'rest'     => null,
+				'stash'    => self::stash_no_replay(),
 			),
 
 			array(
@@ -404,6 +436,7 @@ class Action_Registry {
 					'actions' => array( 'edit-theme-plugin-file' ),
 				),
 				'rest'     => null,
+				'stash'    => self::stash_no_replay(),
 			),
 
 			// ── Critical Options ────────────────────────────────────────
@@ -442,6 +475,7 @@ class Action_Registry {
 						return false;
 					},
 				),
+				'stash'    => self::stash_allowlist( self::critical_option_names() ),
 			),
 
 			array(
@@ -477,6 +511,7 @@ class Action_Registry {
 					),
 					'ajax'     => null,
 					'rest'     => null,
+					'stash'    => self::stash_allowlist( array( Admin::OPTION_KEY ) ),
 				),
 
 			array(
@@ -495,6 +530,7 @@ class Action_Registry {
 				),
 				'ajax'     => array( 'actions' => array( 'wp_sudo_grant_cap', 'wp_sudo_revoke_cap', 'wp_sudo_revoke_session' ) ),
 				'rest'     => null,
+				'stash'    => self::stash_allowlist( array( Admin::OPTION_KEY ) ),
 			),
 
 			// ── Core Updates ────────────────────────────────────────────
@@ -510,6 +546,7 @@ class Action_Registry {
 				),
 				'ajax'     => null,
 				'rest'     => null,
+				'stash'    => self::stash_allowlist( array( 'version', 'locale' ) ),
 			),
 
 			// ── Tools ───────────────────────────────────────────────────
@@ -530,6 +567,7 @@ class Action_Registry {
 				),
 				'ajax'     => null,
 				'rest'     => null,
+				'stash'    => self::stash_allowlist( array( 'checked' ) ),
 			),
 		);
 
@@ -565,6 +603,7 @@ class Action_Registry {
 				),
 				'ajax'     => null,
 				'rest'     => null,
+				'stash'    => self::stash_allowlist( array( 'user_id', 'super_admin', 'noconfirmation' ) ),
 			),
 
 			array(
@@ -581,6 +620,7 @@ class Action_Registry {
 				),
 				'ajax'     => null,
 				'rest'     => null,
+				'stash'    => self::stash_no_replay(),
 			),
 
 			array(
@@ -687,7 +727,32 @@ class Action_Registry {
 				),
 				'ajax'     => null,
 				'rest'     => null,
+				'stash'    => self::stash_allowlist( array( Admin::OPTION_KEY ) ),
 			),
+		);
+	}
+
+	/**
+	 * Build allowlist metadata for POST replay-safe fields.
+	 *
+	 * @param string[] $fields Rule-specific top-level POST field names.
+	 * @return array{post_mode:string, post_fields:string[]}
+	 */
+	private static function stash_allowlist( array $fields ): array {
+		return array(
+			'post_mode'   => 'allowlist',
+			'post_fields' => array_values( array_unique( array_merge( self::DEFAULT_REPLAY_POST_FIELDS, $fields ) ) ),
+		);
+	}
+
+	/**
+	 * Build metadata for actions whose POST body should not be replayed.
+	 *
+	 * @return array{post_mode:string}
+	 */
+	private static function stash_no_replay(): array {
+		return array(
+			'post_mode' => 'none',
 		);
 	}
 
@@ -729,10 +794,36 @@ class Action_Registry {
 		 * @param array<int, array<string, mixed>> $rules Indexed array of gated action rule arrays.
 		 * @return array<int, array<string, mixed>>
 		 */
-		$filtered_rules     = apply_filters( 'wp_sudo_gated_actions', self::rules() );
-		self::$cached_rules = self::normalize_filtered_rules( $filtered_rules );
+		$filtered_rules      = apply_filters( 'wp_sudo_gated_actions', self::rules() );
+		self::$cached_rules  = self::normalize_filtered_rules( $filtered_rules );
+		$missing_builtin_ids = self::get_missing_builtin_rule_ids_from_rules( self::$cached_rules );
+		if ( ! empty( $missing_builtin_ids ) ) {
+			/**
+			 * Fires when filtered gated-action rules omit one or more built-in rules.
+			 *
+			 * Built-in rule removal remains supported for advanced integrations, but
+			 * operators and audit bridges need a visible signal when the core
+			 * protection set has been reduced.
+			 *
+			 * @since 3.1.5
+			 *
+			 * @param string[] $missing_builtin_ids Built-in rule IDs missing after filtering.
+			 */
+			do_action( 'wp_sudo_gated_actions_missing_builtin_rules', $missing_builtin_ids );
+		}
 
 		return self::$cached_rules;
+	}
+
+	/**
+	 * Get built-in rule IDs that are missing from the filtered registry.
+	 *
+	 * @since 3.1.5
+	 *
+	 * @return string[] Missing built-in rule IDs.
+	 */
+	public static function get_missing_builtin_rule_ids(): array {
+		return self::get_missing_builtin_rule_ids_from_rules( self::get_rules() );
 	}
 
 	/**
@@ -809,6 +900,30 @@ class Action_Registry {
 		}
 
 		return $normalized;
+	}
+
+	/**
+	 * Compare filtered rules against the canonical built-in rule IDs.
+	 *
+	 * @param array<int, array<string, mixed>> $rules Filtered, normalized rules.
+	 * @return string[] Missing built-in rule IDs.
+	 */
+	private static function get_missing_builtin_rule_ids_from_rules( array $rules ): array {
+		$builtin_ids = array();
+		foreach ( self::rules() as $rule ) {
+			if ( isset( $rule['id'] ) && is_string( $rule['id'] ) ) {
+				$builtin_ids[] = $rule['id'];
+			}
+		}
+
+		$current_ids = array();
+		foreach ( $rules as $rule ) {
+			if ( isset( $rule['id'] ) && is_string( $rule['id'] ) ) {
+				$current_ids[] = $rule['id'];
+			}
+		}
+
+		return array_values( array_diff( array_unique( $builtin_ids ), array_unique( $current_ids ) ) );
 	}
 
 	/**

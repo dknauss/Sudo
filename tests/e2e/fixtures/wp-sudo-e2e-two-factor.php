@@ -187,7 +187,7 @@ add_action(
 
 		if ( '' !== $ip && 'unknown' !== $ip ) {
 			set_transient(
-				\WP_Sudo\Sudo_Session::IP_LOCKOUT_UNTIL_TRANSIENT_PREFIX . hash( 'sha256', $ip ),
+				\WP_Sudo\Sudo_Session::IP_LOCKOUT_UNTIL_TRANSIENT_PREFIX . hash( 'sha256', $ip . '|' . $user_id ),
 				$until,
 				$seconds
 			);

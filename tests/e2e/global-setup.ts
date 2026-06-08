@@ -1,6 +1,8 @@
 import { request } from '@playwright/test';
+import { execFile } from 'child_process';
 import * as fs from 'fs/promises';
 import * as path from 'path';
+import { promisify } from 'util';
 
 const STORAGE_STATE_PATH = path.join(
     process.cwd(),
@@ -12,6 +14,52 @@ const USERNAME = process.env.WP_USERNAME ?? 'admin';
 const PASSWORD = process.env.WP_PASSWORD ?? 'password';
 const REQUEST_BASE_URL = process.env.WP_REQUEST_BASE_URL ?? BASE_URL;
 const REQUEST_HOST_HEADER = process.env.WP_REQUEST_HOST_HEADER;
+const SKIP_WP_ENV_CAP_SETUP =
+    process.env.WP_SUDO_SKIP_WP_ENV_CAP_SETUP === '1';
+const WP_ENV_CONFIG_PATH = process.env.WP_ENV_CONFIG_PATH;
+const WP_ENV_BIN = path.join(
+    process.cwd(),
+    'node_modules/@wordpress/env/bin/wp-env'
+);
+const GOVERNANCE_CAPS = [
+    'manage_wp_sudo',
+    'view_wp_sudo_activity',
+    'export_wp_sudo_activity',
+    'revoke_wp_sudo_sessions',
+];
+const execFileAsync = promisify( execFile );
+
+async function ensureAdminGovernanceCaps() {
+    if ( SKIP_WP_ENV_CAP_SETUP ) {
+        return;
+    }
+
+    const configArgs = WP_ENV_CONFIG_PATH
+        ? [ '--config', WP_ENV_CONFIG_PATH ]
+        : [];
+
+    for ( const cap of GOVERNANCE_CAPS ) {
+        await execFileAsync(
+            process.execPath,
+            [
+                WP_ENV_BIN,
+                ...configArgs,
+                'run',
+                'cli',
+                'wp',
+                // Fixture setup must not be intercepted by WP Sudo's own
+                // CLI gate; browser tests exercise policy after bootstrap.
+                '--skip-plugins',
+                'user',
+                'add-cap',
+                USERNAME,
+                cap,
+                '--quiet',
+            ],
+            { timeout: 15_000 }
+        );
+    }
+}
 
 async function globalSetup() {
     const parsedRequestBaseUrl = new URL( REQUEST_BASE_URL );
@@ -36,6 +84,11 @@ async function globalSetup() {
     // Addresses Pitfall 5 (cold-start latency) — first request after wp-env start
     // can take 3-8 seconds while WordPress initializes.
     await requestContext.get( '/wp-admin/', { timeout: 30_000 } );
+
+    // wp-env maps this plugin into a fresh site, but does not always exercise
+    // the same activating-admin path as a manual install. Strict governance
+    // E2E tests need the default admin to hold Sudo's dedicated capabilities.
+    await ensureAdminGovernanceCaps();
 
     // Log in via the WordPress login form.
     const loginResponse = await requestContext.post( '/wp-login.php', {

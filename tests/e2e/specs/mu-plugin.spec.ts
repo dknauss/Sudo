@@ -40,14 +40,16 @@
  * that window. No WP-CLI session_duration override needed.
  *
  * WP-CLI state management commands:
- *   Check:   npx wp-env run cli wp eval "echo file_exists(WPMU_PLUGIN_DIR.'/wp-sudo-gate.php') ? 'installed' : 'not-installed';"
- *   Remove:  npx wp-env run cli bash -c "rm -f /var/www/html/wp-content/mu-plugins/wp-sudo-gate.php"
+ *   Check:   wp-env run cli wp eval "echo file_exists(WPMU_PLUGIN_DIR.'/wp-sudo-gate.php') ? 'installed' : 'not-installed';"
+ *   Remove:  wp-env run cli bash -c "rm -f /var/www/html/wp-content/mu-plugins/wp-sudo-gate.php"
  */
 import { test, expect, activateSudoSession } from '../fixtures/test';
 import { exec } from 'child_process';
 import { promisify } from 'util';
+import { wpEnvRun } from '../fixtures/wp-env';
 
 const execAsync = promisify( exec );
+const WP_ENV_RUN_CLI = wpEnvRun( 'cli' );
 
 /**
  * Run a WP-CLI command inside the wp-env cli container (targets port 8889 dev site).
@@ -57,7 +59,7 @@ const execAsync = promisify( exec );
  */
 async function wpCli( command: string ): Promise<string> {
     const { stdout } = await execAsync(
-        `npx wp-env run cli ${ command }`,
+        `${ WP_ENV_RUN_CLI } ${ command }`,
         { timeout: 30_000 }
     );
     return stdout.trim();

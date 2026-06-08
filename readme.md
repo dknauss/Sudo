@@ -11,20 +11,23 @@ WP Sudo adds **action-gated reauthentication** to WordPress so high-risk operati
 [![CodeQL](https://github.com/dknauss/Sudo/actions/workflows/codeql.yml/badge.svg)](https://github.com/dknauss/Sudo/actions/workflows/codeql.yml)
 [![Codecov](https://codecov.io/gh/dknauss/Sudo/graph/badge.svg?branch=main)](https://codecov.io/gh/dknauss/Sudo)
 [![Type Coverage](https://shepherd.dev/github/dknauss/Sudo/coverage.svg)](https://shepherd.dev/github/dknauss/Sudo)
-[![Try latest release in Playground](https://img.shields.io/badge/Try%20release-Playground-3858e9?logo=wordpress&logoColor=white)](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fv3.1.3%2Fblueprint.json)
+[![Try latest release in Playground](https://img.shields.io/badge/Try%20release-Playground-3858e9?logo=wordpress&logoColor=white)](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fv3.2.0%2Fblueprint.json)
 [![Try main in Playground](https://img.shields.io/badge/Try%20main-Playground-23282d?logo=wordpress&logoColor=white)](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint-main.json)
 
 Playground demo credentials are `admin` / `password`. When WP Sudo asks for reauthentication, enter the same password: `password`.
 
-> **3.1.3 Playground patch:** WP Sudo fixes Playground reauthentication, front-end toolbar session cancellation, dashboard demo data, and stable/main preview links. See [docs/release-status.md](docs/release-status.md) for current release posture.
+> **3.2.0 security hardening:** governance capabilities, WPGraphQL classifier hardening, per-user IP lockout, cookie Secure-flag fallback via `FORCE_SSL_ADMIN`, request-stash minimization, and more. See [CHANGELOG.md](CHANGELOG.md) and [docs/release-status.md](docs/release-status.md) for details.
 
-## What’s new in 3.1.3
+## What’s new in 3.2.0
 
-- **Playground authentication:** the demo explicitly resets `admin` to `password`, so login and sudo reauthentication use the same documented credential
-- **Toolbar cancellation:** clicking the Sudo toolbar item cancels an active session from wp-admin or the front end without navigating away unexpectedly
-- **Dashboard widget freshness:** active-session counts refresh immediately after session cancellation
-- **Demo activity:** Playground seeds recent privilege-action events and active demo users with varied 5-15 minute sudo windows
-- **Preview links:** release and main Playground demos are separate; pull request previews still pin to the PR commit
+- **Governance capabilities:** `sudo_can()` helper, Access tab for managing who can administer sudo settings, and WordPress capability integration for WP-CLI and audit plugins
+- **WPGraphQL gate hardening:** CR/CRLF comment tokenizer, block-string escaping, BOM stripping, persisted-query fail-safe, multipart and GET `query` param coverage
+- **REST plugin gate:** folder-based plugins (e.g. `akismet/akismet`) are now correctly gated on the REST surface
+- **Per-user IP lockout:** shared egress IPs (office NAT, VPN, CGNAT) can no longer be used to DoS all admins with five failed attempts from one account
+- **Cookie Secure-flag hardening:** `FORCE_SSL_ADMIN` fallback + `wp_sudo_cookie_secure` filter for TLS-terminating proxy setups
+- **Request-stash minimization:** `$_GET` removed from stash, per-rule POST allowlists, suffix-based secret redaction for compound field names, unsafe-replay blocking
+- **App Password policy validation:** UUID format + existence check before persisting; automatic cleanup on password deletion
+- **Admin email gating:** `new_admin_email` writes are now challenge-gated on interactive and REST surfaces
 
 ## Why WP Sudo exists
 
@@ -40,6 +43,8 @@ It is designed to reduce risk when an attacker has:
 - or a delegated request path that reaches a high-impact operation.
 
 On those covered paths, a valid session without an active sudo window is not enough.
+
+**What this is not:** a general fix for broken authorization in plugin code. WP Sudo gates specific known operations on specific known surfaces. A plugin vulnerability that performs a privileged state change through its own code path — without routing through a surface WP Sudo intercepts — is outside this layer. WP Sudo is the guard at the door of the operations it knows about; it is not a monitor of arbitrary plugin execution.
 
 ## What WP Sudo covers
 

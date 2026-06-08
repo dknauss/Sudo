@@ -107,10 +107,11 @@ design hardening opportunities that should interrupt lower-priority feature work
 - **Patch-grade auth fix:** 2FA failure counters can be cleared by repeating the
   password step before second-factor success. Remediate first and release as a
   patch if validated.
-- **Surface hardening:** WPGraphQL Limited mode still relies on raw-body substring
-  detection when no classifier is present. Decode request payloads before fallback
-  classification and fail closed for unknown persisted operations where strict
-  blocking is requested.
+- ~~**Surface hardening:** WPGraphQL Limited mode should decode request payloads
+  before fallback classification and fail closed for unknown persisted operations.~~
+  Shipped in unreleased hardening: JSON bodies, GET/form `query` params,
+  multipart `operations`, batched payloads, parser edge cases, and
+  persisted-operation fail-safe are covered by unit tests.
 - **Data minimization follow-up:** Request stash redaction is exact-key based; add
   pattern-based redaction and custom-rule metadata for sensitive/non-replayable
   fields.
@@ -1425,6 +1426,34 @@ migration endpoint.
    - Opt-in 2FA-enrollment requirement for `manage_wp_sudo` holders.
    - Audit visibility on governance-mode transitions.
 
+3. **Phase 3 (post-v3.2) — access tab UX.**
+
+   - **User picker instead of user ID field.** The Grant Capability interface
+     currently requires a numeric user ID. Replace with a searchable dropdown
+     (or typeahead) populated from real WordPress users. Default scope:
+     administrator-role users only, since only admins can hold Sudo governance
+     capabilities in practice — there is no current use case for granting
+     `manage_wp_sudo` to an editor or subscriber who would be unable to reach
+     the settings page anyway. Leave the question open in case a future role
+     model warrants wider eligibility (e.g., a custom role with `manage_options`
+     that should be able to receive `view_wp_sudo_activity`).
+
+   - **Human-readable capability labels in the dropdown.** The grant interface
+     currently presents raw capability strings (`manage_wp_sudo`,
+     `view_wp_sudo_activity`, etc.). Replace with plain English descriptions and
+     demote the capability name to secondary label text:
+
+     | Capability slug | Suggested display label |
+     |---|---|
+     | `manage_wp_sudo` | Manage Sudo settings and policies |
+     | `view_wp_sudo_activity` | View sudo activity and sessions |
+     | `export_wp_sudo_activity` | Export sudo activity data |
+     | `revoke_wp_sudo_sessions` | Revoke other users' active sessions |
+
+     The capability slug should remain visible (as subtitle or tooltip) so
+     developers and integrators can identify capabilities unambiguously without
+     relying on display strings.
+
 ### Priority rationale
 
 - This is a security-governance control, not a cosmetic UX feature.
@@ -1483,20 +1512,21 @@ should shape the next phases.
 - Persisted query/APQ requests can also omit the operation text unless a site
   supplies a classifier through `wp_sudo_wpgraphql_classification`.
 
-**Fix:**
-- Decode JSON and form-encoded GraphQL request payloads before fallback
-  classification.
+**Fix (shipped in unreleased hardening):**
+- Decode JSON bodies, GET/form `query` params, and multipart `operations`
+  GraphQL request payloads before fallback classification.
 - Handle batched GraphQL payloads conservatively: any decoded mutation should
   classify the request as a mutation.
-- Add a strict/fail-closed path for unknown persisted operations when a site
-  requires mutation blocking and cannot provide classifier coverage.
+- Fail closed on unknown persisted operations unless a classifier identifies the
+  operation as a query.
 - Update `docs/security-model.md` so the heuristic caveat names encoded payloads,
-  batches, and persisted operations precisely.
+  multipart operations, batches, and persisted operations precisely.
 
 **Tests:**
 - Unit tests for inline mutation, JSON-escaped `mutation`, query false-positive
-  strings, batched mutation/query mixtures, classifier override precedence, and
-  unknown persisted operation handling.
+  strings, batched mutation/query mixtures, GET `query` params, multipart
+  `operations`, classifier override precedence, and unknown persisted operation
+  handling.
 - Integration coverage for WPGraphQL Limited mode once a representative request
   fixture can be exercised.
 

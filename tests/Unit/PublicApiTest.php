@@ -101,6 +101,23 @@ class PublicApiTest extends TestCase {
 	}
 
 	/**
+	 * F18f — The explicit cross-user guard must short-circuit before any
+	 * session lookup: is_active()/is_within_grace() must not be reached for
+	 * cross-user calls. Passing a different user ID returns false without
+	 * ever reading user meta.
+	 *
+	 * @since 3.1.5
+	 */
+	public function test_check_cross_user_guard_fires_before_session_lookup(): void {
+		Functions\when( 'get_current_user_id' )->justReturn( 5 );
+
+		// The explicit guard must short-circuit before get_user_meta is called.
+		Functions\expect( 'get_user_meta' )->never();
+
+		$this->assertFalse( Public_API::check( 99 ) );
+	}
+
+	/**
 	 * Locks in the same tightened semantics for require(): passing an
 	 * arg-supplied user_id that differs from the current user never short-
 	 * circuits as "already authenticated", even when the target user has

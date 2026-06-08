@@ -1,3 +1,49 @@
+## Pre-Implementation Design Review
+
+**REQUIRED before writing tests or code for any non-trivial change.**
+
+A non-trivial change is anything that:
+- modifies a public API, hook, filter, or documented contract
+- touches security-sensitive paths (session, auth, uninstall, capability checks)
+- affects multiple callers or execution contexts
+- adds a guard, check, or restriction that could block a legitimate use case
+
+### How it works
+
+1. Write a design brief (3–8 sentences) covering:
+   - What problem is being solved and what threat or failure mode it addresses
+   - What the proposed approach is and which files/methods change
+   - What the guard/check/restriction explicitly blocks — and what it must NOT block
+2. Spawn a reviewer agent with the design brief
+3. Reviewer critiques the design — it does **not** write code or run tests
+4. Incorporate any objections, then proceed to TDD
+
+### What the design reviewer checks
+
+- **Contract integrity** — does the approach break documented filter/hook semantics or existing tests that encode a caller contract?
+- **Execution context gaps** — does the change behave correctly under WP-CLI, cron, unauthenticated REST, multisite, and uninstall paths?
+- **Scope** — is the guard maximalist (blocks too much) or minimalist (blocks too little)? Does it apply the minimum fix or over-generalize?
+- **Caller coverage** — are all callers and usage patterns of the changed component accounted for, including edge cases like admin editing another user's profile?
+
+### Spawning the design reviewer
+
+Always describe the problem and plan factually. Never instruct the reviewer to approve.
+Example prompt:
+
+> "Critique this design plan before implementation: The wp_sudo_gated_actions filter
+> currently allows callers to replace the entire rule list. A buggy filter that returns
+> an empty list would silence all gating. I plan to add a guard in normalize_filtered_rules()
+> that re-adds any builtin rule missing from the filtered result. Identify contract
+> violations, execution context gaps, scope issues, or missing caller scenarios."
+
+### When to skip
+
+Trivial changes (typo fixes, comment updates, doc edits, single-line renames) do not
+require a design review. When in doubt, do the review — it is fast and cheap compared
+to fixing a contract break after commit.
+
+---
+
 ## Pre-Commit Reviewer Workflow
 
 **REQUIRED before EVERY commit of AI-generated code.**
@@ -24,16 +70,18 @@ Example prompt:
 The **reviewer agent** writes `reviewer-approved` using the Write tool after deciding APPROVE.
 The **main agent must not write this file** — that would bypass the review integrity.
 
+### When to skip
+
+Docs-only commits — no `.php` files changed, only `.md`, `.txt`, or non-code
+config/data files (e.g. `blueprint.json`, `readme.txt`, `CHANGELOG.md`) — do
+not require a reviewer. Commit directly.
+
 ### User bypass (your own commits only)
 
 For commits you write yourself (not AI-generated):
 ```bash
 USER_COMMIT=1 git commit -m "message"
 ```
-
-# CLAUDE.md
-
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
 
@@ -165,6 +213,9 @@ behavior that the model cannot hold in working memory.
 - Use conventional commit format.
 
 ## Design Intent Review
+
+For non-trivial changes, the Pre-Implementation Design Review above is the
+enforcement mechanism. These guidelines apply to all changes, including small ones:
 
 - Before writing or substantially changing code, briefly restate the problem and name the intended approach in 2–4 sentences.
 - Ask whether new code is necessary before implementing. Prefer deletion, simplification, configuration, or reuse when they solve the problem cleanly.

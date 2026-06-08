@@ -61,6 +61,12 @@ abstract class TestCase extends PHPUnitTestCase {
 
 	protected function tearDown(): void {
 		unset( $_COOKIE[ \WP_Sudo\Sudo_Session::CHALLENGE_COOKIE ] );
+		unset( $_COOKIE[ \WP_Sudo\Sudo_Session::TOKEN_COOKIE ] );
+
+		// Reset the WP_Application_Passwords mock state.
+		if ( class_exists( 'WP_Application_Passwords' ) && property_exists( 'WP_Application_Passwords', 'mock_passwords' ) ) {
+			\WP_Application_Passwords::$mock_passwords = null;
+		}
 
 		if ( class_exists( 'WP_User_Query' ) && property_exists( 'WP_User_Query', 'mock_total' ) ) {
 			\WP_User_Query::$mock_total      = 0;

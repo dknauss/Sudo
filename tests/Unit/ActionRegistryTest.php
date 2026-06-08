@@ -8,9 +8,11 @@
 namespace WP_Sudo\Tests\Unit;
 
 use WP_Sudo\Action_Registry;
+use WP_Sudo\Admin;
 use WP_Sudo\Tests\TestCase;
 use Brain\Monkey\Functions;
 use Brain\Monkey\Filters;
+use Brain\Monkey\Actions;
 
 /**
  * @covers \WP_Sudo\Action_Registry
@@ -111,6 +113,90 @@ class ActionRegistryTest extends TestCase {
 		$ids   = array_column( $rules, 'id' );
 
 		$this->assertContains( 'custom.test', $ids );
+	}
+
+	/**
+	 * Test get_rules() preserves the documented filter contract that lets
+	 * developers remove a built-in rule.
+	 */
+	public function test_get_rules_allows_filter_to_remove_builtin_rule(): void {
+		Functions\when( '__' )->returnArg();
+
+		Filters\expectApplied( 'wp_sudo_gated_actions' )
+			->once()
+			->andReturnUsing(
+				static function ( array $rules ): array {
+					return array_values(
+						array_filter(
+							$rules,
+							static function ( array $rule ): bool {
+								return ( $rule['id'] ?? '' ) !== 'plugin.activate';
+							}
+						)
+					);
+				}
+			);
+
+		$rules = Action_Registry::get_rules();
+
+		$this->assertNotContains( 'plugin.activate', array_column( $rules, 'id' ) );
+	}
+
+	/**
+	 * Test get_rules() emits a diagnostic action when built-in rules are removed.
+	 */
+	public function test_get_rules_fires_diagnostic_when_builtin_rules_missing(): void {
+		Functions\when( '__' )->returnArg();
+
+		Filters\expectApplied( 'wp_sudo_gated_actions' )
+			->once()
+			->andReturnUsing(
+				static function ( array $rules ): array {
+					return array_values(
+						array_filter(
+							$rules,
+							static function ( array $rule ): bool {
+								return ( $rule['id'] ?? '' ) !== 'plugin.activate';
+							}
+						)
+					);
+				}
+			);
+
+		Actions\expectDone( 'wp_sudo_gated_actions_missing_builtin_rules' )
+			->once()
+			->with( array( 'plugin.activate' ) );
+
+		Action_Registry::get_rules();
+	}
+
+	/**
+	 * Test missing built-in rule IDs can be queried for Site Health.
+	 */
+	public function test_get_missing_builtin_rule_ids_reports_removed_builtins(): void {
+		Functions\when( '__' )->returnArg();
+
+		Filters\expectApplied( 'wp_sudo_gated_actions' )
+			->once()
+			->andReturnUsing(
+				static function ( array $rules ): array {
+					return array_values(
+						array_filter(
+							$rules,
+							static function ( array $rule ): bool {
+								return ! in_array( $rule['id'] ?? '', array( 'plugin.activate', 'user.delete' ), true );
+							}
+						)
+					);
+				}
+			);
+
+		Functions\when( 'do_action' )->justReturn( null );
+
+		$this->assertSame(
+			array( 'plugin.activate', 'user.delete' ),
+			Action_Registry::get_missing_builtin_rule_ids()
+		);
 	}
 
 	/**
@@ -531,6 +617,25 @@ class ActionRegistryTest extends TestCase {
 	}
 
 	/**
+	 * Test that the self-protection rule preserves the WordPress options.php
+	 * control fields required for replay.
+	 */
+	public function test_wp_sudo_settings_rule_allowlists_options_form_controls(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		$rule = Action_Registry::find( 'options.wp_sudo' );
+
+		$this->assertNotNull( $rule );
+		$this->assertArrayHasKey( 'stash', $rule );
+		$this->assertSame( 'allowlist', $rule['stash']['post_mode'] );
+		$this->assertSame(
+			array( '_wpnonce', '_wp_http_referer', 'option_page', 'action', 'action2', 'submit', Admin::OPTION_KEY ),
+			$rule['stash']['post_fields']
+		);
+	}
+
+	/**
 	 * Test that the self-protection callback matches the WP Sudo settings page.
 	 */
 	public function test_wp_sudo_settings_callback_matches_settings_page(): void {
@@ -579,6 +684,25 @@ class ActionRegistryTest extends TestCase {
 		$this->assertNotNull( $rule );
 		$this->assertSame( 'options', $rule['category'] );
 		$this->assertStringContainsString( 'access', strtolower( $rule['label'] ) );
+	}
+
+	/**
+	 * Test that the access-control rule preserves the WordPress options.php
+	 * control fields required for replay.
+	 */
+	public function test_wp_sudo_access_rule_allowlists_options_form_controls(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		$rule = Action_Registry::find( 'options.wp_sudo_access' );
+
+		$this->assertNotNull( $rule );
+		$this->assertArrayHasKey( 'stash', $rule );
+		$this->assertSame( 'allowlist', $rule['stash']['post_mode'] );
+		$this->assertSame(
+			array( '_wpnonce', '_wp_http_referer', 'option_page', 'action', 'action2', 'submit', Admin::OPTION_KEY ),
+			$rule['stash']['post_fields']
+		);
 	}
 
 	/**

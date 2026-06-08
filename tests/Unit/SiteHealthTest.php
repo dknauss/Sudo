@@ -43,7 +43,7 @@ class SiteHealthTest extends TestCase {
 
 	// ── register_tests() ─────────────────────────────────────────────
 
-	public function test_register_tests_adds_three_tests(): void {
+	public function test_register_tests_adds_four_tests(): void {
 		Functions\when( '__' )->returnArg();
 
 		$tests = array( 'direct' => array(), 'async' => array() );
@@ -52,6 +52,7 @@ class SiteHealthTest extends TestCase {
 		$this->assertArrayHasKey( 'wp_sudo_mu_plugin', $result['direct'] );
 		$this->assertArrayHasKey( 'wp_sudo_policies', $result['direct'] );
 		$this->assertArrayHasKey( 'wp_sudo_stale_sessions', $result['direct'] );
+		$this->assertArrayHasKey( 'wp_sudo_gated_action_integrity', $result['direct'] );
 	}
 
 	public function test_register_tests_preserves_existing(): void {
@@ -64,7 +65,7 @@ class SiteHealthTest extends TestCase {
 		$result = $this->health->register_tests( $tests );
 
 		$this->assertArrayHasKey( 'existing_test', $result['direct'] );
-		$this->assertCount( 4, $result['direct'] );
+		$this->assertCount( 5, $result['direct'] );
 	}
 
 	// ── test_mu_plugin_status() ──────────────────────────────────────
@@ -196,6 +197,46 @@ class SiteHealthTest extends TestCase {
 
 		// WPGraphQL is not active — unrestricted setting must NOT trigger a warning.
 		$this->assertSame( 'good', $result['status'] );
+	}
+
+	// ── test_gated_action_integrity() ────────────────────────────────
+
+	public function test_gated_action_integrity_returns_good_when_builtins_present(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		$result = $this->health->test_gated_action_integrity();
+
+		$this->assertSame( 'good', $result['status'] );
+		$this->assertSame( 'wp_sudo_gated_action_integrity', $result['test'] );
+	}
+
+	public function test_gated_action_integrity_warns_when_builtins_missing(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'do_action' )->justReturn( null );
+		Functions\when( 'apply_filters' )->alias(
+			static function ( $hook, $value ) {
+				if ( 'wp_sudo_gated_actions' !== $hook ) {
+					return $value;
+				}
+
+				return array_values(
+					array_filter(
+						$value,
+						static function ( array $rule ): bool {
+							return ( $rule['id'] ?? '' ) !== 'plugin.activate';
+						}
+					)
+				);
+			}
+		);
+
+		$result = $this->health->test_gated_action_integrity();
+
+		$this->assertSame( 'recommended', $result['status'] );
+		$this->assertSame( 'wp_sudo_gated_action_integrity', $result['test'] );
+		$this->assertStringContainsString( 'plugin.activate', $result['description'] );
 	}
 
 	// ── test_stale_sessions() ────────────────────────────────────────

@@ -36,6 +36,11 @@ class WpGraphQLGatingTest extends TestCase {
 		Functions\when( '__' )->returnArg();
 	}
 
+	protected function tearDown(): void {
+		unset( $_GET['query'], $_GET['extensions'] );
+		parent::tearDown();
+	}
+
 	// ── Helpers ────────────────────────────────────────────────────────
 
 	/**
@@ -179,6 +184,72 @@ class WpGraphQLGatingTest extends TestCase {
 		$this->with_body( '' );
 
 		Functions\expect( 'wp_send_json' )->never();
+
+		$this->gate->gate_wpgraphql();
+	}
+
+	/** @test */
+	public function test_limited_blocks_get_query_mutation_with_empty_body(): void {
+		Functions\when( 'get_option' )->justReturn( array() );
+		$this->with_body( '' );
+		$_GET['query'] = 'mutation { deleteUser(input:{id:"1"}) { deletedId } }';
+		Functions\when( 'get_current_user_id' )->justReturn( 1 );
+		Functions\when( 'get_user_meta' )->justReturn( false );
+
+		Actions\expectDone( 'wp_sudo_action_blocked' )
+			->once()
+			->with( 1, 'wpgraphql', 'wpgraphql' );
+
+		Functions\expect( 'wp_send_json' )
+			->once()
+			->with(
+				\Mockery::on(
+					static function ( array $data ): bool {
+						return 'sudo_blocked' === $data['code']
+							&& 403 === $data['data']['status'];
+					}
+				),
+				403
+			);
+
+		$this->gate->gate_wpgraphql();
+	}
+
+	/** @test */
+	public function test_limited_passes_get_query_read_operation_with_empty_body(): void {
+		Functions\when( 'get_option' )->justReturn( array() );
+		$this->with_body( '' );
+		$_GET['query'] = 'query { posts { nodes { id } } }';
+
+		Actions\expectDone( 'wp_sudo_action_blocked' )->never();
+		Functions\expect( 'wp_send_json' )->never();
+
+		$this->gate->gate_wpgraphql();
+	}
+
+	/** @test */
+	public function test_limited_blocks_get_persisted_operation_with_empty_body(): void {
+		Functions\when( 'get_option' )->justReturn( array() );
+		$this->with_body( '' );
+		$_GET['extensions'] = '{"persistedQuery":{"sha256Hash":"abc123","version":1}}';
+		Functions\when( 'get_current_user_id' )->justReturn( 1 );
+		Functions\when( 'get_user_meta' )->justReturn( false );
+
+		Actions\expectDone( 'wp_sudo_action_blocked' )
+			->once()
+			->with( 1, 'wpgraphql', 'wpgraphql' );
+
+		Functions\expect( 'wp_send_json' )
+			->once()
+			->with(
+				\Mockery::on(
+					static function ( array $data ): bool {
+						return 'sudo_blocked' === $data['code']
+							&& 403 === $data['data']['status'];
+					}
+				),
+				403
+			);
 
 		$this->gate->gate_wpgraphql();
 	}

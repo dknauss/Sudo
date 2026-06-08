@@ -53,6 +53,15 @@ class Public_API {
 			return false;
 		}
 
+		// Explicit cross-user isolation guard: sudo sessions are cookie-bound
+		// to the current request's authenticated user. Without this guard the
+		// isolation relied solely on verify_token() rejecting cross-user calls;
+		// a future fast-path refactor to Sudo_Session could accidentally open a
+		// cross-user read path. Make the invariant explicit at this boundary.
+		if ( get_current_user_id() !== $target_user_id ) {
+			return false;
+		}
+
 		return Sudo_Session::is_active( $target_user_id ) || Sudo_Session::is_within_grace( $target_user_id );
 	}
 

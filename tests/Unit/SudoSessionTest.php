@@ -16,6 +16,7 @@ use WP_Sudo\Sudo_Session;
 use WP_Sudo\Tests\TestCase;
 use Brain\Monkey\Functions;
 use Brain\Monkey\Actions;
+use Brain\Monkey\Filters;
 
 /**
  * @covers \WP_Sudo\Sudo_Session
@@ -192,6 +193,78 @@ class SudoSessionTest extends TestCase
 			->twice(); // META_KEY + TOKEN_META_KEY
 
 		Sudo_Session::is_active(1);
+	}
+
+	// =================================================================
+	// F8 — cookie_secure(): FORCE_SSL_ADMIN fallback and filter
+	// =================================================================
+
+	/**
+	 * F8: wp_sudo_cookie_secure filter can force Secure flag even when is_ssl() = false.
+	 *
+	 * RED: current code passes is_ssl() directly → secure=false; filter never applied.
+	 * GREEN: cookie_secure() applies the filter → filter returns true → secure=true.
+	 */
+	public function test_cookie_secure_filter_can_force_secure_flag(): void
+	{
+		Functions\when( 'get_option' )->justReturn( array( 'session_duration' => 10 ) );
+		Functions\when( 'wp_generate_password' )->justReturn( 'token-abc' );
+		Functions\when( 'update_user_meta' )->justReturn( true );
+		Functions\when( 'get_user_meta' )->justReturn( '' );
+		Functions\when( 'delete_user_meta' )->justReturn( true );
+		Functions\when( 'headers_sent' )->justReturn( false );
+		Functions\when( 'is_ssl' )->justReturn( false ); // Plain HTTP — no TLS.
+		Functions\when( 'wp_hash' )->returnArg();
+
+		// Filter overrides to true even though is_ssl() = false.
+		Filters\expectApplied( 'wp_sudo_cookie_secure' )
+			->atLeast()->once()
+			->andReturn( true );
+
+		Functions\expect( 'setcookie' )
+			->atLeast()->once()
+			->with(
+				\Mockery::any(),
+				\Mockery::any(),
+				\Mockery::on( static fn ( $args ) => isset( $args['secure'] ) && true === $args['secure'] )
+			)
+			->andReturn( true );
+
+		Sudo_Session::activate( 1 );
+	}
+
+	/**
+	 * F8: wp_sudo_cookie_secure filter can suppress Secure flag even when is_ssl() = true.
+	 *
+	 * RED: current code passes is_ssl() directly → secure=true; filter never applied.
+	 * GREEN: cookie_secure() applies the filter → filter returns false → secure=false.
+	 */
+	public function test_cookie_secure_filter_can_suppress_secure_flag(): void
+	{
+		Functions\when( 'get_option' )->justReturn( array( 'session_duration' => 10 ) );
+		Functions\when( 'wp_generate_password' )->justReturn( 'token-def' );
+		Functions\when( 'update_user_meta' )->justReturn( true );
+		Functions\when( 'get_user_meta' )->justReturn( '' );
+		Functions\when( 'delete_user_meta' )->justReturn( true );
+		Functions\when( 'headers_sent' )->justReturn( false );
+		Functions\when( 'is_ssl' )->justReturn( true ); // TLS active.
+		Functions\when( 'wp_hash' )->returnArg();
+
+		// Filter overrides to false even though is_ssl() = true.
+		Filters\expectApplied( 'wp_sudo_cookie_secure' )
+			->atLeast()->once()
+			->andReturn( false );
+
+		Functions\expect( 'setcookie' )
+			->atLeast()->once()
+			->with(
+				\Mockery::any(),
+				\Mockery::any(),
+				\Mockery::on( static fn ( $args ) => isset( $args['secure'] ) && false === $args['secure'] )
+			)
+			->andReturn( true );
+
+		Sudo_Session::activate( 1 );
 	}
 
 	// =================================================================
@@ -550,11 +623,8 @@ class SudoSessionTest extends TestCase
 			)
 			->andReturn(true);
 
-		// apply_filters: first call is wp_sudo_two_factor_window, return 15 min;
-		// second call is wp_sudo_requires_two_factor, return true (needs 2FA).
-		Functions\expect('apply_filters')
-			->twice()
-			->andReturnUsing(function ($filter_name) {
+		Functions\when('apply_filters')
+			->alias(function ($filter_name) {
 				if ('wp_sudo_requires_two_factor' === $filter_name) {
 					return true;
 				}
@@ -602,9 +672,8 @@ class SudoSessionTest extends TestCase
 			->andReturn(true);
 
 		// Return 10 seconds — well below the 1-minute minimum.
-		Functions\expect('apply_filters')
-			->twice()
-			->andReturnUsing(function ($filter_name) {
+		Functions\when('apply_filters')
+			->alias(function ($filter_name) {
 				if ('wp_sudo_requires_two_factor' === $filter_name) {
 					return true;
 				}
@@ -652,9 +721,8 @@ class SudoSessionTest extends TestCase
 			->andReturn(true);
 
 		// Return 3600 seconds (1 hour) — above the 15-minute maximum.
-		Functions\expect('apply_filters')
-			->twice()
-			->andReturnUsing(function ($filter_name) {
+		Functions\when('apply_filters')
+			->alias(function ($filter_name) {
 				if ('wp_sudo_requires_two_factor' === $filter_name) {
 					return true;
 				}
@@ -702,9 +770,8 @@ class SudoSessionTest extends TestCase
 			->andReturn(true);
 
 		// Return 600 seconds (10 minutes) — valid, within bounds.
-		Functions\expect('apply_filters')
-			->twice()
-			->andReturnUsing(function ($filter_name) {
+		Functions\when('apply_filters')
+			->alias(function ($filter_name) {
 				if ('wp_sudo_requires_two_factor' === $filter_name) {
 					return true;
 				}
@@ -1305,6 +1372,175 @@ class SudoSessionTest extends TestCase
 	// =================================================================
 	// Phase 5: IP + user multidimensional rate limiting
 	// =================================================================
+
+	/**
+	 * F6: IP lockout keyed per-user — one user's lockout must not block another.
+	 *
+	 * The test seeds get_transient to return a lockout timestamp ONLY for the
+	 * IP-only key format (current broken behavior: hash($ip)). With the current
+	 * implementation, attempt_activation(user2) looks up that same key and sees
+	 * the lockout, incorrectly blocking user2. After the fix, the key incorporates
+	 * user_id so user2's lookup (hash("$ip|user2")) never matches user1's lockout
+	 * (hash("$ip|user1") or hash("$ip")) and user2 is not blocked.
+	 *
+	 * RED with current code (IP-only key matches): attempt_activation returns 'locked_out'.
+	 * GREEN after fix (per-user key misses): attempt_activation proceeds past lockout check.
+	 */
+	public function test_ip_lockout_for_user_does_not_block_different_user_at_same_ip(): void
+	{
+		$ip      = '203.0.113.99';
+		$user1   = 1;
+		$user2   = 2;
+		$_SERVER['REMOTE_ADDR'] = $ip;
+
+		// Simulate user1's lockout stored under the IP-only key (current format).
+		// After the fix, user2's activation will look up hash("$ip|$user2") which
+		// does NOT match this key, so get_transient returns false for user2.
+		$ip_only_key     = 'wp_sudo_ip_lockout_until_' . hash( 'sha256', $ip );
+		$lockout_until   = time() + 300;
+
+		Functions\when('get_user_meta')->alias(
+			static function ($uid, $key, $single = true) {
+				if ( Sudo_Session::THROTTLE_UNTIL_META_KEY === $key ) {
+					return '';
+				}
+				if ( Sudo_Session::LOCKOUT_UNTIL_META_KEY === $key ) {
+					return ''; // No user-level lockout.
+				}
+				if ( Sudo_Session::FAILURE_EVENT_META_KEY === $key && ! $single ) {
+					return array();
+				}
+				return '';
+			}
+		);
+		Functions\when('get_transient')->alias(
+			static function ($key) use ($ip_only_key, $lockout_until) {
+				// Return lockout only for the IP-only key; any per-user key misses.
+				return $key === $ip_only_key ? $lockout_until : false;
+			}
+		);
+		Functions\when('get_userdata')->justReturn(new \WP_User($user2));
+		Functions\when('add_user_meta')->justReturn(true);
+		Functions\when('update_user_meta')->justReturn(true);
+		Functions\when('delete_user_meta')->justReturn(true);
+		Functions\when('set_transient')->justReturn(true);
+		Functions\when('wp_check_password')->justReturn(false);
+
+		$result = Sudo_Session::attempt_activation($user2, 'any-password');
+
+		$this->assertNotSame(
+			'locked_out',
+			$result['code'],
+			'User 2 must not be locked out due to user 1\'s IP-level failed attempts at the same IP (F6).'
+		);
+	}
+
+	/**
+	 * F6: IP lockout scoped per-user still blocks the correct user.
+	 *
+	 * The fix must not weaken the existing lockout: the user whose attempts
+	 * triggered the lockout must still be blocked. We seed get_transient to
+	 * return a lockout for the per-user key format (hash("$ip|$user_id")) so the
+	 * check passes after the fix. With the current code (IP-only key), the
+	 * per-user key is never stored and the mock returns false → user is NOT
+	 * blocked → test FAILS. After the fix, the per-user key matches → PASSES.
+	 */
+	public function test_ip_lockout_blocks_the_user_who_triggered_it(): void
+	{
+		$ip      = '203.0.113.100';
+		$user_id = 5;
+		$_SERVER['REMOTE_ADDR'] = $ip;
+		$lockout_until = time() + 300;
+
+		// Set up lockout under the post-fix per-user key format.
+		$per_user_key = 'wp_sudo_ip_lockout_until_' . hash( 'sha256', $ip . '|' . $user_id );
+
+		Functions\when('get_user_meta')->alias(
+			static function ($uid, $key, $single = true) {
+				if ( Sudo_Session::THROTTLE_UNTIL_META_KEY === $key ) {
+					return '';
+				}
+				if ( Sudo_Session::LOCKOUT_UNTIL_META_KEY === $key ) {
+					return '';
+				}
+				if ( Sudo_Session::FAILURE_EVENT_META_KEY === $key && ! $single ) {
+					return array();
+				}
+				return '';
+			}
+		);
+		Functions\when('get_transient')->alias(
+			static function ($key) use ($per_user_key, $lockout_until) {
+				return $key === $per_user_key ? $lockout_until : false;
+			}
+		);
+		Functions\when('get_userdata')->justReturn(new \WP_User($user_id));
+		Functions\when('add_user_meta')->justReturn(true);
+		Functions\when('update_user_meta')->justReturn(true);
+		Functions\when('delete_user_meta')->justReturn(true);
+		Functions\when('set_transient')->justReturn(true);
+		Functions\when('wp_check_password')->justReturn(false);
+
+		$result = Sudo_Session::attempt_activation($user_id, 'wrong-password');
+
+		$this->assertSame('locked_out', $result['code']);
+		$this->assertArrayHasKey('remaining', $result);
+		$this->assertGreaterThan(0, $result['remaining']);
+	}
+
+	/**
+	 * F6: record_failed_attempt writes different IP lockout keys for different users.
+	 *
+	 * With the current IP-only key, two users at the same IP produce the same
+	 * lockout transient key → assertNotSame FAILS. After the fix, user_id is
+	 * incorporated → keys differ → assertNotSame PASSES.
+	 */
+	public function test_record_failed_attempt_ip_lockout_key_is_per_user(): void
+	{
+		$_SERVER['REMOTE_ADDR'] = '198.51.100.20';
+		$captured_lockout_keys  = array();
+
+		Functions\when('get_user_meta')->alias(
+			static function ($uid, $key, $single = true) {
+				if ( Sudo_Session::FAILURE_EVENT_META_KEY === $key && ! $single ) {
+					return array( time() - 4, time() - 3, time() - 2, time() - 1 );
+				}
+				return '';
+			}
+		);
+		Functions\when('add_user_meta')->justReturn(true);
+		Functions\when('delete_user_meta')->justReturn(true);
+		Functions\when('update_user_meta')->justReturn(true);
+		Functions\when('get_transient')->alias(
+			static function ($key) {
+				if ( str_starts_with($key, 'wp_sudo_ip_failure_event_') ) {
+					return array( time() - 4, time() - 3, time() - 2, time() - 1 );
+				}
+				return false;
+			}
+		);
+		Functions\when('set_transient')->alias(
+			static function ($key, $value, $expiry) use (&$captured_lockout_keys) {
+				if ( str_starts_with($key, 'wp_sudo_ip_lockout_') ) {
+					$captured_lockout_keys[] = $key;
+				}
+				return true;
+			}
+		);
+		Functions\when('delete_transient')->justReturn(true);
+
+		Actions\expectDone('wp_sudo_lockout')->twice();
+
+		Sudo_Session::record_failed_attempt(7);
+		Sudo_Session::record_failed_attempt(8);
+
+		$this->assertCount(2, $captured_lockout_keys, 'Expected two IP lockout transients written (one per user).');
+		$this->assertNotSame(
+			$captured_lockout_keys[0],
+			$captured_lockout_keys[1],
+			'IP lockout keys for different users at the same IP must differ (F6).'
+		);
+	}
 
 	public function test_attempt_activation_rejects_when_ip_lockout_is_active(): void
 	{
