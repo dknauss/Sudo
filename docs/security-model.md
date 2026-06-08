@@ -18,27 +18,46 @@ WP Sudo uses the term **reauthentication** to describe its core pattern, followi
 
 ## Internal Admin Users and Governance Boundary
 
-WP Sudo reduces risk from stolen sessions, but internal admin governance is a
-separate control plane:
+WP Sudo ships with a four-capability governance model (v3.1.0). Access to Sudo
+settings, activity views, exports, and session revocations is controlled by
+dedicated capabilities rather than broad `manage_options` inheritance:
 
-- On single-site today, users with `manage_options` can access Sudo settings and
-  dashboard activity.
-- On multisite today, users with `manage_network_options` can manage Sudo at
-  network scope.
+| Capability | Grants access to |
+|---|---|
+| `manage_wp_sudo` | Sudo settings, policy configuration, capability management |
+| `view_wp_sudo_activity` | Dashboard widget and activity screens |
+| `export_wp_sudo_activity` | Activity data exports (CSV/JSON) |
+| `revoke_wp_sudo_sessions` | Force-revoking other users' active sessions |
 
-That means WP Sudo currently treats these administrators as trusted operators for
-policy/configuration decisions, even though compromised-admin scenarios are in
-scope for action gating.
+**Default on new installs (single-site):** the activating admin receives all four
+capabilities. Other admins receive none until explicitly granted from
+**Settings → Sudo → Access**.
+
+**Multisite:** super admins are always treated as holding all four capabilities
+(via `is_super_admin()` short-circuit in `sudo_can()`). Per-site admins receive
+no Sudo-management authority until explicitly delegated.
+
+**Compatibility mode:** operators who want the old `manage_options` fallback can
+set `wp_sudo_governance_mode = compatibility` in the database. This is an opt-in,
+not the default.
+
+**Break-glass recovery:** if every holder of `manage_wp_sudo` is removed,
+`define('WP_SUDO_RECOVERY_MODE', true)` in `wp-config.php` grants temporary
+access. Every page load in recovery mode emits a non-dismissible admin notice and
+logs a `governance.recovery_mode` event. See [FAQ](FAQ.md#what-is-break-glass-recovery-mode-and-when-should-i-use-it).
 
 Operationally, this implies:
 
 - WP Sudo should be paired with external immutable logging where possible.
 - Organizations with many admins should treat Sudo settings access as a distinct
-  governance concern, not "all admins by default."
+  governance concern and limit `manage_wp_sudo` to the subset of administrators
+  who should own security policy.
+- Capability grant/revoke and session-revoke AJAX operations are covered by the
+  `options.wp_sudo_access` gated rule, requiring an active sudo session before
+  proceeding.
 
-Planned hardening introduces dedicated Sudo capabilities and explicit grant
-controls (instead of broad admin-cap inheritance). See:
-[`docs/internal-admin-governance-spec.md`](internal-admin-governance-spec.md).
+See [`docs/internal-admin-governance-spec.md`](internal-admin-governance-spec.md)
+for the full design rationale.
 
 ## Threat Model: The Kill Chain
 

@@ -628,6 +628,32 @@ class ActionRegistryTest extends TestCase {
 		$this->assertContains( 'wp_sudo_revoke_session', $rule['ajax']['actions'] );
 	}
 
+	/**
+	 * AJAX surface must gate the wp_sudo_grant_cap action.
+	 */
+	public function test_wp_sudo_access_ajax_gates_grant_cap(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		$rule = Action_Registry::find( 'options.wp_sudo_access' );
+
+		$this->assertNotNull( $rule );
+		$this->assertContains( 'wp_sudo_grant_cap', $rule['ajax']['actions'] );
+	}
+
+	/**
+	 * AJAX surface must gate the wp_sudo_revoke_cap action.
+	 */
+	public function test_wp_sudo_access_ajax_gates_revoke_cap(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		$rule = Action_Registry::find( 'options.wp_sudo_access' );
+
+		$this->assertNotNull( $rule );
+		$this->assertContains( 'wp_sudo_revoke_cap', $rule['ajax']['actions'] );
+	}
+
 	// -----------------------------------------------------------------
 	// User create rule (user.create)
 	// -----------------------------------------------------------------

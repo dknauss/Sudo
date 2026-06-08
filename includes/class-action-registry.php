@@ -493,7 +493,7 @@ class Action_Registry {
 						return 'wp-sudo-access' === $option_page;
 					},
 				),
-				'ajax'     => array( 'actions' => array( 'wp_sudo_revoke_session' ) ),
+				'ajax'     => array( 'actions' => array( 'wp_sudo_grant_cap', 'wp_sudo_revoke_cap', 'wp_sudo_revoke_session' ) ),
 				'rest'     => null,
 			),
 

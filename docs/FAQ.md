@@ -77,6 +77,44 @@ representative admin, AJAX, or REST request shape and see:
 The tester is diagnostic only. It does not execute the request, stash it, or
 change live gate state.
 
+## Who can access Sudo settings?
+
+Users with the `manage_wp_sudo` capability. On a new install, the activating admin receives all four governance capabilities automatically. Other administrators can be granted access from **Settings → Sudo → Access**.
+
+In compatibility mode (`wp_sudo_governance_mode = compatibility`), access falls back to `manage_options` (or `manage_network_options` on multisite). Compatibility mode is an opt-in fallback — the default is strict mode, which requires `manage_wp_sudo` explicitly.
+
+## What are the four governance capabilities?
+
+- `manage_wp_sudo` — access Sudo settings, configure policy, manage capability grants.
+- `view_wp_sudo_activity` — view the dashboard widget and activity screens.
+- `export_wp_sudo_activity` — download activity exports (CSV/JSON).
+- `revoke_wp_sudo_sessions` — force-revoke another user's active sudo session.
+
+Super admins on multisite are always treated as holding all four capabilities regardless of explicit grants.
+
+## What is the last-manager guard?
+
+When revoking `manage_wp_sudo` from a user, WP Sudo checks whether that user is the **sole remaining holder** of the capability. If they are, the revoke is blocked with a 409 error to prevent lockout.
+
+If you need to proceed despite the guard — for example, after a key person leaves — use break-glass recovery mode: add `define('WP_SUDO_RECOVERY_MODE', true);` to `wp-config.php`. See the next FAQ entry.
+
+## What is break-glass recovery mode, and when should I use it?
+
+Break-glass recovery mode is an emergency escape hatch for the "last manager locked out" scenario. It is activated by adding the following line to `wp-config.php`:
+
+```php
+define( 'WP_SUDO_RECOVERY_MODE', true );
+```
+
+When active:
+- The current user has effective `manage_wp_sudo` access regardless of their actual capability set.
+- Every Sudo admin page load displays a **permanent, non-dismissible notice** stating that recovery mode is in effect.
+- Usage is logged (a `governance.recovery_mode` event is emitted for audit purposes).
+
+Recovery mode **does not** bypass the reauthentication challenge itself. A user in recovery mode must still complete the sudo challenge on gated actions — they just regain access to the Sudo settings and Access tab.
+
+**Remove the constant once you have restored normal access.** Leaving recovery mode enabled indefinitely effectively bypasses governance.
+
 ## Does this replace WordPress roles and capabilities?
 
 No. Sudo adds a reauthentication layer on top of the existing permission model. WordPress capability checks still run after the gate. A user who does not have the `activate_plugins` capability will still be denied after reauthenticating — Sudo does not grant any new permissions.
