@@ -46,6 +46,9 @@
 import { execSync } from 'child_process';
 import type { Page } from '@playwright/test';
 import { test, expect, activateSudoSession } from '../fixtures/test';
+import { wpEnvRun } from '../fixtures/wp-env';
+
+const WP_ENV_RUN_CLI = wpEnvRun( 'cli' );
 
 /**
  * Wait for a real same-URL reload triggered by the admin bar timer reaching zero.
@@ -252,7 +255,7 @@ test.describe( 'Admin bar timer', () => {
         // the browser tests use). 'tests-cli' targets the tests site on port 8890.
         // Source: wp-env.json — "port": 8889 is the development site (verified)
         execSync(
-            'npx wp-env run cli wp user meta update 1 _wp_sudo_expires 1',
+            `${ WP_ENV_RUN_CLI } wp user meta update 1 _wp_sudo_expires 1`,
             { stdio: 'ignore' }
         );
 
