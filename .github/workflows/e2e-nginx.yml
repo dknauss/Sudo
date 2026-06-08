@@ -57,6 +57,9 @@ jobs:
             --admin_email=dev@example.com \
             --skip-email
           docker compose -f .github/docker/nginx-mariadb.compose.yml run --rm cli wp plugin activate wp-sudo --path=/var/www/html
+          for cap in manage_wp_sudo view_wp_sudo_activity export_wp_sudo_activity revoke_wp_sudo_sessions; do
+            docker compose -f .github/docker/nginx-mariadb.compose.yml run --rm cli wp user add-cap admin "$cap" --path=/var/www/html
+          done
 
       - name: Wait for nginx WordPress to be ready
         run: |
