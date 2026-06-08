@@ -44,6 +44,8 @@ It is designed to reduce risk when an attacker has:
 
 On those covered paths, a valid session without an active sudo window is not enough.
 
+**What this is not:** a general fix for broken authorization in plugin code. WP Sudo gates specific known operations on specific known surfaces. A plugin vulnerability that performs a privileged state change through its own code path — without routing through a surface WP Sudo intercepts — is outside this layer. WP Sudo is the guard at the door of the operations it knows about; it is not a monitor of arbitrary plugin execution.
+
 ## What WP Sudo covers
 
 WP Sudo currently gates built-in operations across categories such as:
