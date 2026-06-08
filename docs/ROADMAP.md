@@ -1426,6 +1426,34 @@ migration endpoint.
    - Opt-in 2FA-enrollment requirement for `manage_wp_sudo` holders.
    - Audit visibility on governance-mode transitions.
 
+3. **Phase 3 (post-v3.2) — access tab UX.**
+
+   - **User picker instead of user ID field.** The Grant Capability interface
+     currently requires a numeric user ID. Replace with a searchable dropdown
+     (or typeahead) populated from real WordPress users. Default scope:
+     administrator-role users only, since only admins can hold Sudo governance
+     capabilities in practice — there is no current use case for granting
+     `manage_wp_sudo` to an editor or subscriber who would be unable to reach
+     the settings page anyway. Leave the question open in case a future role
+     model warrants wider eligibility (e.g., a custom role with `manage_options`
+     that should be able to receive `view_wp_sudo_activity`).
+
+   - **Human-readable capability labels in the dropdown.** The grant interface
+     currently presents raw capability strings (`manage_wp_sudo`,
+     `view_wp_sudo_activity`, etc.). Replace with plain English descriptions and
+     demote the capability name to secondary label text:
+
+     | Capability slug | Suggested display label |
+     |---|---|
+     | `manage_wp_sudo` | Manage Sudo settings and policies |
+     | `view_wp_sudo_activity` | View sudo activity and sessions |
+     | `export_wp_sudo_activity` | Export sudo activity data |
+     | `revoke_wp_sudo_sessions` | Revoke other users' active sessions |
+
+     The capability slug should remain visible (as subtitle or tooltip) so
+     developers and integrators can identify capabilities unambiguously without
+     relying on display strings.
+
 ### Priority rationale
 
 - This is a security-governance control, not a cosmetic UX feature.
