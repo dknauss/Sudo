@@ -112,6 +112,13 @@ No build step. No production dependencies — only dev dependencies (PHPUnit 9.6
 - `docs/ROADMAP.md` — unified roadmap: integration tests, WP 7.0 prep, collaboration analysis, TDD strategy, core design features, feature backlog, accessibility appendix.
 - `docs/release-status.md` — canonical current release status: stable tag, unreleased `main` work, and WordPress forward-lane posture.
 
+### UI screenshot planning
+
+Any development phase that significantly changes the UI must include a
+README/readme screenshot refresh task in that phase's scope. Treat screenshots
+as phased assets: refresh them when public docs would otherwise become
+misleading, and expect to redo the set after later major UI changes.
+
 ## Verification Requirements
 
 LLM-generated content has a documented history of confabulation in this project.

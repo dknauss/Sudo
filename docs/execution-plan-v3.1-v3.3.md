@@ -329,7 +329,12 @@ review and need runtime confirmation or WP 7.0 RC source validation:
 
 ## P1 — Highest Security + Operator Value
 
-3. Internal admin governance, Phase 1:
+3. Gutenberg block-editor sudo UX design:
+   - Treat as the most important next major feature track after immediate
+     delivery-hygiene work.
+   - Design challenge transport, editor-state preservation, snackbar/notices UX,
+     replay/cancel semantics, and Playwright coverage before implementation.
+4. Internal admin governance, Phase 1:
    - Ship strict-capability mode as the default.
    - Full capability surface: `manage_wp_sudo`, `view_wp_sudo_activity`,
      `export_wp_sudo_activity`, `revoke_wp_sudo_sessions`.
@@ -337,30 +342,34 @@ review and need runtime confirmation or WP 7.0 RC source validation:
      drift detection, "last manager" guard, `WP_SUDO_RECOVERY_MODE`
      break-glass, audit hooks for all access-model transitions.
    - See [`docs/internal-admin-governance-spec.md`](internal-admin-governance-spec.md).
-4. Request-stash replay/data-minimization follow-up:
+5. Request-stash replay/data-minimization follow-up:
    - Add pattern-based redaction for non-standard secret names.
    - Add custom-rule metadata for redacted, replay-safe, and non-replayable
      fields/actions.
-5. Dedicated Sudo Activity screen (list-table MVP):
+6. Dedicated Sudo Activity screen (list-table MVP):
    - server-side pagination/filter/sort over `wpsudo_events`.
-6. Audit-visibility integrity warnings:
+   - Keep it modest and Sudo-specific; do not compete with dedicated audit-log
+     plugins for notifications, long-term retention, or compliance exports.
+7. Audit-visibility integrity warnings:
    - explicit warnings when logging visibility is reduced by code-level overrides.
 
 ## P2 — Multisite Operator Controls
 
-7. Super-admin widget visibility controls.
-8. Network dashboard widget (cross-site aggregation).
-9. Cross-site session revocation.
+8. Super-admin widget visibility controls.
+9. Network dashboard widget (cross-site aggregation).
+10. Cross-site session revocation.
 
 ## P3 — Governance Polish (optional, v3.2)
 
-10. Internal admin governance, Phase 2:
+11. Internal admin governance, Phase 2:
    - Integrity warnings when effective visibility is broader than intended.
    - Opt-in 2FA-enrollment requirement for `manage_wp_sudo` holders.
    - Audit visibility on governance-mode transitions (`strict` ↔ `compatibility`).
-   - External Audit Mode: let operators route Sudo events solely to Stream or
-     WSAL bridges and suppress `wpsudo_events` writes, with bridge-presence
-     preflight and integrity warnings. See
+   - External Audit Mode: let operators route durable Sudo event persistence,
+     retention, and notifications to Stream or WSAL bridges while Sudo keeps
+     firing hooks and showing session/policy status. Suppress local
+     `wpsudo_events` writes only when bridge-presence preflight passes and
+     integrity warnings are active. See
      [`docs/external-audit-mode-spec.md`](external-audit-mode-spec.md).
 
    Phase 2 is scope-bounded and non-blocking; none of it is required to close
@@ -369,7 +378,7 @@ review and need runtime confirmation or WP 7.0 RC source validation:
 
 ## P4 — Architecture / Scale (conditional, not scheduled)
 
-11. Session-store architecture implementation follow-up:
+12. Session-store architecture implementation follow-up:
     - Execute recommended Option 1 (authoritative table + usermeta shadow)
       from [`docs/session-store-evaluation.md`](session-store-evaluation.md).
     - **Conditional on reaching Tier 2 in practice** (≥ ~1,000 concurrently
@@ -378,7 +387,6 @@ review and need runtime confirmation or WP 7.0 RC source validation:
 
 ## P5 — UX / Platform Expansion
 
-12. Gutenberg block-editor sudo UX integration.
 13. Network policy hierarchy (after multisite operator controls stabilize).
 
 ## P6 — Long-Horizon Design Backlog
@@ -473,17 +481,60 @@ Residual follow-up:
 - Cancelled challenges still rely on the 5-minute stash TTL; explicit cancel
   deletion remains a lower-risk follow-up.
 
-## Phase 4 — Sudo Activity screen MVP (P1.5)
+## Immediate low-hanging lane — CI speed and public visuals
+
+Before starting another large product feature, close the cheap work that improves
+day-to-day delivery and public trust:
+
+- Rebalance the Playwright E2E shards by splitting the current
+  `challenge.spec.ts` long pole into smaller files or explicit CI groups.
+- Refresh README/readme screenshots for the v3.2 UI, including the Access tab,
+  Session Activity dashboard widget, Rule Tester, and new settings surfaces.
+- Treat screenshots as a phased asset: refresh now for accuracy, then redo again
+  after major UI changes such as Gutenberg reauth UX.
+
+Exit criteria:
+- E2E feedback is materially faster without reducing release-grade coverage.
+- Public screenshots are accurate, consistent, and do not expose private data.
+
+## Phase 4 — Gutenberg Block Editor reauth UX design (top major feature)
+
+This is the highest-value next major product feature, but it should start as a
+design phase because it touches editor state, autosave, notices, request replay,
+and user trust.
+
+- Define the desired editor experience for gated actions: snackbar/notices,
+  modal or interstitial tradeoffs, retry/cancel behavior, and recovery if
+  reauthentication fails.
+- Specify transport and replay semantics for block-editor requests without
+  losing unsaved editor state.
+- Identify the minimum JavaScript/build tooling needed and keep the PHP boundary
+  explicit.
+- Define Playwright coverage before implementation, including failure and cancel
+  flows.
+
+Exit criteria:
+- The implementation scope is clear enough to build with TDD/E2E coverage.
+- The UX does not risk data loss, confusing redirects, or silent action drops in
+  the editor.
+
+## Phase 5 — Sudo Activity screen MVP (P1.5)
 
 - Add a dedicated list-table activity screen with pagination/filter/sort.
 - Keep dashboard widget as preview and link to full activity screen.
 - Use lean query shape and capped page sizes for predictable performance.
+- Keep scope deliberately modest: recent Sudo-specific events, short retention,
+  support/debugging value, and no email notifications or compliance reporting.
+- Prepare for External Audit Mode so sites using Stream, WP Activity Log, or
+  similar tools can delegate persistence and alerting instead of duplicating it.
 
 Exit criteria:
 - Operators can review and triage full recent activity without dashboard limits.
 - Performance remains acceptable on high-volume event tables.
+- Sites that use external audit plugins have a clear path to reduce/disable local
+  persistence while keeping Sudo status and audit hooks intact.
 
-## Phase 5 — Audit-visibility integrity warnings (P1.6)
+## Phase 6 — Audit-visibility integrity warnings (P1.6)
 
 - Detect and surface reduced event visibility (e.g., passed-event logging disabled).
 - Show warnings in settings and activity surfaces with clear remediation text.
@@ -491,7 +542,7 @@ Exit criteria:
 Exit criteria:
 - Visibility-reduction states are explicit and auditable, not implicit.
 
-## Phase 6 — Multisite operator controls (P2)
+## Phase 7 — Multisite operator controls (P2)
 
 - Add super-admin widget visibility modes.
 - Add network dashboard aggregation for cross-site visibility.
@@ -500,14 +551,17 @@ Exit criteria:
 Exit criteria:
 - Super admins can monitor and respond across network sites without per-site pivoting.
 
-## Phase 7 — Governance polish (P3, v3.2, optional)
+## Phase 8 — Governance polish (P3, optional)
 
 Additive improvements that benefit from production field data from Phase 1.
 
 - Integrity warnings when effective visibility is broader than intended.
 - Opt-in 2FA-enrollment requirement for `manage_wp_sudo` holders.
 - Audit visibility for governance-mode transitions (`strict` ↔ `compatibility`).
-- External Audit Mode for Stream / WSAL operators. See
+- External Audit Mode for Stream / WSAL operators. This means WP Sudo can treat
+  a supported audit plugin as the durable event store and notification layer
+  while Sudo keeps firing hooks, showing session/policy status, and warning if
+  delegated coverage disappears. See
   [`docs/external-audit-mode-spec.md`](external-audit-mode-spec.md).
   - New `wp_sudo_external_audit` option (`off` default, `stream`, `wsal`).
   - Preflight: refuse activation when the chosen bridge is not loaded.
@@ -530,9 +584,9 @@ Exit criteria:
   session or policy visibility in the dashboard widget, and cannot silently
   lose audit coverage if the bridge is deactivated.
 
-Phase 7 is non-blocking; the governance model is complete after Phase 2.
+Phase 8 is non-blocking; the governance model is complete after Phase 2.
 
-## Phase 8 — Session-store architecture (P4, conditional, not scheduled)
+## Phase 9 — Session-store architecture (P4, conditional, not scheduled)
 
 - Implement Option 1 from
   [`docs/session-store-evaluation.md`](session-store-evaluation.md)
@@ -548,17 +602,15 @@ Exit criteria:
 **Conditional execution.** This phase is not scheduled for a specific
 version. The scale-tier analysis in the session-store evaluation places the
 inflection point around ~1,000 concurrently sudo-active users per site.
-Execute Phase 8 only when real deployments approach that threshold; ship
+Execute Phase 9 only when real deployments approach that threshold; ship
 interim transient-cache mitigations (already done for widget and Users-list
 count) if they arise sooner.
 
-## Phase 9 — UX/platform expansions (P5)
+## Phase 10 — UX/platform expansions (P5)
 
-- Implement Gutenberg reauth UX design.
 - Re-evaluate and implement network policy hierarchy.
 
 Exit criteria:
-- Stable editor flow under gated operations.
 - Predictable multisite policy governance outcomes.
 
 ## Continuous quality lane (parallel)

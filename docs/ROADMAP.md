@@ -78,6 +78,13 @@ The v3.0.0 release consolidates Phases 7–9 work plus pre-release fixes:
 - **Session-store architecture follow-up** — Evaluate and likely implement a dedicated sudo-session table, with the current recommendation favoring an authoritative table plus usermeta shadow writes. See [`docs/session-store-evaluation.md`](session-store-evaluation.md).
 - **Internal admin governance hardening** — Move Sudo management away from broad `manage_options` defaults by introducing dedicated capabilities and explicit grants. Implement with migration-safe phases documented in [`docs/internal-admin-governance-spec.md`](internal-admin-governance-spec.md) and roadmap §11.2.
 
+### UI Documentation Rule
+
+Any development phase that significantly changes the UI must include a
+README/readme screenshot refresh task in that phase's scope. Treat screenshots
+as phased assets: update them when the public docs would otherwise become
+misleading, and expect to redo the set after later major UI changes.
+
 ### Later: Major Features (Need Design Work)
 
 - **Client-side modal challenge** (UX like GitHub) — `.needs-sudo` CSS class on forms, JS intercepts submit, inline password prompt. Significant complexity. Likely a milestone unto itself.
@@ -447,63 +454,63 @@ not context retrieval.
 15. ~~**Playwright E2E test infrastructure**~~ — done; browser coverage and alternate-stack smoke lanes are in place
 16. ~~**Apache + MariaDB CI job**~~ — done; covered by the named `wp-env` Playwright lane
 
-### Post-7.0 Priority Plan
+### Post-v3.2.0 Priority Plan
 
-Once WordPress 7.0 GA is signed off and the compatibility release work is closed,
+With the WordPress 7.0 compatibility release and v3.2.0 hardening work closed,
 the recommended implementation order is:
 
-1. **Complete post-v3.1.3 security review remediation**
-   - Fix the 2FA counter reset issue first, with failing tests committed before production code
-   - Replace the WPGraphQL raw-body fallback with decoded request classification and explicit persisted-query behavior
-   - Add request-stash redaction hardening and custom-rule replay metadata
-   - Keep governance hardening scoped as the next security-design phase
-   - **Effort:** Medium
-2. **Finish WP 7.0 GA cleanup**
-   - Bump `Tested up to`
-   - Cut the next release with the already-queued unreleased notes
-   - Remove the temporary `handle_err_admin_role()` workaround if core `#64690` shipped as expected
-   - **Effort:** Low
+1. **Implement E2E CI acceleration without reducing release assurance**
+   - Rebalance the current long shard before adding cache/image/policy optimizations
+   - Keep the full Playwright suite available for release-grade confidence, but shorten normal feedback loops
+   - Treat path-based skipping and worker-level parallelism as later steps that require explicit safety rules
+   - **Effort:** Low to medium
+2. **Refresh README screenshots for the current UI**
+   - Inventory existing README/readme screenshot references and WordPress.org asset needs
+   - Recapture the Settings -> Sudo screens, Access tab, Session Activity dashboard widget, Rule Tester, and other new widgets/screens
+   - Expect to redo this again after major UI changes; keep this pass focused on making current public docs honest
+   - Redo the full screenshot set if visual consistency or stale WP admin styling makes piecemeal replacement misleading
+   - **Effort:** Low to medium
 3. **Strengthen release-only environment checks instead of broadening required CI**
    - Add the managed-host/manual environment checklist promised in section 5
    - Keep SQLite as smoke/release assurance, not a required merge gate
    - Add breadth only where a real compatibility signal is missing
    - **Effort:** Low to medium
-4. **Implement E2E CI acceleration without reducing release assurance**
-   - Keep the full Playwright suite available for release-grade confidence, but shorten normal feedback loops
-   - Rebalance the current long shard before adding cache/image/policy optimizations
-   - Treat path-based skipping and worker-level parallelism as later steps that require explicit safety rules
+4. **Design Gutenberg Block Editor reauthentication UX**
+   - Treat this as the most important next major product feature, even though it is the largest UX/design lift
+   - Define challenge transport, snackbar/notices behavior, autosave/editor-state safety, replay semantics, and test strategy before implementation
+   - Use the design phase to decide what needs Playwright coverage, whether any build tooling is required, and how failures should recover without losing editor work
+   - **Effort:** High
+5. **Build the Sudo Activity screen MVP as a modest built-in visibility layer**
+   - Keep it focused on recent Sudo events, short retention, and support/debugging value
+   - Do not make it a full audit-log, alerting, export, or notification product
+   - Prepare the UI for External Audit Mode so Stream/WP Activity Log sites can delegate persistence and notifications
+   - **Effort:** Medium
+6. **Add audit-visibility integrity warnings**
+   - Warn when local passed-event logging is disabled or delegated audit coverage is missing
+   - Make reduced visibility explicit in settings, dashboard, and activity surfaces
    - **Effort:** Low to medium
-5. **Refresh README screenshots for the current UI**
-   - Inventory existing README/readme screenshot references and WordPress.org asset needs
-   - Recapture the Settings -> Sudo screens, Access tab, Session Activity dashboard widget, Rule Tester, and other new widgets/screens
-   - Redo the full screenshot set if visual consistency or stale WP admin styling makes piecemeal replacement misleading
-   - **Effort:** Low to medium
-6. ~~**Build the Session Activity Dashboard Widget**~~ ✅ Done (v3.0.0)
+7. ~~**Build the Session Activity Dashboard Widget**~~ ✅ Done (v3.0.0)
    - ~~This is the smallest meaningful product feature still open~~
    - ~~It adds operator value without forcing a major challenge-flow redesign~~
    - ~~It will also establish the audit-data persistence layer that other visibility features could reuse~~
    - ~~**Effort:** Medium~~
-7. **Extend Dashboard Widget for Multisite Network Admin** (see §11.1)
+8. **Extend Dashboard Widget for Multisite Network Admin** (see §11.1)
    - Build on the v3.0.0 foundation with cross-site aggregation
    - Add super admin visibility controls
    - This is the natural next step now that Event_Store and the per-site widget exist
    - **Effort:** Medium
-8. **Design Gutenberg Block Editor integration before implementation**
-   - Treat this as the next major UX milestone, not an opportunistic patch
-   - Start with a design phase: challenge transport, snackbar UX, replay model, and test strategy
-   - Only implement after the challenge component boundaries are explicit
-   - **Effort:** High
-8. **Re-evaluate multisite Network Policy Hierarchy after the dashboard/audit work**
+9. **Re-evaluate multisite Network Policy Hierarchy after the dashboard/audit work**
    - This remains valuable, but only for a narrower audience
    - It becomes easier once policy state and audit visibility are clearer
    - **Effort:** High
 
 ### Post-v3.0.0 Backlog Triage
 
-Use this default order after the v3.0.0 release unless a real user need overrides it:
+Use this default order after the v3.2.0 release unless a real user need overrides it:
 
-- **Do next:** Post-v3.1.3 security review remediation, then Network Dashboard Widget + Super Admin Visibility Controls
-- **Plan next:** Governance hardening and Gutenberg Block Editor Integration
+- **Do next:** E2E shard rebalance and README screenshot refresh
+- **Most important major feature track:** Gutenberg Block Editor reauthentication UX design, then implementation
+- **Plan next:** The modest Sudo Activity screen MVP, audit-visibility warnings, multisite operator controls, and governance polish
 - **Do later if demand exists:** Network Policy Hierarchy for Multisite, Cross-Site Session Revocation, network-enforced Passed-event logging policy (super admins can require immutable Passed-event audit visibility across subsites), Security Administrator governance mode (dedicated `manage_wp_sudo` capability, settings/widget visibility scoped to that capability, optional strict-mode assignee workflow, and documented recovery path for misconfiguration)
 - **Keep as design backlog:** client-side modal challenge, per-session sudo isolation, REST sudo grant endpoint, SSO/SAML/OIDC framework
 
