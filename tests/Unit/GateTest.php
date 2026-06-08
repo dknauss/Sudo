@@ -750,6 +750,121 @@ class GateTest extends TestCase {
 	}
 
 	/**
+	 * Folder-based plugins are addressed by core as `/wp/v2/plugins/{dir}/{file}`
+	 * (the `.php` stripped, the directory slash retained). The single-segment
+	 * route pattern `[^/]+$` cannot match the embedded slash, so the reauth gate
+	 * — and the App-Password policy — silently never fired for the majority of
+	 * real plugins. This is the F2 REST gate bypass.
+	 */
+	public function test_match_request_matches_rest_plugin_activate_folder_plugin(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		$request = new \WP_REST_Request( 'PUT', '/wp/v2/plugins/akismet/akismet' );
+
+		$rule = $this->gate->match_request( 'rest', $request );
+
+		$this->assertNotNull( $rule );
+		$this->assertSame( 'plugin.activate', $rule['id'] );
+	}
+
+	/**
+	 * Folder-based plugin deletion (DELETE) must also match the gate.
+	 */
+	public function test_match_request_matches_rest_plugin_delete_folder_plugin(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		$request = new \WP_REST_Request( 'DELETE', '/wp/v2/plugins/akismet/akismet' );
+
+		$rule = $this->gate->match_request( 'rest', $request );
+
+		$this->assertNotNull( $rule );
+		$this->assertSame( 'plugin.delete', $rule['id'] );
+	}
+
+	/**
+	 * The folder-plugin route fix must remain anchored: a deeper, three-segment
+	 * path that core never issues must NOT match (no over-broad gating).
+	 */
+	public function test_match_request_rejects_rest_plugin_route_with_extra_segment(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		$request = new \WP_REST_Request( 'DELETE', '/wp/v2/plugins/a/b/c' );
+
+		$this->assertNull( $this->gate->match_request( 'rest', $request ) );
+	}
+
+	/**
+	 * C1: when a BUILT-IN rule's REST route pattern is invalid, the matcher must
+	 * fail closed (gate the request) rather than silently passing it through.
+	 * A built-in rule id reused by a (broken) filtered rule is treated as
+	 * authoritative and fails closed, and a diagnostic action fires.
+	 */
+	public function test_matches_rest_built_in_rule_fails_closed_on_invalid_pattern(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->alias(
+			static function ( $hook, $value ) {
+				if ( 'wp_sudo_gated_actions' === $hook ) {
+					return array(
+						array(
+							'id'       => 'plugin.delete', // built-in id => authoritative.
+							'label'    => 'Delete plugin',
+							'category' => 'plugins',
+							'rest'     => array(
+								'route'   => '#(#', // invalid PCRE — compilation fails.
+								'methods' => array( 'DELETE' ),
+							),
+						),
+					);
+				}
+				return $value;
+			}
+		);
+
+		Actions\expectDone( 'wp_sudo_rule_regex_error' )->once();
+
+		$request = new \WP_REST_Request( 'DELETE', '/wp/v2/plugins/anything' );
+
+		$rule = $this->gate->match_request( 'rest', $request );
+
+		$this->assertNotNull( $rule );
+		$this->assertSame( 'plugin.delete', $rule['id'] );
+	}
+
+	/**
+	 * C1: a THIRD-PARTY rule (unknown id) with an invalid pattern must still
+	 * fail open (degrade gracefully) so a buggy extension cannot gate unrelated
+	 * traffic; the diagnostic action still fires.
+	 */
+	public function test_matches_rest_third_party_rule_fails_open_on_invalid_pattern(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->alias(
+			static function ( $hook, $value ) {
+				if ( 'wp_sudo_gated_actions' === $hook ) {
+					return array(
+						array(
+							'id'       => 'vendor.custom_broken',
+							'label'    => 'Vendor action',
+							'category' => 'custom',
+							'rest'     => array(
+								'route'   => '#(#',
+								'methods' => array( 'DELETE' ),
+							),
+						),
+					);
+				}
+				return $value;
+			}
+		);
+
+		$request = new \WP_REST_Request( 'DELETE', '/wp/v2/plugins/anything' );
+
+		$this->assertNull( $this->gate->match_request( 'rest', $request ) );
+	}
+
+	/**
 	 * Test match_request matches REST user delete.
 	 */
 	public function test_match_request_matches_rest_user_delete(): void {
@@ -3044,6 +3159,44 @@ class GateTest extends TestCase {
 		$this->assertSame( 'sudo_blocked', $result->get_error_code() );
 	}
 
+	/**
+	 * A GraphQL block string may contain an escaped triple-quote (\""") which
+	 * stays inside the string and does NOT terminate it. The mutation scanner
+	 * must honor that escape; otherwise it ends the block string early at the
+	 * first literal """, miscounts the following braces, and never sees a
+	 * trailing top-level mutation operation — silently allowing it through.
+	 *
+	 * @see https://spec.graphql.org/draft/#sec-String-Value (Escaped Triple-Quote)
+	 */
+	public function test_check_wpgraphql_blocks_mutation_hidden_after_escaped_block_string_quote(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'get_option' )->justReturn( array( 'wpgraphql_policy' => 'limited' ) );
+		Functions\when( 'get_current_user_id' )->justReturn( 1 );
+		Functions\when( 'get_user_meta' )->justReturn( 0 );
+		Functions\when( 'apply_filters' )->alias(
+			static function ( $hook, $value ) {
+				if ( 'wp_sudo_wpgraphql_bypass' === $hook ) {
+					return false;
+				}
+				return $value;
+			}
+		);
+
+		// The block-string content is `x """ }}}}` — the \""" is an escaped
+		// triple-quote, not the closing delimiter. A correct scanner stays in
+		// the string until the real closing """, leaving the trailing
+		// `mutation { deleteUser { id } }` visible at depth 0. The single
+		// backslash below is literal: PHP single quotes don't treat \" as an
+		// escape, so json_encode() round-trips it as the GraphQL escape \""".
+		$document = 'query { a(t: """x \""" }}}}""") } mutation { deleteUser { id } }';
+		$body     = (string) json_encode( array( 'query' => $document ) );
+
+		$result = $this->gate->check_wpgraphql( $body );
+
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( 'sudo_blocked', $result->get_error_code() );
+	}
+
 	public function test_check_wpgraphql_blocks_json_escaped_mutation(): void {
 		Functions\when( '__' )->returnArg();
 		Functions\when( 'get_option' )->justReturn( array( 'wpgraphql_policy' => 'limited' ) );
@@ -3123,6 +3276,144 @@ class GateTest extends TestCase {
 		);
 
 		$this->assertNull( $this->gate->check_wpgraphql( '{"id":"persisted-op"}' ) );
+	}
+
+	// ── WPGraphQL line-ending / comment tokenizer hardening (F1) ──────
+
+	/**
+	 * Shared Limited-mode mocks for the line-ending tokenizer tests.
+	 *
+	 * Classifier returns the default value (no forced classification) so the
+	 * document tokenizer is exercised; bypass returns false; no active session.
+	 *
+	 * @return void
+	 */
+	private function arrange_limited_no_session(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'get_option' )->justReturn( array( 'wpgraphql_policy' => 'limited' ) );
+		Functions\when( 'get_current_user_id' )->justReturn( 1 );
+		Functions\when( 'get_user_meta' )->justReturn( 0 );
+		Functions\when( 'apply_filters' )->alias(
+			static function ( $hook, $value ) {
+				if ( 'wp_sudo_wpgraphql_bypass' === $hook ) {
+					return false;
+				}
+				return $value;
+			}
+		);
+	}
+
+	/**
+	 * A GraphQL line comment terminates at ANY line terminator, including a
+	 * bare carriage return (U+000D). graphql-php ends the comment at the CR and
+	 * tokenizes the following `mutation`; a scanner that runs the comment to
+	 * end-of-document only on LF swallows the operation and silently allows the
+	 * mutation. This is the F1 parser-differential bypass.
+	 *
+	 * @see https://spec.graphql.org/draft/#sec-Line-Terminators
+	 */
+	public function test_check_wpgraphql_blocks_mutation_after_cr_terminated_comment(): void {
+		$this->arrange_limited_no_session();
+
+		// Real carriage return inside the comment; json_encode escapes it to \r,
+		// and check_wpgraphql json-decodes it back to a literal CR.
+		$document = "# hidden\rmutation { deleteUser(input:{id:\"1\"}) { deletedId } }";
+		$body     = (string) json_encode( array( 'query' => $document ) );
+
+		$result = $this->gate->check_wpgraphql( $body );
+
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( 'sudo_blocked', $result->get_error_code() );
+	}
+
+	/**
+	 * Regression guard: a CRLF-terminated comment must also be blocked. (This
+	 * already worked because LF terminates the comment, but the fix must not
+	 * regress it.)
+	 */
+	public function test_check_wpgraphql_blocks_mutation_after_crlf_terminated_comment(): void {
+		$this->arrange_limited_no_session();
+
+		$document = "# hidden\r\nmutation { deleteUser(input:{id:\"1\"}) { deletedId } }";
+		$body     = (string) json_encode( array( 'query' => $document ) );
+
+		$result = $this->gate->check_wpgraphql( $body );
+
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( 'sudo_blocked', $result->get_error_code() );
+	}
+
+	/**
+	 * The fix must not over-block: a genuine query that follows a CR-terminated
+	 * comment is still a query and must pass through.
+	 */
+	public function test_check_wpgraphql_allows_query_after_cr_terminated_comment(): void {
+		$this->arrange_limited_no_session();
+
+		$document = "# a comment\rquery { posts { nodes { id } } }";
+		$body     = (string) json_encode( array( 'query' => $document ) );
+
+		$this->assertNull( $this->gate->check_wpgraphql( $body ) );
+	}
+
+	// ── WPGraphQL persisted-operation fail-safe (F10) ────────────────
+
+	/**
+	 * A persisted/APQ request carries only an operation hash, not inline GraphQL
+	 * text, so the tokenizer cannot tell whether it resolves to a mutation. In
+	 * Limited mode such opaque operations must fail safe (treated as a mutation)
+	 * unless a classifier resolves them, otherwise persisted mutations slip
+	 * through ungated.
+	 */
+	public function test_check_wpgraphql_blocks_persisted_apq_operation_by_default(): void {
+		$this->arrange_limited_no_session();
+
+		$body   = '{"extensions":{"persistedQuery":{"sha256Hash":"abc123","version":1}}}';
+		$result = $this->gate->check_wpgraphql( $body );
+
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( 'sudo_blocked', $result->get_error_code() );
+	}
+
+	/**
+	 * A bare persisted-operation id (no inline query) must also fail safe in
+	 * Limited mode when no classifier resolves it.
+	 */
+	public function test_check_wpgraphql_blocks_persisted_id_operation_by_default(): void {
+		$this->arrange_limited_no_session();
+
+		$result = $this->gate->check_wpgraphql( '{"id":"persisted-op"}' );
+
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( 'sudo_blocked', $result->get_error_code() );
+	}
+
+	/**
+	 * The persisted fail-safe must not catch an ordinary inline query: a normal
+	 * query body has no persisted indicator and resolves via the tokenizer.
+	 */
+	public function test_check_wpgraphql_allows_plain_inline_query(): void {
+		$this->arrange_limited_no_session();
+
+		$body = '{"query":"{ posts { nodes { id } } }"}';
+
+		$this->assertNull( $this->gate->check_wpgraphql( $body ) );
+	}
+
+	/**
+	 * A UTF-8 BOM in front of the JSON body must not defeat mutation detection.
+	 * Without stripping the BOM, json_decode fails and the raw-scan fallback
+	 * misses the mutation (it sits inside the JSON braces at depth >= 1).
+	 */
+	public function test_check_wpgraphql_blocks_bom_prefixed_mutation(): void {
+		$this->arrange_limited_no_session();
+
+		$body = "\xEF\xBB\xBF" . '{"query":"mutation { deleteUser(input:{id:\"1\"}) { deletedId } }"}';
+
+		$result = $this->gate->check_wpgraphql( $body );
+
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( 'sudo_blocked', $result->get_error_code() );
 	}
 
 	// ── get_app_password_policy() — per-app-password overrides ───────

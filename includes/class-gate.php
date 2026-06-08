@@ -1320,7 +1320,107 @@ class Gate {
 			}
 		}
 
+		// Fail-safe: a persisted/APQ request carries only an operation id or
+		// hash, not inline GraphQL text, so the tokenizer above cannot see
+		// whether it resolves to a mutation. Treat such opaque operations as
+		// mutations by default so a persisted mutation cannot slip through
+		// ungated in Limited mode. Operators running persisted queries can
+		// resolve the real operation type via the
+		// `wp_sudo_wpgraphql_classification` filter (checked above) or set the
+		// surface policy to Unrestricted.
+		if ( $this->body_has_persisted_operation( $body ) ) {
+			return true;
+		}
+
 		return false;
+	}
+
+	/**
+	 * Whether a WPGraphQL request body is an opaque persisted/APQ operation.
+	 *
+	 * A persisted operation references stored GraphQL by id or hash instead of
+	 * sending the document text, so its operation type (query vs mutation) is
+	 * not visible to the body tokenizer. Detecting it lets Limited mode fail
+	 * safe rather than fail open.
+	 *
+	 * @since 3.1.4
+	 *
+	 * @param string $body Raw request body.
+	 * @return bool True when the body looks like a persisted operation.
+	 */
+	private function body_has_persisted_operation( string $body ): bool {
+		$body = self::strip_leading_bom( $body );
+		$body = trim( $body );
+		if ( '' === $body ) {
+			return false;
+		}
+
+		$decoded = json_decode( $body, true );
+		if ( JSON_ERROR_NONE !== json_last_error() || ! is_array( $decoded ) ) {
+			return false;
+		}
+
+		// Single operation object.
+		if ( $this->entry_is_persisted_operation( $decoded ) ) {
+			return true;
+		}
+
+		// Batched array of operation objects: any persisted entry fails safe.
+		foreach ( $decoded as $entry ) {
+			if ( is_array( $entry ) && $this->entry_is_persisted_operation( $entry ) ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * Whether a single decoded GraphQL operation entry is a persisted reference.
+	 *
+	 * @since 3.1.4
+	 *
+	 * @param array<string, mixed> $entry Decoded operation entry.
+	 * @return bool
+	 */
+	private function entry_is_persisted_operation( array $entry ): bool {
+		// Inline document text is classified by the tokenizer, not the fail-safe.
+		if ( isset( $entry['query'] ) && is_string( $entry['query'] ) && '' !== trim( $entry['query'] ) ) {
+			return false;
+		}
+
+		// Apollo/WPGraphQL persisted-operation id and hash indicators.
+		foreach ( array( 'id', 'queryId', 'documentId' ) as $key ) {
+			if ( isset( $entry[ $key ] ) && is_scalar( $entry[ $key ] ) && '' !== (string) $entry[ $key ] ) {
+				return true;
+			}
+		}
+
+		if ( isset( $entry['extensions']['persistedQuery'] ) && is_array( $entry['extensions']['persistedQuery'] ) ) {
+			return true;
+		}
+
+		return false;
+	}
+
+	/**
+	 * Strip a leading UTF-8 byte-order mark from a request body.
+	 *
+	 * A BOM ahead of the JSON envelope otherwise defeats json_decode(), forcing
+	 * the raw-scan fallback where a mutation hidden inside the JSON braces is
+	 * never seen at top level.
+	 *
+	 * @since 3.1.4
+	 *
+	 * @param string $body Raw request body.
+	 * @return string Body without a leading UTF-8 BOM.
+	 */
+	private static function strip_leading_bom( string $body ): string {
+		if ( 0 === strncmp( $body, "\xEF\xBB\xBF", 3 ) ) {
+			return substr( $body, 3 );
+		}
+
+		return $body;
 	}
 
 	/**
@@ -1335,6 +1435,7 @@ class Gate {
 	 * @return string[] GraphQL document strings.
 	 */
 	private function extract_wpgraphql_documents( string $body ): array {
+		$body = self::strip_leading_bom( $body );
 		$body = trim( $body );
 		if ( '' === $body ) {
 			return array();
@@ -1405,7 +1506,13 @@ class Gate {
 			$char = $document[ $i ];
 
 			if ( '#' === $char ) {
-				while ( $i < $length && "\n" !== $document[ $i ] ) {
+				// A GraphQL line comment terminates at ANY line terminator —
+				// line feed (U+000A) OR carriage return (U+000D), per
+				// https://spec.graphql.org/draft/#sec-Line-Terminators. Stopping
+				// only at LF let a bare-CR comment swallow a following top-level
+				// `mutation` token that graphql-php would still tokenize, opening
+				// a parser-differential gate bypass.
+				while ( $i < $length && "\n" !== $document[ $i ] && "\r" !== $document[ $i ] ) {
 					++$i;
 				}
 				continue;
@@ -1415,7 +1522,19 @@ class Gate {
 				$next_three = substr( $document, $i, 3 );
 				if ( '"""' === $next_three ) {
 					$i += 3;
-					while ( $i < $length && '"""' !== substr( $document, $i, 3 ) ) {
+					while ( $i < $length ) {
+						// Escaped triple-quote (\""") stays inside the block
+						// string and does not terminate it. Skip the backslash
+						// and the escaped """, then keep scanning.
+						if ( '\\' === $document[ $i ] && '"""' === substr( $document, $i + 1, 3 ) ) {
+							$i += 4;
+							continue;
+						}
+
+						if ( '"""' === substr( $document, $i, 3 ) ) {
+							break;
+						}
+
 						++$i;
 					}
 					$i += 2;
@@ -1532,7 +1651,13 @@ class Gate {
 			return false;
 		}
 
-		if ( ! $this->safe_preg_match( $route_pattern, $route ) ) {
+		// A malformed pattern on a BUILT-IN rule is a bug in code we ship and
+		// must fail closed (gate the request) rather than silently passing it
+		// through. A malformed pattern from a third-party filter rule still
+		// degrades gracefully so a buggy extension cannot gate unrelated traffic.
+		$fail_closed = Action_Registry::is_builtin_rule_id( (string) ( $rule['id'] ?? '' ) );
+
+		if ( ! $this->safe_preg_match( $route_pattern, $route, $fail_closed ) ) {
 			return false;
 		}
 
@@ -1555,14 +1680,27 @@ class Gate {
 	/**
 	 * Safely evaluate a regex pattern without leaking warnings.
 	 *
-	 * Invalid patterns can be injected by third-party filters on
-	 * wp_sudo_gated_actions. In that case, fail closed for the rule.
+	 * A pattern can fail to compile (invalid PCRE injected by a third-party
+	 * filter on wp_sudo_gated_actions) or fail at runtime (e.g. a PCRE
+	 * backtrack/recursion limit hit on a pathological subject). Both raise a
+	 * warning and make preg_match() return false. When that happens the match
+	 * outcome is unknowable, so the caller decides the safe direction:
 	 *
-	 * @param string $pattern Regex pattern.
-	 * @param string $subject Subject to test.
-	 * @return bool True when the pattern matches.
+	 * - $fail_closed = true  (built-in rule): treat as a match so the request
+	 *   is gated rather than silently allowed.
+	 * - $fail_closed = false (third-party rule): treat as no match so a buggy
+	 *   extension cannot gate unrelated traffic.
+	 *
+	 * Either way a `wp_sudo_rule_regex_error` action fires so the misbehaving
+	 * pattern is observable instead of silently disabling (or over-enforcing) a
+	 * gate.
+	 *
+	 * @param string $pattern     Regex pattern.
+	 * @param string $subject     Subject to test.
+	 * @param bool   $fail_closed Direction to return when the pattern errors.
+	 * @return bool True when the pattern matches (or, on error, $fail_closed).
 	 */
-	private function safe_preg_match( string $pattern, string $subject ): bool {
+	private function safe_preg_match( string $pattern, string $subject, bool $fail_closed = false ): bool {
 		$had_warning = false;
 
 		// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_set_error_handler -- Guard invalid third-party regex patterns and fail closed.
@@ -1578,7 +1716,25 @@ class Gate {
 		// phpcs:ignore WordPress.PHP.DevelopmentFunctions.error_log_set_error_handler -- Restore the previous handler immediately after guarded call.
 		restore_error_handler();
 
-		return ! $had_warning && 1 === $matched;
+		if ( $had_warning || false === $matched ) {
+			/**
+			 * Fires when a gated-action rule's regex pattern fails to evaluate.
+			 *
+			 * Lets operators detect a malformed or pathological rule pattern
+			 * that would otherwise silently change gating behavior.
+			 *
+			 * @since 3.1.4
+			 *
+			 * @param string $pattern     The pattern that failed.
+			 * @param string $subject     The subject under test.
+			 * @param bool   $fail_closed Whether the failure gated the request.
+			 */
+			do_action( 'wp_sudo_rule_regex_error', $pattern, $subject, $fail_closed );
+
+			return $fail_closed;
+		}
+
+		return 1 === $matched;
 	}
 
 	/**

@@ -41,6 +41,18 @@ class Action_Registry {
 	private static ?array $cached_rules = null;
 
 	/**
+	 * Cached set of built-in rule ids (id => true), per-request.
+	 *
+	 * Derived from the canonical built-in rule set, independent of the
+	 * `wp_sudo_gated_actions` filter, so the Gate can tell whether a matched
+	 * rule is authoritative (built-in) and therefore must fail closed on a
+	 * malformed matcher. Reset via reset_cache() for testing.
+	 *
+	 * @var array<string, bool>|null
+	 */
+	private static ?array $cached_builtin_ids = null;
+
+	/**
 	 * Built-in gated action rules.
 	 *
 	 * Each rule is an associative array with:
@@ -69,7 +81,7 @@ class Action_Registry {
 				),
 				'ajax'     => null,
 				'rest'     => array(
-					'route'   => '#^/wp/v2/plugins/[^/]+$#',
+					'route'   => '#^/wp/v2/plugins/[^/]+(?:/[^/]+)?$#',
 					'methods' => array( 'PUT', 'PATCH' ),
 				),
 			),
@@ -85,7 +97,7 @@ class Action_Registry {
 				),
 				'ajax'     => null,
 				'rest'     => array(
-					'route'   => '#^/wp/v2/plugins/[^/]+$#',
+					'route'   => '#^/wp/v2/plugins/[^/]+(?:/[^/]+)?$#',
 					'methods' => array( 'PUT', 'PATCH' ),
 				),
 			),
@@ -103,7 +115,7 @@ class Action_Registry {
 					'actions' => array( 'delete-plugin' ),
 				),
 				'rest'     => array(
-					'route'   => '#^/wp/v2/plugins/[^/]+$#',
+					'route'   => '#^/wp/v2/plugins/[^/]+(?:/[^/]+)?$#',
 					'methods' => array( 'DELETE' ),
 				),
 			),
@@ -714,7 +726,40 @@ class Action_Registry {
 	 * @return void
 	 */
 	public static function reset_cache(): void {
-		self::$cached_rules = null;
+		self::$cached_rules       = null;
+		self::$cached_builtin_ids = null;
+	}
+
+	/**
+	 * Whether the given rule id belongs to the canonical built-in rule set.
+	 *
+	 * Used by the Gate to decide whether a malformed REST route pattern should
+	 * fail closed (built-in rule — gate the request) or degrade gracefully
+	 * (third-party rule). Independent of the `wp_sudo_gated_actions` filter so
+	 * a filtered rule that reuses a built-in id is still treated as
+	 * authoritative.
+	 *
+	 * @since 3.1.4
+	 *
+	 * @param string $id Rule id.
+	 * @return bool
+	 */
+	public static function is_builtin_rule_id( string $id ): bool {
+		if ( '' === $id ) {
+			return false;
+		}
+
+		if ( null === self::$cached_builtin_ids ) {
+			$ids = array();
+			foreach ( self::rules() as $rule ) {
+				if ( isset( $rule['id'] ) && is_string( $rule['id'] ) ) {
+					$ids[ $rule['id'] ] = true;
+				}
+			}
+			self::$cached_builtin_ids = $ids;
+		}
+
+		return isset( self::$cached_builtin_ids[ $id ] );
 	}
 
 	/**

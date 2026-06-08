@@ -75,6 +75,34 @@ class WpGraphQLGatingTest extends TestCase {
 	}
 
 	/** @test */
+	public function test_authenticated_cr_comment_hidden_mutation_blocked_when_limited(): void {
+		$user = $this->make_admin();
+		wp_set_current_user( $user->ID );
+
+		// A bare carriage return terminates a GraphQL comment per spec; the
+		// mutation that follows must still be detected and blocked (F1).
+		$document = "# hidden\rmutation { deleteUser(input:{id:\"1\"}) { deletedId } }";
+		$body     = (string) wp_json_encode( array( 'query' => $document ) );
+
+		$result = $this->gate->check_wpgraphql( $body );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'sudo_blocked', $result->get_error_code() );
+	}
+
+	/** @test */
+	public function test_authenticated_persisted_operation_blocked_when_limited_no_classifier(): void {
+		$user = $this->make_admin();
+		wp_set_current_user( $user->ID );
+
+		// Opaque persisted operation, no classifier: must fail safe (F10).
+		$result = $this->gate->check_wpgraphql( self::PERSISTED_MUTATION_BODY );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'sudo_blocked', $result->get_error_code() );
+	}
+
+	/** @test */
 	public function test_authenticated_batched_mutation_blocked_when_limited_and_no_session(): void {
 		$user = $this->make_admin();
 		wp_set_current_user( $user->ID );
