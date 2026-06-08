@@ -1,0 +1,7 @@
+Also contains (swept in via a concurrent 'git commit -a' race, so not reflected in the subject): WPGraphQL mutation-heuristic doc/comment corrections replacing the stale str_contains substring description with the current tokenizer + persisted fail-safe.
+
+- docs/FAQ.md:161 — 'body containing mutation' -> 'body resolves to a GraphQL mutation operation'.
+- docs/developer-reference.md:402 — persisted-op key list aligned to code (id, queryId, documentId, extensions.persistedQuery).
+- includes/class-gate.php — is_wpgraphql_mutation() and wp_sudo_wpgraphql_classification filter docblocks: dropped 'legacy heuristic (str_contains)' / 'body-string heuristic' wording for tokenizer + persisted fail-safe.
+
+Verified vs includes/class-gate.php (is_wpgraphql_mutation -> body_has_persisted_operation -> entry_is_persisted_operation). Tests 750 pass; PHPCS clean; PHPStan L6 no errors.
