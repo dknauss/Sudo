@@ -77,6 +77,7 @@ jobs:
         env:
           WP_BASE_URL: http://127.0.0.1:9080
           WP_REQUEST_BASE_URL: http://127.0.0.1:9080
+          WP_SUDO_SKIP_WP_ENV_CAP_SETUP: '1'
         run: npm run test:e2e:stack-smoke
 
       - name: Upload Playwright report

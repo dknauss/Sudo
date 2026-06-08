@@ -28,7 +28,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Start WordPress environment
-        run: npx wp-env start
+        run: npx wp-env start --config .wp-env.e2e.json
 
       - name: Wait for WordPress to be ready
         run: |
@@ -47,6 +47,8 @@ jobs:
       - name: Run visual baseline tests (non-blocking)
         id: visual
         continue-on-error: true
+        env:
+          WP_ENV_CONFIG_PATH: .wp-env.e2e.json
         run: npm run test:e2e:visual
 
       - name: Upload visual artifacts
@@ -68,4 +70,4 @@ jobs:
 
       - name: Stop WordPress environment
         if: always()
-        run: npx wp-env stop
+        run: npx wp-env stop --config .wp-env.e2e.json

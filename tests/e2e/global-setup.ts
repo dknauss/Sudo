@@ -14,6 +14,9 @@ const USERNAME = process.env.WP_USERNAME ?? 'admin';
 const PASSWORD = process.env.WP_PASSWORD ?? 'password';
 const REQUEST_BASE_URL = process.env.WP_REQUEST_BASE_URL ?? BASE_URL;
 const REQUEST_HOST_HEADER = process.env.WP_REQUEST_HOST_HEADER;
+const SKIP_WP_ENV_CAP_SETUP =
+    process.env.WP_SUDO_SKIP_WP_ENV_CAP_SETUP === '1';
+const WP_ENV_CONFIG_PATH = process.env.WP_ENV_CONFIG_PATH;
 const WP_ENV_BIN = path.join(
     process.cwd(),
     'node_modules/@wordpress/env/bin/wp-env'
@@ -27,10 +30,29 @@ const GOVERNANCE_CAPS = [
 const execFileAsync = promisify( execFile );
 
 async function ensureAdminGovernanceCaps() {
+    if ( SKIP_WP_ENV_CAP_SETUP ) {
+        return;
+    }
+
+    const configArgs = WP_ENV_CONFIG_PATH
+        ? [ '--config', WP_ENV_CONFIG_PATH ]
+        : [];
+
     for ( const cap of GOVERNANCE_CAPS ) {
         await execFileAsync(
             process.execPath,
-            [ WP_ENV_BIN, 'run', 'cli', 'wp', 'user', 'add-cap', USERNAME, cap, '--quiet' ],
+            [
+                WP_ENV_BIN,
+                ...configArgs,
+                'run',
+                'cli',
+                'wp',
+                'user',
+                'add-cap',
+                USERNAME,
+                cap,
+                '--quiet',
+            ],
             { timeout: 15_000 }
         );
     }
