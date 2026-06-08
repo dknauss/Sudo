@@ -6,11 +6,20 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: e2e-tests-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  e2e-tests:
-    name: "E2E Tests"
+  e2e-shard:
+    name: "E2E Tests shard ${{ matrix.shard-index }}/${{ matrix.shard-total }}"
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard-index: [1, 2, 3, 4]
+        shard-total: [4]
 
     steps:
       - name: Checkout
@@ -54,13 +63,13 @@ jobs:
       - name: Run E2E tests
         env:
           WP_ENV_CONFIG_PATH: .wp-env.e2e.json
-        run: npm run test:e2e
+        run: npm run test:e2e -- --shard=${{ matrix.shard-index }}/${{ matrix.shard-total }}
 
       - name: Upload Playwright report on failure
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-report
+          name: playwright-report-shard-${{ matrix.shard-index }}-of-${{ matrix.shard-total }}
           path: |
             playwright-report/
             tests/e2e/artifacts/test-results/
@@ -70,3 +79,19 @@ jobs:
       - name: Stop WordPress environment
         if: always()
         run: npx wp-env stop --config .wp-env.e2e.json
+
+  e2e-tests:
+    name: "E2E Tests"
+    runs-on: ubuntu-24.04
+    needs: e2e-shard
+    if: always()
+
+    steps:
+      - name: Check shard results
+        run: |
+          if [ "${{ needs.e2e-shard.result }}" != "success" ]; then
+            echo "E2E shard matrix result: ${{ needs.e2e-shard.result }}"
+            exit 1
+          fi
+
+          echo "All E2E shards passed."
