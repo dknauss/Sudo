@@ -25,4 +25,16 @@
 			</property>
 		</properties>
 	</rule>
+
+	<!-- Register WP Sudo custom governance capabilities so the Capabilities sniff does not warn. -->
+	<rule ref="WordPress.WP.Capabilities">
+		<properties>
+			<property name="custom_capabilities" type="array">
+				<element value="manage_wp_sudo"/>
+				<element value="view_wp_sudo_activity"/>
+				<element value="export_wp_sudo_activity"/>
+				<element value="revoke_wp_sudo_sessions"/>
+			</property>
+		</properties>
+	</rule>
 </ruleset>

@@ -45,12 +45,12 @@ class Dashboard_Widget {
 	/**
 	 * Register the dashboard widget.
 	 *
-	 * Only adds the widget for users with manage_options capability.
+	 * Only adds the widget for users with view_wp_sudo_activity capability.
 	 *
 	 * @return void
 	 */
 	public static function register(): void {
-		if ( ! current_user_can( 'manage_options' ) ) {
+		if ( ! sudo_can( 'view_wp_sudo_activity' ) ) {
 			return;
 		}
 

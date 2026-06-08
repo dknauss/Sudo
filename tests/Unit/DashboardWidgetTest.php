@@ -420,12 +420,12 @@ class DashboardWidgetTest extends TestCase {
 	}
 
 	/**
-	 * Test register() calls wp_add_dashboard_widget when user has manage_options.
+	 * Test register() calls wp_add_dashboard_widget when user has view_wp_sudo_activity.
 	 *
 	 * @return void
 	 */
 	public function testRegisterAddsWidgetWhenUserHasManageOptions(): void {
-		Functions\when( 'current_user_can' )->justReturn( true );
+		Functions\when( 'sudo_can' )->justReturn( true );
 
 		Functions\expect( 'wp_add_dashboard_widget' )
 			->once()
@@ -443,12 +443,12 @@ class DashboardWidgetTest extends TestCase {
 	}
 
 	/**
-	 * Test register() does NOT add widget when user lacks manage_options.
+	 * Test register() does NOT add widget when user lacks view_wp_sudo_activity.
 	 *
 	 * @return void
 	 */
 	public function testRegisterDoesNotAddWidgetWhenUserLacksCapability(): void {
-		Functions\when( 'current_user_can' )->justReturn( false );
+		Functions\when( 'sudo_can' )->justReturn( false );
 
 		Functions\expect( 'wp_add_dashboard_widget' )->never();
 
@@ -456,14 +456,14 @@ class DashboardWidgetTest extends TestCase {
 	}
 
 	/**
-	 * Test register() checks manage_options capability specifically.
+	 * Test register() checks view_wp_sudo_activity via sudo_can (governance enforcement).
 	 *
 	 * @return void
 	 */
-	public function testRegisterChecksManageOptionsCapability(): void {
-		Functions\expect( 'current_user_can' )
+	public function testRegisterChecksViewWpSudoActivityCapability(): void {
+		Functions\expect( 'sudo_can' )
 			->once()
-			->with( 'manage_options' )
+			->with( 'view_wp_sudo_activity' )
 			->andReturn( true );
 
 		Functions\when( 'wp_add_dashboard_widget' )->justReturn();

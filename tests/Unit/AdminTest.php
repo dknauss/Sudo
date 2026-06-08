@@ -374,6 +374,27 @@ class AdminTest extends TestCase {
 		$this->assertTrue( true );
 	}
 
+	/**
+	 * add_settings_page() must use manage_wp_sudo, not manage_options (governance enforcement).
+	 */
+	public function test_add_settings_page_uses_manage_wp_sudo_capability(): void {
+		Functions\when( '__' )->returnArg();
+
+		Functions\expect( 'add_options_page' )
+			->once()
+			->with(
+				\Mockery::type( 'string' ),
+				\Mockery::type( 'string' ),
+				'manage_wp_sudo',
+				Admin::PAGE_SLUG,
+				\Mockery::type( 'array' )
+			)
+			->andReturn( false );
+
+		$admin = new Admin();
+		$admin->add_settings_page();
+	}
+
 	// -----------------------------------------------------------------
 	// add_help_tabs()
 	// -----------------------------------------------------------------
@@ -639,6 +660,7 @@ class AdminTest extends TestCase {
 
 	public function test_render_settings_page_includes_introduction(): void {
 		Functions\when( 'current_user_can' )->justReturn( true );
+		Functions\when( 'sudo_can' )->justReturn( true );
 		Functions\when( 'get_admin_page_title' )->justReturn( 'Sudo Settings' );
 		Functions\when( 'esc_html' )->returnArg();
 		Functions\when( 'esc_html_e' )->alias(
@@ -690,6 +712,7 @@ class AdminTest extends TestCase {
 
 	public function test_render_settings_page_outputs_tab_navigation(): void {
 		Functions\when( 'current_user_can' )->justReturn( true );
+		Functions\when( 'sudo_can' )->justReturn( true );
 		Functions\when( 'get_admin_page_title' )->justReturn( 'Sudo Settings' );
 		Functions\when( 'esc_html' )->returnArg();
 		Functions\when( 'esc_html_e' )->alias( function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
@@ -730,6 +753,7 @@ class AdminTest extends TestCase {
 		unset( $_GET['tab'] );
 
 		Functions\when( 'current_user_can' )->justReturn( true );
+		Functions\when( 'sudo_can' )->justReturn( true );
 		Functions\when( 'get_admin_page_title' )->justReturn( 'Sudo Settings' );
 		Functions\when( 'esc_html' )->returnArg();
 		Functions\when( 'esc_html_e' )->alias( function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
@@ -769,6 +793,7 @@ class AdminTest extends TestCase {
 		$_GET['tab'] = 'actions';
 
 		Functions\when( 'current_user_can' )->justReturn( true );
+		Functions\when( 'sudo_can' )->justReturn( true );
 		Functions\when( 'get_admin_page_title' )->justReturn( 'Sudo Settings' );
 		Functions\when( 'esc_html' )->returnArg();
 		Functions\when( 'esc_html_e' )->alias( function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
@@ -803,6 +828,7 @@ class AdminTest extends TestCase {
 		$_GET['tab'] = 'tester';
 
 		Functions\when( 'current_user_can' )->justReturn( true );
+		Functions\when( 'sudo_can' )->justReturn( true );
 		Functions\when( 'get_admin_page_title' )->justReturn( 'Sudo Settings' );
 		Functions\when( 'esc_html' )->returnArg();
 		Functions\when( 'esc_html_e' )->alias( function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
@@ -842,6 +868,7 @@ class AdminTest extends TestCase {
 		$_GET['tab'] = 'invalid_tab_name';
 
 		Functions\when( 'current_user_can' )->justReturn( true );
+		Functions\when( 'sudo_can' )->justReturn( true );
 		Functions\when( 'get_admin_page_title' )->justReturn( 'Sudo Settings' );
 		Functions\when( 'esc_html' )->returnArg();
 		Functions\when( 'esc_html_e' )->alias( function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
@@ -880,6 +907,7 @@ class AdminTest extends TestCase {
 	public function test_render_settings_page_tab_links_use_network_admin_url_on_multisite(): void {
 		Functions\when( 'is_multisite' )->justReturn( true );
 		Functions\when( 'current_user_can' )->justReturn( true );
+		Functions\when( 'sudo_can' )->justReturn( true );
 		Functions\when( 'get_admin_page_title' )->justReturn( 'Sudo Settings' );
 		Functions\when( 'esc_html' )->returnArg();
 		Functions\when( 'esc_html_e' )->alias( function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
@@ -916,6 +944,7 @@ class AdminTest extends TestCase {
 		$_GET['tab'] = 'tester';
 
 		Functions\when( 'current_user_can' )->justReturn( true );
+		Functions\when( 'sudo_can' )->justReturn( true );
 		Functions\when( 'get_admin_page_title' )->justReturn( 'Sudo Settings' );
 		Functions\when( 'esc_html' )->returnArg();
 		Functions\when( 'esc_html_e' )->alias(
@@ -1000,6 +1029,7 @@ class AdminTest extends TestCase {
 			);
 
 		Functions\when( 'current_user_can' )->justReturn( true );
+		Functions\when( 'sudo_can' )->justReturn( true );
 		Functions\when( 'get_admin_page_title' )->justReturn( 'Sudo Settings' );
 		Functions\when( 'esc_html' )->returnArg();
 		Functions\when( 'esc_html_e' )->alias(
@@ -1078,6 +1108,7 @@ class AdminTest extends TestCase {
 		$_GET['tab'] = 'tester';
 
 		Functions\when( 'current_user_can' )->justReturn( true );
+		Functions\when( 'sudo_can' )->justReturn( true );
 		Functions\when( 'get_admin_page_title' )->justReturn( 'Sudo Settings' );
 		Functions\when( 'esc_html' )->returnArg();
 		Functions\when( 'esc_html_e' )->alias(
@@ -1162,6 +1193,7 @@ class AdminTest extends TestCase {
 			);
 
 		Functions\when( 'current_user_can' )->justReturn( true );
+		Functions\when( 'sudo_can' )->justReturn( true );
 		Functions\when( 'get_admin_page_title' )->justReturn( 'Sudo Settings' );
 		Functions\when( 'esc_html' )->returnArg();
 		Functions\when( 'esc_html_e' )->alias(
@@ -1289,7 +1321,7 @@ class AdminTest extends TestCase {
 				'settings.php',
 				\Mockery::type( 'string' ),
 				\Mockery::type( 'string' ),
-				'manage_network_options',
+				'manage_wp_sudo',
 				Admin::PAGE_SLUG,
 				\Mockery::type( 'array' )
 			)
@@ -1323,9 +1355,9 @@ class AdminTest extends TestCase {
 
 	public function test_handle_network_settings_save_dies_when_user_cannot_manage_network_options(): void {
 		Functions\when( 'check_admin_referer' )->justReturn( true );
-		Functions\expect( 'current_user_can' )
+		Functions\expect( 'sudo_can' )
 			->once()
-			->with( 'manage_network_options' )
+			->with( 'manage_wp_sudo' )
 			->andReturn( false );
 		Functions\when( 'esc_html__' )->returnArg();
 
@@ -1354,10 +1386,7 @@ class AdminTest extends TestCase {
 		Functions\when( 'get_site_option' )->justReturn( Admin::defaults() );
 		Functions\when( '__' )->returnArg();
 		Functions\when( 'check_admin_referer' )->justReturn( true );
-		Functions\expect( 'current_user_can' )
-			->once()
-			->with( 'manage_network_options' )
-			->andReturn( true );
+		Functions\when( 'sudo_can' )->justReturn( true );
 		Functions\when( 'absint' )->alias( fn( $value ) => abs( (int) $value ) );
 		Functions\when( 'add_query_arg' )->justReturn( 'https://example.com/wp-admin/network/settings.php?page=wp-sudo-settings&updated=true' );
 
@@ -1996,6 +2025,7 @@ class AdminTest extends TestCase {
 
 	public function test_app_password_assets_localizes_i18n_strings(): void {
 		Functions\when( 'current_user_can' )->justReturn( true );
+		Functions\when( 'sudo_can' )->justReturn( true );
 		Functions\when( 'is_multisite' )->justReturn( false );
 		Functions\when( '__' )->returnArg();
 		Functions\when( 'admin_url' )->justReturn( 'https://example.com/wp-admin/admin-ajax.php' );

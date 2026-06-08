@@ -230,7 +230,7 @@ class Admin {
 		$hook_suffix = add_options_page(
 			__( 'Sudo Settings', 'wp-sudo' ),
 			__( 'Sudo', 'wp-sudo' ),
-			'manage_options',
+			'manage_wp_sudo',
 			self::PAGE_SLUG,
 			array( $this, 'render_settings_page' )
 		);
@@ -250,7 +250,7 @@ class Admin {
 			'settings.php',
 			__( 'Sudo Settings', 'wp-sudo' ),
 			__( 'Sudo', 'wp-sudo' ),
-			'manage_network_options',
+			'manage_wp_sudo',
 			self::PAGE_SLUG,
 			array( $this, 'render_settings_page' )
 		);
@@ -272,7 +272,7 @@ class Admin {
 	public function handle_network_settings_save(): void {
 		check_admin_referer( self::PAGE_SLUG . '-options' );
 
-		if ( ! current_user_can( 'manage_network_options' ) ) {
+		if ( ! sudo_can( 'manage_wp_sudo' ) ) {
 			wp_die( esc_html__( 'Unauthorized', 'wp-sudo' ), '', array( 'response' => 403 ) );
 		}
 
@@ -1103,9 +1103,7 @@ class Admin {
 	 * @return void
 	 */
 	public function render_settings_page(): void {
-		$required_cap = is_multisite() ? 'manage_network_options' : 'manage_options';
-
-		if ( ! current_user_can( $required_cap ) ) {
+		if ( ! sudo_can( 'manage_wp_sudo' ) ) {
 			return;
 		}
 
@@ -1488,8 +1486,7 @@ class Admin {
 	public function handle_mu_install(): void {
 		check_ajax_referer( 'wp_sudo_mu_plugin', '_nonce' );
 
-		$required_cap = is_multisite() ? 'manage_network_options' : 'manage_options';
-		if ( ! current_user_can( $required_cap ) ) {
+		if ( ! sudo_can( 'manage_wp_sudo' ) ) {
 			wp_send_json_error( array( 'message' => __( 'Unauthorized.', 'wp-sudo' ) ), 403 );
 		}
 
@@ -1547,8 +1544,7 @@ class Admin {
 	public function handle_mu_uninstall(): void {
 		check_ajax_referer( 'wp_sudo_mu_plugin', '_nonce' );
 
-		$required_cap = is_multisite() ? 'manage_network_options' : 'manage_options';
-		if ( ! current_user_can( $required_cap ) ) {
+		if ( ! sudo_can( 'manage_wp_sudo' ) ) {
 			wp_send_json_error( array( 'message' => __( 'Unauthorized.', 'wp-sudo' ) ), 403 );
 		}
 
@@ -2205,8 +2201,7 @@ class Admin {
 			return;
 		}
 
-		$required_cap = is_multisite() ? 'manage_network_options' : 'manage_options';
-		if ( ! current_user_can( $required_cap ) ) {
+		if ( ! sudo_can( 'manage_wp_sudo' ) ) {
 			return;
 		}
 
@@ -2282,8 +2277,7 @@ class Admin {
 	public function handle_app_password_policy_save(): void {
 		check_ajax_referer( 'wp_sudo_app_password_policy', '_nonce' );
 
-		$required_cap = is_multisite() ? 'manage_network_options' : 'manage_options';
-		if ( ! current_user_can( $required_cap ) ) {
+		if ( ! sudo_can( 'manage_wp_sudo' ) ) {
 			wp_send_json_error( array( 'message' => __( 'Unauthorized.', 'wp-sudo' ) ), 403 );
 		}
 
