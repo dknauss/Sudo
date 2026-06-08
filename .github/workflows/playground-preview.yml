@@ -60,7 +60,7 @@ jobs:
               '',
               `[**Open this PR in Playground →**](${playgroundUrl})`,
               '',
-              'Preview is pinned to WordPress `7.0-RC1`.',
+              'Preview is pinned to WordPress `7.0`.',
               '',
               `Uses the checked-in \`blueprint.json\` from this PR, with the plugin install pinned to commit \`${sha}\` through Playground's CORS-safe \`git:directory\` resource.`,
               '',
