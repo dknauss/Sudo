@@ -3,7 +3,7 @@
   "private": true,
   "scripts": {
     "postinstall": "node bin/patch-wp-env.js",
-    "env:assert-wp-version": "bash bin/assert-wp-env-version.sh 7.0-RC1",
+    "env:assert-wp-version": "bash bin/assert-wp-env-version.sh 7.0",
     "env:start": "wp-env start",
     "env:stop": "wp-env stop",
     "env:clean": "wp-env destroy",
