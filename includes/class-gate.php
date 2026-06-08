@@ -1219,15 +1219,16 @@ class Gate {
 	 *
 	 * @since 2.6.0
 	 *
-	 * @param string $body The raw GraphQL request body.
+	 * @param string               $body           The raw GraphQL request body.
+	 * @param array<string, mixed> $request_params Parsed request parameters, when available.
 	 * @return \WP_Error|null WP_Error to block, null to pass through.
 	 */
-	public function check_wpgraphql( string $body ): ?\WP_Error {
+	public function check_wpgraphql( string $body, array $request_params = array() ): ?\WP_Error {
 		$policy = $this->get_policy( self::SETTING_WPGRAPHQL_POLICY );
 
 		// Unrestricted: pass everything through; audit mutations only.
 		if ( self::POLICY_UNRESTRICTED === $policy ) {
-			if ( $this->is_wpgraphql_mutation( $body ) ) {
+			if ( $this->is_wpgraphql_mutation( $body, $request_params ) ) {
 				/** This action is documented in includes/class-gate.php */
 				do_action( 'wp_sudo_action_allowed', get_current_user_id(), 'wpgraphql', 'wpgraphql' );
 			}
@@ -1267,7 +1268,7 @@ class Gate {
 			return null;
 		}
 
-		if ( ! $this->is_wpgraphql_mutation( $body ) ) {
+		if ( ! $this->is_wpgraphql_mutation( $body, $request_params ) ) {
 			return null; // Not a mutation — pass through.
 		}
 
@@ -1315,10 +1316,11 @@ class Gate {
 	 *
 	 * @since 2.11.0
 	 *
-	 * @param string $body Raw GraphQL request body.
+	 * @param string               $body           Raw GraphQL request body.
+	 * @param array<string, mixed> $request_params Parsed request parameters, when available.
 	 * @return bool
 	 */
-	private function is_wpgraphql_mutation( string $body ): bool {
+	private function is_wpgraphql_mutation( string $body, array $request_params = array() ): bool {
 		/**
 		 * Classify a WPGraphQL request body as mutation or query.
 		 *
@@ -1349,7 +1351,7 @@ class Gate {
 			}
 		}
 
-		foreach ( $this->extract_wpgraphql_documents( $body ) as $document ) {
+		foreach ( $this->extract_wpgraphql_documents( $body, $request_params ) as $document ) {
 			if ( $this->wpgraphql_document_contains_mutation( $document ) ) {
 				return true;
 			}
@@ -1363,7 +1365,7 @@ class Gate {
 		// resolve the real operation type via the
 		// `wp_sudo_wpgraphql_classification` filter (checked above) or set the
 		// surface policy to Unrestricted.
-		if ( $this->body_has_persisted_operation( $body ) ) {
+		if ( $this->body_has_persisted_operation( $body, $request_params ) ) {
 			return true;
 		}
 
@@ -1380,30 +1382,48 @@ class Gate {
 	 *
 	 * @since 3.1.4
 	 *
-	 * @param string $body Raw request body.
+	 * @param string               $body           Raw request body.
+	 * @param array<string, mixed> $request_params Parsed request parameters, when available.
 	 * @return bool True when the body looks like a persisted operation.
 	 */
-	private function body_has_persisted_operation( string $body ): bool {
+	private function body_has_persisted_operation( string $body, array $request_params = array() ): bool {
 		$body = self::strip_leading_bom( $body );
 		$body = trim( $body );
-		if ( '' === $body ) {
-			return false;
+
+		if ( '' !== $body ) {
+			$decoded = json_decode( $body, true );
+			if ( JSON_ERROR_NONE === json_last_error() && is_array( $decoded ) ) {
+				// Single operation object.
+				if ( $this->entry_is_persisted_operation( $decoded ) ) {
+					return true;
+				}
+
+				// Batched array of operation objects: any persisted entry fails safe.
+				foreach ( $decoded as $entry ) {
+					if ( is_array( $entry ) && $this->entry_is_persisted_operation( $entry ) ) {
+						return true;
+					}
+				}
+			}
 		}
 
-		$decoded = json_decode( $body, true );
-		if ( JSON_ERROR_NONE !== json_last_error() || ! is_array( $decoded ) ) {
-			return false;
-		}
-
-		// Single operation object.
-		if ( $this->entry_is_persisted_operation( $decoded ) ) {
+		if ( $this->entry_is_persisted_operation( $request_params ) ) {
 			return true;
 		}
 
-		// Batched array of operation objects: any persisted entry fails safe.
-		foreach ( $decoded as $entry ) {
-			if ( is_array( $entry ) && $this->entry_is_persisted_operation( $entry ) ) {
+		foreach ( $this->extract_wpgraphql_operations_payloads_from_request_params( $request_params ) as $payload ) {
+			if ( ! is_array( $payload ) ) {
+				continue;
+			}
+
+			if ( $this->entry_is_persisted_operation( $payload ) ) {
 				return true;
+			}
+
+			foreach ( $payload as $entry ) {
+				if ( is_array( $entry ) && $this->entry_is_persisted_operation( $entry ) ) {
+					return true;
+				}
 			}
 		}
 
@@ -1466,29 +1486,103 @@ class Gate {
 	 *
 	 * @since 3.1.4
 	 *
-	 * @param string $body Raw request body.
+	 * @param string               $body           Raw request body.
+	 * @param array<string, mixed> $request_params Parsed request parameters, when available.
 	 * @return string[] GraphQL document strings.
 	 */
-	private function extract_wpgraphql_documents( string $body ): array {
-		$body = self::strip_leading_bom( $body );
-		$body = trim( $body );
+	private function extract_wpgraphql_documents( string $body, array $request_params = array() ): array {
+		$request_documents = $this->extract_wpgraphql_documents_from_request_params( $request_params );
+		$body              = self::strip_leading_bom( $body );
+		$body              = trim( $body );
 		if ( '' === $body ) {
-			return array();
+			return $request_documents;
 		}
 
 		$decoded = json_decode( $body, true );
 		if ( JSON_ERROR_NONE === json_last_error() ) {
-			return $this->extract_wpgraphql_documents_from_decoded_payload( $decoded );
+			return array_merge(
+				$request_documents,
+				$this->extract_wpgraphql_documents_from_decoded_payload( $decoded )
+			);
 		}
 
 		$params = array();
 		parse_str( $body, $params );
 
 		if ( isset( $params['query'] ) && is_string( $params['query'] ) ) {
-			return array( $params['query'] );
+			$request_documents[] = $params['query'];
+		}
+
+		$request_documents = array_merge(
+			$request_documents,
+			$this->extract_wpgraphql_documents_from_request_params( $params )
+		);
+
+		if ( array() !== $request_documents ) {
+			return $request_documents;
 		}
 
 		return array( $body );
+	}
+
+	/**
+	 * Extract GraphQL documents from parsed request parameters.
+	 *
+	 * Supports GraphQL multipart requests where PHP parses the `operations`
+	 * form field into $_POST instead of leaving the GraphQL document visible in
+	 * php://input.
+	 *
+	 * @since 3.1.4
+	 *
+	 * @param array<string, mixed> $params Parsed request parameters.
+	 * @return string[] GraphQL document strings.
+	 */
+	private function extract_wpgraphql_documents_from_request_params( array $params ): array {
+		$documents = array();
+
+		if ( isset( $params['query'] ) && is_string( $params['query'] ) ) {
+			$documents[] = $params['query'];
+		}
+
+		foreach ( $this->extract_wpgraphql_operations_payloads_from_request_params( $params ) as $payload ) {
+			$documents = array_merge(
+				$documents,
+				$this->extract_wpgraphql_documents_from_decoded_payload( $payload )
+			);
+		}
+
+		return $documents;
+	}
+
+	/**
+	 * Extract decoded GraphQL `operations` payloads from parsed request params.
+	 *
+	 * @since 3.1.4
+	 *
+	 * @param array<string, mixed> $params Parsed request parameters.
+	 * @return array<int, mixed> Decoded operations payloads.
+	 */
+	private function extract_wpgraphql_operations_payloads_from_request_params( array $params ): array {
+		if ( ! array_key_exists( 'operations', $params ) ) {
+			return array();
+		}
+
+		$operations = $params['operations'];
+
+		if ( is_array( $operations ) ) {
+			return array( $operations );
+		}
+
+		if ( ! is_string( $operations ) ) {
+			return array();
+		}
+
+		$decoded = json_decode( self::strip_leading_bom( $operations ), true );
+		if ( JSON_ERROR_NONE !== json_last_error() ) {
+			return array();
+		}
+
+		return array( $decoded );
 	}
 
 	/**
@@ -1646,8 +1740,9 @@ class Gate {
 	 */
 	public function gate_wpgraphql(): void {
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents, WordPressVIPMinimum.Performance.FetchingRemoteData.FileGetContentsRemoteFile -- php://input is a local stream, not a remote request.
-		$body   = (string) file_get_contents( 'php://input' );
-		$result = $this->check_wpgraphql( $body );
+		$body           = (string) file_get_contents( 'php://input' );
+		$request_params = wp_unslash( $_POST ); // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Classification only; no state change or trust decision without sudo session validation.
+		$result         = $this->check_wpgraphql( $body, is_array( $request_params ) ? $request_params : array() );
 
 		if ( null === $result ) {
 			return;

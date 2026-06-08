@@ -107,10 +107,11 @@ design hardening opportunities that should interrupt lower-priority feature work
 - **Patch-grade auth fix:** 2FA failure counters can be cleared by repeating the
   password step before second-factor success. Remediate first and release as a
   patch if validated.
-- **Surface hardening:** WPGraphQL Limited mode still relies on raw-body substring
-  detection when no classifier is present. Decode request payloads before fallback
-  classification and fail closed for unknown persisted operations where strict
-  blocking is requested.
+- ~~**Surface hardening:** WPGraphQL Limited mode should decode request payloads
+  before fallback classification and fail closed for unknown persisted operations.~~
+  Shipped in unreleased hardening: JSON, form-encoded, multipart `operations`,
+  batched payloads, parser edge cases, and persisted-operation fail-safe are
+  covered by unit tests.
 - **Data minimization follow-up:** Request stash redaction is exact-key based; add
   pattern-based redaction and custom-rule metadata for sensitive/non-replayable
   fields.
@@ -1483,20 +1484,20 @@ should shape the next phases.
 - Persisted query/APQ requests can also omit the operation text unless a site
   supplies a classifier through `wp_sudo_wpgraphql_classification`.
 
-**Fix:**
-- Decode JSON and form-encoded GraphQL request payloads before fallback
-  classification.
+**Fix (shipped in unreleased hardening):**
+- Decode JSON, form-encoded, and multipart `operations` GraphQL request payloads
+  before fallback classification.
 - Handle batched GraphQL payloads conservatively: any decoded mutation should
   classify the request as a mutation.
-- Add a strict/fail-closed path for unknown persisted operations when a site
-  requires mutation blocking and cannot provide classifier coverage.
+- Fail closed on unknown persisted operations unless a classifier identifies the
+  operation as a query.
 - Update `docs/security-model.md` so the heuristic caveat names encoded payloads,
-  batches, and persisted operations precisely.
+  multipart operations, batches, and persisted operations precisely.
 
 **Tests:**
 - Unit tests for inline mutation, JSON-escaped `mutation`, query false-positive
-  strings, batched mutation/query mixtures, classifier override precedence, and
-  unknown persisted operation handling.
+  strings, batched mutation/query mixtures, multipart `operations`, classifier
+  override precedence, and unknown persisted operation handling.
 - Integration coverage for WPGraphQL Limited mode once a representative request
   fixture can be exercised.
 

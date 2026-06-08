@@ -3572,6 +3572,54 @@ class GateTest extends TestCase {
 		$this->assertSame( 'sudo_blocked', $result->get_error_code() );
 	}
 
+	// ── WPGraphQL multipart operations hardening ─────────────────────
+
+	/**
+	 * GraphQL multipart uploads carry the GraphQL operation in a form field
+	 * named `operations`, not necessarily in php://input. Limited mode must
+	 * classify that field or file-upload mutations can bypass the gate.
+	 */
+	public function test_check_wpgraphql_blocks_multipart_operations_mutation(): void {
+		$this->arrange_limited_no_session();
+
+		$operations = '{"query":"mutation { uploadFile(input:{file:null}) { mediaItem { id } } }"}';
+
+		$result = $this->gate->check_wpgraphql( '', array( 'operations' => $operations ) );
+
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( 'sudo_blocked', $result->get_error_code() );
+	}
+
+	public function test_check_wpgraphql_allows_multipart_operations_query(): void {
+		$this->arrange_limited_no_session();
+
+		$operations = '{"query":"query { viewer { id } }"}';
+
+		$this->assertNull( $this->gate->check_wpgraphql( '', array( 'operations' => $operations ) ) );
+	}
+
+	public function test_check_wpgraphql_blocks_multipart_batched_operations_when_any_entry_is_mutation(): void {
+		$this->arrange_limited_no_session();
+
+		$operations = '[{"query":"query { viewer { id } }"},{"query":"mutation { deleteUser(input:{id:\"1\"}) { deletedId } }"}]';
+
+		$result = $this->gate->check_wpgraphql( '', array( 'operations' => $operations ) );
+
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( 'sudo_blocked', $result->get_error_code() );
+	}
+
+	public function test_check_wpgraphql_blocks_multipart_persisted_operation_by_default(): void {
+		$this->arrange_limited_no_session();
+
+		$operations = '{"extensions":{"persistedQuery":{"sha256Hash":"abc123","version":1}}}';
+
+		$result = $this->gate->check_wpgraphql( '', array( 'operations' => $operations ) );
+
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( 'sudo_blocked', $result->get_error_code() );
+	}
+
 	// ── get_app_password_policy() — per-app-password overrides ───────
 
 	/**
