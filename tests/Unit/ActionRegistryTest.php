@@ -8,6 +8,7 @@
 namespace WP_Sudo\Tests\Unit;
 
 use WP_Sudo\Action_Registry;
+use WP_Sudo\Admin;
 use WP_Sudo\Tests\TestCase;
 use Brain\Monkey\Functions;
 use Brain\Monkey\Filters;
@@ -616,6 +617,25 @@ class ActionRegistryTest extends TestCase {
 	}
 
 	/**
+	 * Test that the self-protection rule preserves the WordPress options.php
+	 * control fields required for replay.
+	 */
+	public function test_wp_sudo_settings_rule_allowlists_options_form_controls(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		$rule = Action_Registry::find( 'options.wp_sudo' );
+
+		$this->assertNotNull( $rule );
+		$this->assertArrayHasKey( 'stash', $rule );
+		$this->assertSame( 'allowlist', $rule['stash']['post_mode'] );
+		$this->assertSame(
+			array( '_wpnonce', '_wp_http_referer', 'option_page', 'action', 'action2', 'submit', Admin::OPTION_KEY ),
+			$rule['stash']['post_fields']
+		);
+	}
+
+	/**
 	 * Test that the self-protection callback matches the WP Sudo settings page.
 	 */
 	public function test_wp_sudo_settings_callback_matches_settings_page(): void {
@@ -664,6 +684,25 @@ class ActionRegistryTest extends TestCase {
 		$this->assertNotNull( $rule );
 		$this->assertSame( 'options', $rule['category'] );
 		$this->assertStringContainsString( 'access', strtolower( $rule['label'] ) );
+	}
+
+	/**
+	 * Test that the access-control rule preserves the WordPress options.php
+	 * control fields required for replay.
+	 */
+	public function test_wp_sudo_access_rule_allowlists_options_form_controls(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		$rule = Action_Registry::find( 'options.wp_sudo_access' );
+
+		$this->assertNotNull( $rule );
+		$this->assertArrayHasKey( 'stash', $rule );
+		$this->assertSame( 'allowlist', $rule['stash']['post_mode'] );
+		$this->assertSame(
+			array( '_wpnonce', '_wp_http_referer', 'option_page', 'action', 'action2', 'submit', Admin::OPTION_KEY ),
+			$rule['stash']['post_fields']
+		);
 	}
 
 	/**

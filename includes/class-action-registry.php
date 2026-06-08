@@ -60,6 +60,7 @@ class Action_Registry {
 	private const DEFAULT_REPLAY_POST_FIELDS = array(
 		'_wpnonce',
 		'_wp_http_referer',
+		'option_page',
 		'action',
 		'action2',
 		'submit',
