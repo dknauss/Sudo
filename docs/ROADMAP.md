@@ -1576,6 +1576,12 @@ should shape the next phases.
 - Gate policy weakening and governance-mode transitions as high-risk actions.
 - Keep a documented recovery/break-glass path so least-privilege controls do not
   create unrecoverable lockouts.
+- Audit product/docs language for the authentication/authorization boundary,
+  starting with the admin Help dropdown copy and public FAQ/readme language.
+  Preferred framing: "Sudo verifies that the current user is still the account
+  holder; WordPress still decides whether that user is allowed to perform the
+  action." Avoid wording that implies WordPress role/capability checks happen
+  only after a post-auth replay.
 
 **Tests:**
 - Capability matrix tests for single-site and multisite.

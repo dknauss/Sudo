@@ -20,8 +20,9 @@ if ( ! defined( 'ABSPATH' ) ) {
  * Class Gate
  *
  * The heart of WP Sudo v2. Role-agnostic: any logged-in user attempting
- * a gated action is intercepted, regardless of role. WordPress's own
- * capability checks still run after the gate.
+ * a gated action is intercepted, regardless of role. It reauthenticates
+ * account-holder presence; WordPress and target handlers remain responsible
+ * for normal capability checks.
  *
  * @since 2.0.0
  */

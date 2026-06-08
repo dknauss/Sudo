@@ -369,7 +369,7 @@ class Admin {
 				'title'   => __( 'Start Here', 'wp-sudo' ),
 				'content' =>
 					'<h3>' . __( 'What Sudo does', 'wp-sudo' ) . '</h3>'
-					. '<p>' . __( 'Sudo adds a reauthentication checkpoint before dangerous actions. Role checks still run after the challenge.', 'wp-sudo' ) . '</p>'
+					. '<p>' . __( 'Sudo verifies that the current user is still the account holder; WordPress still decides whether that user is allowed to perform the action.', 'wp-sudo' ) . '</p>'
 					. '<ul>'
 					. '<li>' . __( '<strong>Browser requests</strong> (admin, AJAX, cookie-auth REST) get an interactive challenge.', 'wp-sudo' ) . '</li>'
 					. '<li>' . __( '<strong>Non-interactive requests</strong> (WP-CLI, Cron, XML-RPC, App Passwords, WPGraphQL) follow surface policies.', 'wp-sudo' ) . '</li>'

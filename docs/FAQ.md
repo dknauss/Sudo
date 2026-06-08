@@ -149,7 +149,7 @@ Recovery mode **does not** bypass the reauthentication challenge itself. A user 
 
 ## Does this replace WordPress roles and capabilities?
 
-No. Sudo adds a reauthentication layer on top of the existing permission model. WordPress capability checks still run after the gate. A user who does not have the `activate_plugins` capability will still be denied after reauthenticating — Sudo does not grant any new permissions.
+No. Sudo verifies that the current user is still the account holder; WordPress still decides whether that user is allowed to perform the action. A user who does not have the `activate_plugins` capability will still be denied — Sudo does not grant any new permissions.
 
 ## Which operations are gated?
 

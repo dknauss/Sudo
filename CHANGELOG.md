@@ -36,6 +36,8 @@
 
 - **Inline script encoding:** Dashboard widget inline JS i18n now uses `JSON_HEX_TAG | JSON_HEX_AMP` encoding flags so `<script>` injection safety is explicit rather than relying on PHP's incidental `\/` escaping of forward slashes.
 - **WPGraphQL block-string escaping documented:** `developer-reference.md` now documents that the only GraphQL block-string escape sequence is `\"""` (escaped triple-quote); `\\` has no special meaning inside block strings.
+- **Admin help copy clarifies auth boundaries:** Contextual help and public docs now distinguish reauthentication from authorization: Sudo verifies the current user is still the account holder; WordPress and target handlers still decide whether that user is allowed to perform the action.
+- **E2E CI acceleration:** The default Chromium Playwright suite now runs in four GitHub Actions shards with a preserved aggregate `E2E Tests` status check, and the roadmap captures follow-up cache/image/smoke-split options.
 
 ## 3.1.3 - 2026-05-11
 

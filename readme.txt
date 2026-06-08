@@ -22,7 +22,7 @@ WordPress security plugins guard the door. Sudo governs what can happen inside t
 
 WordPress has rich access control — roles, capabilities, policies on who can do what. It has no native control over when those capabilities can be exercised within a session. Sudo fills that gap. By gating consequential actions behind reauthentication whenever no active sudo window is already in place, it lets site owners directly define the blast radius of many session-compromise paths. The attack surface becomes a policy decision.
 
-This is not role-based escalation. Every logged-in user is treated the same: attempt a gated action without an active sudo session, get challenged. Sessions are time-bounded and non-extendable, enforcing the zero-trust principle that trust must be continuously earned, never assumed. WordPress capability checks still run after the gate, so Sudo adds a security layer without changing the permission model.
+This is not role-based escalation. Every logged-in user is treated the same: attempt a gated action without an active sudo session, get challenged. Sessions are time-bounded and non-extendable, enforcing the zero-trust principle that trust must be continuously earned, never assumed. Sudo verifies that the current user is still the account holder; WordPress still decides whether that user is allowed to perform the action.
 
 = What’s new in 3.2.0? =
 
@@ -111,7 +111,7 @@ For browser-admin requests, Sudo intercepts the request before WordPress process
 
 = Does this replace WordPress roles and capabilities? =
 
-No. Sudo adds a reauthentication layer on top of the existing permission model. WordPress capability checks still run after the gate.
+No. Sudo verifies that the current user is still the account holder; WordPress still decides whether that user is allowed to perform the action.
 
 = What about REST API and Application Passwords? =
 

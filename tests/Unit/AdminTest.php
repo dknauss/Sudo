@@ -526,6 +526,24 @@ class AdminTest extends TestCase {
 		$this->assertStringContainsString( 'Ctrl+Shift+S', $content );
 	}
 
+	public function test_start_here_tab_separates_reauthentication_from_authorization(): void {
+		$screen = new \WP_Screen();
+
+		Functions\when( 'get_current_screen' )->justReturn( $screen );
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'esc_html' )->returnArg();
+
+		$admin = new Admin();
+		$admin->add_help_tabs();
+
+		$tabs    = $screen->get_help_tabs();
+		$content = $tabs['wp-sudo-start-here']['content'] ?? '';
+
+		$this->assertStringContainsString( 'Sudo verifies that the current user is still the account holder', $content );
+		$this->assertStringContainsString( 'WordPress still decides whether that user is allowed', $content );
+		$this->assertStringNotContainsString( 'Role checks still run after the challenge', $content );
+	}
+
 	public function test_security_boundaries_tab_mentions_mu_plugin_and_multisite_docs(): void {
 		$screen = new \WP_Screen();
 
