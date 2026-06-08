@@ -466,8 +466,8 @@ Exit criteria:
 - Unit and integration replay tests prove safe allowlisted forms still work and
   unsafe or unallowlisted POST bodies redirect with clear operator-facing
   notices instead of replaying partial data.
-- Local validation passed on 2026-06-08: unit, integration, PHPStan, PHPCS,
-  metrics verification, and Composer audit.
+- Local validation passed: unit, integration, PHPStan, PHPCS, metrics
+  verification, and Composer audit.
 
 Residual follow-up:
 - Cancelled challenges still rely on the 5-minute stash TTL; explicit cancel

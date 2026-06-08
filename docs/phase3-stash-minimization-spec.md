@@ -107,8 +107,8 @@ git diff --check
 
 Results:
 
-- Unit tests: 771 tests, 2201 assertions.
-- Integration tests: 170 tests, 551 assertions, 9 skipped.
+- Unit tests: passed.
+- Integration tests: passed with the expected skipped groups.
 - PHPStan level 6: passed.
 - PHPCS: passed.
 - Metrics verification: passed.
