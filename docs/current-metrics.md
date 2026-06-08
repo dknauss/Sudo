@@ -37,7 +37,7 @@ the count in prose without a verification command.
 | Gated rules (single-site) | 27 | `grep "'id'" includes/class-action-registry.php \| grep -v network \| grep -v "rule\[" \| wc -l` | unreleased |
 | Gated rules (multisite) | 8 | `grep "'id'" includes/class-action-registry.php \| grep -c "network"` | unreleased |
 | Gated rules (total) | 35 | `grep "'id'" includes/class-action-registry.php \| grep -v "rule\[" \| wc -l` | unreleased |
-| Help tabs | 12 | `grep -c -- "->add_help_tab(" includes/class-admin.php` | unreleased |
+| Help tabs | 6 | `grep -c -- "->add_help_tab(" includes/class-admin.php` | v3.2.0 |
 | Audit hooks | 16 | `python3 - <<'PY'\nimport pathlib, re\nhooks = set()\nfor path in pathlib.Path('includes').glob('class-*.php'):\n    hooks.update(re.findall(r\"do_action\\(\\s*'([^']+)'\", path.read_text()))\nhooks.discard('wp_sudo_render_two_factor_fields')\nprint(len(hooks))\nPY` | unreleased (v3.1.5) |
 | Settings fields (base) | 6 | 1 numeric (duration) + 1 preset chooser + 4 policy dropdowns (REST, CLI, Cron, XML-RPC) | unreleased (v3.0.0) |
 | Settings fields (with WPGraphQL) | 7 | +1 conditional WPGraphQL policy dropdown | unreleased (v3.0.0) |
@@ -60,7 +60,7 @@ value across these known consumers:
 Source: `.github/workflows/phpunit.yml`, `.github/workflows/e2e.yml`, `.github/workflows/e2e-nginx.yml`, `.github/workflows/e2e-sqlite.yml`, `.github/workflows/compat-wordpress-minors.yml`
 
 - Unit test matrix: PHP 8.0, 8.1, 8.2, 8.3, 8.4
-- Integration matrix: PHP 8.0, 8.1, 8.3; WordPress 6.2, 6.7, 7.0-RC1; MySQL 8.0 plus one MariaDB LTS lane; multisite true/false on the main MySQL lanes
+- Integration matrix: PHP 8.0, 8.1, 8.3; WordPress 6.2, 6.7, 7.0; MySQL 8.0 plus one MariaDB LTS lane; multisite true/false on the main MySQL lanes
 - Scheduled compat sweep: PHP 8.1 on WordPress 6.3, 6.4, 6.5, and 6.6, plus MariaDB LTS overlap lanes on WordPress 6.4 and 6.5
 - Browser stack smoke workflows: Apache + MariaDB (`wp-env`), nginx + php-fpm + MariaDB, and Playground SQLite
 

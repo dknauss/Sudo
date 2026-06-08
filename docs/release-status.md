@@ -12,15 +12,15 @@ This file is the canonical source for **current release state** in this reposito
 
 ## Latest public/tagged release
 
-- **Latest tagged release:** `3.1.3`
-- **Latest git tag observed:** `v3.1.3`
+- **Latest tagged release:** `3.2.0`
+- **Latest git tag observed:** `v3.2.0`
 
 ## Current `main` release target
 
-- **Next planned release:** `3.2.0` (planning lane; post-release development bump pending)
-- **Current `main` runtime version constant:** `3.1.3`
+- **Next planned release:** `3.3.0` (planning lane)
+- **Current `main` runtime version constant:** `3.2.0`
 - **Current metadata should match:** `readme.txt` stable tag, `wp-sudo.php`, `tests/bootstrap.php`, `phpstan-bootstrap.php`
-- **Current public stable metadata:** `readme.txt` stable tag `3.1.3`
+- **Current public stable metadata:** `readme.txt` stable tag `3.2.0`
 - **Last completed release checklist:** `docs/release-3.0.0-checklist.md`
 
 ## Latest release contents

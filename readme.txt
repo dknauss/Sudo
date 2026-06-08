@@ -1,6 +1,6 @@
-_WP Sudo 3.1.3 is a Playground compatibility patch for action-gated reauthentication, fixing demo login, sudo challenge auth, toolbar cancellation, dashboard demo data, and stable/main preview links._
+_WP Sudo 3.2.0 is a security hardening release: governance capabilities, WPGraphQL gate hardening, per-user IP lockout, cookie Secure-flag fallback, request-stash minimization, and more._
 
-[Try the latest release in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fv3.1.3%2Fblueprint.json)
+[Try the latest release in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fv3.2.0%2Fblueprint.json)
 [Try current main in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint-main.json)
 
 Playground demo credentials are `admin` / `password`. When WP Sudo asks for reauthentication, enter the same password: `password`.
@@ -10,9 +10,9 @@ Contributors:      dpknauss
 Donate link:       https://dan.knauss.ca
 Tags:              sudo, security, reauthentication, access control, admin protection
 Requires at least: 6.2
-Tested up to:      6.9
+Tested up to:      7.0
 Requires PHP:      8.0
-Stable tag:        3.1.3
+Stable tag:        3.2.0
 License:           GPL-2.0-or-later
 License URI:       https://spdx.org/licenses/GPL-2.0-or-later.html
 
