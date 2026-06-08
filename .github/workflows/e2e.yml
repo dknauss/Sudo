@@ -46,6 +46,9 @@ jobs:
           done
 
       - name: Assert pinned WordPress beta version
+        env:
+          WP_ENV_CONFIG_PATH: .wp-env.e2e.json
+          WP_ENV_ASSERT_CONTAINERS: cli
         run: npm run env:assert-wp-version
 
       - name: Run E2E tests
