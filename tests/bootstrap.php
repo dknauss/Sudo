@@ -295,13 +295,17 @@ if ( ! class_exists( 'Two_Factor_Core' ) ) {
 $vendor_autoload_override = getenv( 'WP_SUDO_VENDOR_AUTOLOAD' );
 $vendor_autoload          = dirname( __DIR__ ) . '/vendor/autoload.php';
 $vendor_test_autoload     = dirname( __DIR__ ) . '/vendor_test/autoload.php';
+$active_vendor_autoload   = null;
 
 if ( $vendor_autoload_override && file_exists( $vendor_autoload_override ) ) {
 	require_once $vendor_autoload_override;
+	$active_vendor_autoload = $vendor_autoload_override;
 } elseif ( file_exists( $vendor_autoload ) ) {
 	require_once $vendor_autoload;
+	$active_vendor_autoload = $vendor_autoload;
 } elseif ( file_exists( $vendor_test_autoload ) ) {
 	require_once $vendor_test_autoload;
+	$active_vendor_autoload = $vendor_test_autoload;
 } else {
 	fwrite( STDERR, "Unable to locate Composer autoloader in vendor/, vendor_test/, or WP_SUDO_VENDOR_AUTOLOAD.\n" );
 	exit( 1 );
@@ -313,11 +317,18 @@ if ( $vendor_autoload_override && file_exists( $vendor_autoload_override ) ) {
 // governance helpers) allows Brain\Monkey to redefined wp_sudo_is_recovery_mode()
 // and any other functions defined in plugin helper files.
 // Brain\Monkey's patchwork-loader.php detects it's already loaded and skips.
-$_patchwork = dirname( __DIR__ ) . '/vendor/antecedent/patchwork/Patchwork.php';
-if ( file_exists( $_patchwork ) ) {
-	require_once $_patchwork;
+$_patchwork_candidates = array(
+	dirname( (string) $active_vendor_autoload ) . '/antecedent/patchwork/Patchwork.php',
+	dirname( __DIR__ ) . '/vendor/antecedent/patchwork/Patchwork.php',
+);
+
+foreach ( array_unique( $_patchwork_candidates ) as $_patchwork ) {
+	if ( file_exists( $_patchwork ) ) {
+		require_once $_patchwork;
+		break;
+	}
 }
-unset( $_patchwork );
+unset( $_patchwork, $_patchwork_candidates, $active_vendor_autoload );
 
 // ── Governance helpers ───────────────────────────────────────────────
 // Loaded AFTER Patchwork so Brain\Monkey can stub wp_sudo_is_recovery_mode()
