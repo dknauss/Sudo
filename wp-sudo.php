@@ -22,6 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 }
 
 require_once __DIR__ . '/includes/class-bootstrap.php';
+require_once __DIR__ . '/includes/functions-governance.php';
 
 // Plugin version.
 define( 'WP_SUDO_VERSION', '3.1.3' );

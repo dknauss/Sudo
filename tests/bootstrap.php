@@ -273,3 +273,20 @@ if ( $vendor_autoload_override && file_exists( $vendor_autoload_override ) ) {
 	fwrite( STDERR, "Unable to locate Composer autoloader in vendor/, vendor_test/, or WP_SUDO_VENDOR_AUTOLOAD.\n" );
 	exit( 1 );
 }
+
+// ── Patchwork early boot ─────────────────────────────────────────────
+// Patchwork must be loaded BEFORE any file that defines functions we
+// want to stub with Brain\Monkey. Loading it here (after Composer, before
+// governance helpers) allows Brain\Monkey to redefined wp_sudo_is_recovery_mode()
+// and any other functions defined in plugin helper files.
+// Brain\Monkey's patchwork-loader.php detects it's already loaded and skips.
+$_patchwork = dirname( __DIR__ ) . '/vendor/antecedent/patchwork/Patchwork.php';
+if ( file_exists( $_patchwork ) ) {
+	require_once $_patchwork;
+}
+unset( $_patchwork );
+
+// ── Governance helpers ───────────────────────────────────────────────
+// Loaded AFTER Patchwork so Brain\Monkey can stub wp_sudo_is_recovery_mode()
+// and any other governance functions in unit tests.
+require_once dirname( __DIR__ ) . '/includes/functions-governance.php';
