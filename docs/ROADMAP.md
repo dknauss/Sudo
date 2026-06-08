@@ -470,20 +470,25 @@ the recommended implementation order is:
    - **Effort:** Low to medium
 4. **Implement E2E CI acceleration without reducing release assurance**
    - Keep the full Playwright suite available for release-grade confidence, but shorten normal feedback loops
-   - Build on the completed four-shard E2E split before adding cache/image/policy optimizations
+   - Rebalance the current long shard before adding cache/image/policy optimizations
    - Treat path-based skipping and worker-level parallelism as later steps that require explicit safety rules
    - **Effort:** Low to medium
-5. ~~**Build the Session Activity Dashboard Widget**~~ ✅ Done (v3.0.0)
+5. **Refresh README screenshots for the current UI**
+   - Inventory existing README/readme screenshot references and WordPress.org asset needs
+   - Recapture the Settings -> Sudo screens, Access tab, Session Activity dashboard widget, Rule Tester, and other new widgets/screens
+   - Redo the full screenshot set if visual consistency or stale WP admin styling makes piecemeal replacement misleading
+   - **Effort:** Low to medium
+6. ~~**Build the Session Activity Dashboard Widget**~~ ✅ Done (v3.0.0)
    - ~~This is the smallest meaningful product feature still open~~
    - ~~It adds operator value without forcing a major challenge-flow redesign~~
    - ~~It will also establish the audit-data persistence layer that other visibility features could reuse~~
    - ~~**Effort:** Medium~~
-6. **Extend Dashboard Widget for Multisite Network Admin** (see §11.1)
+7. **Extend Dashboard Widget for Multisite Network Admin** (see §11.1)
    - Build on the v3.0.0 foundation with cross-site aggregation
    - Add super admin visibility controls
    - This is the natural next step now that Event_Store and the per-site widget exist
    - **Effort:** Medium
-7. **Design Gutenberg Block Editor integration before implementation**
+8. **Design Gutenberg Block Editor integration before implementation**
    - Treat this as the next major UX milestone, not an opportunistic patch
    - Start with a design phase: challenge transport, snackbar UX, replay model, and test strategy
    - Only implement after the challenge component boundaries are explicit
@@ -1602,6 +1607,14 @@ coverage that protects challenge, replay, admin UI, and WordPress 7.0 behavior.
   pushes.
 
 **Next implementation options, in priority order:**
+- Rebalance the Playwright shard long pole before other speedups. The first
+  four-shard release run put all `challenge.spec.ts` coverage (`CHAL-01` through
+  `CHAL-17`) plus the admin-bar tests into shard 1; shard 1 took `10m04s`, while
+  the other shards completed in about `2m28s`, `2m32s`, and `3m01s`.
+  Split `tests/e2e/specs/challenge.spec.ts` into smaller files or explicit CI
+  groups such as `challenge-basic`, `challenge-2fa`, `challenge-lockout`, and
+  `challenge-replay`, then verify `--list --shard=N/4` distribution before
+  investing in caching or custom images.
 - Cache Playwright browser binaries (`~/.cache/ms-playwright`) with keys derived
   from `package-lock.json` and the pinned Playwright version. Keep Linux system
   dependency installation explicit unless a runner image proves it is stable.
@@ -1627,9 +1640,36 @@ coverage that protects challenge, replay, admin UI, and WordPress 7.0 behavior.
 - Full E2E must remain easy to trigger manually before tags and release branches.
 - Low-risk skips must be documented in the E2E Validation Policy and must fail
   closed when changed paths are ambiguous.
+- Record shard distribution and runtime before and after rebalancing; no shard
+  should own all challenge lockout, 2FA, and replay coverage.
 - Measure before/after wall-clock duration for `E2E Tests` and record material
   changes in `docs/release-status.md` or the release notes when they affect
   release process expectations.
+
+#### Phase R5: README screenshot refresh and visual docs
+
+**Goal:** bring public screenshots back in line with the v3.2 UI and make the
+README/readme assets show the screens operators now use.
+
+**Scope:**
+- Inventory current README, `readme.txt`, WordPress.org asset, and docs image
+  references before deciding whether to patch or fully replace screenshots.
+- Capture a consistent screenshot set for Settings -> Sudo, the Access tab,
+  Session Activity dashboard widget, Rule Tester, Help dropdown where useful,
+  and any other new screens or widgets added since the last visual refresh.
+- Prefer redoing the full set when old screenshots use stale admin styling,
+  inconsistent viewport sizes, or no longer explain the current product surface.
+- Document the capture environment, viewport, admin color scheme, WordPress
+  version, and demo data assumptions so future screenshot updates are repeatable.
+- Check that no passwords, nonces, session tokens, real user emails, API keys, or
+  private site URLs appear in screenshots.
+
+**Acceptance criteria:**
+- README/readme screenshots match current UI and cover the new screens/widgets.
+- Images are optimized, accessible with useful alt text/captions, and suitable
+  for both GitHub README and WordPress.org plugin asset expectations.
+- Visual QA confirms the screenshots are readable on common desktop widths and
+  do not contradict current Playground/demo behavior.
 
 #### Acceptance criteria
 
