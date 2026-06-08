@@ -1,6 +1,6 @@
 # Roadmap: Past and Future Planning — Integration Tests, WP 7.0 Prep, Collaboration, TDD, and Core Design
 
-*Updated May 9, 2026*
+*Updated June 7, 2026*
 
 ## Table of Contents
 
@@ -21,7 +21,7 @@
 - **[11. Feature Backlog](#11-feature-backlog)** — WSAL sensor, IP+user rate limiting, dashboard widget, Gutenberg, network policy
 - **[11.1 Multisite Network Admin Tools](#111-multisite-network-admin-tools)** — Network dashboard widget, super admin widget visibility controls, cross-site activity aggregation
 - **[11.2 Internal Admin Least-Privilege & Governance](#112-internal-admin-least-privilege--governance)** — dedicated Sudo capabilities, explicit grants, migration-safe rollout
-- **[12. Security Hardening Sprint](#12-security-hardening-sprint)** — Stash redaction, upload-action coverage, non-blocking rate limiting, rule validation, MU loader
+- **[12. Security Hardening Sprint](#12-security-hardening-sprint)** — Completed hardening sprint plus post-v3.1.3 review remediation phases
 - **[Appendix A: Accessibility](#appendix-a-accessibility-roadmap)** — 15 resolved WCAG items (v2.2.0–v2.3.1)
 
 ---
@@ -99,6 +99,29 @@ All 5 phases shipped. Identified by independent assessments from Codex, Gemini, 
 - ~~**P3 — WSAL sensor extension**~~ ✅ Phase 4
 - ~~**IP + user multidimensional rate limiting**~~ ✅ Phase 5
 
+### Immediate: Post-v3.1.3 Security Review Remediation
+
+A June 7, 2026 deep security review found two implementation weaknesses and two
+design hardening opportunities that should interrupt lower-priority feature work:
+
+- **Patch-grade auth fix:** 2FA failure counters can be cleared by repeating the
+  password step before second-factor success. Remediate first and release as a
+  patch if validated.
+- **Surface hardening:** WPGraphQL Limited mode still relies on raw-body substring
+  detection when no classifier is present. Decode request payloads before fallback
+  classification and fail closed for unknown persisted operations where strict
+  blocking is requested.
+- **Data minimization follow-up:** Request stash redaction is exact-key based; add
+  pattern-based redaction and custom-rule metadata for sensitive/non-replayable
+  fields.
+- **Governance evolution:** Evolve governance with dedicated
+  `manage_wp_sudo`-style capabilities, stronger policy-change protections, and
+  safer custom-rule replay/redaction controls. This remains central to WP Sudo's
+  security purpose, not just admin UX polish.
+
+See [§12.1](#121-post-v313-security-review-remediation-open) for the phased plan
+and acceptance criteria.
+
 ### ✓ Completed in v2.11.0
 
 - ~~Action Registry schema validation~~ — `normalize_filtered_rules()` validates and normalizes `wp_sudo_gated_actions` filter output; malformed rules dropped fail-closed.
@@ -144,8 +167,8 @@ All 5 phases shipped. Identified by independent assessments from Codex, Gemini, 
 This is a living document covering accumulated input and thinking about the strategic
 challenges and priorities for WP Sudo. 
 
-Current project state (as of May 11, 2026):
-- **v3.1.1 is the latest tagged release** — post-v3.0.0 security hardening, audit bridge parity, PHP 8.0 test compatibility, and npm dependency security cleanup have shipped. `main` is now in the v3.2.0 planning lane.
+Current project state (as of June 7, 2026):
+- **v3.1.3 is the latest tagged release** — post-v3.0.0 security hardening, audit bridge parity, PHP 8.0 test compatibility, npm dependency security cleanup, and Playground release-link fixes have shipped. `main` is now in the v3.2.0 planning lane.
 - Current test and size counts are centralized in [`docs/current-metrics.md`](current-metrics.md).
 - CI pipeline: unit tests on PHP 8.0–8.4; integration tests on PHP 8.0/8.1/8.3; WordPress 6.2, 6.7, and 7.0-RC1; single-site + multisite; MySQL 8.0 plus one MariaDB lane; PCOV coverage job; 60 Playwright E2E tests
 - WordPress 7.0 RC1 signoff recorded (March 24, 2026); the scheduled April 9 final was delayed on March 31, 2026, and the official Make/Core schedule still plans final release for May 20, 2026. See `docs/release-status.md`.
@@ -428,32 +451,38 @@ not context retrieval.
 Once WordPress 7.0 GA is signed off and the compatibility release work is closed,
 the recommended implementation order is:
 
-1. **Finish WP 7.0 GA cleanup**
+1. **Complete post-v3.1.3 security review remediation**
+   - Fix the 2FA counter reset issue first, with failing tests committed before production code
+   - Replace the WPGraphQL raw-body fallback with decoded request classification and explicit persisted-query behavior
+   - Add request-stash redaction hardening and custom-rule replay metadata
+   - Keep governance hardening scoped as the next security-design phase
+   - **Effort:** Medium
+2. **Finish WP 7.0 GA cleanup**
    - Bump `Tested up to`
    - Cut the next release with the already-queued unreleased notes
    - Remove the temporary `handle_err_admin_role()` workaround if core `#64690` shipped as expected
    - **Effort:** Low
-2. **Strengthen release-only environment checks instead of broadening required CI**
+3. **Strengthen release-only environment checks instead of broadening required CI**
    - Add the managed-host/manual environment checklist promised in section 5
    - Keep SQLite as smoke/release assurance, not a required merge gate
    - Add breadth only where a real compatibility signal is missing
    - **Effort:** Low to medium
-3. ~~**Build the Session Activity Dashboard Widget**~~ ✅ Done (v3.0.0)
+4. ~~**Build the Session Activity Dashboard Widget**~~ ✅ Done (v3.0.0)
    - ~~This is the smallest meaningful product feature still open~~
    - ~~It adds operator value without forcing a major challenge-flow redesign~~
    - ~~It will also establish the audit-data persistence layer that other visibility features could reuse~~
    - ~~**Effort:** Medium~~
-4. **Extend Dashboard Widget for Multisite Network Admin** (see §11.1)
+5. **Extend Dashboard Widget for Multisite Network Admin** (see §11.1)
    - Build on the v3.0.0 foundation with cross-site aggregation
    - Add super admin visibility controls
    - This is the natural next step now that Event_Store and the per-site widget exist
    - **Effort:** Medium
-5. **Design Gutenberg Block Editor integration before implementation**
+6. **Design Gutenberg Block Editor integration before implementation**
    - Treat this as the next major UX milestone, not an opportunistic patch
    - Start with a design phase: challenge transport, snackbar UX, replay model, and test strategy
    - Only implement after the challenge component boundaries are explicit
    - **Effort:** High
-6. **Re-evaluate multisite Network Policy Hierarchy after the dashboard/audit work**
+7. **Re-evaluate multisite Network Policy Hierarchy after the dashboard/audit work**
    - This remains valuable, but only for a narrower audience
    - It becomes easier once policy state and audit visibility are clearer
    - **Effort:** High
@@ -462,8 +491,8 @@ the recommended implementation order is:
 
 Use this default order after the v3.0.0 release unless a real user need overrides it:
 
-- **Do next:** Network Dashboard Widget + Super Admin Visibility Controls
-- **Plan next:** Gutenberg Block Editor Integration
+- **Do next:** Post-v3.1.3 security review remediation, then Network Dashboard Widget + Super Admin Visibility Controls
+- **Plan next:** Governance hardening and Gutenberg Block Editor Integration
 - **Do later if demand exists:** Network Policy Hierarchy for Multisite, Cross-Site Session Revocation, network-enforced Passed-event logging policy (super admins can require immutable Passed-event audit visibility across subsites), Security Administrator governance mode (dedicated `manage_wp_sudo` capability, settings/widget visibility scoped to that capability, optional strict-mode assignee workflow, and documented recovery path for misconfiguration)
 - **Keep as design backlog:** client-side modal challenge, per-session sudo isolation, REST sudo grant endpoint, SSO/SAML/OIDC framework
 
@@ -1410,6 +1439,123 @@ migration endpoint.
 *Added March 4, 2026 — based on independent assessments by Codex, Gemini, and Claude. Full analysis in `.planning/PROPOSED-NEXT-STEPS-{codex,gemini,Claude}.md` and `.planning/WORKING-ASSESSMENT-Codex.md`.*
 
 WP Sudo ran a focused hardening sprint before new UX or architecture expansion. Sprint A and Sprint B are complete (request stash redaction/cap, upload-action coverage, and non-blocking rate limiting). Remaining work should prioritize reliability hardening and observability over lower-impact feature expansion.
+
+### 12.1 Post-v3.1.3 Security Review Remediation (Open)
+
+*Added June 7, 2026 — based on a deep manual security review of `main` at
+`67008e4`.*
+
+The review found no obvious unauthenticated RCE, SQL injection, stored XSS, CSRF,
+open redirect, or plain privilege escalation in the core paths reviewed. It did
+identify two code-level weaknesses and two product-security hardening items that
+should shape the next phases.
+
+#### Phase R1: Patch-grade auth and surface fixes
+
+**Finding: 2FA failure lockout can be reset before 2FA succeeds.**
+
+- `Sudo_Session::attempt_activation()` resets failed attempts immediately after a
+  correct password, before the optional 2FA step completes.
+- Failed 2FA attempts are recorded later by `Challenge::handle_ajax_2fa()`.
+- A user or attacker with an authenticated session and the account password can
+  alternate password success with bad 2FA attempts and avoid the intended 2FA
+  lockout threshold.
+
+**Fix:**
+- Do not clear failure counters on password-only success when 2FA is required.
+- Reset attempts only after final sudo activation succeeds.
+- Consider separate password and 2FA counters if the shared counter creates
+  ambiguous UX or audit semantics.
+
+**Tests:**
+- Unit or integration test proving repeated `password -> bad 2FA -> password`
+  cycles still accumulate failures and reach lockout.
+- Regression test proving no-2FA password success still clears prior failed
+  password attempts only after activation.
+- Audit hook assertions for the lockout path.
+
+**Finding: WPGraphQL Limited mode can fail open on encoded or persisted mutations.**
+
+- The fallback classifier searches the raw POST body for the literal substring
+  `mutation`.
+- JSON-escaped operation text such as `\u006dutation` can decode to a GraphQL
+  mutation while bypassing the raw-body fallback.
+- Persisted query/APQ requests can also omit the operation text unless a site
+  supplies a classifier through `wp_sudo_wpgraphql_classification`.
+
+**Fix:**
+- Decode JSON and form-encoded GraphQL request payloads before fallback
+  classification.
+- Handle batched GraphQL payloads conservatively: any decoded mutation should
+  classify the request as a mutation.
+- Add a strict/fail-closed path for unknown persisted operations when a site
+  requires mutation blocking and cannot provide classifier coverage.
+- Update `docs/security-model.md` so the heuristic caveat names encoded payloads,
+  batches, and persisted operations precisely.
+
+**Tests:**
+- Unit tests for inline mutation, JSON-escaped `mutation`, query false-positive
+  strings, batched mutation/query mixtures, classifier override precedence, and
+  unknown persisted operation handling.
+- Integration coverage for WPGraphQL Limited mode once a representative request
+  fixture can be exercised.
+
+#### Phase R2: Data minimization and custom-rule replay hardening
+
+**Finding: request-stash redaction is exact-key based.**
+
+- Built-in redaction covers common names such as `password`, `token`, `secret`,
+  and `api_key`.
+- Third-party gated forms can still use names such as `clientSecret`,
+  `refreshToken`, `authorization`, `bearer`, `totp_seed`, or provider-specific
+  secret names.
+
+**Fix:**
+- Add conservative pattern-based redaction for common secret-like substrings and
+  suffixes.
+- Add custom-rule metadata for fields that must be redacted, fields that are safe
+  to replay, and actions that should not replay POST bodies after reauth.
+- Fail explicitly when a redacted required field makes replay unsafe.
+
+**Tests:**
+- Unit tests for camelCase, snake_case, dashed, nested, and array secret keys.
+- Replay tests proving built-in safe forms still work and unsafe custom forms fail
+  with an operator-readable message.
+
+#### Phase R3: Governance and purpose alignment
+
+**Finding: Sudo governance still relies on broad administrator capabilities.**
+
+- This is documented as an internal governance boundary, not a bug, but it limits
+  WP Sudo's effectiveness for organizations with many administrators.
+- A user who can satisfy sudo and manage options can weaken WP Sudo's policies,
+  remove optional hardening, or widen headless surfaces.
+
+**Fix:**
+- Continue the dedicated capability plan in §11.2 before adding lower-impact
+  features, and evolve governance with dedicated `manage_wp_sudo`-style
+  capabilities, stronger policy-change protections, and safer custom-rule
+  replay/redaction controls.
+- Require explicit `manage_wp_sudo`-style authority for settings, policy changes,
+  activity export, and session revocation.
+- Gate policy weakening and governance-mode transitions as high-risk actions.
+- Keep a documented recovery/break-glass path so least-privilege controls do not
+  create unrecoverable lockouts.
+
+**Tests:**
+- Capability matrix tests for single-site and multisite.
+- Tests proving ordinary administrators without Sudo management authority cannot
+  relax policies, view restricted activity, export logs, or revoke sessions.
+- Break-glass tests that prove recovery mode is explicit, auditable, and bounded.
+
+#### Acceptance criteria
+
+- Follow TDD: failing tests first, then minimal implementation, then refactor.
+- `composer test:unit`, `composer lint`, and `composer analyse` pass locally.
+- Integration tests are required for cross-class auth flows and REST/WPGraphQL
+  surface behavior.
+- Full Playwright E2E is required only if the implementation changes browser/admin
+  UX, request replay, challenge flow, or release-grade deployment confidence.
 
 ### P1: Request Stash Data Minimization ✅ Complete (Phase 1)
 
