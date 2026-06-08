@@ -109,9 +109,9 @@ design hardening opportunities that should interrupt lower-priority feature work
   patch if validated.
 - ~~**Surface hardening:** WPGraphQL Limited mode should decode request payloads
   before fallback classification and fail closed for unknown persisted operations.~~
-  Shipped in unreleased hardening: JSON, form-encoded, multipart `operations`,
-  batched payloads, parser edge cases, and persisted-operation fail-safe are
-  covered by unit tests.
+  Shipped in unreleased hardening: JSON bodies, GET/form `query` params,
+  multipart `operations`, batched payloads, parser edge cases, and
+  persisted-operation fail-safe are covered by unit tests.
 - **Data minimization follow-up:** Request stash redaction is exact-key based; add
   pattern-based redaction and custom-rule metadata for sensitive/non-replayable
   fields.
@@ -1485,8 +1485,8 @@ should shape the next phases.
   supplies a classifier through `wp_sudo_wpgraphql_classification`.
 
 **Fix (shipped in unreleased hardening):**
-- Decode JSON, form-encoded, and multipart `operations` GraphQL request payloads
-  before fallback classification.
+- Decode JSON bodies, GET/form `query` params, and multipart `operations`
+  GraphQL request payloads before fallback classification.
 - Handle batched GraphQL payloads conservatively: any decoded mutation should
   classify the request as a mutation.
 - Fail closed on unknown persisted operations unless a classifier identifies the
@@ -1496,8 +1496,9 @@ should shape the next phases.
 
 **Tests:**
 - Unit tests for inline mutation, JSON-escaped `mutation`, query false-positive
-  strings, batched mutation/query mixtures, multipart `operations`, classifier
-  override precedence, and unknown persisted operation handling.
+  strings, batched mutation/query mixtures, GET `query` params, multipart
+  `operations`, classifier override precedence, and unknown persisted operation
+  handling.
 - Integration coverage for WPGraphQL Limited mode once a representative request
   fixture can be exercised.
 

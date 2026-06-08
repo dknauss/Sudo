@@ -1387,8 +1387,9 @@ class Gate {
 	 * @return bool True when the body looks like a persisted operation.
 	 */
 	private function body_has_persisted_operation( string $body, array $request_params = array() ): bool {
-		$body = self::strip_leading_bom( $body );
-		$body = trim( $body );
+		$body           = self::strip_leading_bom( $body );
+		$body           = trim( $body );
+		$request_params = $this->normalize_wpgraphql_request_params( $request_params );
 
 		if ( '' !== $body ) {
 			$decoded = json_decode( $body, true );
@@ -1428,6 +1429,28 @@ class Gate {
 		}
 
 		return false;
+	}
+
+	/**
+	 * Normalize parsed GraphQL request params for classification.
+	 *
+	 * GET requests commonly carry `extensions` as a JSON-encoded string, while
+	 * bracket-notation form requests may already provide it as an array.
+	 *
+	 * @since 3.1.4
+	 *
+	 * @param array<string, mixed> $params Parsed request parameters.
+	 * @return array<string, mixed> Parameters with supported JSON fields decoded.
+	 */
+	private function normalize_wpgraphql_request_params( array $params ): array {
+		if ( isset( $params['extensions'] ) && is_string( $params['extensions'] ) ) {
+			$decoded = json_decode( self::strip_leading_bom( $params['extensions'] ), true );
+			if ( JSON_ERROR_NONE === json_last_error() && is_array( $decoded ) ) {
+				$params['extensions'] = $decoded;
+			}
+		}
+
+		return $params;
 	}
 
 	/**
@@ -1740,9 +1763,16 @@ class Gate {
 	 */
 	public function gate_wpgraphql(): void {
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_get_contents_file_get_contents, WordPressVIPMinimum.Performance.FetchingRemoteData.FileGetContentsRemoteFile -- php://input is a local stream, not a remote request.
-		$body           = (string) file_get_contents( 'php://input' );
-		$request_params = wp_unslash( $_POST ); // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Classification only; no state change or trust decision without sudo session validation.
-		$result         = $this->check_wpgraphql( $body, is_array( $request_params ) ? $request_params : array() );
+		$body        = (string) file_get_contents( 'php://input' );
+		$get_params  = wp_unslash( $_GET ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Classification only; no state change or trust decision without sudo session validation.
+		$post_params = wp_unslash( $_POST ); // phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Classification only; no state change or trust decision without sudo session validation.
+		$result      = $this->check_wpgraphql(
+			$body,
+			array_merge(
+				is_array( $get_params ) ? $get_params : array(),
+				is_array( $post_params ) ? $post_params : array()
+			)
+		);
 
 		if ( null === $result ) {
 			return;
