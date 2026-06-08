@@ -64,7 +64,26 @@ const E2E_TWO_FACTOR_PROVIDER_EVENT_META =
     '_wp_sudo_e2e_two_factor_last_provider_event';
 const E2E_LOCKOUT_SECONDS_META = '_wp_sudo_e2e_lockout_seconds';
 const E2E_TWO_FACTOR_CODE = '123456';
+const E2E_ACTIVATABLE_PLUGIN_DIR = 'wp-sudo-e2e-activatable';
+const E2E_ACTIVATABLE_PLUGIN_FILE =
+    `${ E2E_ACTIVATABLE_PLUGIN_DIR }/wp-sudo-e2e-activatable.php`;
 const WP_ENV_PLUGIN_DIR = process.env.WP_E2E_PLUGIN_DIR?.trim() || path.basename( process.cwd() );
+
+function shellQuote( value: string ): string {
+    return `'${ value.replace( /'/g, "'\\''" ) }'`;
+}
+
+function parseSettingsJson( value: string | null ): Record<string, unknown> {
+    if ( ! value ) {
+        return {};
+    }
+
+    const parsed = JSON.parse( value );
+
+    return parsed && typeof parsed === 'object' && ! Array.isArray( parsed )
+        ? parsed
+        : {};
+}
 
 /**
  * Extract a real plugin activate URL (with valid nonce) from plugins.php.
@@ -78,7 +97,7 @@ const WP_ENV_PLUGIN_DIR = process.env.WP_E2E_PLUGIN_DIR?.trim() || path.basename
  * To scrape a real activate URL we must:
  *   1. Activate a sudo session (so real <a> links render)
  *   2. Navigate to plugins.php
- *   3. Extract the href for Hello Dolly's activate action
+ *   3. Extract the href for the test-only fixture plugin's activate action
  *   4. Clear the sudo cookie (so the gate intercepts when we navigate to that URL)
  *
  * Source: WordPress plugins.php — activate links include _wpnonce query param (verified)
@@ -86,8 +105,7 @@ const WP_ENV_PLUGIN_DIR = process.env.WP_E2E_PLUGIN_DIR?.trim() || path.basename
  * Source: class-challenge.php — stash stores the gated URL including nonce (verified)
  *
  * @param page       Playwright Page object.
- * @returns          The full admin-relative URL for Hello Dolly's activate action with nonce,
- *                   e.g. '/wp-admin/plugins.php?action=activate&plugin=hello.php&_wpnonce=abc123'
+ * @returns          The full admin-relative URL for the fixture plugin activate action with nonce.
  *                   Returns null if the expected activate link is unavailable.
  */
 async function getActivateUrl(
@@ -106,11 +124,10 @@ async function getActivateUrl(
     // Step B: Navigate to plugins.php with active session — real <a> links render.
     await page.goto( '/wp-admin/plugins.php' );
 
-    // Use Hello Dolly specifically. Akismet activation can redirect to its own
-    // settings screen, which makes CHAL-01's replay assertion against plugins.php
-    // brittle even when stash replay is working correctly.
+    // Use a test-only inert plugin. WordPress core no longer guarantees Hello
+    // Dolly is bundled in every CI image, and Akismet may redirect on activation.
     const activateLink = page.locator(
-        '.activate a[href*="action=activate"][href*="plugin=hello.php"]'
+        `.activate a[href*="action=activate"][href*="${ E2E_ACTIVATABLE_PLUGIN_DIR }"]`
     ).first();
 
     if ( await activateLink.count() === 0 ) {
@@ -225,6 +242,33 @@ async function installE2eTwoFactorBridge(): Promise<void> {
 async function removeE2eTwoFactorBridge(): Promise<void> {
     await execAsync(
         `${ WP_ENV_RUN_CLI } bash -lc 'rm -f /var/www/html/wp-content/mu-plugins/${ E2E_TWO_FACTOR_MU_PLUGIN }'`,
+        { timeout: 30_000 }
+    );
+}
+
+/**
+ * Install the inert plugin fixture used by stash-replay activation tests.
+ */
+async function installE2eActivatablePlugin(): Promise<void> {
+    await execAsync(
+        `${ WP_ENV_RUN_CLI } bash -lc 'mkdir -p /var/www/html/wp-content/plugins/${ E2E_ACTIVATABLE_PLUGIN_DIR } && cp /var/www/html/wp-content/plugins/${ WP_ENV_PLUGIN_DIR }/tests/e2e/fixtures/${ E2E_ACTIVATABLE_PLUGIN_FILE } /var/www/html/wp-content/plugins/${ E2E_ACTIVATABLE_PLUGIN_FILE }'`,
+        { timeout: 30_000 }
+    );
+}
+
+/**
+ * Remove the inert plugin fixture from wp-env.
+ */
+async function removeE2eActivatablePlugin(): Promise<void> {
+    await withCliPolicyUnrestricted( async () => {
+        await execAsync(
+            `${ WP_ENV_RUN_CLI } wp plugin deactivate ${ E2E_ACTIVATABLE_PLUGIN_DIR } --quiet 2>/dev/null || true`,
+            { timeout: 30_000 }
+        );
+    } );
+
+    await execAsync(
+        `${ WP_ENV_RUN_CLI } bash -lc 'rm -rf /var/www/html/wp-content/plugins/${ E2E_ACTIVATABLE_PLUGIN_DIR }'`,
         { timeout: 30_000 }
     );
 }
@@ -404,9 +448,28 @@ async function expireCurrentTwoFactorChallenge( page: Page ): Promise<void> {
  * Source: includes/class-admin.php — default cli_policy = 'limited' (verified)
  */
 async function withCliPolicyUnrestricted( fn: () => Promise<void> ): Promise<void> {
+    let originalSettings: string | null = null;
+    let originalCliPolicy: unknown;
+
+    try {
+        const { stdout } = await execAsync(
+            `${ WP_ENV_RUN_CLI } wp option get wp_sudo_settings --format=json 2>/dev/null`,
+            { timeout: 15_000 }
+        );
+        originalSettings = stdout.trim();
+    } catch {
+        originalSettings = null;
+    }
+
+    const temporarySettings = parseSettingsJson( originalSettings );
+    originalCliPolicy = Object.prototype.hasOwnProperty.call( temporarySettings, 'cli_policy' )
+        ? temporarySettings.cli_policy
+        : undefined;
+    temporarySettings.cli_policy = 'unrestricted';
+
     try {
         await execAsync(
-            `${ WP_ENV_RUN_CLI } wp option set wp_sudo_settings '{"cli_policy":"unrestricted"}' --format=json --quiet 2>/dev/null`,
+            `${ WP_ENV_RUN_CLI } wp option set wp_sudo_settings ${ shellQuote( JSON.stringify( temporarySettings ) ) } --format=json --quiet 2>/dev/null`,
             { timeout: 15_000 }
         );
     } catch {
@@ -415,34 +478,59 @@ async function withCliPolicyUnrestricted( fn: () => Promise<void> ): Promise<voi
     try {
         await fn();
     } finally {
-        // Always restore — even if the inner function throws.
-        await execAsync(
-            `${ WP_ENV_RUN_CLI } wp option delete wp_sudo_settings --quiet 2>/dev/null || true`,
-            { timeout: 15_000 }
-        );
+        // Always restore only the temporary CLI policy override.
+        let currentSettings: string | null = null;
+        try {
+            const { stdout } = await execAsync(
+                `${ WP_ENV_RUN_CLI } wp option get wp_sudo_settings --format=json 2>/dev/null`,
+                { timeout: 15_000 }
+            );
+            currentSettings = stdout.trim();
+        } catch {
+            currentSettings = null;
+        }
+
+        const restoredSettings = parseSettingsJson( currentSettings );
+        if ( undefined === originalCliPolicy ) {
+            delete restoredSettings.cli_policy;
+        } else {
+            restoredSettings.cli_policy = originalCliPolicy;
+        }
+
+        if ( Object.keys( restoredSettings ).length > 0 || originalSettings ) {
+            await execAsync(
+                `${ WP_ENV_RUN_CLI } wp option set wp_sudo_settings ${ shellQuote( JSON.stringify( restoredSettings ) ) } --format=json --quiet 2>/dev/null`,
+                { timeout: 15_000 }
+            );
+        } else {
+            await execAsync(
+                `${ WP_ENV_RUN_CLI } wp option delete wp_sudo_settings --quiet 2>/dev/null || true`,
+                { timeout: 15_000 }
+            );
+        }
     }
 }
 
 /**
- * Ensure Hello Dolly is inactive so a real activate link exists for stash replay tests.
+ * Ensure the inert fixture plugin is inactive so a real activate link exists.
  */
-async function ensureHelloPluginInactive(): Promise<void> {
+async function ensureE2eActivatablePluginInactive(): Promise<void> {
     await withCliPolicyUnrestricted( async () => {
         await execAsync(
-            `${ WP_ENV_RUN_CLI } wp plugin deactivate hello --quiet 2>/dev/null || true`,
+            `${ WP_ENV_RUN_CLI } wp plugin deactivate ${ E2E_ACTIVATABLE_PLUGIN_DIR } --quiet 2>/dev/null || true`,
             { timeout: 30_000 }
         );
     } );
 }
 
 /**
- * Navigate to a real stashed plugin-activation challenge for Hello Dolly.
+ * Navigate to a real stashed plugin-activation challenge for the fixture plugin.
  */
 async function reachStashedPluginActivationChallenge(
     page: Page,
     requiresTwoFactor = false
 ): Promise<void> {
-    await ensureHelloPluginInactive();
+    await ensureE2eActivatablePluginInactive();
 
     const activateUrl = await getActivateUrl( page, requiresTwoFactor );
 
@@ -474,28 +562,21 @@ async function getWpSudoSessionDuration(): Promise<number> {
  * Set the sudo session duration directly in wp-env for settings-form replay tests.
  */
 async function setWpSudoSessionDuration( minutes: number ): Promise<void> {
-    await execAsync(
-        `${ WP_ENV_RUN_CLI } wp eval '$settings = get_option( "${ 'wp_sudo_settings' }", array() ); if ( ! is_array( $settings ) ) { $settings = array(); } $settings["session_duration"] = ${ minutes }; update_option( "${ 'wp_sudo_settings' }", $settings );'`,
-        { timeout: 15_000 }
-    );
+    await withCliPolicyUnrestricted( async () => {
+        await execAsync(
+            `${ WP_ENV_RUN_CLI } wp eval '$settings = get_option( "${ 'wp_sudo_settings' }", array() ); if ( ! is_array( $settings ) ) { $settings = array(); } $settings["session_duration"] = ${ minutes }; update_option( "${ 'wp_sudo_settings' }", $settings );'`,
+            { timeout: 15_000 }
+        );
+    } );
 }
 
 test.describe( 'Challenge flow', () => {
     test.beforeAll( async () => {
         await installE2eTwoFactorBridge();
+        await installE2eActivatablePlugin();
 
-        // Ensure at least one plugin is inactive for CHAL-01 stash-replay test.
-        // Without an inactive plugin, getActivateUrl() returns null and CHAL-01 skips.
-        // Source: wp-env ships with Hello Dolly (hello.php) which can be deactivated (verified)
-        //
-        // PITFALL (CLI policy): WP Sudo's default cli_policy='limited' blocks gated WP-CLI
-        // commands. We temporarily set cli_policy='unrestricted' to allow deactivation.
-        await withCliPolicyUnrestricted( async () => {
-            await execAsync(
-                `${ WP_ENV_RUN_CLI } wp plugin deactivate hello --quiet 2>/dev/null || true`,
-                { timeout: 30_000 }
-            );
-        } );
+        // Ensure a deterministic inactive plugin exists for stash-replay tests.
+        await ensureE2eActivatablePluginInactive();
 
         // Clear any leftover failure/lockout meta from previous test runs.
         // If a prior run left user 1 locked out (e.g. from CHAL-03 incorrect password
@@ -514,21 +595,11 @@ test.describe( 'Challenge flow', () => {
     } );
 
     test.afterAll( async () => {
-        // CHAL-01 replays the plugin activate stash, which activates hello.php.
-        // Deactivate it again so that gate-ui.spec.ts (which runs after challenge.spec.ts
-        // alphabetically) has an inactive plugin to test against.
-        // Source: wp-env alphabetical spec order: challenge → cookie → gate-ui → mu-plugin (verified)
-        //
         // Also clear all sudo failure meta for user 1 so subsequent specs that call
         // activateSudoSession() are not blocked by rate-limiting or lockout from
         // CHAL-03's incorrect password attempt.
         // Source: includes/class-sudo-session.php — lockout/throttle meta keys (verified)
-        await withCliPolicyUnrestricted( async () => {
-            await execAsync(
-                `${ WP_ENV_RUN_CLI } wp plugin deactivate hello --quiet 2>/dev/null || true`,
-                { timeout: 30_000 }
-            );
-        } );
+        await removeE2eActivatablePlugin();
 
         // Clear failure meta — these do not require the unrestricted policy because
         // `wp user meta delete` is not a gated WP-CLI action.
@@ -1518,8 +1589,8 @@ test.describe( 'Challenge flow', () => {
             ).toHaveURL( /plugins\.php/ );
 
             await expect(
-                page.locator( '.deactivate a[href*="plugin=hello.php"]' ),
-                'The stashed Hello Dolly activation should complete after 2FA lockout recovery'
+                page.locator( `.deactivate a[href*="${ E2E_ACTIVATABLE_PLUGIN_DIR }"]` ),
+                'The stashed fixture plugin activation should complete after 2FA lockout recovery'
             ).toBeVisible( { timeout: 10_000 } );
         } finally {
             await disableE2eTwoFactor();
@@ -1645,8 +1716,8 @@ test.describe( 'Challenge flow', () => {
             ).toHaveURL( /plugins\.php/ );
 
             await expect(
-                page.locator( '.deactivate a[href*="plugin=hello.php"]' ),
-                'The stashed Hello Dolly activation should complete after provider resend and 2FA lockout recovery'
+                page.locator( `.deactivate a[href*="${ E2E_ACTIVATABLE_PLUGIN_DIR }"]` ),
+                'The stashed fixture plugin activation should complete after provider resend and 2FA lockout recovery'
             ).toBeVisible( { timeout: 10_000 } );
         } finally {
             await disableE2eTwoFactor();
