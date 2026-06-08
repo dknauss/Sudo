@@ -30,7 +30,7 @@ async function ensureAdminGovernanceCaps() {
     for ( const cap of GOVERNANCE_CAPS ) {
         await execFileAsync(
             process.execPath,
-            [ WP_ENV_BIN, 'run', 'cli', 'wp', 'user', 'cap', 'add', USERNAME, cap, '--quiet' ],
+            [ WP_ENV_BIN, 'run', 'cli', 'wp', 'user', 'add-cap', USERNAME, cap, '--quiet' ],
             { timeout: 15_000 }
         );
     }
