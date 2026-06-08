@@ -56,6 +56,41 @@ class Admin {
 	public const AJAX_MU_UNINSTALL = 'wp_sudo_mu_uninstall';
 
 	/**
+	 * AJAX action for granting a governance capability.
+	 *
+	 * @var string
+	 */
+	public const AJAX_GRANT_CAP = 'wp_sudo_grant_cap';
+
+	/**
+	 * AJAX action for revoking a governance capability.
+	 *
+	 * @var string
+	 */
+	public const AJAX_REVOKE_CAP = 'wp_sudo_revoke_cap';
+
+	/**
+	 * AJAX action for force-revoking another user's sudo session.
+	 *
+	 * Gated by the options.wp_sudo_access rule in Action_Registry.
+	 *
+	 * @var string
+	 */
+	public const AJAX_REVOKE_SESSION = 'wp_sudo_revoke_session';
+
+	/**
+	 * All four governance capabilities managed by the Access tab.
+	 *
+	 * @var array<string>
+	 */
+	public const GOVERNANCE_CAPS = array(
+		'manage_wp_sudo',
+		'view_wp_sudo_activity',
+		'export_wp_sudo_activity',
+		'revoke_wp_sudo_sessions',
+	);
+
+	/**
 	 * Nonce action for the Request / Rule Tester form.
 	 *
 	 * @var string
@@ -154,6 +189,20 @@ class Admin {
 	private const SUDO_ACTIVE_COUNT_CACHE_TTL = 30;
 
 	/**
+	 * Transient prefix for per-revoker session-revocation rate limiting.
+	 *
+	 * @var string
+	 */
+	private const REVOKE_RATE_PREFIX = '_wp_sudo_revoke_count_';
+
+	/**
+	 * Maximum session revocations per revoker per hour.
+	 *
+	 * @var int
+	 */
+	private const REVOKE_RATE_LIMIT = 10;
+
+	/**
 	 * Per-request cache for the full settings array.
 	 *
 	 * Prevents redundant is_multisite() + get_option/get_site_option
@@ -207,6 +256,11 @@ class Admin {
 		// MU-plugin install/uninstall AJAX handlers.
 		add_action( 'wp_ajax_' . self::AJAX_MU_INSTALL, array( $this, 'handle_mu_install' ), 10, 0 );
 		add_action( 'wp_ajax_' . self::AJAX_MU_UNINSTALL, array( $this, 'handle_mu_uninstall' ), 10, 0 );
+
+		// Governance Access tab: capability grant/revoke and session-revoke handlers.
+		add_action( 'wp_ajax_' . self::AJAX_GRANT_CAP, array( $this, 'handle_grant_cap' ), 10, 0 );
+		add_action( 'wp_ajax_' . self::AJAX_REVOKE_CAP, array( $this, 'handle_revoke_cap' ), 10, 0 );
+		add_action( 'wp_ajax_' . self::AJAX_REVOKE_SESSION, array( $this, 'handle_revoke_session' ), 10, 0 );
 
 		// Replace core's confusing "user editing capabilities" error with
 		// a clearer message on the Users page.
@@ -1108,7 +1162,7 @@ class Admin {
 		}
 
 		$is_network = is_multisite();
-		$valid_tabs = array( 'settings', 'actions', 'tester' );
+		$valid_tabs = array( 'settings', 'actions', 'tester', 'access' );
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Tab routing only, no state change.
 		$active_tab = isset( $_GET['tab'] ) ? sanitize_text_field( wp_unslash( $_GET['tab'] ) ) : 'settings';
 		if ( ! in_array( $active_tab, $valid_tabs, true ) ) {
@@ -1138,6 +1192,7 @@ class Admin {
 					'settings' => __( 'Settings', 'wp-sudo' ),
 					'actions'  => __( 'Gated Actions', 'wp-sudo' ),
 					'tester'   => __( 'Rule Tester', 'wp-sudo' ),
+					'access'   => __( 'Access', 'wp-sudo' ),
 				);
 				foreach ( $tabs as $tab_key => $tab_label ) :
 					$class        = ( $active_tab === $tab_key ) ? 'nav-tab nav-tab-active' : 'nav-tab';
@@ -1156,6 +1211,10 @@ class Admin {
 
 				case 'tester':
 					$this->render_request_rule_tester();
+					break;
+
+				case 'access':
+					$this->render_access_tab();
 					break;
 
 				default: // 'settings'.
@@ -1257,6 +1316,381 @@ class Admin {
 			</tbody>
 		</table>
 		<?php
+	}
+
+	/**
+	 * Render the Access tab: current grantees, grant/revoke controls, drift detection.
+	 *
+	 * @return void
+	 */
+	public function render_access_tab(): void {
+		$holders = $this->get_sudo_cap_holders();
+		$nonce   = wp_create_nonce( 'wp_sudo_access' );
+		?>
+		<h2><?php esc_html_e( 'Access Control', 'wp-sudo' ); ?></h2>
+		<p class="description">
+			<?php esc_html_e( 'Users listed here hold one or more Sudo governance capabilities. Use grant and revoke controls to manage access. All changes require an active sudo session and are logged via audit hooks.', 'wp-sudo' ); ?>
+		</p>
+
+		<?php if ( empty( $holders ) ) : ?>
+			<p><?php esc_html_e( 'No users currently hold any Sudo governance capabilities.', 'wp-sudo' ); ?></p>
+		<?php else : ?>
+			<table class="widefat striped">
+				<caption class="screen-reader-text"><?php esc_html_e( 'Users with Sudo governance capabilities', 'wp-sudo' ); ?></caption>
+				<thead>
+					<tr>
+						<th scope="col"><?php esc_html_e( 'User', 'wp-sudo' ); ?></th>
+						<th scope="col"><?php esc_html_e( 'Capabilities', 'wp-sudo' ); ?></th>
+						<th scope="col"><?php esc_html_e( 'Actions', 'wp-sudo' ); ?></th>
+					</tr>
+				</thead>
+				<tbody>
+					<?php foreach ( $holders as $holder ) : ?>
+						<tr>
+							<td>
+								<?php echo esc_html( $holder['user']->display_name ); ?>
+								<code><?php echo esc_html( $holder['user']->user_login ); ?></code>
+							</td>
+							<td>
+								<?php foreach ( $holder['caps'] as $cap ) : ?>
+									<code><?php echo esc_html( $cap ); ?></code>
+									<button type="button" class="button-link wp-sudo-revoke-cap"
+										data-user-id="<?php echo (int) $holder['user']->ID; ?>"
+										data-cap="<?php echo esc_attr( $cap ); ?>"
+										data-nonce="<?php echo esc_attr( $nonce ); ?>"
+									><?php esc_html_e( 'Revoke', 'wp-sudo' ); ?></button>
+								<?php endforeach; ?>
+							</td>
+							<td>
+								<button type="button" class="button wp-sudo-revoke-session"
+									data-user-id="<?php echo (int) $holder['user']->ID; ?>"
+									data-nonce="<?php echo esc_attr( $nonce ); ?>"
+								><?php esc_html_e( 'Revoke Session', 'wp-sudo' ); ?></button>
+							</td>
+						</tr>
+					<?php endforeach; ?>
+				</tbody>
+			</table>
+		<?php endif; ?>
+
+		<h3><?php esc_html_e( 'Grant Capability', 'wp-sudo' ); ?></h3>
+		<p class="description">
+			<?php esc_html_e( 'Grant a Sudo capability to a WordPress user. Enter the user ID and select a capability.', 'wp-sudo' ); ?>
+		</p>
+		<table class="form-table" role="presentation">
+			<tr>
+				<th scope="row">
+					<label for="wp-sudo-grant-user"><?php esc_html_e( 'User ID', 'wp-sudo' ); ?></label>
+				</th>
+				<td>
+					<input type="number" id="wp-sudo-grant-user" class="small-text" min="1" step="1"
+						placeholder="<?php esc_attr_e( 'User ID', 'wp-sudo' ); ?>">
+				</td>
+			</tr>
+			<tr>
+				<th scope="row">
+					<label for="wp-sudo-grant-cap"><?php esc_html_e( 'Capability', 'wp-sudo' ); ?></label>
+				</th>
+				<td>
+					<select id="wp-sudo-grant-cap">
+						<?php foreach ( self::GOVERNANCE_CAPS as $cap ) : ?>
+							<option value="<?php echo esc_attr( $cap ); ?>"><?php echo esc_html( $cap ); ?></option>
+						<?php endforeach; ?>
+					</select>
+				</td>
+			</tr>
+			<tr>
+				<th scope="row"></th>
+				<td>
+					<button type="button" id="wp-sudo-grant-submit" class="button button-primary"
+						data-nonce="<?php echo esc_attr( $nonce ); ?>"
+					><?php esc_html_e( 'Grant Capability', 'wp-sudo' ); ?></button>
+					<span id="wp-sudo-grant-result" role="status" aria-live="polite"></span>
+				</td>
+			</tr>
+		</table>
+
+		<?php $this->render_drift_detection_panel( $nonce ); ?>
+		<?php
+	}
+
+	/**
+	 * Render the drift detection panel on the Access tab.
+	 *
+	 * Shows users who hold manage_options (or manage_network_options on multisite)
+	 * but do not hold manage_wp_sudo — potential unexpected gaps in strict mode.
+	 *
+	 * @param string $nonce Nonce value for the grant action button.
+	 * @return void
+	 */
+	private function render_drift_detection_panel( string $nonce ): void {
+		$capability     = is_multisite() ? 'manage_network_options' : 'manage_options';
+		$options_admins = get_users(
+			array(
+				'capability' => $capability,
+				'number'     => -1,
+				'fields'     => 'all',
+			)
+		);
+
+		$drift = array_filter(
+			is_array( $options_admins ) ? $options_admins : array(),
+			static function ( \WP_User $user ): bool {
+				return ! $user->has_cap( 'manage_wp_sudo' );
+			}
+		);
+
+		if ( empty( $drift ) ) {
+			return;
+		}
+		?>
+		<h3><?php esc_html_e( 'Drift Detection', 'wp-sudo' ); ?></h3>
+		<p class="description">
+			<?php esc_html_e( 'The following users hold manage_options but do not hold manage_wp_sudo. In strict governance mode, they cannot access Sudo settings — but this may indicate unexpected access gaps.', 'wp-sudo' ); ?>
+		</p>
+		<table class="widefat striped">
+			<caption class="screen-reader-text"><?php esc_html_e( 'Users with admin capabilities but without Sudo management access', 'wp-sudo' ); ?></caption>
+			<thead>
+				<tr>
+					<th scope="col"><?php esc_html_e( 'User', 'wp-sudo' ); ?></th>
+					<th scope="col"><?php esc_html_e( 'Action', 'wp-sudo' ); ?></th>
+				</tr>
+			</thead>
+			<tbody>
+				<?php foreach ( $drift as $user ) : ?>
+					<tr>
+						<td>
+							<?php echo esc_html( $user->display_name ); ?>
+							<code><?php echo esc_html( $user->user_login ); ?></code>
+						</td>
+						<td>
+							<button type="button" class="button wp-sudo-grant-manage"
+								data-user-id="<?php echo (int) $user->ID; ?>"
+								data-cap="manage_wp_sudo"
+								data-nonce="<?php echo esc_attr( $nonce ); ?>"
+							><?php esc_html_e( 'Grant manage_wp_sudo', 'wp-sudo' ); ?></button>
+						</td>
+					</tr>
+				<?php endforeach; ?>
+			</tbody>
+		</table>
+		<?php
+	}
+
+	/**
+	 * Handle AJAX request to grant a governance capability to a user.
+	 *
+	 * Requires: manage_wp_sudo capability + valid nonce.
+	 * Fires: wp_sudo_capability_granted after a successful grant.
+	 *
+	 * @return void
+	 */
+	public function handle_grant_cap(): void {
+		check_ajax_referer( 'wp_sudo_access', '_nonce' );
+
+		if ( ! sudo_can( 'manage_wp_sudo' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'wp-sudo' ) ), 403 );
+			return;
+		}
+
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified above via check_ajax_referer.
+		$target_user_id = isset( $_POST['user_id'] ) ? (int) $_POST['user_id'] : 0;
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce verified above; sanitized below.
+		$cap = isset( $_POST['cap'] ) ? sanitize_key( $_POST['cap'] ) : '';
+
+		if ( ! in_array( $cap, self::GOVERNANCE_CAPS, true ) ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid capability.', 'wp-sudo' ) ), 400 );
+			return;
+		}
+
+		$target = get_userdata( $target_user_id );
+		if ( ! $target instanceof \WP_User ) {
+			wp_send_json_error( array( 'message' => __( 'User not found.', 'wp-sudo' ) ), 404 );
+			return;
+		}
+
+		$target->add_cap( $cap );
+
+		/**
+		 * Fires after a Sudo governance capability is granted to a user.
+		 *
+		 * @since 3.1.0
+		 *
+		 * @param int    $target_user_id  User who received the capability.
+		 * @param string $cap             Capability granted.
+		 * @param int    $granter_user_id User who performed the grant.
+		 * @param int    $site_id         Site context for the grant.
+		 */
+		do_action( 'wp_sudo_capability_granted', $target_user_id, $cap, get_current_user_id(), get_current_blog_id() );
+
+		wp_send_json_success( array( 'message' => __( 'Capability granted.', 'wp-sudo' ) ) );
+	}
+
+	/**
+	 * Handle AJAX request to revoke a governance capability from a user.
+	 *
+	 * Requires: manage_wp_sudo capability + valid nonce.
+	 * Guard: blocks removing manage_wp_sudo from the final holder.
+	 * Fires: wp_sudo_capability_revoked after a successful revoke.
+	 *
+	 * @return void
+	 */
+	public function handle_revoke_cap(): void {
+		check_ajax_referer( 'wp_sudo_access', '_nonce' );
+
+		if ( ! sudo_can( 'manage_wp_sudo' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'wp-sudo' ) ), 403 );
+			return;
+		}
+
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified above via check_ajax_referer.
+		$target_user_id = isset( $_POST['user_id'] ) ? (int) $_POST['user_id'] : 0;
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce verified above; sanitized below.
+		$cap = isset( $_POST['cap'] ) ? sanitize_key( $_POST['cap'] ) : '';
+
+		if ( ! in_array( $cap, self::GOVERNANCE_CAPS, true ) ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid capability.', 'wp-sudo' ) ), 400 );
+			return;
+		}
+
+		// Last manager guard: block removing manage_wp_sudo from the sole holder.
+		if ( 'manage_wp_sudo' === $cap && $this->count_manage_wp_sudo_holders() <= 1 ) {
+			wp_send_json_error(
+				array( 'message' => __( 'Cannot remove the last Sudo manager. Define WP_SUDO_RECOVERY_MODE in wp-config.php to restore access if needed.', 'wp-sudo' ) ),
+				409
+			);
+			return;
+		}
+
+		$target = get_userdata( $target_user_id );
+		if ( ! $target instanceof \WP_User ) {
+			wp_send_json_error( array( 'message' => __( 'User not found.', 'wp-sudo' ) ), 404 );
+			return;
+		}
+
+		$target->remove_cap( $cap );
+
+		/**
+		 * Fires after a Sudo governance capability is revoked from a user.
+		 *
+		 * @since 3.1.0
+		 *
+		 * @param int    $target_user_id  User who lost the capability.
+		 * @param string $cap             Capability revoked.
+		 * @param int    $revoker_user_id User who performed the revocation.
+		 * @param int    $site_id         Site context for the revocation.
+		 */
+		do_action( 'wp_sudo_capability_revoked', $target_user_id, $cap, get_current_user_id(), get_current_blog_id() );
+
+		wp_send_json_success( array( 'message' => __( 'Capability revoked.', 'wp-sudo' ) ) );
+	}
+
+	/**
+	 * Handle AJAX request to force-revoke another user's sudo session.
+	 *
+	 * Requires: revoke_wp_sudo_sessions capability + valid nonce.
+	 * Rate limit: max REVOKE_RATE_LIMIT revocations per revoker per hour.
+	 * Fires: wp_sudo_session_revoked after a successful revocation.
+	 *
+	 * @return void
+	 */
+	public function handle_revoke_session(): void {
+		check_ajax_referer( 'wp_sudo_access', '_nonce' );
+
+		if ( ! sudo_can( 'revoke_wp_sudo_sessions' ) ) {
+			wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'wp-sudo' ) ), 403 );
+			return;
+		}
+
+		$revoker_user_id = get_current_user_id();
+
+		// Per-revoker rate limit: max 10 revocations per hour.
+		$rate_key     = self::REVOKE_RATE_PREFIX . $revoker_user_id;
+		$revoke_count = (int) get_transient( $rate_key );
+		if ( $revoke_count >= self::REVOKE_RATE_LIMIT ) {
+			wp_send_json_error(
+				array( 'message' => __( 'Rate limit exceeded. You may revoke at most 10 sessions per hour.', 'wp-sudo' ) ),
+				429
+			);
+			return;
+		}
+		set_transient( $rate_key, $revoke_count + 1, HOUR_IN_SECONDS );
+
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified above via check_ajax_referer.
+		$target_user_id = isset( $_POST['user_id'] ) ? (int) $_POST['user_id'] : 0;
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotValidated -- Nonce verified above; sanitize_text_field is the right sanitization.
+		$reason = isset( $_POST['reason'] ) ? sanitize_text_field( wp_unslash( $_POST['reason'] ) ) : '';
+
+		Sudo_Session::deactivate( $target_user_id );
+
+		/**
+		 * Fires when an operator force-revokes another user's sudo session.
+		 *
+		 * @since 3.1.0
+		 *
+		 * @param int    $target_user_id  User whose session was revoked.
+		 * @param int    $revoker_user_id Operator who performed the revocation.
+		 * @param string $reason          Optional reason for the revocation.
+		 * @param int    $site_id         Site context for the revocation.
+		 */
+		do_action( 'wp_sudo_session_revoked', $target_user_id, $revoker_user_id, $reason, get_current_blog_id() );
+
+		wp_send_json_success( array( 'message' => __( 'Session revoked.', 'wp-sudo' ) ) );
+	}
+
+	/**
+	 * Get all users holding any Sudo governance capability, grouped by user ID.
+	 *
+	 * @return array<int, array{user: \WP_User, caps: list<string>}>
+	 */
+	private function get_sudo_cap_holders(): array {
+		$holders = array();
+
+		foreach ( self::GOVERNANCE_CAPS as $cap ) {
+			$users = get_users(
+				array(
+					'capability' => $cap,
+					'number'     => -1,
+					'fields'     => 'all',
+				)
+			);
+
+			if ( ! is_array( $users ) ) {
+				continue;
+			}
+
+			foreach ( $users as $user ) {
+				if ( ! isset( $holders[ $user->ID ] ) ) {
+					$holders[ $user->ID ] = array(
+						'user' => $user,
+						'caps' => array(),
+					);
+				}
+
+				$holders[ $user->ID ]['caps'][] = $cap;
+			}
+		}
+
+		return $holders;
+	}
+
+	/**
+	 * Count users who currently hold the manage_wp_sudo capability.
+	 *
+	 * Used by the last-manager guard to block removing the final holder.
+	 *
+	 * @return int
+	 */
+	private function count_manage_wp_sudo_holders(): int {
+		$users = get_users(
+			array(
+				'capability' => 'manage_wp_sudo',
+				'number'     => -1,
+				'fields'     => 'ID',
+			)
+		);
+
+		return is_array( $users ) ? count( $users ) : 0;
 	}
 
 	/**

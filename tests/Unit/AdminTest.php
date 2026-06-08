@@ -2569,4 +2569,330 @@ class AdminTest extends TestCase {
 
 		unset( $_GET['sudo_active'] );
 	}
+
+	// -----------------------------------------------------------------
+	// GOVERNANCE_CAPS constant
+	// -----------------------------------------------------------------
+
+	public function test_governance_caps_constant_contains_four_capabilities(): void {
+		$this->assertCount( 4, Admin::GOVERNANCE_CAPS );
+	}
+
+	public function test_governance_caps_constant_has_manage_wp_sudo(): void {
+		$this->assertContains( 'manage_wp_sudo', Admin::GOVERNANCE_CAPS );
+	}
+
+	public function test_governance_caps_constant_has_all_four_caps(): void {
+		$this->assertContains( 'view_wp_sudo_activity', Admin::GOVERNANCE_CAPS );
+		$this->assertContains( 'export_wp_sudo_activity', Admin::GOVERNANCE_CAPS );
+		$this->assertContains( 'revoke_wp_sudo_sessions', Admin::GOVERNANCE_CAPS );
+	}
+
+	// -----------------------------------------------------------------
+	// Access tab routing
+	// -----------------------------------------------------------------
+
+	public function test_render_settings_page_includes_access_tab_in_navigation(): void {
+		Functions\when( 'sudo_can' )->justReturn( true );
+		Functions\when( 'get_admin_page_title' )->justReturn( 'Sudo Settings' );
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'esc_html_e' )->alias( static function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		Functions\when( 'esc_attr_e' )->alias( static function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		Functions\when( 'settings_fields' )->justReturn( null );
+		Functions\when( 'do_settings_sections' )->justReturn( null );
+		Functions\when( 'submit_button' )->justReturn( null );
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+		Functions\when( 'esc_html__' )->returnArg();
+		Functions\when( 'esc_attr__' )->returnArg();
+		Functions\when( 'esc_attr' )->returnArg();
+		Functions\when( 'esc_url' )->returnArg();
+		Functions\when( 'selected' )->alias( static fn( $a, $b, $echo = false ) => (string) ( $a === $b ? 'selected="selected"' : '' ) );
+		Functions\when( 'checked' )->alias( static fn( $a, $b = true, $echo = false ) => (string) ( $a === $b ? 'checked="checked"' : '' ) );
+		Functions\when( 'wp_nonce_field' )->alias( static function ( $action, $name ) { echo '<input type="hidden" name="' . $name . '" value="nonce" />'; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		Functions\when( 'admin_url' )->alias( static fn( $path = '' ) => 'https://example.com/wp-admin/' . ltrim( $path, '/' ) );
+		Functions\when( 'add_query_arg' )->alias( static function ( array $args, string $url ) { return $url . ( str_contains( $url, '?' ) ? '&' : '?' ) . http_build_query( $args ); } );
+
+		$admin = new Admin();
+
+		ob_start();
+		$admin->render_settings_page();
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( 'tab=access', $output );
+		$this->assertStringContainsString( '>Access</a>', $output );
+	}
+
+	public function test_render_settings_page_renders_access_tab(): void {
+		$_GET['tab'] = 'access';
+
+		Functions\when( 'sudo_can' )->justReturn( true );
+		Functions\when( 'get_admin_page_title' )->justReturn( 'Sudo Settings' );
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'esc_html_e' )->alias( static function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		Functions\when( 'esc_attr_e' )->alias( static function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		Functions\when( 'esc_attr' )->returnArg();
+		Functions\when( 'esc_url' )->returnArg();
+		Functions\when( 'get_users' )->justReturn( array() );
+		Functions\when( 'wp_create_nonce' )->justReturn( 'test-nonce' );
+		Functions\when( 'admin_url' )->alias( static fn( $path = '' ) => 'https://example.com/wp-admin/' . ltrim( $path, '/' ) );
+		Functions\when( 'add_query_arg' )->alias( static function ( array $args, string $url ) { return $url . ( str_contains( $url, '?' ) ? '&' : '?' ) . http_build_query( $args ); } );
+
+		$admin = new Admin();
+
+		ob_start();
+		$admin->render_settings_page();
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( 'Access Control', $output );
+
+		unset( $_GET['tab'] );
+	}
+
+	// -----------------------------------------------------------------
+	// AJAX registration: governance handlers
+	// -----------------------------------------------------------------
+
+	public function test_register_adds_grant_cap_ajax_hook(): void {
+		Actions\expectAdded( 'wp_ajax_' . Admin::AJAX_GRANT_CAP )
+			->once();
+
+		$admin = new Admin();
+		$admin->register();
+	}
+
+	public function test_register_adds_revoke_cap_ajax_hook(): void {
+		Actions\expectAdded( 'wp_ajax_' . Admin::AJAX_REVOKE_CAP )
+			->once();
+
+		$admin = new Admin();
+		$admin->register();
+	}
+
+	public function test_register_adds_revoke_session_ajax_hook(): void {
+		Actions\expectAdded( 'wp_ajax_' . Admin::AJAX_REVOKE_SESSION )
+			->once();
+
+		$admin = new Admin();
+		$admin->register();
+	}
+
+	// -----------------------------------------------------------------
+	// handle_grant_cap()
+	// -----------------------------------------------------------------
+
+	public function test_handle_grant_cap_requires_manage_wp_sudo_cap(): void {
+		Functions\when( 'check_ajax_referer' )->justReturn( 1 );
+		Functions\when( 'sudo_can' )->justReturn( false );
+		Functions\expect( 'wp_send_json_error' )
+			->once()
+			->with( \Mockery::type( 'array' ), 403 );
+
+		$admin = new Admin();
+		$admin->handle_grant_cap();
+	}
+
+	public function test_handle_grant_cap_rejects_invalid_capability(): void {
+		Functions\when( 'check_ajax_referer' )->justReturn( 1 );
+		Functions\when( 'sudo_can' )->justReturn( true );
+		Functions\when( 'sanitize_key' )->returnArg();
+		Functions\expect( 'wp_send_json_error' )
+			->once()
+			->with( \Mockery::type( 'array' ), 400 );
+
+		$_POST['cap']     = 'not_a_valid_sudo_cap';
+		$_POST['user_id'] = '5';
+
+		$admin = new Admin();
+		$admin->handle_grant_cap();
+
+		unset( $_POST['cap'], $_POST['user_id'] );
+	}
+
+	public function test_handle_grant_cap_grants_capability_to_target_user(): void {
+		Functions\when( 'check_ajax_referer' )->justReturn( 1 );
+		Functions\when( 'sudo_can' )->justReturn( true );
+		Functions\when( 'sanitize_key' )->returnArg();
+		Functions\when( 'get_current_user_id' )->justReturn( 1 );
+		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
+		Functions\when( 'wp_send_json_success' )->justReturn( null );
+
+		$mock_user     = \Mockery::mock( \WP_User::class );
+		$mock_user->ID = 5;
+		$mock_user->shouldReceive( 'add_cap' )->once()->with( 'manage_wp_sudo' );
+
+		Functions\when( 'get_userdata' )->justReturn( $mock_user );
+
+		$_POST['cap']     = 'manage_wp_sudo';
+		$_POST['user_id'] = '5';
+
+		$admin = new Admin();
+		$admin->handle_grant_cap();
+
+		unset( $_POST['cap'], $_POST['user_id'] );
+	}
+
+	public function test_handle_grant_cap_fires_capability_granted_hook(): void {
+		Functions\when( 'check_ajax_referer' )->justReturn( 1 );
+		Functions\when( 'sudo_can' )->justReturn( true );
+		Functions\when( 'sanitize_key' )->returnArg();
+		Functions\when( 'get_current_user_id' )->justReturn( 1 );
+		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
+		Functions\when( 'wp_send_json_success' )->justReturn( null );
+
+		$mock_user     = \Mockery::mock( \WP_User::class );
+		$mock_user->ID = 5;
+		$mock_user->shouldReceive( 'add_cap' )->once();
+
+		Functions\when( 'get_userdata' )->justReturn( $mock_user );
+
+		Actions\expectDone( 'wp_sudo_capability_granted' )
+			->once()
+			->with( 5, 'manage_wp_sudo', 1, 1 );
+
+		$_POST['cap']     = 'manage_wp_sudo';
+		$_POST['user_id'] = '5';
+
+		$admin = new Admin();
+		$admin->handle_grant_cap();
+
+		unset( $_POST['cap'], $_POST['user_id'] );
+	}
+
+	// -----------------------------------------------------------------
+	// handle_revoke_cap()
+	// -----------------------------------------------------------------
+
+	public function test_handle_revoke_cap_requires_manage_wp_sudo_cap(): void {
+		Functions\when( 'check_ajax_referer' )->justReturn( 1 );
+		Functions\when( 'sudo_can' )->justReturn( false );
+		Functions\expect( 'wp_send_json_error' )
+			->once()
+			->with( \Mockery::type( 'array' ), 403 );
+
+		$admin = new Admin();
+		$admin->handle_revoke_cap();
+	}
+
+	public function test_handle_revoke_cap_blocks_last_manager_removal(): void {
+		Functions\when( 'check_ajax_referer' )->justReturn( 1 );
+		Functions\when( 'sudo_can' )->justReturn( true );
+		Functions\when( 'sanitize_key' )->returnArg();
+		// Only one manage_wp_sudo holder.
+		Functions\when( 'get_users' )->justReturn( array( 1 ) );
+		Functions\expect( 'wp_send_json_error' )
+			->once()
+			->with( \Mockery::type( 'array' ), 409 );
+
+		$_POST['cap']     = 'manage_wp_sudo';
+		$_POST['user_id'] = '1';
+
+		$admin = new Admin();
+		$admin->handle_revoke_cap();
+
+		unset( $_POST['cap'], $_POST['user_id'] );
+	}
+
+	public function test_handle_revoke_cap_removes_capability_from_user(): void {
+		Functions\when( 'check_ajax_referer' )->justReturn( 1 );
+		Functions\when( 'sudo_can' )->justReturn( true );
+		Functions\when( 'sanitize_key' )->returnArg();
+		Functions\when( 'get_current_user_id' )->justReturn( 1 );
+		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
+		Functions\when( 'wp_send_json_success' )->justReturn( null );
+
+		$mock_user     = \Mockery::mock( \WP_User::class );
+		$mock_user->ID = 5;
+		$mock_user->shouldReceive( 'remove_cap' )->once()->with( 'view_wp_sudo_activity' );
+
+		Functions\when( 'get_userdata' )->justReturn( $mock_user );
+
+		// No get_users call for non-manage_wp_sudo cap.
+		$_POST['cap']     = 'view_wp_sudo_activity';
+		$_POST['user_id'] = '5';
+
+		$admin = new Admin();
+		$admin->handle_revoke_cap();
+
+		unset( $_POST['cap'], $_POST['user_id'] );
+	}
+
+	public function test_handle_revoke_cap_fires_capability_revoked_hook(): void {
+		Functions\when( 'check_ajax_referer' )->justReturn( 1 );
+		Functions\when( 'sudo_can' )->justReturn( true );
+		Functions\when( 'sanitize_key' )->returnArg();
+		Functions\when( 'get_current_user_id' )->justReturn( 1 );
+		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
+		Functions\when( 'wp_send_json_success' )->justReturn( null );
+
+		$mock_user     = \Mockery::mock( \WP_User::class );
+		$mock_user->ID = 7;
+		$mock_user->shouldReceive( 'remove_cap' )->once();
+
+		Functions\when( 'get_userdata' )->justReturn( $mock_user );
+
+		Actions\expectDone( 'wp_sudo_capability_revoked' )
+			->once()
+			->with( 7, 'export_wp_sudo_activity', 1, 1 );
+
+		$_POST['cap']     = 'export_wp_sudo_activity';
+		$_POST['user_id'] = '7';
+
+		$admin = new Admin();
+		$admin->handle_revoke_cap();
+
+		unset( $_POST['cap'], $_POST['user_id'] );
+	}
+
+	// -----------------------------------------------------------------
+	// handle_revoke_session()
+	// -----------------------------------------------------------------
+
+	public function test_handle_revoke_session_requires_revoke_sessions_cap(): void {
+		Functions\when( 'check_ajax_referer' )->justReturn( 1 );
+		Functions\when( 'sudo_can' )->justReturn( false );
+		Functions\expect( 'wp_send_json_error' )
+			->once()
+			->with( \Mockery::type( 'array' ), 403 );
+
+		$admin = new Admin();
+		$admin->handle_revoke_session();
+	}
+
+	public function test_handle_revoke_session_blocks_when_rate_limit_exceeded(): void {
+		Functions\when( 'check_ajax_referer' )->justReturn( 1 );
+		Functions\when( 'sudo_can' )->justReturn( true );
+		Functions\when( 'get_current_user_id' )->justReturn( 1 );
+		// Simulate 10 revocations already used.
+		Functions\when( 'get_transient' )->justReturn( 10 );
+		Functions\expect( 'wp_send_json_error' )
+			->once()
+			->with( \Mockery::type( 'array' ), 429 );
+
+		$admin = new Admin();
+		$admin->handle_revoke_session();
+	}
+
+	public function test_handle_revoke_session_fires_session_revoked_hook(): void {
+		Functions\when( 'check_ajax_referer' )->justReturn( 1 );
+		Functions\when( 'sudo_can' )->justReturn( true );
+		Functions\when( 'get_current_user_id' )->justReturn( 2 );
+		Functions\when( 'get_transient' )->justReturn( 0 );
+		Functions\when( 'set_transient' )->justReturn( true );
+		Functions\when( 'delete_user_meta' )->justReturn( true );
+		Functions\when( 'setcookie' )->justReturn( true );
+		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
+		Functions\when( 'wp_send_json_success' )->justReturn( null );
+
+		Actions\expectDone( 'wp_sudo_session_revoked' )
+			->once()
+			->with( 9, 2, 'security review', 1 );
+
+		$_POST['user_id'] = '9';
+		$_POST['reason']  = 'security review';
+
+		$admin = new Admin();
+		$admin->handle_revoke_session();
+
+		unset( $_POST['user_id'], $_POST['reason'] );
+	}
 }
