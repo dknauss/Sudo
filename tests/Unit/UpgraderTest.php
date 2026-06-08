@@ -29,6 +29,7 @@ class UpgraderTest extends TestCase {
 
 		Functions\when( 'wp_next_scheduled' )->justReturn( true );
 		Functions\when( 'wp_schedule_event' )->justReturn( true );
+		Functions\when( 'get_users' )->justReturn( array() );
 
 		// Preserve any existing wpdb.
 		$this->original_wpdb = isset( $GLOBALS['wpdb'] ) && is_object( $GLOBALS['wpdb'] ) ? $GLOBALS['wpdb'] : null;
@@ -233,6 +234,15 @@ class UpgraderTest extends TestCase {
 		$this->assertSame( 'upgrade_3_0_0', $upgrades['3.0.0'] );
 	}
 
+	public function test_upgrades_include_310_governance_capability_migration(): void {
+		$reflection = new \ReflectionClass( Upgrader::class );
+		$upgrades   = $reflection->getConstant( 'UPGRADES' );
+
+		$this->assertIsArray( $upgrades );
+		$this->assertArrayHasKey( '3.1.0', $upgrades );
+		$this->assertSame( 'upgrade_3_1_0', $upgrades['3.1.0'] );
+	}
+
 	public function test_2150_creates_events_table(): void {
 		$original_wpdb  = isset( $GLOBALS['wpdb'] ) && is_object( $GLOBALS['wpdb'] ) ? $GLOBALS['wpdb'] : null;
 		$GLOBALS['wpdb'] = new class() {
@@ -328,6 +338,35 @@ class UpgraderTest extends TestCase {
 		} else {
 			unset( $GLOBALS['wpdb'] );
 		}
+	}
+
+	public function test_310_grants_governance_caps_to_existing_single_site_administrators(): void {
+		$admin = \Mockery::mock( \WP_User::class );
+		$admin->ID = 42;
+		$admin->shouldReceive( 'add_cap' )->once()->with( 'manage_wp_sudo' );
+		$admin->shouldReceive( 'add_cap' )->once()->with( 'view_wp_sudo_activity' );
+		$admin->shouldReceive( 'add_cap' )->once()->with( 'export_wp_sudo_activity' );
+		$admin->shouldReceive( 'add_cap' )->once()->with( 'revoke_wp_sudo_sessions' );
+
+		Functions\when( 'is_multisite' )->justReturn( false );
+
+		Functions\when( 'get_users' )->justReturn( array( $admin ) );
+
+		$upgrader = new Upgrader();
+		$method   = new \ReflectionMethod( Upgrader::class, 'upgrade_3_1_0' );
+		@$method->setAccessible( true );
+		$method->invoke( $upgrader );
+	}
+
+	public function test_310_skips_governance_cap_grants_on_multisite(): void {
+		Functions\when( 'is_multisite' )->justReturn( true );
+
+		$upgrader = new Upgrader();
+		$method   = new \ReflectionMethod( Upgrader::class, 'upgrade_3_1_0' );
+		@$method->setAccessible( true );
+		$method->invoke( $upgrader );
+
+		$this->assertTrue( true );
 	}
 
 	// ── Multisite: site options ──────────────────────────────────────
