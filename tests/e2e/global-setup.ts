@@ -47,6 +47,9 @@ async function ensureAdminGovernanceCaps() {
                 'run',
                 'cli',
                 'wp',
+                // Fixture setup must not be intercepted by WP Sudo's own
+                // CLI gate; browser tests exercise policy after bootstrap.
+                '--skip-plugins',
                 'user',
                 'add-cap',
                 USERNAME,

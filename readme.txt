@@ -24,19 +24,24 @@ WordPress has rich access control — roles, capabilities, policies on who can d
 
 This is not role-based escalation. Every logged-in user is treated the same: attempt a gated action without an active sudo session, get challenged. Sessions are time-bounded and non-extendable, enforcing the zero-trust principle that trust must be continuously earned, never assumed. WordPress capability checks still run after the gate, so Sudo adds a security layer without changing the permission model.
 
-= What’s new in 3.1.3? =
+= What’s new in 3.2.0? =
 
-* **Playground authentication** — the demo explicitly resets `admin` to `password`, so login and sudo reauthentication use the same documented credential
-* **Toolbar cancellation** — clicking the Sudo toolbar item cancels an active session from wp-admin or the front end without navigating away unexpectedly
-* **Dashboard widget freshness** — active-session counts refresh immediately after session cancellation
-* **Demo activity** — Playground seeds recent privilege-action events and active demo users with varied 5-15 minute sudo windows
-* **Preview links** — release and main Playground demos are separate; pull request previews still pin to the PR commit
+* **Governance capabilities** — `sudo_can()` helper, Access tab for managing who can administer sudo settings, WordPress capability integration for WP-CLI and audit plugins
+* **WPGraphQL gate hardening** — CR/CRLF tokenizer, block-string escaping, BOM stripping, persisted-query fail-safe, multipart and GET `query` param coverage
+* **REST plugin gate** — folder-based plugins (e.g. `akismet/akismet`) correctly gated on the REST surface
+* **Per-user IP lockout** — shared egress IPs can no longer be used to lock out all admins with five attempts from one account
+* **Cookie Secure-flag hardening** — `FORCE_SSL_ADMIN` fallback and `wp_sudo_cookie_secure` filter for TLS-terminating proxy setups
+* **Request-stash minimization** — `$_GET` removed from stash, per-rule POST allowlists, suffix-based secret redaction for compound field names, unsafe-replay blocking
+* **App Password policy validation** — UUID format + existence check; automatic cleanup on password deletion
+* **Admin email gating** — `new_admin_email` writes challenge-gated on interactive and REST surfaces
 
 = Why Sudo? =
 
-In 2026, Broken Access Control accounted for 57% of all exploitation attempts against WordPress sites — add Privilege Escalation (20%) and Broken Authentication (3%) and that's 80% of real-world WordPress attacks targeting the exact operations Sudo gates (Patchstack 2026 RapidMitigate data). Nearly half of high-impact vulnerabilities are exploited within 24 hours; the median time to first exploit is 5 hours. Traditional WAFs block only 12–26% of these attacks.
+In 2026, Broken Access Control accounted for 57% of all exploitation attempts against WordPress sites — add Privilege Escalation (20%) and Broken Authentication (3%) and that’s 80% of real-world WordPress attacks targeting the access-control operations Sudo gates (Patchstack 2026 RapidMitigate data). Nearly half of high-impact vulnerabilities are exploited within 24 hours; the median time to first exploit is 5 hours. Traditional WAFs block only 12–26% of these attacks.
 
-When the firewall misses it, the plugin hasn't patched it, and the attacker already has an active session — Sudo can still be the final layer on the covered paths it intercepts. Plugin installs, user creation, role changes, and settings modifications are all built-in gated consequences. A stolen session cookie alone is not enough when that browser session does not already have an active sudo window.
+When the firewall misses it, the plugin hasn’t patched it, and the attacker already has an active session — Sudo can still be the final layer **on the covered paths it intercepts**. Plugin installs, user creation, role changes, and settings modifications are all built-in gated operations. A stolen session cookie alone is not enough when that browser session does not already have an active sudo window.
+
+**Important scope note:** WP Sudo gates specific known operations on specific known surfaces. A plugin vulnerability that performs a privileged state change through its own code path — without routing through a standard admin, AJAX, or REST surface WP Sudo intercepts — is outside this layer. WP Sudo is not a general repair for broken authorization in plugin code.
 
 = What gets gated? =
 
