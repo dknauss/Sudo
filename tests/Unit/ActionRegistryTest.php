@@ -114,49 +114,30 @@ class ActionRegistryTest extends TestCase {
 	}
 
 	/**
-	 * F18d — A wp_sudo_gated_actions callback that returns a replacement set
-	 * (no built-in rules) must not silence built-in gating: all built-in rule
-	 * IDs are re-injected after the filter so core gating remains invariant.
-	 *
-	 * @since 3.1.5
+	 * Test get_rules() preserves the documented filter contract that lets
+	 * developers remove a built-in rule.
 	 */
-	public function test_get_rules_restores_builtin_rules_removed_by_filter_replacement(): void {
+	public function test_get_rules_allows_filter_to_remove_builtin_rule(): void {
 		Functions\when( '__' )->returnArg();
 
 		Filters\expectApplied( 'wp_sudo_gated_actions' )
 			->once()
 			->andReturnUsing(
-				static function (): array {
-					// Return only a third-party rule — all built-ins stripped.
-					return array(
-						array(
-							'id'       => 'custom.replacement_test',
-							'label'    => 'Replacement rule',
-							'category' => 'custom',
-							'admin'    => array(
-								'pagenow' => 'custom.php',
-								'actions' => array( 'custom_action' ),
-								'method'  => 'GET',
-							),
-						),
+				static function ( array $rules ): array {
+					return array_values(
+						array_filter(
+							$rules,
+							static function ( array $rule ): bool {
+								return ( $rule['id'] ?? '' ) !== 'plugin.activate';
+							}
+						)
 					);
 				}
 			);
 
-		$rules    = Action_Registry::get_rules();
-		$rule_ids = array_column( $rules, 'id' );
+		$rules = Action_Registry::get_rules();
 
-		// Third-party rule is kept.
-		$this->assertContains( 'custom.replacement_test', $rule_ids );
-
-		// All built-in rules must still be present after guard re-injection.
-		foreach ( Action_Registry::rules() as $builtin ) {
-			$this->assertContains(
-				$builtin['id'],
-				$rule_ids,
-				"Built-in rule '{$builtin['id']}' must survive filter replacement."
-			);
-		}
+		$this->assertNotContains( 'plugin.activate', array_column( $rules, 'id' ) );
 	}
 
 	/**

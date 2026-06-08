@@ -229,12 +229,13 @@ if ( ! class_exists( 'WP_User_Query' ) ) {
 // ── WP_Application_Passwords stub ───────────────────────────────────
 // Minimal stub so handle_app_password_policy_save() tests can control
 // whether a given UUID exists for the current user.
-// Set $mock_passwords to an associative array keyed by UUID to simulate
-// existing passwords; null (the default) means "no passwords found".
+// Set $mock_passwords to an associative array keyed by UUID, or by user ID then
+// UUID, to simulate existing passwords; null (the default) means "no passwords
+// found".
 
 if ( ! class_exists( 'WP_Application_Passwords' ) ) {
 	class WP_Application_Passwords {
-		/** @var array<string, array>|null Map of UUID → password item, or null for "none found". */
+		/** @var array<int|string, array>|null Map of UUID or user ID → password item(s), or null for "none found". */
 		public static ?array $mock_passwords = null;
 
 		/**
@@ -248,6 +249,11 @@ if ( ! class_exists( 'WP_Application_Passwords' ) ) {
 			if ( null === self::$mock_passwords ) {
 				return null;
 			}
+
+			if ( isset( self::$mock_passwords[ $user_id ] ) && is_array( self::$mock_passwords[ $user_id ] ) ) {
+				return self::$mock_passwords[ $user_id ][ $uuid ] ?? null;
+			}
+
 			return self::$mock_passwords[ $uuid ] ?? null;
 		}
 	}

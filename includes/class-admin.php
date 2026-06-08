@@ -2663,6 +2663,7 @@ class Admin {
 			array(
 				'ajaxUrl'  => admin_url( 'admin-ajax.php' ),
 				'nonce'    => wp_create_nonce( 'wp_sudo_app_password_policy' ),
+				'userId'   => $profile_user_id,
 				'policies' => is_array( $policies ) ? $policies : array(),
 				'options'  => array(
 					''             => __( 'Global default', 'wp-sudo' ),
@@ -2730,6 +2731,18 @@ class Admin {
 			return;
 		}
 
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified above via check_ajax_referer; value is cast with absint.
+		$target_user_id = isset( $_POST['user_id'] ) ? absint( wp_unslash( $_POST['user_id'] ) ) : $user_id;
+		if ( $target_user_id < 1 ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid user.', 'wp-sudo' ) ), 400 );
+			return;
+		}
+
+		if ( $target_user_id !== $user_id && ! current_user_can( 'edit_user', $target_user_id ) ) {
+			wp_send_json_error( array( 'message' => __( 'Unauthorized.', 'wp-sudo' ) ), 403 );
+			return;
+		}
+
 		// phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce verified above via check_ajax_referer; sanitized in helper.
 		$uuid = self::sanitize_input_string( $_POST['uuid'] ?? '' );
 		// phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce verified above via check_ajax_referer; sanitized in helper.
@@ -2747,9 +2760,9 @@ class Admin {
 		}
 
 		// Validate that the UUID belongs to an existing application password for
-		// this user — prevents option-table bloat from orphaned policy entries.
+		// the profile user — prevents option-table bloat from orphaned policy entries.
 		$password_item = class_exists( 'WP_Application_Passwords' )
-			? \WP_Application_Passwords::get_user_application_password( $user_id, $uuid )
+			? \WP_Application_Passwords::get_user_application_password( $target_user_id, $uuid )
 			: null;
 		if ( null === $password_item ) {
 			wp_send_json_error( array( 'message' => __( 'Application password not found.', 'wp-sudo' ) ) );

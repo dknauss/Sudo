@@ -808,17 +808,6 @@ class Action_Registry {
 			$normalized[]     = $rule;
 		}
 
-		// Guard against a filter callback that returns a replacement set instead
-		// of appending to the built-in rules: re-inject any missing built-in rule.
-		// The wp_sudo_gated_actions filter is intended for adding rules, not
-		// removing them; built-in gating is an invariant of this plugin.
-		$retained_ids = array_flip( array_column( $normalized, 'id' ) );
-		foreach ( self::rules() as $builtin ) {
-			if ( isset( $builtin['id'] ) && ! isset( $retained_ids[ (string) $builtin['id'] ] ) ) {
-				$normalized[] = $builtin;
-			}
-		}
-
 		return $normalized;
 	}
 

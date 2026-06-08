@@ -2054,6 +2054,7 @@ class AdminTest extends TestCase {
 		$admin->maybe_enqueue_app_password_assets( 'profile.php' );
 
 		$this->assertIsArray( $captured['i18n'] );
+		$this->assertSame( 1, $captured['userId'] );
 		$expected_keys = array( 'sudoRequired', 'policyAriaLabel', 'policyColumnHeader', 'policyColumnName' );
 		foreach ( $expected_keys as $key ) {
 			$this->assertArrayHasKey( $key, $captured['i18n'], "Missing i18n key: $key" );
@@ -2958,6 +2959,135 @@ class AdminTest extends TestCase {
 		$admin->handle_app_password_policy_save();
 
 		unset( $_POST['uuid'], $_POST['policy'] );
+	}
+
+	/**
+	 * App Password policy saves from user-edit.php validate UUID ownership
+	 * against the profile user, not only the acting manager.
+	 *
+	 * @since 3.1.5
+	 */
+	public function test_handle_app_password_policy_save_accepts_valid_uuid_for_edited_user(): void {
+		$uuid = '12345678-1234-4234-a234-123456789012';
+
+		Functions\when( 'check_ajax_referer' )->justReturn( 1 );
+		Functions\when( 'sudo_can' )->justReturn( true );
+		$this->mock_active_sudo_session( 1 );
+		Functions\when( 'absint' )->alias(
+			static function ( $value ): int {
+				return abs( (int) $value );
+			}
+		);
+		Functions\when( 'current_user_can' )->alias(
+			static function ( string $cap, int $target_user_id ): bool {
+				return 'edit_user' === $cap && 5 === $target_user_id;
+			}
+		);
+		Functions\when( 'wp_is_uuid' )->justReturn( true );
+
+		\WP_Application_Passwords::$mock_passwords = array(
+			5 => array(
+				$uuid => array( 'uuid' => $uuid, 'name' => 'Target User App' ),
+			),
+		);
+
+		$captured = null;
+		Functions\when( 'get_option' )->justReturn( Admin::defaults() );
+		Functions\expect( 'update_option' )
+			->once()
+			->with(
+				Admin::OPTION_KEY,
+				\Mockery::on(
+					static function ( array $settings ) use ( &$captured ): bool {
+						$captured = $settings;
+						return true;
+					}
+				)
+			);
+		Functions\expect( 'wp_send_json_success' )->once();
+
+		$_POST['user_id'] = '5';
+		$_POST['uuid']    = $uuid;
+		$_POST['policy']  = 'limited';
+
+		$admin = new Admin();
+		$admin->handle_app_password_policy_save();
+
+		$this->assertSame( 'limited', $captured['app_password_policies'][ $uuid ] ?? null );
+
+		unset( $_POST['user_id'], $_POST['uuid'], $_POST['policy'] );
+	}
+
+	/**
+	 * Cross-user App Password policy saves require the actor to be allowed to
+	 * edit the target user.
+	 *
+	 * @since 3.1.5
+	 */
+	public function test_handle_app_password_policy_save_rejects_edited_user_without_edit_cap(): void {
+		Functions\when( 'check_ajax_referer' )->justReturn( 1 );
+		Functions\when( 'sudo_can' )->justReturn( true );
+		$this->mock_active_sudo_session( 1 );
+		Functions\when( 'absint' )->alias(
+			static function ( $value ): int {
+				return abs( (int) $value );
+			}
+		);
+		Functions\when( 'current_user_can' )->justReturn( false );
+
+		Functions\expect( 'wp_send_json_error' )
+			->once()
+			->with( \Mockery::type( 'array' ), 403 );
+
+		$_POST['user_id'] = '5';
+		$_POST['uuid']    = '12345678-1234-4234-a234-123456789012';
+		$_POST['policy']  = 'limited';
+
+		$admin = new Admin();
+		$admin->handle_app_password_policy_save();
+
+		unset( $_POST['user_id'], $_POST['uuid'], $_POST['policy'] );
+	}
+
+	/**
+	 * A UUID that exists for the actor but not the edited profile user must not
+	 * be accepted when saving from user-edit.php.
+	 *
+	 * @since 3.1.5
+	 */
+	public function test_handle_app_password_policy_save_rejects_uuid_not_owned_by_edited_user(): void {
+		$uuid = '12345678-1234-4234-a234-123456789012';
+
+		Functions\when( 'check_ajax_referer' )->justReturn( 1 );
+		Functions\when( 'sudo_can' )->justReturn( true );
+		$this->mock_active_sudo_session( 1 );
+		Functions\when( 'absint' )->alias(
+			static function ( $value ): int {
+				return abs( (int) $value );
+			}
+		);
+		Functions\when( 'current_user_can' )->justReturn( true );
+		Functions\when( 'wp_is_uuid' )->justReturn( true );
+
+		\WP_Application_Passwords::$mock_passwords = array(
+			1 => array(
+				$uuid => array( 'uuid' => $uuid, 'name' => 'Actor App' ),
+			),
+			5 => array(),
+		);
+
+		Functions\expect( 'wp_send_json_error' )
+			->once()
+			->with( \Mockery::type( 'array' ) );
+
+		$_POST['user_id'] = '5';
+		$_POST['uuid']    = $uuid;
+		$_POST['policy']  = 'limited';
+
+		$admin = new Admin();
+		$admin->handle_app_password_policy_save();
+
+		unset( $_POST['user_id'], $_POST['uuid'], $_POST['policy'] );
 	}
 
 	/**
