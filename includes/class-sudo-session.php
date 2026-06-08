@@ -421,6 +421,11 @@ class Sudo_Session {
 			$two_factor_window = max( MINUTE_IN_SECONDS, min( 15 * MINUTE_IN_SECONDS, $two_factor_window ) );
 			$expires_at        = time() + $two_factor_window;
 
+			// Clear any prior pending transient before creating a new one.
+			// A user who re-submits the correct password while already in
+			// 2fa_pending state otherwise orphans the old transient (F18b).
+			self::clear_2fa_pending();
+
 			// Generate a challenge nonce to bind 2FA to this browser.
 			// This prevents cross-browser 2FA replay with stolen cookies.
 			$challenge_nonce = wp_generate_password( 32, false );
@@ -665,6 +670,33 @@ class Sudo_Session {
 		$until = (int) self::read_transient( self::ip_lockout_transient_key( $ip ) );
 
 		return max( 0, $until - time() );
+	}
+
+	/**
+	 * Whether the current HTTP request's IP is under lockout.
+	 *
+	 * Exposed as a public API so the 2FA AJAX handler (class-challenge.php)
+	 * can mirror the per-IP lockout check that already exists on the password
+	 * step. Prevents one extra validation attempt leaking per pending account
+	 * despite an active IP lockout (F7).
+	 *
+	 * @since 3.1.5
+	 *
+	 * @return bool
+	 */
+	public static function is_current_request_ip_locked_out(): bool {
+		return self::is_ip_locked_out( self::get_request_ip() );
+	}
+
+	/**
+	 * Remaining lockout seconds for the current HTTP request's IP.
+	 *
+	 * @since 3.1.5
+	 *
+	 * @return int Seconds remaining, or 0.
+	 */
+	public static function current_request_ip_lockout_remaining(): int {
+		return self::ip_lockout_remaining( self::get_request_ip() );
 	}
 
 	/**

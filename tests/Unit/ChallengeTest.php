@@ -953,6 +953,66 @@ class ChallengeTest extends TestCase
 	}
 
 	// -----------------------------------------------------------------
+	// handle_ajax_2fa — IP lockout enforcement (F7)
+	// -----------------------------------------------------------------
+
+	/**
+	 * The per-IP lockout from the password-verification path must also be
+	 * enforced at 2FA entry. Without this one extra validation attempt leaks
+	 * per already-pending account despite an active IP lockout (F7).
+	 */
+	public function test_handle_ajax_2fa_rejects_when_request_ip_is_locked_out(): void
+	{
+		$challenge_nonce = 'test-challenge-nonce-ip-lock';
+		$challenge_hash  = hash( 'sha256', $challenge_nonce );
+		$_COOKIE[\WP_Sudo\Sudo_Session::CHALLENGE_COOKIE] = $challenge_nonce;
+
+		$_SERVER['REMOTE_ADDR'] = '192.0.2.77';
+		$ip_key = \WP_Sudo\Sudo_Session::IP_LOCKOUT_UNTIL_TRANSIENT_PREFIX
+			. hash( 'sha256', '192.0.2.77' );
+
+		Functions\expect( 'check_ajax_referer' )->once();
+		Functions\when( 'get_current_user_id' )->justReturn( 42 );
+		Functions\expect( 'get_userdata' )->once()->andReturn( new \WP_User( 42 ) );
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'sanitize_text_field' )->returnArg();
+
+		Functions\when( 'get_transient' )->alias(
+			static function ( string $key ) use ( $challenge_hash, $ip_key ): mixed {
+				if ( 'wp_sudo_2fa_pending_' . $challenge_hash === $key ) {
+					return array( 'user_id' => 42, 'expires_at' => time() + 600 );
+				}
+				if ( $ip_key === $key ) {
+					return time() + 300; // IP locked out.
+				}
+				return false;
+			}
+		);
+
+		Functions\when( 'get_user_meta' )->justReturn( '' ); // No per-user throttle/lockout.
+
+		$error = null;
+		Functions\expect( 'wp_send_json_error' )
+			->once()
+			->andReturnUsing( function ( $data, $status = 200 ) use ( &$error ): void {
+				$error = array( 'data' => $data, 'status' => $status );
+				throw new \RuntimeException( 'stop' );
+			} );
+
+		try {
+			$this->challenge->handle_ajax_2fa();
+			$this->fail( 'Expected early wp_send_json_error.' );
+		} catch ( \RuntimeException $e ) {
+			$this->assertSame( 'stop', $e->getMessage() );
+		}
+
+		$this->assertIsArray( $error );
+		$this->assertSame( 429, $error['status'] );
+		$this->assertSame( 'locked_out', $error['data']['code'] ?? '' );
+		$this->assertGreaterThan( 0, $error['data']['remaining'] ?? 0 );
+	}
+
+	// -----------------------------------------------------------------
 	// handle_ajax_2fa — wp_sudo_validate_two_factor filter override
 	// -----------------------------------------------------------------
 
@@ -1164,6 +1224,16 @@ class ChallengeTest extends TestCase
 				'user_id' => 42,
 				'expires_at' => time() + 600,
 			));
+
+		// F18a: resend rate-limit counter (0 = not throttled).
+		Functions\expect('get_transient')
+			->once()
+			->with('wp_sudo_resend_42')
+			->andReturn(0);
+		Functions\expect('set_transient')
+			->once()
+			->with('wp_sudo_resend_42', 1, 300)
+			->andReturn(true);
 
 		// Set up a mock provider where pre_process_authentication returns true.
 		$provider = \Mockery::mock(\Two_Factor_Provider::class);

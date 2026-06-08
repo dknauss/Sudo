@@ -538,6 +538,36 @@ class Gate {
 			);
 		}
 
+		// ── WP Sudo own settings ─────────────────────────────────────
+		// Gate the plugin's own policy option on non-interactive surfaces,
+		// closing a self-protection gap where a CLI/Cron/XML-RPC actor could
+		// flip policies to Unrestricted without a sudo block (F3 / B4).
+		// Both single-site (update_option) and multisite (update_site_option)
+		// paths are covered.
+		add_filter(
+			'pre_update_option_wp_sudo_settings',
+			function ( $new_value, $old_value ) use ( $callback ) {
+				if ( $new_value !== $old_value ) {
+					$callback( 'options.wp_sudo', __( 'Change Sudo settings', 'wp-sudo' ) );
+				}
+				return $new_value;
+			},
+			0,
+			2
+		);
+
+		add_filter(
+			'pre_update_site_option_wp_sudo_settings',
+			function ( $new_value, $old_value ) use ( $callback ) {
+				if ( $new_value !== $old_value ) {
+					$callback( 'options.wp_sudo', __( 'Change Sudo settings', 'wp-sudo' ) );
+				}
+				return $new_value;
+			},
+			0,
+			2
+		);
+
 		// ── Export ────────────────────────────────────────────────────
 		// Fires inside export_wp() before headers are sent.
 		add_action(
@@ -1113,7 +1143,12 @@ class Gate {
 		if ( ! $nonce ) {
 			$nonce = self::sanitize_input_string( $_REQUEST['_wpnonce'] ?? '' ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Read-only classification; sanitized in helper.
 		}
-		$is_cookie_auth = $nonce && wp_verify_nonce( $nonce, 'wp_rest' );
+		// A request that presents BOTH a valid nonce AND an App Password credential
+		// must be classified as headless. Without this guard a headless client
+		// including a nonce bypasses the App Password policy (C2).
+		$is_cookie_auth = $nonce
+			&& wp_verify_nonce( $nonce, 'wp_rest' )
+			&& ! rest_get_authenticated_app_password();
 
 		if ( ! $is_cookie_auth ) {
 			// Non-browser auth (app-password, bearer, etc.) — check policy.

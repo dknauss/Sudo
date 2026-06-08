@@ -467,6 +467,57 @@ class SudoSessionTest extends TestCase
 	}
 
 	/**
+	 * A correct password submitted while already in 2fa_pending state must clear
+	 * the old pending transient BEFORE creating the new one (F18b). Without this
+	 * each re-submission orphans a stale transient in the database.
+	 */
+	public function test_attempt_activation_clears_prior_2fa_pending_before_creating_new(): void
+	{
+		$old_nonce = 'old-challenge-nonce-f18b';
+		$old_hash  = hash( 'sha256', $old_nonce );
+		$_COOKIE[\WP_Sudo\Sudo_Session::CHALLENGE_COOKIE] = $old_nonce;
+
+		Functions\when( 'get_user_meta' )->justReturn( '' );
+		$user = new \WP_User( 1, array( 'editor' ) );
+		Functions\when( 'get_userdata' )->justReturn( $user );
+		Functions\when( 'wp_check_password' )->justReturn( true );
+		Functions\when( 'wp_generate_password' )->justReturn( 'new-challenge-nonce-f18b' );
+		Functions\when( 'is_ssl' )->justReturn( false );
+		Functions\when( 'headers_sent' )->justReturn( false );
+		Functions\when( 'setcookie' )->justReturn( true );
+		Functions\when( 'apply_filters' )->justReturn( true ); // needs_two_factor = true
+
+		$call_order = array();
+
+		Functions\expect( 'delete_transient' )
+			->once()
+			->with( 'wp_sudo_2fa_pending_' . $old_hash )
+			->andReturnUsing( static function () use ( &$call_order ): bool {
+				$call_order[] = 'delete';
+				return true;
+			} );
+
+		Functions\expect( 'set_transient' )
+			->once()
+			->with(
+				\Mockery::on( static function ( $key ): bool {
+					return str_starts_with( $key, 'wp_sudo_2fa_pending_' );
+				} ),
+				\Mockery::type( 'array' ),
+				\Mockery::type( 'int' )
+			)
+			->andReturnUsing( static function () use ( &$call_order ): bool {
+				$call_order[] = 'set';
+				return true;
+			} );
+
+		$result = Sudo_Session::attempt_activation( 1, 'correct-password' );
+
+		$this->assertSame( '2fa_pending', $result['code'] );
+		$this->assertSame( array( 'delete', 'set' ), $call_order, 'delete_transient must precede set_transient' );
+	}
+
+	/**
 	 * Test that the wp_sudo_two_factor_window filter adjusts the 2FA transient expiry.
 	 */
 	public function test_attempt_activation_2fa_window_is_filterable(): void

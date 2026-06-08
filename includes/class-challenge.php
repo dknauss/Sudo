@@ -535,13 +535,45 @@ class Challenge {
 			);
 		}
 
+		// Mirror the per-IP lockout that the password step already checks.
+		// Without this one extra validation attempt leaks per pending account
+		// despite an active IP lockout (F7).
+		if ( Sudo_Session::is_current_request_ip_locked_out() ) {
+			$remaining = Sudo_Session::current_request_ip_lockout_remaining();
+			wp_send_json_error(
+				array(
+					'message'   => sprintf(
+						/* translators: %d: seconds remaining */
+						__( 'Too many failed attempts. Please wait %d seconds.', 'wp-sudo' ),
+						$remaining
+					),
+					'code'      => 'locked_out',
+					'remaining' => $remaining,
+				),
+				429
+			);
+		}
+
 		$valid = false;
 
 		// Built-in: Two Factor plugin validation.
 		if ( class_exists( '\\Two_Factor_Core' ) ) {
 			$provider = \Two_Factor_Core::get_primary_provider_for_user( $user );
 			if ( $provider ) {
+				// Rate-limit OTP resend to prevent delivery-channel spam (F18a).
+				$resend_key   = 'wp_sudo_resend_' . $user_id;
+				$resend_count = (int) get_transient( $resend_key );
+				if ( $resend_count >= 3 ) {
+					wp_send_json_error(
+						array(
+							'message' => __( 'Too many resend attempts. Please try your current code or wait.', 'wp-sudo' ),
+							'code'    => 'resend_throttled',
+						),
+						429
+					);
+				}
 				if ( true === $provider->pre_process_authentication( $user ) ) {
+					set_transient( $resend_key, $resend_count + 1, 5 * MINUTE_IN_SECONDS );
 					wp_send_json_success( array( 'code' => '2fa_resent' ) );
 				}
 				$valid = ( true === $provider->validate_authentication( $user ) );

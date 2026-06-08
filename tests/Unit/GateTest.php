@@ -1376,6 +1376,42 @@ class GateTest extends TestCase {
 	}
 
 	/**
+	 * A request that presents BOTH a valid wp_rest nonce AND an App Password
+	 * credential must be classified as headless (App Password policy applies),
+	 * not cookie-auth. Without this guard the App Password policy is silently
+	 * bypassed by any client that includes a nonce alongside its credential (C2).
+	 */
+	public function test_intercept_rest_uses_app_password_policy_when_both_nonce_and_app_password_present(): void {
+		Functions\when( 'get_current_user_id' )->justReturn( 1 );
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+		Functions\when( 'is_wp_error' )->justReturn( false );
+		Functions\when( 'get_user_meta' )->justReturn( 0 );
+
+		// Disabled policy — headless requests must be blocked.
+		Functions\when( 'get_option' )->justReturn( array( 'rest_app_password_policy' => 'disabled' ) );
+		Functions\when( 'get_site_option' )->justReturn( array() );
+
+		// A valid nonce is present (would normally mean cookie-auth)…
+		Functions\when( 'wp_verify_nonce' )->justReturn( 1 );
+		$_REQUEST['_wpnonce'] = 'valid-nonce';
+
+		// …but an App Password credential is also on the request.
+		Functions\when( 'rest_get_authenticated_app_password' )->justReturn( 'some-app-pass-uuid' );
+
+		$request = new \WP_REST_Request( 'DELETE', '/wp/v2/plugins/hello-dolly' );
+		$handler = array();
+
+		$result = $this->gate->intercept_rest( null, $handler, $request );
+
+		// Must be routed to the headless / App Password policy path → sudo_disabled.
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( 'sudo_disabled', $result->get_error_code() );
+
+		unset( $_REQUEST['_wpnonce'] );
+	}
+
+	/**
 	 * Test intercept_rest classifies as headless when no nonce is present.
 	 *
 	 * Neither X-WP-Nonce header nor _wpnonce request param — the request
@@ -1947,6 +1983,126 @@ class GateTest extends TestCase {
 	/**
 	 * Test unrestricted policy audits role capability metadata writes but allows update.
 	 */
+	// ── wp_sudo_settings option gate on non-interactive surfaces (F3 / B4) ───
+
+	/**
+	 * register_function_hooks() must gate changes to the plugin's own settings
+	 * option on CLI/Cron/XML-RPC. Without this an actor with CLI or Cron access
+	 * could flip policies to Unrestricted with no sudo block and no audit event.
+	 */
+	public function test_register_function_hooks_blocks_wp_sudo_settings_change(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+		$GLOBALS['wpdb'] = new class() {
+			public string $prefix    = 'wp_';
+			public function get_blog_prefix(): string { return 'wp_'; }
+		};
+
+		$callback = null;
+		Filters\expectAdded( 'pre_update_option_wp_sudo_settings' )
+			->once()
+			->with(
+				\Mockery::on(
+					static function ( $candidate ) use ( &$callback ): bool {
+						$callback = $candidate;
+						return is_callable( $candidate );
+					}
+				),
+				0,
+				2
+			);
+
+		Actions\expectDone( 'wp_sudo_action_blocked' )
+			->once()
+			->with( 0, 'options.wp_sudo', 'cli' );
+
+		Functions\expect( 'wp_die' )
+			->once()
+			->with( \Mockery::type( 'string' ), '', array( 'response' => 403 ) );
+
+		$this->gate->register_function_hooks( 'cli' );
+
+		$this->assertIsCallable( $callback );
+		$callback( 'new_value', 'old_value' );
+	}
+
+	/**
+	 * The block must not fire when the value is unchanged (no-op save).
+	 */
+	public function test_register_function_hooks_allows_wp_sudo_settings_when_unchanged(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+		$GLOBALS['wpdb'] = new class() {
+			public string $prefix    = 'wp_';
+			public function get_blog_prefix(): string { return 'wp_'; }
+		};
+
+		$callback = null;
+		Filters\expectAdded( 'pre_update_option_wp_sudo_settings' )
+			->once()
+			->with(
+				\Mockery::on(
+					static function ( $candidate ) use ( &$callback ): bool {
+						$callback = $candidate;
+						return is_callable( $candidate );
+					}
+				),
+				0,
+				2
+			);
+
+		Actions\expectDone( 'wp_sudo_action_blocked' )->never();
+		Functions\expect( 'wp_die' )->never();
+
+		$this->gate->register_function_hooks( 'cli' );
+
+		$this->assertIsCallable( $callback );
+		$result = $callback( 'same_value', 'same_value' );
+		$this->assertSame( 'same_value', $result );
+	}
+
+	/**
+	 * The multisite network-option path (pre_update_site_option_*) must also
+	 * be gated because multisite stores network settings via update_site_option().
+	 */
+	public function test_register_function_hooks_blocks_wp_sudo_site_settings_change(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+		$GLOBALS['wpdb'] = new class() {
+			public string $prefix    = 'wp_';
+			public function get_blog_prefix(): string { return 'wp_'; }
+		};
+
+		$callback = null;
+		Filters\expectAdded( 'pre_update_site_option_wp_sudo_settings' )
+			->once()
+			->with(
+				\Mockery::on(
+					static function ( $candidate ) use ( &$callback ): bool {
+						$callback = $candidate;
+						return is_callable( $candidate );
+					}
+				),
+				0,
+				2
+			);
+
+		Actions\expectDone( 'wp_sudo_action_blocked' )
+			->once()
+			->with( 0, 'options.wp_sudo', 'cli' );
+
+		Functions\expect( 'wp_die' )
+			->once()
+			->with( \Mockery::type( 'string' ), '', array( 'response' => 403 ) );
+
+		$this->gate->register_function_hooks( 'cli' );
+
+		$this->assertIsCallable( $callback );
+		$callback( 'new_value', 'old_value' );
+	}
+
 	public function test_cli_unrestricted_audits_role_capability_meta_write_without_blocking(): void {
 		Functions\when( '__' )->returnArg();
 
