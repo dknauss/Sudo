@@ -537,9 +537,10 @@ class Challenge {
 
 		// Mirror the per-IP lockout that the password step already checks.
 		// Without this one extra validation attempt leaks per pending account
-		// despite an active IP lockout (F7).
-		if ( Sudo_Session::is_current_request_ip_locked_out() ) {
-			$remaining = Sudo_Session::current_request_ip_lockout_remaining();
+		// despite an active IP lockout (F7). Pass user_id so the lockout check
+		// uses the per-user key introduced by F6.
+		if ( Sudo_Session::is_current_request_ip_locked_out( $user_id ) ) {
+			$remaining = Sudo_Session::current_request_ip_lockout_remaining( $user_id );
 			wp_send_json_error(
 				array(
 					'message'   => sprintf(

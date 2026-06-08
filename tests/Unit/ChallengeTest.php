@@ -968,8 +968,9 @@ class ChallengeTest extends TestCase
 		$_COOKIE[\WP_Sudo\Sudo_Session::CHALLENGE_COOKIE] = $challenge_nonce;
 
 		$_SERVER['REMOTE_ADDR'] = '192.0.2.77';
+		// Key format after F6 fix: hash("$ip|$user_id") — scoped per-user.
 		$ip_key = \WP_Sudo\Sudo_Session::IP_LOCKOUT_UNTIL_TRANSIENT_PREFIX
-			. hash( 'sha256', '192.0.2.77' );
+			. hash( 'sha256', '192.0.2.77|42' );
 
 		Functions\expect( 'check_ajax_referer' )->once();
 		Functions\when( 'get_current_user_id' )->justReturn( 42 );

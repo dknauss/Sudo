@@ -158,7 +158,7 @@ WPGraphQL mutations do not reliably fire those same hooks. WPGraphQL dispatches 
 
 Per-action gating would require either parsing GraphQL request bodies to extract operation names and maintaining a mutation→hook mapping, or a new WPGraphQL-specific rule type separate from the hook-based registry. Both carry significant ongoing maintenance costs for the plugins and custom mutations that WPGraphQL-based sites rely on.
 
-The surface-level approach — blocking any request body containing `mutation` in Limited mode — is reliable and appropriate for the primary use case: headless deployments where mutations come from automated API clients rather than interactive admin users. For mutations that should not require a sudo session (content mutations, authentication handshakes, etc.), the `wp_sudo_wpgraphql_bypass` filter provides precise per-mutation control without modifying the global policy.
+The surface-level approach — blocking any request whose body resolves to a GraphQL `mutation` operation in Limited mode — is reliable and appropriate for the primary use case: headless deployments where mutations come from automated API clients rather than interactive admin users. For mutations that should not require a sudo session (content mutations, authentication handshakes, etc.), the `wp_sudo_wpgraphql_bypass` filter provides precise per-mutation control without modifying the global policy.
 FYI: In GraphQL, a "mutation" is a type of operation used to modify server-side data, causing side effects on the back end. While queries are used for fetching data, mutations are specifically designed for creating, updating, or deleting data. (This is similar to `POST`, `PUT`, `PATCH`, or `DELETE` in `REST`.) 
 
 ## Does WP Sudo work with WPGraphQL JWT Authentication?

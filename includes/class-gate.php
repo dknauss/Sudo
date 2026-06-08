@@ -1312,7 +1312,10 @@ class Gate {
 	 * Applies the optional classifier filter first. Supported return values:
 	 * - 'mutation': treat as mutation.
 	 * - 'query': treat as non-mutation.
-	 * Any other value falls back to the legacy heuristic (`str_contains`).
+	 * Any other value falls back to extracting inline GraphQL documents and
+	 * scanning them for a top-level `mutation` token; an opaque persisted/APQ
+	 * operation that carries no inline document fails safe and is treated as a
+	 * mutation.
 	 *
 	 * @since 2.11.0
 	 *
@@ -1326,11 +1329,13 @@ class Gate {
 		 *
 		 * Return 'mutation' to force mutation handling, or 'query' to force
 		 * query handling. Any other return value falls back to the default
-		 * body-string heuristic.
+		 * document tokenizer.
 		 *
 		 * Useful for persisted-query setups where the request body does not
-		 * include inline GraphQL text (and therefore cannot be detected by a
-		 * plain "mutation" substring check).
+		 * include inline GraphQL text. Such opaque operations cannot be
+		 * tokenized, so they fail safe (treated as mutations) by default;
+		 * return 'query' here to let known read-only persisted operations
+		 * through.
 		 *
 		 * @since 2.11.0
 		 *

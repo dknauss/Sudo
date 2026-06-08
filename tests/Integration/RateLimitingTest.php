@@ -228,9 +228,9 @@ class RateLimitingTest extends TestCase {
 	}
 
 	/**
-	 * v2.13: Same-IP failures across users trigger lockout at threshold.
+	 * v3.1.5: Same-IP failures are scoped per user.
 	 */
-	public function test_same_ip_failures_across_users_trigger_lockout_at_threshold(): void {
+	public function test_same_ip_failures_across_users_do_not_lock_out_different_user(): void {
 		$ip     = '198.51.100.44';
 		$user_a = $this->make_admin( 'correct-password-a' );
 		$user_b = $this->make_admin( 'correct-password-b' );
@@ -244,20 +244,21 @@ class RateLimitingTest extends TestCase {
 			$this->assertSame( 'invalid_password', $result['code'], 'Attempts before threshold should be invalid_password.' );
 		}
 
-		// Fifth failure from same IP but different user should lock out.
+		// A failure from the same IP but different user should not inherit
+		// user A's IP-scoped attempts.
 		wp_set_current_user( $user_b->ID );
 		$result = Sudo_Session::attempt_activation( $user_b->ID, 'wrong-password' );
-		$this->assertSame( 'locked_out', $result['code'], 'Same-IP distributed failures should lock out at threshold.' );
-		$this->assertTrue( Sudo_Session::is_locked_out( $user_b->ID ), 'Current user should be in lockout state.' );
+		$this->assertSame( 'invalid_password', $result['code'], 'Same-IP distributed failures must not lock out a different user.' );
+		$this->assertFalse( Sudo_Session::is_locked_out( $user_b->ID ), 'Different user should not be in lockout state.' );
 
-		$ip_lockout_key = Sudo_Session::IP_LOCKOUT_UNTIL_TRANSIENT_PREFIX . hash( 'sha256', $ip );
-		$this->assertGreaterThan( time(), (int) get_transient( $ip_lockout_key ), 'IP lockout transient should be set.' );
+		$user_b_ip_lockout_key = Sudo_Session::IP_LOCKOUT_UNTIL_TRANSIENT_PREFIX . hash( 'sha256', $ip . '|' . $user_b->ID );
+		$this->assertFalse( get_transient( $user_b_ip_lockout_key ), 'User B IP lockout transient should not be set.' );
 	}
 
 	/**
-	 * v2.13: Active IP lockout blocks correct-password attempts from that IP.
+	 * v3.1.5: Active IP+user lockout blocks correct-password attempts.
 	 */
-	public function test_active_ip_lockout_blocks_correct_password_for_same_ip(): void {
+	public function test_active_ip_lockout_blocks_correct_password_for_same_ip_and_user(): void {
 		$ip       = '203.0.113.19';
 		$password = 'correct-password';
 		$user     = $this->make_admin( $password );
@@ -265,7 +266,7 @@ class RateLimitingTest extends TestCase {
 
 		$_SERVER['REMOTE_ADDR'] = $ip;
 
-		$ip_lockout_key = Sudo_Session::IP_LOCKOUT_UNTIL_TRANSIENT_PREFIX . hash( 'sha256', $ip );
+		$ip_lockout_key = Sudo_Session::IP_LOCKOUT_UNTIL_TRANSIENT_PREFIX . hash( 'sha256', $ip . '|' . $user->ID );
 		set_transient( $ip_lockout_key, time() + Sudo_Session::LOCKOUT_DURATION, Sudo_Session::LOCKOUT_DURATION );
 
 		$result = Sudo_Session::attempt_activation( $user->ID, $password );
