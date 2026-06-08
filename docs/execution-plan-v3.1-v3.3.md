@@ -1,9 +1,309 @@
 # Execution Plan (v3.1–v3.3)
 
-*Status: active planning, April 20, 2026. Revised April 20, 2026 to reflect the clean-launch framing for internal admin governance (no public install base, strict-from-day-one in v3.1 rather than three-phase migration). Revised June 7, 2026 to put post-v3.1.3 security-review remediation ahead of lower-priority feature work.*
+*Status: active planning, April 20, 2026. Revised April 20, 2026 to reflect the clean-launch framing for internal admin governance (no public install base, strict-from-day-one in v3.1 rather than three-phase migration). Revised June 7, 2026 to put post-v3.1.3 security-review remediation ahead of lower-priority feature work. Revised June 8, 2026: ultracode security audit complete — 27 confirmed findings (2 HIGH, 14 LOW, 11 INFO); 2 HIGH + A3 + C1 remediated in commit 3531e0d; full finding register appended below.*
 
 This plan organizes open roadmap/backlog work into a prioritized sequence for
 execution after v3.0.0.
+
+---
+
+## Security Audit Finding Register (June 8, 2026)
+
+**Audit method:** 52-agent ultracode fan-out — Recon → Find (10 dimensions) →
+Adversarial Verify → Harden (4 lenses) → Synthesize. 27 confirmed findings:
+2 HIGH, 14 LOW, 11 INFO.
+
+**Fixed in commit `3531e0d` (June 8, 2026):** F1, F2, F10 (persisted-op
+fail-safe), F18c (BOM), plus two bonus fixes: block-string escape and
+`safe_preg_match` fail-closed for built-in rules (C1).
+
+Legend: ✅ Fixed | ⚠️ Open | ℹ️ Open / low priority
+
+### HIGH — Active gate bypasses (exploitable without shell access)
+
+**F1 — GraphQL CR-comment tokenizer bypass** ✅ Fixed `3531e0d`
+`includes/class-gate.php` (line 1515 post-fix)
+The `wpgraphql_document_contains_mutation()` comment-skip loop terminated
+only at LF (`\n`). A bare carriage return (`\r`) is also a GraphQL spec
+line terminator, so `# x\rmutation { deleteUser }` was invisible to the
+scanner — `json_decode` accepted `\r` in a JSON string, the tokenizer
+stopped the comment only at the next `\n`, and the mutation token at the
+beginning of the following "line" was swallowed. **Fix:** loop also stops
+at `\r`; CRLF handled naturally. Regression tests added for CR, CRLF, and
+pass-through cases.
+
+**F2 — REST plugin gate misses folder-based plugins** ✅ Fixed `3531e0d`
+`includes/class-action-registry.php` (lines 84, 100, 118 post-fix)
+The three plugin REST matchers (`plugin.activate`, `plugin.deactivate`,
+`plugin.delete`) used `#^/wp/v2/plugins/[^/]+$#`. WordPress core's plugin
+route parameter is `[^.\/]+(?:\/[^.\/]+)?` — a folder plugin like
+`akismet/akismet` carries a literal `/` that `[^/]+` cannot match. The
+route returned no match; `intercept_rest()` returned the original response
+before any session or App-Password policy check. For the **majority of
+real plugins** the REST reauth gate was silently off. **Fix:**
+`#^/wp/v2/plugins/[^/]+(?:/[^/]+)?$#`. Folder-plugin tests added.
+
+---
+
+### LOW — Real security gaps, bounded exploitability
+
+**F3 — WP Sudo's own settings option not gated on non-interactive surfaces** ⚠️ Open
+`includes/class-gate.php:525-539`
+`pre_update_option_wp_sudo_settings` is not registered; a CLI or Cron
+actor can flip policies to Unrestricted with no sudo block and no audit
+event. Remote path does not exist (XML-RPC whitelists exclude this option).
+**Fix:** Register `pre_update_option_wp_sudo_settings` (and the multisite
+`pre_update_site_option_*` path); fire the tamper/audit hook on block.
+*Roadmap: B4 quick-win.*
+
+**F4 — Stash secret redaction uses exact full-key match, misses compound names** ⚠️ Open
+`includes/class-request-stash.php:350-414`
+Redaction is opt-out by exact lowercased key (14 entries). Compound names
+like `connectors_openai_api_key`, `smtp_password`, `stripe_secret_key`
+are not redacted. The docs promise redaction of `connectors_*_api_key`
+patterns (security-model.md:418) — a direct documentation inconsistency.
+A cancelled challenge does not delete the stash (stays in `wp_options`
+cleartext for up to 5 min). **Fix:** Also redact fields whose key ends
+with a high-signal suffix (`_api_key`, `_secret_key`, `_secret`,
+`_password`, etc.); delete stash on challenge cancel.
+*Roadmap: P1 phase 3 (request-stash data-minimization follow-up).*
+
+**F5 — `admin_email` change not challenge-gated on interactive/REST surfaces** ⚠️ Open
+`includes/class-action-registry.php:407-431`
+Core's General Settings submits as `new_admin_email`, not `admin_email`,
+so the interactive `options.critical` matcher never fires. The actual
+write via the `adminhash` GET confirmation link also fails the matcher
+(requires `action=update` + POST). Only CLI/Cron/XML-RPC are gated.
+`admin_email` retargeting is a recognized password-reset account-takeover
+precursor. **Fix:** Add `new_admin_email` to critical names; and/or
+register `pre_update_option_admin_email` on the interactive surface.
+*Roadmap: B5 quick-win.*
+
+**F6 — Per-IP lockout shared across all users, enabling authenticated DoS** ⚠️ Open
+`includes/class-sudo-session.php:362-372, 852-863, 931-945`
+IP lockout transient keyed solely on `hash('sha256', $ip)`. Any
+logged-in user with 5 failed attempts locks every admin sharing the egress
+IP (NAT/CGNAT/office/VPN) for 300 s, indefinitely sustainable. Fails
+closed (never bypasses auth). **Fix:** Key lockout by
+`hash(ip + '|' + user_id)`, or keep IP bucket for monitoring only.
+
+**F7 — 2FA submission path does not check per-IP lockout** ⚠️ Open
+`includes/class-challenge.php:506-536`
+`attempt_activation()` checks both per-user and per-IP lockout;
+`handle_ajax_2fa()` checks only per-user. An active IP lockout is honored
+at the password step but ignored at 2FA entry — one extra attempt leaked
+per already-pending account. **Fix:** Mirror the password path —
+call `is_ip_locked_out()` at `handle_ajax_2fa()` entry.
+
+**F8 — Session/2FA cookies use `is_ssl()` only, no FORCE_SSL fallback or filter** ⚠️ Open
+`includes/class-sudo-session.php:449, 572, 733, 747, 811`
+All five Set-Cookie sites gate the Secure flag on `is_ssl()`. Behind a
+TLS-terminating proxy that speaks plain HTTP to PHP (without
+`X-Forwarded-Proto` correction) the session-binding cookies are emitted
+without Secure. No `FORCE_SSL_ADMIN` fallback and no override filter.
+`HttpOnly` + `SameSite=Strict` are correctly set at all five sites.
+**Fix:** Centralize cookie-args; default `secure` to
+`is_ssl() || (defined('FORCE_SSL_ADMIN') && FORCE_SSL_ADMIN)`;
+add `wp_sudo_cookie_secure` filter.
+
+**F9 — Stash captures full `$_POST`/`$_GET` indiscriminately** ⚠️ Open
+`includes/class-request-stash.php:87-98`
+`save()` snapshots the complete superglobals and subtracts only the
+exact-match secret list — structural root that makes F4 exploitable.
+`$_GET` is persisted for POST-method actions too. `security-model.md:309`
+claims the stash "stores only the request metadata needed for replay"
+which overstates minimality. **Fix:** Restrict to replay-relevant fields
+per rule; pair with F4 redaction; consider not persisting `$_GET` for
+POST flows.
+
+**F10 — Persisted-query/APQ mutations evade the tokenizer** ✅ Fixed `3531e0d`
+`includes/class-gate.php` (`body_has_persisted_operation()` added)
+A persisted-query body (`queryId` / `extensions.persistedQuery.sha256Hash`)
+carries no inline text; the extractor yielded nothing; the request passed
+ungated in Limited mode. **Fix:** Detect persisted-query indicators and
+treat as mutations by default; classifier filter overrides for read-only
+persisted ops.
+
+**F11 — WPGraphQL gate reads only `php://input`, ignores GET `query` param** ⚠️ Open (partial)
+`includes/class-gate.php:1493-1496`
+`gate_wpgraphql()` classifies solely from the POST body. WPGraphQL accepts
+the document via GET; `php://input` is empty for GET → no documents → not
+a mutation. Mitigated today because webonyx's `readOnly=true` on GET
+requests causes graphql-php to throw `GetMethodSupportsOnlyQueryOperation`
+for mutations. Disabled policy blocks GET unconditionally. **Fix:** On GET,
+also feed `$_GET['query']` into `check_wpgraphql()`; or assert POST before
+trusting an empty body. Document the dependency.
+
+**F14 — Per-App-Password policy override accepts unvalidated UUID keys** ⚠️ Open
+`includes/class-admin.php:2282-2339`
+`handle_app_password_policy_save()` writes an attacker-supplied `uuid` as
+an array key after only `sanitize_text_field()` — no format check, no
+existence check against `WP_Application_Passwords`, no per-key cap, no
+cleanup on revocation. Fully gated (nonce + `manage_options` + active
+sudo); real impact is option bloat / orphaned entries. **Fix:** Validate
+UUID format + existence before persisting; add
+`application_password_did_revoke` cleanup hook.
+
+**F15 — Active-sessions edit link not gated by `edit_user` cap** ⚠️ Open
+`includes/class-dashboard-widget.php:204-211`
+Per-user profile-edit link emitted unconditionally; Recent Events table
+checks `current_user_can('edit_user', $id)`. Not privilege escalation —
+widget is `manage_options`-gated; matters on multisite where a site admin
+holds `manage_options` but cannot edit arbitrary network users. **Fix:**
+Only emit the `<a href>` when `current_user_can('edit_user', $user_id)`.
+
+**F18a — 2FA OTP resend bypasses rate limiting (email provider only)** ⚠️ Open
+`includes/class-challenge.php:544-546`
+`handle_ajax_2fa()` returns `2fa_resent` before any throttle accounting,
+enabling OTP email flooding via the Two Factor Email provider. WP2FA
+bridge does not participate in this path. **Fix:** Write a ~30-60 s
+`THROTTLE_UNTIL` transient on each resend.
+
+---
+
+### INFO — Hardening opportunities, no active exploitability
+
+**F12 — CLI cron-policy guard keys on literal `cron` in argv** ℹ️ Open
+`includes/class-gate.php:252-269`
+`enforce_cron_policy_on_cli()` only fires when `'cron'` appears in argv.
+`wp eval 'do_action("some_cron_hook")'` bypasses the coarse guard — but
+all gated state changes inside that callback are still blocked by the
+function-level hooks. No gated action escapes; the "cron is Disabled"
+convenience guard is just coarse. CLI is an accepted trusted boundary.
+
+**F13 — `wp sudo status` reports "active" via expiry-time, not token binding** ℹ️ Open
+`includes/class-cli-command.php:45-58`
+`status()` decides "active" from `time_remaining()` (reads only
+`_wp_sudo_expires`, no token verification), whereas the real gate uses
+`is_active()` → `verify_token()`. CLI can report "active" for a session
+the gate would reject. No access-control impact. **Fix:** Reword output:
+"expiry is in the future (NNs); token binding not checkable from CLI."
+
+**F16 — Inline i18n JSON in `<script>` relies on incidental slash-escaping for XSS safety** ℹ️ Open
+`includes/class-dashboard-widget.php:896-1337`
+`wp_json_encode()` (flags=0) echoed raw inside `<script>`. `<`/`>` not
+escaped (no `JSON_HEX_TAG`), but PHP's default `\/` escaping neutralizes
+`</script>`. Safety is incidental, not explicit. Values are static `__()`
+strings. **Fix:** Use `wp_add_inline_script()` or add
+`JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT`.
+
+**F17 — `grant_session_on_login` grants sudo on every `wp_login`** ℹ️ Open (documented design)
+`includes/class-plugin.php:309-311`
+Intentional (login implies reauth, mirroring Unix/GitHub sudo); `wp_login`
+fires only after core auth + any 2FA. Residual: a custom SSO plugin firing
+`do_action('wp_login')` programmatically would silently grant sudo.
+**Fix:** Add a `wp_sudo_grant_on_login` opt-out filter; document for
+integrators.
+
+**F18b — Correct password during 2fa_pending orphans prior pending transients** ℹ️ Open
+Each correct-password submission mints a new `2fa_pending` transient
+without clearing the old; httponly nonce makes it non-exploitable.
+**Fix:** Call `clear_2fa_pending()` at the start of the 2FA branch.
+
+**F18c — UTF-8 BOM prefix defeats JSON extractor** ✅ Fixed `3531e0d`
+`\xEF\xBB\xBF` prefix caused `json_decode()` failure; raw-scan fallback
+missed mutations at depth ≥1. **Fix:** `strip_leading_bom()` called before
+`json_decode()` in both `extract_wpgraphql_documents()` and
+`body_has_persisted_operation()`.
+
+**F18d — `wp_sudo_gated_actions` filter can wholesale-replace the rule set** ℹ️ Open
+A buggy third-party callback that replaces instead of appends silently
+removes all gating. **Fix:** Union built-ins by id, or emit a Site Health
+warning when core rule ids disappear post-filter.
+
+**F18e — `uninstall.php` no explicit cap check (belt-and-suspenders)** ℹ️ Open
+Not exploitable — core gates uninstall behind capability+nonce. Optional
+`current_user_can()` assertion for defense-in-depth.
+
+**F18f — `Public_API::check()` relies on `verify_token()` internals for cross-user isolation** ℹ️ Open
+Correct today; add an explicit `$user_id !== get_current_user_id()` guard
+at the API boundary to harden against future fast-path refactors.
+
+**F18g — Plain-HTTP installs apply policy without Secure cookies** ℹ️ Open (subsumed by F8)
+Documented HTTP boundary. Add a non-SSL admin notice. Subsumed by the F8
+centralized-cookie-args fix.
+
+---
+
+### Bonus fixes included in `3531e0d`
+
+**Block-string escaped-triple-quote desync** ✅ Fixed `3531e0d`
+The tokenizer ended a block string at the first `"""`, ignoring `\"""`
+(escaped triple-quote continuation). A crafted `"""x \""" }}}}"""` block
+string could mask a following top-level `mutation` token. The escaped
+triple-quote is a real correctness gap even though graphql-php's
+`LoneAnonymousOperation` rule makes the current bypass path impractical.
+Fixed per spec; regression test added.
+
+**`safe_preg_match` fail-closed for built-in rules (C1)** ✅ Fixed `3531e0d`
+A PCRE error on a built-in rule silently returned `false` (not matched →
+not gated). For built-in rules a broken pattern should gate the request
+(fail-closed), not pass it. `Action_Registry::is_builtin_rule_id()` added;
+`matches_rest()` passes the flag to `safe_preg_match()`; fires
+`wp_sudo_rule_regex_error` audit action on error.
+
+---
+
+### Forward hardening roadmap (from audit section 4)
+
+Items not yet implemented, organized by theme. Each maps to a phase in this
+plan or is noted as backlog.
+
+**A — Close remaining classified bypasses**
+- A3: ✅ Done — persisted-op/BOM/unclassifiable fail-safe (3531e0d)
+- F11 (GET query string): ⚠️ Open — open partial from A3; feed `$_GET['query']` on GET requests
+
+**B — Surface-coverage completeness**
+- B1: Pre-register Abilities API gate (`wp_before_execute_ability`) ahead of WP 7.0+. *Backlog.*
+- B2: Audit REST `'rest' => null` rules for missing matchers (theme.switch, core.update, etc.) against live WP REST schema. *Backlog.*
+- B3: Broaden non-interactive coverage — `grant_super_admin`, `core.update`, password change on CLI/Cron. *Backlog.*
+- B4 = F3: Gate `wp_sudo_settings` writes on non-interactive surfaces. *Quick-win, backlog.*
+- B5 = F5: Gate `admin_email` / `new_admin_email` at write time on interactive surface. *Quick-win, backlog.*
+
+**C — Fail-safe mechanics**
+- C1: ✅ Done — `safe_preg_match` fail-closed for built-in rules (3531e0d)
+- C2: Harden REST cookie-vs-App-Password pivot — require `rest_get_authenticated_app_password()` to be falsy before trusting the cookie-auth branch. *Quick-win, backlog.*
+
+**D — Session/token hardening**
+- D1: Bind sudo token to active `WP_Session_Token` so logout revokes sudo. *Strategic; requires integration test.*
+- D2: Rotate sudo token on each gated passage (one-generation grace overlap). *Strategic.*
+- D3: Add short critical-action window distinct from global duration for highest-impact rules. *Strategic.*
+- D4: Step-up re-auth on context change (UA hash default-on, IP-pin opt-in). *Strategic.*
+- D5: Proxy-aware IP rate-limiting via opt-in `wp_sudo_request_ip` filter. *Quick-win, backlog.*
+
+**E — Detection & response**
+- E1: Hash-chain event log (HMAC, secret outside table); `verify_chain()` Site Health test. *Strategic; highest single detection impact.*
+- E2: Record + alert on security-critical config/tamper events; add `wp_sudo_policy_changed` diff signal. *Strategic.*
+- E3: Gate self-deactivation; write `plugin_deactivated` event + alert before teardown. *Strategic.*
+- E4: Site Health warning when audit visibility is reduced. *Quick-win, backlog.*
+- E5: `wp_sudo_event_recorded` hook from `Event_Store::insert()` for SIEM bridges. *Quick-win, backlog.*
+
+**F (supply chain & CI)**
+- F/SC1: Add PHP to CodeQL or wire `composer analyse`/lint into required PR check. Entire production language currently unscanned in CI. *Quick-win, highest operational gap.*
+- F/SC2: Add `composer audit` + SBOM-freshness gate + `dependabot.yml`. *Quick-win.*
+- F/SC3: Introduce `manage_wp_sudo` meta-cap (default-mapped to `manage_options`). *Strategic; see Phase 2 governance.*
+
+---
+
+### Residual-risk items flagged for manual verification
+
+Items from the completeness-critic pass that were not settled by static
+review and need runtime confirmation or WP 7.0 RC source validation:
+
+1. **Multipart GraphQL uploads** (`operations`/`map` fields, `wp-graphql-upload`/Apollo) — falls through to raw scan; verify whether `mutation` lands at depth 0.
+2. **`operationName`-selected multi-operation documents** — tokenizer fail-safes (any `mutation` at depth 0), but Unrestricted audit logging mis-attributes. Low priority.
+3. **`wp_pre_insert_user_data` TOCTOU** (`class-gate.php:498-504`) — prefer the `$update` flag from the filter args over a `get_user_by()` DB lookup. Verify filter signature in WP 6.2–7.0.
+4. **`deactivate_session_on_profile_update()` fail-open** (`class-plugin.php:354`) — if `$userdata['user_pass']` is absent on a genuine REST password change the session would not expire. Verify against real `wp_update_user()`/REST.
+5. **Double-read of `php://input`** in `gate_wpgraphql()` — confirm FPM re-buffers input for the WPGraphQL body read that follows. Fail direction if SAPI returns empty: confirm closed.
+6. **REST `rest_get_authenticated_app_password()` timing** — confirm populated at `rest_request_before_callbacks` time (used by per-app-password overrides at `:620`).
+7. **REST cookie-auth without nonce** — a logged-in cookie request lacking `X-WP-Nonce` is judged under `rest_app_password_policy`; if Unrestricted, a cookie-session attacker omitting the nonce gets the Unrestricted verdict. Trace whether a genuine logged-in cookie request can ever reach the gate without a valid `wp_rest` nonce.
+8. **Stash-index race condition** — `enforce_stash_cap()` + `add_to_stash_index()` do read-modify-write on `_wp_sudo_stash_keys` with no lock.
+9. **Cross-site stash isolation on multisite** — `set_site_transient()` is network-wide; ownership verified by `user_id` only (no `site_id` binding).
+10. **Nonce-in-stash** — the replayed POST carries the original `_wpnonce`; a CSRF-token-bearing object at rest for up to 5 min. Distinct from F4.
+11. **Event-table insert amplification** — `check_wpgraphql()` records regardless of auth state; unauthenticated mutation flooding could inflate `wpsudo_events`.
+12. **`connectors.update_credentials` gate** built on assumed WP 7.0 Connectors API shape — must be re-verified against WP 7.0 RC/final SVN before relying on it.
+
+---
 
 ## Priority Stack
 
