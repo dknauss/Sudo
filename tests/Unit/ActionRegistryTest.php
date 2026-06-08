@@ -11,6 +11,7 @@ use WP_Sudo\Action_Registry;
 use WP_Sudo\Tests\TestCase;
 use Brain\Monkey\Functions;
 use Brain\Monkey\Filters;
+use Brain\Monkey\Actions;
 
 /**
  * @covers \WP_Sudo\Action_Registry
@@ -138,6 +139,63 @@ class ActionRegistryTest extends TestCase {
 		$rules = Action_Registry::get_rules();
 
 		$this->assertNotContains( 'plugin.activate', array_column( $rules, 'id' ) );
+	}
+
+	/**
+	 * Test get_rules() emits a diagnostic action when built-in rules are removed.
+	 */
+	public function test_get_rules_fires_diagnostic_when_builtin_rules_missing(): void {
+		Functions\when( '__' )->returnArg();
+
+		Filters\expectApplied( 'wp_sudo_gated_actions' )
+			->once()
+			->andReturnUsing(
+				static function ( array $rules ): array {
+					return array_values(
+						array_filter(
+							$rules,
+							static function ( array $rule ): bool {
+								return ( $rule['id'] ?? '' ) !== 'plugin.activate';
+							}
+						)
+					);
+				}
+			);
+
+		Actions\expectDone( 'wp_sudo_gated_actions_missing_builtin_rules' )
+			->once()
+			->with( array( 'plugin.activate' ) );
+
+		Action_Registry::get_rules();
+	}
+
+	/**
+	 * Test missing built-in rule IDs can be queried for Site Health.
+	 */
+	public function test_get_missing_builtin_rule_ids_reports_removed_builtins(): void {
+		Functions\when( '__' )->returnArg();
+
+		Filters\expectApplied( 'wp_sudo_gated_actions' )
+			->once()
+			->andReturnUsing(
+				static function ( array $rules ): array {
+					return array_values(
+						array_filter(
+							$rules,
+							static function ( array $rule ): bool {
+								return ! in_array( $rule['id'] ?? '', array( 'plugin.activate', 'user.delete' ), true );
+							}
+						)
+					);
+				}
+			);
+
+		Functions\when( 'do_action' )->justReturn( null );
+
+		$this->assertSame(
+			array( 'plugin.activate', 'user.delete' ),
+			Action_Registry::get_missing_builtin_rule_ids()
+		);
 	}
 
 	/**

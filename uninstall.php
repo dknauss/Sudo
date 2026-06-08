@@ -24,6 +24,14 @@ if ( ! class_exists( '\WP_Sudo\Event_Store' ) ) {
 	require_once __DIR__ . '/includes/class-event-store.php';
 }
 
+if ( ! class_exists( '\WP_Sudo\Uninstall_Guard' ) ) {
+	require_once __DIR__ . '/includes/class-uninstall-guard.php';
+}
+
+if ( ! \WP_Sudo\Uninstall_Guard::is_authorized() ) {
+	exit;
+}
+
 /**
  * Clean up all per-site data: role and options.
  *

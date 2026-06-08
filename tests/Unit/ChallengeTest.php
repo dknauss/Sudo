@@ -78,6 +78,14 @@ class ChallengeTest extends TestCase
 			->once()
 			->with(array($this->challenge, 'render_redacted_replay_notice'), \Mockery::any(), 0);
 
+		Actions\expectAdded('admin_notices')
+			->once()
+			->with(array($this->challenge, 'render_blocked_replay_notice'), \Mockery::any(), 0);
+
+		Actions\expectAdded('network_admin_notices')
+			->once()
+			->with(array($this->challenge, 'render_blocked_replay_notice'), \Mockery::any(), 0);
+
 		$this->challenge->register();
 	}
 
@@ -1193,6 +1201,54 @@ class ChallengeTest extends TestCase
 		$this->assertStringContainsString('profile.php', $data['redirect']);
 		$this->assertStringContainsString('wp_sudo_redacted_replay=1', $data['redirect']);
 		$this->assertTrue($data['redacted_fields_omitted']);
+		$this->assertArrayNotHasKey('replay', $data);
+		$this->assertArrayNotHasKey('post_data', $data);
+	}
+
+	/**
+	 * Test blocked POST replay redirects back with a non-replay notice.
+	 */
+	public function test_blocked_post_replay_redirects_instead_of_partial_replay(): void
+	{
+		$this->stash->shouldReceive('get')
+			->once()
+			->with('blocked-stash-key', 42)
+			->andReturn(array(
+				'method' => 'POST',
+				'url' => 'https://example.com/wp-admin/update.php?action=upload-plugin',
+				'return_url' => 'https://example.com/wp-admin/plugin-install.php?tab=upload',
+				'rule_id' => 'plugin.upload',
+				'post' => array(),
+				'post_replay_blocked' => true,
+				'post_replay_block_reason' => Request_Stash::REPLAY_BLOCKED_NO_REPLAY,
+			));
+
+		$this->stash->shouldReceive('delete')
+			->once()
+			->with('blocked-stash-key', 42);
+
+		Functions\when('wp_validate_redirect')->returnArg();
+		Functions\when('add_query_arg')->alias(
+			static function ( string $key, string $value, string $url ): string {
+				$separator = str_contains($url, '?') ? '&' : '?';
+				return $url . $separator . $key . '=' . $value;
+			}
+		);
+
+		Actions\expectDone('wp_sudo_action_replayed')->never();
+
+		$method = new \ReflectionMethod($this->challenge, 'build_replay_response_data');
+		if ( PHP_VERSION_ID < 80100 ) {
+			$method->setAccessible(true);
+		}
+		$data = $method->invoke($this->challenge, 42, 'blocked-stash-key', 'https://example.com/wp-admin/');
+
+		$this->assertSame('success', $data['code']);
+		$this->assertArrayHasKey('redirect', $data);
+		$this->assertStringContainsString('plugin-install.php', $data['redirect']);
+		$this->assertStringContainsString('wp_sudo_blocked_replay=1', $data['redirect']);
+		$this->assertFalse($data['redacted_fields_omitted']);
+		$this->assertTrue($data['post_replay_blocked']);
 		$this->assertArrayNotHasKey('replay', $data);
 		$this->assertArrayNotHasKey('post_data', $data);
 	}

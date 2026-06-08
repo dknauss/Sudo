@@ -2,10 +2,40 @@
 
 ## Unreleased
 
+### Governance and capabilities
+
+- **`sudo_can()` helper:** Replaces direct `manage_options` checks across the plugin with a fine-grained capability helper that maps to the WordPress capabilities system. `wp_sudo_is_recovery_mode()` allows capability checks to short-circuit during emergency recovery flows.
+- **Access tab:** Settings → Sudo gains an Access tab for managing which roles and users can administer sudo settings. `grant_sudo_access` and `revoke_sudo_access` AJAX handlers are registered and gated by the new `options.wp_sudo_access` rule; audit hooks fire on both grant and revoke.
+- **WordPress capability integration:** Sudo capability assertions are now mapped to standard WordPress capability checks so external tools (WP-CLI, audit plugins) can evaluate them through `current_user_can()`.
+- **Capability-gated grant/revoke actions:** `grant_cap` and `revoke_cap` AJAX actions are now registered in the action registry and gated by the challenge flow.
+
 ### Security hardening
 
-- **2FA lockout integrity:** a correct password no longer clears failed-attempt counters while the 2FA challenge is still pending, so repeated password + bad-2FA cycles accumulate toward the intended lockout.
-- **WPGraphQL mutation detection:** Limited-mode fallback classification now decodes JSON bodies, GET/form `query` params, and multipart `operations` payloads; catches JSON-escaped and batched mutations; fails safe on unknown persisted operations; and avoids blocking queries that only mention `mutation` in string arguments.
+- **2FA lockout integrity:** A correct password no longer clears failed-attempt counters while the 2FA challenge is still pending, so repeated password + bad-2FA cycles accumulate toward the intended lockout. Pending 2FA transients are cleared at the start of each new password submission to prevent orphaned transient accumulation. OTP resend requests now write a throttle transient (~60 s) to prevent email flooding via the Two Factor Email provider.
+- **WPGraphQL mutation detection:** Limited-mode fallback classification now decodes JSON bodies, GET/form `query` params, and multipart `operations` payloads; catches JSON-escaped and batched mutations; fails safe on unknown persisted operations; and avoids blocking queries that only mention `mutation` in string arguments. CR and CRLF line terminators in GraphQL comments are now handled per spec, closing a tokenizer bypass. Escaped triple-quotes inside block strings are now parsed correctly. UTF-8 BOM prefixes are stripped before JSON decoding. Persisted-query / APQ requests with no inline document body are treated as mutations by default; a filter allows read-only persisted ops to opt out.
+- **REST plugin gate covers folder-based plugins:** The `plugin.activate`, `plugin.deactivate`, and `plugin.delete` REST matchers now use `[^/]+(?:/[^/]+)?` to match folder-style plugin slugs (e.g. `akismet/akismet`). Previously, the majority of real-world plugins using a folder layout were silently ungated on the REST surface.
+- **PCRE fail-closed for built-in rules:** A PCRE error on a built-in rule now gates the request (fail-closed) instead of silently passing it. `wp_sudo_rule_regex_error` fires for observability.
+- **Non-interactive surface coverage for plugin settings:** The `wp_sudo_settings` option write is now blocked on CLI, Cron, and XML-RPC surfaces with an audit hook on interception, preventing unprompted policy downgrades from non-interactive contexts.
+- **Admin email gating:** `new_admin_email` and `admin_email` field writes are now challenge-gated on interactive and REST surfaces. Admin email retargeting is a recognized account-takeover precursor.
+- **Per-user IP lockout:** Failed-attempt IP lockout is now keyed on `ip + user_id` instead of IP alone. A single account on a shared egress IP (NAT, VPN, CGNAT) can no longer sustain a DoS against all admins sharing that IP.
+- **2FA challenge path checks IP lockout:** `handle_ajax_2fa()` now checks the per-IP lockout at entry, matching the behavior of the password submission path. Previously, an active IP lockout was honored at the password step but ignored at 2FA entry.
+- **Cookie Secure flag hardening:** Session and 2FA cookies now respect `FORCE_SSL_ADMIN` as a Secure-flag fallback when `is_ssl()` returns false (e.g. behind a TLS-terminating reverse proxy without `X-Forwarded-Proto`). A `wp_sudo_cookie_secure` filter allows operator override. Previously the Secure flag was absent in these configurations.
+- **REST auth surface hardening:** The REST interceptor now requires the request to be unauthenticated via App Password before trusting the cookie-auth branch, preventing a pivot where a request carries both cookie credentials and an App Password.
+- **Request stash minimization:** Challenge replay now stores only rule-allowlisted POST fields, never stores `$_GET` separately, redacts compound secret names by suffix, and blocks automatic replay for unsafe or incomplete POST bodies.
+- **App Password policy validation:** Per-App-Password policy overrides now require UUID v4 format validation and confirmed existence in `WP_Application_Passwords` before persisting. Policy entries are automatically removed when the corresponding App Password is deleted via the `wp_delete_application_password` hook.
+- **Dashboard widget capability check:** The active-sessions user edit link is now only emitted when the current user holds `edit_user` for the target, preventing link exposure on multisite where site admins cannot edit network users.
+- **Public API cross-user isolation:** `Public_API::check()` now explicitly returns false when the target user ID differs from `get_current_user_id()`, making the cross-user isolation guarantee explicit at the API boundary rather than relying on internal session-token rejection alone.
+- **Built-in rule filter visibility:** The `wp_sudo_gated_actions` filter now emits a diagnostic action and Site Health warning when built-in rule IDs are missing after filtering. Intentional removal remains supported, but accidental wholesale erasure is visible to operators.
+- **Uninstall defense-in-depth:** `uninstall.php` now asserts `delete_plugins` for browser/admin execution while preserving WP-CLI uninstall behavior alongside the WordPress-provided `WP_UNINSTALL_PLUGIN` sentinel.
+
+### CLI and diagnostics
+
+- **`wp sudo status` output:** The status command now clarifies that the "active" state reflects the stored expiry timestamp only — token binding cannot be verified from CLI without cookie access.
+
+### Developer experience
+
+- **Inline script encoding:** Dashboard widget inline JS i18n now uses `JSON_HEX_TAG | JSON_HEX_AMP` encoding flags so `<script>` injection safety is explicit rather than relying on PHP's incidental `\/` escaping of forward slashes.
+- **WPGraphQL block-string escaping documented:** `developer-reference.md` now documents that the only GraphQL block-string escape sequence is `\"""` (escaped triple-quote); `\\` has no special meaning inside block strings.
 
 ## 3.1.3 - 2026-05-11
 

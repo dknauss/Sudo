@@ -9,21 +9,21 @@ Verification environment: local workspace, PHP 8.x
 
 | Metric | Value | Verification |
 |---|---:|---|
-| Unit tests | 759 tests | `composer test:unit` |
-| Unit assertions | 2139 assertions | `composer test:unit` |
+| Unit tests | 771 tests | `composer test:unit` |
+| Unit assertions | 2201 assertions | `composer test:unit` |
 | Integration tests in suite | 165 test methods | `rg -c "function test" tests/Integration/*.php | awk -F: '{sum+=$2} END{print sum}'` |
-| Unit test files | 24 | `ls tests/Unit/*.php | wc -l` |
+| Unit test files | 25 | `ls tests/Unit/*.php | wc -l` |
 | Integration test files | 22 | `ls tests/Integration/*.php | wc -l` |
 
 ## Size Metrics
 
 | Metric | Value | Verification |
 |---|---:|---|
-| Production PHP lines (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 14,457 | `find ./includes ./wp-sudo.php ./uninstall.php ./mu-plugin ./bridges -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
-| Tests PHP lines (`tests/`) | 25,911 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
-| Production + tests PHP lines | 40,368 | sum of the two rows above |
-| Test-to-production ratio | 1.79:1 | `25911 / 14457` |
-| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`) | 40,631 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Production PHP lines (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 14,886 | `find ./includes ./wp-sudo.php ./uninstall.php ./mu-plugin ./bridges -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Tests PHP lines (`tests/`) | 26,341 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Production + tests PHP lines | 41,227 | sum of the two rows above |
+| Test-to-production ratio | 1.77:1 | `26341 / 14886` |
+| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`) | 41,490 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
 
 ## Architectural Facts
 
@@ -38,7 +38,7 @@ the count in prose without a verification command.
 | Gated rules (multisite) | 8 | `grep "'id'" includes/class-action-registry.php \| grep -c "network"` | unreleased |
 | Gated rules (total) | 35 | `grep "'id'" includes/class-action-registry.php \| grep -v "rule\[" \| wc -l` | unreleased |
 | Help tabs | 12 | `grep -c -- "->add_help_tab(" includes/class-admin.php` | unreleased |
-| Audit hooks | 15 | `python3 - <<'PY'\nimport pathlib, re\nhooks = set()\nfor path in pathlib.Path('includes').glob('class-*.php'):\n    hooks.update(re.findall(r\"do_action\\(\\s*'([^']+)'\", path.read_text()))\nhooks.discard('wp_sudo_render_two_factor_fields')\nprint(len(hooks))\nPY` | unreleased (v3.1.0) |
+| Audit hooks | 16 | `python3 - <<'PY'\nimport pathlib, re\nhooks = set()\nfor path in pathlib.Path('includes').glob('class-*.php'):\n    hooks.update(re.findall(r\"do_action\\(\\s*'([^']+)'\", path.read_text()))\nhooks.discard('wp_sudo_render_two_factor_fields')\nprint(len(hooks))\nPY` | unreleased (v3.1.5) |
 | Settings fields (base) | 6 | 1 numeric (duration) + 1 preset chooser + 4 policy dropdowns (REST, CLI, Cron, XML-RPC) | unreleased (v3.0.0) |
 | Settings fields (with WPGraphQL) | 7 | +1 conditional WPGraphQL policy dropdown | unreleased (v3.0.0) |
 | E2E tests | 60 | `npx playwright test --config tests/e2e/playwright.config.ts --list` | unreleased |
@@ -66,8 +66,8 @@ Source: `.github/workflows/phpunit.yml`, `.github/workflows/e2e.yml`, `.github/w
 
 ## Verification Notes
 
-- `composer test:unit` passed on 2026-06-08 (`750 tests`, `2124 assertions`).
-- `composer test:integration` passed on 2026-06-08 (`170 tests`, `547 assertions`, `9 skipped`) using the local WordPress integration test database.
+- `composer test:unit` passed on 2026-06-08 (`771 tests`, `2201 assertions`).
+- `composer test:integration` passed on 2026-06-08 (`170 tests`, `551 assertions`, `9 skipped`) using the local WordPress integration test database.
 - `WP_MULTISITE=1 composer test:integration` passed on 2026-04-20 (`165 tests`, `552 assertions`, `2 skipped`) using the same `wp-env` `tests-cli` fallback and database.
 - `composer analyse` and `composer lint` passed on 2026-06-08.
 

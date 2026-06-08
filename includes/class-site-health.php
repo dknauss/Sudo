@@ -9,6 +9,8 @@
  * 3. **Entry-point policy review** — whether non-interactive surfaces
  *    (REST App Passwords, WP-CLI, Cron, XML-RPC, and WPGraphQL when active)
  *    use the recommended "limited" or "disabled" policy (warns on "unrestricted").
+ * 4. **Gated action integrity** — whether filtered rules still include the
+ *    built-in protection set.
  *
  * @package WP_Sudo
  */
@@ -56,6 +58,11 @@ class Site_Health {
 		$tests['direct']['wp_sudo_stale_sessions'] = array(
 			'label' => __( 'WP Sudo Stale Sessions', 'wp-sudo' ),
 			'test'  => array( $this, 'test_stale_sessions' ),
+		);
+
+		$tests['direct']['wp_sudo_gated_action_integrity'] = array(
+			'label' => __( 'WP Sudo Gated Action Integrity', 'wp-sudo' ),
+			'test'  => array( $this, 'test_gated_action_integrity' ),
 		);
 
 		return $tests;
@@ -166,6 +173,49 @@ class Site_Health {
 				esc_html( implode( ', ', $unrestricted ) )
 			) . '</p>',
 			'test'        => 'wp_sudo_policies',
+		);
+	}
+
+	/**
+	 * Test: Gated action registry integrity.
+	 *
+	 * Warns when a wp_sudo_gated_actions filter removed built-in rules. Built-in
+	 * removal is still supported for advanced integrations, but operators should
+	 * see when the baseline protection set has been reduced.
+	 *
+	 * @since 3.1.5
+	 *
+	 * @return array<string, mixed>
+	 */
+	public function test_gated_action_integrity(): array {
+		$missing = Action_Registry::get_missing_builtin_rule_ids();
+
+		if ( empty( $missing ) ) {
+			return array(
+				'label'       => __( 'All built-in WP Sudo gated actions are registered', 'wp-sudo' ),
+				'status'      => 'good',
+				'badge'       => array(
+					'label' => __( 'Security', 'wp-sudo' ),
+					'color' => 'blue',
+				),
+				'description' => '<p>' . __( 'The filtered gated action registry still includes the built-in WP Sudo protection set.', 'wp-sudo' ) . '</p>',
+				'test'        => 'wp_sudo_gated_action_integrity',
+			);
+		}
+
+		return array(
+			'label'       => __( 'Some built-in WP Sudo gated actions are not registered', 'wp-sudo' ),
+			'status'      => 'recommended',
+			'badge'       => array(
+				'label' => __( 'Security', 'wp-sudo' ),
+				'color' => 'orange',
+			),
+			'description' => '<p>' . sprintf(
+				/* translators: %s: comma-separated list of missing built-in gated action IDs */
+				__( 'A wp_sudo_gated_actions filter removed these built-in rules: %s. Confirm this is intentional; otherwise, restore the default rules so dangerous actions remain gated.', 'wp-sudo' ),
+				esc_html( implode( ', ', $missing ) )
+			) . '</p>',
+			'test'        => 'wp_sudo_gated_action_integrity',
 		);
 	}
 

@@ -26,6 +26,25 @@ class RequestStashTest extends TestCase {
 	}
 
 	/**
+	 * Build a rule with POST replay allowlist metadata.
+	 *
+	 * @param string   $id          Rule ID.
+	 * @param string   $label       Rule label.
+	 * @param string[] $post_fields Allowed top-level POST fields.
+	 * @return array<string, mixed>
+	 */
+	private function rule_with_post_fields( string $id, string $label, array $post_fields ): array {
+		return array(
+			'id'    => $id,
+			'label' => $label,
+			'stash' => array(
+				'post_mode'   => 'allowlist',
+				'post_fields' => $post_fields,
+			),
+		);
+	}
+
+	/**
 	 * INTG-04: save() stores a transient via real set_transient().
 	 */
 	public function test_save_stores_transient(): void {
@@ -115,7 +134,7 @@ class RequestStashTest extends TestCase {
 	}
 
 	/**
-	 * INTG-04: Stash preserves the full request structure including all 8 fields.
+	 * INTG-04: Stash preserves the minimized replay request structure.
 	 */
 	public function test_stash_preserves_request_structure(): void {
 		$stash = new Request_Stash();
@@ -129,7 +148,7 @@ class RequestStashTest extends TestCase {
 			array( '_wpnonce' => 'abc123' )
 		);
 
-		$key  = $stash->save( $user->ID, array( 'id' => 'plugin.activate', 'label' => 'Activate plugin' ) );
+		$key  = $stash->save( $user->ID, $this->rule_with_post_fields( 'plugin.activate', 'Activate plugin', array( '_wpnonce' ) ) );
 		$data = $stash->get( $key, $user->ID );
 
 		$this->assertSame( $user->ID, $data['user_id'] );
@@ -137,8 +156,10 @@ class RequestStashTest extends TestCase {
 		$this->assertSame( 'Activate plugin', $data['label'] );
 		$this->assertSame( 'POST', $data['method'] );
 		$this->assertArrayHasKey( 'url', $data );
-		$this->assertArrayHasKey( 'get', $data );
+		$this->assertArrayNotHasKey( 'get', $data );
 		$this->assertArrayHasKey( 'post', $data );
+		$this->assertSame( array( '_wpnonce' => 'abc123' ), $data['post'] );
+		$this->assertFalse( $data['post_replay_blocked'] );
 		$this->assertArrayHasKey( 'created', $data );
 		$this->assertEqualsWithDelta( time(), $data['created'], 2, 'Created timestamp should be within 2 seconds.' );
 	}
@@ -165,7 +186,10 @@ class RequestStashTest extends TestCase {
 			)
 		);
 
-		$key = $stash->save( $user->ID, array( 'id' => 'user.create', 'label' => 'Create user' ) );
+		$key = $stash->save(
+			$user->ID,
+			$this->rule_with_post_fields( 'user.create', 'Create user', array( 'user_login', 'pass1', 'pass2', 'user_pass', 'role', '_wpnonce' ) )
+		);
 
 		// Read raw transient to verify stored content (not via get() which adds ownership check).
 		$raw = $this->get_raw_transient( Request_Stash::TRANSIENT_PREFIX . $key );
@@ -177,6 +201,7 @@ class RequestStashTest extends TestCase {
 		$this->assertArrayNotHasKey( 'pass1', $raw['post'], 'pass1 must be omitted from stored transient' );
 		$this->assertArrayNotHasKey( 'pass2', $raw['post'], 'pass2 must be omitted from stored transient' );
 		$this->assertArrayNotHasKey( 'user_pass', $raw['post'], 'user_pass must be omitted from stored transient' );
+		$this->assertTrue( $raw['post_replay_blocked'], 'Replay must be blocked when secrets were omitted' );
 	}
 
 	/**
@@ -199,13 +224,17 @@ class RequestStashTest extends TestCase {
 			)
 		);
 
-		$key = $stash->save( $user->ID, array( 'id' => 'options.general', 'label' => 'Save settings' ) );
+		$key = $stash->save(
+			$user->ID,
+			$this->rule_with_post_fields( 'options.critical', 'Save settings', array( 'blogname', 'admin_email', 'secret', '_wpnonce' ) )
+		);
 		$raw = $this->get_raw_transient( Request_Stash::TRANSIENT_PREFIX . $key );
 
 		$this->assertArrayHasKey( 'blogname', $raw['post'], 'blogname must survive redaction' );
 		$this->assertArrayHasKey( 'admin_email', $raw['post'], 'admin_email must survive redaction' );
 		$this->assertArrayHasKey( '_wpnonce', $raw['post'], '_wpnonce must survive redaction' );
 		$this->assertArrayNotHasKey( 'secret', $raw['post'], 'secret must be omitted from raw transient' );
+		$this->assertTrue( $raw['post_replay_blocked'], 'Replay must be blocked when secrets were omitted' );
 	}
 
 	/**

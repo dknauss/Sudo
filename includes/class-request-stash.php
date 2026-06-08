@@ -15,8 +15,8 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Class Request_Stash
  *
- * When a gated admin action is intercepted, the full request (URL, method,
- * GET/POST parameters, nonce) is serialized into a short-lived transient.
+ * When a gated admin action is intercepted, the replay target (URL, method,
+ * and allowlisted POST parameters) is serialized into a short-lived transient.
  * After the user successfully reauthenticates, the stashed request is
  * retrieved and replayed — via redirect for GET, or a self-submitting
  * form for POST.
@@ -45,6 +45,56 @@ class Request_Stash {
 	 * @var int
 	 */
 	private const KEY_LENGTH = 16;
+
+	/**
+	 * Reason code for POST requests that are intentionally not replayed.
+	 *
+	 * @var string
+	 */
+	public const REPLAY_BLOCKED_NO_REPLAY = 'post_replay_disabled';
+
+	/**
+	 * Reason code for POST requests without an allowlist.
+	 *
+	 * @var string
+	 */
+	public const REPLAY_BLOCKED_NO_ALLOWLIST = 'missing_post_allowlist';
+
+	/**
+	 * High-signal field-name suffixes that indicate secret values.
+	 *
+	 * @var string[]
+	 */
+	private const SENSITIVE_KEY_SUFFIXES = array(
+		'_password',
+		'_pass',
+		'_api_key',
+		'_secret_key',
+		'_secret',
+		'_private_key',
+		'_access_token',
+		'_auth_token',
+		'_api_token',
+		'_api_secret',
+		'-password',
+		'-pass',
+		'-api-key',
+		'-secret-key',
+		'-secret',
+		'-private-key',
+		'-access-token',
+		'-auth-token',
+		'-api-token',
+		'-api-secret',
+		'password',
+		'apikey',
+		'secretkey',
+		'privatekey',
+		'accesstoken',
+		'authtoken',
+		'apitoken',
+		'apisecret',
+	);
 
 	/**
 	 * Maximum number of stash entries per user.
@@ -82,19 +132,30 @@ class Request_Stash {
 		// Enforce per-user cap BEFORE writing (evicts oldest if at limit).
 		$this->enforce_stash_cap( $user_id );
 
-		$redacted_fields_omitted = false;
+		$redacted_fields_omitted  = false;
+		$post_replay_blocked      = false;
+		$post_replay_block_reason = '';
+		$method                   = $this->get_request_method();
+		$post                     = $this->build_stashed_post_params(
+			$matched_rule,
+			$method,
+			$redacted_fields_omitted,
+			$post_replay_blocked,
+			$post_replay_block_reason
+		);
 
 		$data = array(
-			'user_id'                 => $user_id,
-			'rule_id'                 => $matched_rule['id'] ?? '',
-			'label'                   => $matched_rule['label'] ?? '',
-			'method'                  => $this->get_request_method(),
-			'url'                     => $this->build_original_url(),
-			'return_url'              => $this->get_return_url(),
-			'get'                     => $this->sanitize_params( $_GET, $redacted_fields_omitted ), // phpcs:ignore WordPress.Security.NonceVerification.Recommended
-			'post'                    => $this->sanitize_params( $_POST, $redacted_fields_omitted ), // phpcs:ignore WordPress.Security.NonceVerification.Missing
-			'redacted_fields_omitted' => $redacted_fields_omitted,
-			'created'                 => time(),
+			'user_id'                  => $user_id,
+			'rule_id'                  => $matched_rule['id'] ?? '',
+			'label'                    => $matched_rule['label'] ?? '',
+			'method'                   => $method,
+			'url'                      => $this->build_original_url(),
+			'return_url'               => $this->get_return_url(),
+			'post'                     => $post,
+			'redacted_fields_omitted'  => $redacted_fields_omitted,
+			'post_replay_blocked'      => $post_replay_blocked || $redacted_fields_omitted,
+			'post_replay_block_reason' => $redacted_fields_omitted ? 'redacted_fields_omitted' : $post_replay_block_reason,
+			'created'                  => time(),
 		);
 
 		$this->set_stash_transient( self::TRANSIENT_PREFIX . $key, $data, self::TTL );
@@ -330,6 +391,102 @@ class Request_Stash {
 	}
 
 	/**
+	 * Build the POST payload that is safe to store and replay for the matched rule.
+	 *
+	 * @param array<string, mixed> $matched_rule             The matched action rule.
+	 * @param string               $method                   Request method.
+	 * @param bool                 $redacted_fields_omitted  Whether any sensitive field was omitted.
+	 * @param bool                 $post_replay_blocked      Whether automatic POST replay is blocked.
+	 * @param string               $post_replay_block_reason Replay block reason.
+	 * @return array<string, mixed> Sanitized, allowlisted POST params.
+	 */
+	private function build_stashed_post_params(
+		array $matched_rule,
+		string $method,
+		bool &$redacted_fields_omitted,
+		bool &$post_replay_blocked,
+		string &$post_replay_block_reason
+	): array {
+		if ( 'POST' !== $method || empty( $_POST ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Presence check only; values are filtered below for replay storage after gate matching.
+			return array();
+		}
+
+		$stash_policy = $this->get_stash_policy( $matched_rule );
+		$post_mode    = $stash_policy['post_mode'];
+
+		if ( 'none' === $post_mode ) {
+			$post_replay_blocked      = true;
+			$post_replay_block_reason = self::REPLAY_BLOCKED_NO_REPLAY;
+			return array();
+		}
+
+		$post_fields = $stash_policy['post_fields'];
+		if ( empty( $post_fields ) ) {
+			$post_replay_blocked      = true;
+			$post_replay_block_reason = self::REPLAY_BLOCKED_NO_ALLOWLIST;
+			return array();
+		}
+
+		return $this->sanitize_params(
+			$this->filter_top_level_params( $_POST, $post_fields ), // phpcs:ignore WordPress.Security.NonceVerification.Missing
+			$redacted_fields_omitted
+		);
+	}
+
+	/**
+	 * Resolve replay policy metadata from a rule.
+	 *
+	 * @param array<string, mixed> $matched_rule The matched action rule.
+	 * @return array{post_mode:string, post_fields:string[]}
+	 */
+	private function get_stash_policy( array $matched_rule ): array {
+		$policy = $matched_rule['stash'] ?? array();
+		if ( ! is_array( $policy ) ) {
+			$policy = array();
+		}
+
+		$post_mode = isset( $policy['post_mode'] ) && is_string( $policy['post_mode'] )
+			? $policy['post_mode']
+			: 'allowlist';
+
+		if ( ! in_array( $post_mode, array( 'allowlist', 'none' ), true ) ) {
+			$post_mode = 'allowlist';
+		}
+
+		$post_fields = array();
+		if ( isset( $policy['post_fields'] ) && is_array( $policy['post_fields'] ) ) {
+			foreach ( $policy['post_fields'] as $field ) {
+				if ( is_string( $field ) && '' !== $field ) {
+					$post_fields[] = $field;
+				}
+			}
+		}
+
+		return array(
+			'post_mode'   => $post_mode,
+			'post_fields' => array_values( array_unique( $post_fields ) ),
+		);
+	}
+
+	/**
+	 * Keep only top-level request params named by the replay allowlist.
+	 *
+	 * @param array<string, mixed> $params Raw request params.
+	 * @param string[]             $fields Allowed top-level field names.
+	 * @return array<string, mixed>
+	 */
+	private function filter_top_level_params( array $params, array $fields ): array {
+		$result = array();
+		foreach ( $fields as $field ) {
+			if ( array_key_exists( $field, $params ) ) {
+				$result[ $field ] = $params[ $field ];
+			}
+		}
+
+		return $result;
+	}
+
+	/**
 	 * Recursively sanitize request parameters, omitting sensitive fields.
 	 *
 	 * Sensitive keys (passwords, tokens, API keys) are omitted entirely —
@@ -354,7 +511,7 @@ class Request_Stash {
 		foreach ( $params as $key => $value ) {
 			if ( is_array( $value ) ) {
 				$result[ $key ] = $this->sanitize_params( $value, $redacted_fields_omitted );
-			} elseif ( ! in_array( strtolower( (string) $key ), $sensitive, true ) ) {
+			} elseif ( ! $this->is_sensitive_key( (string) $key, $sensitive ) ) {
 				$result[ $key ] = $value;
 			} else {
 				$redacted_fields_omitted = true;
@@ -362,6 +519,29 @@ class Request_Stash {
 			// Sensitive keys are omitted entirely — not stored, not sent to JS replay.
 		}
 		return $result;
+	}
+
+	/**
+	 * Whether a request field key should be omitted from the stash.
+	 *
+	 * @param string   $key       Request field key.
+	 * @param string[] $sensitive Exact-match sensitive keys.
+	 * @return bool
+	 */
+	private function is_sensitive_key( string $key, array $sensitive ): bool {
+		$key = strtolower( $key );
+
+		if ( in_array( $key, $sensitive, true ) ) {
+			return true;
+		}
+
+		foreach ( self::SENSITIVE_KEY_SUFFIXES as $suffix ) {
+			if ( str_ends_with( $key, $suffix ) ) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	/**

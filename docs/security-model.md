@@ -300,11 +300,13 @@ authenticated requests.
 
 **What WP Sudo stores via transients:**
 
-- `Request_Stash` saves original admin request data (method, URL, POST body)
-  for challenge replay. Passwords, tokens, API keys, and other configured
-  secret fields are omitted from the stash; when those fields were present,
-  WP Sudo redirects the user back after reauthentication and asks them to
-  re-enter the secret while the sudo session is active.
+- `Request_Stash` saves the replay target (method and URL) plus only the
+  matched rule's allowlisted POST fields. It does not store `$_GET`
+  separately; GET replay uses the original URL. Passwords, tokens, API keys,
+  and other configured or suffix-matched secret fields are omitted from the
+  stash; when those fields were present, WP Sudo redirects the user back after
+  reauthentication and asks them to re-enter the secret while the sudo session
+  is active.
 - `Sudo_Session` stores per-IP failed-attempt event buckets
   (`wp_sudo_ip_failure_event_{hash}`) and per-IP lockout timestamps
   (`wp_sudo_ip_lockout_until_{hash}`) for multidimensional rate limiting.
@@ -325,9 +327,10 @@ action manually. This is **annoying but not a security issue** — it fails safe
 - Transient TTL is set to 5 minutes, which is generous for a password challenge.
 - Without a persistent object cache, transients fall back to the `wp_options`
   database table, which is not subject to memory-pressure eviction.
-- The stash stores only the request metadata needed for replay and never stores
-  configured secret fields. It is small (typically under 1 KB) and unlikely to
-  be evicted by LRU policies.
+- The stash stores only the request metadata and rule-allowlisted POST fields
+  needed for replay. Unsafe or unallowlisted POST bodies are not replayed
+  automatically. Stashes are small (typically under 1 KB) and unlikely to be
+  evicted by LRU policies.
 
 **Risk: IP-rate-limit transient eviction or stale reads.** If per-IP failure
 event/lockout transients are evicted early, the combined lockout policy can

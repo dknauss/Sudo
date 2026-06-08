@@ -56,6 +56,14 @@ class Challenge {
 	public const REDACTED_REPLAY_QUERY_ARG = 'wp_sudo_redacted_replay';
 
 	/**
+	 * Query arg used to show a notice after redirecting instead of replaying
+	 * a POST that was intentionally not stored for replay.
+	 *
+	 * @var string
+	 */
+	public const BLOCKED_REPLAY_QUERY_ARG = 'wp_sudo_blocked_replay';
+
+	/**
 	 * Request stash instance.
 	 *
 	 * @var Request_Stash
@@ -89,6 +97,8 @@ class Challenge {
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ), 10, 0 );
 		add_action( 'admin_notices', array( $this, 'render_redacted_replay_notice' ), 10, 0 );
 		add_action( 'network_admin_notices', array( $this, 'render_redacted_replay_notice' ), 10, 0 );
+		add_action( 'admin_notices', array( $this, 'render_blocked_replay_notice' ), 10, 0 );
+		add_action( 'network_admin_notices', array( $this, 'render_blocked_replay_notice' ), 10, 0 );
 	}
 
 	/**
@@ -105,6 +115,23 @@ class Challenge {
 
 		echo '<div class="notice notice-warning is-dismissible"><p>'
 			. esc_html__( 'Reauthentication complete. For your security, password and secret fields were not replayed. Re-enter them to finish the change.', 'wp-sudo' )
+			. '</p></div>';
+	}
+
+	/**
+	 * Render a notice when automatic POST replay was intentionally disabled.
+	 *
+	 * @return void
+	 */
+	public function render_blocked_replay_notice(): void {
+		$notice = self::sanitize_input_string( $_GET[ self::BLOCKED_REPLAY_QUERY_ARG ] ?? '' ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Notice flag only; sanitized in helper.
+
+		if ( '1' !== $notice ) {
+			return;
+		}
+
+		echo '<div class="notice notice-warning is-dismissible"><p>'
+			. esc_html__( 'Reauthentication complete. For your security, this request was not replayed automatically. Review the form and submit it again to finish the change.', 'wp-sudo' )
 			. '</p></div>';
 	}
 
@@ -779,18 +806,22 @@ class Challenge {
 		// Consume the stash (one-time use).
 		$this->stash->delete( $stash_key, $user_id );
 
-		if ( ! empty( $stash['redacted_fields_omitted'] ) ) {
+		if ( ! empty( $stash['redacted_fields_omitted'] ) || ! empty( $stash['post_replay_blocked'] ) ) {
 			$return_url = ! empty( $stash['return_url'] ) && is_string( $stash['return_url'] )
 				? $stash['return_url']
 				: $safe_url;
 
 			$redirect_url = wp_validate_redirect( $return_url, $safe_url );
-			$redirect_url = add_query_arg( self::REDACTED_REPLAY_QUERY_ARG, '1', $redirect_url );
+			$notice_arg   = ! empty( $stash['redacted_fields_omitted'] )
+				? self::REDACTED_REPLAY_QUERY_ARG
+				: self::BLOCKED_REPLAY_QUERY_ARG;
+			$redirect_url = add_query_arg( $notice_arg, '1', $redirect_url );
 
 			return array(
 				'code'                    => 'success',
 				'redirect'                => $redirect_url,
-				'redacted_fields_omitted' => true,
+				'redacted_fields_omitted' => ! empty( $stash['redacted_fields_omitted'] ),
+				'post_replay_blocked'     => ! empty( $stash['post_replay_blocked'] ),
 			);
 		}
 
@@ -817,7 +848,6 @@ class Challenge {
 			'method'    => $stash['method'],
 			'url'       => $safe_url,
 			'post_data' => $stash['post'] ?? array(),
-			'get_data'  => $stash['get'] ?? array(),
 		);
 	}
 

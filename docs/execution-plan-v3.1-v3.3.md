@@ -56,17 +56,16 @@ event. Remote path does not exist (XML-RPC whitelists exclude this option).
 `pre_update_site_option_*` path); fire the tamper/audit hook on block.
 *Roadmap: B4 quick-win.*
 
-**F4 — Stash secret redaction uses exact full-key match, misses compound names** ⚠️ Open
-`includes/class-request-stash.php:350-414`
+**F4 — Stash secret redaction uses exact full-key match, misses compound names** ✅ Fixed (unreleased)
+`includes/class-request-stash.php`
 Redaction is opt-out by exact lowercased key (14 entries). Compound names
 like `connectors_openai_api_key`, `smtp_password`, `stripe_secret_key`
 are not redacted. The docs promise redaction of `connectors_*_api_key`
 patterns (security-model.md:418) — a direct documentation inconsistency.
-A cancelled challenge does not delete the stash (stays in `wp_options`
-cleartext for up to 5 min). **Fix:** Also redact fields whose key ends
-with a high-signal suffix (`_api_key`, `_secret_key`, `_secret`,
-`_password`, etc.); delete stash on challenge cancel.
-*Roadmap: P1 phase 3 (request-stash data-minimization follow-up).*
+**Fix:** Field keys now redact on high-signal exact names and suffixes,
+including snake_case, dashed, camelCase, nested, and array secret keys.
+Automatic POST replay is blocked when any secret field was omitted.
+Residual backlog: cancelled challenges still rely on the 5-minute stash TTL.
 
 **F5 — `admin_email` change not challenge-gated on interactive/REST surfaces** ⚠️ Open
 `includes/class-action-registry.php:407-431`
@@ -106,15 +105,16 @@ without Secure. No `FORCE_SSL_ADMIN` fallback and no override filter.
 `is_ssl() || (defined('FORCE_SSL_ADMIN') && FORCE_SSL_ADMIN)`;
 add `wp_sudo_cookie_secure` filter.
 
-**F9 — Stash captures full `$_POST`/`$_GET` indiscriminately** ⚠️ Open
-`includes/class-request-stash.php:87-98`
+**F9 — Stash captures full `$_POST`/`$_GET` indiscriminately** ✅ Fixed (unreleased)
+`includes/class-request-stash.php`
 `save()` snapshots the complete superglobals and subtracts only the
 exact-match secret list — structural root that makes F4 exploitable.
 `$_GET` is persisted for POST-method actions too. `security-model.md:309`
 claims the stash "stores only the request metadata needed for replay"
-which overstates minimality. **Fix:** Restrict to replay-relevant fields
-per rule; pair with F4 redaction; consider not persisting `$_GET` for
-POST flows.
+which overstates minimality. **Fix:** Request stashes no longer persist
+`$_GET`; POST replay stores only rule allowlisted fields. Built-in unsafe
+POST flows such as uploads, editors, and broad network settings are marked
+non-replayable and return the operator to resubmit after reauthentication.
 
 **F10 — Persisted-query/APQ mutations evade the tokenizer** ✅ Fixed `3531e0d`
 `includes/class-gate.php` (`body_has_persisted_operation()` added)
@@ -134,15 +134,16 @@ for mutations. Disabled policy blocks GET unconditionally. **Fix:** On GET,
 also feed `$_GET['query']` into `check_wpgraphql()`; or assert POST before
 trusting an empty body. Document the dependency.
 
-**F14 — Per-App-Password policy override accepts unvalidated UUID keys** ⚠️ Open
-`includes/class-admin.php:2282-2339`
+**F14 — Per-App-Password policy override accepts unvalidated UUID keys** ✅ Fixed (unreleased)
+`includes/class-admin.php`
 `handle_app_password_policy_save()` writes an attacker-supplied `uuid` as
 an array key after only `sanitize_text_field()` — no format check, no
 existence check against `WP_Application_Passwords`, no per-key cap, no
 cleanup on revocation. Fully gated (nonce + `manage_options` + active
 sudo); real impact is option bloat / orphaned entries. **Fix:** Validate
-UUID format + existence before persisting; add
-`application_password_did_revoke` cleanup hook.
+UUID format and ownership/existence before persisting; require `edit_user`
+for cross-user profile saves; clean per-App-Password overrides when the
+password is deleted.
 
 **F15 — Active-sessions edit link not gated by `edit_user` cap** ⚠️ Open
 `includes/class-dashboard-widget.php:204-211`
@@ -206,14 +207,18 @@ missed mutations at depth ≥1. **Fix:** `strip_leading_bom()` called before
 `json_decode()` in both `extract_wpgraphql_documents()` and
 `body_has_persisted_operation()`.
 
-**F18d — `wp_sudo_gated_actions` filter can wholesale-replace the rule set** ℹ️ Open
+**F18d — `wp_sudo_gated_actions` filter can wholesale-replace the rule set** ✅ Fixed (unreleased)
 A buggy third-party callback that replaces instead of appends silently
-removes all gating. **Fix:** Union built-ins by id, or emit a Site Health
-warning when core rule ids disappear post-filter.
+removes all gating. **Fix:** Built-in removal remains supported for
+compatibility, but WP Sudo now emits
+`wp_sudo_gated_actions_missing_builtin_rules` and exposes a Site Health
+warning when core rule IDs disappear post-filter.
 
-**F18e — `uninstall.php` no explicit cap check (belt-and-suspenders)** ℹ️ Open
+**F18e — `uninstall.php` no explicit cap check (belt-and-suspenders)** ✅ Fixed (unreleased)
 Not exploitable — core gates uninstall behind capability+nonce. Optional
-`current_user_can()` assertion for defense-in-depth.
+`current_user_can()` assertion for defense-in-depth. **Fix:** Browser/admin
+uninstall now requires `delete_plugins`; WP-CLI uninstall remains allowed
+through the CLI/core authorization path.
 
 **F18f — `Public_API::check()` relies on `verify_token()` internals for cross-user isolation** ℹ️ Open
 Correct today; add an explicit `$user_id !== get_current_user_id()` guard
@@ -447,17 +452,26 @@ Exit criteria:
 - Recovery-mode path is documented in FAQ and surfaces a permanent admin
   notice while active.
 
-## Phase 3 — Request-stash replay/data-minimization follow-up (P1.4)
+## Phase 3 — Request-stash replay/data-minimization follow-up (P1.4) ✅ Closed locally
 
-- Add pattern-based redaction for non-standard secret field names.
-- Add custom-rule metadata for redacted fields, replay-safe fields, and actions
-  that should not replay POST bodies.
-- Add explicit failure behavior when redaction makes a replay unsafe.
+- Added pattern-based redaction for non-standard secret field names.
+- Added custom-rule metadata for replay-safe fields and actions that should
+  not replay POST bodies.
+- Added explicit failure behavior when redaction or replay policy makes a POST
+  replay unsafe.
+- Promoted and closed release blockers F14, F18d, and F18e alongside Phase 3.
 
 Exit criteria:
 - Unit tests cover camelCase, snake_case, dashed, nested, and array secret keys.
-- Replay tests prove built-in safe forms still work and unsafe custom forms fail
-  with a clear operator-facing message.
+- Unit and integration replay tests prove safe allowlisted forms still work and
+  unsafe or unallowlisted POST bodies redirect with clear operator-facing
+  notices instead of replaying partial data.
+- Local validation passed on 2026-06-08: unit, integration, PHPStan, PHPCS,
+  metrics verification, and Composer audit.
+
+Residual follow-up:
+- Cancelled challenges still rely on the 5-minute stash TTL; explicit cancel
+  deletion remains a lower-risk follow-up.
 
 ## Phase 4 — Sudo Activity screen MVP (P1.5)
 
