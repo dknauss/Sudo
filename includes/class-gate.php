@@ -1314,7 +1314,158 @@ class Gate {
 			}
 		}
 
-		return str_contains( $body, 'mutation' );
+		foreach ( $this->extract_wpgraphql_documents( $body ) as $document ) {
+			if ( $this->wpgraphql_document_contains_mutation( $document ) ) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * Extract GraphQL document strings from a WPGraphQL request body.
+	 *
+	 * Supports the common JSON body shape, JSON batch arrays, form-encoded
+	 * `query=` payloads, and raw GraphQL documents.
+	 *
+	 * @since 3.1.4
+	 *
+	 * @param string $body Raw request body.
+	 * @return string[] GraphQL document strings.
+	 */
+	private function extract_wpgraphql_documents( string $body ): array {
+		$body = trim( $body );
+		if ( '' === $body ) {
+			return array();
+		}
+
+		$decoded = json_decode( $body, true );
+		if ( JSON_ERROR_NONE === json_last_error() ) {
+			return $this->extract_wpgraphql_documents_from_decoded_payload( $decoded );
+		}
+
+		$params = array();
+		parse_str( $body, $params );
+
+		if ( isset( $params['query'] ) && is_string( $params['query'] ) ) {
+			return array( $params['query'] );
+		}
+
+		return array( $body );
+	}
+
+	/**
+	 * Extract GraphQL documents from a decoded JSON payload.
+	 *
+	 * @since 3.1.4
+	 *
+	 * @param mixed $payload Decoded JSON payload.
+	 * @return string[] GraphQL document strings.
+	 */
+	private function extract_wpgraphql_documents_from_decoded_payload( $payload ): array {
+		if ( ! is_array( $payload ) ) {
+			return array();
+		}
+
+		if ( isset( $payload['query'] ) && is_string( $payload['query'] ) ) {
+			return array( $payload['query'] );
+		}
+
+		$documents = array();
+
+		foreach ( $payload as $item ) {
+			if ( ! is_array( $item ) || ! isset( $item['query'] ) || ! is_string( $item['query'] ) ) {
+				continue;
+			}
+
+			$documents[] = $item['query'];
+		}
+
+		return $documents;
+	}
+
+	/**
+	 * Determine whether a GraphQL document contains a mutation operation.
+	 *
+	 * The scan ignores quoted strings, block strings, comments, and nested
+	 * selection/input object blocks. This avoids both JSON-escape false negatives
+	 * and simple query string-argument false positives.
+	 *
+	 * @since 3.1.4
+	 *
+	 * @param string $document GraphQL document string.
+	 * @return bool True when a top-level mutation operation token is present.
+	 */
+	private function wpgraphql_document_contains_mutation( string $document ): bool {
+		$length = strlen( $document );
+		$depth  = 0;
+
+		for ( $i = 0; $i < $length; ++$i ) {
+			$char = $document[ $i ];
+
+			if ( '#' === $char ) {
+				while ( $i < $length && "\n" !== $document[ $i ] ) {
+					++$i;
+				}
+				continue;
+			}
+
+			if ( '"' === $char ) {
+				$next_three = substr( $document, $i, 3 );
+				if ( '"""' === $next_three ) {
+					$i += 3;
+					while ( $i < $length && '"""' !== substr( $document, $i, 3 ) ) {
+						++$i;
+					}
+					$i += 2;
+					continue;
+				}
+
+				++$i;
+				while ( $i < $length ) {
+					if ( '\\' === $document[ $i ] ) {
+						$i += 2;
+						continue;
+					}
+
+					if ( '"' === $document[ $i ] ) {
+						break;
+					}
+
+					++$i;
+				}
+				continue;
+			}
+
+			if ( '{' === $char ) {
+				++$depth;
+				continue;
+			}
+
+			if ( '}' === $char ) {
+				$depth = max( 0, $depth - 1 );
+				continue;
+			}
+
+			if ( 0 !== $depth || ! preg_match( '/[A-Za-z_]/', $char ) ) {
+				continue;
+			}
+
+			$start = $i;
+			while ( $i < $length && preg_match( '/[A-Za-z0-9_]/', $document[ $i ] ) ) {
+				++$i;
+			}
+
+			$token = substr( $document, $start, $i - $start );
+			--$i;
+
+			if ( 'mutation' === $token ) {
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	/**

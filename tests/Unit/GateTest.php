@@ -3044,6 +3044,64 @@ class GateTest extends TestCase {
 		$this->assertSame( 'sudo_blocked', $result->get_error_code() );
 	}
 
+	public function test_check_wpgraphql_blocks_json_escaped_mutation(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'get_option' )->justReturn( array( 'wpgraphql_policy' => 'limited' ) );
+		Functions\when( 'get_current_user_id' )->justReturn( 1 );
+		Functions\when( 'get_user_meta' )->justReturn( 0 );
+		Functions\when( 'apply_filters' )->alias(
+			static function ( $hook, $value ) {
+				if ( 'wp_sudo_wpgraphql_bypass' === $hook ) {
+					return false;
+				}
+				return $value;
+			}
+		);
+
+		$result = $this->gate->check_wpgraphql( '{"query":"\u006dutation { updatePost(input:{id:1}) { post { id } } }"}' );
+
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( 'sudo_blocked', $result->get_error_code() );
+	}
+
+	public function test_check_wpgraphql_blocks_batched_payload_when_any_entry_is_mutation(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'get_option' )->justReturn( array( 'wpgraphql_policy' => 'limited' ) );
+		Functions\when( 'get_current_user_id' )->justReturn( 1 );
+		Functions\when( 'get_user_meta' )->justReturn( 0 );
+		Functions\when( 'apply_filters' )->alias(
+			static function ( $hook, $value ) {
+				if ( 'wp_sudo_wpgraphql_bypass' === $hook ) {
+					return false;
+				}
+				return $value;
+			}
+		);
+
+		$body   = '[{"query":"{ viewer { id } }"},{"query":"\u006dutation { deleteUser(input:{id:\"1\"}) { deletedId } }"}]';
+		$result = $this->gate->check_wpgraphql( $body );
+
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( 'sudo_blocked', $result->get_error_code() );
+	}
+
+	public function test_check_wpgraphql_allows_query_that_mentions_mutation_in_string_argument(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'get_option' )->justReturn( array( 'wpgraphql_policy' => 'limited' ) );
+		Functions\when( 'apply_filters' )->alias(
+			static function ( $hook, $value ) {
+				if ( 'wp_sudo_wpgraphql_bypass' === $hook ) {
+					return false;
+				}
+				return $value;
+			}
+		);
+
+		$body = '{"query":"query SearchPosts { posts(where:{search:\"mutation\"}) { nodes { id } } }"}';
+
+		$this->assertNull( $this->gate->check_wpgraphql( $body ) );
+	}
+
 	/**
 	 * Test bypass filter still short-circuits even when classifier is present.
 	 */

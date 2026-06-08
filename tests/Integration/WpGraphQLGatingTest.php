@@ -63,6 +63,41 @@ class WpGraphQLGatingTest extends TestCase {
 	}
 
 	/** @test */
+	public function test_authenticated_json_escaped_mutation_blocked_when_limited_and_no_session(): void {
+		$user = $this->make_admin();
+		wp_set_current_user( $user->ID );
+
+		$body   = '{"query":"\u006dutation { deleteUser(input:{id:\"1\"}) { deletedId } }"}';
+		$result = $this->gate->check_wpgraphql( $body );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'sudo_blocked', $result->get_error_code() );
+	}
+
+	/** @test */
+	public function test_authenticated_batched_mutation_blocked_when_limited_and_no_session(): void {
+		$user = $this->make_admin();
+		wp_set_current_user( $user->ID );
+
+		$body   = '[{"query":"{ viewer { id } }"},{"query":"\u006dutation { deleteUser(input:{id:\"1\"}) { deletedId } }"}]';
+		$result = $this->gate->check_wpgraphql( $body );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'sudo_blocked', $result->get_error_code() );
+	}
+
+	/** @test */
+	public function test_authenticated_query_mentioning_mutation_in_string_passes_when_limited(): void {
+		$user = $this->make_admin();
+		wp_set_current_user( $user->ID );
+
+		$body   = '{"query":"query SearchPosts { posts(where:{search:\"mutation\"}) { nodes { id } } }"}';
+		$result = $this->gate->check_wpgraphql( $body );
+
+		$this->assertNull( $result );
+	}
+
+	/** @test */
 	public function test_authenticated_query_passes_when_limited_and_no_session(): void {
 		$user = $this->make_admin();
 		wp_set_current_user( $user->ID );

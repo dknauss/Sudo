@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Security hardening
+
+- **2FA lockout integrity:** a correct password no longer clears failed-attempt counters while the 2FA challenge is still pending, so repeated password + bad-2FA cycles accumulate toward the intended lockout.
+- **WPGraphQL mutation detection:** Limited-mode fallback classification now decodes JSON/form payloads, catches JSON-escaped and batched mutations, and avoids blocking queries that only mention `mutation` in string arguments.
+
 ## 3.1.3 - 2026-05-11
 
 - **Release Playground link:** the stable release Blueprint installs the tag ZIP through `pluginData` instead of using Playground's currently brittle `git:directory` tag fetch path.

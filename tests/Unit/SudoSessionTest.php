@@ -443,6 +443,29 @@ class SudoSessionTest extends TestCase
 		$this->assertGreaterThan(time(), $result['expires_at']);
 	}
 
+	public function test_attempt_activation_does_not_reset_failures_before_2fa_success(): void
+	{
+		Functions\when('get_user_meta')->justReturn('');
+
+		$user = new \WP_User(1, array('editor'));
+		Functions\when('get_userdata')->justReturn($user);
+		Functions\when('wp_check_password')->justReturn(true);
+		Functions\when('set_transient')->justReturn(true);
+		Functions\when('wp_generate_password')->justReturn('test-challenge-nonce');
+		Functions\when('is_ssl')->justReturn(false);
+		Functions\when('headers_sent')->justReturn(false);
+		Functions\when('setcookie')->justReturn(true);
+
+		// Password success is not final success when 2FA is still pending.
+		Functions\expect('delete_user_meta')->never();
+
+		Functions\when('apply_filters')->justReturn(true);
+
+		$result = Sudo_Session::attempt_activation(1, 'correct-password');
+
+		$this->assertSame('2fa_pending', $result['code']);
+	}
+
 	/**
 	 * Test that the wp_sudo_two_factor_window filter adjusts the 2FA transient expiry.
 	 */

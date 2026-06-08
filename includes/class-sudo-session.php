@@ -405,9 +405,6 @@ class Sudo_Session {
 			return $result;
 		}
 
-		// Password is correct — reset failed attempts.
-		self::reset_failed_attempts( $user_id );
-
 		// Check for 2FA requirement.
 		if ( self::needs_two_factor( $user_id ) ) {
 			/**
