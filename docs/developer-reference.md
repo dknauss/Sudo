@@ -11,6 +11,12 @@ filter returns a non-array payload, WP Sudo falls back to built-in rules.
 
 Custom rules protect only the surfaces they define: admin, AJAX, and/or REST. Application Password requests are covered when a custom rule defines REST criteria, because Application Passwords enter through the REST API. WP-CLI, Cron, and XML-RPC Limited mode use a built-in function-hook map for WP Sudo's core rules; they do not automatically discover arbitrary custom rules. If a third-party workflow needs non-interactive protection, either add an explicit integration with `wp_sudo_check()` / `wp_sudo_require()`, expose it through a REST rule that WP Sudo can match, or use the surface policy to disable the entry point. WPGraphQL is gated by its own surface-level policy rather than per-rule matching — in Limited mode, all mutations require a sudo session regardless of which action they perform. See [WPGraphQL Surface](#wpgraphql-surface) below.
 
+For POST replay, custom admin rules should declare a `stash` policy. WP Sudo
+stores only top-level POST fields named in `stash.post_fields`; if no allowlist
+is present, the user can still reauthenticate but the POST body is not replayed
+automatically. Use `post_mode => 'none'` for uploads, file-editor saves, or
+other requests that cannot be safely reconstructed from POST fields alone.
+
 ```php
 add_filter( 'wp_sudo_gated_actions', function ( array $rules ): array {
     $rules[] = array(
@@ -32,10 +38,27 @@ add_filter( 'wp_sudo_gated_actions', function ( array $rules ): array {
             'route'   => '#^/my-namespace/v1/dangerous#',
             'methods' => array( 'POST', 'DELETE' ),
         ),
+        'stash'    => array(
+            'post_mode'   => 'allowlist',
+            'post_fields' => array( '_wpnonce', '_wp_http_referer', 'action', 'item_id' ),
+        ),
     );
     return $rules;
 } );
 ```
+
+For non-replayable POST actions:
+
+```php
+'stash' => array(
+    'post_mode' => 'none',
+),
+```
+
+Secret-like field names are still omitted even when allowlisted. Matching is
+case-insensitive and covers exact names plus high-signal suffixes such as
+`_api_key`, `_secret_key`, `_password`, dashed equivalents, and camelCase
+endings such as `apiKey` or `accessToken`.
 
 ### Gating Third-Party Plugin Actions
 
@@ -260,6 +283,9 @@ do_action( 'wp_sudo_capability_tampered', string $role, string $capability );
 do_action( 'wp_sudo_capability_granted', int $target_user_id, string $cap, int $granter_user_id, int $site_id );
 do_action( 'wp_sudo_capability_revoked', int $target_user_id, string $cap, int $revoker_user_id, int $site_id );
 do_action( 'wp_sudo_session_revoked', int $target_user_id, int $revoker_user_id, string $reason, int $site_id );
+
+// Rule diagnostics.
+do_action( 'wp_sudo_gated_actions_missing_builtin_rules', array $missing_builtin_ids );
 ```
 
 `wp_sudo_lockout` adds source IP as a third argument as of v2.13.0. Existing
@@ -327,7 +353,7 @@ for the full design. Not scheduled; optional Phase 5 of the v3.1–v3.3 plan.
 
 | Filter | Description |
 |---|---|
-| `wp_sudo_gated_actions` | Add or modify gated action rules. |
+| `wp_sudo_gated_actions` | Add, modify, or intentionally remove gated action rules. Site Health warns when built-in rule IDs are missing after filtering. |
 | `wp_sudo_two_factor_window` | 2FA authentication window in seconds (default: 300). Clamped to 60–900 seconds (1–15 minutes). |
 | `wp_sudo_requires_two_factor` | Whether a user needs 2FA for sudo (for third-party 2FA plugins). |
 | `wp_sudo_validate_two_factor` | Validate a 2FA code (for third-party 2FA plugins). |
@@ -393,18 +419,20 @@ Class constant (`int 120`). The length of the grace window in seconds. Can be re
 
 WP Sudo adds WPGraphQL as a fifth non-interactive surface alongside WP-CLI, Cron, XML-RPC, and Application Passwords. The policy setting key is `wpgraphql_policy` (stored in `wp_sudo_settings`). The three-tier model applies: Disabled, Limited (default), Unrestricted.
 
-**How gating works.** WPGraphQL does not use the WordPress REST API pipeline — it dispatches requests via rewrite rules at `parse_request`. WP Sudo hooks into WPGraphQL's own `graphql_process_http_request` action, which fires after authentication but before body reading, regardless of how the endpoint is named or configured. In Limited mode, requests whose POST body contains the string `mutation` are blocked unless the requesting user has an active sudo session.
+**How gating works.** WPGraphQL does not use the WordPress REST API pipeline — it dispatches requests via rewrite rules at `parse_request`. WP Sudo hooks into WPGraphQL's own `graphql_process_http_request` action, which fires after authentication but before body reading, regardless of how the endpoint is named or configured. In Limited mode, WP Sudo decodes JSON bodies, GET/form `query` params, and multipart `operations` payloads, scans inline GraphQL documents for a top-level `mutation` operation token, and blocks mutations unless the requesting user has an active sudo session.
 
 **Why surface-level rather than per-action.** The action registry rules are keyed to WordPress action hooks — `activate_plugin`, `delete_user`, `wp_update_options`, etc. — that fire regardless of entry surface. WPGraphQL mutations do not reliably fire those same hooks; they dispatch through WPGraphQL's own resolver chain, and the mapping from mutation name to WordPress hook depends entirely on how each resolver is implemented. Per-action gating would therefore require either (a) parsing the GraphQL request body to extract operation names and maintaining a mutation→hook mapping across the full WPGraphQL ecosystem, or (b) a new WPGraphQL-specific rule type separate from the hook-based registry. Both approaches carry significant ongoing maintenance cost. The surface-level heuristic — tokenize the request body to detect a top-level `mutation` operation — is reliable for the primary use case (headless deployments where mutations come from automated clients, not interactive users) and the `wp_sudo_wpgraphql_bypass` filter provides the escape hatch for mutations that should not require a sudo session (see below).
 
 **Headless deployments.** The Limited policy requires both a recognized WordPress user and an active sudo session cookie. For frontends running at a different origin, this means mutations will be blocked in most configurations — the sudo session cookie is browser-bound and can only be created via the WordPress admin UI. See [WPGraphQL: Headless Authentication Boundary](security-model.md#wpgraphql-headless-authentication-boundary) in the security model for full details and per-deployment policy recommendations.
 
-**Persisted queries.** The default heuristic extracts inline GraphQL documents from the request body and scans each for a top-level `mutation` operation token (see `extract_wpgraphql_documents()` and `wpgraphql_document_contains_mutation()` in `includes/class-gate.php`). A WPGraphQL Persisted Queries (or APQ) request whose body carries only a `queryId`, `id`, or `extensions.persistedQuery.sha256Hash` contains no inline document — the tokenizer cannot determine the operation type, so the request is **blocked by default** (fail-safe). Use `wp_sudo_wpgraphql_classification` to classify persisted requests as `query` so read-only persisted operations can pass through. If all persisted requests should pass through, use Unrestricted policy.
+**Persisted queries.** The default heuristic extracts inline GraphQL documents from the request body and scans each for a top-level `mutation` operation token (see `extract_wpgraphql_documents()` and `wpgraphql_document_contains_mutation()` in `includes/class-gate.php`). A WPGraphQL Persisted Queries (or APQ) request whose body carries only an operation id or hash (`id`, `queryId`, `documentId`, or an `extensions.persistedQuery` object) contains no inline document — the tokenizer cannot determine the operation type, so the request is **blocked by default** (fail-safe). Use `wp_sudo_wpgraphql_classification` to classify persisted requests as `query` so read-only persisted operations can pass through. If all persisted requests should pass through, use Unrestricted policy.
+
+**Block-string tokenizer.** `wpgraphql_document_contains_mutation()` mirrors graphql-php's lexer so the gate sees the same operation structure the server will execute. GraphQL block strings (`"""…"""`) recognize exactly one escape sequence — `\"""` (an escaped triple-quote) — and have **no** `\\` escaped-backslash rule, unlike ordinary `"…"` strings; only an *unescaped* `"""` terminates the block. So a sequence like `\\"""` is a literal backslash followed by an escaped `\"""`, which leaves the block string unterminated — graphql-php then raises an `Unterminated string` syntax error and executes nothing, so there is no mutation to gate. Verified against `webonyx/graphql-php` `src/Language/Lexer.php` (`readBlockString()`), where the escape branch fires only when a backslash is immediately followed by three quote characters. When editing the tokenizer, preserve this equivalence — do not switch to an "even number of backslashes terminates" model, which would diverge from the real lexer.
 
 ### `wp_sudo_wpgraphql_classification` filter
 
-Classifies a GraphQL request body as mutation or query before the legacy
-heuristic is used.
+Classifies a GraphQL request body as mutation or query before the default
+decoded-payload classifier is used.
 
 ```php
 /**
@@ -417,7 +445,7 @@ apply_filters( 'wp_sudo_wpgraphql_classification', '', $body );
 
 - Return `'mutation'` to force mutation handling.
 - Return `'query'` to force non-mutation handling.
-- Return any other value to fall back to default body-string heuristic.
+- Return any other value to fall back to default decoded-payload classification.
 
 ### `wp_sudo_wpgraphql_bypass` filter
 

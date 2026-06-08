@@ -1,0 +1,12 @@
+{
+  "core": "https://downloads.wordpress.org/release/wordpress-7.0-RC1.zip",
+  "plugins": ["."],
+  "phpVersion": "8.2",
+  "port": 8889,
+  "testsEnvironment": false,
+  "config": {
+    "WP_DEBUG": true,
+    "WP_DEBUG_LOG": true,
+    "SCRIPT_DEBUG": true
+  }
+}

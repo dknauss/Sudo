@@ -119,8 +119,12 @@ Traditional security plugins focus on **step 1** (blocking initial access). Sudo
 
 *Statistics verified 2026-02-27 against primary sources (Patchstack 2025 and 2026 whitepapers, Sucuri, Verizon DBIR, Wordfence, OWASP).*
 
+**Scope note on the exploitation statistics.** The figures above describe vulnerability *categories* (Broken Access Control, Privilege Escalation, Broken Authentication, CSRF) and what share of exploitation attempts target them. WP Sudo is effective against the subset of those attacks that require triggering a covered operation on a surface WP Sudo intercepts — specifically the kill-chain step where an attacker with a valid session attempts a covered high-risk action. Exploits within those same categories that perform privileged state changes through plugin-specific ungated code paths, or that do not require triggering any covered operation, are outside WP Sudo's interception path and are not included in these estimates.
+
 ## What It Does Not Protect Against
 
+- **Privilege escalation via uncovered plugin paths** — if a plugin performs a privileged state change (setting user roles, creating admin accounts, modifying critical options) through its own AJAX handler, custom REST endpoint, or direct WordPress function call without routing through a surface WP Sudo intercepts, the gate never fires. WP Sudo only blocks operations it has been positioned to see. A subscriber who exploits a broken plugin AJAX handler that directly calls `wp_set_role()` is entirely outside WP Sudo's interception path.
+- **Custom plugin capabilities, roles, and mutation endpoints** — operations gated by plugin-defined capabilities that mirror core WordPress capabilities are not automatically covered. WP Sudo gates the 35 built-in rules on known surfaces; it cannot auto-discover ungated surfaces in arbitrary plugin code. The `wp_sudo_gated_actions` filter can cover known plugin paths, but requires explicit integration per plugin.
 - **Broken authorization in already-active sudo sessions** — active sudo is per browser session, not site-wide. Another user's active sudo session does not help an attacker somewhere else, but if a vulnerable plugin runs inside the *same* browser session after sudo has already been satisfied, WP Sudo usually will not prompt again for covered actions until the window expires. Correct capability checks can still block the action; missing or wrong capability checks remain the plugin's bug.
 - **Direct database access** — an attacker with SQL access can modify data without triggering any WordPress hooks. WP Sudo cannot gate operations that bypass the WordPress API entirely.
 - **File system access** — PHP scripts that load `wp-load.php` and call WordPress functions directly may bypass the gate if they don't trigger the standard hook sequence.
@@ -164,9 +168,9 @@ HTTP POST /graphql
 
 WP Sudo adds WPGraphQL as a fifth non-interactive surface with the same three-tier policy model (Disabled / Limited / Unrestricted) as WP-CLI, Cron, XML-RPC, and Application Passwords. The default is **Limited**.
 
-**Mutation detection heuristic.** In Limited mode, WP Sudo first applies the `wp_sudo_wpgraphql_classification` filter, then decodes common JSON and form-encoded GraphQL payloads and scans GraphQL document text for top-level `mutation` operation tokens. This covers standard inline mutations, JSON-escaped operation text, and batched JSON bodies where any item is a mutation. The fallback is still intentionally schema-independent: it does not parse the WPGraphQL schema or resolve operation hashes on its own, but it avoids the older raw-body substring behavior that could both miss encoded mutations and over-block queries that merely mention `mutation` in string arguments.
+**Mutation detection heuristic.** In Limited mode, WP Sudo first applies the `wp_sudo_wpgraphql_classification` filter, then decodes common JSON bodies, GET/form `query` params, and multipart `operations` GraphQL payloads and scans GraphQL document text for top-level `mutation` operation tokens. This covers standard inline mutations, JSON-escaped operation text, GET mutation attempts, file-upload multipart operations, and batched bodies where any item is a mutation. The fallback is still intentionally schema-independent: it does not parse the WPGraphQL schema or resolve operation hashes on its own, but it avoids the older raw-body substring behavior that could both miss encoded mutations and over-block queries that merely mention `mutation` in string arguments.
 
-**Persisted queries.** When using WPGraphQL Persisted Queries (or APQ), the request body often contains only a query hash/ID. Use the `wp_sudo_wpgraphql_classification` filter to classify those requests as `mutation` or `query`. Without classifier coverage, persisted mutations can appear as non-mutations under the default heuristic. If strict mutation blocking is required and classifier coverage is not feasible, use the **Disabled** policy.
+**Persisted queries.** When using WPGraphQL Persisted Queries (or APQ), the request often contains only a query hash/ID in the JSON body, GET `extensions` param, or multipart `operations` field. In Limited mode, unresolved persisted operations are treated as mutations by default so they fail safe. Use the `wp_sudo_wpgraphql_classification` filter to classify known persisted read operations as `query` when they should pass through without sudo. If all persisted requests should pass through, use the **Unrestricted** policy; if all GraphQL traffic should be blocked, use the **Disabled** policy.
 
 **Scope.** WPGraphQL core exposes `deleteUser`, `updateUser`, `createUser`, and related mutations that map directly to gated operations. Third-party WPGraphQL extensions may add further mutations. The surface-level policy gates all mutations uniformly without requiring a schema-coupled rule set.
 
@@ -300,11 +304,13 @@ authenticated requests.
 
 **What WP Sudo stores via transients:**
 
-- `Request_Stash` saves original admin request data (method, URL, POST body)
-  for challenge replay. Passwords, tokens, API keys, and other configured
-  secret fields are omitted from the stash; when those fields were present,
-  WP Sudo redirects the user back after reauthentication and asks them to
-  re-enter the secret while the sudo session is active.
+- `Request_Stash` saves the replay target (method and URL) plus only the
+  matched rule's allowlisted POST fields. It does not store `$_GET`
+  separately; GET replay uses the original URL. Passwords, tokens, API keys,
+  and other configured or suffix-matched secret fields are omitted from the
+  stash; when those fields were present, WP Sudo redirects the user back after
+  reauthentication and asks them to re-enter the secret while the sudo session
+  is active.
 - `Sudo_Session` stores per-IP failed-attempt event buckets
   (`wp_sudo_ip_failure_event_{hash}`) and per-IP lockout timestamps
   (`wp_sudo_ip_lockout_until_{hash}`) for multidimensional rate limiting.
@@ -325,9 +331,10 @@ action manually. This is **annoying but not a security issue** — it fails safe
 - Transient TTL is set to 5 minutes, which is generous for a password challenge.
 - Without a persistent object cache, transients fall back to the `wp_options`
   database table, which is not subject to memory-pressure eviction.
-- The stash stores only the request metadata needed for replay and never stores
-  configured secret fields. It is small (typically under 1 KB) and unlikely to
-  be evicted by LRU policies.
+- The stash stores only the request metadata and rule-allowlisted POST fields
+  needed for replay. Unsafe or unallowlisted POST bodies are not replayed
+  automatically. Stashes are small (typically under 1 KB) and unlikely to be
+  evicted by LRU policies.
 
 **Risk: IP-rate-limit transient eviction or stale reads.** If per-IP failure
 event/lockout transients are evicted early, the combined lockout policy can

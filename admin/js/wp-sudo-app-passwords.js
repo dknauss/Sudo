@@ -74,6 +74,7 @@
 		var data = new FormData();
 		data.append( 'action', 'wp_sudo_app_password_policy' );
 		data.append( '_nonce', config.nonce );
+		data.append( 'user_id', config.userId || 0 );
 		data.append( 'uuid', uuid );
 		data.append( 'policy', policy );
 

@@ -56,6 +56,9 @@ jobs:
             --admin_password=password \
             --admin_email=dev@example.com \
             --skip-email
+          for cap in manage_wp_sudo view_wp_sudo_activity export_wp_sudo_activity revoke_wp_sudo_sessions; do
+            docker compose -f .github/docker/nginx-mariadb.compose.yml run --rm cli wp user add-cap admin "$cap" --path=/var/www/html
+          done
           docker compose -f .github/docker/nginx-mariadb.compose.yml run --rm cli wp plugin activate wp-sudo --path=/var/www/html
 
       - name: Wait for nginx WordPress to be ready
@@ -74,6 +77,7 @@ jobs:
         env:
           WP_BASE_URL: http://127.0.0.1:9080
           WP_REQUEST_BASE_URL: http://127.0.0.1:9080
+          WP_SUDO_SKIP_WP_ENV_CAP_SETUP: '1'
         run: npm run test:e2e:stack-smoke
 
       - name: Upload Playwright report

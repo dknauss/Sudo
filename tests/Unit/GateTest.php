@@ -843,15 +843,16 @@ class GateTest extends TestCase {
 		Functions\when( 'apply_filters' )->alias(
 			static function ( $hook, $value ) {
 				if ( 'wp_sudo_gated_actions' === $hook ) {
-					return array(
-						array(
-							'id'       => 'vendor.custom_broken',
-							'label'    => 'Vendor action',
-							'category' => 'custom',
-							'rest'     => array(
-								'route'   => '#(#',
-								'methods' => array( 'DELETE' ),
-							),
+					// Append a third-party rule with a broken regex pattern.
+					// Since F18d, built-in rules survive the filter, so we must use
+					// a vendor endpoint URL that no built-in rule covers.
+					$value[] = array(
+						'id'       => 'vendor.custom_broken',
+						'label'    => 'Vendor action',
+						'category' => 'custom',
+						'rest'     => array(
+							'route'   => '#(#',
+							'methods' => array( 'DELETE' ),
 						),
 					);
 				}
@@ -859,7 +860,8 @@ class GateTest extends TestCase {
 			}
 		);
 
-		$request = new \WP_REST_Request( 'DELETE', '/wp/v2/plugins/anything' );
+		// Use a vendor URL not matched by any built-in REST rule.
+		$request = new \WP_REST_Request( 'DELETE', '/vendor/acme/custom-resource' );
 
 		$this->assertNull( $this->gate->match_request( 'rest', $request ) );
 	}
@@ -3567,6 +3569,54 @@ class GateTest extends TestCase {
 		$body = "\xEF\xBB\xBF" . '{"query":"mutation { deleteUser(input:{id:\"1\"}) { deletedId } }"}';
 
 		$result = $this->gate->check_wpgraphql( $body );
+
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( 'sudo_blocked', $result->get_error_code() );
+	}
+
+	// ── WPGraphQL multipart operations hardening ─────────────────────
+
+	/**
+	 * GraphQL multipart uploads carry the GraphQL operation in a form field
+	 * named `operations`, not necessarily in php://input. Limited mode must
+	 * classify that field or file-upload mutations can bypass the gate.
+	 */
+	public function test_check_wpgraphql_blocks_multipart_operations_mutation(): void {
+		$this->arrange_limited_no_session();
+
+		$operations = '{"query":"mutation { uploadFile(input:{file:null}) { mediaItem { id } } }"}';
+
+		$result = $this->gate->check_wpgraphql( '', array( 'operations' => $operations ) );
+
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( 'sudo_blocked', $result->get_error_code() );
+	}
+
+	public function test_check_wpgraphql_allows_multipart_operations_query(): void {
+		$this->arrange_limited_no_session();
+
+		$operations = '{"query":"query { viewer { id } }"}';
+
+		$this->assertNull( $this->gate->check_wpgraphql( '', array( 'operations' => $operations ) ) );
+	}
+
+	public function test_check_wpgraphql_blocks_multipart_batched_operations_when_any_entry_is_mutation(): void {
+		$this->arrange_limited_no_session();
+
+		$operations = '[{"query":"query { viewer { id } }"},{"query":"mutation { deleteUser(input:{id:\"1\"}) { deletedId } }"}]';
+
+		$result = $this->gate->check_wpgraphql( '', array( 'operations' => $operations ) );
+
+		$this->assertInstanceOf( \WP_Error::class, $result );
+		$this->assertSame( 'sudo_blocked', $result->get_error_code() );
+	}
+
+	public function test_check_wpgraphql_blocks_multipart_persisted_operation_by_default(): void {
+		$this->arrange_limited_no_session();
+
+		$operations = '{"extensions":{"persistedQuery":{"sha256Hash":"abc123","version":1}}}';
+
+		$result = $this->gate->check_wpgraphql( '', array( 'operations' => $operations ) );
 
 		$this->assertInstanceOf( \WP_Error::class, $result );
 		$this->assertSame( 'sudo_blocked', $result->get_error_code() );

@@ -53,6 +53,7 @@ class Upgrader {
 		'2.2.0'  => 'upgrade_2_2_0',
 		'2.15.0' => 'upgrade_2_15_0',
 		'3.0.0'  => 'upgrade_3_0_0',
+		'3.1.0'  => 'upgrade_3_1_0',
 	);
 
 	/**
@@ -243,5 +244,41 @@ class Upgrader {
 	 */
 	private function upgrade_3_0_0(): void {
 		Event_Store::create_table();
+	}
+
+	/**
+	 * 3.1.0 migration: preserve Sudo access for existing single-site admins.
+	 *
+	 * Fresh activations grant the dedicated governance capabilities to the
+	 * activating admin, but already-active installs do not fire the activation
+	 * callback during a code update. Backfill the initial governance holders so
+	 * strict mode does not lock existing operators out of Sudo settings.
+	 *
+	 * Multisite remains super-admin governed via sudo_can()'s explicit
+	 * super-admin short-circuit, so no per-site cap grant is needed here.
+	 *
+	 * @return void
+	 */
+	private function upgrade_3_1_0(): void {
+		if ( is_multisite() ) {
+			return;
+		}
+
+		$admins = get_users(
+			array(
+				'role'   => 'administrator',
+				'fields' => 'all',
+			)
+		);
+
+		foreach ( $admins as $admin ) {
+			if ( ! $admin instanceof \WP_User ) {
+				continue;
+			}
+
+			foreach ( Admin::GOVERNANCE_CAPS as $cap ) {
+				$admin->add_cap( $cap );
+			}
+		}
 	}
 }

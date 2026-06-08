@@ -32,7 +32,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Start WordPress environment
-        run: npx wp-env start
+        run: npx wp-env start --config .wp-env.e2e.json
 
       - name: Wait for WordPress to be ready
         run: |
@@ -46,9 +46,14 @@ jobs:
           done
 
       - name: Assert pinned WordPress beta version
+        env:
+          WP_ENV_CONFIG_PATH: .wp-env.e2e.json
+          WP_ENV_ASSERT_CONTAINERS: cli
         run: npm run env:assert-wp-version
 
       - name: Run E2E tests
+        env:
+          WP_ENV_CONFIG_PATH: .wp-env.e2e.json
         run: npm run test:e2e
 
       - name: Upload Playwright report on failure
@@ -64,4 +69,4 @@ jobs:
 
       - name: Stop WordPress environment
         if: always()
-        run: npx wp-env stop
+        run: npx wp-env stop --config .wp-env.e2e.json

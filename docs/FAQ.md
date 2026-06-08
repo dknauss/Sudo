@@ -2,7 +2,11 @@
 
 ## What problem does Sudo solve?
 
-Sudo can prevent or radically reduce the damage attackers can do if they hijack an authenticated session or penetrate firewalls and exploit a Broken Access Control (BAC), Broken Authentication, Privilege Escalation, or Cross-Site Request Forgery (CSRF) vulnerability. It also defends against scenarios where a device is stolen or left unattended, or any scenario allowing an attacker to take control of an active user session. These types of threats are becoming increasingly common and a leading source of breaches across all platforms.
+**The primary threat WP Sudo is built for:** an attacker has a valid authenticated admin session — stolen cookie, unattended browser, hijacked session via XSS — but does not know the account password or second factor, and no active sudo window is already open. On that threat, WP Sudo is highly effective: the attacker cannot perform any covered high-risk operation without completing the reauthentication challenge.
+
+Beyond that core scenario, Sudo can limit or block damage from a broader class of threats: Broken Access Control (BAC), Broken Authentication, Privilege Escalation, and CSRF vulnerabilities — **when those exploits must trigger a covered operation on a surface WP Sudo intercepts.** That condition matters. If an exploit runs through a plugin's own ungated code path, or calls privileged WordPress functions directly without routing through a surface WP Sudo can see, the gate does not fire. Sudo is not a generic repair for broken authorization in plugin code.
+
+Sudo also defends against scenarios where a device is stolen or left unattended, and against automated non-interactive access (WP-CLI, REST, XML-RPC, WPGraphQL) being used to perform destructive operations without operator intent. These types of threats are becoming increasingly common and a leading source of breaches across all platforms.
 
 Broken Access Control is the #1 web application vulnerability today. OWASP ranked it #1 in its 2025 Top 10 list after finding this type of vulnerability in 100% of its application test samples ([OWASP 2025](https://owasp.org/Top10/2025/A01_2025-Broken_Access_Control/)). In the WordPress ecosystem, Broken Access Control was the second-largest category of new vulnerabilities in 2024, after XSS ([Patchstack 2024](https://patchstack.com/whitepaper/state-of-wordpress-security-in-2025/)). In 2025, Broken Access Control vulnerabilities became the target of 57% of all attacks on WordPress sites ([Patchstack 2025](https://patchstack.com/whitepaper/state-of-wordpress-security-in-2026/#-broken-access-control-was-the-most-exploited-vulnerability)). This surge is most likely the result of threat actors shifting away from XSS and concentrating their efforts on the types of attacks that firewalls are least likely to identify or predict, even with machine learning. As Patchstack notes:
 
@@ -21,6 +25,24 @@ Sudo can neutralize attacks or severely limit their blast radius (the scope of t
 Sudo is *not* intended as a replacement for diligent plugin selection, timely updates, and effective firewalling; instead, it complements and backstops those layers of defense. 
 
 When the firewall misses an exploit and a vulnerable plugin still needs WordPress to perform a covered high-impact action, *Sudo can still be the gate between access and damage*. But it only protects the paths it actually intercepts. If the plugin omits capability checks, exposes its own ungated mutation endpoint, directly mutates privileged state, or the exploit runs inside an already-active sudo session, WP Sudo may not stop it.
+
+## Can WP Sudo stop a privilege escalation attack?
+
+It depends entirely on where the exploit path goes.
+
+**Yes, if the attack crosses a covered surface.** An attacker who exploits a plugin vulnerability to gain a session and then tries to perform a covered high-risk operation — activate a plugin, create an admin user, change a role — through the standard admin UI, AJAX, or REST path that WP Sudo intercepts will hit the gate. The attacker has no sudo session, so the operation is blocked regardless of how they obtained their session. This is the core kill-chain interception: even with a valid session, covered destructive actions require credential proof.
+
+**No, if the exploit runs through the plugin's own path.** If the vulnerable plugin calls `wp_set_role()`, `wp_insert_user()`, or similar WordPress functions from inside its own AJAX handler or REST endpoint — without routing through a standard surface WP Sudo has been positioned to intercept — the gate never fires. WP Sudo cannot invent interception points for code it does not see.
+
+**No, if the attack runs inside an already-active sudo session.** If the exploited browser session already has an active sudo window, WP Sudo will generally not re-challenge until that window expires. The outcome at that point depends entirely on the underlying authorization logic in the exploited code. See the next question.
+
+The practical implication: WP Sudo raises the cost of exploiting a compromised session, but it is not a substitute for fixing broken access controls in plugin code.
+
+## What about plugins that define their own capabilities, roles, or mutation endpoints?
+
+WP Sudo only gates the specific operations it knows about — the 35 built-in rules covering standard WordPress admin, AJAX, and REST surfaces. If a plugin defines its own `my_plugin_delete_user` AJAX action that directly performs user deletion, registers a custom REST endpoint that sets user roles, or operates through a capability like `custom_manage_users` rather than WordPress core's `edit_users`, WP Sudo knows nothing about those paths.
+
+There is no automatic coverage for plugin-invented surfaces. The `wp_sudo_gated_actions` filter lets operators and developers add custom rules for known plugin paths, but that requires explicit integration per plugin. WP Sudo is hook-based, not schema-based — it gates known WordPress API surfaces; it cannot discover ungated surfaces it has not been explicitly told about.
 
 ## What if Sudo is already active when a broken access control bug is exploited?
 
@@ -53,7 +75,17 @@ Sudo is complementary to any other security layers you put in place. It doesn't 
 
 ## What are Sudo's limitations?
 
-WP Sudo does not protect against an attacker who already knows your WordPress password and one-time password (OTP) if two-factor authentication (2FA) is active. (Using two-factor is highly recommended on any site.) Someone who possesses all your credentials can, of course, complete the sudo challenge just as you can. Sudo also does not protect against direct database access, file system operations that bypass WordPress hooks, or custom plugin code that mutates privileged state through paths WP Sudo never sees. If a vulnerable plugin is already running inside an active sudo window for that same browser session, WP Sudo will usually not prompt again until the window expires. See the [Security Model](security-model.md) for a full account of what WP Sudo does and does not defend against.
+WP Sudo does not protect against an attacker who already knows your WordPress password and second factor — someone with your full credentials can complete the challenge just as you can. Using 2FA is strongly recommended.
+
+Beyond that, WP Sudo's protection is bounded to the surfaces and operations it explicitly intercepts:
+
+- **Plugin vulnerabilities that don't cross a covered surface** — if a broken plugin performs a privileged state change through its own code path (custom AJAX handler, custom REST endpoint, direct `wp_update_user()` call), WP Sudo does not see it. See *Can WP Sudo stop a privilege escalation attack?* above.
+- **Custom plugin capabilities and roles** — operations protected by plugin-defined capabilities that parallel WordPress core ones are not automatically gated. Explicit custom rules via `wp_sudo_gated_actions` are required.
+- **Direct database access** — SQL writes bypass all WordPress hooks.
+- **File system operations** — PHP scripts that bypass the standard hook sequence.
+- **Attacks inside an already-active sudo session** — WP Sudo will not re-challenge a same-browser session until the window expires; a vulnerable plugin running inside that window is governed by its own authorization logic.
+
+See the [Security Model](security-model.md) for the full account of boundaries, failure modes, and caching considerations.
 
 Also, there is no substitute for a first-class, security-hardened server and application environment. Learn what this means so you can deploy secure sites yourself or simply become a savvier hosting consumer:
 
@@ -158,7 +190,7 @@ WPGraphQL mutations do not reliably fire those same hooks. WPGraphQL dispatches 
 
 Per-action gating would require either parsing GraphQL request bodies to extract operation names and maintaining a mutation→hook mapping, or a new WPGraphQL-specific rule type separate from the hook-based registry. Both carry significant ongoing maintenance costs for the plugins and custom mutations that WPGraphQL-based sites rely on.
 
-The surface-level approach — blocking any request body containing `mutation` in Limited mode — is reliable and appropriate for the primary use case: headless deployments where mutations come from automated API clients rather than interactive admin users. For mutations that should not require a sudo session (content mutations, authentication handshakes, etc.), the `wp_sudo_wpgraphql_bypass` filter provides precise per-mutation control without modifying the global policy.
+The surface-level approach — blocking any request whose body resolves to a GraphQL `mutation` operation in Limited mode — is reliable and appropriate for the primary use case: headless deployments where mutations come from automated API clients rather than interactive admin users. For mutations that should not require a sudo session (content mutations, authentication handshakes, etc.), the `wp_sudo_wpgraphql_bypass` filter provides precise per-mutation control without modifying the global policy.
 FYI: In GraphQL, a "mutation" is a type of operation used to modify server-side data, causing side effects on the back end. While queries are used for fetching data, mutations are specifically designed for creating, updating, or deleting data. (This is similar to `POST`, `PUT`, `PATCH`, or `DELETE` in `REST`.) 
 
 ## Does WP Sudo work with WPGraphQL JWT Authentication?

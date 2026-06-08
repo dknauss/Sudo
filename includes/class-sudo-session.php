@@ -359,14 +359,14 @@ class Sudo_Session {
 
 		// 2. Check for hard lockout.
 		$user_lockout = self::is_locked_out( $user_id );
-		$ip_lockout   = self::is_ip_locked_out( $request_ip );
+		$ip_lockout   = self::is_ip_locked_out( $request_ip, $user_id );
 
 		if ( $user_lockout || $ip_lockout ) {
 			return array(
 				'code'      => 'locked_out',
 				'remaining' => max(
 					self::lockout_remaining( $user_id ),
-					self::ip_lockout_remaining( $request_ip )
+					self::ip_lockout_remaining( $request_ip, $user_id )
 				),
 			);
 		}
@@ -451,7 +451,7 @@ class Sudo_Session {
 						'expires'  => $expires_at,
 						'path'     => COOKIEPATH,
 						'domain'   => COOKIE_DOMAIN,
-						'secure'   => is_ssl(),
+						'secure'   => self::cookie_secure(),
 						'httponly' => true,
 						'samesite' => 'Strict',
 					)
@@ -574,7 +574,7 @@ class Sudo_Session {
 					'expires'  => time() - YEAR_IN_SECONDS,
 					'path'     => COOKIEPATH,
 					'domain'   => COOKIE_DOMAIN,
-					'secure'   => is_ssl(),
+					'secure'   => self::cookie_secure(),
 					'httponly' => true,
 					'samesite' => 'Strict',
 				)
@@ -639,19 +639,22 @@ class Sudo_Session {
 	 * Check whether the request IP has an active lockout.
 	 *
 	 * @since 2.13.0
+	 * @since 3.1.5 Added $user_id; lockout scoped per-user to prevent DoS (F6).
 	 *
-	 * @param string $ip Request IP address.
-	 * @return bool True when lockout is active for the IP.
+	 * @param string $ip      Request IP address.
+	 * @param int    $user_id User ID.
+	 * @return bool True when lockout is active for the IP+user combination.
 	 */
-	private static function is_ip_locked_out( string $ip ): bool {
-		$until = (int) self::read_transient( self::ip_lockout_transient_key( $ip ) );
+	private static function is_ip_locked_out( string $ip, int $user_id ): bool {
+		$key   = self::ip_lockout_transient_key( $ip, $user_id );
+		$until = (int) self::read_transient( $key );
 
 		if ( ! $until ) {
 			return false;
 		}
 
 		if ( time() >= $until ) {
-			self::delete_transient_key( self::ip_lockout_transient_key( $ip ) );
+			self::delete_transient_key( $key );
 			return false;
 		}
 
@@ -659,44 +662,86 @@ class Sudo_Session {
 	}
 
 	/**
-	 * Get remaining lockout seconds for the request IP.
+	 * Get remaining lockout seconds for the IP+user combination.
 	 *
 	 * @since 2.13.0
+	 * @since 3.1.5 Added $user_id; lockout scoped per-user (F6).
 	 *
-	 * @param string $ip Request IP address.
+	 * @param string $ip      Request IP address.
+	 * @param int    $user_id User ID.
 	 * @return int Seconds remaining, or 0.
 	 */
-	private static function ip_lockout_remaining( string $ip ): int {
-		$until = (int) self::read_transient( self::ip_lockout_transient_key( $ip ) );
+	private static function ip_lockout_remaining( string $ip, int $user_id ): int {
+		$until = (int) self::read_transient( self::ip_lockout_transient_key( $ip, $user_id ) );
 
 		return max( 0, $until - time() );
 	}
 
 	/**
-	 * Whether the current HTTP request's IP is under lockout.
+	 * Whether the current HTTP request's IP is under lockout for a given user.
 	 *
 	 * Exposed as a public API so the 2FA AJAX handler (class-challenge.php)
 	 * can mirror the per-IP lockout check that already exists on the password
 	 * step. Prevents one extra validation attempt leaking per pending account
 	 * despite an active IP lockout (F7).
 	 *
+	 * Lockout is scoped to (ip, user_id) so one user's lockout does not affect
+	 * other admins sharing the same egress IP (F6).
+	 *
+	 * @since 3.1.5
+	 * @since 3.1.5 Added $user_id parameter (F6 scope fix).
+	 *
+	 * @param int $user_id User ID. Defaults to the current user.
+	 * @return bool
+	 */
+	public static function is_current_request_ip_locked_out( int $user_id = 0 ): bool {
+		$user_id = $user_id > 0 ? $user_id : get_current_user_id();
+		return self::is_ip_locked_out( self::get_request_ip(), $user_id );
+	}
+
+	/**
+	 * Remaining lockout seconds for the current HTTP request's IP and user.
+	 *
+	 * @since 3.1.5
+	 * @since 3.1.5 Added $user_id parameter (F6 scope fix).
+	 *
+	 * @param int $user_id User ID. Defaults to the current user.
+	 * @return int Seconds remaining, or 0.
+	 */
+	public static function current_request_ip_lockout_remaining( int $user_id = 0 ): int {
+		$user_id = $user_id > 0 ? $user_id : get_current_user_id();
+		return self::ip_lockout_remaining( self::get_request_ip(), $user_id );
+	}
+
+	// -------------------------------------------------------------------------
+	// Cookie helpers
+	// -------------------------------------------------------------------------
+
+	/**
+	 * Resolve whether WP Sudo session cookies should carry the Secure flag.
+	 *
+	 * Uses `is_ssl()` as the base, adds `FORCE_SSL_ADMIN` as a fallback for
+	 * TLS-terminating reverse proxies that speak plain HTTP to PHP-FPM without
+	 * setting `X-Forwarded-Proto`. Operators can override via the
+	 * `wp_sudo_cookie_secure` filter (e.g. to force Secure on plain-HTTP
+	 * staging environments or to disable it in special testing contexts).
+	 *
 	 * @since 3.1.5
 	 *
 	 * @return bool
 	 */
-	public static function is_current_request_ip_locked_out(): bool {
-		return self::is_ip_locked_out( self::get_request_ip() );
-	}
+	private static function cookie_secure(): bool {
+		$secure = is_ssl() || ( function_exists( 'force_ssl_admin' ) && force_ssl_admin() );
 
-	/**
-	 * Remaining lockout seconds for the current HTTP request's IP.
-	 *
-	 * @since 3.1.5
-	 *
-	 * @return int Seconds remaining, or 0.
-	 */
-	public static function current_request_ip_lockout_remaining(): int {
-		return self::ip_lockout_remaining( self::get_request_ip() );
+		/**
+		 * Override the Secure flag for WP Sudo session and challenge cookies.
+		 *
+		 * @since 3.1.5
+		 *
+		 * @param bool $secure Whether to mark cookies as Secure. Default based on
+		 *                     `is_ssl()` and `force_ssl_admin()`.
+		 */
+		return (bool) apply_filters( 'wp_sudo_cookie_secure', $secure );
 	}
 
 	/**
@@ -762,7 +807,7 @@ class Sudo_Session {
 					'expires'  => time() - YEAR_IN_SECONDS,
 					'path'     => ADMIN_COOKIE_PATH,
 					'domain'   => COOKIE_DOMAIN,
-					'secure'   => is_ssl(),
+					'secure'   => self::cookie_secure(),
 					'httponly' => true,
 					'samesite' => 'Strict',
 				)
@@ -776,7 +821,7 @@ class Sudo_Session {
 					'expires'  => time() + ( $duration * MINUTE_IN_SECONDS ),
 					'path'     => COOKIEPATH,
 					'domain'   => COOKIE_DOMAIN,
-					'secure'   => is_ssl(),
+					'secure'   => self::cookie_secure(),
 					'httponly' => true,
 					'samesite' => 'Strict',
 				)
@@ -840,7 +885,7 @@ class Sudo_Session {
 						'expires'  => time() - YEAR_IN_SECONDS,
 						'path'     => $path,
 						'domain'   => COOKIE_DOMAIN,
-						'secure'   => is_ssl(),
+						'secure'   => self::cookie_secure(),
 						'httponly' => true,
 						'samesite' => 'Strict',
 					)
@@ -878,7 +923,7 @@ class Sudo_Session {
 		add_user_meta( $user_id, self::FAILURE_EVENT_META_KEY, $now, false );
 
 		$user_attempts = self::get_failed_attempts( $user_id );
-		$ip_attempts   = self::record_failed_attempt_for_ip( $ip, $now );
+		$ip_attempts   = self::record_failed_attempt_for_ip( $ip, $now, $user_id );
 		$attempts      = max( $user_attempts, $ip_attempts );
 
 		if ( $user_attempts >= self::MAX_FAILED_ATTEMPTS || $ip_attempts >= self::MAX_FAILED_ATTEMPTS ) {
@@ -889,7 +934,7 @@ class Sudo_Session {
 			);
 
 			self::write_transient(
-				self::ip_lockout_transient_key( $ip ),
+				self::ip_lockout_transient_key( $ip, $user_id ),
 				$now + self::LOCKOUT_DURATION,
 				self::LOCKOUT_DURATION
 			);
@@ -919,16 +964,18 @@ class Sudo_Session {
 	}
 
 	/**
-	 * Record and count failed attempts for an IP within the rolling 24h window.
+	 * Record and count failed attempts for an IP+user within the rolling 24h window.
 	 *
 	 * @since 2.13.0
+	 * @since 3.1.5 Added $user_id; events now scoped per-user (F6).
 	 *
-	 * @param string $ip  Request IP address.
-	 * @param int    $now Current unix timestamp.
-	 * @return int Number of failures for the IP in the active window.
+	 * @param string $ip      Request IP address.
+	 * @param int    $now     Current unix timestamp.
+	 * @param int    $user_id User ID.
+	 * @return int Number of failures for the IP+user in the active window.
 	 */
-	private static function record_failed_attempt_for_ip( string $ip, int $now ): int {
-		$key    = self::ip_failure_event_transient_key( $ip );
+	private static function record_failed_attempt_for_ip( string $ip, int $now, int $user_id ): int {
+		$key    = self::ip_failure_event_transient_key( $ip, $user_id );
 		$events = self::read_transient( $key );
 
 		if ( ! is_array( $events ) ) {
@@ -953,27 +1000,37 @@ class Sudo_Session {
 	}
 
 	/**
-	 * Build transient key for per-IP failed-attempt events.
+	 * Build transient key for per-IP, per-user failed-attempt events.
+	 *
+	 * Scoped to (ip, user_id) so one user's failures do not affect other users
+	 * sharing the same NAT/VPN egress IP (F6).
 	 *
 	 * @since 2.13.0
+	 * @since 3.1.5 Added $user_id parameter; key now scoped per-user.
 	 *
-	 * @param string $ip Request IP address.
+	 * @param string $ip      Request IP address.
+	 * @param int    $user_id User ID.
 	 * @return string
 	 */
-	private static function ip_failure_event_transient_key( string $ip ): string {
-		return self::IP_FAILURE_EVENT_TRANSIENT_PREFIX . hash( 'sha256', $ip );
+	private static function ip_failure_event_transient_key( string $ip, int $user_id ): string {
+		return self::IP_FAILURE_EVENT_TRANSIENT_PREFIX . hash( 'sha256', $ip . '|' . $user_id );
 	}
 
 	/**
-	 * Build transient key for per-IP lockout timestamp.
+	 * Build transient key for per-IP, per-user lockout timestamp.
+	 *
+	 * Scoped to (ip, user_id) so one user's lockout does not deny service to
+	 * other admins sharing the same NAT/VPN egress IP (F6).
 	 *
 	 * @since 2.13.0
+	 * @since 3.1.5 Added $user_id parameter; key now scoped per-user.
 	 *
-	 * @param string $ip Request IP address.
+	 * @param string $ip      Request IP address.
+	 * @param int    $user_id User ID.
 	 * @return string
 	 */
-	private static function ip_lockout_transient_key( string $ip ): string {
-		return self::IP_LOCKOUT_UNTIL_TRANSIENT_PREFIX . hash( 'sha256', $ip );
+	private static function ip_lockout_transient_key( string $ip, int $user_id ): string {
+		return self::IP_LOCKOUT_UNTIL_TRANSIENT_PREFIX . hash( 'sha256', $ip . '|' . $user_id );
 	}
 
 	/**
