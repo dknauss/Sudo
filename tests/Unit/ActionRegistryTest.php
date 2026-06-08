@@ -564,6 +564,71 @@ class ActionRegistryTest extends TestCase {
 	}
 
 	// -----------------------------------------------------------------
+	// Access controls rule (options.wp_sudo_access)
+	// -----------------------------------------------------------------
+
+	/**
+	 * Rule must exist to gate Sudo capability grant/revoke/session-revoke actions.
+	 */
+	public function test_wp_sudo_access_rule_exists(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		$rule = Action_Registry::find( 'options.wp_sudo_access' );
+
+		$this->assertNotNull( $rule );
+		$this->assertSame( 'options', $rule['category'] );
+		$this->assertStringContainsString( 'access', strtolower( $rule['label'] ) );
+	}
+
+	/**
+	 * Admin callback must match the wp-sudo-access option page.
+	 */
+	public function test_wp_sudo_access_callback_matches_access_page(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		$rule = Action_Registry::find( 'options.wp_sudo_access' );
+
+		$this->assertNotNull( $rule );
+		$this->assertNotNull( $rule['admin']['callback'] );
+
+		$_POST['option_page'] = 'wp-sudo-access';
+		$this->assertTrue( call_user_func( $rule['admin']['callback'] ) );
+		unset( $_POST['option_page'] );
+	}
+
+	/**
+	 * Admin callback must reject other option pages.
+	 */
+	public function test_wp_sudo_access_callback_rejects_other_pages(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		$rule = Action_Registry::find( 'options.wp_sudo_access' );
+
+		$this->assertNotNull( $rule );
+
+		$_POST['option_page'] = 'wp-sudo-settings';
+		$this->assertFalse( call_user_func( $rule['admin']['callback'] ) );
+		unset( $_POST['option_page'] );
+	}
+
+	/**
+	 * AJAX surface must gate the wp_sudo_revoke_session action.
+	 */
+	public function test_wp_sudo_access_ajax_gates_revoke_session(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		$rule = Action_Registry::find( 'options.wp_sudo_access' );
+
+		$this->assertNotNull( $rule );
+		$this->assertNotNull( $rule['ajax'] );
+		$this->assertContains( 'wp_sudo_revoke_session', $rule['ajax']['actions'] );
+	}
+
+	// -----------------------------------------------------------------
 	// User create rule (user.create)
 	// -----------------------------------------------------------------
 

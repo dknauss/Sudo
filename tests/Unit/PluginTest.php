@@ -453,6 +453,7 @@ class PluginTest extends TestCase {
 		Functions\when( 'get_role' )->justReturn( null );
 		Functions\when( 'wp_next_scheduled' )->justReturn( false );
 		Functions\when( 'wp_schedule_event' )->justReturn( true );
+		Functions\when( 'get_userdata' )->justReturn( false ); // No user during this test.
 
 		Functions\expect( 'update_option' )
 			->once()
@@ -462,11 +463,58 @@ class PluginTest extends TestCase {
 		$plugin->activate();
 	}
 
+	/**
+	 * On activation, all four governance caps are granted to the activating admin.
+	 */
+	public function test_activate_grants_governance_caps_to_activating_admin(): void {
+		Functions\when( 'get_option' )->justReturn( WP_SUDO_VERSION );
+		Functions\when( 'update_option' )->justReturn( true );
+		Functions\when( 'get_role' )->justReturn( null );
+		Functions\when( 'wp_next_scheduled' )->justReturn( false );
+		Functions\when( 'wp_schedule_event' )->justReturn( true );
+		Functions\when( 'get_current_user_id' )->justReturn( 42 );
+
+		$user = \Mockery::mock( \WP_User::class );
+		$user->ID = 42;
+		$user->shouldReceive( 'add_cap' )->with( 'manage_wp_sudo' )->once();
+		$user->shouldReceive( 'add_cap' )->with( 'view_wp_sudo_activity' )->once();
+		$user->shouldReceive( 'add_cap' )->with( 'export_wp_sudo_activity' )->once();
+		$user->shouldReceive( 'add_cap' )->with( 'revoke_wp_sudo_sessions' )->once();
+
+		Functions\expect( 'get_userdata' )
+			->once()
+			->with( 42 )
+			->andReturn( $user );
+
+		$plugin = new Plugin();
+		$plugin->activate();
+	}
+
+	/**
+	 * No cap grant when there is no current user (CLI/cron activation, user ID 0).
+	 */
+	public function test_activate_skips_cap_grant_when_no_current_user(): void {
+		Functions\when( 'get_option' )->justReturn( WP_SUDO_VERSION );
+		Functions\when( 'update_option' )->justReturn( true );
+		Functions\when( 'get_role' )->justReturn( null );
+		Functions\when( 'wp_next_scheduled' )->justReturn( false );
+		Functions\when( 'wp_schedule_event' )->justReturn( true );
+		Functions\when( 'get_current_user_id' )->justReturn( 0 );
+		Functions\when( 'get_userdata' )->justReturn( false );
+
+		// No add_cap call expected.
+		$plugin = new Plugin();
+		$plugin->activate();
+
+		$this->assertTrue( true );
+	}
+
 	public function test_activate_strips_unfiltered_html_from_editor(): void {
 		Functions\when( 'get_option' )->justReturn( WP_SUDO_VERSION );
 		Functions\when( 'update_option' )->justReturn( true );
 		Functions\when( 'wp_next_scheduled' )->justReturn( false );
 		Functions\when( 'wp_schedule_event' )->justReturn( true );
+		Functions\when( 'get_userdata' )->justReturn( false ); // No user during this test.
 
 		$role = \Mockery::mock( 'WP_Role' );
 		$role->shouldReceive( 'remove_cap' )
@@ -487,6 +535,7 @@ class PluginTest extends TestCase {
 		Functions\when( 'update_option' )->justReturn( true );
 		Functions\when( 'wp_next_scheduled' )->justReturn( false );
 		Functions\when( 'wp_schedule_event' )->justReturn( true );
+		Functions\when( 'get_userdata' )->justReturn( false ); // No user during this test.
 
 		Functions\expect( 'get_role' )
 			->once()
@@ -507,6 +556,7 @@ class PluginTest extends TestCase {
 		Functions\when( 'update_option' )->justReturn( true );
 		Functions\when( 'wp_next_scheduled' )->justReturn( false );
 		Functions\when( 'wp_schedule_event' )->justReturn( true );
+		Functions\when( 'get_userdata' )->justReturn( false ); // No user during this test.
 
 		Functions\expect( 'get_role' )->never();
 
@@ -665,6 +715,7 @@ class PluginTest extends TestCase {
 		Functions\when( 'get_option' )->justReturn( WP_SUDO_VERSION );
 		Functions\when( 'get_role' )->justReturn( null );
 		Functions\when( 'update_option' )->justReturn( true );
+		Functions\when( 'get_userdata' )->justReturn( false ); // No user during this test.
 
 		// The cron event should not already be scheduled.
 		Functions\when( 'wp_next_scheduled' )->justReturn( false );
@@ -682,6 +733,7 @@ class PluginTest extends TestCase {
 		Functions\when( 'get_option' )->justReturn( WP_SUDO_VERSION );
 		Functions\when( 'get_role' )->justReturn( null );
 		Functions\when( 'update_option' )->justReturn( true );
+		Functions\when( 'get_userdata' )->justReturn( false ); // No user during this test.
 
 		// The cron event is already scheduled.
 		Functions\when( 'wp_next_scheduled' )->justReturn( time() + 3600 );

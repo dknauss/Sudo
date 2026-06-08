@@ -423,6 +423,16 @@ class Plugin {
 		// Schedule the daily prune cron event.
 		self::schedule_prune_cron();
 
+		// Grant governance capabilities to the activating admin (single-site only).
+		// On multisite, super admins are covered by the sudo_can() short-circuit.
+		$admin = get_userdata( get_current_user_id() );
+		if ( $admin instanceof \WP_User ) {
+			$admin->add_cap( 'manage_wp_sudo' );
+			$admin->add_cap( 'view_wp_sudo_activity' );
+			$admin->add_cap( 'export_wp_sudo_activity' );
+			$admin->add_cap( 'revoke_wp_sudo_sessions' );
+		}
+
 		// Set a flag so we know the plugin has been activated.
 		update_option( 'wp_sudo_activated', true );
 	}

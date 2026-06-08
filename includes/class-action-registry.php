@@ -479,6 +479,24 @@ class Action_Registry {
 					'rest'     => null,
 				),
 
+			array(
+				'id'       => 'options.wp_sudo_access',
+				'label'    => __( 'Change Sudo access controls', 'wp-sudo' ),
+				'category' => 'options',
+				'admin'    => array(
+					'pagenow'  => 'options.php',
+					'actions'  => array( 'update' ),
+					'method'   => 'POST',
+					'callback' => function (): bool {
+						// phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce verified by WordPress before this callback runs; sanitized in helper.
+						$option_page = self::sanitize_request_string( $_POST['option_page'] ?? '' );
+						return 'wp-sudo-access' === $option_page;
+					},
+				),
+				'ajax'     => array( 'actions' => array( 'wp_sudo_revoke_session' ) ),
+				'rest'     => null,
+			),
+
 			// ── Core Updates ────────────────────────────────────────────
 
 			array(
