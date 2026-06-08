@@ -1,6 +1,6 @@
 # Roadmap: Past and Future Planning — Integration Tests, WP 7.0 Prep, Collaboration, TDD, and Core Design
 
-*Updated June 7, 2026*
+*Updated June 8, 2026*
 
 ## Table of Contents
 
@@ -468,22 +468,27 @@ the recommended implementation order is:
    - Keep SQLite as smoke/release assurance, not a required merge gate
    - Add breadth only where a real compatibility signal is missing
    - **Effort:** Low to medium
-4. ~~**Build the Session Activity Dashboard Widget**~~ ✅ Done (v3.0.0)
+4. **Implement E2E CI acceleration without reducing release assurance**
+   - Keep the full Playwright suite available for release-grade confidence, but shorten normal feedback loops
+   - Build on the completed four-shard E2E split before adding cache/image/policy optimizations
+   - Treat path-based skipping and worker-level parallelism as later steps that require explicit safety rules
+   - **Effort:** Low to medium
+5. ~~**Build the Session Activity Dashboard Widget**~~ ✅ Done (v3.0.0)
    - ~~This is the smallest meaningful product feature still open~~
    - ~~It adds operator value without forcing a major challenge-flow redesign~~
    - ~~It will also establish the audit-data persistence layer that other visibility features could reuse~~
    - ~~**Effort:** Medium~~
-5. **Extend Dashboard Widget for Multisite Network Admin** (see §11.1)
+6. **Extend Dashboard Widget for Multisite Network Admin** (see §11.1)
    - Build on the v3.0.0 foundation with cross-site aggregation
    - Add super admin visibility controls
    - This is the natural next step now that Event_Store and the per-site widget exist
    - **Effort:** Medium
-6. **Design Gutenberg Block Editor integration before implementation**
+7. **Design Gutenberg Block Editor integration before implementation**
    - Treat this as the next major UX milestone, not an opportunistic patch
    - Start with a design phase: challenge transport, snackbar UX, replay model, and test strategy
    - Only implement after the challenge component boundaries are explicit
    - **Effort:** High
-7. **Re-evaluate multisite Network Policy Hierarchy after the dashboard/audit work**
+8. **Re-evaluate multisite Network Policy Hierarchy after the dashboard/audit work**
    - This remains valuable, but only for a narrower audience
    - It becomes easier once policy state and audit visibility are clearer
    - **Effort:** High
@@ -1577,6 +1582,48 @@ should shape the next phases.
 - Tests proving ordinary administrators without Sudo management authority cannot
   relax policies, view restricted activity, export logs, or revoke sessions.
 - Break-glass tests that prove recovery mode is explicit, auditable, and bounded.
+
+#### Phase R4: E2E CI acceleration and release-assurance tuning
+
+**Goal:** shorten feedback loops without weakening the release-grade browser
+coverage that protects challenge, replay, admin UI, and WordPress 7.0 behavior.
+
+**Completed first slice:**
+- Shard the default Chromium Playwright suite across four GitHub runners.
+- Preserve a final aggregate check named `E2E Tests` so branch protection can keep
+  relying on the existing required status.
+- Upload per-shard artifacts and cancel stale same-branch E2E runs after new
+  pushes.
+
+**Next implementation options, in priority order:**
+- Cache Playwright browser binaries (`~/.cache/ms-playwright`) with keys derived
+  from `package-lock.json` and the pinned Playwright version. Keep Linux system
+  dependency installation explicit unless a runner image proves it is stable.
+- Evaluate a prebuilt CI image containing Node, Playwright system dependencies,
+  Chromium, Docker tooling, and the `wp-env` compatibility patch. Adopt only if
+  image maintenance is cheaper than repeated runner bootstrap time.
+- Split smoke and full E2E policy: keep fast smoke coverage required on ordinary
+  PRs, keep the full suite required for release-grade deployments, admin/browser
+  UX changes, request gating/replay changes, and manual dispatches.
+- Add conservative path-based skipping only for low-risk docs, metadata,
+  dependency-lockfile, or Blueprint-only changes. Use a required placeholder check
+  rather than silently omitting required status checks, and never skip full E2E
+  for security, request gating, replay, wp-env/Playwright infrastructure, or
+  release-candidate changes.
+- Audit test isolation before enabling Playwright workers inside a single
+  WordPress environment. Do not raise `workers` above `1` until shared database,
+  cookie, user, nonce, and option state are proven isolated or reset per test.
+- Keep `retries: 2` until sharding establishes a lower flake baseline; reducing
+  retries is a later optimization, not the first stability lever.
+
+**Acceptance criteria:**
+- Each optimization must preserve a visible required status for branch protection.
+- Full E2E must remain easy to trigger manually before tags and release branches.
+- Low-risk skips must be documented in the E2E Validation Policy and must fail
+  closed when changed paths are ambiguous.
+- Measure before/after wall-clock duration for `E2E Tests` and record material
+  changes in `docs/release-status.md` or the release notes when they affect
+  release process expectations.
 
 #### Acceptance criteria
 
