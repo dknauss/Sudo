@@ -70,6 +70,12 @@ Example prompt:
 The **reviewer agent** writes `reviewer-approved` using the Write tool after deciding APPROVE.
 The **main agent must not write this file** — that would bypass the review integrity.
 
+### When to skip
+
+Docs-only commits — no `.php` files changed, only `.md`, `.txt`, or non-code
+config/data files (e.g. `blueprint.json`, `readme.txt`, `CHANGELOG.md`) — do
+not require a reviewer. Commit directly.
+
 ### User bypass (your own commits only)
 
 For commits you write yourself (not AI-generated):
