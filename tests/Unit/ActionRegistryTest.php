@@ -114,6 +114,52 @@ class ActionRegistryTest extends TestCase {
 	}
 
 	/**
+	 * F18d — A wp_sudo_gated_actions callback that returns a replacement set
+	 * (no built-in rules) must not silence built-in gating: all built-in rule
+	 * IDs are re-injected after the filter so core gating remains invariant.
+	 *
+	 * @since 3.1.5
+	 */
+	public function test_get_rules_restores_builtin_rules_removed_by_filter_replacement(): void {
+		Functions\when( '__' )->returnArg();
+
+		Filters\expectApplied( 'wp_sudo_gated_actions' )
+			->once()
+			->andReturnUsing(
+				static function (): array {
+					// Return only a third-party rule — all built-ins stripped.
+					return array(
+						array(
+							'id'       => 'custom.replacement_test',
+							'label'    => 'Replacement rule',
+							'category' => 'custom',
+							'admin'    => array(
+								'pagenow' => 'custom.php',
+								'actions' => array( 'custom_action' ),
+								'method'  => 'GET',
+							),
+						),
+					);
+				}
+			);
+
+		$rules    = Action_Registry::get_rules();
+		$rule_ids = array_column( $rules, 'id' );
+
+		// Third-party rule is kept.
+		$this->assertContains( 'custom.replacement_test', $rule_ids );
+
+		// All built-in rules must still be present after guard re-injection.
+		foreach ( Action_Registry::rules() as $builtin ) {
+			$this->assertContains(
+				$builtin['id'],
+				$rule_ids,
+				"Built-in rule '{$builtin['id']}' must survive filter replacement."
+			);
+		}
+	}
+
+	/**
 	 * Test get_rules() falls back to built-in rules on non-array filter output.
 	 */
 	public function test_get_rules_falls_back_to_builtin_rules_for_non_array_filter_output(): void {

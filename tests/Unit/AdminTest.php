@@ -2844,6 +2844,157 @@ class AdminTest extends TestCase {
 	}
 
 	// -----------------------------------------------------------------
+	// handle_app_password_policy_save() — F14 UUID validation
+	// -----------------------------------------------------------------
+
+	/**
+	 * Helper: mock the components needed for Sudo_Session::is_active($user_id)
+	 * to return true. $user_id defaults to 1.
+	 */
+	private function mock_active_sudo_session( int $user_id = 1 ): void {
+		$token = 'test-sudo-token';
+		Functions\when( 'get_current_user_id' )->justReturn( $user_id );
+		Functions\when( 'get_user_meta' )->alias(
+			static function ( int $uid, string $key, bool $single ) use ( $user_id, $token ) {
+				if ( $uid === $user_id ) {
+					if ( \WP_Sudo\Sudo_Session::META_KEY === $key ) {
+						return time() + 600;
+					}
+					if ( \WP_Sudo\Sudo_Session::TOKEN_META_KEY === $key ) {
+						return hash( 'sha256', $token );
+					}
+				}
+				return '';
+			}
+		);
+		Functions\when( 'hash_equals' )->alias(
+			static function ( string $a, string $b ): bool {
+				return $a === $b;
+			}
+		);
+		$_COOKIE[ \WP_Sudo\Sudo_Session::TOKEN_COOKIE ] = $token;
+	}
+
+	/**
+	 * F14 — UUID format: supplying a non-UUID string must be rejected before
+	 * the option is written.
+	 *
+	 * @since 3.1.5
+	 */
+	public function test_handle_app_password_policy_save_rejects_malformed_uuid(): void {
+		Functions\when( 'check_ajax_referer' )->justReturn( 1 );
+		Functions\when( 'sudo_can' )->justReturn( true );
+		$this->mock_active_sudo_session();
+		Functions\when( 'wp_is_uuid' )->justReturn( false );
+
+		Functions\expect( 'wp_send_json_error' )
+			->once()
+			->with( \Mockery::type( 'array' ) );
+
+		$_POST['uuid']   = 'not-a-uuid';
+		$_POST['policy'] = 'limited';
+
+		$admin = new Admin();
+		$admin->handle_app_password_policy_save();
+
+		unset( $_POST['uuid'], $_POST['policy'] );
+	}
+
+	/**
+	 * F14 — UUID existence: a well-formed UUID that doesn't belong to any of
+	 * the user's application passwords must be rejected.
+	 *
+	 * @since 3.1.5
+	 */
+	public function test_handle_app_password_policy_save_rejects_uuid_not_owned_by_user(): void {
+		Functions\when( 'check_ajax_referer' )->justReturn( 1 );
+		Functions\when( 'sudo_can' )->justReturn( true );
+		$this->mock_active_sudo_session();
+		Functions\when( 'wp_is_uuid' )->justReturn( true );
+
+		// No passwords registered for this user.
+		\WP_Application_Passwords::$mock_passwords = array();
+
+		Functions\expect( 'wp_send_json_error' )
+			->once()
+			->with( \Mockery::type( 'array' ) );
+
+		$_POST['uuid']   = '12345678-1234-4234-a234-123456789012';
+		$_POST['policy'] = 'limited';
+
+		$admin = new Admin();
+		$admin->handle_app_password_policy_save();
+
+		unset( $_POST['uuid'], $_POST['policy'] );
+	}
+
+	/**
+	 * F14 — Happy path: a valid UUID that exists for the current user is saved.
+	 *
+	 * @since 3.1.5
+	 */
+	public function test_handle_app_password_policy_save_accepts_valid_existing_uuid(): void {
+		$uuid = '12345678-1234-4234-a234-123456789012';
+
+		Functions\when( 'check_ajax_referer' )->justReturn( 1 );
+		Functions\when( 'sudo_can' )->justReturn( true );
+		$this->mock_active_sudo_session();
+		Functions\when( 'wp_is_uuid' )->justReturn( true );
+
+		// UUID exists for user 1.
+		\WP_Application_Passwords::$mock_passwords = array(
+			$uuid => array( 'uuid' => $uuid, 'name' => 'Test App' ),
+		);
+
+		Functions\when( 'get_option' )->justReturn( Admin::defaults() );
+		Functions\when( 'update_option' )->justReturn( true );
+
+		Functions\expect( 'wp_send_json_success' )->once();
+
+		$_POST['uuid']   = $uuid;
+		$_POST['policy'] = 'limited';
+
+		$admin = new Admin();
+		$admin->handle_app_password_policy_save();
+
+		unset( $_POST['uuid'], $_POST['policy'] );
+	}
+
+	/**
+	 * F14 — Cleanup hook: deleting an application password removes its
+	 * policy override from settings.
+	 *
+	 * @since 3.1.5
+	 */
+	public function test_handle_app_password_deleted_removes_policy_override(): void {
+		$uuid     = 'deadbeef-dead-4ead-beef-deadbeefcafe';
+		$settings = array_merge(
+			Admin::defaults(),
+			array( 'app_password_policies' => array( $uuid => 'disabled' ) )
+		);
+
+		Functions\when( 'get_option' )->justReturn( $settings );
+
+		$captured = null;
+		Functions\expect( 'update_option' )
+			->once()
+			->with(
+				Admin::OPTION_KEY,
+				\Mockery::on(
+					static function ( array $data ) use ( &$captured ): bool {
+						$captured = $data;
+						return true;
+					}
+				)
+			);
+
+		$admin = new Admin();
+		$admin->handle_app_password_deleted( 1, array( 'uuid' => $uuid ) );
+
+		$this->assertArrayNotHasKey( $uuid, $captured['app_password_policies'] ?? array() );
+	}
+
+	// -----------------------------------------------------------------
 	// handle_revoke_session()
 	// -----------------------------------------------------------------
 

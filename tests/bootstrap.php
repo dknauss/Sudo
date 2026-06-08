@@ -226,6 +226,33 @@ if ( ! class_exists( 'WP_User_Query' ) ) {
 	}
 }
 
+// ── WP_Application_Passwords stub ───────────────────────────────────
+// Minimal stub so handle_app_password_policy_save() tests can control
+// whether a given UUID exists for the current user.
+// Set $mock_passwords to an associative array keyed by UUID to simulate
+// existing passwords; null (the default) means "no passwords found".
+
+if ( ! class_exists( 'WP_Application_Passwords' ) ) {
+	class WP_Application_Passwords {
+		/** @var array<string, array>|null Map of UUID → password item, or null for "none found". */
+		public static ?array $mock_passwords = null;
+
+		/**
+		 * Return the password item for the given UUID, or null if not found.
+		 *
+		 * @param int    $user_id User ID.
+		 * @param string $uuid    Application password UUID.
+		 * @return array|null
+		 */
+		public static function get_user_application_password( int $user_id, string $uuid ): ?array {
+			if ( null === self::$mock_passwords ) {
+				return null;
+			}
+			return self::$mock_passwords[ $uuid ] ?? null;
+		}
+	}
+}
+
 // ── Two Factor plugin stubs ──────────────────────────────────────────
 // Minimal stubs so tests can exercise the class_exists('Two_Factor_Core')
 // branches in Challenge::handle_ajax_2fa() and Challenge::render_page().

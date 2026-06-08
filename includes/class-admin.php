@@ -269,6 +269,8 @@ class Admin {
 
 		// Per-application-password policy dropdowns on user profile pages.
 		add_action( 'wp_ajax_wp_sudo_app_password_policy', array( $this, 'handle_app_password_policy_save' ), 10, 0 );
+		// Clean up per-App-Password policy overrides when a password is deleted.
+		add_action( 'wp_delete_application_password', array( $this, 'handle_app_password_deleted' ), 10, 2 );
 
 		// Users list screen: Sudo Active filter.
 		add_filter( 'views_users', array( $this, 'filter_user_views' ) );
@@ -2713,6 +2715,7 @@ class Admin {
 
 		if ( ! sudo_can( 'manage_wp_sudo' ) ) {
 			wp_send_json_error( array( 'message' => __( 'Unauthorized.', 'wp-sudo' ) ), 403 );
+			return;
 		}
 
 		$user_id = get_current_user_id();
@@ -2724,6 +2727,7 @@ class Admin {
 				),
 				403
 			);
+			return;
 		}
 
 		// phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce verified above via check_ajax_referer; sanitized in helper.
@@ -2733,6 +2737,23 @@ class Admin {
 
 		if ( empty( $uuid ) ) {
 			wp_send_json_error( array( 'message' => __( 'Invalid application password UUID.', 'wp-sudo' ) ) );
+			return;
+		}
+
+		// Validate UUID v4 format before using it as an array key.
+		if ( ! wp_is_uuid( $uuid, 4 ) ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid application password UUID format.', 'wp-sudo' ) ) );
+			return;
+		}
+
+		// Validate that the UUID belongs to an existing application password for
+		// this user — prevents option-table bloat from orphaned policy entries.
+		$password_item = class_exists( 'WP_Application_Passwords' )
+			? \WP_Application_Passwords::get_user_application_password( $user_id, $uuid )
+			: null;
+		if ( null === $password_item ) {
+			wp_send_json_error( array( 'message' => __( 'Application password not found.', 'wp-sudo' ) ) );
+			return;
 		}
 
 		$valid_policies = array( Gate::POLICY_DISABLED, Gate::POLICY_LIMITED, Gate::POLICY_UNRESTRICTED );
@@ -2765,6 +2786,48 @@ class Admin {
 		self::reset_cache();
 
 		wp_send_json_success( array( 'message' => __( 'Policy saved.', 'wp-sudo' ) ) );
+	}
+
+	/**
+	 * Remove the per-App-Password policy override for a deleted application password.
+	 *
+	 * Hooked on `wp_delete_application_password` so that option-table entries
+	 * for deleted passwords are cleaned up immediately rather than accumulating
+	 * as orphaned data.
+	 *
+	 * @since 3.1.5
+	 *
+	 * @param int                  $user_id The user ID whose password was deleted.
+	 * @param array<string, mixed> $item    The deleted password item (contains 'uuid' key).
+	 * @return void
+	 */
+	public function handle_app_password_deleted( int $user_id, array $item ): void {
+		if ( empty( $item['uuid'] ) || ! is_string( $item['uuid'] ) ) {
+			return;
+		}
+
+		$uuid     = (string) $item['uuid'];
+		$settings = is_multisite()
+			? get_site_option( self::OPTION_KEY, self::defaults() )
+			: get_option( self::OPTION_KEY, self::defaults() );
+
+		if ( ! is_array( $settings ) ) {
+			return;
+		}
+
+		if ( empty( $settings['app_password_policies'][ $uuid ] ) ) {
+			return;
+		}
+
+		unset( $settings['app_password_policies'][ $uuid ] );
+
+		if ( is_multisite() ) {
+			update_site_option( self::OPTION_KEY, $settings );
+		} else {
+			update_option( self::OPTION_KEY, $settings );
+		}
+
+		self::reset_cache();
 	}
 
 	/**

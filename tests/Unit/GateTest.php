@@ -843,15 +843,16 @@ class GateTest extends TestCase {
 		Functions\when( 'apply_filters' )->alias(
 			static function ( $hook, $value ) {
 				if ( 'wp_sudo_gated_actions' === $hook ) {
-					return array(
-						array(
-							'id'       => 'vendor.custom_broken',
-							'label'    => 'Vendor action',
-							'category' => 'custom',
-							'rest'     => array(
-								'route'   => '#(#',
-								'methods' => array( 'DELETE' ),
-							),
+					// Append a third-party rule with a broken regex pattern.
+					// Since F18d, built-in rules survive the filter, so we must use
+					// a vendor endpoint URL that no built-in rule covers.
+					$value[] = array(
+						'id'       => 'vendor.custom_broken',
+						'label'    => 'Vendor action',
+						'category' => 'custom',
+						'rest'     => array(
+							'route'   => '#(#',
+							'methods' => array( 'DELETE' ),
 						),
 					);
 				}
@@ -859,7 +860,8 @@ class GateTest extends TestCase {
 			}
 		);
 
-		$request = new \WP_REST_Request( 'DELETE', '/wp/v2/plugins/anything' );
+		// Use a vendor URL not matched by any built-in REST rule.
+		$request = new \WP_REST_Request( 'DELETE', '/vendor/acme/custom-resource' );
 
 		$this->assertNull( $this->gate->match_request( 'rest', $request ) );
 	}

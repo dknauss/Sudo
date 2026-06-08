@@ -20,6 +20,13 @@ if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 	exit;
 }
 
+// Belt-and-suspenders capability check — WordPress core already gates uninstall
+// behind the activate_plugins capability and a nonce. This explicit assertion
+// adds defense-in-depth against hypothetical future core path changes.
+if ( ! current_user_can( 'activate_plugins' ) ) {
+	exit;
+}
+
 if ( ! class_exists( '\WP_Sudo\Event_Store' ) ) {
 	require_once __DIR__ . '/includes/class-event-store.php';
 }
