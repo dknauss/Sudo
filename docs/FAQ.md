@@ -271,9 +271,25 @@ Yes. The default window is 5 minutes. Use the `wp_sudo_two_factor_window` filter
 
 ## Does logging in automatically start a sudo session?
 
-Yes (since v2.6.0). A successful browser-based WordPress login implicitly activates a sudo session. The user just proved their identity via the login form — requiring a second challenge immediately is unnecessary friction. This mirrors the behaviour of Unix `sudo` and GitHub's sudo mode.
+Yes (since v2.6.0). A successful browser-based WordPress login activates a sudo session automatically. The user just proved knowledge of the password via the login form, and WP Sudo's challenge is password-based — an immediate second challenge would add friction without adding a barrier.
+
+Two caveats worth knowing. First, the grant is password-strength only: 2FA plugins interrupt on the same `wp_login` hook at later priority, so for 2FA-enrolled users the grant happens before the second factor is verified. Second, on shared terminals the grant means a logged-in-and-walked-away user leaves a sudo window open for whoever sits down next. Sites that care about either can suppress the automatic grant with the `wp_sudo_grant_session_on_login` filter (since 3.3.0) — return `false` and users must pass an explicit challenge at their first gated action instead. See the [security model](security-model.md#login-auto-grant) for the full analysis.
 
 Application Password and XML-RPC logins are **not** affected — the `wp_login` hook only fires for browser form logins, and these non-interactive paths don't produce a session cookie anyway.
+
+## How does WP Sudo work with SSO (SAML / OIDC) logins?
+
+It depends on whether your SSO plugin fires the `wp_login` action when it signs a user in (most do, for ecosystem compatibility — verify with your provider's documentation or source).
+
+If it does, each fresh identity-provider login grants a sudo session automatically, exactly like a form login. For SSO users **without a usable WordPress password**, this is the only practical path to gated actions: WP Sudo's challenge asks for the WordPress password, which they cannot supply. Their workflow for an expired sudo session is to log out and re-authenticate through the identity provider — a fresh IdP login is effectively their reauthentication.
+
+Practical guidance:
+
+- **Leave the auto-grant enabled** (the default) if your SSO users don't have WordPress passwords. Suppressing it via `wp_sudo_grant_session_on_login` makes gated actions permanently unreachable for them.
+- **Suppress the grant selectively** if some users retain real WordPress passwords and you want them explicitly challenged — the filter receives the `WP_User` object, so you can return `false` only for specific roles or users.
+- **If your SSO plugin does not fire `wp_login`**, no session is granted at login and passwordless users cannot pass the challenge; gated actions will be blocked for them. Options: ensure those users have known WordPress passwords, or have the SSO integration call `WP_Sudo\Sudo_Session::activate( $user_id )` after a verified fresh IdP authentication.
+
+A first-class SSO/SAML/OIDC challenge-provider framework (reauthenticating against the IdP from the challenge page itself) is on the [roadmap](ROADMAP.md) as design backlog.
 
 ## What happens when I change my password — does it affect my sudo session?
 

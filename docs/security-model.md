@@ -130,6 +130,7 @@ Traditional security plugins focus on **step 1** (blocking initial access). Sudo
 - **File system access** — PHP scripts that load `wp-load.php` and call WordPress functions directly may bypass the gate if they don't trigger the standard hook sequence.
 - **Other plugins that bypass hooks or covered paths** — if a plugin calls `activate_plugin()` in a way that suppresses `do_action('activate_plugin')`, exposes a custom AJAX/REST endpoint, or directly mutates roles, capabilities, or options through code paths WP Sudo does not intercept, the gate won't fire. The mu-plugin mitigates some early-loading races, but it cannot invent interception points for code it never sees.
 - **Server-level operations** — database migrations, WP-CLI commands run as root with direct PHP execution, or deployment scripts that modify files are outside WordPress's hook system.
+- **Credential theft at login** — an attacker who knows the password and logs in through wp-login.php receives an automatic sudo session (see [Login Auto-Grant](#login-auto-grant)) and could in any case pass the password challenge at will. WP Sudo's reauthentication barrier is built against *session* theft, not *credential* theft; the residual walk-away and programmatic-login exposures of the auto-grant, and the `wp_sudo_grant_session_on_login` opt-out, are documented in that section.
 
 ### Why this boundary matters
 
@@ -368,6 +369,19 @@ exclusions for `/wp-admin/` and `/wp-json/` does not trigger any of these risks.
 ## Session Binding
 
 When sudo is activated, a cryptographic token is stored in a secure httponly cookie and its hash is saved in user meta. On every gated request, both must match. A stolen session cookie on a different browser will not have a valid sudo session.
+
+## Login Auto-Grant
+
+Every successful browser form login (the `wp_login` hook) automatically activates a full sudo session (since v2.6.0). The rationale: WP Sudo's challenge is password-based, and a user who just proved knowledge of the password would pass it trivially — so an immediate challenge adds friction without a barrier. The same logic bounds what the grant costs: an attacker who logs in with stolen credentials gains an immediate sudo window, but withholding the grant would not have stopped them, because they can pass the password challenge at will.
+
+**Security properties and limits of the auto-grant:**
+
+- **Password-strength only.** 2FA plugins interrupt on the same `wp_login` hook at later priority — the Two Factor plugin hooks it at `PHP_INT_MAX` (verified against live source, `class-two-factor-core.php` line 123, 2026-06-09) — so WP Sudo's priority-10 grant runs *before* the second factor is verified. For 2FA-enrolled users, the login grant carries password assurance, not password + second factor. WP Sudo's own challenge, by contrast, enforces both for enrolled users.
+- **Walk-away exposure.** On shared terminals, a user who logs in and steps away leaves up to a full session window (1–15 minutes, per the session-duration setting) of gated-action capability for whoever is at the keyboard — someone who could *not* have passed the challenge. Sites where this matters can suppress the grant with the `wp_sudo_grant_session_on_login` filter (return `false`), requiring an explicit challenge at the first gated action.
+- **Programmatic logins.** Any code that fires `do_action( 'wp_login', ... )` — SSO/SAML/OIDC plugins, custom login flows — triggers the grant. For passwordless SSO users this is what keeps gated actions reachable at all: a fresh identity-provider login is effectively their reauthentication, since they cannot pass a WordPress-password challenge. Conversely, sites that do not want programmatic logins to mint sudo sessions should suppress the grant via the filter — but only for users who retain a usable WordPress password, otherwise gated actions become unreachable for them.
+- **Non-interactive surfaces unaffected.** `wp_login` does not fire for Application Password or XML-RPC authentication, and those paths carry no session cookie, so the grant is scoped to browser logins.
+
+See the [developer reference](developer-reference.md#filters) for the filter signature and the [FAQ](FAQ.md) for the SSO integration guidance.
 
 ## Grace Period
 
