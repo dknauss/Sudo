@@ -256,7 +256,7 @@ provider impact.
 
 ## Audit Hook Signatures
 
-Sudo fires 10 action hooks for external logging integration with [WP Activity Log](https://wordpress.org/plugins/wp-security-audit-log/), [Stream](https://wordpress.org/plugins/stream/), and similar plugins.
+Sudo fires audit action hooks for external logging integration with [WP Activity Log](https://wordpress.org/plugins/wp-security-audit-log/), [Stream](https://wordpress.org/plugins/stream/), and similar plugins. The live count is tracked in [current-metrics.md](current-metrics.md) (16 as of v3.2.0).
 
 ```php
 // Session lifecycle.
@@ -468,12 +468,21 @@ add_filter( 'wp_sudo_wpgraphql_bypass', function ( bool $bypass, string $body ):
     if ( $bypass ) {
         return $bypass;
     }
-    // Exempt JWT authentication mutations only.
-    if ( str_contains( $body, 'login' ) || str_contains( $body, 'refreshJwtAuthToken' ) ) {
-        return true;
-    }
-    return false;
+
+    $payload = json_decode( $body, true );
+    $query   = is_array( $payload ) && is_string( $payload['query'] ?? null )
+        ? $payload['query']
+        : '';
+
+    // Exempt only documents whose first top-level mutation field is a JWT
+    // authentication operation. Anchoring to the document shape matters: a
+    // `login` alias, a field name like `loginName`, or the substring inside
+    // a string argument elsewhere in the body must NOT trigger the bypass.
+    return (bool) preg_match(
+        '/^\s*mutation\b[^{]*\{\s*(login|refreshJwtAuthToken)\s*[({]/',
+        $query
+    );
 }, 10, 2 );
 ```
 
-The `str_contains()` check here is used for a bypass filter — it only needs to avoid false negatives (wrongly blocking a legitimate auth mutation), so a simple substring check is fine. For precise operation-name matching in more complex bypass rules, use `preg_match()` to extract the operation name from the body.
+A bypass filter is security-sensitive in the **over-match** direction: every request it passes skips Limited-mode gating entirely. A naive substring check such as `str_contains( $body, 'login' )` would let *any* mutation through ungated as long as the string `login` appears anywhere in the body — in an alias, a field name like `loginName`, or a string argument. Prefer under-matching (a legitimate auth mutation gets challenged — recoverable friction) over over-matching (a destructive mutation passes silently). Note one residual limit of the anchored example above: a document that pairs an auth operation with a second top-level mutation field (`mutation { login(...) {...} deleteUser(...) {...} }`) would still match on the first field. If that matters in your deployment, validate the complete document or use a persisted-query allowlist instead of pattern matching.

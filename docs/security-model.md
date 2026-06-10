@@ -9,7 +9,7 @@ WP Sudo uses the term **reauthentication** to describe its core pattern, followi
 ## What It Protects Against
 
 - **Compromised admin sessions** — a stolen session cookie cannot perform covered gated actions without reauthenticating unless that same browser session already has an active sudo window. The sudo session is cryptographically bound to the browser.
-- **Connector credential replacement** — a stolen `manage_options` browser session cannot silently replace database-backed Connectors API keys over `POST`/`PUT`/`PATCH /wp/v2/settings` without reauthenticating first. This protects credential integrity on the admin UI save path even though REST readback already masks the stored secret.
+- **Connector credential replacement** — a stolen `manage_options` browser session cannot silently replace database-backed Connectors API keys over `POST`/`PUT`/`PATCH /wp/v2/settings` without reauthenticating first. The rule matches only that REST route (the WP 7.0 Connectors panel saves through it); options writes that reach the database through other admin-side paths are not covered by this rule. REST readback already masks the stored secret.
 - **Session theft → password change → lockout** — password changes on the profile/user-edit pages and via the REST API are a gated action (`user.change_password`). An attacker who steals a session cookie cannot silently change the victim's password without triggering the challenge.
 - **Insider threats** — even legitimate administrators must prove their identity before destructive operations.
 - **Automated abuse** — headless entry points (WP-CLI, Cron, XML-RPC, Application Passwords, WPGraphQL) can be disabled entirely or restricted to non-gated operations.
@@ -128,7 +128,7 @@ Traditional security plugins focus on **step 1** (blocking initial access). Sudo
 - **Broken authorization in already-active sudo sessions** — active sudo is per browser session, not site-wide. Another user's active sudo session does not help an attacker somewhere else, but if a vulnerable plugin runs inside the *same* browser session after sudo has already been satisfied, WP Sudo usually will not prompt again for covered actions until the window expires. Correct capability checks can still block the action; missing or wrong capability checks remain the plugin's bug.
 - **Direct database access** — an attacker with SQL access can modify data without triggering any WordPress hooks. WP Sudo cannot gate operations that bypass the WordPress API entirely.
 - **File system access** — PHP scripts that load `wp-load.php` and call WordPress functions directly may bypass the gate if they don't trigger the standard hook sequence.
-- **Other plugins that bypass hooks or covered paths** — if a plugin calls `activate_plugin()` in a way that suppresses `do_action('activate_plugin')`, exposes a custom AJAX/REST endpoint, or directly mutates roles, capabilities, or options through code paths WP Sudo does not intercept, the gate won't fire. The mu-plugin mitigates some early-loading races, but it cannot invent interception points for code it never sees.
+- **Other plugins that bypass hooks or covered paths** — if a plugin calls `activate_plugin()` in a way that suppresses `do_action('activate_plugin')`, exposes a custom AJAX/REST endpoint, or directly mutates roles, capabilities, or options through code paths WP Sudo does not intercept, the gate won't fire. The mu-plugin mitigates some early-loading races, but it cannot invent interception points for code it never sees. On multisite this includes headless code writing another site's capability meta key (e.g. `wp_5_capabilities`) without switching to that site's context — the role-change interception matches only the current context's key names.
 - **Server-level operations** — database migrations, WP-CLI commands run as root with direct PHP execution, or deployment scripts that modify files are outside WordPress's hook system.
 - **Credential theft at login** — an attacker who knows the password and logs in through wp-login.php receives an automatic sudo session (see [Login Auto-Grant](#login-auto-grant)) and could in any case pass the password challenge at will. WP Sudo's reauthentication barrier is built against *session* theft, not *credential* theft; the residual walk-away and programmatic-login exposures of the auto-grant, and the `wp_sudo_grant_session_on_login` opt-out, are documented in that section.
 
@@ -203,6 +203,8 @@ In practice, for most headless deployments, **Limited behaves identically to Dis
 | Block all GraphQL mutations unconditionally | Disabled |
 
 For headless deployments that need to gate mutations by authentication — require a WordPress user but not a full sudo session — the recommended approach is to use Application Password authentication on the GraphQL endpoint and set the global REST API (App Passwords) policy to Limited. Unauthenticated requests will still be blocked by the WPGraphQL Limited policy (since `get_current_user_id()` = 0), while authenticated app-password requests are governed by the REST API policy.
+
+**Per-App-Password policy overrides.** The global REST (App Passwords) policy can be overridden per credential: each Application Password (identified by UUID, validated as UUID v4 and confirmed to exist before persisting) can carry its own Disabled / Limited / Unrestricted tier, and the override takes precedence over the global policy for requests authenticated with that credential. An Unrestricted override on one App Password therefore punches through a global Limited posture. Overrides are stored in the `wp_sudo_settings` option, are editable by users who can administer Sudo settings, and are removed automatically when the corresponding App Password is deleted.
 
 ## Environmental Considerations
 
@@ -315,6 +317,10 @@ authenticated requests.
 - `Sudo_Session` stores per-IP failed-attempt event buckets
   (`wp_sudo_ip_failure_event_{hash}`) and per-IP lockout timestamps
   (`wp_sudo_ip_lockout_until_{hash}`) for multidimensional rate limiting.
+- `Gate` stores a short-lived blocked-action notice
+  (`_wp_sudo_blocked_{user_id}`, 60 s TTL) holding only the matched rule ID
+  and its static translated label — no request data — so the next admin page
+  load can render an explanatory notice after an AJAX/REST block.
 
 **Risk: Stash eviction before reauthentication completes.** With a persistent
 object cache, transients are stored in the object cache rather than the database.
@@ -390,7 +396,7 @@ Since v2.6.0, sudo sessions have a 120-second grace window (`Sudo_Session::GRACE
 **Security properties of the grace window:**
 
 - **Token binding is enforced** — `is_within_grace()` calls `verify_token()` before returning `true`. The session cookie must still be present and match the stored hash. A browser without the original sudo cookie cannot gain grace access.
-- **Grace applies to interactive surfaces only** — the admin UI, REST API, and WPGraphQL gating points check grace. The admin bar timer does not — it reflects the true session state so the user sees accurately when their session has expired.
+- **Grace applies to interactive surfaces only** — the admin UI, cookie-authenticated REST, and WPGraphQL gating points check grace. Because `is_within_grace()` requires the sudo token cookie, grace is structurally unreachable for cookie-less requests — App Password and bearer-token REST clients never receive a grace window. The admin bar timer does not check grace either — it reflects the true session state so the user sees accurately when their session has expired.
 - **Meta cleanup is deferred** — `is_active()` does not delete the session meta while the grace window is open. This allows `is_within_grace()` to read the expiry timestamp and token. Cleanup runs when `time() > $expires + GRACE_SECONDS`.
 - **Wind-down, not extension** — gated actions initiated during the grace period pass if the session token is still valid. The gate does not distinguish between "in-progress" and "new" actions — the window is deliberately short (120 s) to limit exposure. `is_active()` returns false during grace, the admin bar shows the session as expired, and no new session meta is written.
 
