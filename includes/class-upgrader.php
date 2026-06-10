@@ -71,7 +71,7 @@ class Upgrader {
 		$stored = $this->get_db_version();
 
 		// Nothing to do if already current.
-		if ( version_compare( $stored, self::plugin_version(), '>=' ) ) {
+		if ( version_compare( $stored, WP_SUDO_VERSION, '>=' ) ) {
 			return;
 		}
 
@@ -83,7 +83,7 @@ class Upgrader {
 		}
 
 		// Mark as current.
-		$this->set_db_version( self::plugin_version() );
+		$this->set_db_version( WP_SUDO_VERSION );
 	}
 
 	/**
@@ -113,15 +113,6 @@ class Upgrader {
 		} else {
 			update_option( self::VERSION_OPTION, $version );
 		}
-	}
-
-	/**
-	 * Resolve plugin version constant safely for static analysis and bootstrap edge cases.
-	 *
-	 * @return string
-	 */
-	private static function plugin_version(): string {
-		return defined( 'WP_SUDO_VERSION' ) ? (string) WP_SUDO_VERSION : '0.0.0';
 	}
 
 	// ─────────────────────────────────────────────────────────────────────

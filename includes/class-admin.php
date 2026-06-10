@@ -251,7 +251,7 @@ class Admin {
 
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ) );
 		add_action( 'admin_enqueue_scripts', array( $this, 'maybe_enqueue_app_password_assets' ) );
-		add_filter( 'plugin_action_links_' . self::plugin_basename(), array( $this, 'add_action_links' ) );
+		add_filter( 'plugin_action_links_' . WP_SUDO_PLUGIN_BASENAME, array( $this, 'add_action_links' ) );
 
 		// MU-plugin install/uninstall AJAX handlers.
 		add_action( 'wp_ajax_' . self::AJAX_MU_INSTALL, array( $this, 'handle_mu_install' ), 10, 0 );
@@ -822,21 +822,17 @@ class Admin {
 			$enabled = false;
 		}
 
-		if ( function_exists( 'apply_filters' ) ) {
-			/**
-			 * Filter whether WP Sudo records action_passed events.
-			 *
-			 * Return false only when a deployment intentionally accepts reduced
-			 * audit visibility for actions performed during active sudo sessions.
-			 *
-			 * @since 3.0.0
-			 *
-			 * @param bool $enabled Default true unless disabled by constant.
-			 */
-			$enabled = (bool) apply_filters( self::PASSED_EVENT_LOGGING_FILTER, $enabled );
-		}
-
-		return $enabled;
+		/**
+		 * Filter whether WP Sudo records action_passed events.
+		 *
+		 * Return false only when a deployment intentionally accepts reduced
+		 * audit visibility for actions performed during active sudo sessions.
+		 *
+		 * @since 3.0.0
+		 *
+		 * @param bool $enabled Default true unless disabled by constant.
+		 */
+		return (bool) apply_filters( self::PASSED_EVENT_LOGGING_FILTER, $enabled );
 	}
 
 	/**
@@ -894,8 +890,8 @@ class Admin {
 			$sanitized[ self::SETTING_POLICY_PRESET ] = $selected_preset;
 
 			$this->store_policy_preset_notice( $selected_preset, $previous_policies, $preset_policies );
-			$user_id = function_exists( 'get_current_user_id' ) ? get_current_user_id() : 0;
-			$network = function_exists( 'is_multisite' ) ? is_multisite() : false;
+			$user_id = get_current_user_id();
+			$network = is_multisite();
 
 			/**
 			 * Fires when an operator applies a named policy preset.
@@ -955,16 +951,16 @@ class Admin {
 
 		wp_enqueue_style(
 			'wp-sudo-admin',
-			self::plugin_url() . 'admin/css/wp-sudo-admin.css',
+			WP_SUDO_PLUGIN_URL . 'admin/css/wp-sudo-admin.css',
 			array(),
-			self::plugin_version()
+			WP_SUDO_VERSION
 		);
 
 		wp_enqueue_script(
 			'wp-sudo-admin',
-			self::plugin_url() . 'admin/js/wp-sudo-admin.js',
+			WP_SUDO_PLUGIN_URL . 'admin/js/wp-sudo-admin.js',
 			array(),
-			self::plugin_version(),
+			WP_SUDO_VERSION,
 			true
 		);
 
@@ -1142,11 +1138,7 @@ class Admin {
 	 * @return int
 	 */
 	private function get_current_site_id(): int {
-		if ( function_exists( 'get_current_blog_id' ) ) {
-			return (int) get_current_blog_id();
-		}
-
-		return 1;
+		return (int) get_current_blog_id();
 	}
 
 	// -------------------------------------------------------------------------
@@ -1937,7 +1929,7 @@ class Admin {
 			);
 		}
 
-		$source = self::plugin_dir() . 'mu-plugin/wp-sudo-gate.php';
+		$source = WP_SUDO_PLUGIN_DIR . 'mu-plugin/wp-sudo-gate.php';
 		$mu_dir = self::get_mu_plugin_dir();
 		$dest   = $mu_dir . '/wp-sudo-gate.php';
 
@@ -1959,7 +1951,7 @@ class Admin {
 			wp_send_json_error( array( 'message' => __( 'Could not read source shim file.', 'wp-sudo' ) ) );
 		}
 
-		$contents = self::personalize_mu_shim_contents( $contents, self::plugin_dir() . 'mu-plugin/wp-sudo-loader.php' );
+		$contents = self::personalize_mu_shim_contents( $contents, WP_SUDO_PLUGIN_DIR . 'mu-plugin/wp-sudo-loader.php' );
 
 		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents, WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_file_put_contents
 		$written = file_put_contents( $dest, $contents );
@@ -2162,10 +2154,6 @@ class Admin {
 	 * @return array<string, mixed>
 	 */
 	private function get_stored_settings(): array {
-		if ( ! function_exists( 'get_option' ) || ! function_exists( 'get_site_option' ) ) {
-			return self::defaults();
-		}
-
 		$settings = is_multisite()
 			? get_site_option( self::OPTION_KEY, self::defaults() )
 			: get_option( self::OPTION_KEY, self::defaults() );
@@ -2373,10 +2361,6 @@ class Admin {
 	 * @return void
 	 */
 	private function store_policy_preset_notice( string $preset_key, array $previous_policies, array $new_policies ): void {
-		if ( ! function_exists( 'set_transient' ) ) {
-			return;
-		}
-
 		$user_id = get_current_user_id();
 		if ( $user_id <= 0 ) {
 			return;
@@ -2399,10 +2383,6 @@ class Admin {
 	 * @return void
 	 */
 	private function render_policy_preset_notice(): void {
-		if ( ! function_exists( 'get_transient' ) || ! function_exists( 'delete_transient' ) ) {
-			return;
-		}
-
 		$user_id = get_current_user_id();
 		if ( $user_id <= 0 ) {
 			return;
@@ -2649,9 +2629,9 @@ class Admin {
 
 		wp_enqueue_script(
 			'wp-sudo-app-passwords',
-			self::plugin_url() . 'admin/js/wp-sudo-app-passwords.js',
+			WP_SUDO_PLUGIN_URL . 'admin/js/wp-sudo-app-passwords.js',
 			array( 'wp-a11y' ),
-			self::plugin_version(),
+			WP_SUDO_VERSION,
 			true
 		);
 
@@ -2761,9 +2741,7 @@ class Admin {
 
 		// Validate that the UUID belongs to an existing application password for
 		// the profile user — prevents option-table bloat from orphaned policy entries.
-		$password_item = class_exists( 'WP_Application_Passwords' )
-			? \WP_Application_Passwords::get_user_application_password( $target_user_id, $uuid )
-			: null;
+		$password_item = \WP_Application_Passwords::get_user_application_password( $target_user_id, $uuid );
 		if ( null === $password_item ) {
 			wp_send_json_error( array( 'message' => __( 'Application password not found.', 'wp-sudo' ) ) );
 			return;
@@ -2841,42 +2819,6 @@ class Admin {
 		}
 
 		self::reset_cache();
-	}
-
-	/**
-	 * Resolve plugin basename constant safely for static analysis and bootstrap edge cases.
-	 *
-	 * @return string
-	 */
-	private static function plugin_basename(): string {
-		return defined( 'WP_SUDO_PLUGIN_BASENAME' ) ? (string) WP_SUDO_PLUGIN_BASENAME : 'wp-sudo/wp-sudo.php';
-	}
-
-	/**
-	 * Resolve plugin URL constant safely for static analysis and bootstrap edge cases.
-	 *
-	 * @return string
-	 */
-	private static function plugin_url(): string {
-		return defined( 'WP_SUDO_PLUGIN_URL' ) ? (string) WP_SUDO_PLUGIN_URL : '';
-	}
-
-	/**
-	 * Resolve plugin directory constant safely for static analysis and bootstrap edge cases.
-	 *
-	 * @return string
-	 */
-	private static function plugin_dir(): string {
-		return defined( 'WP_SUDO_PLUGIN_DIR' ) ? (string) WP_SUDO_PLUGIN_DIR : dirname( __DIR__ ) . '/';
-	}
-
-	/**
-	 * Resolve plugin version constant safely for static analysis and bootstrap edge cases.
-	 *
-	 * @return string
-	 */
-	private static function plugin_version(): string {
-		return defined( 'WP_SUDO_VERSION' ) ? (string) WP_SUDO_VERSION : '0.0.0';
 	}
 
 	/**

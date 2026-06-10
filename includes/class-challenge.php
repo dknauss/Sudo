@@ -182,16 +182,16 @@ class Challenge {
 
 		wp_enqueue_style(
 			'wp-sudo-challenge',
-			self::plugin_url() . 'admin/css/wp-sudo-challenge.css',
+			WP_SUDO_PLUGIN_URL . 'admin/css/wp-sudo-challenge.css',
 			array(),
-			self::plugin_version()
+			WP_SUDO_VERSION
 		);
 
 		wp_enqueue_script(
 			'wp-sudo-challenge',
-			self::plugin_url() . 'admin/js/wp-sudo-challenge.js',
+			WP_SUDO_PLUGIN_URL . 'admin/js/wp-sudo-challenge.js',
 			array( 'wp-a11y' ),
-			self::plugin_version(),
+			WP_SUDO_VERSION,
 			true
 		);
 
@@ -849,24 +849,6 @@ class Challenge {
 			'url'       => $safe_url,
 			'post_data' => $stash['post'] ?? array(),
 		);
-	}
-
-	/**
-	 * Resolve plugin URL constant safely for static analysis and bootstrap edge cases.
-	 *
-	 * @return string
-	 */
-	private static function plugin_url(): string {
-		return defined( 'WP_SUDO_PLUGIN_URL' ) ? (string) WP_SUDO_PLUGIN_URL : '';
-	}
-
-	/**
-	 * Resolve plugin version constant safely for static analysis and bootstrap edge cases.
-	 *
-	 * @return string
-	 */
-	private static function plugin_version(): string {
-		return defined( 'WP_SUDO_VERSION' ) ? (string) WP_SUDO_VERSION : '0.0.0';
 	}
 
 	/**

@@ -80,7 +80,7 @@ class Plugin {
 	 */
 	public function init(): void {
 		// Load translations.
-		load_plugin_textdomain( 'wp-sudo', false, dirname( self::plugin_basename() ) . '/languages' );
+		load_plugin_textdomain( 'wp-sudo', false, dirname( WP_SUDO_PLUGIN_BASENAME ) . '/languages' );
 
 		// Run any pending upgrade routines (must run before other components).
 		// Only on admin/CLI requests — front-end visitors never trigger migrations.
@@ -177,9 +177,9 @@ class Plugin {
 
 		wp_enqueue_style(
 			'wp-sudo-notices',
-			self::plugin_url() . 'admin/css/wp-sudo-notices.css',
+			WP_SUDO_PLUGIN_URL . 'admin/css/wp-sudo-notices.css',
 			array(),
-			self::plugin_version()
+			WP_SUDO_VERSION
 		);
 	}
 
@@ -213,9 +213,9 @@ class Plugin {
 
 		wp_enqueue_script(
 			'wp-sudo-shortcut',
-			self::plugin_url() . 'admin/js/wp-sudo-shortcut.js',
+			WP_SUDO_PLUGIN_URL . 'admin/js/wp-sudo-shortcut.js',
 			array(),
-			self::plugin_version(),
+			WP_SUDO_VERSION,
 			true
 		);
 
@@ -274,9 +274,9 @@ class Plugin {
 
 		wp_enqueue_script(
 			'wp-sudo-gate-ui',
-			self::plugin_url() . 'admin/js/wp-sudo-gate-ui.js',
+			WP_SUDO_PLUGIN_URL . 'admin/js/wp-sudo-gate-ui.js',
 			array(),
-			self::plugin_version(),
+			WP_SUDO_VERSION,
 			true
 		);
 
@@ -535,33 +535,6 @@ class Plugin {
 	 */
 	public function admin(): ?Admin {
 		return $this->admin;
-	}
-
-	/**
-	 * Resolve plugin basename constant safely for static analysis and bootstrap edge cases.
-	 *
-	 * @return string
-	 */
-	private static function plugin_basename(): string {
-		return defined( 'WP_SUDO_PLUGIN_BASENAME' ) ? (string) WP_SUDO_PLUGIN_BASENAME : 'wp-sudo/wp-sudo.php';
-	}
-
-	/**
-	 * Resolve plugin URL constant safely for static analysis and bootstrap edge cases.
-	 *
-	 * @return string
-	 */
-	private static function plugin_url(): string {
-		return defined( 'WP_SUDO_PLUGIN_URL' ) ? (string) WP_SUDO_PLUGIN_URL : '';
-	}
-
-	/**
-	 * Resolve plugin version constant safely for static analysis and bootstrap edge cases.
-	 *
-	 * @return string
-	 */
-	private static function plugin_version(): string {
-		return defined( 'WP_SUDO_VERSION' ) ? (string) WP_SUDO_VERSION : '0.0.0';
 	}
 
 	/**
