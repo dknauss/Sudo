@@ -158,6 +158,61 @@ class EventStoreTest extends TestCase {
 		$this->assertMatchesRegularExpression( '/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $this->wpdb->insert_calls[0]['data']['created_at'] );
 	}
 
+	public function test_insert_clamps_text_columns_to_schema_widths(): void {
+		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
+		$this->wpdb->insert_return      = 1;
+		$this->wpdb->get_results_return = array(
+			(object) array(
+				'Field' => 'id',
+			),
+		);
+
+		// Third-party filter rules control rule_id; nothing bounds its length
+		// upstream. Schema: event varchar(50), rule_id varchar(100),
+		// surface varchar(30), ip varchar(45).
+		Event_Store::insert(
+			array(
+				'user_id' => 1,
+				'event'   => str_repeat( 'e', 80 ),
+				'rule_id' => str_repeat( 'r', 150 ),
+				'surface' => str_repeat( 's', 40 ),
+				'ip'      => str_repeat( '1', 60 ),
+			)
+		);
+
+		$data = $this->wpdb->insert_calls[0]['data'];
+		$this->assertSame( 50, strlen( $data['event'] ) );
+		$this->assertSame( 100, strlen( $data['rule_id'] ) );
+		$this->assertSame( 30, strlen( $data['surface'] ) );
+		$this->assertSame( 45, strlen( $data['ip'] ) );
+	}
+
+	public function test_bulk_insert_clamps_text_columns_to_schema_widths(): void {
+		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
+		$this->wpdb->rows_affected      = 1;
+		$this->wpdb->query_return       = 1;
+		$this->wpdb->get_results_return = array( (object) array( 'Field' => 'id' ) );
+
+		Event_Store::bulk_insert(
+			array(
+				array(
+					'user_id' => 1,
+					'event'   => str_repeat( 'e', 80 ),
+					'rule_id' => str_repeat( 'r', 150 ),
+					'surface' => str_repeat( 's', 40 ),
+					'ip'      => str_repeat( '1', 60 ),
+				),
+			)
+		);
+
+		$args = $this->wpdb->prepare_calls[0]['args'];
+		// Arg order per tuple: site_id, user_id, event, rule_id, surface, ip, context, created_at.
+		$this->assertSame( 50, strlen( $args[2] ) );
+		$this->assertSame( 100, strlen( $args[3] ) );
+		$this->assertSame( 30, strlen( $args[4] ) );
+		$this->assertSame( 45, strlen( $args[5] ) );
+	}
+
 	public function test_insert_returns_false_on_failure(): void {
 		$this->wpdb->insert_return      = false;
 		$this->wpdb->get_results_return = array(

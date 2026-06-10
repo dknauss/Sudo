@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Audit column clamping:** `Event_Store` now clamps `event`, `rule_id`, `surface`, and `ip` values to their schema column widths before insert, so over-length values from third-party rules truncate predictably in PHP instead of erroring (strict MySQL, dropping the audit row) or truncating silently in the database.
 - **`wp_sudo_grant_session_on_login` filter:** the automatic sudo session granted on browser login can now be suppressed (return `false`) for shared-terminal/kiosk hardening or SSO integrations. Default behavior is unchanged. Note for SSO integrators: suppressing the grant for users without a usable WordPress password makes gated actions unreachable for them — see the developer reference. Closes audit register item F17.
 
 ## 3.2.0 - 2026-06-08
