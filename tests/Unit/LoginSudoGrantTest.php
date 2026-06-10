@@ -2,10 +2,12 @@
 /**
  * Tests for Plugin::grant_session_on_login().
  *
- * Covers the feature: login grants sudo session (v2.6.0).
- * A successful WordPress form-based login is equivalent to reauthentication
- * — challenging the user again immediately is unnecessary friction.
- * This mirrors the behaviour of Unix sudo and GitHub's sudo mode.
+ * Covers the feature: login grants sudo session (v2.6.0) and its opt-out
+ * filter wp_sudo_grant_session_on_login (v3.3.0).
+ * A successful WordPress form-based login is fresh proof of the password,
+ * so an immediate password challenge would add friction without a barrier.
+ * The grant is password-strength only: 2FA plugins interrupt on the same
+ * wp_login hook at later priority, after this grant has already run.
  *
  * @package WP_Sudo\Tests\Unit
  */
@@ -16,6 +18,7 @@ use WP_Sudo\Plugin;
 use WP_Sudo\Tests\TestCase;
 use Brain\Monkey\Functions;
 use Brain\Monkey\Actions;
+use Brain\Monkey\Filters;
 
 /**
  * @covers \WP_Sudo\Plugin::grant_session_on_login
@@ -102,5 +105,58 @@ class LoginSudoGrantTest extends TestCase {
 
 		$plugin = new Plugin();
 		$plugin->grant_session_on_login( 'completely_different_login_name', $user );
+	}
+
+	// ── wp_sudo_grant_session_on_login filter ─────────────────────────────
+
+	/**
+	 * The filter receives ( true, $user ) and a true return grants the session.
+	 *
+	 * Pins the filter contract: default value true, the WP_User object as
+	 * context, and the grant proceeding when the filter passes true through.
+	 */
+	public function test_grant_filter_receives_default_true_and_user(): void {
+		$user = new \WP_User( 7 );
+
+		Functions\when( 'get_option' )->justReturn( array( 'session_duration' => 10 ) );
+		Functions\when( 'wp_generate_password' )->justReturn( 'grant-token-xyz' );
+		Functions\when( 'is_ssl' )->justReturn( false );
+		Functions\when( 'headers_sent' )->justReturn( false );
+		Functions\when( 'setcookie' )->justReturn( true );
+		Functions\when( 'delete_user_meta' )->justReturn( true );
+		Functions\when( 'update_user_meta' )->justReturn( true );
+
+		Filters\expectApplied( 'wp_sudo_grant_session_on_login' )
+			->once()
+			->with( true, $user )
+			->andReturn( true );
+
+		Actions\expectDone( 'wp_sudo_activated' )
+			->once()
+			->with( 7, \Mockery::type( 'int' ), \Mockery::any() );
+
+		$plugin = new Plugin();
+		$plugin->grant_session_on_login( 'test_user', $user );
+	}
+
+	/**
+	 * A filter returning false suppresses the automatic grant entirely.
+	 *
+	 * No session activation may occur: wp_sudo_activated must never fire.
+	 * Hardened sites (shared terminals, kiosks) use this to require an
+	 * explicit challenge at the first gated action instead.
+	 */
+	public function test_grant_filter_returning_false_suppresses_grant(): void {
+		$user = new \WP_User( 7 );
+
+		Filters\expectApplied( 'wp_sudo_grant_session_on_login' )
+			->once()
+			->with( true, $user )
+			->andReturn( false );
+
+		Actions\expectDone( 'wp_sudo_activated' )->never();
+
+		$plugin = new Plugin();
+		$plugin->grant_session_on_login( 'test_user', $user );
 	}
 }

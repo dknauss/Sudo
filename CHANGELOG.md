@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **`wp_sudo_grant_session_on_login` filter:** the automatic sudo session granted on browser login can now be suppressed (return `false`) for shared-terminal/kiosk hardening or SSO integrations. Default behavior is unchanged. Note for SSO integrators: suppressing the grant for users without a usable WordPress password makes gated actions unreachable for them — see the developer reference. Closes audit register item F17.
+
 ## 3.2.0 - 2026-06-08
 
 ### Governance and capabilities

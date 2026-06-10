@@ -142,6 +142,7 @@ class Plugin {
 		// Login grant: a successful form login implicitly satisfies reauthentication.
 		// wp_login fires for browser-based logins only (not App Passwords / XML-RPC),
 		// so the session cookie set by activate() is guaranteed to reach the browser.
+		// Suppressible via the wp_sudo_grant_session_on_login filter.
 		add_action( 'wp_login', array( $this, 'grant_session_on_login' ), 10, 2 );
 
 		// Password change: expire any active sudo session when credentials change.
@@ -291,22 +292,43 @@ class Plugin {
 	/**
 	 * Grant a sudo session immediately after a successful WordPress login.
 	 *
-	 * The user just proved their identity via the login form — challenging again
-	 * immediately is unnecessary friction. This mirrors the behaviour of Unix sudo
-	 * and GitHub's sudo mode: a fresh login implicitly satisfies the
-	 * reauthentication requirement.
+	 * The user just proved knowledge of the password via the login form — an
+	 * immediate password challenge would add friction without a barrier. The
+	 * grant is password-strength only: 2FA plugins interrupt on this same
+	 * wp_login hook at later priority (Two Factor hooks it at PHP_INT_MAX),
+	 * so for 2FA-enrolled users this grant runs before the second factor is
+	 * verified.
 	 *
 	 * wp_login fires for browser-based form logins only (not Application Passwords
 	 * or XML-RPC), so session-cookie binding via setcookie() is safe here —
 	 * headers have not yet been sent at this point.
 	 *
 	 * @since 2.6.0
+	 * @since 3.3.0 Added the `wp_sudo_grant_session_on_login` filter.
 	 *
 	 * @param string   $user_login The user's login name (unused; ID is read from object).
 	 * @param \WP_User $user       The authenticated user object.
 	 * @return void
 	 */
 	public function grant_session_on_login( string $user_login, \WP_User $user ): void {
+		/**
+		 * Filters whether a sudo session is granted automatically on login.
+		 *
+		 * Default true. Any falsy return suppresses the automatic grant, so the
+		 * user must pass an explicit challenge at their first gated action.
+		 * Intended for shared-terminal/kiosk hardening and SSO integrations.
+		 * Note: suppressing the grant for users without a usable WordPress
+		 * password (common with SSO) makes gated actions unreachable for them.
+		 *
+		 * @since 3.3.0
+		 *
+		 * @param bool     $grant Whether to grant the sudo session. Default true.
+		 * @param \WP_User $user  The user who logged in.
+		 */
+		if ( ! (bool) apply_filters( 'wp_sudo_grant_session_on_login', true, $user ) ) {
+			return;
+		}
+
 		Sudo_Session::activate( $user->ID );
 	}
 

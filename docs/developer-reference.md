@@ -354,6 +354,7 @@ for the full design. Not scheduled; optional Phase 5 of the v3.1–v3.3 plan.
 | Filter | Description |
 |---|---|
 | `wp_sudo_gated_actions` | Add, modify, or intentionally remove gated action rules. Site Health warns when built-in rule IDs are missing after filtering. |
+| `wp_sudo_grant_session_on_login` | Whether to grant a sudo session automatically on browser login (`apply_filters( 'wp_sudo_grant_session_on_login', true, $user )`). Default `true`. Return `false` for shared-terminal/kiosk hardening or SSO control. Caution: suppressing the grant for users without a usable WordPress password (common with SSO) makes gated actions unreachable for them — only suppress for users who can pass the password challenge. Since 3.3.0. |
 | `wp_sudo_two_factor_window` | 2FA authentication window in seconds (default: 300). Clamped to 60–900 seconds (1–15 minutes). |
 | `wp_sudo_requires_two_factor` | Whether a user needs 2FA for sudo (for third-party 2FA plugins). |
 | `wp_sudo_validate_two_factor` | Validate a 2FA code (for third-party 2FA plugins). |
@@ -409,7 +410,7 @@ The admin bar UI uses `is_active()` only; it always reflects the true session st
 
 ### `Sudo_Session::activate( int $user_id ): void`
 
-Creates a new sudo session: generates a token, writes user meta, sets the httponly cookie, and fires `wp_sudo_activated`. Also called automatically by `Plugin::grant_session_on_login()` on successful browser-based login (`wp_login` hook).
+Creates a new sudo session: generates a token, writes user meta, sets the httponly cookie, and fires `wp_sudo_activated`. Also called automatically by `Plugin::grant_session_on_login()` on successful browser-based login (`wp_login` hook); that automatic grant can be suppressed via the `wp_sudo_grant_session_on_login` filter.
 
 ### `Sudo_Session::GRACE_SECONDS`
 
