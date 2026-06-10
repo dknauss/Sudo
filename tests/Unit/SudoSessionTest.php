@@ -24,6 +24,12 @@ use Brain\Monkey\Filters;
 class SudoSessionTest extends TestCase
 {
 
+	protected function setUp(): void
+	{
+		parent::setUp();
+		Functions\when('force_ssl_admin')->justReturn(false);
+	}
+
 	protected function tearDown(): void
 	{
 		unset($_COOKIE[Sudo_Session::TOKEN_COOKIE]);

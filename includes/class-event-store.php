@@ -104,13 +104,9 @@ class Event_Store {
 			return;
 		}
 
-		if ( is_object( $wpdb ) && method_exists( $wpdb, 'suppress_errors' ) ) {
-			$wpdb->suppress_errors( true );
-		}
+		$wpdb->suppress_errors( true );
 		self::create_table();
-		if ( is_object( $wpdb ) && method_exists( $wpdb, 'suppress_errors' ) ) {
-			$wpdb->suppress_errors( false );
-		}
+		$wpdb->suppress_errors( false );
 	}
 
 	/**
@@ -138,7 +134,7 @@ class Event_Store {
 			return;
 		}
 
-		$charset_collate = method_exists( $wpdb, 'get_charset_collate' ) ? $wpdb->get_charset_collate() : '';
+		$charset_collate = $wpdb->get_charset_collate();
 
 		if ( $is_sqlite ) {
 			// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.DirectDatabaseQuery.NoCaching
@@ -442,11 +438,6 @@ KEY site_event_created_at (site_id, event, created_at)
 
 		// SQLite: use sqlite_master.
 		if ( self::is_sqlite() ) {
-			if ( ! method_exists( $wpdb, 'get_var' ) || ! method_exists( $wpdb, 'prepare' ) ) {
-				self::$table_exists_cache = false;
-				return false;
-			}
-
 			$table = self::table_name();
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- table_name() is safe.
 			$result                   = $wpdb->get_var(
@@ -460,19 +451,10 @@ KEY site_event_created_at (site_id, event, created_at)
 			return self::$table_exists_cache;
 		}
 
-		if ( ! method_exists( $wpdb, 'get_results' ) ) {
-			self::$table_exists_cache = false;
-			return false;
-		}
-
-		if ( is_object( $wpdb ) && method_exists( $wpdb, 'suppress_errors' ) ) {
-			$wpdb->suppress_errors( true );
-		}
+		$wpdb->suppress_errors( true );
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- table_name() is a safe identifier assembled from the configured prefix.
 		$columns = $wpdb->get_results( 'DESCRIBE ' . self::table_name() );
-		if ( is_object( $wpdb ) && method_exists( $wpdb, 'suppress_errors' ) ) {
-			$wpdb->suppress_errors( false );
-		}
+		$wpdb->suppress_errors( false );
 
 		self::$table_exists_cache = is_array( $columns ) && ! empty( $columns );
 
@@ -570,10 +552,6 @@ KEY site_event_created_at (site_id, event, created_at)
 	 * @return int
 	 */
 	private static function current_site_id(): int {
-		if ( function_exists( 'get_current_blog_id' ) ) {
-			return (int) get_current_blog_id();
-		}
-
-		return 1;
+		return (int) get_current_blog_id();
 	}
 }

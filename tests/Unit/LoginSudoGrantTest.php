@@ -25,6 +25,11 @@ use Brain\Monkey\Filters;
  */
 class LoginSudoGrantTest extends TestCase {
 
+	protected function setUp(): void {
+		parent::setUp();
+		Functions\when( 'force_ssl_admin' )->justReturn( false );
+	}
+
 	// ── Hook registration ─────────────────────────────────────────────────
 
 	/**

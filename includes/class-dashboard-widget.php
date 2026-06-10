@@ -247,11 +247,7 @@ class Dashboard_Widget {
 	 * @return void
 	 */
 	public static function flush_active_sessions_cache(): void {
-		if ( ! function_exists( 'delete_transient' ) ) {
-			return;
-		}
-
-		$blog_id = function_exists( 'get_current_blog_id' ) ? (int) get_current_blog_id() : 0;
+		$blog_id = (int) get_current_blog_id();
 		delete_transient( self::ACTIVE_SESSIONS_CACHE_KEY . $blog_id );
 	}
 
@@ -267,17 +263,15 @@ class Dashboard_Widget {
 	 * @return array{count: int, users: array<int, mixed>}
 	 */
 	private static function get_active_sessions_payload(): array {
-		$blog_id   = function_exists( 'get_current_blog_id' ) ? (int) get_current_blog_id() : 0;
+		$blog_id   = (int) get_current_blog_id();
 		$cache_key = self::ACTIVE_SESSIONS_CACHE_KEY . $blog_id;
 
-		if ( function_exists( 'get_transient' ) ) {
-			$cached = get_transient( $cache_key );
-			if ( is_array( $cached ) && array_key_exists( 'count', $cached ) && array_key_exists( 'users', $cached ) ) {
-				return array(
-					'count' => (int) $cached['count'],
-					'users' => is_array( $cached['users'] ) ? $cached['users'] : array(),
-				);
-			}
+		$cached = get_transient( $cache_key );
+		if ( is_array( $cached ) && array_key_exists( 'count', $cached ) && array_key_exists( 'users', $cached ) ) {
+			return array(
+				'count' => (int) $cached['count'],
+				'users' => is_array( $cached['users'] ) ? $cached['users'] : array(),
+			);
 		}
 
 		$query = new \WP_User_Query(
@@ -306,9 +300,7 @@ class Dashboard_Widget {
 			'users' => $users,
 		);
 
-		if ( function_exists( 'set_transient' ) ) {
-			set_transient( $cache_key, $payload, self::ACTIVE_SESSIONS_CACHE_TTL );
-		}
+		set_transient( $cache_key, $payload, self::ACTIVE_SESSIONS_CACHE_TTL );
 
 		return $payload;
 	}

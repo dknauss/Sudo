@@ -731,7 +731,7 @@ class Sudo_Session {
 	 * @return bool
 	 */
 	private static function cookie_secure(): bool {
-		$secure = is_ssl() || ( function_exists( 'force_ssl_admin' ) && force_ssl_admin() );
+		$secure = is_ssl() || force_ssl_admin();
 
 		/**
 		 * Override the Secure flag for WP Sudo session and challenge cookies.

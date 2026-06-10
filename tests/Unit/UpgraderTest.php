@@ -46,6 +46,10 @@ class UpgraderTest extends TestCase {
 			public function get_results( string $query ): array {
 				return [];
 			}
+
+			public function suppress_errors( $suppress = true ) {
+				return false;
+			}
 		};
 	}
 
@@ -252,6 +256,14 @@ class UpgraderTest extends TestCase {
 			public function get_charset_collate(): string {
 				return 'DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci';
 			}
+
+			public function get_results( string $query ): array {
+				return [];
+			}
+
+			public function suppress_errors( $suppress = true ) {
+				return false;
+			}
 		};
 
 		Functions\expect( 'dbDelta' )
@@ -313,6 +325,10 @@ class UpgraderTest extends TestCase {
 						'Field' => 'id',
 					),
 				);
+			}
+
+			public function suppress_errors( $suppress = true ) {
+				return false;
 			}
 		};
 
