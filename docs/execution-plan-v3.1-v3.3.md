@@ -196,7 +196,7 @@ corrected here: the behavior does **not** mirror Unix sudo (its credential
 cache starts at the first `sudo` invocation, not at login), and `wp_login`
 does **not** fire after 2FA — the Two Factor plugin hooks `wp_login` at
 `PHP_INT_MAX` (verified against live source, class-two-factor-core.php
-line 123, 2026-06-09), so the priority-10 grant runs before second-factor
+line 123), so the priority-10 grant runs before second-factor
 verification and is password-strength only. Residual: any code firing
 `do_action('wp_login')` (SSO plugins, programmatic logins) grants sudo —
 for passwordless SSO users this is also what keeps gated actions reachable.
