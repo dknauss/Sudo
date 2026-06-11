@@ -45,7 +45,11 @@ Canonical source for post-tag drift after `3.2.0`: `git log v3.2.0..main --oneli
 
 ## Unreleased `main` work
 
-No post-`v3.2.0` development work is currently expected on `main` after the release tag is moved to the final green release commit.
+Post-`v3.2.0` work on `main` targeting `3.3.0` (see `CHANGELOG.md` Unreleased for canonical descriptions):
+
+- governance capability backfill re-keyed from the never-released `3.1.0` to `3.3.0`, with an existing-holder guard, so sites stored at 3.1.x or 3.2.0 regain Settings → Sudo access in strict governance mode
+- `Event_Store` audit column clamping before insert
+- `wp_sudo_grant_session_on_login` filter (audit register item F17)
 
 ## WordPress release posture
 

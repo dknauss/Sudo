@@ -238,13 +238,18 @@ class UpgraderTest extends TestCase {
 		$this->assertSame( 'upgrade_3_0_0', $upgrades['3.0.0'] );
 	}
 
-	public function test_upgrades_include_310_governance_capability_migration(): void {
+	public function test_upgrades_include_330_governance_capability_migration(): void {
 		$reflection = new \ReflectionClass( Upgrader::class );
 		$upgrades   = $reflection->getConstant( 'UPGRADES' );
 
 		$this->assertIsArray( $upgrades );
-		$this->assertArrayHasKey( '3.1.0', $upgrades );
-		$this->assertSame( 'upgrade_3_1_0', $upgrades['3.1.0'] );
+		$this->assertArrayHasKey( '3.3.0', $upgrades );
+		$this->assertSame( 'upgrade_3_3_0', $upgrades['3.3.0'] );
+		$this->assertArrayNotHasKey(
+			'3.1.0',
+			$upgrades,
+			'No public 3.1.0 release ever existed; a 3.1.0 key never matches sites stored at 3.1.1-3.1.3 and must stay removed.'
+		);
 	}
 
 	public function test_2150_creates_events_table(): void {
@@ -356,7 +361,7 @@ class UpgraderTest extends TestCase {
 		}
 	}
 
-	public function test_310_grants_governance_caps_to_existing_single_site_administrators(): void {
+	public function test_330_grants_governance_caps_to_existing_single_site_administrators(): void {
 		$admin = \Mockery::mock( \WP_User::class );
 		$admin->ID = 42;
 		$admin->shouldReceive( 'add_cap' )->once()->with( 'manage_wp_sudo' );
@@ -366,23 +371,93 @@ class UpgraderTest extends TestCase {
 
 		Functions\when( 'is_multisite' )->justReturn( false );
 
-		Functions\when( 'get_users' )->justReturn( array( $admin ) );
+		// First call is the existing-holder guard (capability query → none),
+		// second is the administrator-role query the backfill iterates.
+		Functions\when( 'get_users' )->alias( function ( array $args ) use ( $admin ) {
+			if ( isset( $args['capability'] ) ) {
+				return array();
+			}
+			return array( $admin );
+		} );
 
 		$upgrader = new Upgrader();
-		$method   = new \ReflectionMethod( Upgrader::class, 'upgrade_3_1_0' );
+		$method   = new \ReflectionMethod( Upgrader::class, 'upgrade_3_3_0' );
 		@$method->setAccessible( true );
 		$method->invoke( $upgrader );
 	}
 
-	public function test_310_skips_governance_cap_grants_on_multisite(): void {
-		Functions\when( 'is_multisite' )->justReturn( true );
+	public function test_330_skips_backfill_when_a_governance_cap_holder_exists(): void {
+		Functions\when( 'is_multisite' )->justReturn( false );
+
+		// Guard query finds an existing manage_wp_sudo holder; the routine
+		// must stop there — no role query, no add_cap calls. Capture every
+		// get_users() call so a second (role) query fails the count below.
+		$queries = array();
+		Functions\when( 'get_users' )->alias( function ( array $args ) use ( &$queries ) {
+			$queries[] = $args;
+			return array( 7 );
+		} );
 
 		$upgrader = new Upgrader();
-		$method   = new \ReflectionMethod( Upgrader::class, 'upgrade_3_1_0' );
+		$method   = new \ReflectionMethod( Upgrader::class, 'upgrade_3_3_0' );
 		@$method->setAccessible( true );
 		$method->invoke( $upgrader );
 
-		$this->assertTrue( true );
+		$this->assertCount( 1, $queries, 'An existing holder must stop the backfill after the guard query.' );
+		$this->assertSame( 'manage_wp_sudo', $queries[0]['capability'] ?? null );
+	}
+
+	public function test_330_skips_governance_cap_grants_on_multisite(): void {
+		Functions\when( 'is_multisite' )->justReturn( true );
+
+		$queries = 0;
+		Functions\when( 'get_users' )->alias( function () use ( &$queries ) {
+			$queries++;
+			return array();
+		} );
+
+		$upgrader = new Upgrader();
+		$method   = new \ReflectionMethod( Upgrader::class, 'upgrade_3_3_0' );
+		@$method->setAccessible( true );
+		$method->invoke( $upgrader );
+
+		$this->assertSame( 0, $queries, 'Multisite must return before any user query.' );
+	}
+
+	public function test_330_backfill_runs_via_maybe_upgrade_for_sites_stored_at_313(): void {
+		// Regression for the mis-keyed 3.1.0 migration: a site that ran any
+		// public 3.1.x release stores 3.1.1-3.1.3, which is NOT < 3.1.0, so
+		// the governance backfill was silently skipped and strict mode locked
+		// admins out of Settings → Sudo. Keyed at 3.3.0, it must run.
+		$admin = \Mockery::mock( \WP_User::class );
+		$admin->ID = 42;
+		$admin->shouldReceive( 'add_cap' )->once()->with( 'manage_wp_sudo' );
+		$admin->shouldReceive( 'add_cap' )->once()->with( 'view_wp_sudo_activity' );
+		$admin->shouldReceive( 'add_cap' )->once()->with( 'export_wp_sudo_activity' );
+		$admin->shouldReceive( 'add_cap' )->once()->with( 'revoke_wp_sudo_sessions' );
+
+		Functions\when( 'is_multisite' )->justReturn( false );
+
+		Functions\when( 'get_option' )->alias( function ( $key, $default = false ) {
+			if ( Upgrader::VERSION_OPTION === $key ) {
+				return '3.1.3';
+			}
+			return $default;
+		} );
+
+		Functions\when( 'get_users' )->alias( function ( array $args ) use ( $admin ) {
+			if ( isset( $args['capability'] ) ) {
+				return array();
+			}
+			return array( $admin );
+		} );
+
+		Functions\expect( 'update_option' )
+			->once()
+			->with( Upgrader::VERSION_OPTION, WP_SUDO_VERSION );
+
+		$upgrader = new Upgrader();
+		$upgrader->maybe_upgrade();
 	}
 
 	// ── Multisite: site options ──────────────────────────────────────
