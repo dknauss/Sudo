@@ -53,7 +53,7 @@ class Upgrader {
 		'2.2.0'  => 'upgrade_2_2_0',
 		'2.15.0' => 'upgrade_2_15_0',
 		'3.0.0'  => 'upgrade_3_0_0',
-		'3.1.0'  => 'upgrade_3_1_0',
+		'3.3.0'  => 'upgrade_3_3_0',
 	);
 
 	/**
@@ -71,7 +71,7 @@ class Upgrader {
 		$stored = $this->get_db_version();
 
 		// Nothing to do if already current.
-		if ( version_compare( $stored, self::plugin_version(), '>=' ) ) {
+		if ( version_compare( $stored, WP_SUDO_VERSION, '>=' ) ) {
 			return;
 		}
 
@@ -83,7 +83,7 @@ class Upgrader {
 		}
 
 		// Mark as current.
-		$this->set_db_version( self::plugin_version() );
+		$this->set_db_version( WP_SUDO_VERSION );
 	}
 
 	/**
@@ -113,15 +113,6 @@ class Upgrader {
 		} else {
 			update_option( self::VERSION_OPTION, $version );
 		}
-	}
-
-	/**
-	 * Resolve plugin version constant safely for static analysis and bootstrap edge cases.
-	 *
-	 * @return string
-	 */
-	private static function plugin_version(): string {
-		return defined( 'WP_SUDO_VERSION' ) ? (string) WP_SUDO_VERSION : '0.0.0';
 	}
 
 	// ─────────────────────────────────────────────────────────────────────
@@ -247,20 +238,48 @@ class Upgrader {
 	}
 
 	/**
-	 * 3.1.0 migration: preserve Sudo access for existing single-site admins.
+	 * 3.3.0 migration: preserve Sudo access for existing single-site admins.
 	 *
 	 * Fresh activations grant the dedicated governance capabilities to the
 	 * activating admin, but already-active installs do not fire the activation
 	 * callback during a code update. Backfill the initial governance holders so
 	 * strict mode does not lock existing operators out of Sudo settings.
 	 *
+	 * HISTORY — do not re-key to the feature's release version. Governance
+	 * shipped in 3.2.0 but this routine was originally keyed at 3.1.0, a
+	 * version that never had a public release (tags went 3.1.1 → 3.1.3 →
+	 * 3.2.0). Sites stored at any public 3.1.x therefore skipped the backfill
+	 * (3.1.x is not < 3.1.0) and were locked out of Settings → Sudo in strict
+	 * mode, and sites that then upgraded already have 3.2.0 stamped. Keying at
+	 * 3.3.0 runs the routine once more for both cohorts. The existing-holder
+	 * guard below makes the re-run a no-op on sites where governance already
+	 * works, so deliberate Access-tab grants/revocations are preserved.
+	 *
 	 * Multisite remains super-admin governed via sudo_can()'s explicit
 	 * super-admin short-circuit, so no per-site cap grant is needed here.
+	 * Sites with no users in the administrator role get no backfill; recovery
+	 * there remains the WP_SUDO_RECOVERY_MODE constant.
 	 *
 	 * @return void
 	 */
-	private function upgrade_3_1_0(): void {
+	private function upgrade_3_3_0(): void {
 		if ( is_multisite() ) {
+			return;
+		}
+
+		// Governance is already configured if anyone holds the settings-access
+		// cap (individually or via a role; an explicit deny entry also matches,
+		// but the plugin's own revoke path uses remove_cap() and never writes
+		// deny entries). Zero holders is exactly the lockout this fixes.
+		$holders = get_users(
+			array(
+				'capability' => 'manage_wp_sudo',
+				'number'     => 1,
+				'fields'     => 'ids',
+			)
+		);
+
+		if ( ! empty( $holders ) ) {
 			return;
 		}
 

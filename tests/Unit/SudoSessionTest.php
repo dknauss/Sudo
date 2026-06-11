@@ -24,6 +24,12 @@ use Brain\Monkey\Filters;
 class SudoSessionTest extends TestCase
 {
 
+	protected function setUp(): void
+	{
+		parent::setUp();
+		Functions\when('force_ssl_admin')->justReturn(false);
+	}
+
 	protected function tearDown(): void
 	{
 		unset($_COOKIE[Sudo_Session::TOKEN_COOKIE]);
@@ -415,6 +421,8 @@ class SudoSessionTest extends TestCase
 			return '';
 		});
 
+		Functions\when('get_transient')->justReturn(false);
+
 		$result = Sudo_Session::attempt_activation(1, 'any-password');
 
 		$this->assertSame('locked_out', $result['code']);
@@ -431,6 +439,8 @@ class SudoSessionTest extends TestCase
 		Functions\when('get_userdata')->justReturn($user);
 		Functions\when('wp_check_password')->justReturn(false);
 		Functions\when('update_user_meta')->justReturn(true);
+		Functions\when('get_transient')->justReturn(false);
+		Functions\when('set_transient')->justReturn(true);
 
 		$result = Sudo_Session::attempt_activation(1, 'wrong-password');
 
@@ -444,6 +454,9 @@ class SudoSessionTest extends TestCase
 		Functions\when('add_user_meta')->justReturn(true);
 		Functions\when('delete_user_meta')->justReturn(true);
 		Functions\when('update_user_meta')->justReturn(true);
+
+		Functions\when('get_transient')->justReturn(false);
+		Functions\when('set_transient')->justReturn(true);
 
 		$result = Sudo_Session::attempt_activation(999, 'any-password');
 
@@ -460,6 +473,9 @@ class SudoSessionTest extends TestCase
 		Functions\when('get_userdata')->justReturn($user);
 		Functions\when('wp_check_password')->justReturn(false);
 		Functions\when('update_user_meta')->justReturn(true);
+
+		Functions\when('get_transient')->justReturn(false);
+		Functions\when('set_transient')->justReturn(true);
 
 		Actions\expectDone('wp_sudo_reauth_failed')
 			->once()
@@ -482,6 +498,7 @@ class SudoSessionTest extends TestCase
 		Functions\when('headers_sent')->justReturn(false);
 		Functions\when('setcookie')->justReturn(true);
 		Functions\when('get_option')->justReturn(array('session_duration' => 15));
+		Functions\when('get_transient')->justReturn(false);
 
 		// 2FA not active.
 		Functions\when('apply_filters')->justReturn(false);
@@ -504,6 +521,8 @@ class SudoSessionTest extends TestCase
 		Functions\when('is_ssl')->justReturn(false);
 		Functions\when('headers_sent')->justReturn(false);
 		Functions\when('setcookie')->justReturn(true);
+
+		Functions\when('get_transient')->justReturn(false);
 
 		// Mock needs_two_factor to return true via the filter.
 		Functions\when('apply_filters')->justReturn(true);
@@ -528,6 +547,8 @@ class SudoSessionTest extends TestCase
 		Functions\when('is_ssl')->justReturn(false);
 		Functions\when('headers_sent')->justReturn(false);
 		Functions\when('setcookie')->justReturn(true);
+
+		Functions\when('get_transient')->justReturn(false);
 
 		// Password success is not final success when 2FA is still pending.
 		Functions\expect('delete_user_meta')->never();
@@ -559,6 +580,7 @@ class SudoSessionTest extends TestCase
 		Functions\when( 'headers_sent' )->justReturn( false );
 		Functions\when( 'setcookie' )->justReturn( true );
 		Functions\when( 'apply_filters' )->justReturn( true ); // needs_two_factor = true
+		Functions\when( 'get_transient' )->justReturn( false );
 
 		$call_order = array();
 
@@ -605,6 +627,8 @@ class SudoSessionTest extends TestCase
 		Functions\when('is_ssl')->justReturn(false);
 		Functions\when('headers_sent')->justReturn(false);
 		Functions\when('setcookie')->justReturn(true);
+
+		Functions\when('get_transient')->justReturn(false);
 
 		// Capture the transient TTL.
 		$stored_ttl = null;
@@ -671,6 +695,8 @@ class SudoSessionTest extends TestCase
 			)
 			->andReturn(true);
 
+		Functions\when('get_transient')->justReturn(false);
+
 		// Return 10 seconds — well below the 1-minute minimum.
 		Functions\when('apply_filters')
 			->alias(function ($filter_name) {
@@ -720,6 +746,8 @@ class SudoSessionTest extends TestCase
 			)
 			->andReturn(true);
 
+		Functions\when('get_transient')->justReturn(false);
+
 		// Return 3600 seconds (1 hour) — above the 15-minute maximum.
 		Functions\when('apply_filters')
 			->alias(function ($filter_name) {
@@ -768,6 +796,8 @@ class SudoSessionTest extends TestCase
 				})
 			)
 			->andReturn(true);
+
+		Functions\when('get_transient')->justReturn(false);
 
 		// Return 600 seconds (10 minutes) — valid, within bounds.
 		Functions\when('apply_filters')
@@ -852,6 +882,7 @@ class SudoSessionTest extends TestCase
 		Functions\when('get_userdata')->justReturn($user);
 		Functions\when('wp_check_password')->justReturn(true);
 		Functions\when('delete_user_meta')->justReturn(true);
+		Functions\when('get_transient')->justReturn(false);
 		Functions\when('set_transient')->justReturn(true);
 		Functions\when('apply_filters')->justReturn(true);
 		Functions\when('wp_generate_password')->justReturn('test-challenge-nonce-abc');
@@ -883,6 +914,7 @@ class SudoSessionTest extends TestCase
 		Functions\when('delete_user_meta')->justReturn(true);
 		Functions\when('apply_filters')->justReturn(true);
 		Functions\when('wp_generate_password')->justReturn('challenge-nonce-xyz');
+		Functions\when('get_transient')->justReturn(false);
 		Functions\when('is_ssl')->justReturn(false);
 		Functions\when('headers_sent')->justReturn(false);
 		Functions\when('setcookie')->justReturn(true);
@@ -1248,6 +1280,9 @@ class SudoSessionTest extends TestCase
 			->once()
 			->with(1, '_wp_sudo_failure_event', \Mockery::type('int'), false);
 
+		Functions\when('get_transient')->justReturn(false);
+		Functions\when('set_transient')->justReturn(true);
+
 		// We need to trigger a failure to run record_failed_attempt.
 		// Since it's private, we trigger it via attempt_activation.
 		$user = new \WP_User(1, array('editor'));
@@ -1281,6 +1316,8 @@ class SudoSessionTest extends TestCase
 		Functions\when('delete_user_meta')->justReturn(true);
 		Functions\when('get_userdata')->justReturn(new \WP_User(1));
 		Functions\when('wp_check_password')->justReturn(false);
+		Functions\when('get_transient')->justReturn(false);
+		Functions\when('set_transient')->justReturn(true);
 
 		// Fifth attempt should trigger lockout meta update.
 		Functions\expect( 'update_user_meta' )
@@ -1348,6 +1385,8 @@ class SudoSessionTest extends TestCase
 		Functions\when('wp_check_password')->justReturn(false);
 		Functions\when('add_user_meta')->justReturn(true);
 		Functions\when('update_user_meta')->justReturn(true);
+		Functions\when('get_transient')->justReturn(false);
+		Functions\when('set_transient')->justReturn(true);
 
 		Sudo_Session::attempt_activation(1, 'wrong-password');
 	}
@@ -1360,6 +1399,9 @@ class SudoSessionTest extends TestCase
 		Functions\when('get_user_meta')->justReturn(array());
 		Functions\when('update_user_meta')->justReturn(true);
 		Functions\when('delete_user_meta')->justReturn(true);
+
+		Functions\when('get_transient')->justReturn(false);
+		Functions\when('set_transient')->justReturn(true);
 
 		// Verify that a failure explicitly recorded (e.g. from 2FA) uses add_user_meta as append.
 		Functions\expect('add_user_meta')
@@ -1581,6 +1623,29 @@ class SudoSessionTest extends TestCase
 		$this->assertSame('locked_out', $result['code']);
 		$this->assertArrayHasKey('remaining', $result);
 		$this->assertGreaterThan(0, $result['remaining']);
+	}
+
+	/**
+	 * S1: a cache failure during the IP lockout read must propagate, not fail open.
+	 *
+	 * If get_transient() throws (e.g. object cache backend down), the lockout
+	 * check must surface the error instead of silently treating the IP as not
+	 * locked out.
+	 */
+	public function test_ip_lockout_check_propagates_transient_read_failure(): void
+	{
+		$_SERVER['REMOTE_ADDR'] = '203.0.113.50';
+
+		Functions\when('get_transient')->alias(
+			static function () {
+				throw new \RuntimeException('cache down');
+			}
+		);
+
+		$this->expectException(\RuntimeException::class);
+		$this->expectExceptionMessage('cache down');
+
+		Sudo_Session::is_current_request_ip_locked_out(1);
 	}
 
 	public function test_record_failed_attempt_locks_out_when_ip_threshold_is_reached(): void

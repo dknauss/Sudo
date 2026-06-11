@@ -80,7 +80,7 @@ class Plugin {
 	 */
 	public function init(): void {
 		// Load translations.
-		load_plugin_textdomain( 'wp-sudo', false, dirname( self::plugin_basename() ) . '/languages' );
+		load_plugin_textdomain( 'wp-sudo', false, dirname( WP_SUDO_PLUGIN_BASENAME ) . '/languages' );
 
 		// Run any pending upgrade routines (must run before other components).
 		// Only on admin/CLI requests — front-end visitors never trigger migrations.
@@ -142,6 +142,7 @@ class Plugin {
 		// Login grant: a successful form login implicitly satisfies reauthentication.
 		// wp_login fires for browser-based logins only (not App Passwords / XML-RPC),
 		// so the session cookie set by activate() is guaranteed to reach the browser.
+		// Suppressible via the wp_sudo_grant_session_on_login filter.
 		add_action( 'wp_login', array( $this, 'grant_session_on_login' ), 10, 2 );
 
 		// Password change: expire any active sudo session when credentials change.
@@ -176,9 +177,9 @@ class Plugin {
 
 		wp_enqueue_style(
 			'wp-sudo-notices',
-			self::plugin_url() . 'admin/css/wp-sudo-notices.css',
+			WP_SUDO_PLUGIN_URL . 'admin/css/wp-sudo-notices.css',
 			array(),
-			self::plugin_version()
+			WP_SUDO_VERSION
 		);
 	}
 
@@ -212,9 +213,9 @@ class Plugin {
 
 		wp_enqueue_script(
 			'wp-sudo-shortcut',
-			self::plugin_url() . 'admin/js/wp-sudo-shortcut.js',
+			WP_SUDO_PLUGIN_URL . 'admin/js/wp-sudo-shortcut.js',
 			array(),
-			self::plugin_version(),
+			WP_SUDO_VERSION,
 			true
 		);
 
@@ -273,9 +274,9 @@ class Plugin {
 
 		wp_enqueue_script(
 			'wp-sudo-gate-ui',
-			self::plugin_url() . 'admin/js/wp-sudo-gate-ui.js',
+			WP_SUDO_PLUGIN_URL . 'admin/js/wp-sudo-gate-ui.js',
 			array(),
-			self::plugin_version(),
+			WP_SUDO_VERSION,
 			true
 		);
 
@@ -291,22 +292,43 @@ class Plugin {
 	/**
 	 * Grant a sudo session immediately after a successful WordPress login.
 	 *
-	 * The user just proved their identity via the login form — challenging again
-	 * immediately is unnecessary friction. This mirrors the behaviour of Unix sudo
-	 * and GitHub's sudo mode: a fresh login implicitly satisfies the
-	 * reauthentication requirement.
+	 * The user just proved knowledge of the password via the login form — an
+	 * immediate password challenge would add friction without a barrier. The
+	 * grant is password-strength only: 2FA plugins interrupt on this same
+	 * wp_login hook at later priority (Two Factor hooks it at PHP_INT_MAX),
+	 * so for 2FA-enrolled users this grant runs before the second factor is
+	 * verified.
 	 *
 	 * wp_login fires for browser-based form logins only (not Application Passwords
 	 * or XML-RPC), so session-cookie binding via setcookie() is safe here —
 	 * headers have not yet been sent at this point.
 	 *
 	 * @since 2.6.0
+	 * @since 3.3.0 Added the `wp_sudo_grant_session_on_login` filter.
 	 *
 	 * @param string   $user_login The user's login name (unused; ID is read from object).
 	 * @param \WP_User $user       The authenticated user object.
 	 * @return void
 	 */
 	public function grant_session_on_login( string $user_login, \WP_User $user ): void {
+		/**
+		 * Filters whether a sudo session is granted automatically on login.
+		 *
+		 * Default true. Any falsy return suppresses the automatic grant, so the
+		 * user must pass an explicit challenge at their first gated action.
+		 * Intended for shared-terminal/kiosk hardening and SSO integrations.
+		 * Note: suppressing the grant for users without a usable WordPress
+		 * password (common with SSO) makes gated actions unreachable for them.
+		 *
+		 * @since 3.3.0
+		 *
+		 * @param bool     $grant Whether to grant the sudo session. Default true.
+		 * @param \WP_User $user  The user who logged in.
+		 */
+		if ( ! (bool) apply_filters( 'wp_sudo_grant_session_on_login', true, $user ) ) {
+			return;
+		}
+
 		Sudo_Session::activate( $user->ID );
 	}
 
@@ -513,33 +535,6 @@ class Plugin {
 	 */
 	public function admin(): ?Admin {
 		return $this->admin;
-	}
-
-	/**
-	 * Resolve plugin basename constant safely for static analysis and bootstrap edge cases.
-	 *
-	 * @return string
-	 */
-	private static function plugin_basename(): string {
-		return defined( 'WP_SUDO_PLUGIN_BASENAME' ) ? (string) WP_SUDO_PLUGIN_BASENAME : 'wp-sudo/wp-sudo.php';
-	}
-
-	/**
-	 * Resolve plugin URL constant safely for static analysis and bootstrap edge cases.
-	 *
-	 * @return string
-	 */
-	private static function plugin_url(): string {
-		return defined( 'WP_SUDO_PLUGIN_URL' ) ? (string) WP_SUDO_PLUGIN_URL : '';
-	}
-
-	/**
-	 * Resolve plugin version constant safely for static analysis and bootstrap edge cases.
-	 *
-	 * @return string
-	 */
-	private static function plugin_version(): string {
-		return defined( 'WP_SUDO_VERSION' ) ? (string) WP_SUDO_VERSION : '0.0.0';
 	}
 
 	/**

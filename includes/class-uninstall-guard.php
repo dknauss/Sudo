@@ -38,10 +38,6 @@ final class Uninstall_Guard {
 			return true;
 		}
 
-		if ( ! function_exists( 'current_user_can' ) ) {
-			return false;
-		}
-
 		return current_user_can( 'delete_plugins' );
 	}
 }

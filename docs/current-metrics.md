@@ -2,28 +2,28 @@
 
 This file is the single source of truth for current repository counts.
 
-Last verified: 2026-06-08
+Last verified: 2026-06-11
 Verification environment: local workspace, PHP 8.x
 
 ## Test Metrics
 
 | Metric | Value | Verification |
 |---|---:|---|
-| Unit tests | 777 tests | `composer test:unit` |
-| Unit assertions | 2220 assertions | `composer test:unit` |
-| Integration tests in suite | 165 test methods | `rg -c "function test" tests/Integration/*.php | awk -F: '{sum+=$2} END{print sum}'` |
+| Unit tests | 784 tests | `composer test:unit` |
+| Unit assertions | 2242 assertions | `composer test:unit` |
+| Integration tests in suite | 178 test methods | `rg -c "function test" tests/Integration/*.php | awk -F: '{sum+=$2} END{print sum}'` |
 | Unit test files | 25 | `ls tests/Unit/*.php | wc -l` |
-| Integration test files | 22 | `ls tests/Integration/*.php | wc -l` |
+| Integration test files | 24 | `ls tests/Integration/*.php | wc -l` |
 
 ## Size Metrics
 
 | Metric | Value | Verification |
 |---|---:|---|
-| Production PHP lines (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 14,925 | `find ./includes ./wp-sudo.php ./uninstall.php ./mu-plugin ./bridges -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
-| Tests PHP lines (`tests/`) | 26,446 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
-| Production + tests PHP lines | 41,371 | sum of the two rows above |
-| Test-to-production ratio | 1.77:1 | `26446 / 14925` |
-| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`) | 41,634 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Production PHP lines (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 14,760 | `find ./includes ./wp-sudo.php ./uninstall.php ./mu-plugin ./bridges -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Tests PHP lines (`tests/`) | 27,449 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Production + tests PHP lines | 42,209 | sum of the two rows above |
+| Test-to-production ratio | 1.86:1 | `27449 / 14760` |
+| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`) | 42,472 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
 
 ## Architectural Facts
 
@@ -66,9 +66,9 @@ Source: `.github/workflows/phpunit.yml`, `.github/workflows/e2e.yml`, `.github/w
 
 ## Verification Notes
 
-- `composer test:unit` passed on 2026-06-08 (`777 tests`, `2220 assertions`).
-- `composer test:integration` passed on 2026-06-08 (`170 tests`, `551 assertions`, `9 skipped`) using the local WordPress integration test database.
-- `WP_MULTISITE=1 composer test:integration` passed on 2026-04-20 (`165 tests`, `552 assertions`, `2 skipped`) using the same `wp-env` `tests-cli` fallback and database.
+- `composer test:unit` passed on 2026-06-11 (`784 tests`, `2242 assertions`).
+- `composer test:integration` ran on 2026-06-10 (`183 tests`, `587 assertions`, `15 skipped`, `1 failure`) via the wp-env `tests-cli` container fallback against WordPress 7.0-RC1; the single failure is the pre-existing `UninstallTest::test_single_site_uninstall_cleans_all_data` events-table issue tracked for fix (predates the new coverage; also reproduces without it).
+- `WP_MULTISITE=1 composer test:integration` aborts mid-suite on 2026-06-10 in the `UninstallTest` region under the same container (pre-existing on `main`; reproduces without the new test files — suspected bare `exit` in `uninstall.php` when the uninstall guard denies `delete_plugins` on multisite). Both new integration test files pass standalone in multisite mode. Last full multisite pass: 2026-04-20 (`165 tests`, `552 assertions`, `2 skipped`).
 - `composer analyse` and `composer lint` passed on 2026-06-08.
 
 ## Update Procedure

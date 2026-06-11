@@ -27,6 +27,7 @@ class AdminBarTest extends TestCase {
 
 	protected function setUp(): void {
 		parent::setUp();
+		Functions\when( 'force_ssl_admin' )->justReturn( false );
 		$this->admin_bar = new Admin_Bar();
 	}
 

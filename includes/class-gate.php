@@ -591,22 +591,18 @@ class Gate {
 	 * @return bool True when the key stores role capabilities.
 	 */
 	private function is_user_capabilities_meta_key( string $meta_key ): bool {
+		global $wpdb;
+
 		$keys = array( 'wp_capabilities' );
 
-		if ( isset( $GLOBALS['wpdb'] ) && is_object( $GLOBALS['wpdb'] ) ) {
-			$wpdb = $GLOBALS['wpdb'];
+		$keys[] = (string) $wpdb->get_blog_prefix() . 'capabilities';
 
-			if ( method_exists( $wpdb, 'get_blog_prefix' ) ) {
-				$keys[] = (string) $wpdb->get_blog_prefix() . 'capabilities';
-			}
+		if ( isset( $wpdb->prefix ) ) {
+			$keys[] = (string) $wpdb->prefix . 'capabilities';
+		}
 
-			if ( isset( $wpdb->prefix ) ) {
-				$keys[] = (string) $wpdb->prefix . 'capabilities';
-			}
-
-			if ( isset( $wpdb->base_prefix ) ) {
-				$keys[] = (string) $wpdb->base_prefix . 'capabilities';
-			}
+		if ( isset( $wpdb->base_prefix ) ) {
+			$keys[] = (string) $wpdb->base_prefix . 'capabilities';
 		}
 
 		$keys = array_values( array_unique( $keys ) );

@@ -188,13 +188,21 @@ escaped (no `JSON_HEX_TAG`), but PHP's default `\/` escaping neutralizes
 strings. **Fix:** Use `wp_add_inline_script()` or add
 `JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT`.
 
-**F17 — `grant_session_on_login` grants sudo on every `wp_login`** ℹ️ Open (documented design)
-`includes/class-plugin.php:309-311`
-Intentional (login implies reauth, mirroring Unix/GitHub sudo); `wp_login`
-fires only after core auth + any 2FA. Residual: a custom SSO plugin firing
-`do_action('wp_login')` programmatically would silently grant sudo.
-**Fix:** Add a `wp_sudo_grant_on_login` opt-out filter; document for
-integrators.
+**F17 — `grant_session_on_login` grants sudo on every `wp_login`** ✅ Fixed (unreleased)
+`includes/class-plugin.php:309-330`
+Intentional design (a password challenge adds no barrier seconds after a
+password login). Two claims in the original entry were wrong and are
+corrected here: the behavior does **not** mirror Unix sudo (its credential
+cache starts at the first `sudo` invocation, not at login), and `wp_login`
+does **not** fire after 2FA — the Two Factor plugin hooks `wp_login` at
+`PHP_INT_MAX` (verified against live source, class-two-factor-core.php
+line 123), so the priority-10 grant runs before second-factor
+verification and is password-strength only. Residual: any code firing
+`do_action('wp_login')` (SSO plugins, programmatic logins) grants sudo —
+for passwordless SSO users this is also what keeps gated actions reachable.
+**Fixed:** `wp_sudo_grant_session_on_login` opt-out filter (name differs
+from the `wp_sudo_grant_on_login` proposed above; chosen to match the
+method name) with integrator documentation.
 
 **F18b — Correct password during 2fa_pending orphans prior pending transients** ℹ️ Open
 Each correct-password submission mints a new `2fa_pending` transient

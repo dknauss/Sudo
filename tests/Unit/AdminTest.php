@@ -114,6 +114,8 @@ class AdminTest extends TestCase {
 
 	public function test_sanitize_clamps_duration_below_range(): void {
 		Functions\when( 'absint' )->alias( fn( $val ) => abs( (int) $val ) );
+		Functions\when( 'is_multisite' )->justReturn( false );
+		Functions\when( 'get_option' )->justReturn( false );
 
 		$admin  = new Admin();
 		$result = $admin->sanitize_settings( array( 'session_duration' => 0 ) );
@@ -123,6 +125,8 @@ class AdminTest extends TestCase {
 
 	public function test_sanitize_clamps_duration_above_range(): void {
 		Functions\when( 'absint' )->alias( fn( $val ) => abs( (int) $val ) );
+		Functions\when( 'is_multisite' )->justReturn( false );
+		Functions\when( 'get_option' )->justReturn( false );
 
 		$admin  = new Admin();
 		$result = $admin->sanitize_settings( array( 'session_duration' => 30 ) );
@@ -131,6 +135,9 @@ class AdminTest extends TestCase {
 	}
 
 	public function test_sanitize_clamps_negative_duration_to_default(): void {
+		Functions\when( 'is_multisite' )->justReturn( false );
+		Functions\when( 'get_option' )->justReturn( false );
+
 		$admin  = new Admin();
 		$result = $admin->sanitize_settings( array( 'session_duration' => -5 ) );
 
@@ -139,6 +146,8 @@ class AdminTest extends TestCase {
 
 	public function test_sanitize_accepts_valid_duration(): void {
 		Functions\when( 'absint' )->alias( fn( $val ) => abs( (int) $val ) );
+		Functions\when( 'is_multisite' )->justReturn( false );
+		Functions\when( 'get_option' )->justReturn( false );
 
 		$admin  = new Admin();
 		$result = $admin->sanitize_settings( array( 'session_duration' => 10 ) );
@@ -148,6 +157,8 @@ class AdminTest extends TestCase {
 
 	public function test_sanitize_normalizes_valid_policy(): void {
 		Functions\when( 'absint' )->alias( fn( $val ) => abs( (int) $val ) );
+		Functions\when( 'is_multisite' )->justReturn( false );
+		Functions\when( 'get_option' )->justReturn( false );
 
 		$admin  = new Admin();
 		$result = $admin->sanitize_settings( array(
@@ -166,6 +177,8 @@ class AdminTest extends TestCase {
 
 	public function test_sanitize_rejects_invalid_policy_values(): void {
 		Functions\when( 'absint' )->alias( fn( $val ) => abs( (int) $val ) );
+		Functions\when( 'is_multisite' )->justReturn( false );
+		Functions\when( 'get_option' )->justReturn( false );
 
 		$admin  = new Admin();
 		$result = $admin->sanitize_settings( array(
@@ -180,6 +193,8 @@ class AdminTest extends TestCase {
 
 	public function test_sanitize_defaults_missing_policies_to_limited(): void {
 		Functions\when( 'absint' )->alias( fn( $val ) => abs( (int) $val ) );
+		Functions\when( 'is_multisite' )->justReturn( false );
+		Functions\when( 'get_option' )->justReturn( false );
 
 		$admin  = new Admin();
 		$result = $admin->sanitize_settings( array( 'session_duration' => 15 ) );

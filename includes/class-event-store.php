@@ -104,13 +104,9 @@ class Event_Store {
 			return;
 		}
 
-		if ( is_object( $wpdb ) && method_exists( $wpdb, 'suppress_errors' ) ) {
-			$wpdb->suppress_errors( true );
-		}
+		$wpdb->suppress_errors( true );
 		self::create_table();
-		if ( is_object( $wpdb ) && method_exists( $wpdb, 'suppress_errors' ) ) {
-			$wpdb->suppress_errors( false );
-		}
+		$wpdb->suppress_errors( false );
 	}
 
 	/**
@@ -138,7 +134,7 @@ class Event_Store {
 			return;
 		}
 
-		$charset_collate = method_exists( $wpdb, 'get_charset_collate' ) ? $wpdb->get_charset_collate() : '';
+		$charset_collate = $wpdb->get_charset_collate();
 
 		if ( $is_sqlite ) {
 			// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared, WordPress.DB.PreparedSQL.InterpolatedNotPrepared, WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.DirectDatabaseQuery.NoCaching
@@ -210,10 +206,10 @@ KEY site_event_created_at (site_id, event, created_at)
 		$row = array(
 			'site_id'    => self::current_site_id(),
 			'user_id'    => isset( $data['user_id'] ) ? (int) $data['user_id'] : 0,
-			'event'      => self::sanitize_event_name( $data['event'] ?? '' ),
-			'rule_id'    => isset( $data['rule_id'] ) ? (string) $data['rule_id'] : '',
-			'surface'    => isset( $data['surface'] ) ? (string) $data['surface'] : '',
-			'ip'         => isset( $data['ip'] ) ? (string) $data['ip'] : '',
+			'event'      => self::clamp_column( self::sanitize_event_name( $data['event'] ?? '' ), 50 ),
+			'rule_id'    => self::clamp_column( $data['rule_id'] ?? '', 100 ),
+			'surface'    => self::clamp_column( $data['surface'] ?? '', 30 ),
+			'ip'         => self::clamp_column( $data['ip'] ?? '', 45 ),
 			'context'    => self::normalize_context( $data['context'] ?? array() ),
 			'created_at' => isset( $data['created_at'] ) && is_string( $data['created_at'] ) && '' !== $data['created_at']
 				? $data['created_at']
@@ -260,10 +256,10 @@ KEY site_event_created_at (site_id, event, created_at)
 
 			$args[] = self::current_site_id();
 			$args[] = isset( $data['user_id'] ) ? (int) $data['user_id'] : 0;
-			$args[] = self::sanitize_event_name( $data['event'] ?? '' );
-			$args[] = isset( $data['rule_id'] ) ? (string) $data['rule_id'] : '';
-			$args[] = isset( $data['surface'] ) ? (string) $data['surface'] : '';
-			$args[] = isset( $data['ip'] ) ? (string) $data['ip'] : '';
+			$args[] = self::clamp_column( self::sanitize_event_name( $data['event'] ?? '' ), 50 );
+			$args[] = self::clamp_column( $data['rule_id'] ?? '', 100 );
+			$args[] = self::clamp_column( $data['surface'] ?? '', 30 );
+			$args[] = self::clamp_column( $data['ip'] ?? '', 45 );
 			$args[] = self::normalize_context( $data['context'] ?? array() );
 			$args[] = isset( $data['created_at'] ) && is_string( $data['created_at'] ) && '' !== $data['created_at']
 				? $data['created_at']
@@ -442,11 +438,6 @@ KEY site_event_created_at (site_id, event, created_at)
 
 		// SQLite: use sqlite_master.
 		if ( self::is_sqlite() ) {
-			if ( ! method_exists( $wpdb, 'get_var' ) || ! method_exists( $wpdb, 'prepare' ) ) {
-				self::$table_exists_cache = false;
-				return false;
-			}
-
 			$table = self::table_name();
 			// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- table_name() is safe.
 			$result                   = $wpdb->get_var(
@@ -460,19 +451,10 @@ KEY site_event_created_at (site_id, event, created_at)
 			return self::$table_exists_cache;
 		}
 
-		if ( ! method_exists( $wpdb, 'get_results' ) ) {
-			self::$table_exists_cache = false;
-			return false;
-		}
-
-		if ( is_object( $wpdb ) && method_exists( $wpdb, 'suppress_errors' ) ) {
-			$wpdb->suppress_errors( true );
-		}
+		$wpdb->suppress_errors( true );
 		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- table_name() is a safe identifier assembled from the configured prefix.
 		$columns = $wpdb->get_results( 'DESCRIBE ' . self::table_name() );
-		if ( is_object( $wpdb ) && method_exists( $wpdb, 'suppress_errors' ) ) {
-			$wpdb->suppress_errors( false );
-		}
+		$wpdb->suppress_errors( false );
 
 		self::$table_exists_cache = is_array( $columns ) && ! empty( $columns );
 
@@ -533,6 +515,24 @@ KEY site_event_created_at (site_id, event, created_at)
 	}
 
 	/**
+	 * Clamp a text value to its schema column width.
+	 *
+	 * The rule_id value originates from third-party `wp_sudo_gated_actions`
+	 * rules with no upstream length bound; over-length values either truncate
+	 * silently (non-strict MySQL) or error and drop the audit row (strict mode).
+	 * Clamping in PHP keeps the row and makes the boundary explicit.
+	 * mb_substr counts characters, matching varchar(n) semantics, and never
+	 * splits a multibyte character.
+	 *
+	 * @param mixed $value Raw column value.
+	 * @param int   $width Schema varchar width.
+	 * @return string
+	 */
+	private static function clamp_column( $value, int $width ): string {
+		return mb_substr( (string) $value, 0, $width );
+	}
+
+	/**
 	 * Sanitize an event name to lowercase underscores.
 	 *
 	 * @param mixed $event Event input.
@@ -552,10 +552,6 @@ KEY site_event_created_at (site_id, event, created_at)
 	 * @return int
 	 */
 	private static function current_site_id(): int {
-		if ( function_exists( 'get_current_blog_id' ) ) {
-			return (int) get_current_blog_id();
-		}
-
-		return 1;
+		return (int) get_current_blog_id();
 	}
 }

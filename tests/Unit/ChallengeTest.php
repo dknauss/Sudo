@@ -319,6 +319,7 @@ class ChallengeTest extends TestCase
 		Functions\when('wp_generate_password')->justReturn('test-token-abc');
 		Functions\when('is_ssl')->justReturn(false);
 		Functions\when('setcookie')->justReturn(true);
+		Functions\when('get_transient')->justReturn(false);
 
 		// Session-only success should return 'authenticated' code (not replay).
 		Functions\expect('wp_send_json_success')
@@ -373,6 +374,8 @@ class ChallengeTest extends TestCase
 		Functions\when('wp_generate_password')->justReturn('test-token-abc');
 		Functions\when('is_ssl')->justReturn(false);
 		Functions\when('setcookie')->justReturn(true);
+
+		Functions\when('get_transient')->justReturn(false);
 
 		// replay_stash will be called (stash_key is set); stash returns null → redirect.
 		$this->stash->shouldReceive('get')->andReturn(null);
@@ -569,6 +572,7 @@ class ChallengeTest extends TestCase
 		// Fallthrough stubs — wp_send_json_error doesn't die in tests.
 		Functions\when('apply_filters')->justReturn(false);
 		Functions\when('delete_transient')->justReturn(true);
+		Functions\when('set_transient')->justReturn(true);
 		Functions\when('update_user_meta')->justReturn(true);
 		Functions\when('add_user_meta')->justReturn(true);
 		Functions\when('delete_user_meta')->justReturn(true);
@@ -615,6 +619,8 @@ class ChallengeTest extends TestCase
 
 		// Fallthrough stubs.
 		Functions\when('apply_filters')->justReturn(false);
+		Functions\when('get_transient')->justReturn(false);
+		Functions\when('set_transient')->justReturn(true);
 		Functions\when('delete_transient')->justReturn(true);
 		Functions\when('update_user_meta')->justReturn(true);
 		Functions\when('add_user_meta')->justReturn(true);
@@ -676,6 +682,7 @@ class ChallengeTest extends TestCase
 
 		// 2FA validation fails.
 		Functions\when('apply_filters')->justReturn(false);
+		Functions\when('set_transient')->justReturn(true);
 
 		// Throttled AFTER validation (e.g. 4th attempt).
 		Functions\expect('add_user_meta')
@@ -828,6 +835,7 @@ class ChallengeTest extends TestCase
 
 		// Fallthrough stubs — execution continues past wp_send_json_error in tests.
 		Functions\when('delete_transient')->justReturn(true);
+		Functions\when('set_transient')->justReturn(true);
 		Functions\when('update_user_meta')->justReturn(true);
 		Functions\when('add_user_meta')->justReturn(true);
 		Functions\when('delete_user_meta')->justReturn(true);

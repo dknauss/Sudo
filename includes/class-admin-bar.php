@@ -219,16 +219,16 @@ class Admin_Bar {
 
 		wp_enqueue_style(
 			'wp-sudo-admin-bar',
-			self::plugin_url() . 'admin/css/wp-sudo-admin-bar.css',
+			WP_SUDO_PLUGIN_URL . 'admin/css/wp-sudo-admin-bar.css',
 			array(),
-			self::plugin_version()
+			WP_SUDO_VERSION
 		);
 
 		wp_enqueue_script(
 			'wp-sudo-admin-bar',
-			self::plugin_url() . 'admin/js/wp-sudo-admin-bar.js',
+			WP_SUDO_PLUGIN_URL . 'admin/js/wp-sudo-admin-bar.js',
 			array(),
-			self::plugin_version(),
+			WP_SUDO_VERSION,
 			true
 		);
 
@@ -237,24 +237,6 @@ class Admin_Bar {
 			'wpSudoAdminBar',
 			array( 'remaining' => $remaining )
 		);
-	}
-
-	/**
-	 * Resolve plugin URL constant safely.
-	 *
-	 * @return string
-	 */
-	private static function plugin_url(): string {
-		return defined( 'WP_SUDO_PLUGIN_URL' ) ? (string) WP_SUDO_PLUGIN_URL : '';
-	}
-
-	/**
-	 * Resolve plugin version constant safely.
-	 *
-	 * @return string
-	 */
-	private static function plugin_version(): string {
-		return defined( 'WP_SUDO_VERSION' ) ? (string) WP_SUDO_VERSION : '0.0.0';
 	}
 
 	/**

@@ -151,7 +151,7 @@ and acceptance criteria.
 
 ### ✓ Completed in v2.6.0
 
-- ~~Login grants sudo session~~ — shipped v2.6.0: `wp_login` hook calls `Sudo_Session::activate()`; mirrors Unix sudo / GitHub sudo mode
+- ~~Login grants sudo session~~ — shipped v2.6.0: `wp_login` hook calls `Sudo_Session::activate()`; opt-out filter added in 3.3.0 (the original "mirrors Unix sudo" rationale was wrong — see llm-lies-log #17)
 - ~~Gate `user.change_password`~~ — shipped v2.6.0: closes session-theft → password change → lockout attack chain
 - ~~Grace period (two-tier expiry)~~ — shipped v2.6.0: 120 s grace window after expiry; session-token-verified, deferred cleanup
 

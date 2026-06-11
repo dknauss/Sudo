@@ -256,7 +256,7 @@ provider impact.
 
 ## Audit Hook Signatures
 
-Sudo fires 10 action hooks for external logging integration with [WP Activity Log](https://wordpress.org/plugins/wp-security-audit-log/), [Stream](https://wordpress.org/plugins/stream/), and similar plugins.
+Sudo fires audit action hooks for external logging integration with [WP Activity Log](https://wordpress.org/plugins/wp-security-audit-log/), [Stream](https://wordpress.org/plugins/stream/), and similar plugins. The live count is tracked in [current-metrics.md](current-metrics.md) (16 as of v3.2.0).
 
 ```php
 // Session lifecycle.
@@ -279,7 +279,7 @@ do_action( 'wp_sudo_policy_preset_applied', int $user_id, string $preset_key, ar
 // Tamper detection.
 do_action( 'wp_sudo_capability_tampered', string $role, string $capability );
 
-// Governance access-model transitions (v3.1.0).
+// Governance access-model transitions (v3.2.0).
 do_action( 'wp_sudo_capability_granted', int $target_user_id, string $cap, int $granter_user_id, int $site_id );
 do_action( 'wp_sudo_capability_revoked', int $target_user_id, string $cap, int $revoker_user_id, int $site_id );
 do_action( 'wp_sudo_session_revoked', int $target_user_id, int $revoker_user_id, string $reason, int $site_id );
@@ -354,6 +354,7 @@ for the full design. Not scheduled; optional Phase 5 of the v3.1–v3.3 plan.
 | Filter | Description |
 |---|---|
 | `wp_sudo_gated_actions` | Add, modify, or intentionally remove gated action rules. Site Health warns when built-in rule IDs are missing after filtering. |
+| `wp_sudo_grant_session_on_login` | Whether to grant a sudo session automatically on browser login (`apply_filters( 'wp_sudo_grant_session_on_login', true, $user )`). Default `true`. Return `false` for shared-terminal/kiosk hardening or SSO control. Caution: suppressing the grant for users without a usable WordPress password (common with SSO) makes gated actions unreachable for them — only suppress for users who can pass the password challenge. Since 3.3.0. |
 | `wp_sudo_two_factor_window` | 2FA authentication window in seconds (default: 300). Clamped to 60–900 seconds (1–15 minutes). |
 | `wp_sudo_requires_two_factor` | Whether a user needs 2FA for sudo (for third-party 2FA plugins). |
 | `wp_sudo_validate_two_factor` | Validate a 2FA code (for third-party 2FA plugins). |
@@ -409,7 +410,7 @@ The admin bar UI uses `is_active()` only; it always reflects the true session st
 
 ### `Sudo_Session::activate( int $user_id ): void`
 
-Creates a new sudo session: generates a token, writes user meta, sets the httponly cookie, and fires `wp_sudo_activated`. Also called automatically by `Plugin::grant_session_on_login()` on successful browser-based login (`wp_login` hook).
+Creates a new sudo session: generates a token, writes user meta, sets the httponly cookie, and fires `wp_sudo_activated`. Also called automatically by `Plugin::grant_session_on_login()` on successful browser-based login (`wp_login` hook); that automatic grant can be suppressed via the `wp_sudo_grant_session_on_login` filter.
 
 ### `Sudo_Session::GRACE_SECONDS`
 
@@ -467,12 +468,21 @@ add_filter( 'wp_sudo_wpgraphql_bypass', function ( bool $bypass, string $body ):
     if ( $bypass ) {
         return $bypass;
     }
-    // Exempt JWT authentication mutations only.
-    if ( str_contains( $body, 'login' ) || str_contains( $body, 'refreshJwtAuthToken' ) ) {
-        return true;
-    }
-    return false;
+
+    $payload = json_decode( $body, true );
+    $query   = is_array( $payload ) && is_string( $payload['query'] ?? null )
+        ? $payload['query']
+        : '';
+
+    // Exempt only documents whose first top-level mutation field is a JWT
+    // authentication operation. Anchoring to the document shape matters: a
+    // `login` alias, a field name like `loginName`, or the substring inside
+    // a string argument elsewhere in the body must NOT trigger the bypass.
+    return (bool) preg_match(
+        '/^\s*mutation\b[^{]*\{\s*(login|refreshJwtAuthToken)\s*[({]/',
+        $query
+    );
 }, 10, 2 );
 ```
 
-The `str_contains()` check here is used for a bypass filter — it only needs to avoid false negatives (wrongly blocking a legitimate auth mutation), so a simple substring check is fine. For precise operation-name matching in more complex bypass rules, use `preg_match()` to extract the operation name from the body.
+A bypass filter is security-sensitive in the **over-match** direction: every request it passes skips Limited-mode gating entirely. A naive substring check such as `str_contains( $body, 'login' )` would let *any* mutation through ungated as long as the string `login` appears anywhere in the body — in an alias, a field name like `loginName`, or a string argument. Prefer under-matching (a legitimate auth mutation gets challenged — recoverable friction) over over-matching (a destructive mutation passes silently). Note one residual limit of the anchored example above: a document that pairs an auth operation with a second top-level mutation field (`mutation { login(...) {...} deleteUser(...) {...} }`) would still match on the first field. If that matters in your deployment, validate the complete document or use a persisted-query allowlist instead of pattern matching.
