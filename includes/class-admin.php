@@ -1508,7 +1508,7 @@ class Admin {
 		/**
 		 * Fires after a Sudo governance capability is granted to a user.
 		 *
-		 * @since 3.1.0
+		 * @since 3.2.0
 		 *
 		 * @param int    $target_user_id  User who received the capability.
 		 * @param string $cap             Capability granted.
@@ -1567,7 +1567,7 @@ class Admin {
 		/**
 		 * Fires after a Sudo governance capability is revoked from a user.
 		 *
-		 * @since 3.1.0
+		 * @since 3.2.0
 		 *
 		 * @param int    $target_user_id  User who lost the capability.
 		 * @param string $cap             Capability revoked.
@@ -1620,7 +1620,7 @@ class Admin {
 		/**
 		 * Fires when an operator force-revokes another user's sudo session.
 		 *
-		 * @since 3.1.0
+		 * @since 3.2.0
 		 *
 		 * @param int    $target_user_id  User whose session was revoked.
 		 * @param int    $revoker_user_id Operator who performed the revocation.

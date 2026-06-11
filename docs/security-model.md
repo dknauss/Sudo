@@ -18,7 +18,7 @@ WP Sudo uses the term **reauthentication** to describe its core pattern, followi
 
 ## Internal Admin Users and Governance Boundary
 
-WP Sudo ships with a four-capability governance model (v3.1.0). Access to Sudo
+WP Sudo ships with a four-capability governance model (v3.2.0). Access to Sudo
 settings, activity views, exports, and session revocations is controlled by
 dedicated capabilities rather than broad `manage_options` inheritance:
 

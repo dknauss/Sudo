@@ -279,7 +279,7 @@ do_action( 'wp_sudo_policy_preset_applied', int $user_id, string $preset_key, ar
 // Tamper detection.
 do_action( 'wp_sudo_capability_tampered', string $role, string $capability );
 
-// Governance access-model transitions (v3.1.0).
+// Governance access-model transitions (v3.2.0).
 do_action( 'wp_sudo_capability_granted', int $target_user_id, string $cap, int $granter_user_id, int $site_id );
 do_action( 'wp_sudo_capability_revoked', int $target_user_id, string $cap, int $revoker_user_id, int $site_id );
 do_action( 'wp_sudo_session_revoked', int $target_user_id, int $revoker_user_id, string $reason, int $site_id );
