@@ -214,20 +214,11 @@ class Admin {
 	private static ?array $cached_settings = null;
 
 	/**
-	 * Optional Gate instance used by the Request / Rule Tester.
+	 * Gate instance used by the Request / Rule Tester, lazily built on first use.
 	 *
 	 * @var Gate|null
 	 */
 	private ?Gate $diagnostic_gate = null;
-
-	/**
-	 * Constructor.
-	 *
-	 * @param Gate|null $diagnostic_gate Optional Gate dependency for diagnostics/testing.
-	 */
-	public function __construct( ?Gate $diagnostic_gate = null ) {
-		$this->diagnostic_gate = $diagnostic_gate;
-	}
 
 	/**
 	 * Register admin hooks.
@@ -1876,19 +1867,6 @@ class Admin {
 			</tbody>
 		</table>
 		<?php
-	}
-
-	/**
-	 * Check if the MU-plugin shim is installed.
-	 *
-	 * @return bool True if the shim file exists in mu-plugins/.
-	 */
-	public static function is_mu_plugin_installed(): bool {
-		$mu_dir = defined( 'WPMU_PLUGIN_DIR' )
-			? WPMU_PLUGIN_DIR
-			: ( WP_CONTENT_DIR . '/mu-plugins' );
-
-		return file_exists( $mu_dir . '/wp-sudo-gate.php' );
 	}
 
 	/**

@@ -48,25 +48,11 @@ class Plugin {
 	private ?Admin_Bar $admin_bar = null;
 
 	/**
-	 * Site Health integration instance.
-	 *
-	 * @var Site_Health|null
-	 */
-	private ?Site_Health $site_health = null;
-
-	/**
 	 * Admin settings instance.
 	 *
 	 * @var Admin|null
 	 */
 	private ?Admin $admin = null;
-
-	/**
-	 * Upgrader instance.
-	 *
-	 * @var Upgrader|null
-	 */
-	private ?Upgrader $upgrader = null;
 
 	/**
 	 * Initialize the plugin and register hooks.
@@ -85,8 +71,8 @@ class Plugin {
 		// Run any pending upgrade routines (must run before other components).
 		// Only on admin/CLI requests — front-end visitors never trigger migrations.
 		if ( is_admin() || ( defined( 'WP_CLI' ) && WP_CLI ) ) {
-			$this->upgrader = new Upgrader();
-			$this->upgrader->maybe_upgrade();
+			$upgrader = new Upgrader();
+			$upgrader->maybe_upgrade();
 		}
 
 		// Shared dependencies used by multiple components.
@@ -157,8 +143,8 @@ class Plugin {
 			$this->admin = new Admin();
 			$this->admin->register();
 
-			$this->site_health = new Site_Health();
-			$this->site_health->register();
+			$site_health = new Site_Health();
+			$site_health->register();
 		}
 	}
 
@@ -504,37 +490,13 @@ class Plugin {
 	/**
 	 * Get the Gate instance.
 	 *
+	 * Exposed for integration tests that exercise the live wired interceptor
+	 * (ReauthFlowTest, ChallengeTest, PasswordChangeGatingTest).
+	 *
 	 * @return Gate|null
 	 */
 	public function gate(): ?Gate {
 		return $this->gate;
-	}
-
-	/**
-	 * Get the Challenge instance.
-	 *
-	 * @return Challenge|null
-	 */
-	public function challenge(): ?Challenge {
-		return $this->challenge;
-	}
-
-	/**
-	 * Get the Admin_Bar instance.
-	 *
-	 * @return Admin_Bar|null
-	 */
-	public function admin_bar(): ?Admin_Bar {
-		return $this->admin_bar;
-	}
-
-	/**
-	 * Get the Admin instance.
-	 *
-	 * @return Admin|null
-	 */
-	public function admin(): ?Admin {
-		return $this->admin;
 	}
 
 	/**

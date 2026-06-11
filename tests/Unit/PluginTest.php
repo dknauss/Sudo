@@ -23,6 +23,24 @@ use Brain\Monkey\Functions;
  */
 class PluginTest extends TestCase {
 
+	/**
+	 * Read a private Plugin component property.
+	 *
+	 * The challenge/admin_bar/admin component references are private; only the
+	 * Gate is exposed publicly (for integration tests). Unit tests observe the
+	 * others through reflection rather than a test-only getter.
+	 *
+	 * @param Plugin $plugin   Plugin instance.
+	 * @param string $property Property name.
+	 * @return mixed
+	 */
+	private function component( Plugin $plugin, string $property ) {
+		$ref = new \ReflectionProperty( Plugin::class, $property );
+		// setAccessible() is a required no-op on PHP 8.0 and deprecated on 8.5+; suppress the notice.
+		@$ref->setAccessible( true ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		return $ref->getValue( $plugin );
+	}
+
 	// -----------------------------------------------------------------
 	// init()
 	// -----------------------------------------------------------------
@@ -34,9 +52,9 @@ class PluginTest extends TestCase {
 		$plugin->init();
 
 		$this->assertInstanceOf( Gate::class, $plugin->gate() );
-		$this->assertInstanceOf( Challenge::class, $plugin->challenge() );
-		$this->assertInstanceOf( Admin_Bar::class, $plugin->admin_bar() );
-		$this->assertInstanceOf( Admin::class, $plugin->admin() );
+		$this->assertInstanceOf( Challenge::class, $this->component( $plugin, 'challenge' ) );
+		$this->assertInstanceOf( Admin_Bar::class, $this->component( $plugin, 'admin_bar' ) );
+		$this->assertInstanceOf( Admin::class, $this->component( $plugin, 'admin' ) );
 	}
 
 	public function test_init_loads_textdomain(): void {
@@ -98,7 +116,7 @@ class PluginTest extends TestCase {
 		$plugin = new Plugin();
 		$plugin->init();
 
-		$this->assertInstanceOf( Admin::class, $plugin->admin() );
+		$this->assertInstanceOf( Admin::class, $this->component( $plugin, 'admin' ) );
 	}
 
 	public function test_init_skips_admin_when_not_admin(): void {
@@ -107,7 +125,7 @@ class PluginTest extends TestCase {
 		$plugin = new Plugin();
 		$plugin->init();
 
-		$this->assertNull( $plugin->admin() );
+		$this->assertNull( $this->component( $plugin, 'admin' ) );
 	}
 
 	/**
@@ -916,9 +934,9 @@ class PluginTest extends TestCase {
 		$plugin = new Plugin();
 
 		$this->assertNull( $plugin->gate() );
-		$this->assertNull( $plugin->challenge() );
-		$this->assertNull( $plugin->admin_bar() );
-		$this->assertNull( $plugin->admin() );
+		$this->assertNull( $this->component( $plugin, 'challenge' ) );
+		$this->assertNull( $this->component( $plugin, 'admin_bar' ) );
+		$this->assertNull( $this->component( $plugin, 'admin' ) );
 	}
 
 	// -----------------------------------------------------------------

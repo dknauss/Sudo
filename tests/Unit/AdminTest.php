@@ -19,6 +19,23 @@ use Brain\Monkey\Filters;
  */
 class AdminTest extends TestCase {
 
+	/**
+	 * Inject a Gate into the Request / Rule Tester's lazy diagnostic slot.
+	 *
+	 * The diagnostic Gate is built lazily in production; tests substitute a
+	 * mock through the private property rather than a test-only constructor.
+	 *
+	 * @param Admin $admin Admin instance.
+	 * @param Gate  $gate  Mock Gate.
+	 * @return void
+	 */
+	private function inject_diagnostic_gate( Admin $admin, Gate $gate ): void {
+		$ref = new \ReflectionProperty( Admin::class, 'diagnostic_gate' );
+		// setAccessible() is a required no-op on PHP 8.0 and deprecated on 8.5+; suppress the notice.
+		@$ref->setAccessible( true ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		$ref->setValue( $admin, $gate );
+	}
+
 	// -----------------------------------------------------------------
 	// defaults()
 	// -----------------------------------------------------------------
@@ -1121,7 +1138,8 @@ class AdminTest extends TestCase {
 			'rest_params'      => '',
 		);
 
-		$admin = new Admin( $gate );
+		$admin = new Admin();
+		$this->inject_diagnostic_gate( $admin, $gate );
 
 		ob_start();
 		$admin->render_settings_page();
@@ -1282,7 +1300,8 @@ class AdminTest extends TestCase {
 			'rest_params'      => '{"connectors_ai_openai_api_key": "sk-test"}',
 		);
 
-		$admin = new Admin( $gate );
+		$admin = new Admin();
+		$this->inject_diagnostic_gate( $admin, $gate );
 
 		ob_start();
 		$admin->render_settings_page();
@@ -1714,16 +1733,6 @@ class AdminTest extends TestCase {
 
 		// If we get here without expectations failing, the method correctly skipped.
 		$this->assertTrue( true );
-	}
-
-	// -----------------------------------------------------------------
-	// is_mu_plugin_installed()
-	// -----------------------------------------------------------------
-
-	public function test_is_mu_plugin_installed_returns_false_when_file_missing(): void {
-		// WP_CONTENT_DIR points to /tmp/fake-wordpress/wp-content
-		// which should not contain wp-sudo-gate.php.
-		$this->assertFalse( Admin::is_mu_plugin_installed() );
 	}
 
 	// -----------------------------------------------------------------

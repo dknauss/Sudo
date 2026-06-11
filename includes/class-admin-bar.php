@@ -238,32 +238,4 @@ class Admin_Bar {
 			array( 'remaining' => $remaining )
 		);
 	}
-
-	/**
-	 * Generate inline countdown JavaScript.
-	 *
-	 * @param int $remaining Seconds remaining.
-	 * @return string
-	 */
-	public function countdown_script( int $remaining ): string {
-		return sprintf(
-			'(function(){' .
-				'var r=%d;' .
-				'var root=document.getElementById("wp-admin-bar-wp-sudo-active");' .
-				'if(!root){return;}' .
-				'var label=root.querySelector(".ab-label");' .
-				'if(label){label.setAttribute("aria-live","polite");label.setAttribute("role","status");}' .
-				'function render(){' .
-					'if(r<0){return;}' .
-					'var m=Math.floor(r/60);' .
-					'var s=r%%60;' .
-					'if(label){label.textContent="Sudo: "+m+":"+(s<10?"0"+s:s);}' .
-					'if(r<=60){root.classList.add("wp-sudo-expiring");}' .
-					'if(r===0){window.location.reload();}' .
-					'r--;}' .
-				'render();setInterval(render,1000);' .
-			'})();',
-			$remaining
-		);
-	}
 }
