@@ -22,7 +22,19 @@ resolve_wp_tests_config_path() {
 }
 
 find_wp_env_tests_container() {
-	docker ps --format '{{.Names}}' 2>/dev/null | grep -E -- '-tests-cli-1$' | head -n 1 || true
+	# Several wp-env environments can run side by side (one per project
+	# path hash), so match the container that bind-mounts THIS repo rather
+	# than taking the first tests-cli container on the machine.
+	local candidate
+
+	for candidate in $(docker ps --format '{{.Names}}' 2>/dev/null | grep -E -- '-tests-cli-1$' || true); do
+		if docker inspect "$candidate" --format '{{range .Mounts}}{{.Source}}{{"\n"}}{{end}}' 2>/dev/null | grep -qx -- "$REPO_ROOT"; then
+			printf '%s\n' "$candidate"
+			return 0
+		fi
+	done
+
+	return 0
 }
 
 extract_wp_env_version() {
@@ -118,6 +130,8 @@ run_inside_wp_env_tests_container() {
 	local wp_version="$2"
 	local multisite_env=""
 	local inner_command=""
+	local exec_uid=""
+	local exec_gid=""
 
 	if [ -n "$WP_MULTISITE_VALUE" ]; then
 		multisite_env="WP_MULTISITE=$WP_MULTISITE_VALUE "
@@ -125,11 +139,23 @@ run_inside_wp_env_tests_container() {
 
 	echo "Host DB connection is unavailable; running integration suite inside wp-env container $container_name"
 
-	docker exec -u root "$container_name" sh -lc "mkdir -p /tmp/wordpress/wp-content/uploads && chmod 0777 /tmp/wordpress/wp-content/uploads"
+	# The suite runs as the container's default exec user, so /tmp/wordpress
+	# must not stay root-owned after the root mkdir below.
+	exec_uid="$(docker exec "$container_name" id -u)"
+	exec_gid="$(docker exec "$container_name" id -g)"
+	docker exec -u root "$container_name" sh -lc "mkdir -p /tmp/wordpress/wp-content/uploads && chmod 0777 /tmp/wordpress/wp-content/uploads && chown -R ${exec_uid}:${exec_gid} /tmp/wordpress"
 
+	# The wp-env cli image bakes WP_TESTS_DIR=/wordpress-phpunit into the
+	# environment, so install-wp-tests.sh skips its test-suite step and only
+	# provisions the wordpress_test database, WP core, and plugins. The
+	# /wordpress-phpunit config reads DB_NAME and $table_prefix from
+	# WORDPRESS_* env vars and otherwise defaults to the live tests site's
+	# database and wp_ prefix — sharing tables with a site that auto-activates
+	# this plugin. Point the suite at the dedicated database and the canonical
+	# wptests_ prefix so test runs are isolated from the live site.
 	inner_command="cd /var/www/html/wp-content/plugins/wp-sudo && "
 	inner_command="${inner_command}WP_SUDO_FORCE_DROP_DB=1 bash bin/install-wp-tests.sh wordpress_test root password tests-mysql $wp_version >/dev/null && "
-	inner_command="${inner_command}${multisite_env}WP_TESTS_DIR=/wordpress-phpunit ./vendor/bin/phpunit --configuration $PHPUNIT_CONFIG"
+	inner_command="${inner_command}${multisite_env}WORDPRESS_DB_NAME=wordpress_test WORDPRESS_TABLE_PREFIX=wptests_ WP_TESTS_DIR=/wordpress-phpunit ./vendor/bin/phpunit --configuration $PHPUNIT_CONFIG"
 
 	docker exec "$container_name" sh -lc "$inner_command"
 }
