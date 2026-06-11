@@ -324,4 +324,24 @@ class GovernanceTest extends TestCase {
 
 		$this->assertTrue( sudo_can( 'manage_wp_sudo', 42 ) );
 	}
+
+	// ----------------------------------------------------------------
+	// wp_sudo_governance_caps()
+	// ----------------------------------------------------------------
+
+	/**
+	 * The canonical cap list contains exactly the four governance caps and
+	 * matches the list the meta-cap mapper gates on.
+	 */
+	public function test_governance_caps_returns_the_four_canonical_caps(): void {
+		$this->assertSame(
+			array(
+				'manage_wp_sudo',
+				'view_wp_sudo_activity',
+				'export_wp_sudo_activity',
+				'revoke_wp_sudo_sessions',
+			),
+			wp_sudo_governance_caps()
+		);
+	}
 }

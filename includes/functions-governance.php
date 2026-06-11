@@ -103,6 +103,26 @@ if ( ! function_exists( 'sudo_can' ) ) {
 }
 
 /**
+ * The WP Sudo governance capability slugs.
+ *
+ * Bootstrap-safe canonical source (this file loads before the Admin class is
+ * autoloadable, e.g. during uninstall). Admin::GOVERNANCE_CAPS mirrors this list
+ * for use in class contexts where the constant is more convenient.
+ *
+ * @since 3.3.0
+ *
+ * @return string[]
+ */
+function wp_sudo_governance_caps(): array {
+	return array(
+		'manage_wp_sudo',
+		'view_wp_sudo_activity',
+		'export_wp_sudo_activity',
+		'revoke_wp_sudo_sessions',
+	);
+}
+
+/**
  * Map WP Sudo governance meta capabilities into WordPress primitive caps.
  *
  * WordPress checks menu-page capabilities before page callbacks run, so
@@ -120,16 +140,7 @@ if ( ! function_exists( 'sudo_can' ) ) {
 function wp_sudo_map_governance_meta_cap( array $caps, string $cap, int $user_id, array $args = array() ): array {
 	unset( $args );
 
-	$governance_caps = array(
-		// TODO: Keep this in sync with Admin::GOVERNANCE_CAPS until the shared
-		// cap list can move to a bootstrap-safe constant or helper.
-		'manage_wp_sudo',
-		'view_wp_sudo_activity',
-		'export_wp_sudo_activity',
-		'revoke_wp_sudo_sessions',
-	);
-
-	if ( ! in_array( $cap, $governance_caps, true ) ) {
+	if ( ! in_array( $cap, wp_sudo_governance_caps(), true ) ) {
 		return $caps;
 	}
 

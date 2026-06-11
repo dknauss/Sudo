@@ -81,6 +81,9 @@ class Admin {
 	/**
 	 * All four governance capabilities managed by the Access tab.
 	 *
+	 * Mirrors the canonical bootstrap-safe list in wp_sudo_governance_caps()
+	 * (includes/functions-governance.php) for use in class contexts.
+	 *
 	 * @var array<string>
 	 */
 	public const GOVERNANCE_CAPS = array(

@@ -9,8 +9,8 @@ Verification environment: local workspace, PHP 8.x
 
 | Metric | Value | Verification |
 |---|---:|---|
-| Unit tests | 782 tests | `composer test:unit` |
-| Unit assertions | 2236 assertions | `composer test:unit` |
+| Unit tests | 783 tests | `composer test:unit` |
+| Unit assertions | 2237 assertions | `composer test:unit` |
 | Integration tests in suite | 178 test methods | `rg -c "function test" tests/Integration/*.php | awk -F: '{sum+=$2} END{print sum}'` |
 | Unit test files | 25 | `ls tests/Unit/*.php | wc -l` |
 | Integration test files | 24 | `ls tests/Integration/*.php | wc -l` |
@@ -19,11 +19,11 @@ Verification environment: local workspace, PHP 8.x
 
 | Metric | Value | Verification |
 |---|---:|---|
-| Production PHP lines (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 14,697 | `find ./includes ./wp-sudo.php ./uninstall.php ./mu-plugin ./bridges -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
-| Tests PHP lines (`tests/`) | 27,478 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
-| Production + tests PHP lines | 42,175 | sum of the two rows above |
-| Test-to-production ratio | 1.87:1 | `27478 / 14697` |
-| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`) | 42,438 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Production PHP lines (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 14,777 | `find ./includes ./wp-sudo.php ./uninstall.php ./mu-plugin ./bridges -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Tests PHP lines (`tests/`) | 27,557 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Production + tests PHP lines | 42,334 | sum of the two rows above |
+| Test-to-production ratio | 1.86:1 | `27557 / 14777` |
+| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`) | 42,597 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
 
 ## Architectural Facts
 
@@ -66,8 +66,8 @@ Source: `.github/workflows/phpunit.yml`, `.github/workflows/e2e.yml`, `.github/w
 
 ## Verification Notes
 
-- `composer test:unit` passed on 2026-06-11 (`782 tests`, `2236 assertions`).
-- `composer test:integration` ran on 2026-06-10 (`183 tests`, `587 assertions`, `15 skipped`, `1 failure`) via the wp-env `tests-cli` container fallback against WordPress 7.0-RC1; the single failure is the pre-existing `UninstallTest::test_single_site_uninstall_cleans_all_data` events-table issue tracked for fix (predates the new coverage; also reproduces without it).
+- `composer test:unit` passed on 2026-06-11 (`783 tests`, `2237 assertions`).
+- `composer test:integration` passed on 2026-06-11 (`183 tests`, `604 assertions`, `15 skipped`, `0 failures`) via the wp-env `tests-cli` container against WordPress 7.0-RC1. The earlier `UninstallTest` events-table failure was a stale shared-table-provenance artifact and no longer reproduces; `UninstallTest` now also asserts governance-cap and governance-mode cleanup.
 - `WP_MULTISITE=1 composer test:integration` aborts mid-suite on 2026-06-10 in the `UninstallTest` region under the same container (pre-existing on `main`; reproduces without the new test files — suspected bare `exit` in `uninstall.php` when the uninstall guard denies `delete_plugins` on multisite). Both new integration test files pass standalone in multisite mode. Last full multisite pass: 2026-04-20 (`165 tests`, `552 assertions`, `2 skipped`).
 - `composer analyse` and `composer lint` passed on 2026-06-08.
 
