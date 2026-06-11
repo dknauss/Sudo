@@ -239,9 +239,10 @@ Repos:   wp-sudo, wordpress-2fa-ecosystem
 
 18. PHANTOM RELEASE VERSION — migration keyed to a 3.1.0 that never shipped
     Files:  includes/class-upgrader.php (UPGRADES constant, upgrade_3_1_0),
-            tests/Unit/UpgraderTest.php; related @since 3.1.0 tags remain in
+            tests/Unit/UpgraderTest.php; related @since 3.1.0 tags in
             includes/functions-governance.php, includes/class-admin.php,
-            docs/developer-reference.md (follow-up cleanup).
+            docs/developer-reference.md, docs/security-model.md
+            (follow-up cleanup completed 2026-06-11, commit 5529d2c).
     Claim:  The governance capability backfill was keyed '3.1.0' as "the
             version that introduces the change."
     Reality: No public 3.1.0 release ever existed — git tags go v3.1.1,
