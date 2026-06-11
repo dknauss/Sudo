@@ -190,6 +190,56 @@ if ( ! wp_sudo_require( array( 'rule_id' => 'my-plugin.run_sensitive_task' ) ) )
 my_plugin_run_sensitive_task();
 ```
 
+## Soft-Block Response Payload (`sudo_required`)
+
+When the Gate blocks a cookie-authenticated AJAX or REST request (rather than
+hard-blocking a non-interactive surface), it returns a recoverable `sudo_required`
+response so the client can prompt the user to start a session and retry.
+
+- **REST** — a `WP_Error` with code `sudo_required`, a translated message naming
+  the action and the keyboard shortcut, and error data
+  `array( 'status' => 403, 'rule_id' => <rule id> )`.
+- **AJAX** (`wp_send_json_error`) — `code` and `errorCode` both `sudo_required`,
+  `message`/`errorMessage` (plain text), `rule_id`, and pass-through `slug`/`plugin`
+  when present (so `wp.updates` can locate the originating DOM element).
+
+On the next admin page load a `set_blocked_transient` notice provides a clickable
+link to the challenge page. Treat `rule_id` as the stable field; message text is
+localized and may change.
+
+## Governance Capabilities
+
+WP Sudo separates *who may administer Sudo* from general site-admin authority
+using four dedicated capabilities, checked through a single helper. Route every
+Sudo admin-surface capability check through it rather than calling
+`current_user_can( 'manage_options' )` directly.
+
+### `wp_sudo_can( string $cap, ?int $user_id = null ): bool`
+
+Returns `true` when the user holds the given governance capability. `$cap` is one
+of:
+
+- `manage_wp_sudo` — administer Sudo settings and the Access tab.
+- `view_wp_sudo_activity` — view the Session Activity dashboard widget.
+- `export_wp_sudo_activity` — reserved for activity export (no surface gates on it yet).
+- `revoke_wp_sudo_sessions` — force-revoke other users' active sudo sessions.
+
+Decision order: multisite super admins always pass; break-glass recovery mode
+(`WP_SUDO_RECOVERY_MODE`) grants `manage_wp_sudo` to the current user only; then
+the `wp_sudo_governance_mode` option decides — `strict` (default) checks the
+specific cap, `compatibility` falls back to `manage_options` /
+`manage_network_options`.
+
+> `wp_sudo_can()` was named `sudo_can()` in 3.2.0. The unprefixed name is a
+> deprecated alias as of 3.3.0 and will be removed in 4.0.0 — use `wp_sudo_can()`.
+
+### `wp_sudo_is_recovery_mode(): bool`
+
+Returns `true` when `WP_SUDO_RECOVERY_MODE` is defined and truthy in
+`wp-config.php`. Break-glass escape hatch for the "last manager locked out"
+scenario; leaving it enabled permanently effectively bypasses the governance
+model.
+
 ## Request / Rule Tester
 
 Settings → Sudo now includes an internal **Request / Rule Tester** panel for
@@ -268,12 +318,22 @@ do_action( 'wp_sudo_reauth_failed', int $user_id, int $attempts );
 do_action( 'wp_sudo_lockout', int $user_id, int $attempts, string $ip );
 
 // Action gating.
-// $surface values: 'admin', 'ajax', 'rest_app_password', 'cli', 'cron', 'xmlrpc', 'wpgraphql', 'public_api'
+// $surface values: 'admin', 'ajax', 'rest' (cookie-auth REST), 'rest_app_password',
+//                  'cli', 'cron', 'xmlrpc', 'wpgraphql', 'public_api'.
+// Note: 'rest' is browser/cookie-authenticated REST; 'rest_app_password' is an
+// Application Password request. On 'cli'/'cron'/'xmlrpc' the $user_id is 0 (no
+// authenticated user in those contexts), and only action_allowed/action_blocked
+// fire there — never action_gated/action_passed.
 do_action( 'wp_sudo_action_gated', int $user_id, string $rule_id, string $surface );
 do_action( 'wp_sudo_action_blocked', int $user_id, string $rule_id, string $surface );
 do_action( 'wp_sudo_action_allowed', int $user_id, string $rule_id, string $surface ); // Unrestricted policy (v2.9.0).
 do_action( 'wp_sudo_action_passed', int $user_id, string $rule_id, string $surface ); // Active session (v3.0.0).
 do_action( 'wp_sudo_action_replayed', int $user_id, string $rule_id );
+
+// Rule diagnostics.
+// Fires when a custom rule's REST-route regex fails to compile. $fail_closed is
+// true when the malformed pattern caused the request to be gated anyway (v3.1.4).
+do_action( 'wp_sudo_rule_regex_error', string $pattern, string $subject, bool $fail_closed );
 do_action( 'wp_sudo_policy_preset_applied', int $user_id, string $preset_key, array $previous, array $current, bool $is_network );
 
 // Tamper detection.
@@ -358,10 +418,14 @@ for the full design. Not scheduled; optional Phase 5 of the v3.1–v3.3 plan.
 | `wp_sudo_two_factor_window` | 2FA authentication window in seconds (default: 300). Clamped to 60–900 seconds (1–15 minutes). |
 | `wp_sudo_requires_two_factor` | Whether a user needs 2FA for sudo (for third-party 2FA plugins). |
 | `wp_sudo_validate_two_factor` | Validate a 2FA code (for third-party 2FA plugins). |
-| `wp_sudo_render_two_factor_fields` | Render 2FA input fields (for third-party 2FA plugins). |
 | `wp_sudo_log_passed_events_enabled` | Toggle recording of `action_passed` dashboard events. Default `true`; intended for explicit code-level overrides only. |
+| `wp_sudo_critical_options` | The option names gated by the built-in `options.critical` rule (default: `siteurl`, `home`, `admin_email`, `new_admin_email`, `default_role`, `users_can_register`). Removing an entry silently un-gates that option — narrow the built-in protection set with care. |
+| `wp_sudo_sensitive_stash_keys` | Lowercase field-name keys omitted from a stashed request before replay (default includes `password`, `user_pass`, `pass1`/`pass2`, `token`, `secret`, …). Matched case-insensitively, including nested keys. Over-matching is safe (the field is dropped and the user resubmits); under-matching risks replaying a secret. |
+| `wp_sudo_cookie_secure` | Whether session/2FA cookies set the `Secure` flag (default `is_ssl() \|\| force_ssl_admin()`). Returning `false` on production HTTPS exposes the cookie over plain HTTP — change only for known reverse-proxy/TLS-termination setups. |
 | `wp_sudo_wpgraphql_classification` | Classify WPGraphQL body as `mutation` or `query` (persisted-query support). |
 | `wp_sudo_wpgraphql_bypass` | Bypass WPGraphQL Limited-mode gating for specific requests. |
+
+**Action (not a filter):** `wp_sudo_render_two_factor_fields` — `do_action( 'wp_sudo_render_two_factor_fields', WP_User $user )` echoes 2FA input fields on the challenge form for third-party 2FA plugins. See [two-factor-integration.md](two-factor-integration.md).
 
 ## MU Loader Diagnostics Hook
 
@@ -408,9 +472,13 @@ Session binding is enforced during the grace window — `verify_token()` is call
 
 The admin bar UI uses `is_active()` only; it always reflects the true session state.
 
-### `Sudo_Session::activate( int $user_id ): void`
+### `Sudo_Session::activate( int $user_id ): bool`
 
-Creates a new sudo session: generates a token, writes user meta, sets the httponly cookie, and fires `wp_sudo_activated`. Also called automatically by `Plugin::grant_session_on_login()` on successful browser-based login (`wp_login` hook); that automatic grant can be suppressed via the `wp_sudo_grant_session_on_login` filter.
+Creates a new sudo session: generates a token, writes user meta, sets the httponly cookie, and fires `wp_sudo_activated`. Returns `true` on success, `false` if the session could not be persisted. Also called automatically by `Plugin::grant_session_on_login()` on successful browser-based login (`wp_login` hook); that automatic grant can be suppressed via the `wp_sudo_grant_session_on_login` filter.
+
+### `Sudo_Session::deactivate( int $user_id ): void`
+
+Ends the user's sudo session: clears the session user meta, expires the httponly cookie, and fires `wp_sudo_deactivated`. Called on explicit toolbar deactivation and automatically on password change.
 
 ### `Sudo_Session::GRACE_SECONDS`
 

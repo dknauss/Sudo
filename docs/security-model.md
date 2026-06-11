@@ -34,7 +34,7 @@ capabilities. Other admins receive none until explicitly granted from
 **Settings → Sudo → Access**.
 
 **Multisite:** super admins are always treated as holding all four capabilities
-(via `is_super_admin()` short-circuit in `sudo_can()`). Per-site admins receive
+(via `is_super_admin()` short-circuit in `wp_sudo_can()`). Per-site admins receive
 no Sudo-management authority until explicitly delegated.
 
 **Compatibility mode:** operators who want the old `manage_options` fallback can
