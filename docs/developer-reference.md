@@ -24,7 +24,7 @@ add_filter( 'wp_sudo_gated_actions', function ( array $rules ): array {
         'label'    => 'My dangerous action',
         'category' => 'custom',
         'admin'    => array(
-            'pagenow'  => 'admin.php',
+            'pagenow'  => array( 'admin.php', 'edit.php' ), // string or string[]
             'actions'  => array( 'my_dangerous_action' ),
             'method'   => 'POST',
             'callback' => function (): bool {
@@ -35,8 +35,11 @@ add_filter( 'wp_sudo_gated_actions', function ( array $rules ): array {
             'actions' => array( 'my_ajax_action' ),
         ),
         'rest'     => array(
-            'route'   => '#^/my-namespace/v1/dangerous#',
-            'methods' => array( 'POST', 'DELETE' ),
+            'route'    => '#^/my-namespace/v1/dangerous#',
+            'methods'  => array( 'POST', 'DELETE' ),
+            'callback' => function ( $request ): bool { // optional: inspect params
+                return array_key_exists( 'confirm', $request->get_params() );
+            },
         ),
         'stash'    => array(
             'post_mode'   => 'allowlist',
