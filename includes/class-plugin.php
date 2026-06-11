@@ -432,7 +432,7 @@ class Plugin {
 		self::schedule_prune_cron();
 
 		// Grant governance capabilities to the activating admin (single-site only).
-		// On multisite, super admins are covered by the sudo_can() short-circuit.
+		// On multisite, super admins are covered by the wp_sudo_can() short-circuit.
 		$admin = get_userdata( get_current_user_id() );
 		if ( $admin instanceof \WP_User ) {
 			$admin->add_cap( 'manage_wp_sudo' );

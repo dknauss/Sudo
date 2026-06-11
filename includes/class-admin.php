@@ -319,7 +319,7 @@ class Admin {
 	public function handle_network_settings_save(): void {
 		check_admin_referer( self::PAGE_SLUG . '-options' );
 
-		if ( ! sudo_can( 'manage_wp_sudo' ) ) {
+		if ( ! wp_sudo_can( 'manage_wp_sudo' ) ) {
 			wp_die( esc_html__( 'Unauthorized', 'wp-sudo' ), '', array( 'response' => 403 ) );
 		}
 
@@ -1142,7 +1142,7 @@ class Admin {
 	 * @return void
 	 */
 	public function render_settings_page(): void {
-		if ( ! sudo_can( 'manage_wp_sudo' ) ) {
+		if ( ! wp_sudo_can( 'manage_wp_sudo' ) ) {
 			return;
 		}
 
@@ -1473,7 +1473,7 @@ class Admin {
 	public function handle_grant_cap(): void {
 		check_ajax_referer( 'wp_sudo_access', '_nonce' );
 
-		if ( ! sudo_can( 'manage_wp_sudo' ) ) {
+		if ( ! wp_sudo_can( 'manage_wp_sudo' ) ) {
 			wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'wp-sudo' ) ), 403 );
 			return;
 		}
@@ -1523,7 +1523,7 @@ class Admin {
 	public function handle_revoke_cap(): void {
 		check_ajax_referer( 'wp_sudo_access', '_nonce' );
 
-		if ( ! sudo_can( 'manage_wp_sudo' ) ) {
+		if ( ! wp_sudo_can( 'manage_wp_sudo' ) ) {
 			wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'wp-sudo' ) ), 403 );
 			return;
 		}
@@ -1582,7 +1582,7 @@ class Admin {
 	public function handle_revoke_session(): void {
 		check_ajax_referer( 'wp_sudo_access', '_nonce' );
 
-		if ( ! sudo_can( 'revoke_wp_sudo_sessions' ) ) {
+		if ( ! wp_sudo_can( 'revoke_wp_sudo_sessions' ) ) {
 			wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'wp-sudo' ) ), 403 );
 			return;
 		}
@@ -1892,7 +1892,7 @@ class Admin {
 	public function handle_mu_install(): void {
 		check_ajax_referer( 'wp_sudo_mu_plugin', '_nonce' );
 
-		if ( ! sudo_can( 'manage_wp_sudo' ) ) {
+		if ( ! wp_sudo_can( 'manage_wp_sudo' ) ) {
 			wp_send_json_error( array( 'message' => __( 'Unauthorized.', 'wp-sudo' ) ), 403 );
 		}
 
@@ -1950,7 +1950,7 @@ class Admin {
 	public function handle_mu_uninstall(): void {
 		check_ajax_referer( 'wp_sudo_mu_plugin', '_nonce' );
 
-		if ( ! sudo_can( 'manage_wp_sudo' ) ) {
+		if ( ! wp_sudo_can( 'manage_wp_sudo' ) ) {
 			wp_send_json_error( array( 'message' => __( 'Unauthorized.', 'wp-sudo' ) ), 403 );
 		}
 
@@ -2595,7 +2595,7 @@ class Admin {
 			return;
 		}
 
-		if ( ! sudo_can( 'manage_wp_sudo' ) ) {
+		if ( ! wp_sudo_can( 'manage_wp_sudo' ) ) {
 			return;
 		}
 
@@ -2672,7 +2672,7 @@ class Admin {
 	public function handle_app_password_policy_save(): void {
 		check_ajax_referer( 'wp_sudo_app_password_policy', '_nonce' );
 
-		if ( ! sudo_can( 'manage_wp_sudo' ) ) {
+		if ( ! wp_sudo_can( 'manage_wp_sudo' ) ) {
 			wp_send_json_error( array( 'message' => __( 'Unauthorized.', 'wp-sudo' ) ), 403 );
 			return;
 		}

@@ -1,6 +1,6 @@
 <?php
 /**
- * Tests for the sudo_can() governance helper and wp_sudo_is_recovery_mode().
+ * Tests for the wp_sudo_can() governance helper and wp_sudo_is_recovery_mode().
  *
  * @package WP_Sudo\Tests\Unit
  */
@@ -13,7 +13,7 @@ use WP_Sudo\Tests\TestCase;
 /**
  * Class GovernanceTest
  *
- * Covers sudo_can() across all three decision paths:
+ * Covers wp_sudo_can() across all three decision paths:
  *  - Strict mode  (default): delegates to user_can( $user_id, $cap )
  *  - Compatibility mode:     delegates to manage_options / manage_network_options
  *  - Super-admin short-circuit (multisite only)
@@ -84,7 +84,7 @@ class GovernanceTest extends TestCase {
 	}
 
 	// ----------------------------------------------------------------
-	// sudo_can() — strict mode (default)
+	// wp_sudo_can() — strict mode (default)
 	// ----------------------------------------------------------------
 
 	/**
@@ -96,7 +96,7 @@ class GovernanceTest extends TestCase {
 		Functions\when( 'user_can' )->justReturn( true );
 		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( false );
 
-		$this->assertTrue( sudo_can( 'manage_wp_sudo', 42 ) );
+		$this->assertTrue( wp_sudo_can( 'manage_wp_sudo', 42 ) );
 	}
 
 	/**
@@ -108,7 +108,7 @@ class GovernanceTest extends TestCase {
 		Functions\when( 'user_can' )->justReturn( false );
 		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( false );
 
-		$this->assertFalse( sudo_can( 'manage_wp_sudo', 42 ) );
+		$this->assertFalse( wp_sudo_can( 'manage_wp_sudo', 42 ) );
 	}
 
 	/**
@@ -124,7 +124,7 @@ class GovernanceTest extends TestCase {
 			->andReturn( false );
 		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( false );
 
-		$this->assertFalse( sudo_can( 'manage_wp_sudo' ) );
+		$this->assertFalse( wp_sudo_can( 'manage_wp_sudo' ) );
 	}
 
 	/**
@@ -136,14 +136,14 @@ class GovernanceTest extends TestCase {
 		Functions\when( 'user_can' )->justReturn( true );
 		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( false );
 
-		$this->assertTrue( sudo_can( 'manage_wp_sudo', 1 ) );
-		$this->assertTrue( sudo_can( 'view_wp_sudo_activity', 1 ) );
-		$this->assertTrue( sudo_can( 'export_wp_sudo_activity', 1 ) );
-		$this->assertTrue( sudo_can( 'revoke_wp_sudo_sessions', 1 ) );
+		$this->assertTrue( wp_sudo_can( 'manage_wp_sudo', 1 ) );
+		$this->assertTrue( wp_sudo_can( 'view_wp_sudo_activity', 1 ) );
+		$this->assertTrue( wp_sudo_can( 'export_wp_sudo_activity', 1 ) );
+		$this->assertTrue( wp_sudo_can( 'revoke_wp_sudo_sessions', 1 ) );
 	}
 
 	// ----------------------------------------------------------------
-	// sudo_can() — compatibility mode
+	// wp_sudo_can() — compatibility mode
 	// ----------------------------------------------------------------
 
 	/**
@@ -158,7 +158,7 @@ class GovernanceTest extends TestCase {
 			->with( 42, 'manage_options' )
 			->andReturn( true );
 
-		$this->assertTrue( sudo_can( 'manage_wp_sudo', 42 ) );
+		$this->assertTrue( wp_sudo_can( 'manage_wp_sudo', 42 ) );
 	}
 
 	/**
@@ -170,7 +170,7 @@ class GovernanceTest extends TestCase {
 		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( false );
 		Functions\when( 'user_can' )->justReturn( false );
 
-		$this->assertFalse( sudo_can( 'manage_wp_sudo', 42 ) );
+		$this->assertFalse( wp_sudo_can( 'manage_wp_sudo', 42 ) );
 	}
 
 	/**
@@ -186,7 +186,7 @@ class GovernanceTest extends TestCase {
 			->with( 42, 'manage_network_options' )
 			->andReturn( true );
 
-		$this->assertTrue( sudo_can( 'manage_wp_sudo', 42 ) );
+		$this->assertTrue( wp_sudo_can( 'manage_wp_sudo', 42 ) );
 	}
 
 	/**
@@ -202,11 +202,11 @@ class GovernanceTest extends TestCase {
 			->with( 42, 'view_wp_sudo_activity' )
 			->andReturn( true );
 
-		$this->assertTrue( sudo_can( 'view_wp_sudo_activity', 42 ) );
+		$this->assertTrue( wp_sudo_can( 'view_wp_sudo_activity', 42 ) );
 	}
 
 	// ----------------------------------------------------------------
-	// sudo_can() — super-admin short-circuit (multisite only)
+	// wp_sudo_can() — super-admin short-circuit (multisite only)
 	// ----------------------------------------------------------------
 
 	/**
@@ -218,7 +218,7 @@ class GovernanceTest extends TestCase {
 		Functions\expect( 'get_option' )->never();
 		Functions\expect( 'user_can' )->never();
 
-		$this->assertTrue( sudo_can( 'manage_wp_sudo', 42 ) );
+		$this->assertTrue( wp_sudo_can( 'manage_wp_sudo', 42 ) );
 	}
 
 	/**
@@ -232,11 +232,11 @@ class GovernanceTest extends TestCase {
 		// is_super_admin should never be called on single-site.
 		Functions\expect( 'is_super_admin' )->never();
 
-		$this->assertFalse( sudo_can( 'manage_wp_sudo', 42 ) );
+		$this->assertFalse( wp_sudo_can( 'manage_wp_sudo', 42 ) );
 	}
 
 	// ----------------------------------------------------------------
-	// sudo_can() — break-glass recovery mode
+	// wp_sudo_can() — break-glass recovery mode
 	// ----------------------------------------------------------------
 
 	/**
@@ -249,7 +249,7 @@ class GovernanceTest extends TestCase {
 		// user_can and get_option must NOT be reached for this path.
 		Functions\expect( 'user_can' )->never();
 
-		$this->assertTrue( sudo_can( 'manage_wp_sudo', 0 ) );
+		$this->assertTrue( wp_sudo_can( 'manage_wp_sudo', 0 ) );
 	}
 
 	/**
@@ -262,7 +262,7 @@ class GovernanceTest extends TestCase {
 		Functions\when( 'user_can' )->justReturn( false );
 
 		// Recovery mode only covers manage_wp_sudo, not view_wp_sudo_activity.
-		$this->assertFalse( sudo_can( 'view_wp_sudo_activity', 0 ) );
+		$this->assertFalse( wp_sudo_can( 'view_wp_sudo_activity', 0 ) );
 	}
 
 	/**
@@ -276,7 +276,7 @@ class GovernanceTest extends TestCase {
 		Functions\when( 'user_can' )->justReturn( false );
 
 		// user 99 ≠ current user 0 → recovery mode does not apply.
-		$this->assertFalse( sudo_can( 'manage_wp_sudo', 99 ) );
+		$this->assertFalse( wp_sudo_can( 'manage_wp_sudo', 99 ) );
 	}
 
 	// ----------------------------------------------------------------
@@ -288,7 +288,7 @@ class GovernanceTest extends TestCase {
 	 *
 	 * We test the wrapper indirectly — since WP_SUDO_RECOVERY_MODE cannot be
 	 * toggled at runtime without uopz/runkit, we verify the behavior of
-	 * sudo_can() by mocking wp_sudo_is_recovery_mode() which is the testable
+	 * wp_sudo_can() by mocking wp_sudo_is_recovery_mode() which is the testable
 	 * seam. The constant check itself is covered by the definition in
 	 * functions-governance.php and verified at runtime.
 	 */
@@ -300,6 +300,27 @@ class GovernanceTest extends TestCase {
 			->once()
 			->with( 42, 'manage_wp_sudo' )
 			->andReturn( true );
+
+		$this->assertTrue( wp_sudo_can( 'manage_wp_sudo', 42 ) );
+	}
+
+	// ----------------------------------------------------------------
+	// sudo_can() deprecated alias
+	// ----------------------------------------------------------------
+
+	/**
+	 * The deprecated sudo_can() alias delegates to wp_sudo_can() and emits a
+	 * deprecation notice naming the replacement.
+	 */
+	public function test_deprecated_sudo_can_alias_delegates_and_warns(): void {
+		Functions\when( 'is_multisite' )->justReturn( false );
+		Functions\when( 'get_option' )->justReturn( 'strict' );
+		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( false );
+		Functions\when( 'user_can' )->justReturn( true );
+
+		Functions\expect( '_deprecated_function' )
+			->once()
+			->with( 'sudo_can', '3.3.0', 'wp_sudo_can()' );
 
 		$this->assertTrue( sudo_can( 'manage_wp_sudo', 42 ) );
 	}

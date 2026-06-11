@@ -710,7 +710,7 @@ class AdminTest extends TestCase {
 
 	public function test_render_settings_page_includes_introduction(): void {
 		Functions\when( 'current_user_can' )->justReturn( true );
-		Functions\when( 'sudo_can' )->justReturn( true );
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		Functions\when( 'get_admin_page_title' )->justReturn( 'Sudo Settings' );
 		Functions\when( 'esc_html' )->returnArg();
 		Functions\when( 'esc_html_e' )->alias(
@@ -762,7 +762,7 @@ class AdminTest extends TestCase {
 
 	public function test_render_settings_page_outputs_tab_navigation(): void {
 		Functions\when( 'current_user_can' )->justReturn( true );
-		Functions\when( 'sudo_can' )->justReturn( true );
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		Functions\when( 'get_admin_page_title' )->justReturn( 'Sudo Settings' );
 		Functions\when( 'esc_html' )->returnArg();
 		Functions\when( 'esc_html_e' )->alias( function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
@@ -803,7 +803,7 @@ class AdminTest extends TestCase {
 		unset( $_GET['tab'] );
 
 		Functions\when( 'current_user_can' )->justReturn( true );
-		Functions\when( 'sudo_can' )->justReturn( true );
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		Functions\when( 'get_admin_page_title' )->justReturn( 'Sudo Settings' );
 		Functions\when( 'esc_html' )->returnArg();
 		Functions\when( 'esc_html_e' )->alias( function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
@@ -843,7 +843,7 @@ class AdminTest extends TestCase {
 		$_GET['tab'] = 'actions';
 
 		Functions\when( 'current_user_can' )->justReturn( true );
-		Functions\when( 'sudo_can' )->justReturn( true );
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		Functions\when( 'get_admin_page_title' )->justReturn( 'Sudo Settings' );
 		Functions\when( 'esc_html' )->returnArg();
 		Functions\when( 'esc_html_e' )->alias( function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
@@ -878,7 +878,7 @@ class AdminTest extends TestCase {
 		$_GET['tab'] = 'tester';
 
 		Functions\when( 'current_user_can' )->justReturn( true );
-		Functions\when( 'sudo_can' )->justReturn( true );
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		Functions\when( 'get_admin_page_title' )->justReturn( 'Sudo Settings' );
 		Functions\when( 'esc_html' )->returnArg();
 		Functions\when( 'esc_html_e' )->alias( function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
@@ -918,7 +918,7 @@ class AdminTest extends TestCase {
 		$_GET['tab'] = 'invalid_tab_name';
 
 		Functions\when( 'current_user_can' )->justReturn( true );
-		Functions\when( 'sudo_can' )->justReturn( true );
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		Functions\when( 'get_admin_page_title' )->justReturn( 'Sudo Settings' );
 		Functions\when( 'esc_html' )->returnArg();
 		Functions\when( 'esc_html_e' )->alias( function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
@@ -957,7 +957,7 @@ class AdminTest extends TestCase {
 	public function test_render_settings_page_tab_links_use_network_admin_url_on_multisite(): void {
 		Functions\when( 'is_multisite' )->justReturn( true );
 		Functions\when( 'current_user_can' )->justReturn( true );
-		Functions\when( 'sudo_can' )->justReturn( true );
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		Functions\when( 'get_admin_page_title' )->justReturn( 'Sudo Settings' );
 		Functions\when( 'esc_html' )->returnArg();
 		Functions\when( 'esc_html_e' )->alias( function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
@@ -994,7 +994,7 @@ class AdminTest extends TestCase {
 		$_GET['tab'] = 'tester';
 
 		Functions\when( 'current_user_can' )->justReturn( true );
-		Functions\when( 'sudo_can' )->justReturn( true );
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		Functions\when( 'get_admin_page_title' )->justReturn( 'Sudo Settings' );
 		Functions\when( 'esc_html' )->returnArg();
 		Functions\when( 'esc_html_e' )->alias(
@@ -1079,7 +1079,7 @@ class AdminTest extends TestCase {
 			);
 
 		Functions\when( 'current_user_can' )->justReturn( true );
-		Functions\when( 'sudo_can' )->justReturn( true );
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		Functions\when( 'get_admin_page_title' )->justReturn( 'Sudo Settings' );
 		Functions\when( 'esc_html' )->returnArg();
 		Functions\when( 'esc_html_e' )->alias(
@@ -1159,7 +1159,7 @@ class AdminTest extends TestCase {
 		$_GET['tab'] = 'tester';
 
 		Functions\when( 'current_user_can' )->justReturn( true );
-		Functions\when( 'sudo_can' )->justReturn( true );
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		Functions\when( 'get_admin_page_title' )->justReturn( 'Sudo Settings' );
 		Functions\when( 'esc_html' )->returnArg();
 		Functions\when( 'esc_html_e' )->alias(
@@ -1244,7 +1244,7 @@ class AdminTest extends TestCase {
 			);
 
 		Functions\when( 'current_user_can' )->justReturn( true );
-		Functions\when( 'sudo_can' )->justReturn( true );
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		Functions\when( 'get_admin_page_title' )->justReturn( 'Sudo Settings' );
 		Functions\when( 'esc_html' )->returnArg();
 		Functions\when( 'esc_html_e' )->alias(
@@ -1407,7 +1407,7 @@ class AdminTest extends TestCase {
 
 	public function test_handle_network_settings_save_dies_when_user_cannot_manage_network_options(): void {
 		Functions\when( 'check_admin_referer' )->justReturn( true );
-		Functions\expect( 'sudo_can' )
+		Functions\expect( 'wp_sudo_can' )
 			->once()
 			->with( 'manage_wp_sudo' )
 			->andReturn( false );
@@ -1438,7 +1438,7 @@ class AdminTest extends TestCase {
 		Functions\when( 'get_site_option' )->justReturn( Admin::defaults() );
 		Functions\when( '__' )->returnArg();
 		Functions\when( 'check_admin_referer' )->justReturn( true );
-		Functions\when( 'sudo_can' )->justReturn( true );
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		Functions\when( 'absint' )->alias( fn( $value ) => abs( (int) $value ) );
 		Functions\when( 'add_query_arg' )->justReturn( 'https://example.com/wp-admin/network/settings.php?page=wp-sudo-settings&updated=true' );
 
@@ -2067,7 +2067,7 @@ class AdminTest extends TestCase {
 
 	public function test_app_password_assets_localizes_i18n_strings(): void {
 		Functions\when( 'current_user_can' )->justReturn( true );
-		Functions\when( 'sudo_can' )->justReturn( true );
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		Functions\when( 'is_multisite' )->justReturn( false );
 		Functions\when( '__' )->returnArg();
 		Functions\when( 'admin_url' )->justReturn( 'https://example.com/wp-admin/admin-ajax.php' );
@@ -2636,7 +2636,7 @@ class AdminTest extends TestCase {
 	// -----------------------------------------------------------------
 
 	public function test_render_settings_page_includes_access_tab_in_navigation(): void {
-		Functions\when( 'sudo_can' )->justReturn( true );
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		Functions\when( 'get_admin_page_title' )->justReturn( 'Sudo Settings' );
 		Functions\when( 'esc_html' )->returnArg();
 		Functions\when( 'esc_html_e' )->alias( static function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
@@ -2668,7 +2668,7 @@ class AdminTest extends TestCase {
 	public function test_render_settings_page_renders_access_tab(): void {
 		$_GET['tab'] = 'access';
 
-		Functions\when( 'sudo_can' )->justReturn( true );
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		Functions\when( 'get_admin_page_title' )->justReturn( 'Sudo Settings' );
 		Functions\when( 'esc_html' )->returnArg();
 		Functions\when( 'esc_html_e' )->alias( static function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
@@ -2725,7 +2725,7 @@ class AdminTest extends TestCase {
 
 	public function test_handle_grant_cap_requires_manage_wp_sudo_cap(): void {
 		Functions\when( 'check_ajax_referer' )->justReturn( 1 );
-		Functions\when( 'sudo_can' )->justReturn( false );
+		Functions\when( 'wp_sudo_can' )->justReturn( false );
 		Functions\expect( 'wp_send_json_error' )
 			->once()
 			->with( \Mockery::type( 'array' ), 403 );
@@ -2736,7 +2736,7 @@ class AdminTest extends TestCase {
 
 	public function test_handle_grant_cap_rejects_invalid_capability(): void {
 		Functions\when( 'check_ajax_referer' )->justReturn( 1 );
-		Functions\when( 'sudo_can' )->justReturn( true );
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		Functions\when( 'sanitize_key' )->returnArg();
 		Functions\expect( 'wp_send_json_error' )
 			->once()
@@ -2753,7 +2753,7 @@ class AdminTest extends TestCase {
 
 	public function test_handle_grant_cap_grants_capability_to_target_user(): void {
 		Functions\when( 'check_ajax_referer' )->justReturn( 1 );
-		Functions\when( 'sudo_can' )->justReturn( true );
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		Functions\when( 'sanitize_key' )->returnArg();
 		Functions\when( 'get_current_user_id' )->justReturn( 1 );
 		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
@@ -2776,7 +2776,7 @@ class AdminTest extends TestCase {
 
 	public function test_handle_grant_cap_fires_capability_granted_hook(): void {
 		Functions\when( 'check_ajax_referer' )->justReturn( 1 );
-		Functions\when( 'sudo_can' )->justReturn( true );
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		Functions\when( 'sanitize_key' )->returnArg();
 		Functions\when( 'get_current_user_id' )->justReturn( 1 );
 		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
@@ -2807,7 +2807,7 @@ class AdminTest extends TestCase {
 
 	public function test_handle_revoke_cap_requires_manage_wp_sudo_cap(): void {
 		Functions\when( 'check_ajax_referer' )->justReturn( 1 );
-		Functions\when( 'sudo_can' )->justReturn( false );
+		Functions\when( 'wp_sudo_can' )->justReturn( false );
 		Functions\expect( 'wp_send_json_error' )
 			->once()
 			->with( \Mockery::type( 'array' ), 403 );
@@ -2818,7 +2818,7 @@ class AdminTest extends TestCase {
 
 	public function test_handle_revoke_cap_blocks_last_manager_removal(): void {
 		Functions\when( 'check_ajax_referer' )->justReturn( 1 );
-		Functions\when( 'sudo_can' )->justReturn( true );
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		Functions\when( 'sanitize_key' )->returnArg();
 		// Only one manage_wp_sudo holder.
 		Functions\when( 'get_users' )->justReturn( array( 1 ) );
@@ -2837,7 +2837,7 @@ class AdminTest extends TestCase {
 
 	public function test_handle_revoke_cap_removes_capability_from_user(): void {
 		Functions\when( 'check_ajax_referer' )->justReturn( 1 );
-		Functions\when( 'sudo_can' )->justReturn( true );
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		Functions\when( 'sanitize_key' )->returnArg();
 		Functions\when( 'get_current_user_id' )->justReturn( 1 );
 		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
@@ -2861,7 +2861,7 @@ class AdminTest extends TestCase {
 
 	public function test_handle_revoke_cap_fires_capability_revoked_hook(): void {
 		Functions\when( 'check_ajax_referer' )->justReturn( 1 );
-		Functions\when( 'sudo_can' )->justReturn( true );
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		Functions\when( 'sanitize_key' )->returnArg();
 		Functions\when( 'get_current_user_id' )->justReturn( 1 );
 		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
@@ -2926,7 +2926,7 @@ class AdminTest extends TestCase {
 	 */
 	public function test_handle_app_password_policy_save_rejects_malformed_uuid(): void {
 		Functions\when( 'check_ajax_referer' )->justReturn( 1 );
-		Functions\when( 'sudo_can' )->justReturn( true );
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		$this->mock_active_sudo_session();
 		Functions\when( 'wp_is_uuid' )->justReturn( false );
 
@@ -2951,7 +2951,7 @@ class AdminTest extends TestCase {
 	 */
 	public function test_handle_app_password_policy_save_rejects_uuid_not_owned_by_user(): void {
 		Functions\when( 'check_ajax_referer' )->justReturn( 1 );
-		Functions\when( 'sudo_can' )->justReturn( true );
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		$this->mock_active_sudo_session();
 		Functions\when( 'wp_is_uuid' )->justReturn( true );
 
@@ -2980,7 +2980,7 @@ class AdminTest extends TestCase {
 		$uuid = '12345678-1234-4234-a234-123456789012';
 
 		Functions\when( 'check_ajax_referer' )->justReturn( 1 );
-		Functions\when( 'sudo_can' )->justReturn( true );
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		$this->mock_active_sudo_session();
 		Functions\when( 'wp_is_uuid' )->justReturn( true );
 
@@ -3013,7 +3013,7 @@ class AdminTest extends TestCase {
 		$uuid = '12345678-1234-4234-a234-123456789012';
 
 		Functions\when( 'check_ajax_referer' )->justReturn( 1 );
-		Functions\when( 'sudo_can' )->justReturn( true );
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		$this->mock_active_sudo_session( 1 );
 		Functions\when( 'absint' )->alias(
 			static function ( $value ): int {
@@ -3068,7 +3068,7 @@ class AdminTest extends TestCase {
 	 */
 	public function test_handle_app_password_policy_save_rejects_edited_user_without_edit_cap(): void {
 		Functions\when( 'check_ajax_referer' )->justReturn( 1 );
-		Functions\when( 'sudo_can' )->justReturn( true );
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		$this->mock_active_sudo_session( 1 );
 		Functions\when( 'absint' )->alias(
 			static function ( $value ): int {
@@ -3101,7 +3101,7 @@ class AdminTest extends TestCase {
 		$uuid = '12345678-1234-4234-a234-123456789012';
 
 		Functions\when( 'check_ajax_referer' )->justReturn( 1 );
-		Functions\when( 'sudo_can' )->justReturn( true );
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		$this->mock_active_sudo_session( 1 );
 		Functions\when( 'absint' )->alias(
 			static function ( $value ): int {
@@ -3172,7 +3172,7 @@ class AdminTest extends TestCase {
 
 	public function test_handle_revoke_session_requires_revoke_sessions_cap(): void {
 		Functions\when( 'check_ajax_referer' )->justReturn( 1 );
-		Functions\when( 'sudo_can' )->justReturn( false );
+		Functions\when( 'wp_sudo_can' )->justReturn( false );
 		Functions\expect( 'wp_send_json_error' )
 			->once()
 			->with( \Mockery::type( 'array' ), 403 );
@@ -3183,7 +3183,7 @@ class AdminTest extends TestCase {
 
 	public function test_handle_revoke_session_blocks_when_rate_limit_exceeded(): void {
 		Functions\when( 'check_ajax_referer' )->justReturn( 1 );
-		Functions\when( 'sudo_can' )->justReturn( true );
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		Functions\when( 'get_current_user_id' )->justReturn( 1 );
 		// Simulate 10 revocations already used.
 		Functions\when( 'get_transient' )->justReturn( 10 );
@@ -3197,7 +3197,7 @@ class AdminTest extends TestCase {
 
 	public function test_handle_revoke_session_fires_session_revoked_hook(): void {
 		Functions\when( 'check_ajax_referer' )->justReturn( 1 );
-		Functions\when( 'sudo_can' )->justReturn( true );
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		Functions\when( 'get_current_user_id' )->justReturn( 2 );
 		Functions\when( 'get_transient' )->justReturn( 0 );
 		Functions\when( 'set_transient' )->justReturn( true );

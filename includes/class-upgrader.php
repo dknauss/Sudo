@@ -255,7 +255,7 @@ class Upgrader {
 	 * guard below makes the re-run a no-op on sites where governance already
 	 * works, so deliberate Access-tab grants/revocations are preserved.
 	 *
-	 * Multisite remains super-admin governed via sudo_can()'s explicit
+	 * Multisite remains super-admin governed via wp_sudo_can()'s explicit
 	 * super-admin short-circuit, so no per-site cap grant is needed here.
 	 * Sites with no users in the administrator role get no backfill; recovery
 	 * there remains the WP_SUDO_RECOVERY_MODE constant.
