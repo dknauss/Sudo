@@ -647,14 +647,14 @@ class Sudo_Session {
 	 */
 	private static function is_ip_locked_out( string $ip, int $user_id ): bool {
 		$key   = self::ip_lockout_transient_key( $ip, $user_id );
-		$until = (int) self::read_transient( $key );
+		$until = (int) get_transient( $key );
 
 		if ( ! $until ) {
 			return false;
 		}
 
 		if ( time() >= $until ) {
-			self::delete_transient_key( $key );
+			delete_transient( $key );
 			return false;
 		}
 
@@ -672,7 +672,7 @@ class Sudo_Session {
 	 * @return int Seconds remaining, or 0.
 	 */
 	private static function ip_lockout_remaining( string $ip, int $user_id ): int {
-		$until = (int) self::read_transient( self::ip_lockout_transient_key( $ip, $user_id ) );
+		$until = (int) get_transient( self::ip_lockout_transient_key( $ip, $user_id ) );
 
 		return max( 0, $until - time() );
 	}
@@ -933,7 +933,7 @@ class Sudo_Session {
 				$now + self::LOCKOUT_DURATION
 			);
 
-			self::write_transient(
+			set_transient(
 				self::ip_lockout_transient_key( $ip, $user_id ),
 				$now + self::LOCKOUT_DURATION,
 				self::LOCKOUT_DURATION
@@ -976,7 +976,7 @@ class Sudo_Session {
 	 */
 	private static function record_failed_attempt_for_ip( string $ip, int $now, int $user_id ): int {
 		$key    = self::ip_failure_event_transient_key( $ip, $user_id );
-		$events = self::read_transient( $key );
+		$events = get_transient( $key );
 
 		if ( ! is_array( $events ) ) {
 			$events = array();
@@ -994,7 +994,7 @@ class Sudo_Session {
 
 		$events[] = $now;
 
-		self::write_transient( $key, $events, DAY_IN_SECONDS );
+		set_transient( $key, $events, DAY_IN_SECONDS );
 
 		return count( $events );
 	}
@@ -1031,71 +1031,6 @@ class Sudo_Session {
 	 */
 	private static function ip_lockout_transient_key( string $ip, int $user_id ): string {
 		return self::IP_LOCKOUT_UNTIL_TRANSIENT_PREFIX . hash( 'sha256', $ip . '|' . $user_id );
-	}
-
-	/**
-	 * Read a transient safely in unit-test contexts where the function may be undefined.
-	 *
-	 * @since 2.13.0
-	 *
-	 * @param string $key Transient key.
-	 * @return mixed
-	 */
-	private static function read_transient( string $key ) {
-		if ( ! function_exists( 'get_transient' ) ) {
-			return false;
-		}
-
-		try {
-			return get_transient( $key );
-		} catch ( \Throwable $e ) {
-			// Unit tests may not define expectations for transient calls on all paths.
-			return false;
-		}
-	}
-
-	/**
-	 * Write a transient safely in unit-test contexts where the function may be undefined.
-	 *
-	 * @since 2.13.0
-	 *
-	 * @param string $key    Transient key.
-	 * @param mixed  $value  Stored value.
-	 * @param int    $expiry Expiry in seconds.
-	 * @return void
-	 */
-	private static function write_transient( string $key, $value, int $expiry ): void {
-		if ( ! function_exists( 'set_transient' ) ) {
-			return;
-		}
-
-		try {
-			set_transient( $key, $value, $expiry );
-		} catch ( \Throwable $e ) {
-			// Unit tests may not define expectations for transient calls on all paths.
-			unset( $e );
-		}
-	}
-
-	/**
-	 * Delete a transient key safely in unit-test contexts where the function may be undefined.
-	 *
-	 * @since 2.13.0
-	 *
-	 * @param string $key Transient key.
-	 * @return void
-	 */
-	private static function delete_transient_key( string $key ): void {
-		if ( ! function_exists( 'delete_transient' ) ) {
-			return;
-		}
-
-		try {
-			delete_transient( $key );
-		} catch ( \Throwable $e ) {
-			// Unit tests may not define expectations for transient calls on all paths.
-			unset( $e );
-		}
 	}
 
 	/**
