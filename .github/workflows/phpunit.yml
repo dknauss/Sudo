@@ -49,11 +49,17 @@ jobs:
       - name: Run unit tests
         env:
           WP_SUDO_VENDOR_AUTOLOAD: ${{ github.workspace }}/.github/php80-tests/vendor/autoload.php
+        # Random order guards against cross-file test coupling (leaked
+        # process-global state). PHPUnit prints "Random Seed: N" in its
+        # header; reproduce a failure locally with
+        # ./vendor/bin/phpunit --order-by=random --random-order-seed=N
+        # The coverage job below stays in default order so one
+        # deterministic lane remains for comparison.
         run: |
           if [ "${{ matrix.php }}" = "8.0" ]; then
-            ./.github/php80-tests/vendor/bin/phpunit --configuration phpunit.xml.dist
+            ./.github/php80-tests/vendor/bin/phpunit --configuration phpunit.xml.dist --order-by=random
           else
-            composer test:unit
+            composer test:unit -- --order-by=random
           fi
 
   unit-tests-coverage:
