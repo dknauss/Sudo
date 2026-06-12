@@ -54,7 +54,7 @@ to fixing a contract break after commit.
 2. Spawn the reviewer agent using the Agent tool (subagent_type=reviewer)
 3. Reviewer runs tests, checks quality, and decides APPROVE or REJECT
 4. If APPROVED: reviewer writes the `reviewer-approved` flag
-5. Commit within 5 minutes of approval
+5. Commit within 30 minutes of approval (`REVIEWER_APPROVAL_TIMEOUT` in `.reviewer-config.sh`)
 
 ### Spawning the reviewer
 
