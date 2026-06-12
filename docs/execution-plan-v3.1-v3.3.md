@@ -1,6 +1,6 @@
 # Execution Plan (v3.1–v3.3)
 
-*Status: active planning, April 20, 2026. Revised April 20, 2026 to reflect the clean-launch framing for internal admin governance (no public install base, strict-from-day-one in v3.1 rather than three-phase migration). Revised June 7, 2026 to put post-v3.1.3 security-review remediation ahead of lower-priority feature work. Revised June 8, 2026: ultracode security audit complete — 27 confirmed findings (2 HIGH, 14 LOW, 11 INFO); 2 HIGH + A3 + C1 remediated in commit 3531e0d; full finding register appended below.*
+*Status: active planning, April 20, 2026. Revised April 20, 2026 to reflect the clean-launch framing for internal admin governance (no public install base, strict-from-day-one in v3.1 rather than three-phase migration). Revised June 7, 2026 to put post-v3.1.3 security-review remediation ahead of lower-priority feature work. Revised June 8, 2026: ultracode security audit complete — 27 confirmed findings (2 HIGH, 14 LOW, 11 INFO); 2 HIGH + A3 + C1 remediated in commit 3531e0d; full finding register appended below. Revised June 12, 2026: added the Two Factor lifecycle bridge (drafted April 29, 2026) as a P1 item and Phase 1.5, and report-only bridge discovery to the long-horizon backlog.*
 
 This plan organizes open roadmap/backlog work into a prioritized sequence for
 execution after v3.0.0.
@@ -342,7 +342,11 @@ review and need runtime confirmation or WP 7.0 RC source validation:
      delivery-hygiene work.
    - Design challenge transport, editor-state preservation, snackbar/notices UX,
      replay/cancel semantics, and Playwright coverage before implementation.
-4. Internal admin governance, Phase 1:
+4. Two Factor lifecycle bridge:
+   - Gate upstream Two Factor recovery-code generation, TOTP setup/deletion, and profile-form provider changes.
+   - Ship as an optional bridge guarded by `class_exists( 'Two_Factor_Core' )`.
+   - Verify against WordPress/two-factor source and document the source URLs in the commit message.
+5. Internal admin governance, Phase 1:
    - Ship strict-capability mode as the default.
    - Full capability surface: `manage_wp_sudo`, `view_wp_sudo_activity`,
      `export_wp_sudo_activity`, `revoke_wp_sudo_sessions`.
@@ -350,26 +354,26 @@ review and need runtime confirmation or WP 7.0 RC source validation:
      drift detection, "last manager" guard, `WP_SUDO_RECOVERY_MODE`
      break-glass, audit hooks for all access-model transitions.
    - See [`docs/internal-admin-governance-spec.md`](internal-admin-governance-spec.md).
-5. Request-stash replay/data-minimization follow-up:
+6. Request-stash replay/data-minimization follow-up:
    - Add pattern-based redaction for non-standard secret names.
    - Add custom-rule metadata for redacted, replay-safe, and non-replayable
      fields/actions.
-6. Dedicated Sudo Activity screen (list-table MVP):
+7. Dedicated Sudo Activity screen (list-table MVP):
    - server-side pagination/filter/sort over `wpsudo_events`.
    - Keep it modest and Sudo-specific; do not compete with dedicated audit-log
      plugins for notifications, long-term retention, or compliance exports.
-7. Audit-visibility integrity warnings:
+8. Audit-visibility integrity warnings:
    - explicit warnings when logging visibility is reduced by code-level overrides.
 
 ## P2 — Multisite Operator Controls
 
-8. Super-admin widget visibility controls.
-9. Network dashboard widget (cross-site aggregation).
-10. Cross-site session revocation.
+9. Super-admin widget visibility controls.
+10. Network dashboard widget (cross-site aggregation).
+11. Cross-site session revocation.
 
 ## P3 — Governance Polish (optional, v3.2)
 
-11. Internal admin governance, Phase 2:
+12. Internal admin governance, Phase 2:
    - Integrity warnings when effective visibility is broader than intended.
    - Opt-in 2FA-enrollment requirement for `manage_wp_sudo` holders.
    - Audit visibility on governance-mode transitions (`strict` ↔ `compatibility`).
@@ -386,7 +390,7 @@ review and need runtime confirmation or WP 7.0 RC source validation:
 
 ## P4 — Architecture / Scale (conditional, not scheduled)
 
-12. Session-store architecture implementation follow-up:
+13. Session-store architecture implementation follow-up:
     - Execute recommended Option 1 (authoritative table + usermeta shadow)
       from [`docs/session-store-evaluation.md`](session-store-evaluation.md).
     - **Conditional on reaching Tier 2 in practice** (≥ ~1,000 concurrently
@@ -395,14 +399,15 @@ review and need runtime confirmation or WP 7.0 RC source validation:
 
 ## P5 — UX / Platform Expansion
 
-13. Network policy hierarchy (after multisite operator controls stabilize).
+14. Network policy hierarchy (after multisite operator controls stabilize).
 
 ## P6 — Long-Horizon Design Backlog
 
-14. Client-side modal challenge.
-15. REST API sudo grant endpoint for headless clients.
-16. Per-session sudo isolation (`WP_Session_Tokens` integration).
-17. SSO/SAML/OIDC provider framework.
+15. Client-side modal challenge.
+16. REST API sudo grant endpoint for headless clients.
+17. Per-session sudo isolation (`WP_Session_Tokens` integration).
+18. Third-party bridge discovery mode (report-only scanner and candidate-rule assistant).
+19. SSO/SAML/OIDC provider framework.
 
 ## Phased GSD Execution Plan
 
@@ -436,6 +441,27 @@ Exit criteria:
 - Integration coverage exists for the cross-class auth path or a documented
   reason explains why a focused unit test is sufficient.
 - No browser E2E required unless the implementation changes challenge/replay UI.
+
+## Phase 1.5 — Two Factor lifecycle bridge
+
+Close the concrete factor-lifecycle coverage gap before broader platform work.
+
+- Add a Two Factor bridge guarded by `class_exists( 'Two_Factor_Core' )`.
+- Gate `POST /two-factor/1.0/generate-backup-codes`.
+- Gate `POST` and `DELETE /two-factor/1.0/totp`.
+- Gate `profile.php` / `user-edit.php` `action=update` only when Two Factor
+  form fields are present.
+- Add unit tests for rule injection and request matching.
+- Add integration or manual tests for recovery-code generation, TOTP setup/delete,
+  and profile-form provider changes with and without an active sudo session.
+
+Exit criteria:
+- A logged-in administrator without an active WP Sudo session cannot generate new
+  Two Factor recovery codes, configure/reset/delete TOTP, or change enabled Two
+  Factor providers through the profile form.
+- Ordinary profile edits remain ungated unless Two Factor lifecycle fields are present.
+- Commit notes include the verified WordPress/two-factor source URLs used for the
+  route and meta-key claims.
 
 ## Phase 2 — Governance foundation (P1.3)
 
