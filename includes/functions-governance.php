@@ -2,12 +2,12 @@
 /**
  * Governance helper functions.
  *
- * Provides the centralized sudo_can() capability-check helper used by all
+ * Provides the centralized wp_sudo_can() capability-check helper used by all
  * WP Sudo admin surfaces. Separates Sudo management authority from general
  * WordPress site-admin privileges via dedicated capabilities.
  *
  * This file is loaded unconditionally at plugin boot (wp-sudo.php) and in
- * the unit-test bootstrap, making sudo_can() and wp_sudo_is_recovery_mode()
+ * the unit-test bootstrap, making wp_sudo_can() and wp_sudo_is_recovery_mode()
  * available as testable global functions.
  *
  * @since      3.2.0
@@ -45,6 +45,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  *    - `compatibility` (opt-in)  — delegates to manage_options / manage_network_options.
  *
  * @since 3.2.0
+ * @since 3.3.0 Renamed from sudo_can() to the wp_sudo_ prefix.
  *
  * @param string   $cap     Governance capability slug. One of:
  *                          'manage_wp_sudo', 'view_wp_sudo_activity',
@@ -52,7 +53,7 @@ if ( ! defined( 'ABSPATH' ) ) {
  * @param int|null $user_id User to check. Defaults to the current user.
  * @return bool
  */
-function sudo_can( string $cap, ?int $user_id = null ): bool {
+function wp_sudo_can( string $cap, ?int $user_id = null ): bool {
 	$user_id ??= get_current_user_id();
 
 	// 1. Multisite super-admin short-circuit.
@@ -77,12 +78,56 @@ function sudo_can( string $cap, ?int $user_id = null ): bool {
 	return user_can( $user_id, $cap );
 }
 
+if ( ! function_exists( 'sudo_can' ) ) {
+	/**
+	 * Deprecated alias for wp_sudo_can().
+	 *
+	 * Shipped unprefixed in 3.2.0; kept as a thin alias so 3.2.0 integrators
+	 * are not broken by the rename. Scheduled for removal in 4.0.0. The
+	 * function_exists guard means WP Sudo no longer collides with — or depends
+	 * on — a foreign sudo_can() once its own callers use wp_sudo_can().
+	 *
+	 * @since      3.2.0
+	 * @deprecated 3.3.0 Use wp_sudo_can().
+	 *
+	 * @param string   $cap     Governance capability slug.
+	 * @param int|null $user_id User to check. Defaults to the current user.
+	 * @return bool
+	 */
+	function sudo_can( string $cap, ?int $user_id = null ): bool {
+		if ( function_exists( '_deprecated_function' ) ) {
+			_deprecated_function( __FUNCTION__, '3.3.0', 'wp_sudo_can()' );
+		}
+		return wp_sudo_can( $cap, $user_id );
+	}
+}
+
+/**
+ * The WP Sudo governance capability slugs.
+ *
+ * Bootstrap-safe canonical source (this file loads before the Admin class is
+ * autoloadable, e.g. during uninstall). Admin::GOVERNANCE_CAPS mirrors this list
+ * for use in class contexts where the constant is more convenient.
+ *
+ * @since 3.3.0
+ *
+ * @return string[]
+ */
+function wp_sudo_governance_caps(): array {
+	return array(
+		'manage_wp_sudo',
+		'view_wp_sudo_activity',
+		'export_wp_sudo_activity',
+		'revoke_wp_sudo_sessions',
+	);
+}
+
 /**
  * Map WP Sudo governance meta capabilities into WordPress primitive caps.
  *
  * WordPress checks menu-page capabilities before page callbacks run, so
  * UI surfaces registered with `manage_wp_sudo` must be understood by core's
- * capability system as well as by sudo_can().
+ * capability system as well as by wp_sudo_can().
  *
  * @since 3.2.0
  *
@@ -95,16 +140,7 @@ function sudo_can( string $cap, ?int $user_id = null ): bool {
 function wp_sudo_map_governance_meta_cap( array $caps, string $cap, int $user_id, array $args = array() ): array {
 	unset( $args );
 
-	$governance_caps = array(
-		// TODO: Keep this in sync with Admin::GOVERNANCE_CAPS until the shared
-		// cap list can move to a bootstrap-safe constant or helper.
-		'manage_wp_sudo',
-		'view_wp_sudo_activity',
-		'export_wp_sudo_activity',
-		'revoke_wp_sudo_sessions',
-	);
-
-	if ( ! in_array( $cap, $governance_caps, true ) ) {
+	if ( ! in_array( $cap, wp_sudo_governance_caps(), true ) ) {
 		return $caps;
 	}
 

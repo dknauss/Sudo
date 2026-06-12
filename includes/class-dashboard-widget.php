@@ -50,7 +50,7 @@ class Dashboard_Widget {
 	 * @return void
 	 */
 	public static function register(): void {
-		if ( ! sudo_can( 'view_wp_sudo_activity' ) ) {
+		if ( ! wp_sudo_can( 'view_wp_sudo_activity' ) ) {
 			return;
 		}
 

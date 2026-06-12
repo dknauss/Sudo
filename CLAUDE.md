@@ -232,6 +232,36 @@ enforcement mechanism. These guidelines apply to all changes, including small on
 - If no code is the best code, say so explicitly and prefer that outcome.
 - Do not add indirection, generic abstraction, or framework machinery unless it clearly earns its cost.
 
+## No Test-Environment Shims in Production
+
+Production code must not carry guards or accommodations whose only purpose is the
+unit-test environment. Tests adapt to production, never the reverse — stub with
+Brain\Monkey, not with production-side fallbacks.
+
+Specifically, do **not** write:
+
+- `function_exists()` / `defined()` / `class_exists()` / `method_exists()` guards on
+  symbols guaranteed by WordPress core at the relevant load point, or by the plugin's
+  own bootstrap (`WP_SUDO_*` constants are defined unconditionally before any class
+  loads). A unit test missing a stub is a test bug — fix the test.
+- `try { ... } catch ( \Throwable ) { ... }` wrappers around core APIs that exist to
+  swallow exceptions the test environment throws. These can mask real production
+  failures (e.g. a swallowed transient read made IP-lockout checks fail open).
+- Public methods, getters, or constructor DI parameters that exist only so a test can
+  reach internal state. Read private state through reflection in the test instead
+  (`@$ref->setAccessible( true )` per the suite's PHP 8.0/8.5 pattern).
+
+**Legitimate guards that are NOT shims (keep these):**
+
+- Runtime-variable integration checks: `function_exists( 'graphql' )`,
+  `class_exists( 'Two_Factor_Core' )`, `function_exists( 'dbDelta' )`,
+  `function_exists( 'wp_get_admin_notice' )` (WP 6.4+ vs the 6.2 minimum), the
+  SQLite drop-in `method_exists( $wpdb, 'dbh' )` detection, and `WP_CLI` checks.
+  These guard symbols that genuinely may or may not exist at runtime.
+- Tiny `reset_*()` static methods used purely for static-cache hygiene between tests.
+- `Plugin::gate()` — the one component getter kept deliberately, so integration tests
+  can exercise the live wired interceptor. Other component getters were removed.
+
 ## Architecture
 
 **Entry point:** `wp-sudo.php` — defines constants, registers an SPL autoloader (maps `WP_Sudo\Class_Name` to `includes/class-class-name.php`), and wires lifecycle hooks. The `wp_sudo()` function returns the singleton Plugin instance.

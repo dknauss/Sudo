@@ -28,12 +28,58 @@ if ( ! class_exists( '\WP_Sudo\Uninstall_Guard' ) ) {
 	require_once __DIR__ . '/includes/class-uninstall-guard.php';
 }
 
+if ( ! function_exists( 'wp_sudo_governance_caps' ) ) {
+	require_once __DIR__ . '/includes/functions-governance.php';
+}
+
 if ( ! \WP_Sudo\Uninstall_Guard::is_authorized() ) {
 	exit;
 }
 
 /**
- * Clean up all per-site data: role and options.
+ * Remove the governance capabilities granted by activation/backfill/Access tab.
+ *
+ * Caps are granted to individual users (WP_User::add_cap) and may also have been
+ * added to roles by a site admin. Both stores are swept so no orphaned custom cap
+ * survives uninstall on the current site.
+ *
+ * @return void
+ */
+function wp_sudo_cleanup_governance_caps(): void {
+	$caps = wp_sudo_governance_caps();
+
+	// Direct per-user grants.
+	$holders = get_users(
+		array(
+			'capability__in' => $caps,
+			'number'         => 0,
+			'fields'         => array( 'ID' ),
+		)
+	);
+
+	foreach ( $holders as $holder ) {
+		$user = get_userdata( (int) $holder->ID );
+		if ( $user ) {
+			foreach ( $caps as $cap ) {
+				$user->remove_cap( $cap );
+			}
+		}
+	}
+
+	// Role grants (if an admin added a governance cap to a role).
+	$roles = wp_roles();
+	if ( $roles instanceof WP_Roles ) {
+		foreach ( array_keys( $roles->role_objects ) as $role_name ) {
+			$role = $roles->role_objects[ $role_name ];
+			foreach ( $caps as $cap ) {
+				$role->remove_cap( $cap );
+			}
+		}
+	}
+}
+
+/**
+ * Clean up all per-site data: role, capabilities, and options.
  *
  * @return void
  */
@@ -47,11 +93,15 @@ function wp_sudo_cleanup_site(): void {
 		$editor->add_cap( 'unfiltered_html' );
 	}
 
+	// Remove governance capabilities granted on this site.
+	wp_sudo_cleanup_governance_caps();
+
 	delete_option( 'wp_sudo_settings' );
 	delete_option( 'wp_sudo_version' );
 	delete_option( 'wp_sudo_activated' );
 	delete_option( 'wp_sudo_role_version' );
 	delete_option( 'wp_sudo_db_version' );
+	delete_option( 'wp_sudo_governance_mode' );
 }
 
 /**
@@ -127,6 +177,7 @@ if ( is_multisite() ) {
 	delete_site_option( 'wp_sudo_db_version' );
 	delete_site_option( 'wp_sudo_activated' );
 	delete_site_option( 'wp_sudo_role_version' );
+	delete_site_option( 'wp_sudo_governance_mode' );
 } else {
 	// Single-site: clean up everything.
 	wp_sudo_cleanup_site();

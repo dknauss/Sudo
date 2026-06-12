@@ -135,6 +135,20 @@ class UninstallTest extends TestCase {
 		update_option( 'wp_sudo_settings', array( 'session_duration' => 5 ) );
 		$this->assertNotFalse( get_option( 'wp_sudo_settings' ), 'Settings option should exist before uninstall.' );
 
+		// Grant governance capabilities (directly to the user and via a role) and
+		// set the governance-mode option, so uninstall's cleanup can be verified.
+		foreach ( wp_sudo_governance_caps() as $cap ) {
+			$user->add_cap( $cap );
+		}
+		$editor_role = get_role( 'editor' );
+		$editor_role->add_cap( 'view_wp_sudo_activity' );
+		update_option( 'wp_sudo_governance_mode', 'compatibility' );
+
+		$user = get_userdata( $user->ID );
+		$this->assertTrue( $user->has_cap( 'manage_wp_sudo' ), 'User should hold manage_wp_sudo before uninstall.' );
+		$this->assertTrue( get_role( 'editor' )->has_cap( 'view_wp_sudo_activity' ), 'Editor role should hold view_wp_sudo_activity before uninstall.' );
+		$this->assertSame( 'compatibility', get_option( 'wp_sudo_governance_mode' ), 'Governance mode option should exist before uninstall.' );
+
 		$this->assertTrue( $this->ensure_events_table(), 'Events table should exist before uninstall.' );
 
 		// Act: run uninstall.
@@ -149,6 +163,15 @@ class UninstallTest extends TestCase {
 		$this->assertFalse( get_option( 'wp_sudo_activated' ), 'wp_sudo_activated should be deleted.' );
 		$this->assertFalse( get_option( 'wp_sudo_role_version' ), 'wp_sudo_role_version should be deleted.' );
 		$this->assertFalse( get_option( 'wp_sudo_db_version' ), 'wp_sudo_db_version should be deleted.' );
+		$this->assertFalse( get_option( 'wp_sudo_governance_mode' ), 'wp_sudo_governance_mode should be deleted.' );
+
+		// Assert: governance capabilities removed from users and roles.
+		$user = get_userdata( $user->ID );
+		foreach ( wp_sudo_governance_caps() as $cap ) {
+			$this->assertFalse( $user->has_cap( $cap ), "User cap {$cap} should be removed on uninstall." );
+		}
+		$this->assertFalse( get_role( 'editor' )->has_cap( 'view_wp_sudo_activity' ), 'Editor role governance cap should be removed on uninstall.' );
+
 		$this->assertFalse( $this->table_exists(), 'Events table should be dropped on uninstall.' );
 
 		// Assert: user meta is removed.

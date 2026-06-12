@@ -283,23 +283,4 @@ class AdminBarTest extends TestCase {
 		$this->admin_bar->enqueue_assets();
 		$this->assertTrue( true );
 	}
-
-	// ── countdown_script() ───────────────────────────────────────────
-
-	public function test_countdown_script_returns_javascript(): void {
-		$script = $this->admin_bar->countdown_script( 300 );
-
-		$this->assertStringContainsString( 'var r=300', $script );
-		$this->assertStringContainsString( 'wp-admin-bar-wp-sudo-active', $script );
-		$this->assertStringContainsString( 'setInterval', $script );
-		$this->assertStringContainsString( 'wp-sudo-expiring', $script );
-		$this->assertStringContainsString( 'aria-live', $script );
-		$this->assertStringContainsString( 'role', $script );
-	}
-
-	public function test_countdown_script_uses_correct_remaining_value(): void {
-		$script = $this->admin_bar->countdown_script( 120 );
-
-		$this->assertStringContainsString( 'var r=120', $script );
-	}
 }

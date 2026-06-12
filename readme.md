@@ -20,7 +20,7 @@ Playground demo credentials are `admin` / `password`. When WP Sudo asks for reau
 
 ## What’s new in 3.2.0
 
-- **Governance capabilities:** `sudo_can()` helper, Access tab for managing who can administer sudo settings, and WordPress capability integration for WP-CLI and audit plugins
+- **Governance capabilities:** `wp_sudo_can()` helper, Access tab for managing who can administer sudo settings, and WordPress capability integration for WP-CLI and audit plugins
 - **WPGraphQL gate hardening:** CR/CRLF comment tokenizer, block-string escaping, BOM stripping, persisted-query fail-safe, multipart and GET `query` param coverage
 - **REST plugin gate:** folder-based plugins (e.g. `akismet/akismet`) are now correctly gated on the REST surface
 - **Per-user IP lockout:** shared egress IPs (office NAT, VPN, CGNAT) can no longer be used to DoS all admins with five failed attempts from one account

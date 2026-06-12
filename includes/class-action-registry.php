@@ -774,20 +774,33 @@ class Action_Registry {
 		 * If the filter returns a non-array, the built-in rule set is used as a fallback.
 		 *
 		 * Each rule must be an associative array with at minimum:
-		 *   - `id`       (string)  — unique machine key, e.g. 'vendor.action_name'
-		 *   - `label`    (string)  — human-readable label for UI display
-		 *   - `category` (string)  — rule category for grouping in the Gated Actions table
+		 *   - `id`       (string) — unique machine key, e.g. 'vendor.action_name'
+		 *   - `label`    (string) — human-readable label for UI display
+		 *   - `category` (string) — rule category for grouping in the Gated Actions table
 		 *
-		 * And one or more surface-matcher keys:
-		 *   - `action`     (string) — `$_GET['action']` / `$_POST['action']` for admin/AJAX
-		 *   - `page`       (string) — `$_GET['page']` for admin page matches
-		 *   - `post_type`  (string) — `$_GET['post_type']` for CPT-specific admin matches
-		 *   - `rest_route` (string) — PCRE regex (with delimiter) for REST route matching,
-		 *                             e.g. `'#^/wp/v2/plugins(?:/|$)#'`
-		 *   - `rest_method`(string|string[]) — HTTP method or array of methods ('POST','PUT')
-		 *   - `rest_callback` (callable) — called as ($route, $method, $request) → bool for
-		 *                                  fine-grained REST param inspection
-		 *   - `network`    (bool)  — if true, rule applies in multisite network-admin context
+		 * And one or more surface sub-arrays (`null` for a surface this rule
+		 * does not gate). Matchers read ONLY these nested keys:
+		 *
+		 *   `admin` => array(
+		 *       'pagenow'  => string|string[],   // matched against $GLOBALS['pagenow']
+		 *       'actions'  => string[],          // matched against $_GET/$_POST['action']
+		 *       'method'   => string,            // 'POST' | 'GET' | 'ANY' (default ANY)
+		 *       'callback' => callable(): bool,  // optional; final narrowing predicate
+		 *   )
+		 *   `ajax` => array(
+		 *       'actions'  => string[],          // matched against the AJAX 'action'
+		 *   )
+		 *   `rest` => array(
+		 *       'route'    => string,            // PCRE regex w/ delimiter, e.g. '#^/wp/v2/users/(?:\d+|me)$#'
+		 *       'methods'  => string[],          // e.g. array( 'PUT', 'PATCH' )
+		 *       'callback' => callable( WP_REST_Request $request ): bool, // optional narrowing
+		 *   )
+		 *   `stash` => array(...)                // optional; replay allowlist via self::stash_allowlist()
+		 *
+		 * There are no `action`, `page`, `post_type`, `rest_route`, `rest_method`,
+		 * `rest_callback`, or `network` keys — a rule using those validates but
+		 * never matches (gating silently fails open). See the built-in rules in
+		 * self::rules() for working examples, or docs/developer-reference.md.
 		 *
 		 * @since 2.0.0
 		 *

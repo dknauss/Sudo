@@ -26,7 +26,7 @@ This is not role-based escalation. Every logged-in user is treated the same: att
 
 = What’s new in 3.2.0? =
 
-* **Governance capabilities** — `sudo_can()` helper, Access tab for managing who can administer sudo settings, WordPress capability integration for WP-CLI and audit plugins
+* **Governance capabilities** — `wp_sudo_can()` helper, Access tab for managing who can administer sudo settings, WordPress capability integration for WP-CLI and audit plugins
 * **WPGraphQL gate hardening** — CR/CRLF tokenizer, block-string escaping, BOM stripping, persisted-query fail-safe, multipart and GET `query` param coverage
 * **REST plugin gate** — folder-based plugins (e.g. `akismet/akismet`) correctly gated on the REST surface
 * **Per-user IP lockout** — shared egress IPs can no longer be used to lock out all admins with five attempts from one account

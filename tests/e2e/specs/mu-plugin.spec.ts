@@ -83,7 +83,7 @@ async function removeMuPlugin(): Promise<void> {
  * Note: class-admin.php uses defined('WP_SUDO_MU_LOADED') for the page render check,
  * but the constant is only defined when the MU-plugin file is loaded at startup.
  * For WP-CLI state verification, we check file existence directly.
- * Source: class-admin.php render_mu_plugin_status() — file_exists() for is_mu_plugin_installed() (verified)
+ * Source: class-admin.php render_mu_plugin_status() — defined( 'WP_SUDO_MU_LOADED' ) for install status (verified)
  */
 async function getMuPluginState(): Promise<string> {
     const result = await wpCli(
