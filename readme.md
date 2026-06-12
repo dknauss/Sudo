@@ -11,23 +11,18 @@ WP Sudo adds **action-gated reauthentication** to WordPress so high-risk operati
 [![CodeQL](https://github.com/dknauss/Sudo/actions/workflows/codeql.yml/badge.svg)](https://github.com/dknauss/Sudo/actions/workflows/codeql.yml)
 [![Codecov](https://codecov.io/gh/dknauss/Sudo/graph/badge.svg?branch=main)](https://codecov.io/gh/dknauss/Sudo)
 [![Type Coverage](https://shepherd.dev/github/dknauss/Sudo/coverage.svg)](https://shepherd.dev/github/dknauss/Sudo)
-[![Try latest release in Playground](https://img.shields.io/badge/Try%20release-Playground-3858e9?logo=wordpress&logoColor=white)](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fv3.2.0%2Fblueprint.json)
+[![Try latest release in Playground](https://img.shields.io/badge/Try%20release-Playground-3858e9?logo=wordpress&logoColor=white)](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fv3.3.0%2Fblueprint.json)
 [![Try main in Playground](https://img.shields.io/badge/Try%20main-Playground-23282d?logo=wordpress&logoColor=white)](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint-main.json)
 
 Playground demo credentials are `admin` / `password`. When WP Sudo asks for reauthentication, enter the same password: `password`.
 
-> **3.2.0 security hardening:** governance capabilities, WPGraphQL classifier hardening, per-user IP lockout, cookie Secure-flag fallback via `FORCE_SSL_ADMIN`, request-stash minimization, and more. See [CHANGELOG.md](CHANGELOG.md) and [docs/release-status.md](docs/release-status.md) for details.
+> **3.3.0 lockout fix:** existing single-site admins on 3.1.x or 3.2.0 now receive the governance capabilities needed to access Settings → Sudo without recovery mode. See [CHANGELOG.md](CHANGELOG.md) and [docs/release-status.md](docs/release-status.md) for details.
 
-## What’s new in 3.2.0
+## What’s new in 3.3.0
 
-- **Governance capabilities:** `wp_sudo_can()` helper, Access tab for managing who can administer sudo settings, and WordPress capability integration for WP-CLI and audit plugins
-- **WPGraphQL gate hardening:** CR/CRLF comment tokenizer, block-string escaping, BOM stripping, persisted-query fail-safe, multipart and GET `query` param coverage
-- **REST plugin gate:** folder-based plugins (e.g. `akismet/akismet`) are now correctly gated on the REST surface
-- **Per-user IP lockout:** shared egress IPs (office NAT, VPN, CGNAT) can no longer be used to DoS all admins with five failed attempts from one account
-- **Cookie Secure-flag hardening:** `FORCE_SSL_ADMIN` fallback + `wp_sudo_cookie_secure` filter for TLS-terminating proxy setups
-- **Request-stash minimization:** `$_GET` removed from stash, per-rule POST allowlists, suffix-based secret redaction for compound field names, unsafe-replay blocking
-- **App Password policy validation:** UUID format + existence check before persisting; automatic cleanup on password deletion
-- **Admin email gating:** `new_admin_email` writes are now challenge-gated on interactive and REST surfaces
+- **Governance backfill re-keyed (strict-mode lockout fix):** the migration granting `manage_wp_sudo` was keyed at the phantom `3.1.0` (never released); sites on any public 3.1.x or 3.2.0 skipped it and were locked out of Settings → Sudo in strict mode. Now keyed at `3.3.0` with an existing-holder guard that preserves deliberate Access-tab configurations.
+- **Audit column clamping:** `Event_Store` clamps `event`, `rule_id`, `surface`, and `ip` to their schema column widths before insert — over-length values truncate predictably in PHP instead of failing in strict MySQL or silently dropping the audit row.
+- **`wp_sudo_grant_session_on_login` filter:** the automatic sudo session granted on browser login can be suppressed (return `false`) for shared-terminal/kiosk hardening or SSO integrations.
 
 ## Why WP Sudo exists
 

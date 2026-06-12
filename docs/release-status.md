@@ -1,6 +1,6 @@
 # Release Status (Canonical Current State)
 
-Last verified: 2026-06-08
+Last verified: 2026-06-12
 
 This file is the canonical source for **current release state** in this repository:
 
@@ -12,44 +12,30 @@ This file is the canonical source for **current release state** in this reposito
 
 ## Latest public/tagged release
 
-- **Latest tagged release:** `3.2.0`
-- **Latest git tag observed:** `v3.2.0`
+- **Latest tagged release:** `3.3.0`
+- **Latest git tag observed:** `v3.3.0`
 
 ## Current `main` release target
 
-- **Next planned release:** `3.3.0` (planning lane)
-- **Current `main` runtime version constant:** `3.2.0`
+- **Next planned release:** TBD
+- **Current `main` runtime version constant:** `3.3.0`
 - **Current metadata should match:** `readme.txt` stable tag, `wp-sudo.php`, `tests/bootstrap.php`, `phpstan-bootstrap.php`
-- **Current public stable metadata:** `readme.txt` stable tag `3.2.0`
+- **Current public stable metadata:** `readme.txt` stable tag `3.3.0`
 - **Last completed release checklist:** `docs/release-3.0.0-checklist.md`
 
 ## Latest release contents
 
-`3.2.0` includes the post-`v3.1.3` security hardening and release-readiness work that landed on `main`:
+`3.3.0` is a targeted fix release addressing a strict-mode lockout:
 
-- fine-grained Sudo governance capabilities and Access-tab management
-- WPGraphQL classifier hardening and GET/form/multipart coverage
-- REST plugin slug matcher hardening for folder-based plugins
-- non-interactive gating for WP Sudo settings writes
-- admin-email gating on interactive and REST surfaces
-- per-user IP lockout and 2FA lockout/throttle hardening
-- cookie Secure-flag fallback via `FORCE_SSL_ADMIN`
-- REST cookie-vs-App-Password pivot hardening
-- App Password policy UUID ownership validation and cleanup
-- request-stash minimization, suffix-based secret redaction, and replay allowlists
-- Site Health visibility for missing built-in gated action rules
-- uninstall defense-in-depth that preserves WP-CLI uninstall behavior
-- stable and `main` Playground links with CORS-safe raw Blueprint URLs
+- governance capability backfill re-keyed from the phantom `3.1.0` (never released; tags went v3.1.1 → v3.1.3 → v3.2.0) to `3.3.0`, with an existing-holder guard; sites stored at any public 3.1.x or 3.2.0 now receive the `manage_wp_sudo` and related governance capabilities on next page load
+- `Event_Store` audit column clamping before insert
+- `wp_sudo_grant_session_on_login` filter (audit register item F17)
 
-Canonical source for post-tag drift after `3.2.0`: `git log v3.2.0..main --oneline`
+Canonical source for post-tag drift after `3.3.0`: `git log v3.3.0..main --oneline`
 
 ## Unreleased `main` work
 
-Post-`v3.2.0` work on `main` targeting `3.3.0` (see `CHANGELOG.md` Unreleased for canonical descriptions):
-
-- governance capability backfill re-keyed from the never-released `3.1.0` to `3.3.0`, with an existing-holder guard, so sites stored at 3.1.x or 3.2.0 regain Settings → Sudo access in strict governance mode
-- `Event_Store` audit column clamping before insert
-- `wp_sudo_grant_session_on_login` filter (audit register item F17)
+None — `main` is at `3.3.0`.
 
 ## WordPress release posture
 

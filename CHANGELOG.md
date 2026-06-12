@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 3.3.0 - 2026-06-12
 
 - **Governance backfill re-keyed to 3.3.0 (fixes strict-mode lockout):** the migration that grants `manage_wp_sudo` and the other governance capabilities to existing single-site administrators was keyed at `3.1.0` — a version that never had a public release (tags went v3.1.1 → v3.1.3 → v3.2.0). Sites upgrading from any public 3.1.x release skipped the backfill, leaving no `manage_wp_sudo` holders and locking administrators out of Settings → Sudo in the default strict governance mode (recovery only via `WP_SUDO_RECOVERY_MODE`). The routine is now keyed at `3.3.0` so it also runs once for sites already stamped `3.2.0`, and it skips when any user already holds `manage_wp_sudo`, preserving deliberate Access-tab grant/revoke configurations.
 - **Audit column clamping:** `Event_Store` now clamps `event`, `rule_id`, `surface`, and `ip` values to their schema column widths before insert, so over-length values from third-party rules truncate predictably in PHP instead of erroring (strict MySQL, dropping the audit row) or truncating silently in the database.
