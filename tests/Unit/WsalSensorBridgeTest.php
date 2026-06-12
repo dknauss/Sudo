@@ -20,6 +20,16 @@ class WsalSensorBridgeTest extends TestCase {
 	 */
 	public function test_01_bridge_is_inert_when_wsal_unavailable(): void {
 
+		// The Alert_Manager stub eval-defined by the other tests in this
+		// file is process-global, so hide it from the bridge's availability
+		// check instead of relying on the class being absent.
+		\Patchwork\redefine(
+			'class_exists',
+			function ( string $class_name, bool $autoload = true ): bool {
+				return false !== strpos( $class_name, 'Alert_Manager' ) ? false : \Patchwork\relay();
+			}
+		);
+
 		$registered_hooks = array();
 		Functions\when( 'add_action' )->alias(
 			static function ( string $hook, callable $callback ) use ( &$registered_hooks ): bool {

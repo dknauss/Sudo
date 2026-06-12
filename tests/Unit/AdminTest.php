@@ -1606,8 +1606,17 @@ class AdminTest extends TestCase {
 			}
 		);
 
-		// WP_SUDO_MU_LOADED is not defined, so render_mu_plugin_status()
-		// will show "Not installed" and an install button.
+		// WP_SUDO_MU_LOADED is process-global once any earlier test defines
+		// it (SiteHealthTest), so force the not-installed branch instead of
+		// relying on the constant being absent.
+		\Patchwork\redefine(
+			'defined',
+			function ( string $constant_name ): bool {
+				return 'WP_SUDO_MU_LOADED' === $constant_name ? false : \Patchwork\relay();
+			}
+		);
+
+		// render_mu_plugin_status() will show "Not installed" and an install button.
 		$admin = new Admin();
 
 		ob_start();
@@ -1646,6 +1655,15 @@ class AdminTest extends TestCase {
 			'is_writable',
 			function ( string $path ): bool {
 				return str_contains( $path, 'wp-content' ) ? false : \Patchwork\relay();
+			}
+		);
+
+		// Force the not-installed branch regardless of whether an earlier
+		// test defined the process-global WP_SUDO_MU_LOADED constant.
+		\Patchwork\redefine(
+			'defined',
+			function ( string $constant_name ): bool {
+				return 'WP_SUDO_MU_LOADED' === $constant_name ? false : \Patchwork\relay();
 			}
 		);
 

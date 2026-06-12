@@ -77,10 +77,14 @@ class SiteHealthTest extends TestCase {
 			return 'https://example.com/wp-admin/' . $path;
 		} );
 
-		// Only runs when WP_SUDO_MU_LOADED is NOT defined yet.
-		if ( defined( 'WP_SUDO_MU_LOADED' ) ) {
-			$this->markTestSkipped( 'WP_SUDO_MU_LOADED already defined by another test.' );
-		}
+		// Force the not-installed branch regardless of whether an earlier
+		// test defined the process-global WP_SUDO_MU_LOADED constant.
+		\Patchwork\redefine(
+			'defined',
+			function ( string $constant_name ): bool {
+				return 'WP_SUDO_MU_LOADED' === $constant_name ? false : \Patchwork\relay();
+			}
+		);
 
 		$result = $this->health->test_mu_plugin_status();
 
@@ -91,11 +95,15 @@ class SiteHealthTest extends TestCase {
 	public function test_mu_plugin_installed_returns_good(): void {
 		Functions\when( '__' )->returnArg();
 
-		// Simulate WP_SUDO_MU_LOADED being defined.
-		// We can test the branch by pre-defining the constant.
-		if ( ! defined( 'WP_SUDO_MU_LOADED' ) ) {
-			define( 'WP_SUDO_MU_LOADED', true );
-		}
+		// Simulate WP_SUDO_MU_LOADED being defined. Redefining defined()
+		// instead of calling define() keeps the constant out of the
+		// process-global namespace so later tests are not contaminated.
+		\Patchwork\redefine(
+			'defined',
+			function ( string $constant_name ): bool {
+				return 'WP_SUDO_MU_LOADED' === $constant_name ? true : \Patchwork\relay();
+			}
+		);
 
 		$result = $this->health->test_mu_plugin_status();
 
