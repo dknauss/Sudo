@@ -59,6 +59,46 @@ class UninstallTest extends TestCase {
 	}
 
 	/**
+	 * Drop any pre-existing events table so this test owns its provenance.
+	 *
+	 * In wp-env, the suite's wp-tests-config.php shares the database and
+	 * `wp_` prefix with the live tests site, which auto-activates the plugin
+	 * and creates a REAL wpsudo_events table. The suite's query filter
+	 * rewrites DROP TABLE to DROP TEMPORARY TABLE, so uninstall can never
+	 * remove that real table and the non-existence assertion would always
+	 * fail. Dropping both provenances first guarantees the table this test
+	 * creates is a suite-owned TEMPORARY table that uninstall CAN drop.
+	 *
+	 * Must run before any DB write in the test: the unfiltered DROP is DDL
+	 * and implicitly commits the test's transaction in all environments,
+	 * even when no table exists. Fixtures created after this call still
+	 * roll back normally.
+	 *
+	 * @return void
+	 */
+	private function purge_events_table_all_provenances(): void {
+		global $wpdb;
+
+		$wpdb->suppress_errors( true );
+
+		// Drop a suite-created TEMPORARY table, if any (the query filter
+		// rewrites this to DROP TEMPORARY TABLE IF EXISTS).
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.NotPrepared -- Event_Store::table_name() is a safe identifier; test-environment cleanup.
+		$wpdb->query( 'DROP TABLE IF EXISTS ' . Event_Store::table_name() );
+
+		// Drop a REAL table leaked from outside the suite (e.g. the live
+		// wp-env tests site sharing this database and prefix).
+		remove_filter( 'query', array( $this, '_drop_temporary_tables' ) );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.DirectDatabaseQuery.SchemaChange, WordPress.DB.PreparedSQL.NotPrepared -- Event_Store::table_name() is a safe identifier; test-environment cleanup.
+		$wpdb->query( 'DROP TABLE IF EXISTS ' . Event_Store::table_name() );
+		add_filter( 'query', array( $this, '_drop_temporary_tables' ) );
+
+		$wpdb->suppress_errors( false );
+
+		Event_Store::reset_runtime_cache();
+	}
+
+	/**
 	 * Single-site uninstall removes all plugin data.
 	 *
 	 * Exercises the full uninstall path: options, user meta, and
@@ -70,7 +110,8 @@ class UninstallTest extends TestCase {
 			$this->markTestSkipped( 'Single-site test — skipped on multisite.' );
 		}
 
-		// Arrange: activate plugin and create data.
+		// Arrange: start from a known table provenance, then activate.
+		$this->purge_events_table_all_provenances();
 		$this->activate_plugin();
 
 		$password = 'test-password';
@@ -100,6 +141,7 @@ class UninstallTest extends TestCase {
 		if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 			define( 'WP_UNINSTALL_PLUGIN', 'wp-sudo/wp-sudo.php' );
 		}
+		$this->assertTrue( \WP_Sudo\Uninstall_Guard::is_authorized(), 'Uninstall must be authorized before loading uninstall.php — it exits the process otherwise.' );
 		require dirname( __DIR__, 2 ) . '/uninstall.php';
 
 		// Assert: options are removed.
@@ -123,22 +165,27 @@ class UninstallTest extends TestCase {
 	}
 
 	/**
-	 * Multisite uninstall cleans user meta when no site has the plugin active.
+	 * Multisite uninstall cleans user meta network-wide.
 	 *
-	 * On multisite, user meta is stored in a shared table. The uninstall
-	 * routine must only delete it when no remaining site still has the
-	 * plugin active.
+	 * On multisite, user meta is stored in a shared table. By the time
+	 * WordPress runs uninstall.php all plugin data is orphaned, so the
+	 * uninstall routine deletes sudo user meta unconditionally across
+	 * the network. The acting user is a super admin, mirroring the real
+	 * network uninstall actor (delete_plugins is super-admin-only on
+	 * multisite).
 	 */
 	public function test_multisite_uninstall_cleans_user_meta(): void {
 		if ( ! is_multisite() ) {
 			$this->markTestSkipped( 'Multisite test — skipped on single-site.' );
 		}
 
-		// Arrange: activate plugin and create data.
+		// Arrange: start from a known table provenance, then activate.
+		$this->purge_events_table_all_provenances();
 		$this->activate_plugin();
 
 		$password = 'test-password';
 		$user     = $this->make_admin( $password );
+		grant_super_admin( $user->ID );
 		wp_set_current_user( $user->ID );
 
 		// Activate a sudo session.
@@ -159,25 +206,14 @@ class UninstallTest extends TestCase {
 
 		$this->assertTrue( $this->ensure_events_table(), 'Events table should exist before uninstall.' );
 
-		// Ensure the plugin is NOT in the active plugins list for the current site
-		// (simulates the state after WordPress has already deactivated the plugin
-		// but before the uninstall routine runs).
-		$active_plugins = (array) get_option( 'active_plugins', array() );
-		$active_plugins = array_diff( $active_plugins, array( 'wp-sudo/wp-sudo.php' ) );
-		update_option( 'active_plugins', $active_plugins );
-
-		// Also ensure it's not network-activated.
-		$network_plugins = (array) get_site_option( 'active_sitewide_plugins', array() );
-		unset( $network_plugins['wp-sudo/wp-sudo.php'] );
-		update_site_option( 'active_sitewide_plugins', $network_plugins );
-
 		// Act: run uninstall.
 		if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 			define( 'WP_UNINSTALL_PLUGIN', 'wp-sudo/wp-sudo.php' );
 		}
+		$this->assertTrue( \WP_Sudo\Uninstall_Guard::is_authorized(), 'Uninstall must be authorized before loading uninstall.php — it exits the process otherwise.' );
 		require dirname( __DIR__, 2 ) . '/uninstall.php';
 
-		// Assert: user meta is cleaned (no site has the plugin active).
+		// Assert: user meta is cleaned network-wide.
 		$this->assertEmpty( get_user_meta( $user->ID, '_wp_sudo_expires', true ), 'Expiry meta should be deleted on multisite.' );
 		$this->assertEmpty( get_user_meta( $user->ID, '_wp_sudo_token', true ), 'Token meta should be deleted on multisite.' );
 		$this->assertEmpty( get_user_meta( $user->ID, '_wp_sudo_failed_attempts', true ), 'Legacy failed attempts meta should be deleted on multisite.' );
