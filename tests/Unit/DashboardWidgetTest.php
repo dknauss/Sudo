@@ -340,6 +340,22 @@ class DashboardWidgetTest extends TestCase {
 	private ?object $original_wpdb = null;
 
 	/**
+	 * Set up test environment.
+	 *
+	 * dbDelta must be stubbed unconditionally: Brain\Monkey eval-defines it
+	 * process-globally once any earlier test file stubs it, after which
+	 * Event_Store::create_table() sees function_exists('dbDelta') as true
+	 * and calls it. Without a local stub, render tests would then throw
+	 * MissingFunctionExpectations depending on test-file ordering.
+	 *
+	 * @return void
+	 */
+	protected function setUp(): void {
+		parent::setUp();
+		Functions\when( 'dbDelta' )->justReturn( array() );
+	}
+
+	/**
 	 * Set up fake wpdb.
 	 *
 	 * @return void

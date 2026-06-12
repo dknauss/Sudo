@@ -1,6 +1,6 @@
 # Roadmap: Past and Future Planning — Integration Tests, WP 7.0 Prep, Collaboration, TDD, and Core Design
 
-*Updated June 8, 2026*
+*Updated June 12, 2026*
 
 ## Table of Contents
 
@@ -18,7 +18,7 @@
 - **[8. Exit Path Testing](#8-exit-path-testing)** — `@runInSeparateProcess` for security-critical exit/die paths
 - **[9. Code Review Findings](#9-code-review-findings-gpt-53-codex-verified-addendum)** — Triaged findings from line-verified code review
 - **[10. Core Sudo Design](#10-core-sudo-design)** — Already achieved (13), to implement (6), to consider (4), discarded (5)
-- **[11. Feature Backlog](#11-feature-backlog)** — WSAL sensor, IP+user rate limiting, dashboard widget, Gutenberg, network policy
+- **[11. Feature Backlog](#11-feature-backlog)** — Two Factor lifecycle bridge, bridge discovery mode, Gutenberg, multisite/network policy, SBOM/testing follow-ups
 - **[11.1 Multisite Network Admin Tools](#111-multisite-network-admin-tools)** — Network dashboard widget, super admin widget visibility controls, cross-site activity aggregation
 - **[11.2 Internal Admin Least-Privilege & Governance](#112-internal-admin-least-privilege--governance)** — dedicated Sudo capabilities, explicit grants, migration-safe rollout
 - **[12. Security Hardening Sprint](#12-security-hardening-sprint)** — Completed hardening sprint plus post-v3.1.3 review remediation phases
@@ -65,6 +65,10 @@ The v3.0.0 release consolidates Phases 7–9 work plus pre-release fixes:
 - ~~**Event_Store persistence layer**~~ ✅ — `wpsudo_events` table with 14-day retention, cron pruning, SQLite compat
 - ~~**Session Activity Dashboard Widget**~~ ✅ — Active sessions, recent events, policy summary for site admins
 
+### Short-term: Security Bridge Coverage
+
+- **Two Factor lifecycle bridge** — Gate upstream Two Factor recovery-code generation, TOTP setup/deletion, and profile-form provider changes behind WP Sudo. This is a concrete factor-lifecycle gap: WP Sudo can require password + 2FA for sudo, but currently does not gate creation or replacement of the recovery codes that can satisfy that 2FA step later. See §11 Feature Backlog for verified source notes and implementation scope.
+
 ### Medium-term: Multisite Network Admin Tools (v3.1+)
 
 - **Network Dashboard Widget** — Cross-site session visibility and event aggregation for super admins (see §11.1)
@@ -92,6 +96,7 @@ misleading, and expect to redo the set after later major UI changes.
 - **Per-session sudo isolation** — Integration with `WP_Session_Tokens` for per-browser isolation.
 - **SSO/SAML/OIDC provider framework** — Provider interface parallel to existing 2FA hooks.
 - **Phase D:** Docker Compose with switchable stacks
+- **Third-party bridge discovery mode** — Report-only scanner/assistant for plugin AJAX, admin-post, REST, and generic dispatcher entry points; useful for bridge coverage without turning WP Sudo into a generic hook firewall.
 
 ### ✅ Security Hardening Sprint — Complete (v2.10.2–v2.13.0)
 
@@ -510,9 +515,9 @@ Use this default order after the v3.2.0 release unless a real user need override
 
 - **Do next:** E2E shard rebalance and README screenshot refresh
 - **Most important major feature track:** Gutenberg Block Editor reauthentication UX design, then implementation
-- **Plan next:** The modest Sudo Activity screen MVP, audit-visibility warnings, multisite operator controls, and governance polish
+- **Plan next:** The Two Factor lifecycle bridge (gate recovery-code generation, TOTP setup/delete, and profile-form provider changes), the modest Sudo Activity screen MVP, audit-visibility warnings, multisite operator controls, and governance polish
 - **Do later if demand exists:** Network Policy Hierarchy for Multisite, Cross-Site Session Revocation, network-enforced Passed-event logging policy (super admins can require immutable Passed-event audit visibility across subsites), Security Administrator governance mode (dedicated `manage_wp_sudo` capability, settings/widget visibility scoped to that capability, optional strict-mode assignee workflow, and documented recovery path for misconfiguration)
-- **Keep as design backlog:** client-side modal challenge, per-session sudo isolation, REST sudo grant endpoint, SSO/SAML/OIDC framework
+- **Keep as design backlog:** third-party bridge discovery mode, client-side modal challenge, per-session sudo isolation, REST sudo grant endpoint, SSO/SAML/OIDC framework
 
 ## Execution Companion (v3.1–v3.3)
 
@@ -973,6 +978,70 @@ SBOM, accessibility roadmap) are documented in the [CHANGELOG](../CHANGELOG.md).
 **~~Public `wp_sudo_check()` / `wp_sudo_require()` API~~** — implemented on `main` for v2.12.0 for third-party action gating integrations.
 **~~Multi-Dimensional Rate Limiting (IP + User)~~** — shipped v2.13.0. Per-IP tracking via transients alongside per-user tracking, combined lockout policy, and the triggering IP address added as the third `wp_sudo_lockout` hook argument.
 
+### Open — High Priority Security Bridge Coverage
+
+**Two Factor lifecycle bridge**
+
+Add an optional bridge, guarded by `class_exists( 'Two_Factor_Core' )`, that gates
+security-sensitive factor lifecycle operations in the upstream Two Factor plugin.
+This is a concrete gap in WP Sudo's current coverage: a user can have no active
+WP Sudo session while Two Factor's own session/revalidation logic still permits
+factor management. If a browser session is compromised and the attacker also
+knows or phishes the password, newly generated recovery codes can satisfy WP
+Sudo's later 2FA step.
+
+Verified against WordPress/two-factor commit
+[`38cd183`](https://github.com/WordPress/two-factor/tree/38cd183d099ca3597d9bd0f6152a08e824f02a54)
+on 2026-04-29:
+
+- Recovery-code generation is `POST /two-factor/1.0/generate-backup-codes`,
+  registered in [`providers/class-two-factor-backup-codes.php`](https://github.com/WordPress/two-factor/blob/38cd183d099ca3597d9bd0f6152a08e824f02a54/providers/class-two-factor-backup-codes.php#L74-L83).
+  The callback generates plaintext codes, stores hashed codes in
+  `_two_factor_backup_codes`, and returns plaintext `codes` in the REST response
+  ([same file](https://github.com/WordPress/two-factor/blob/38cd183d099ca3597d9bd0f6152a08e824f02a54/providers/class-two-factor-backup-codes.php#L257-L338)).
+- TOTP lifecycle uses `POST` and `DELETE` on `/two-factor/1.0/totp`, registered
+  in [`providers/class-two-factor-totp.php`](https://github.com/WordPress/two-factor/blob/38cd183d099ca3597d9bd0f6152a08e824f02a54/providers/class-two-factor-totp.php#L94-L140).
+  Setup writes `_two_factor_totp_key` and can enable the provider; deletion
+  disables the provider and deletes the key
+  ([same file](https://github.com/WordPress/two-factor/blob/38cd183d099ca3597d9bd0f6152a08e824f02a54/providers/class-two-factor-totp.php#L206-L255)).
+- Profile-form updates save `_two_factor_enabled_providers` and
+  `_two_factor_provider` during `personal_options_update` /
+  `edit_user_profile_update`; Two Factor's own `current_user_can_update_two_factor_options()`
+  uses its revalidation window, not WP Sudo's session state
+  ([`class-two-factor-core.php`](https://github.com/WordPress/two-factor/blob/38cd183d099ca3597d9bd0f6152a08e824f02a54/class-two-factor-core.php#L1478-L1552),
+  [`class-two-factor-core.php`](https://github.com/WordPress/two-factor/blob/38cd183d099ca3597d9bd0f6152a08e824f02a54/class-two-factor-core.php#L2404-L2492)).
+
+Recommended bridge rules:
+
+1. `auth.two_factor_backup_codes.generate`
+   - REST: route `#^/two-factor/1\.0/generate-backup-codes$#`, method `POST`
+   - Label: Generate Two Factor recovery codes
+2. `auth.two_factor_totp.manage`
+   - REST: route `#^/two-factor/1\.0/totp$#`, methods `POST`, `DELETE`
+   - Label: Configure Two Factor authenticator app
+3. `auth.two_factor_profile.update`
+   - Admin: `profile.php` / `user-edit.php`, `action=update`, method `POST`
+   - Callback: gate only when Two Factor form fields are present, such as
+     `_nonce_user_two_factor_options`, `_two_factor_enabled_providers`, or
+     `_two_factor_provider`
+   - Label: Change Two Factor settings
+
+Implementation notes:
+
+- Ship as a bridge first, parallel to the existing WebAuthn bridge, rather than
+  expanding core rules unconditionally.
+- Keep the rule labels focused on factor lifecycle, not ordinary profile edits.
+- Add unit coverage for rule injection and matching; add integration/manual tests
+  for recovery-code generation without sudo, TOTP setup/delete, and profile-form
+  provider changes.
+- Document that Two Factor's own revalidation is still useful, but WP Sudo should
+  require its own active sudo session before creating or replacing a factor that
+  can satisfy future sudo challenges.
+
+*Impact:* High for session-compromise defense. This closes a concrete bridge gap
+where factor-management actions can create credentials used to pass later sudo
+2FA checks.
+
 ### Open — Medium Effort
 
 **Session Activity Dashboard Widget**
@@ -1049,6 +1118,45 @@ Recommended retention for the MVP:
 - prune rows older than 7 or 14 days via opportunistic cleanup or a lightweight scheduled task
 
 This keeps the schema useful without turning WP Sudo into a full audit-log product.
+
+**Third-Party Bridge Discovery Mode (report-only)**
+
+Opt-in scanner/assistant that helps operators and maintainers find third-party plugin
+mutation surfaces that WP Sudo does not know about yet. This is a bridge-coverage
+feature, not an enforcement engine: it should produce evidence, confidence levels,
+and candidate rules for human review.
+
+Recommended MVP:
+
+1. **Static entry-point scan**
+   - detect `wp_ajax_*`, `wp_ajax_nopriv_*`, `admin_post_*`, and `admin_post_nopriv_*` registrations
+   - classify unauthenticated `*_nopriv_*` surfaces as advisory/hard-deny candidates, not sudo-challenge candidates
+   - detect `register_rest_route()` registrations, including namespace/route/method hints when statically readable
+   - flag generic dispatchers on `admin_init`, `init`, `template_redirect`, `parse_request`, and `rest_api_init`
+2. **Dangerous sink scan**
+   - flag callbacks/files that call user, role/capability, critical-option, application-password, plugin/theme, filesystem, or direct `$wpdb` write APIs
+   - distinguish high-confidence direct calls from low-confidence generic dispatchers
+3. **Bridge-rule suggestions**
+   - generate disabled-by-default candidate snippets for `wp_sudo_gated_actions` when the surface is authenticated and challengeable
+   - include plugin/file/line evidence, suspected surface, suspected sink, and confidence
+   - never auto-enable generated rules without operator or maintainer review
+4. **Update/activation review signal**
+   - after plugin activation or update, optionally report newly discovered mutation surfaces
+   - prefer admin notice + report link over automatic blocking
+
+Non-goals for the MVP:
+
+- no per-hook allow/deny matrix
+- no continuous `all`-hook runtime tracking on every request
+- no vulnerability/reputation scanner
+- no automatic enforcement from static-analysis guesses
+- no claim that every custom dangerous action can be detected
+
+*Impact:* Medium to high for third-party bridge coverage and operator awareness.
+It directly addresses the known limitation that WP Sudo gates known request shapes
+and core consequence hooks, while custom plugin actions may be named differently.
+Keep the implementation report-only so it adds coverage intelligence without
+turning WP Sudo into a generic plugin firewall.
 
 ### Open — High Effort
 

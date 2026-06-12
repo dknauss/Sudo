@@ -9,9 +9,9 @@ REVIEWER_E2E_CMD=""
 
 REVIEWER_MAX_FILES=10
 REVIEWER_MAX_INSERTIONS=1000
-# Widened from 300 on 2026-06-10 (user-approved): reviewer-agent round-trip
-# latency in long sessions runs 300-900s, structurally exceeding the old window.
-REVIEWER_APPROVAL_TIMEOUT=1200
+# 1800s: agent round-trip latency in long sessions exceeded the old 300s
+# window (observed 19-21 min between flag write and commit on 2026-06-12).
+REVIEWER_APPROVAL_TIMEOUT=1800
 REVIEWER_APPROVAL_FILE="reviewer-approved"
 
 REVIEWER_TEXT_ONLY_PATTERN='\.(md|txt|rst)$'
