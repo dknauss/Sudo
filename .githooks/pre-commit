@@ -35,6 +35,14 @@ fi
 
 APPROVAL_FILE="$REPO_ROOT/$REVIEWER_APPROVAL_FILE"
 
+# ── Staged file classification ───────────────────────────────────────────────
+# Docs-only = every staged file (lockfiles excluded) matches the text-only
+# pattern. Used to skip both the reviewer-approval check and the test suite.
+NON_TEXT_FILES=$(git diff --cached --name-only \
+  | grep -Ev "$REVIEWER_EXCLUDED_FILES" \
+  | grep -Ev "$REVIEWER_TEXT_ONLY_PATTERN" \
+  | wc -l | tr -d ' ')
+
 # ── Header ───────────────────────────────────────────────────────────────────
 echo "🔍 Pre-Commit Validation"
 echo "=============================="
@@ -46,6 +54,11 @@ echo "1️⃣  Checking reviewer agent approval..."
 if [ "$USER_COMMIT" = "1" ]; then
   echo -e "${YELLOW}⚠️  User commit bypass enabled${NC}"
   echo "   Skipping reviewer agent check (USER_COMMIT=1)"
+elif [ "$NON_TEXT_FILES" -eq 0 ]; then
+  echo "   ℹ️  Docs-only commit — no code files staged (pattern: $REVIEWER_TEXT_ONLY_PATTERN)"
+  echo -e "${GREEN}✅ Reviewer approval not required for docs-only commits (per CLAUDE.md)${NC}"
+  # Consume any leftover approval flag so it cannot be reused by a later code commit.
+  rm -f "$APPROVAL_FILE"
 elif [ -f "$APPROVAL_FILE" ]; then
   APPROVAL_TIME=$(cat "$APPROVAL_FILE")
   CURRENT_TIME=$(date +%s)
@@ -98,11 +111,6 @@ if [ "$USER_COMMIT" != "1" ]; then
 fi
 
 # ── Step 3: Tests (skip for text-only changes) ───────────────────────────────
-NON_TEXT_FILES=$(git diff --cached --name-only \
-  | grep -Ev "$REVIEWER_EXCLUDED_FILES" \
-  | grep -Ev "$REVIEWER_TEXT_ONLY_PATTERN" \
-  | wc -l | tr -d ' ')
-
 echo "3️⃣  Running tests..."
 echo ""
 
@@ -170,10 +178,10 @@ done
 echo -e "${GREEN}✅ No secrets${NC}"
 echo ""
 
-# ── Step 5: Reviewer reminder (AI commits only) ──────────────────────────────
-if [ "$USER_COMMIT" != "1" ]; then
+# ── Step 5: Reviewer reminder (AI code commits only) ─────────────────────────
+if [ "$USER_COMMIT" != "1" ] && [ "$NON_TEXT_FILES" -gt 0 ]; then
   echo "5️⃣  Reviewer oversight check..."
-  echo -e "${YELLOW}⚠️  MANDATORY: Reviewer agent must approve before every commit.${NC}"
+  echo -e "${YELLOW}⚠️  MANDATORY: Reviewer agent must approve before every code commit.${NC}"
   echo "   1. Spawn reviewer agent with Claude Code's Agent tool"
   echo "   2. Get APPROVE decision"
   echo "   3. Reviewer writes the approval flag"

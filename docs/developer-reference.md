@@ -408,9 +408,9 @@ Session binding is enforced during the grace window — `verify_token()` is call
 
 The admin bar UI uses `is_active()` only; it always reflects the true session state.
 
-### `Sudo_Session::activate( int $user_id ): void`
+### `Sudo_Session::activate( int $user_id ): bool`
 
-Creates a new sudo session: generates a token, writes user meta, sets the httponly cookie, and fires `wp_sudo_activated`. Also called automatically by `Plugin::grant_session_on_login()` on successful browser-based login (`wp_login` hook); that automatic grant can be suppressed via the `wp_sudo_grant_session_on_login` filter.
+Creates a new sudo session: generates a token, writes user meta, sets the httponly cookie, and fires `wp_sudo_activated`. Returns `true` on success. Also called automatically by `Plugin::grant_session_on_login()` on successful browser-based login (`wp_login` hook); that automatic grant can be suppressed via the `wp_sudo_grant_session_on_login` filter.
 
 ### `Sudo_Session::GRACE_SECONDS`
 
