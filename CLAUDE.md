@@ -72,9 +72,12 @@ The **main agent must not write this file** — that would bypass the review int
 
 ### When to skip
 
-Docs-only commits — no `.php` files changed, only `.md`, `.txt`, or non-code
-config/data files (e.g. `blueprint.json`, `readme.txt`, `CHANGELOG.md`) — do
-not require a reviewer. Commit directly.
+Docs-only commits do not require the reviewer agent and can be committed
+directly. A commit is docs-only when no code files are staged — only `.md`,
+`.txt`, `.rst`, or lockfiles (the pattern is `REVIEWER_TEXT_ONLY_PATTERN` in
+`.reviewer-config.sh`). The pre-commit hook detects this and skips the
+approval check automatically. Any commit touching `.php`, scripts, or other
+code still requires a fresh reviewer approval.
 
 ### User bypass (your own commits only)
 

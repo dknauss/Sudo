@@ -125,6 +125,31 @@ host_db_reachable() {
 	nc -z "$host_part" "$port_part" >/dev/null 2>&1
 }
 
+# PHPUnit's exit code alone is not a reliable success signal: a plain `exit;`
+# in code under test (e.g. the WP_UNINSTALL_PLUGIN guard in uninstall.php)
+# terminates the PHP process mid-suite with status 0. PHPUnit never prints its
+# final summary, yet the wrapper and CI would report success while silently
+# skipping every remaining test. Guard against that by capturing the output
+# and requiring a final PHPUnit summary line ("OK (...)", "OK, but ...", or
+# "Tests: ..., Assertions: ...") in addition to a zero exit code. Failing runs
+# ("FAILURES!"/"ERRORS!") still fail via the exit code as before.
+run_phpunit_guarded() {
+	local output_file
+	local status=0
+
+	output_file="$(mktemp "${TMPDIR:-/tmp}/wp-sudo-phpunit.XXXXXX")"
+
+	"$@" 2>&1 | tee "$output_file" || status=$?
+
+	if [ "$status" -eq 0 ] && ! grep -E -q '^OK |^OK,|^Tests: [0-9]+.*Assertions:' "$output_file"; then
+		echo 'PHPUnit exited 0 without printing a result summary — the suite was likely terminated early by an exit() in code under test.' >&2
+		status=1
+	fi
+
+	rm -f "$output_file"
+	return "$status"
+}
+
 run_inside_wp_env_tests_container() {
 	local container_name="$1"
 	local wp_version="$2"
@@ -157,7 +182,7 @@ run_inside_wp_env_tests_container() {
 	inner_command="${inner_command}WP_SUDO_FORCE_DROP_DB=1 bash bin/install-wp-tests.sh wordpress_test root password tests-mysql $wp_version >/dev/null && "
 	inner_command="${inner_command}${multisite_env}WORDPRESS_DB_NAME=wordpress_test WORDPRESS_TABLE_PREFIX=wptests_ WP_TESTS_DIR=/wordpress-phpunit ./vendor/bin/phpunit --configuration $PHPUNIT_CONFIG"
 
-	docker exec "$container_name" sh -lc "$inner_command"
+	run_phpunit_guarded docker exec "$container_name" sh -lc "$inner_command"
 }
 
 main() {
@@ -169,7 +194,8 @@ main() {
 	local wp_tests_config=""
 
 	if [ -n "${CI:-}" ] && [ -n "${WP_TESTS_DIR:-}" ] && [ -f "${WP_TESTS_DIR%/}/wp-tests-config.php" ]; then
-		exec ./vendor/bin/phpunit --configuration "$PHPUNIT_CONFIG"
+		run_phpunit_guarded ./vendor/bin/phpunit --configuration "$PHPUNIT_CONFIG"
+		return $?
 	fi
 
 	MYSQLADMIN_BIN="$(resolve_mysqladmin_bin || true)"
@@ -179,7 +205,8 @@ main() {
 	db_password="$(extract_db_host "$wp_tests_config" "DB_PASSWORD" || true)"
 
 	if [ -n "$db_host" ] && host_db_reachable "$db_host" "$db_user" "$db_password"; then
-		exec ./vendor/bin/phpunit --configuration "$PHPUNIT_CONFIG"
+		run_phpunit_guarded ./vendor/bin/phpunit --configuration "$PHPUNIT_CONFIG"
+		return $?
 	fi
 
 	tests_container="$(find_wp_env_tests_container)"
@@ -187,7 +214,7 @@ main() {
 	if [ -n "$tests_container" ]; then
 		wp_version="$(extract_wp_env_version)"
 		run_inside_wp_env_tests_container "$tests_container" "$wp_version"
-		return 0
+		return $?
 	fi
 
 	if [ -n "$db_host" ]; then
