@@ -32,13 +32,21 @@ class Event_Recorder {
 	 * @var array<string, int>
 	 */
 	private const HOOKS = array(
-		'wp_sudo_lockout'         => 3, // user_id, attempts, ip.
-		'wp_sudo_action_gated'    => 3, // user_id, rule_id, surface.
-		'wp_sudo_action_blocked'  => 3, // user_id, rule_id, surface.
-		'wp_sudo_action_allowed'  => 3, // user_id, rule_id, surface.
-		'wp_sudo_action_passed'   => 3, // user_id, rule_id, surface.
-		'wp_sudo_action_replayed' => 2, // user_id, rule_id.
+		'wp_sudo_lockout'              => 3, // user_id, attempts, ip.
+		'wp_sudo_action_gated'         => 3, // user_id, rule_id, surface.
+		'wp_sudo_action_blocked'       => 3, // user_id, rule_id, surface.
+		'wp_sudo_action_allowed'       => 3, // user_id, rule_id, surface.
+		'wp_sudo_action_passed'        => 3, // user_id, rule_id, surface.
+		'wp_sudo_action_replayed'      => 2, // user_id, rule_id.
+		'wp_sudo_recovery_mode_active' => 1, // user_id.
 	);
+
+	/**
+	 * Transient prefix for per-user recovery_mode event sampling.
+	 *
+	 * @var string
+	 */
+	private const RECOVERY_THROTTLE_PREFIX = '_wp_sudo_recovery_logged_';
 
 	/**
 	 * Whether the per-request buffer is armed.
@@ -294,6 +302,40 @@ class Event_Recorder {
 				'event'   => 'action_passed',
 				'rule_id' => $rule_id,
 				'surface' => $surface,
+			)
+		);
+	}
+
+	/**
+	 * Handle wp_sudo_recovery_mode_active event.
+	 *
+	 * Fired (unthrottled) whenever the Sudo admin surface is accessed while
+	 * break-glass recovery mode is active. To keep the events table from
+	 * flooding — recovery mode can stay on across many page loads and users —
+	 * the internal record is SAMPLED to at most one row per user per hour.
+	 * External listeners on the hook still observe every occurrence and do
+	 * their own deduplication.
+	 *
+	 * @since 3.4.0
+	 *
+	 * @param int $user_id User who accessed the Sudo surface under recovery mode.
+	 * @return void
+	 */
+	public static function on_recovery_mode_active( int $user_id ): void {
+		$throttle_key = self::RECOVERY_THROTTLE_PREFIX . $user_id;
+
+		if ( get_transient( $throttle_key ) ) {
+			return;
+		}
+
+		set_transient( $throttle_key, 1, HOUR_IN_SECONDS );
+
+		self::enqueue(
+			array(
+				'user_id' => $user_id,
+				'event'   => 'recovery_mode',
+				'rule_id' => '',
+				'surface' => '',
 			)
 		);
 	}

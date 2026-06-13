@@ -3171,4 +3171,66 @@ class AdminTest extends TestCase {
 
 		unset( $_POST['user_id'], $_POST['reason'] );
 	}
+
+	// -----------------------------------------------------------------
+	// render_recovery_mode_notice() / maybe_record_recovery_mode_usage()
+	// -----------------------------------------------------------------
+
+	public function test_recovery_mode_notice_renders_warning_when_active(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( true );
+
+		$admin = new Admin();
+
+		ob_start();
+		$method = new \ReflectionMethod( Admin::class, 'render_recovery_mode_notice' );
+		@$method->setAccessible( true ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		$method->invoke( $admin );
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( 'WP_SUDO_RECOVERY_MODE', $output );
+		$this->assertStringContainsString( 'notice-warning', $output );
+		// Permanent notice: must NOT be dismissible.
+		$this->assertStringNotContainsString( 'is-dismissible', $output );
+	}
+
+	public function test_recovery_mode_notice_renders_nothing_when_inactive(): void {
+		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( false );
+
+		$admin = new Admin();
+
+		ob_start();
+		$method = new \ReflectionMethod( Admin::class, 'render_recovery_mode_notice' );
+		@$method->setAccessible( true ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		$method->invoke( $admin );
+		$output = ob_get_clean();
+
+		$this->assertSame( '', $output );
+	}
+
+	public function test_recovery_mode_usage_fires_audit_hook_when_active(): void {
+		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( true );
+		Functions\when( 'get_current_user_id' )->justReturn( 7 );
+
+		Actions\expectDone( 'wp_sudo_recovery_mode_active' )
+			->once()
+			->with( 7 );
+
+		$admin  = new Admin();
+		$method = new \ReflectionMethod( Admin::class, 'maybe_record_recovery_mode_usage' );
+		@$method->setAccessible( true ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		$method->invoke( $admin );
+	}
+
+	public function test_recovery_mode_usage_does_not_fire_when_inactive(): void {
+		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( false );
+
+		Actions\expectDone( 'wp_sudo_recovery_mode_active' )->never();
+
+		$admin  = new Admin();
+		$method = new \ReflectionMethod( Admin::class, 'maybe_record_recovery_mode_usage' );
+		@$method->setAccessible( true ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		$method->invoke( $admin );
+	}
 }

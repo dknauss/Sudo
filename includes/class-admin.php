@@ -1144,6 +1144,8 @@ class Admin {
 			return;
 		}
 
+		$this->maybe_record_recovery_mode_usage();
+
 		$is_network = is_multisite();
 		$valid_tabs = array( 'settings', 'actions', 'tester', 'access' );
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Tab routing only, no state change.
@@ -1158,6 +1160,7 @@ class Admin {
 		?>
 		<div class="wrap">
 			<h1><?php echo esc_html( get_admin_page_title() ); ?></h1>
+			<?php $this->render_recovery_mode_notice(); ?>
 			<?php $this->render_policy_preset_notice(); ?>
 			<?php $this->render_passed_event_logging_override_notice(); ?>
 			<?php if ( $is_network && isset( $_GET['updated'] ) ) : // phpcs:ignore WordPress.Security.NonceVerification.Recommended ?>
@@ -2449,6 +2452,67 @@ class Admin {
 		}
 
 		echo '<div class="notice notice-warning wp-sudo-notice"><p>' . esc_html( $message ) . '</p></div>';
+	}
+
+	/**
+	 * Render a permanent, non-dismissible notice while recovery mode is active.
+	 *
+	 * Break-glass recovery (WP_SUDO_RECOVERY_MODE) is uncontained by design: it
+	 * re-opens Sudo governance to every administrator for as long as the
+	 * constant is defined. This notice makes that state impossible to miss on
+	 * the Sudo settings screen so operators remove the constant promptly.
+	 *
+	 * @since 3.4.0
+	 * @return void
+	 */
+	private function render_recovery_mode_notice(): void {
+		if ( ! wp_sudo_is_recovery_mode() ) {
+			return;
+		}
+
+		$message = __( 'WP Sudo break-glass recovery mode is active (WP_SUDO_RECOVERY_MODE is defined in wp-config.php). While it is set, any administrator who holds manage_options regains full Sudo governance access. Remove the constant as soon as normal access is restored — leaving it enabled weakens the governance model.', 'wp-sudo' );
+
+		if ( function_exists( 'wp_get_admin_notice' ) ) {
+			$notice_html = wp_get_admin_notice(
+				$message,
+				array(
+					'type'               => 'warning',
+					'additional_classes' => array( 'wp-sudo-notice' ),
+				)
+			);
+			echo wp_kses_post( $notice_html );
+			return;
+		}
+
+		echo '<div class="notice notice-warning wp-sudo-notice"><p>' . esc_html( $message ) . '</p></div>';
+	}
+
+	/**
+	 * Fire the recovery-mode audit hook when the Sudo surface is accessed
+	 * while break-glass recovery mode is active.
+	 *
+	 * Fired on every such page load (not throttled here) so external audit /
+	 * SIEM listeners observe the complete usage pattern. The bundled
+	 * Event_Recorder samples the internal record to one row per user per hour
+	 * to avoid flooding the events table.
+	 *
+	 * @since 3.4.0
+	 * @return void
+	 */
+	private function maybe_record_recovery_mode_usage(): void {
+		if ( ! wp_sudo_is_recovery_mode() ) {
+			return;
+		}
+
+		/**
+		 * Fires when the Sudo admin surface is accessed under break-glass
+		 * recovery mode.
+		 *
+		 * @since 3.4.0
+		 *
+		 * @param int $user_id The user accessing the Sudo surface under recovery mode.
+		 */
+		do_action( 'wp_sudo_recovery_mode_active', get_current_user_id() );
 	}
 
 	/**

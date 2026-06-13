@@ -347,6 +347,12 @@ do_action( 'wp_sudo_capability_granted', int $target_user_id, string $cap, int $
 do_action( 'wp_sudo_capability_revoked', int $target_user_id, string $cap, int $revoker_user_id, int $site_id );
 do_action( 'wp_sudo_session_revoked', int $target_user_id, int $revoker_user_id, string $reason, int $site_id );
 
+// Break-glass recovery usage (v3.4.0). Fires on every Sudo admin-page load
+// while WP_SUDO_RECOVERY_MODE is active (unthrottled, for external loggers).
+// The bundled Event_Recorder samples this to one stored `recovery_mode` event
+// row per user per hour to avoid flooding the events table.
+do_action( 'wp_sudo_recovery_mode_active', int $user_id );
+
 // Rule diagnostics.
 do_action( 'wp_sudo_gated_actions_missing_builtin_rules', array $missing_builtin_ids );
 ```

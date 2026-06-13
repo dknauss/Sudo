@@ -190,6 +190,10 @@ class EventRecorderTest extends TestCase {
 			->once()
 			->with( [ Event_Recorder::class, 'on_action_replayed' ], 10, 2 );
 
+		Actions\expectAdded( 'wp_sudo_recovery_mode_active' )
+			->once()
+			->with( [ Event_Recorder::class, 'on_recovery_mode_active' ], 10, 1 );
+
 		new Event_Recorder();
 	}
 
@@ -217,6 +221,7 @@ class EventRecorderTest extends TestCase {
 		Actions\expectAdded( 'wp_sudo_action_allowed' )->once();
 		Actions\expectAdded( 'wp_sudo_action_passed' )->once();
 		Actions\expectAdded( 'wp_sudo_action_replayed' )->once();
+		Actions\expectAdded( 'wp_sudo_recovery_mode_active' )->once();
 
 		new Event_Recorder();
 	}
@@ -230,12 +235,13 @@ class EventRecorderTest extends TestCase {
 		// This is implicitly tested by testConstructorRegistersOnlyMvpHooks,
 		// but we make it explicit here for documentation.
 		$hooks_with_args = [
-			'wp_sudo_lockout'          => 3,
-			'wp_sudo_action_gated'     => 3,
-			'wp_sudo_action_blocked'   => 3,
-			'wp_sudo_action_allowed'   => 3,
-			'wp_sudo_action_passed'    => 3,
-			'wp_sudo_action_replayed'  => 2,
+			'wp_sudo_lockout'              => 3,
+			'wp_sudo_action_gated'         => 3,
+			'wp_sudo_action_blocked'       => 3,
+			'wp_sudo_action_allowed'       => 3,
+			'wp_sudo_action_passed'        => 3,
+			'wp_sudo_action_replayed'      => 2,
+			'wp_sudo_recovery_mode_active' => 1,
 		];
 
 		foreach ( $hooks_with_args as $hook => $accepted_args ) {
@@ -278,12 +284,13 @@ class EventRecorderTest extends TestCase {
 		new Event_Recorder();
 
 		$expected_args = [
-			'wp_sudo_lockout'         => 3,
-			'wp_sudo_action_gated'    => 3,
-			'wp_sudo_action_blocked'  => 3,
-			'wp_sudo_action_allowed'  => 3,
-			'wp_sudo_action_passed'   => 3,
-			'wp_sudo_action_replayed' => 2,
+			'wp_sudo_lockout'              => 3,
+			'wp_sudo_action_gated'         => 3,
+			'wp_sudo_action_blocked'       => 3,
+			'wp_sudo_action_allowed'       => 3,
+			'wp_sudo_action_passed'        => 3,
+			'wp_sudo_action_replayed'      => 2,
+			'wp_sudo_recovery_mode_active' => 1,
 		];
 
 		foreach ( $expected_args as $hook => $expected ) {
@@ -476,6 +483,58 @@ class EventRecorderTest extends TestCase {
 		Event_Recorder::on_action_passed( 18, 'options.update', 'admin' );
 
 		$this->assertCount( 0, $this->fake_wpdb->inserts );
+
+		$this->restoreWpdb();
+	}
+
+	/**
+	 * Test on_recovery_mode_active() records a 'recovery_mode' event when the
+	 * per-user sample window is open, and arms the throttle transient.
+	 *
+	 * @return void
+	 */
+	public function testOnRecoveryModeActiveInsertsRecoveryEventWhenNotThrottled(): void {
+		$this->setUpFakeWpdb();
+
+		$set_args = null;
+		Functions\when( 'get_transient' )->justReturn( false );
+		Functions\when( 'set_transient' )->alias(
+			function ( $key, $value, $ttl ) use ( &$set_args ) {
+				$set_args = [ $key, $value, $ttl ];
+				return true;
+			}
+		);
+
+		Event_Recorder::on_recovery_mode_active( 21 );
+
+		$this->assertCount( 1, $this->fake_wpdb->inserts );
+		$data = $this->fake_wpdb->inserts[0]['data'];
+		$this->assertSame( 21, $data['user_id'] );
+		$this->assertSame( 'recovery_mode', $data['event'] );
+
+		// Throttle transient must be armed for this user with an hour TTL.
+		$this->assertNotNull( $set_args );
+		$this->assertSame( '_wp_sudo_recovery_logged_21', $set_args[0] );
+		$this->assertSame( HOUR_IN_SECONDS, $set_args[2] );
+
+		$this->restoreWpdb();
+	}
+
+	/**
+	 * Test on_recovery_mode_active() skips the insert (sampling) when the
+	 * per-user throttle transient is already set.
+	 *
+	 * @return void
+	 */
+	public function testOnRecoveryModeActiveSkipsInsertWhenThrottled(): void {
+		$this->setUpFakeWpdb();
+
+		Functions\when( 'get_transient' )->justReturn( 1 );
+		Functions\expect( 'set_transient' )->never();
+
+		Event_Recorder::on_recovery_mode_active( 21 );
+
+		$this->assertCount( 0, $this->fake_wpdb->inserts, 'Throttled recovery event must not insert a row' );
 
 		$this->restoreWpdb();
 	}
