@@ -6,9 +6,60 @@ on:
   pull_request:
     branches: [main]
 
+# Least-privilege default for GITHUB_TOKEN (CodeQL actions hardening). Jobs that
+# need more (e.g. the change detector's pull-requests: read) set it per-job.
+permissions:
+  contents: read
+
 jobs:
-  psalm:
-    name: "Psalm"
+  # Documentation-only pull requests skip the heavy Psalm job; the "Psalm" gate
+  # job below always runs and reports the required status, so the required check
+  # is never left pending (which would deadlock the PR). Fail-safe: any non-doc
+  # file, any non-pull_request event, or any error → run Psalm.
+  changes:
+    name: Detect code changes
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      code: ${{ steps.decide.outputs.code }}
+    steps:
+      - name: Decide whether to run Psalm
+        id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "Event '${{ github.event_name }}' is not a pull_request — running Psalm."
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if ! files=$(gh pr view "${{ github.event.pull_request.number }}" \
+                --repo "${{ github.repository }}" --json files \
+                --jq '.files[].path' 2>/dev/null); then
+            echo "Could not list changed files — running Psalm (fail-safe)."
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          code=false
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            case "$f" in
+              *.md|*.txt|*.rst|docs/*|LICENSE) ;;   # documentation — does not require Psalm
+              *) code=true ;;                        # any non-doc file requires Psalm
+            esac
+          done <<< "$files"
+          echo "Changed files:"
+          echo "$files"
+          echo "Non-documentation files changed: $code"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
+  psalm-run:
+    name: "Psalm (run)"
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
@@ -58,3 +109,29 @@ jobs:
         # step log (no "🐑 results sent" line) without blocking the build.
         continue-on-error: true
         run: composer analyse:psalm:shepherd
+
+  # Required status check. Always runs (even when psalm-run is skipped) so the
+  # "Psalm" context is always reported. Passes when psalm-run succeeded, or when
+  # it was skipped because the PR was documentation-only; fails otherwise.
+  psalm:
+    name: "Psalm"
+    runs-on: ubuntu-24.04
+    needs: [changes, psalm-run]
+    if: always()
+    steps:
+      - name: Check Psalm result
+        run: |
+          if [ "${{ needs.changes.result }}" != "success" ]; then
+            echo "Change detector did not succeed (${{ needs.changes.result }}) — failing the gate (fail-safe)."
+            exit 1
+          fi
+          if [ "${{ needs.changes.outputs.code }}" != "true" ]; then
+            echo "Documentation-only change — Psalm skipped; gate passes."
+            exit 0
+          fi
+          if [ "${{ needs.psalm-run.result }}" = "success" ]; then
+            echo "Psalm passed."
+            exit 0
+          fi
+          echo "Psalm result: ${{ needs.psalm-run.result }}"
+          exit 1

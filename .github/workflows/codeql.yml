@@ -15,8 +15,54 @@ permissions:
   security-events: write
 
 jobs:
+  # Documentation-only pull requests skip CodeQL analysis (it scans code, not
+  # docs); the "CodeQL" gate job below always runs and reports the required
+  # status. Fail-safe: any non-doc file (including workflow files, which CodeQL's
+  # `actions` language scans), any non-pull_request event, or any error → analyze.
+  changes:
+    name: Detect code changes
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      code: ${{ steps.decide.outputs.code }}
+    steps:
+      - name: Decide whether to run CodeQL
+        id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "Event '${{ github.event_name }}' is not a pull_request — running CodeQL."
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if ! files=$(gh pr view "${{ github.event.pull_request.number }}" \
+                --repo "${{ github.repository }}" --json files \
+                --jq '.files[].path' 2>/dev/null); then
+            echo "Could not list changed files — running CodeQL (fail-safe)."
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          code=false
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            case "$f" in
+              *.md|*.txt|*.rst|docs/*|LICENSE) ;;   # documentation — does not require CodeQL
+              *) code=true ;;                        # any non-doc file requires CodeQL
+            esac
+          done <<< "$files"
+          echo "Changed files:"
+          echo "$files"
+          echo "Non-documentation files changed: $code"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
   analyze:
     name: "Analyze (${{ matrix.language }})"
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -37,16 +83,28 @@ jobs:
         with:
           category: "/language:${{ matrix.language }}"
 
+  # Required status check. Always runs (even when analysis is skipped) so the
+  # "CodeQL" context is always reported. Passes when analysis succeeded, or when
+  # it was skipped because the PR was documentation-only; fails otherwise.
   codeql-summary:
     name: "CodeQL"
     runs-on: ubuntu-24.04
-    needs: [analyze]
+    needs: [changes, analyze]
     if: ${{ always() }}
 
     steps:
       - name: Enforce successful CodeQL analysis
         run: |
-          if [ "${{ needs.analyze.result }}" != "success" ]; then
-            echo "CodeQL analysis did not succeed."
+          if [ "${{ needs.changes.result }}" != "success" ]; then
+            echo "Change detector did not succeed (${{ needs.changes.result }}) — failing the gate (fail-safe)."
             exit 1
           fi
+          if [ "${{ needs.changes.outputs.code }}" != "true" ]; then
+            echo "Documentation-only change — CodeQL skipped; gate passes."
+            exit 0
+          fi
+          if [ "${{ needs.analyze.result }}" != "success" ]; then
+            echo "CodeQL analysis did not succeed: ${{ needs.analyze.result }}"
+            exit 1
+          fi
+          echo "CodeQL analysis passed."
