@@ -64,12 +64,37 @@ class GovernanceTest extends TestCase {
 		);
 	}
 
-	public function test_map_governance_meta_cap_recovery_mode_grants_manage_wp_sudo_to_current_user(): void {
+	public function test_map_governance_meta_cap_recovery_mode_maps_manage_wp_sudo_to_manage_options_single_site(): void {
 		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( true );
+		Functions\when( 'is_multisite' )->justReturn( false );
+
+		// Recovery mode delegates the role check to core by mapping the meta cap
+		// to manage_options, so the admin-page gate only admits real admins.
+		$this->assertSame(
+			array( 'manage_options' ),
+			wp_sudo_map_governance_meta_cap( array( 'do_not_allow' ), 'manage_wp_sudo', 0 )
+		);
+	}
+
+	public function test_map_governance_meta_cap_recovery_mode_maps_manage_wp_sudo_to_manage_network_options_multisite(): void {
+		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( true );
+		Functions\when( 'is_multisite' )->justReturn( true );
 
 		$this->assertSame(
-			array( 'exist' ),
+			array( 'manage_network_options' ),
 			wp_sudo_map_governance_meta_cap( array( 'do_not_allow' ), 'manage_wp_sudo', 0 )
+		);
+	}
+
+	public function test_map_governance_meta_cap_recovery_mode_ignores_non_current_user(): void {
+		// Current user is 0 (TestCase default); target user 99 is not current,
+		// so the recovery branch must not apply — falls through to strict mode.
+		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( true );
+		Functions\when( 'get_option' )->justReturn( 'strict' );
+
+		$this->assertSame(
+			array( 'manage_wp_sudo' ),
+			wp_sudo_map_governance_meta_cap( array( 'do_not_allow' ), 'manage_wp_sudo', 99 )
 		);
 	}
 
@@ -240,14 +265,49 @@ class GovernanceTest extends TestCase {
 	// ----------------------------------------------------------------
 
 	/**
-	 * Recovery mode grants manage_wp_sudo to the current user.
+	 * Recovery mode grants manage_wp_sudo to the current user only when they
+	 * still hold manage_options (single-site).
 	 */
-	public function test_sudo_can_recovery_mode_grants_manage_wp_sudo_to_current_user(): void {
+	public function test_sudo_can_recovery_mode_grants_manage_wp_sudo_to_current_admin(): void {
 		// TestCase stubs get_current_user_id → 0; use user 0 explicitly.
 		Functions\when( 'is_multisite' )->justReturn( false );
 		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( true );
-		// user_can and get_option must NOT be reached for this path.
-		Functions\expect( 'user_can' )->never();
+		// The role gate checks manage_options; the cap check itself is not reached.
+		Functions\expect( 'user_can' )
+			->once()
+			->with( 0, 'manage_options' )
+			->andReturn( true );
+
+		$this->assertTrue( wp_sudo_can( 'manage_wp_sudo', 0 ) );
+	}
+
+	/**
+	 * Recovery mode does NOT grant manage_wp_sudo to a current user who lacks
+	 * site-admin authority — a subscriber/editor gains nothing. The role gate
+	 * fails, then the strict cap check also fails.
+	 */
+	public function test_sudo_can_recovery_mode_does_not_grant_to_non_admin(): void {
+		Functions\when( 'is_multisite' )->justReturn( false );
+		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( true );
+		Functions\when( 'get_option' )->justReturn( 'strict' );
+		// manage_options (role gate) → false; manage_wp_sudo (strict) → false.
+		Functions\when( 'user_can' )->justReturn( false );
+
+		$this->assertFalse( wp_sudo_can( 'manage_wp_sudo', 0 ) );
+	}
+
+	/**
+	 * On multisite, the recovery role gate checks manage_network_options.
+	 * (Super admins already short-circuit at step 1 and never reach this branch.)
+	 */
+	public function test_sudo_can_recovery_mode_role_gate_uses_network_cap_on_multisite(): void {
+		Functions\when( 'is_multisite' )->justReturn( true );
+		Functions\when( 'is_super_admin' )->justReturn( false );
+		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( true );
+		Functions\expect( 'user_can' )
+			->once()
+			->with( 0, 'manage_network_options' )
+			->andReturn( true );
 
 		$this->assertTrue( wp_sudo_can( 'manage_wp_sudo', 0 ) );
 	}

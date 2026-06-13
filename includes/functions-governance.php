@@ -36,9 +36,13 @@ if ( ! defined( 'ABSPATH' ) ) {
  *
  * 2. **Break-glass recovery mode** — when WP_SUDO_RECOVERY_MODE is defined
  *    and truthy in wp-config.php, the current user receives effective
- *    `manage_wp_sudo` authority. Limited to that one cap and only for the
- *    user making the current request; does not bypass the reauth challenge.
- *    See docs/internal-admin-governance-spec.md §Break-glass recovery.
+ *    `manage_wp_sudo` authority, but ONLY if they also still hold site/network
+ *    admin authority (`manage_options` single-site, `manage_network_options`
+ *    multisite). The governance model deliberately separates `manage_wp_sudo`
+ *    from `manage_options`, so a locked-out manager who kept their admin role
+ *    still passes while subscribers and editors gain nothing. Limited to that
+ *    one cap and only for the user making the current request; does not bypass
+ *    the reauth challenge. See docs/security-model.md §Break-glass recovery.
  *
  * 3. **Governance mode** — `wp_sudo_governance_mode` option:
  *    - `strict`        (default) — delegates to user_can($user_id, $cap).
@@ -61,10 +65,15 @@ function wp_sudo_can( string $cap, ?int $user_id = null ): bool {
 		return true;
 	}
 
-	// 2. Break-glass recovery mode — manage_wp_sudo only, current user only.
+	// 2. Break-glass recovery mode — manage_wp_sudo only, current user only,
+	// and only for users who still hold site/network admin authority. This
+	// contains the blast radius: while WP_SUDO_RECOVERY_MODE is set, recovery
+	// rescues a locked-out admin (kept manage_options, lost manage_wp_sudo)
+	// without handing governance to every authenticated subscriber/editor.
 	if ( 'manage_wp_sudo' === $cap
 		&& wp_sudo_is_recovery_mode()
 		&& get_current_user_id() === $user_id
+		&& user_can( $user_id, is_multisite() ? 'manage_network_options' : 'manage_options' )
 	) {
 		return true;
 	}
@@ -144,11 +153,16 @@ function wp_sudo_map_governance_meta_cap( array $caps, string $cap, int $user_id
 		return $caps;
 	}
 
+	// Break-glass recovery mode maps manage_wp_sudo to the site/network admin
+	// primitive cap, so WordPress core's own admin-page gate only admits users
+	// who actually hold manage_options / manage_network_options. This delegates
+	// the role check (including the multisite super-admin bypass) to core,
+	// matching the compatibility-mode mapping below. Current user only.
 	if ( 'manage_wp_sudo' === $cap
 		&& wp_sudo_is_recovery_mode()
 		&& get_current_user_id() === $user_id
 	) {
-		return array( 'exist' );
+		return array( is_multisite() ? 'manage_network_options' : 'manage_options' );
 	}
 
 	if ( 'compatibility' === get_option( 'wp_sudo_governance_mode', 'strict' ) ) {
