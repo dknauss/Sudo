@@ -1802,3 +1802,170 @@ curl -sk -X POST "YOUR_SITE_URL/graphql" \
 4. **Cleanup:** Reactivate the plugin or run the upgrader to recreate the
    table:
    `wp plugin deactivate wp-sudo && wp plugin activate wp-sudo`
+
+---
+
+## 23. Governance Capabilities and Access Control
+
+> Requires WP Sudo 3.2.0+. Tests in this section verify the four governance
+> capabilities (`manage_wp_sudo`, `view_wp_sudo_activity`,
+> `export_wp_sudo_activity`, `revoke_wp_sudo_sessions`), the Access tab UI,
+> the break-glass `WP_SUDO_RECOVERY_MODE` constant, and the deprecated
+> compatibility governance mode. WP-CLI access is required for sections 23.8
+> and 23.9.
+>
+> **Setup:** Two administrator accounts are needed — the primary tester
+> account (which holds `manage_wp_sudo` after plugin activation) and a second
+> account used as the grant/revoke target. Note the second account's user ID
+> (`wp user get <login> --field=ID`).
+
+### 23.1 Settings Page Blocked for Non-Holders
+
+- Log in as the second administrator, which does **not** yet hold
+  `manage_wp_sudo`.
+
+1. Navigate directly to **Settings > Sudo** (or
+   `/wp-admin/options-general.php?page=wp-sudo`).
+2. **Expected:** WordPress displays "Sorry, you are not allowed to access this
+   page." The **Settings > Sudo** menu item does not appear in the sidebar for
+   this user.
+3. Log back in as the primary account (which holds `manage_wp_sudo`).
+4. **Expected:** **Settings > Sudo** is visible and accessible.
+
+### 23.2 Access Tab Displays Current Capability Holders
+
+1. As the primary account, go to **Settings > Sudo** and click the **Access**
+   tab.
+2. **Expected:** A table lists every user who currently holds at least one
+   governance capability. The primary account appears with all four caps
+   listed. The second account does not appear (it holds none).
+3. **Expected:** Below the holder table, a **Grant Capability** form is
+   visible with a User ID field and a capability select menu containing all
+   four governance capability slugs.
+
+### 23.3 Grant a Capability via Access Tab
+
+1. On the **Access** tab, enter the second account's user ID in the **User
+   ID** field, select `view_wp_sudo_activity` from the capability dropdown,
+   and click **Grant Capability**. Activate a sudo session if prompted.
+2. **Expected:** An inline success message ("Capability granted.") appears
+   without a full page reload.
+3. Reload the **Access** tab.
+4. **Expected:** The second account now appears in the holder table with
+   `view_wp_sudo_activity` listed.
+5. Log in as the second account and go to **Dashboard**.
+6. **Expected:** The "WP Sudo: Session Activity" widget is now visible (the
+   widget requires `view_wp_sudo_activity`).
+
+### 23.4 Revoke a Capability via Access Tab
+
+1. As the primary account on the **Access** tab, locate the second account's
+   row and click **Revoke** next to `view_wp_sudo_activity`. Activate a sudo
+   session if prompted.
+2. **Expected:** An inline success message ("Capability revoked.") appears
+   without a full page reload.
+3. Reload the **Access** tab.
+4. **Expected:** The second account no longer appears in the holder table (it
+   holds no caps).
+5. Log in as the second account and go to **Dashboard**.
+6. **Expected:** The "WP Sudo: Session Activity" widget is **not** visible.
+
+### 23.5 Last-Manager Guard
+
+1. Confirm only the primary account holds `manage_wp_sudo`:
+   `wp user list --role=administrator --fields=ID,user_login`
+   `wp user meta get <primary-id> wp_capabilities`
+2. On the **Access** tab, click **Revoke** next to `manage_wp_sudo` on the
+   primary account's own row. Activate a sudo session if prompted.
+3. **Expected:** The revoke request fails. An inline error message appears:
+   "Cannot remove the last Sudo manager. Define WP_SUDO_RECOVERY_MODE in
+   wp-config.php to restore access if needed." The capability is not removed.
+4. Verify via WP-CLI: `wp user meta get <primary-id> wp_capabilities`
+5. **Expected:** `manage_wp_sudo` is still present in the user's capabilities.
+
+### 23.6 Force-Revoke Another User's Sudo Session
+
+- The second account must hold `revoke_wp_sudo_sessions`. Grant it first via
+  **Access > Grant Capability** (select `revoke_wp_sudo_sessions`).
+- The primary account must have an active sudo session.
+
+1. Activate a sudo session as the primary account (confirm the countdown
+   timer appears in the admin bar).
+2. Log in as the second account and go to the **Access** tab.
+3. Locate the primary account in the holder table and click **Revoke
+   Session**.
+4. **Expected:** An inline success message appears. The revocation is logged
+   via the `wp_sudo_session_revoked` audit hook.
+5. Switch back to the primary account and reload any admin page.
+6. **Expected:** The admin bar timer is gone. The primary account no longer
+   has an active sudo session and will be challenged on the next gated action.
+
+### 23.7 Drift Detection Panel
+
+1. Using WP-CLI, create a second administrator account if one does not
+   already exist, or ensure the second account has the `administrator` role
+   but does **not** hold `manage_wp_sudo`:
+   `wp user remove-cap <id> manage_wp_sudo`
+2. As the primary account, go to the **Access** tab.
+3. **Expected:** A **Drift Detection** section appears below the Grant
+   Capability form. It lists the second account with a "Grant manage_wp_sudo"
+   button.
+4. Click **Grant manage_wp_sudo** for that account.
+5. **Expected:** Inline success. Reload the tab — the second account appears
+   in the holder table and disappears from the Drift Detection list.
+6. Revoke `manage_wp_sudo` from the second account again to restore the
+   initial state.
+
+### 23.8 Break-Glass: `WP_SUDO_RECOVERY_MODE` Constant
+
+- Requires `wp-config.php` write access on the test environment.
+
+1. Using WP-CLI, confirm the second account does **not** hold
+   `manage_wp_sudo`:
+   `wp user meta get <second-id> wp_capabilities`
+2. Add the following line to `wp-config.php` (before the `/* That's all */`
+   line):
+   `define( 'WP_SUDO_RECOVERY_MODE', true );`
+3. Log in as the second account and navigate to **Settings > Sudo**.
+4. **Expected:** The page is accessible — the second account has effective
+   `manage_wp_sudo` authority via the recovery mode path. The **Access** tab
+   is reachable.
+5. Log out and log in as a non-administrator user (e.g. Editor or Subscriber).
+6. Navigate to **Settings > Sudo**.
+7. **Expected:** Access is still denied. Recovery mode grants effective
+   `manage_wp_sudo` only to the user making the request and only when
+   `WP_SUDO_RECOVERY_MODE` is truthy; it does not bypass the role
+   requirement entirely.
+8. Remove the `define( 'WP_SUDO_RECOVERY_MODE', true );` line from
+   `wp-config.php`.
+9. Log in as the second account and navigate to **Settings > Sudo** again.
+10. **Expected:** Access is denied. The second account no longer passes the
+    `manage_wp_sudo` check. The constant is not persisted to the database and
+    takes effect only while defined.
+
+### 23.9 Compatibility Mode (Deprecated Migration Path)
+
+> Compatibility mode (`wp_sudo_governance_mode = 'compatibility'`) is
+> the pre-3.2.0 deprecated governance path. It delegates all four governance
+> capabilities to `manage_options` (single-site) or `manage_network_options`
+> (multisite), granting effective access to any administrator without
+> explicit capability grants. Scheduled for removal per
+> `docs/ROADMAP.md`.
+
+1. Enable compatibility mode:
+   `wp option update wp_sudo_governance_mode compatibility`
+2. Confirm the second account holds `administrator` role but does **not**
+   hold `manage_wp_sudo` explicitly:
+   `wp user meta get <second-id> wp_capabilities`
+3. Log in as the second account and navigate to **Settings > Sudo**.
+4. **Expected:** The page is accessible. All four governance capabilities
+   are effectively granted via the `manage_options` delegation. The
+   **Access** tab is reachable.
+5. Revert to strict mode:
+   `wp option delete wp_sudo_governance_mode`
+6. Reload **Settings > Sudo** as the second account.
+7. **Expected:** Access is denied again (the second account holds no
+   explicit `manage_wp_sudo` grant, and strict mode does not delegate to
+   `manage_options`).
+8. **Cleanup:** Delete the compatibility mode option if still set:
+   `wp option delete wp_sudo_governance_mode`
