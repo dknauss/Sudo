@@ -1,6 +1,6 @@
 # WP Sudo
 
-WP Sudo adds **action-gated reauthentication** to WordPress so high-risk operations require fresh confirmation before they proceed.
+WP Sudo is a security-hardening plugin for WordPress. It adds **action-gated reauthentication**, enables **attack surface definition** (open, closed, or sudo-gated), and gives **visibility to privileged action requests**.
 
 [![License: GPL v2+](https://img.shields.io/badge/License-GPL%20v2%2B-blue.svg)](https://spdx.org/licenses/GPL-2.0-or-later.html)
 [![WordPress: 6.2+](https://img.shields.io/badge/WordPress-6.2%2B-0073aa.svg)](https://wordpress.org/)
@@ -15,6 +15,10 @@ WP Sudo adds **action-gated reauthentication** to WordPress so high-risk operati
 [![Try main in Playground](https://img.shields.io/badge/Try%20main-Playground-23282d?logo=wordpress&logoColor=white)](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint-main.json)
 
 Playground demo credentials are `admin` / `password`. When WP Sudo asks for reauthentication, enter the same password: `password`.
+
+## WP Sudo Overview
+
+Before performing high-risk actions in any interface or API surface, a privileged user session must re-authenticate by re-entering their credentials, followed by any active and compatible two-factor authentication requirement. Successful reauthentication starts a short, configurable window (up to 15 minutes) for privileged, gated actions without further challenge. Each surface can be configured as closed, open, or gated. All privileged sessions can be monitored in the dashboard or with compatible plugins for logging user activity.
 
 ## Why WP Sudo exists
 
