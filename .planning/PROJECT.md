@@ -11,23 +11,23 @@ WP Sudo is a WordPress plugin that provides action-gated reauthentication. Dange
 
 Every destructive WordPress admin action requires proof that the person at the keyboard is still the authenticated user — not a hijacked session, XSS payload, or unattended browser.
 
-## Current Milestone: v4.0.0 — Major Release & Breaking Changes
+## Current Milestone: v4.0.0 — Pre-Public Hardening Baseline
 
-**Goal:** Ship the first major version — give the in-flight deprecations a destination, raise minimum requirements, complete the WordPress 7.0 Connectors security work, and make the public docs honest.
+**Goal:** Ship the first major version as a *focused pre-public hardening baseline* (not a feature release): simplify governance, verify WP 7.0 Connectors, remove legacy compatibility paths, set final platform requirements, and prepare docs/assets for eventual WordPress.org publication.
 
-**Target features:**
-- Connectors GA parity verification + registry-aware matcher (regex fallback retained)
-- Remove `compatibility` governance mode (ship deprecation notice + remove both branches and option-read paths in the same release)
-- Remove the deprecated `sudo_can()` alias (`@deprecated 3.3.0`)
-- Raise minimum requirements (WordPress + PHP floor bump; drop now-unconditional compat shims)
-- Public README/readme/.org screenshot refresh for the current UI
-- Managed-host + minimum-supported-WordPress manual testing checklist
+**Tracks (→ phases):**
+- **CONN** — Connectors GA parity verification + registry-aware matcher (regex fallback retained); closes the Akismet `wordpress_api_key` gating bug
+- **BRK** — Remove `compatibility` governance mode (bundled deprecation notice + removal) and the `sudo_can()` alias; raise minimums (WordPress → 6.4, PHP → 8.2) and drop now-unconditional shims
+- **MIG** — Post-removal migration safety, capability audit, and lockout-safe first-run governance (no orphaned 3.0–3.4 state)
+- **ORG** — WordPress.org readiness: readme validator, assets/screenshots, brand/slug consistency, SECURITY.md/disclosure, doc-accuracy reconciliation, submission checklist
+- **ENV** — Managed-host + minimum-supported-WordPress manual testing checklist
 
 **Decisions locked at kickoff (2026-06-13):**
-- Minimum-requirement bumps: **raise both** WP and PHP floors (exact targets pinned in REQUIREMENTS.md).
+- Minimum-requirement bumps: **raise both** — WordPress → 6.4, PHP → 8.2 (verified against EOL/shim analysis in `research/v4.0/`).
 - Compatibility-mode removal: **bundled into 4.0.0** (deprecation notice + removal in one release; no interim 3.5.0), defensible because the plugin is not yet published to WordPress.org.
+- Strategic framing (Codex review): pre-public hardening baseline — clean foundation before larger product features (Gutenberg UX, full Activity screen, network-admin tools, session table) which stay deferred but visible.
 
-**Source of truth:** `../docs/ROADMAP.md` "Next major (v4.0.0): planned breaking changes" + `.planning/connectors-matcher-strategy.md`.
+**Source of truth:** `../docs/ROADMAP.md` "Next major (v4.0.0): planned breaking changes" + `.planning/connectors-matcher-strategy.md`. Requirements: `.planning/REQUIREMENTS.md`. Research: `.planning/research/v4.0/`.
 
 ## Requirements
 

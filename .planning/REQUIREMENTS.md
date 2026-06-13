@@ -1,152 +1,154 @@
-# Requirements: Playwright E2E Test Infrastructure
+# Requirements: WP Sudo v4.0.0 — Pre-Public Hardening Baseline
 
-**Defined:** 2026-03-08
+**Defined:** 2026-06-13
 **Core Value:** Every destructive admin action requires proof the person at the keyboard is still the authenticated user.
-**Milestone:** v2.14
+**Milestone:** v4.0.0
+
+> **Strategic framing (per Codex review, 2026-06-13):** v4.0.0 is a *focused pre-public hardening baseline*, not a feature release. It simplifies governance, verifies WP 7.0 Connectors, removes legacy compatibility paths, sets final platform requirements, and prepares docs/assets for eventual WordPress.org publication — establishing a clean foundation before larger product features. No new product features ship in this milestone.
+>
+> The previous milestone (v2.14 — Playwright E2E, 32 requirements) shipped complete; its requirements live in git history.
+>
+> **Source of truth:** `docs/ROADMAP.md` (v4.0.0 planned breaking changes + Connectors matcher) and `.planning/connectors-matcher-strategy.md`. Research: `.planning/research/v4.0/`.
+>
+> **Kickoff decisions (locked 2026-06-13):** raise BOTH minimum floors (WordPress → 6.4, PHP → 8.2); bundle compatibility-mode deprecation notice + removal into 4.0.0 (no interim 3.5.0); product name is "Sudo", package/slug/text-domain remain `wp-sudo`; repo is `dknauss/Sudo`.
 
 ## v1 Requirements
 
-Requirements for this milestone. Each maps to roadmap phases.
+Requirements for the v4.0.0 release. Each maps to exactly one roadmap phase.
 
-### Toolchain
+### Connectors Registry-Aware Matcher
 
-- [x] **TOOL-01**: Playwright test suite runs locally with `npm test` and `npx playwright test`
-- [x] **TOOL-02**: wp-env starts a clean WordPress instance with WP Sudo activated via `npx wp-env start`
-- [x] **TOOL-03**: CI runs E2E tests in a separate workflow job that does not modify existing PHPUnit jobs
-- [x] **TOOL-04**: First smoke test navigates to wp-admin and asserts WP Sudo settings page loads
-- [x] **TOOL-05**: Global setup logs in once and persists WordPress auth cookies via `storageState`
-- [x] **TOOL-06**: Sudo session cookies (`wp_sudo_token`) are never included in persisted `storageState`
+Closes a verified gating bug: `wordpress_api_key` (the Akismet connector, registered unconditionally on every WP 7.0 install) does not match the current `^connectors_[a-z0-9_]+_api_key$` regex, so connector-credential writes to it pass ungated today. See `research/v4.0/RESEARCH.md` §1.3.
 
-### Cookie Verification
+- [ ] **CONN-01**: WP Sudo gates a `POST /wp/v2/settings` write to any registered connector's `api_key` setting name — including names that do not fit the `connectors_*_api_key` pattern (e.g. Akismet's `wordpress_api_key`) — when the WP 7.0 Connectors registry is available
+- [ ] **CONN-02**: WP Sudo gates connector-credential writes for custom-registered connectors that declare an arbitrary `authentication.setting_name`
+- [ ] **CONN-03**: WP Sudo continues to gate standard `connectors_*_api_key` writes with no regression
+- [ ] **CONN-04**: On WordPress versions without the Connectors API (`wp_get_connectors` absent), WP Sudo falls back to regex matching and still gates `connectors_*_api_key` writes
+- [ ] **CONN-05**: WP Sudo does not over-gate benign (non-connector) settings writes (e.g. `blogname`, `siteurl`) under the new matcher
+- [ ] **CONN-06**: The two-tier matcher and the closed `wordpress_api_key` gap are documented in `docs/connectors-api-reference.md` and `docs/developer-reference.md`, with the verified WordPress core source cited in the implementation commit (confabulation-prevention requirement)
 
-- [x] **COOK-01**: Test verifies `wp_sudo_token` cookie has `httpOnly: true` after session activation
-- [x] **COOK-02**: Test verifies `wp_sudo_token` cookie has `sameSite: 'Strict'` after session activation
-- [x] **COOK-03**: Test verifies `wp_sudo_token` cookie is set with correct path scope
+### Breaking Changes & Minimum-Floor Bump
 
-### Admin Bar Timer
+The defining acts of the major: remove deprecated APIs and raise minimum requirements. Compatibility-mode removal ships with its migration notice in the same release.
 
-- [x] **TIMR-01**: Test verifies admin bar countdown timer is visible during active sudo session
-- [x] **TIMR-02**: Test verifies timer text updates (is not static `--:--`)
-- [x] **TIMR-03**: Test verifies `wp-sudo-expiring` CSS class is added when timer reaches 60s threshold
-- [x] **TIMR-04**: Test verifies page reloads when timer reaches 0s (session expiry)
+- [ ] **BRK-01**: The deprecated `sudo_can()` alias is removed; only `wp_sudo_can()` remains (collision-avoidance guard pattern preserved on the surviving function)
+- [ ] **BRK-02**: The `compatibility` governance mode is removed — both branches in `wp_sudo_can()` and `wp_sudo_map_governance_meta_cap()`; `strict` governance + the hardened `WP_SUDO_RECOVERY_MODE` break-glass are the only paths
+- [ ] **BRK-03**: On upgrade, if `wp_sudo_governance_mode` is still set to `compatibility`, a persistent admin notice and `_doing_it_wrong()` warn the operator that the mode was removed and governance is now strict
+- [ ] **BRK-04**: Minimum WordPress version is raised to 6.4 across the plugin header, `readme.txt`, and the CI support-floor lane
+- [ ] **BRK-05**: Minimum PHP version is raised to 8.2 across the plugin header, `readme.txt`, `composer.json` `require.php`, and `config.platform.php`
+- [ ] **BRK-06**: The `function_exists('wp_get_admin_notice')` compatibility shims (two call sites in `includes/class-admin.php`) are removed now that 6.4 is the floor
+- [ ] **BRK-07**: Integrator migration notes document the removed APIs (`sudo_can()`, `compatibility` mode) and the raised WordPress/PHP minimums
 
-### MU-Plugin AJAX
+### Migration Safety, Capability Audit & First-Run Governance
 
-- [x] **MUPG-01**: Test verifies MU-plugin install button triggers AJAX and shows spinner
-- [x] **MUPG-02**: Test verifies success message appears after MU-plugin install completes
-- [x] **MUPG-03**: Test verifies MU-plugin uninstall flow works via Settings page
+Post-removal verification track. Confirms the governance simplification did not strand existing 3.0–3.4 installs or leave a lockout/misconfiguration trap before public distribution.
 
-### Gate UI
+- [ ] **MIG-01**: Upgrades from 3.0–3.4 to 4.0.0 complete cleanly with no orphaned governance state (a leftover `wp_sudo_governance_mode = 'compatibility'` does not produce broken or undefined behavior)
+- [ ] **MIG-02**: `WP_SUDO_RECOVERY_MODE` break-glass still works after `compatibility` mode removal and is the only remaining break-glass path
+- [ ] **MIG-03**: Uninstall cleanup remains correct after the removals (governance option, `_wp_sudo_*` user meta, legacy role) on both single-site and multisite
+- [ ] **MIG-04**: Multisite upgrade behavior is verified — network governance state and super-admin capabilities remain intact through the upgrade
+- [ ] **MIG-05**: Post-removal capability audit — all settings/admin/widget screens use the dedicated Sudo capabilities (`manage_wp_sudo`, etc.) with no fallback to bare `manage_options`
+- [ ] **MIG-06**: First-run governance is clear and lockout-safe — on first activation an administrator holds `manage_wp_sudo`, and the recovery path for a misconfigured grant is documented
+- [ ] **MIG-07**: Tests cover lockout and misconfiguration-recovery scenarios introduced or affected by the governance simplification
 
-- [x] **GATE-01**: Test verifies plugin action buttons have `aria-disabled="true"` when no sudo session is active
-- [x] **GATE-02**: Test verifies `wp-sudo-disabled` CSS class is applied to gated buttons
-- [x] **GATE-03**: Test verifies clicking a disabled button does not navigate away from the page
+### WordPress.org Readiness
 
-### Challenge Flow
+Prepares the repo for eventual `.org` submission. The plugin is not yet published; these establish the honest, compliant baseline.
 
-- [x] **CHAL-01**: Test exercises full stash-challenge-replay flow: trigger gated action → challenge page → enter password → AJAX auth → stash replay → destination
-- [x] **CHAL-02**: Test verifies challenge page loads with correct form elements (password input, submit button, cancel link)
-- [x] **CHAL-03**: Test verifies failed password attempt shows error message without page reload
+- [ ] **ORG-01**: `readme.txt` passes the WordPress.org readme validator (headers, sections, tested-up-to, stable tag semantics)
+- [ ] **ORG-02**: Plugin `assets/` are complete and current — screenshots of the live UI (Settings → Sudo tabs, Access tab, Session Activity dashboard widget, Request/Rule Tester), plus banner and icon
+- [ ] **ORG-03**: Brand/identity consistency audit — UI strings read "Sudo" (not "WP Sudo"); package/slug/text-domain intentionally remain `wp-sudo`; GitHub URLs reflect `dknauss/Sudo`; docs explain the product-name vs. slug relationship
+- [ ] **ORG-04**: `SECURITY.md` reviewed/updated — vulnerability reporting channel, supported-versions policy, whether GitHub issues are acceptable for security reports, and the security-fix changelog-wording convention
+- [ ] **ORG-05**: `Stable tag`, license declaration, and plugin-header fields are WordPress.org-compliant
+- [ ] **ORG-06**: Documentation-accuracy pass reconciles stale roadmap status against shipped code — notably the request-stash pattern-based redaction item (ROADMAP lists it open, but `phase3-stash-minimization-spec.md` + `CHANGELOG` show suffix-based redaction shipped); verify the true residual against the redaction code and correct the docs
+- [ ] **ORG-07**: An initial WordPress.org submission checklist is captured in the repo docs
 
-### Visual Regression
+### Manual Testing Environment Checklist
 
-- [x] **VISN-01**: Snapshot baseline captured for challenge page card element
-- [x] **VISN-02**: Snapshot baseline captured for settings page form element
-- [x] **VISN-03**: Snapshot baseline captured for admin bar timer node (active session)
-- [x] **VISN-04**: Snapshot baselines committed to repository with configurable diff thresholds
+- [ ] **ENV-01**: `tests/MANUAL-TESTING.md` has an environment checklist section listing the environments to verify before each release
+- [ ] **ENV-02**: The checklist requires at least one Apache environment, one managed WordPress host (Pressable / WP Engine / Cloudways), and the new minimum-supported WordPress version (6.4)
+- [ ] **ENV-03**: The checklist captures Connectors-credential manual verification — cookie-auth and Application Password writes to `/wp/v2/settings` with connector credential fields, including `wordpress_api_key`
 
-### Keyboard Navigation
+## Future Requirements
 
-- [x] **KEYB-01**: Test verifies Tab key traverses challenge page form fields in correct order
-- [x] **KEYB-02**: Test verifies Enter key submits challenge form
-- [x] **KEYB-03**: Test verifies Ctrl+Shift+S shortcut navigates to challenge page when no session is active
-- [x] **KEYB-04**: Test verifies Ctrl+Shift+S shortcut flashes admin bar node when session is active
+Acknowledged, deferred beyond v4.0.0. Kept visible per Codex review; not v4.0.0 blockers.
 
-### Admin Bar Interaction
+### Governance & Recovery
 
-- [x] **ABAR-01**: Test verifies clicking admin bar timer node deactivates the session
-- [x] **ABAR-02**: Test verifies URL does not change after admin bar deactivation click
+- **RGOV-01**: Scoped single-user recovery form — `define( 'WP_SUDO_RECOVERY_MODE', <user_id_or_login> )` (ROADMAP §12.1 Phase R3)
 
-## v2 Requirements
+### Visibility & Audit
 
-Deferred to future milestone. Tracked but not in current roadmap.
+- **RACT-01**: Full Sudo Activity admin screen (list-table: pagination, search, sortable columns, CSV export)
+- **RAUDIT-01**: External Audit Mode (delegate persistence/notifications to Stream / WP Activity Log) — only on real operator demand
 
-### Accessibility Depth
+### Documentation Structure
 
-- **A11Y-01**: ARIA live region announcements verified at timer milestones (60s, 30s, 10s, 0s)
-- **A11Y-02**: `wp.a11y.speak()` call side effects verified via `#wp-a11y-speak-assertive` element
-- **A11Y-03**: Color contrast verified for `wp-sudo-expiring` state via computed styles or axe-core
-- **A11Y-04**: `prefers-reduced-motion` suppresses admin bar flash animation
+- **RDOC-01**: Split `docs/connectors-api-reference.md` into a leaner core reference + a separate security-analysis companion (ROADMAP line 75)
 
-### Rate Limiting UI
+### Larger Tracks (separate milestones)
 
-- **RATE-01**: Lockout countdown timer shown after 5 failed attempts
-- **RATE-02**: Submit button disabled during lockout period
-- **RATE-03**: Form re-enables after lockout expiry (via clock manipulation)
-
-### Extended Visual Coverage
-
-- **RESP-01**: Responsive layout snapshots at 6 viewports (1920x1080, 1366x768, 768x1024, 1024x768, 375x667, 390x844)
-- **RESP-02**: Touch targets verified at minimum 44x44 px on mobile viewports
-- **SJOM-01**: Session-only mode flow via admin notice link after AJAX block
+- **GUTEN-01**: Gutenberg block editor reauthentication UX (snackbar/notices transport)
+- **NETADM-01**: Multisite network-admin dashboard widget + cross-site session revocation (ROADMAP §11.1)
+- **SESS-01**: Dedicated sudo-session table architecture (conditional on Tier 2+ scale)
 
 ## Out of Scope
 
+Explicitly excluded from v4.0.0. Documented to prevent scope creep.
+
 | Feature | Reason |
 |---------|--------|
-| REST API endpoint testing via Playwright | Already covered by PHPUnit integration tests (RestGatingTest.php) |
-| WP-CLI behavior via Playwright | CLI does not run in browser; already covered by manual testing + integration mocks |
-| Full-page screenshots of every admin page | >20 baselines become maintenance burden; snapshot only WP Sudo surfaces |
-| Two Factor TOTP real flow | TOTP seed management is high complexity; mock AJAX response instead |
-| Performance benchmarking via Playwright | Local benchmarks are not reproducible; use Lighthouse CI separately if needed |
-| Multi-browser matrix (Firefox, WebKit) | Adds ~500MB download + 3min CI time for no material coverage gain |
-| Cypress as alternative framework | Playwright is WordPress ecosystem standard; Cypress has known issues with multi-page flows |
+| Interim 3.5.0 deprecation release | Decision locked: deprecation notice + removal bundled into 4.0.0 (plugin not yet on WordPress.org) |
+| PHP floor above 8.2 (8.3+) | 8.2 is the conservative raise with security support through 2026; higher bump buys no shim cleanup and trails managed-host support |
+| WordPress floor above 6.4 (6.5/6.6) | No additional compat shims drop above 6.4; reserve for a later major |
+| New pattern-redaction *build* for request stash | Suffix-based redaction already shipped (v2.10.2–v2.11.0); v4.0.0 only reconciles the stale doc status (ORG-06), not new code |
+| Dedicated sudo-session table | Conditional Tier 2+ scale work (deferred → SESS-01) |
+| Full Sudo Activity screen / External Audit Mode | Deferred (RACT-01 / RAUDIT-01); useful but less urgent than governance/Connectors cleanup |
+| Gutenberg reauth UX | Large design lift; do after v4 cleanup (GUTEN-01) |
+| New per-connector setting or toggle | Breaks the two-layer (consequence-based rules + surface policy) model; Connectors stays a rule |
 
 ## Traceability
 
-Which phases cover which requirements. Updated during roadmap creation.
+Populated during roadmap creation (gsd-roadmapper maps each requirement to exactly one phase).
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| TOOL-01 | Phase 6 | Complete |
-| TOOL-02 | Phase 6 | Complete |
-| TOOL-03 | Phase 6 | Complete |
-| TOOL-04 | Phase 6 | Complete |
-| TOOL-05 | Phase 6 | Complete |
-| TOOL-06 | Phase 6 | Complete |
-| COOK-01 | Phase 7 | Complete |
-| COOK-02 | Phase 7 | Complete |
-| COOK-03 | Phase 7 | Complete |
-| TIMR-01 | Phase 7 | Complete |
-| TIMR-02 | Phase 7 | Complete |
-| TIMR-03 | Phase 7 | Complete |
-| TIMR-04 | Phase 7 | Complete |
-| MUPG-01 | Phase 7 | Complete |
-| MUPG-02 | Phase 7 | Complete |
-| MUPG-03 | Phase 7 | Complete |
-| GATE-01 | Phase 7 | Complete |
-| GATE-02 | Phase 7 | Complete |
-| GATE-03 | Phase 7 | Complete |
-| CHAL-01 | Phase 7 | Complete |
-| CHAL-02 | Phase 7 | Complete |
-| CHAL-03 | Phase 7 | Complete |
-| VISN-01 | Phase 7 | Complete |
-| VISN-02 | Phase 7 | Complete |
-| VISN-03 | Phase 7 | Complete |
-| VISN-04 | Phase 7 | Complete |
-| KEYB-01 | Phase 8 | Complete |
-| KEYB-02 | Phase 8 | Complete |
-| KEYB-03 | Phase 8 | Complete |
-| KEYB-04 | Phase 8 | Complete |
-| ABAR-01 | Phase 8 | Complete |
-| ABAR-02 | Phase 8 | Complete |
+| CONN-01 | — | Pending |
+| CONN-02 | — | Pending |
+| CONN-03 | — | Pending |
+| CONN-04 | — | Pending |
+| CONN-05 | — | Pending |
+| CONN-06 | — | Pending |
+| BRK-01 | — | Pending |
+| BRK-02 | — | Pending |
+| BRK-03 | — | Pending |
+| BRK-04 | — | Pending |
+| BRK-05 | — | Pending |
+| BRK-06 | — | Pending |
+| BRK-07 | — | Pending |
+| MIG-01 | — | Pending |
+| MIG-02 | — | Pending |
+| MIG-03 | — | Pending |
+| MIG-04 | — | Pending |
+| MIG-05 | — | Pending |
+| MIG-06 | — | Pending |
+| MIG-07 | — | Pending |
+| ORG-01 | — | Pending |
+| ORG-02 | — | Pending |
+| ORG-03 | — | Pending |
+| ORG-04 | — | Pending |
+| ORG-05 | — | Pending |
+| ORG-06 | — | Pending |
+| ORG-07 | — | Pending |
+| ENV-01 | — | Pending |
+| ENV-02 | — | Pending |
+| ENV-03 | — | Pending |
 
 **Coverage:**
-- v1 requirements: 32 total
-- Mapped to phases: 32
-- Complete: 32
-- Unmapped: 0
+- v1 requirements: 30 total
+- Mapped to phases: 0 (pending roadmap)
+- Unmapped: 30 ⚠️ (resolved by gsd-roadmapper)
 
 ---
-*Requirements defined: 2026-03-08*
-*Last updated: 2026-03-09 — all 32 v1 requirements complete (Phase 6-8 done)*
+*Requirements defined: 2026-06-13*
+*Last updated: 2026-06-13 — v4.0.0 reframed as pre-public hardening baseline (Codex review)*
