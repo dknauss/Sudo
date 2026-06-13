@@ -1,6 +1,6 @@
 # Internal Admin Governance Spec
 
-*Status: proposed (post-v3.0.0), April 20, 2026*
+*Status: implemented in 3.2.0 (June 2026). Archived — the developer reference and codebase are now authoritative.*
 
 ## Why this exists
 
@@ -71,7 +71,7 @@ Introduce dedicated capabilities:
 All access checks MUST route through a single centralized helper:
 
 ```php
-function sudo_can( string $cap, ?int $user_id = null ): bool {
+function wp_sudo_can( string $cap, ?int $user_id = null ): bool {
     $user_id ??= get_current_user_id();
     if ( is_multisite() && is_super_admin( $user_id ) ) {
         return true;
@@ -83,7 +83,7 @@ function sudo_can( string $cap, ?int $user_id = null ): bool {
 }
 ```
 
-The super-admin short-circuit is required because super admins do not literally hold `manage_network_options` in their cap set on subsite contexts — `current_user_can()` works via `map_meta_cap`'s super-admin bypass, but `user_can( $user_id, $cap )` does not. Every call site in `Admin`, `Dashboard_Widget`, `Site_Health`, and any future activity screen MUST use `sudo_can()`. The Phase 1 exit criterion is: zero direct `current_user_can('manage_options')` or `current_user_can('manage_network_options')` calls remain in Sudo code for governance-sensitive surfaces.
+The super-admin short-circuit is required because super admins do not literally hold `manage_network_options` in their cap set on subsite contexts — `current_user_can()` works via `map_meta_cap`'s super-admin bypass, but `user_can( $user_id, $cap )` does not. Every call site in `Admin`, `Dashboard_Widget`, `Site_Health`, and any future activity screen MUST use `wp_sudo_can()`. The Phase 1 exit criterion is: zero direct `current_user_can('manage_options')` or `current_user_can('manage_network_options')` calls remain in Sudo code for governance-sensitive surfaces.
 
 ## Privilege-sensitive operations (gated by Sudo itself)
 
@@ -173,15 +173,15 @@ Set-once-forget is the primary failure mode. Two mitigations:
 
 ## Implementation phases
 
-Because there is no existing install base, the original three-phase compatibility-first rollout is replaced with a compressed implementation plan. Strict-capability mode ships as the default in v3.1; compatibility mode is present as an opt-in from day one but is not the migration endpoint of a multi-version transition.
+Because there is no existing install base, the original three-phase compatibility-first rollout was replaced with a compressed implementation plan. Strict-capability mode shipped as the default in 3.2.0; compatibility mode is present as an opt-in from day one but is not the migration endpoint of a multi-version transition.
 
-### Phase 1 (v3.1): Ship strict governance as the default
+### Phase 1 (shipped in 3.2.0): Ship strict governance as the default
 
 Build the whole capability surface in one coordinated release:
 
 **Core**
 - Capability constants: `manage_wp_sudo`, `view_wp_sudo_activity`, `export_wp_sudo_activity`, `revoke_wp_sudo_sessions`.
-- Centralized `sudo_can()` helper per the Helper contract above.
+- Centralized `wp_sudo_can()` helper per the Helper contract above.
 - Governance-mode option `wp_sudo_governance_mode` = `strict` (default) | `compatibility`. Persisted per-site on multisite.
 - On activation: grant all four caps to the installing user (single-site) or to the activating super admin (multisite).
 
@@ -204,7 +204,7 @@ Build the whole capability surface in one coordinated release:
 - Developer-reference entry on the three new audit hooks.
 - `docs/security-model.md` §19 update reflecting the shipped capability boundary (not just a planned one).
 
-### Phase 2 (v3.2, optional): Governance polish
+### Phase 2 (not yet implemented): Governance polish
 
 Additive improvements that benefit from a release of production field data:
 
@@ -226,7 +226,7 @@ Per the project's TDD policy, every capability gate lands with tests first.
 
 ### Unit tests
 
-- `sudo_can()` helper: strict-mode path, compatibility-mode path, super-admin short-circuit on multisite subsites, recovery-mode short-circuit.
+- `wp_sudo_can()` helper: strict-mode path, compatibility-mode path, super-admin short-circuit on multisite subsites, recovery-mode short-circuit.
 - Each capability gate path: `manage_wp_sudo`, `view_wp_sudo_activity`, `export_wp_sudo_activity`, `revoke_wp_sudo_sessions` × single-site + multisite contexts.
 - "Last manager" guard: grant/revoke transitions that would leave zero holders are rejected with a specific error.
 - Access-model audit hooks fire with the expected argument shapes.

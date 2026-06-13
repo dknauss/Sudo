@@ -80,7 +80,7 @@ The v3.0.0 release consolidates Phases 7–9 work plus pre-release fixes:
 - **Gutenberg block editor integration** — Detect block editor context, queue reauthentication via `@wordpress/notices` snackbar instead of page redirect. Natural trigger for Playwright E2E tests.
 - **Network policy hierarchy for multisite** — Super admins set minimum session duration and maximum entry-point policies; site admins can only tighten.
 - **Session-store architecture follow-up** — Evaluate and likely implement a dedicated sudo-session table, with the current recommendation favoring an authoritative table plus usermeta shadow writes. See [`docs/session-store-evaluation.md`](session-store-evaluation.md).
-- **Internal admin governance hardening** — Move Sudo management away from broad `manage_options` defaults by introducing dedicated capabilities and explicit grants. Implement with migration-safe phases documented in [`docs/internal-admin-governance-spec.md`](internal-admin-governance-spec.md) and roadmap §11.2.
+- **Internal admin governance hardening** — ✅ Shipped in 3.2.0. Dedicated `manage_wp_sudo`, `view_wp_sudo_activity`, `export_wp_sudo_activity`, and `revoke_wp_sudo_sessions` capabilities replace broad `manage_options` defaults. See [`docs/archive/internal-admin-governance-spec.md`](archive/internal-admin-governance-spec.md) for the archived design spec.
 
 ### UI Documentation Rule
 
@@ -1526,7 +1526,7 @@ migration endpoint.
 
 ### Spec and design source
 
-- [`docs/internal-admin-governance-spec.md`](internal-admin-governance-spec.md)
+- [`docs/archive/internal-admin-governance-spec.md`](archive/internal-admin-governance-spec.md)
 
 ### Rollout
 

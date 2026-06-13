@@ -56,8 +56,8 @@ Operationally, this implies:
   `options.wp_sudo_access` gated rule, requiring an active sudo session before
   proceeding.
 
-See [`docs/internal-admin-governance-spec.md`](internal-admin-governance-spec.md)
-for the full design rationale.
+See [`docs/archive/internal-admin-governance-spec.md`](archive/internal-admin-governance-spec.md)
+for the archived design spec (implemented in 3.2.0).
 
 ## Threat Model: The Kill Chain
 
