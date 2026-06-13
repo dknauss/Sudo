@@ -675,15 +675,13 @@ curl -sk "YOUR_SITE_URL/wp-cron.php" -w "HTTP: %{http_code}, body: %{size_downlo
 ### 9.3 Help Tabs
 
 1. Click the **Help** button (top-right of Settings > Sudo).
-2. **Expected:** 12 help tabs: How Sudo Works, Session & Policies,
-   App Passwords, MU-Plugin, Security Features, Security Model,
-   Environment, Recommended Plugins, Extending, Audit Hooks,
-   Policy Presets, Rule Tester.
+2. **Expected:** 6 help tabs: Start Here, Modes & Policies,
+   Rule Tester, Incident Response, Security Boundaries, Developers.
 
 ### 9.4 Gated Actions Table
 
 1. Scroll down on Settings > Sudo.
-2. **Expected:** A table listing all 34 gated rules grouped by
+2. **Expected:** A table listing all 35 gated rules grouped by
    category, showing which surfaces each action covers. When WPGraphQL
    is active, an additional GraphQL row appears at the bottom of the table.
 
@@ -928,10 +926,10 @@ Track the release-candidate and GA passes here so WP 7.0 readiness is explicit.
 | Milestone | Status | Date | Build | Environment | Notes |
 |-----------|--------|------|-------|-------------|-------|
 | RC1 | PASS | 2026-03-24 | 7.0-RC1 | `wp-env` + Playwright | Sections 15.1-15.5 PASS after repinning forward lanes to RC1 |
-| RC2 | Pending | — | — | — | |
-| RC3 | Pending | — | — | — | Official schedule: May 8, 2026; treated as a new Beta 1 |
-| RC4 | Pending | — | — | — | Official schedule: May 14, 2026; treated as a new RC1 |
-| GA | Pending | — | — | — | Planned May 20, 2026; final "Tested up to" bump depends on this pass |
+| RC2 | Not recorded | — | — | — | No formal pass; RC1 pass (2026-03-24) remained current |
+| RC3 | Not recorded | — | — | — | Treated as Beta 1 reset; not formally verified |
+| RC4 | Not recorded | — | — | — | Treated as RC1 reset; not formally verified |
+| GA | PASS | 2026-05-20 | 7.0 GA | — | `Tested up to: 7.0` shipped in v3.3.0 (2026-06-12); no regressions found |
 
 Before marking RC2, RC3, RC4, or GA complete, also re-run the standard local verification set:
 
@@ -1351,6 +1349,20 @@ curl -sk -u "YOUR_USERNAME:YOUR_APP_PASS" \
 6. Verify: logging in via **Application Passwords** (REST API) does
    **not** start a sudo session — the admin bar shows no timer when
    accessed directly after an app-password API call.
+
+#### 17.1a `wp_sudo_grant_session_on_login` opt-out filter (v3.3.0)
+
+7. Add the following to a test plugin or `functions.php`:
+   ```php
+   add_filter( 'wp_sudo_grant_session_on_login', '__return_false' );
+   ```
+8. Log out and back in via the standard login form.
+9. **Expected:** No sudo session is granted. The admin bar shows no
+   countdown timer immediately after login.
+10. Attempt a gated action (e.g., plugin activation).
+11. **Expected:** Redirected to the challenge page — the login grant was
+    suppressed, so no session window exists.
+12. Remove the filter and confirm normal login-grant behavior is restored.
 
 ### 17.2 Change Password Gated (Admin UI — Profile)
 

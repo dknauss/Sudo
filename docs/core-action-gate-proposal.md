@@ -150,9 +150,11 @@ This proposal lands in the middle of a broader architectural debate about WordPr
 
 ### Malcolm Peralty: the strongest current split argument
 
-On April 17, 2026, Malcolm Peralty described the opening case for a split-oriented WP Next future in a post titled “A Letter to Matt on WP Next: Part 1 – The Case for the Split.” Part 1 is not yet a complete architecture plan. It is the opening diagnosis in an unfolding series published that day. Its value for this proposal is that it names the runtime problem directly: WordPress’s plugin contract is still effectively “trust everybody with the whole process,” and Peralty argues that a clean structural split may be the only honest way to repair that.
+Between April 17 and May 26, 2026, Malcolm Peralty published a six-part series titled “What Might WP Next Look Like?” proposing a split between a long-supported “WP Classic” line and a modernized “WP Next.” Part 1 (April 17) opens with the diagnosis that this proposal was originally written against: WordPress’s plugin contract is still effectively “trust everybody with the whole process,” and Peralty argues that a clean structural split may be the only honest way to repair that.
 
-This proposal agrees with Peralty’s runtime diagnosis while stopping well short of claiming that an Action Gate primitive is a substitute for the split he is proposing. If Peralty is right, then this proposal is not the answer to WordPress’s deepest trust problem. It is, at best, a backward-compatible hardening layer for consequential operations in the existing runtime, and a conceptual model that could survive into a more modernized runtime later.
+Parts 4 and 5 (May 25) are the most directly relevant sections for this proposal. Part 4 (“Performance and Security”) includes an explicit admission that plugins “can `exec()` anything because PHP has no capability model and WordPress has no manifest,” and proposes a four-phase manifest enforcement strategy — declared-but-not-enforced, API-level enforcement, static analysis, and eventual WASM isolation. That enforcement phasing maps almost exactly to this proposal’s Phase 1 (Actions API: registry and naming) → Phase 2 (Action Gate: enforcement) structure. Part 5 (“The Plugin Economy”) adds a “declared contracts” model with `@api` vs. `@internal` distinctions that directly supports the interoperability and taxonomy arguments in this proposal.
+
+This proposal agrees with Peralty’s runtime diagnosis while stopping well short of claiming that an Action Gate primitive is a substitute for the split he is proposing. If Peralty is right, then this proposal is not the answer to WordPress’s deepest trust problem. It is, at best, a backward-compatible hardening layer for consequential operations in the existing runtime — and, notably, one whose registry-first approach fits naturally within Peralty’s own declared-but-not-enforced Phase 1 model.
 
 ### Joost de Valk: the strongest current refactor-without-split argument
 
@@ -728,6 +730,12 @@ A shared registry of consequential actions is still a strict improvement over th
 
 ### Ecosystem commentary and structural-debate context
 
-- Malcolm Peralty, “A Letter to Matt on WP Next: Part 1 – The Case for the Split” (2026-04-17). The opening post in a newly launched multi-part series arguing for a split between a long-supported “Classic” line and a modernized “Next” line. The originally cited public URL no longer resolved when this proposal was revised on 2026-04-18.
+- Malcolm Peralty, “What Might WP Next Look Like?” six-part series (2026-04-17 through 2026-05-26). A proposal for splitting WordPress into WP Classic and WP Next.
+  - [Part 1: The Case for the Split](https://peralty.com/2026/04/17/wp-next-part-1-the-case-for-the-split/) (2026-04-17)
+  - [Part 2: The Kernel](https://peralty.com/2026/04/18/wp-next-part-2-the-kernel/) (2026-04-18)
+  - [Part 3: The Admin and Editor](https://peralty.com/2026/05/25/what-might-wp-next-look-like-part-3-the-admin-and-editor/) (2026-05-25)
+  - [Part 4: Performance and Security](https://peralty.com/2026/05/25/what-might-wp-next-look-like-part-4-performance-and-security/) (2026-05-25) — plugin sandboxing, four-phase manifest enforcement, CSRF defense
+  - [Part 5: The Plugin Economy](https://peralty.com/2026/05/25/what-might-wp-next-look-like-part-5-the-plugin-economy/) (2026-05-25) — declared contracts, `@api` / `@internal` distinctions, backwards compatibility policy
+  - [Part 6: The Migration Plan](https://peralty.com/2026/05/26/what-might-wp-next-look-like-part-6-the-migration-plan/) (2026-05-26) — Classic/Next coexistence, shared `wp-kernel`
 - Joost de Valk, [“WordPress needs to refactor, not redecorate”](https://joost.blog/wordpress-refactor-not-redecorate/) (2026-04-03). Argues that WordPress’s architectural deficits are real but can still be addressed through targeted refactoring without a split.
 - Brian Coords, [“EmDash: First thoughts and takeaways for WordPress”](https://www.briancoords.com/emdash-first-thoughts-and-takeaways-for-wordpress/) (2026-04-02). Practitioner commentary showing that plugin trust boundaries, developer experience, and structured-content concerns are already active pressures in real WordPress work.
