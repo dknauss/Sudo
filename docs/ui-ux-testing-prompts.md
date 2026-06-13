@@ -367,15 +367,17 @@ To launch, host the blueprint JSON at a public URL and open:
 
 ### 6a. Break-glass recovery mode — `blueprint-recovery-mode.json`
 
-Recovery mode is WP Sudo's own escape hatch (`define( 'WP_SUDO_RECOVERY_MODE', true )` in `wp-config.php`), **not** WordPress core's fatal-error recovery mode. It re-opens Sudo governance to every administrator holding `manage_options` for as long as the constant is set. The blueprint sets the constant via `defineWpConfigConsts` and lands on Settings › Sudo so the safeguards added in this release are immediately visible.
+Recovery mode is WP Sudo's own escape hatch (`define( 'WP_SUDO_RECOVERY_MODE', true )`), **not** WordPress core's fatal-error recovery mode. It re-opens Sudo governance to every administrator holding `manage_options` for as long as the constant is set. The blueprint defines the constant from a generated must-use plugin (`mu-plugins/0-wp-sudo-recovery.php`) and lands on Settings › Sudo so the safeguards added in this release are immediately visible.
+
+Why a mu-plugin rather than `defineWpConfigConsts`: the Sudo settings page is registered with the `manage_wp_sudo` capability, and the plugin grants that capability only to the *activating* user (`get_current_user_id()` in the activation hook). Playground's programmatic plugin activation runs with no current user, so no account receives `manage_wp_sudo` — which is exactly the locked-out state recovery mode exists to rescue. The constant must be defined *before* `wp-sudo.php` loads so the recovery grant (`manage_wp_sudo` → `manage_options`) is in effect when WordPress checks page access; a must-use plugin loads ahead of regular plugins and guarantees that ordering. (If you adapt this for a real site, the equivalent is the documented `define( 'WP_SUDO_RECOVERY_MODE', true )` in `wp-config.php`.)
 
 - [ ] A **permanent, non-dismissible** warning notice appears at the top of the Sudo settings screen stating that break-glass recovery mode is active and instructing the operator to remove the constant.
 - [ ] The notice has no dismiss (×) control — reloading the page does not clear it.
 - [ ] On each load of a Sudo admin page, the `wp_sudo_recovery_mode_active` action fires (verify via a logging listener or by inspecting the events table).
 - [ ] The audit/events view shows a `recovery_mode` event with a **Recovery** label, sampled to at most one row per user per hour (repeated reloads within the hour do not add rows).
-- [ ] Compare against `blueprint-main.json` (no constant): neither the notice nor the `recovery_mode` event appears — confirming the feature is otherwise invisible until the constant is set.
+- [ ] Confirm the access path: with recovery mode active, the admin (who does **not** hold `manage_wp_sudo` in this Playground build) can reach Settings › Sudo *because of* the recovery grant. Remove the first `runPHP` step (the mu-plugin) and the same admin gets WordPress's "Sorry, you are not allowed to access this page." — demonstrating both the gate and what recovery mode restores.
 
-**Why Playground suits this:** the trigger is a single config constant read at runtime by `wp_sudo_is_recovery_mode()`, so there is no email or fatal-error precondition to reproduce — `defineWpConfigConsts` is sufficient and fully deterministic.
+**Why Playground suits this:** the trigger is a single constant read at runtime by `wp_sudo_is_recovery_mode()`, so there is no email or fatal-error precondition to reproduce — defining it from a must-use plugin is fully deterministic.
 
 ### 6b. Session-theft proxy via User Switching — `blueprint-user-switching.json`
 

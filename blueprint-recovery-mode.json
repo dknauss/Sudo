@@ -7,10 +7,8 @@
   "landingPage": "/wp-admin/options-general.php?page=wp-sudo",
   "steps": [
     {
-      "step": "defineWpConfigConsts",
-      "consts": {
-        "WP_SUDO_RECOVERY_MODE": true
-      }
+      "step": "runPHP",
+      "code": "<?php $d = '/wordpress/wp-content/mu-plugins'; @mkdir( $d, 0777, true ); file_put_contents( $d . '/0-wp-sudo-recovery.php', \"<?php define( 'WP_SUDO_RECOVERY_MODE', true );\\n\" );"
     },
     {
       "step": "runPHP",
