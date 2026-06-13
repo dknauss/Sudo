@@ -48,6 +48,17 @@ design hardening opportunities. Two are shipped; two remain open:
 - ~~**Governance evolution**~~ ✅ Shipped in v3.2.0 — Dedicated `manage_wp_sudo`,
   `view_wp_sudo_activity`, `export_wp_sudo_activity`, and `revoke_wp_sudo_sessions`
   capabilities replace broad `manage_options` governance.
+- ~~**Recovery mode is uncontained**~~ ✅ Contained June 13, 2026 *(found June 13, 2026)*
+  — `WP_SUDO_RECOVERY_MODE` previously granted the master `manage_wp_sudo`
+  capability to **any** logged-in user (no role gate), with no on-screen notice and
+  no audit event while active. The security model and FAQ had also claimed a
+  non-dismissible notice and a `governance.recovery_mode` audit event that were
+  never implemented (see `docs/llm-lies-log.md` #20). Fixed: the grant in both
+  `wp_sudo_can()` and `wp_sudo_map_governance_meta_cap()` is role-gated to
+  `manage_options` / `manage_network_options`; a permanent non-dismissible notice
+  renders on the Sudo settings screen; and a new `wp_sudo_recovery_mode_active`
+  audit hook fires (stored as a sampled `recovery_mode` event). Remaining
+  follow-up: a scoped single-user recovery form (see §12.1 Phase R3).
 
 See [§12.1](#121-post-v313-security-review-remediation-open) for the phased plan
 and acceptance criteria.
@@ -87,7 +98,8 @@ Remaining Connectors tasks:
 - **Network policy hierarchy for multisite** — Super admins set minimum session duration and maximum entry-point policies; site admins can only tighten.
 - **Session-store architecture follow-up** — Evaluate and likely implement a dedicated sudo-session table, with the current recommendation favoring an authoritative table plus usermeta shadow writes. See [`docs/session-store-evaluation.md`](session-store-evaluation.md).
 - ~~**Internal admin governance hardening**~~ ✅ Shipped in 3.2.0. Dedicated `manage_wp_sudo`, `view_wp_sudo_activity`, `export_wp_sudo_activity`, and `revoke_wp_sudo_sessions` capabilities replace broad `manage_options` defaults. See [`docs/archive/internal-admin-governance-spec.md`](archive/internal-admin-governance-spec.md) for the archived design spec.
-- **Deprecate and remove `compatibility` governance mode** — The `wp_sudo_governance_mode = 'compatibility'` DB option is a permanent security regression path: it lets any `manage_options` holder administer Sudo settings, undoing the governance model. `WP_SUDO_RECOVERY_MODE` (requires filesystem access) is the correct break-glass. Plan: fire `_doing_it_wrong()` + persistent admin notice when compatibility mode is active in the next minor release; remove the option and the fallback branch in the next major.
+- **Deprecate and remove `compatibility` governance mode** — The `wp_sudo_governance_mode = 'compatibility'` DB option is a permanent security regression path: it lets any `manage_options` holder administer Sudo settings, undoing the governance model. `WP_SUDO_RECOVERY_MODE` (requires filesystem access) is the intended break-glass — now hardened (role-gated, with notice + audit event; see below). Plan: fire `_doing_it_wrong()` + persistent admin notice when compatibility mode is active in the next minor release; remove the option and the fallback branch in the next major.
+- ~~**Contain `WP_SUDO_RECOVERY_MODE` break-glass**~~ ✅ Shipped (unreleased `main`, June 13, 2026) — The grant in both `wp_sudo_can()` and `wp_sudo_map_governance_meta_cap()` is role-gated to `manage_options` / `manage_network_options`; a permanent non-dismissible notice renders on the Sudo settings screen; and a new `wp_sudo_recovery_mode_active` audit hook fires (stored as a sampled `recovery_mode` event). Remaining: a scoped single-user recovery form (`define('WP_SUDO_RECOVERY_MODE', <user_id_or_login>)`). See §12.1 Phase R3.
 
 ### UI Documentation Rule
 
@@ -465,7 +477,7 @@ not context retrieval.
 With the WordPress 7.0 compatibility release and v3.2.0 hardening work closed,
 the recommended implementation order is:
 
-1. **Deprecate `compatibility` governance mode** — Fire `_doing_it_wrong()` + persistent admin notice when `wp_sudo_governance_mode = 'compatibility'` is active. Update FAQ and developer reference. Queue removal for the next major release. `WP_SUDO_RECOVERY_MODE` is the only supported break-glass path going forward. **Effort:** Low
+1. **Deprecate `compatibility` governance mode, and contain `WP_SUDO_RECOVERY_MODE`** — Two paired governance security-debt items. (a) Fire `_doing_it_wrong()` + persistent admin notice when `wp_sudo_governance_mode = 'compatibility'` is active; update FAQ and developer reference; queue removal for the next major release. (b) Harden the break-glass path that replaces it: role-gate the grant to administrators, add a non-dismissible notice, and emit a `governance.recovery_mode` audit event so it is explicit, auditable, and bounded (see §12.1 Phase R3). `WP_SUDO_RECOVERY_MODE` is the only supported break-glass path going forward, so it must be sound before compatibility mode is removed. **Effort:** Low (deprecation) + Low–Medium (containment)
 2. **Implement E2E CI acceleration without reducing release assurance**
    - Rebalance the current long shard before adding cache/image/policy optimizations
    - Keep the full Playwright suite available for release-grade confidence, but shorten normal feedback loops
@@ -1710,6 +1722,80 @@ should shape the next phases.
 - Tests proving ordinary administrators without Sudo management authority cannot
   relax policies, view restricted activity, export logs, or revoke sessions.
 - Break-glass tests that prove recovery mode is explicit, auditable, and bounded.
+
+**Finding: `WP_SUDO_RECOVERY_MODE` break-glass is uncontained.** *(Found June 13, 2026; ✅ contained June 13, 2026 — items 1, 3, 4 below shipped on unreleased `main`. Item 2, the scoped single-user form, remains.)*
+
+Verified against the code path and WordPress core admin-page routing (describes the *pre-fix* behavior):
+
+- The recovery branch in `wp_sudo_can()` and the cap mapping in
+  `wp_sudo_map_governance_meta_cap()` (`includes/functions-governance.php`) have
+  **no role gate**. While `WP_SUDO_RECOVERY_MODE` is defined truthy, any logged-in
+  user checking their own `manage_wp_sudo` receives it — Subscribers and Editors
+  included, single-site and per-site multisite users alike. (Multisite super
+  admins already short-circuit earlier and are unaffected.)
+- `manage_wp_sudo` is the **master governance capability**: a holder can open the
+  Access tab and self-grant the other three caps and change gating policy. So the
+  open surface is "every authenticated account → full Sudo governance" for as long
+  as the constant is set.
+- WordPress core gates the Sudo submenu page by its own capability
+  (`user_can_access_admin_page()` → `current_user_can('manage_wp_sudo')`, mapped to
+  `exist` in recovery mode), so a non-admin reaching
+  `options-general.php?page=wp-sudo` directly passes — the hidden Settings menu is
+  not a real barrier.
+- The promised safeguards never existed: no admin notice and no
+  `governance.recovery_mode` audit event are implemented anywhere in `includes/`.
+  `docs/security-model.md`, `docs/FAQ.md`, and `readme.md` previously asserted them
+  (corrected docs-only; see `docs/llm-lies-log.md` #20).
+
+This violates Phase R3's own acceptance criterion that recovery mode be "explicit,
+auditable, and bounded." The practical risk is operator error rather than remote
+escalation (defining the constant requires `wp-config.php` write access), but a
+break-glass mechanism should minimize the blast radius of its open window.
+
+**Fix (the intended features):**
+
+1. ✅ **Role-gate the grant (primary).** *Shipped.* In *both* `wp_sudo_can()` and
+   `wp_sudo_map_governance_meta_cap()`, the recovery branch now also requires
+   `manage_options` (single-site) / `manage_network_options` (multisite). A
+   legitimate locked-out admin still passes while non-admins no longer gain control.
+   The multisite super-admin short-circuit is intact.
+2. **Optional scoped form.** *Remaining follow-up.* Support
+   `define('WP_SUDO_RECOVERY_MODE', <user_id_or_login>)` to grant only that user;
+   `true` retains the (now admin-only) broad behavior. Tightest containment for
+   operators who want surgical recovery — and the proper fix for the non-admin Sudo
+   manager that item 1 deliberately does not rescue.
+3. ✅ **Surface a non-dismissible admin notice** on the Sudo settings screen
+   whenever recovery mode is active. *Shipped* (`Admin::render_recovery_mode_notice()`).
+4. ✅ **Emit a `wp_sudo_recovery_mode_active` audit hook** (stored as a sampled
+   `recovery_mode` event). *Shipped.* `docs/current-metrics.md` audit-hook count and
+   `docs/developer-reference.md` updated. The stored event is unprefixed
+   `recovery_mode`, not the archived `governance.recovery_mode` literal (that spec
+   never shipped; consistency with existing Event_Store names wins).
+
+**Process:** Shipped via a Pre-Implementation Design Review (reviewer agent + design
+brief), strict TDD, and the Pre-Commit Reviewer Workflow, per `CLAUDE.md`.
+
+**Tests:**
+- `wp_sudo_can()` / `wp_sudo_map_governance_meta_cap()`: recovery mode grants
+  `manage_wp_sudo` to an admin (has `manage_options`) but **not** to a
+  non-admin (Subscriber/Editor); other three caps are never granted by recovery
+  mode; behavior is per-current-user only.
+- Multisite: super-admin short-circuit still passes; per-site non-admin denied;
+  per-site admin (`manage_network_options`) passes.
+- Scoped-constant form (if built): only the named user/ID is granted; others denied.
+- Notice renders on Sudo admin pages while active and is absent when the constant
+  is removed (no DB persistence).
+- Audit event fires once per recovery-mode admin page load (or per access grant —
+  decide in design review) with the expected payload.
+
+**Docs reconciled (shipped):**
+- ✅ Restored the (now accurate) notice/event/role-gate descriptions in
+  `docs/security-model.md` and `docs/FAQ.md`. (`readme.md` carries pre-existing
+  unrelated working-tree edits; reconcile its recovery wording there.)
+- ✅ Updated `docs/llm-lies-log.md` #20 notes to mark the containment as built.
+- ⏳ `tests/MANUAL-TESTING.md` §23.8 still documents the *uncontained* behavior
+  (non-admin gains access); update it to expect denial for non-admins and add steps
+  for the notice and audit event.
 
 #### Phase R4: E2E CI acceleration and release-assurance tuning
 

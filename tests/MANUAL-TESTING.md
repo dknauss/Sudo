@@ -1920,28 +1920,39 @@ curl -sk -X POST "YOUR_SITE_URL/graphql" \
 
 - Requires `wp-config.php` write access on the test environment.
 
-1. Using WP-CLI, confirm the second account does **not** hold
-   `manage_wp_sudo`:
+The recovery grant is **role-gated**: it rescues a locked-out administrator
+(holds `manage_options` but lost `manage_wp_sudo`) but does **not** grant
+access to non-administrators.
+
+1. Using WP-CLI, confirm the second account is an **administrator** (holds
+   `manage_options`) that does **not** hold `manage_wp_sudo`:
    `wp user meta get <second-id> wp_capabilities`
 2. Add the following line to `wp-config.php` (before the `/* That's all */`
    line):
    `define( 'WP_SUDO_RECOVERY_MODE', true );`
 3. Log in as the second account and navigate to **Settings > Sudo**.
-4. **Expected:** The page is accessible — the second account has effective
-   `manage_wp_sudo` authority via the recovery mode path. The **Access** tab
-   is reachable.
-5. Log out and log in as a non-administrator user (e.g. Editor or Subscriber).
-6. Navigate to **Settings > Sudo**.
-7. **Expected:** Access is still denied. Recovery mode grants effective
-   `manage_wp_sudo` only to the user making the request and only when
-   `WP_SUDO_RECOVERY_MODE` is truthy; it does not bypass the role
-   requirement entirely.
-8. Remove the `define( 'WP_SUDO_RECOVERY_MODE', true );` line from
+4. **Expected:** The page is accessible — the second account holds
+   `manage_options`, so the recovery path grants effective `manage_wp_sudo`.
+   The **Access** tab is reachable. A permanent, **non-dismissible** warning
+   notice is shown at the top of the page stating recovery mode is active and
+   should be removed once access is restored.
+5. Log out and log in as a **non-administrator** user (e.g. Editor or
+   Subscriber) that lacks `manage_options`.
+6. Navigate directly to `/wp-admin/options-general.php?page=wp-sudo`.
+7. **Expected:** The page is **denied** — WordPress displays "Sorry, you are
+   not allowed to access this page." The recovery path now requires
+   `manage_options` / `manage_network_options`, so a non-admin gains nothing
+   while the constant is defined.
+8. (Optional, with an audit/logging plugin installed or the dashboard activity
+   widget visible.) **Expected:** accessing **Settings > Sudo** as the second
+   account under recovery mode records a `recovery_mode` (displayed "Recovery")
+   event, sampled to at most one per user per hour.
+9. Remove the `define( 'WP_SUDO_RECOVERY_MODE', true );` line from
    `wp-config.php`.
-9. Log in as the second account and navigate to **Settings > Sudo** again.
-10. **Expected:** Access is denied. The second account no longer passes the
-    `manage_wp_sudo` check. The constant is not persisted to the database and
-    takes effect only while defined.
+10. Log in as the second account and navigate to **Settings > Sudo** again.
+11. **Expected:** Access is denied. The second account no longer passes the
+    `manage_wp_sudo` check (the constant is not persisted to the database and
+    takes effect only while defined), and the recovery notice is gone.
 
 ### 23.9 Compatibility Mode (Deprecated Migration Path)
 

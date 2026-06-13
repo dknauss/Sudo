@@ -139,13 +139,14 @@ define( 'WP_SUDO_RECOVERY_MODE', true );
 ```
 
 When active:
-- The current user has effective `manage_wp_sudo` access regardless of their actual capability set.
-- Every Sudo admin page load displays a **permanent, non-dismissible notice** stating that recovery mode is in effect.
-- Usage is logged (a `governance.recovery_mode` event is emitted for audit purposes).
+- The current user gains effective `manage_wp_sudo` access **only if they also hold site/network admin authority** — `manage_options` on single-site, `manage_network_options` on multisite. The recovery check is role-gated: a locked-out manager who kept their administrator role recovers, but subscribers, editors, and other non-admins gain nothing. (Multisite super admins always pass regardless.)
+- A **permanent, non-dismissible warning notice** is shown on the Sudo settings screen while recovery mode is active, and the `wp_sudo_recovery_mode_active` audit hook fires (recorded as a sampled `recovery_mode` event) so the usage is visible to logging tools.
 
 Recovery mode **does not** bypass the reauthentication challenge itself. A user in recovery mode must still complete the sudo challenge on gated actions — they just regain access to the Sudo settings and Access tab.
 
-**Remove the constant once you have restored normal access.** Leaving recovery mode enabled indefinitely effectively bypasses governance.
+Defining the constant requires `wp-config.php` write access, so the practical risk is operator error rather than remote escalation. The role gate contains the blast radius, but while the constant is set **every administrator** (every `manage_options` holder) regains full Sudo governance — and can self-grant the other capabilities and change gating policy from the Access tab. **Remove the constant the moment normal access is restored.**
+
+One limitation: because the gate requires an admin capability, recovery mode does **not** rescue a Sudo manager who was deliberately granted `manage_wp_sudo` *without* a WordPress admin role. Recover such a user another way — for example `wp user add-cap <user> manage_wp_sudo` via WP-CLI, or temporarily grant them `manage_options`.
 
 ## Does this replace WordPress roles and capabilities?
 

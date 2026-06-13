@@ -43,8 +43,44 @@ not the default.
 
 **Break-glass recovery:** if every holder of `manage_wp_sudo` is removed,
 `define('WP_SUDO_RECOVERY_MODE', true)` in `wp-config.php` grants temporary
-access. Every page load in recovery mode emits a non-dismissible admin notice and
-logs a `governance.recovery_mode` event. See [FAQ](FAQ.md#what-is-break-glass-recovery-mode-and-when-should-i-use-it).
+access. The recovery check is **role-gated**: while the constant is defined, the
+current user receives effective `manage_wp_sudo` only if they *also* hold site
+or network admin authority (`manage_options` on single-site,
+`manage_network_options` on multisite). The governance model deliberately
+separates `manage_wp_sudo` from `manage_options`, so a locked-out manager who
+kept their admin role still recovers, while subscribers, editors, and other
+non-admins gain nothing. Both `wp_sudo_can()` and the `map_meta_cap` mapping
+apply the gate (the meta cap maps to the admin primitive cap, so WordPress
+core's own admin-page gate and multisite super-admin bypass do the enforcing),
+and the multisite super-admin short-circuit is unchanged.
+
+This narrows but does not eliminate the residual risk: while the constant is set,
+*every* administrator who holds `manage_options` regains full Sudo governance —
+on a multi-admin site that is still a meaningful elevation, since any such admin
+can self-grant the other three caps and change gating policy from the Access tab.
+Two safeguards make the window visible:
+
+- A **permanent, non-dismissible warning notice** appears on the Sudo settings
+  screen while recovery mode is active.
+- The `wp_sudo_recovery_mode_active` **audit hook** fires on every Sudo
+  admin-page load under recovery mode (unthrottled, for external loggers); the
+  bundled recorder stores a sampled `recovery_mode` event (one per user per hour).
+
+Defining the constant requires `wp-config.php` write access, so the practical
+risk is operator error — enabling it for break-glass and then leaving it on.
+**Remove the constant the moment normal access is restored.**
+
+> **Note (multisite and non-admin managers):** because the gate requires
+> `manage_network_options` on multisite, recovery effectively only matters
+> alongside super-admin access there; and because it requires `manage_options`
+> everywhere, recovery does **not** rescue a Sudo manager who was deliberately
+> granted `manage_wp_sudo` *without* a WordPress admin role. Recover such a user
+> another way — e.g. `wp user add-cap <user> manage_wp_sudo` via WP-CLI, or
+> temporarily granting them `manage_options`. A scoped recovery form
+> (`define('WP_SUDO_RECOVERY_MODE', <user_id_or_login>)`) that grants a single
+> named user is tracked as follow-up work.
+
+See [FAQ](FAQ.md#what-is-break-glass-recovery-mode-and-when-should-i-use-it).
 
 Operationally, this implies:
 

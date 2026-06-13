@@ -284,6 +284,54 @@ Repos:   wp-sudo, wordpress-2fa-ecosystem
             reviewer; removed in merge commit 31edda4. If a false path
             is ever added to activate(), document it then — not before.
 
+20. CONFABULATED SAFEGUARDS — recovery-mode notice and audit event
+    Files:  docs/security-model.md (Break-glass recovery paragraph),
+            docs/FAQ.md ("What is break-glass recovery mode" entry)
+    Claim:  Recovery mode "emits a non-dismissible admin notice and logs a
+            `governance.recovery_mode` event" (security-model.md); FAQ
+            repeated it as "Every Sudo admin page load displays a
+            permanent, non-dismissible notice" and "a
+            `governance.recovery_mode` event is emitted for audit
+            purposes."
+    Reality: Neither safeguard exists. The only recovery-mode code is
+            wp_sudo_is_recovery_mode() (a bare
+            `defined('WP_SUDO_RECOVERY_MODE') && WP_SUDO_RECOVERY_MODE`
+            check) and its two callers, wp_sudo_can() and
+            wp_sudo_map_governance_meta_cap(). No admin_notices hook and
+            no event recording reference recovery mode anywhere in
+            includes/. Compounding it, the docs implied recovery was
+            contained when it is not: the grant has no role gate, so while
+            the constant is defined ANY logged-in user (not just admins)
+            who requests manage_wp_sudo receives it — and manage_wp_sudo
+            is the master governance cap.
+    Source:  grep over includes/ for recovery_mode / admin_notices /
+            event recording; includes/functions-governance.php:56-79,147-159,178-180;
+            WP core admin-page gate verified against
+            user_can_access_admin_page() and wp-admin/includes/menu.php
+            (submenu item gated by its own cap → mapped to `exist` in
+            recovery mode); verified 2026-06-13.
+    Notes:  Fixed in two stages. (1) Docs-only on 2026-06-13: both docs
+            corrected to state the real (uncontained) behavior and that no
+            notice/event existed. (2) Containment BUILT on 2026-06-13 after
+            a Pre-Implementation Design Review (security-sensitive,
+            multi-caller): the recovery grant in BOTH wp_sudo_can() and
+            wp_sudo_map_governance_meta_cap() is now role-gated to
+            manage_options (single-site) / manage_network_options (multisite)
+            — non-admins gain nothing; the map_meta_cap branch maps to the
+            admin primitive cap instead of `exist`, delegating the check
+            (and the multisite super-admin bypass) to WP core. A permanent
+            non-dismissible notice now renders on the Sudo settings screen
+            and a new wp_sudo_recovery_mode_active audit hook fires on every
+            Sudo admin-page load under recovery mode, stored as a sampled
+            `recovery_mode` event (one per user per hour). Note the stored
+            event is unprefixed `recovery_mode`, matching every other
+            Event_Store event name — the archived `governance.recovery_mode`
+            literal was from a spec that never shipped, so it was not
+            honored. The originally-aspirational documentation is now
+            reconciled with a real implementation, with tests
+            (GovernanceTest, EventRecorderTest, AdminTest). A scoped
+            single-user recovery form is tracked as further follow-up.
+
 ROOT CAUSE
 ----------
 All errors have stemmed from patterns that boil down to *not checking the 
