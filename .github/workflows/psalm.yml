@@ -6,6 +6,11 @@ on:
   pull_request:
     branches: [main]
 
+# Least-privilege default for GITHUB_TOKEN (CodeQL actions hardening). Jobs that
+# need more (e.g. the change detector's pull-requests: read) set it per-job.
+permissions:
+  contents: read
+
 jobs:
   # Documentation-only pull requests skip the heavy Psalm job; the "Psalm" gate
   # job below always runs and reports the required status, so the required check

@@ -8,6 +8,12 @@ on:
   schedule:
     - cron: '0 3 * * *'  # Nightly at 3 AM UTC — catches stable floor and 7.0 regressions.
 
+# Least-privilege default for GITHUB_TOKEN (CodeQL actions hardening). Jobs that
+# need more (the change detector's pull-requests: read; notify-on-failure's
+# issues: write) set it per-job.
+permissions:
+  contents: read
+
 jobs:
   # Documentation-only pull requests skip the heavy test/quality jobs; the
   # "PHPUnit" gate job below always runs and reports the required status, so the
