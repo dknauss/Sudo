@@ -1,6 +1,6 @@
 # WP Sudo
 
-WP Sudo is a Multisite-compatible security-hardening plugin for WordPress. It adds **action-gated reauthentication**, enables **attack surface definition** (open, closed, or sudo-gated), and gives **visibility to privileged action requests**. 
+WP Sudo is a Multisite-compatible security-hardening plugin for WordPress. It adds **action-gated reauthentication**, enables **attack surface definition** (open, closed, or sudo-gated), gives **visibility to privileged action requests**, and confines Sudo administration to explicitly designated users.
 
 [![License: GPL v2+](https://img.shields.io/badge/License-GPL%20v2%2B-blue.svg)](https://spdx.org/licenses/GPL-2.0-or-later.html)
 [![WordPress: 6.2+](https://img.shields.io/badge/WordPress-6.2%2B-0073aa.svg)](https://wordpress.org/)
@@ -58,6 +58,8 @@ For the canonical current rule totals and surface counts, see [docs/current-metr
 (Export privileges are separated from view privileges because a portable export artifact is a distinct governance concern — SOC2/GDPR audits treat "can read" and "can take a copy offsite" differently.)
 
 WP Sudo integrates with the **Site Health** tool in WordPress core for rich security diagnostics and advisory notifications. 
+
+In a lost, last administrator scenario where no one has access to Sudo's settings, the break-glass mechanism is to set `WP_SUDO_RECOVERY_MODE` in `wp-config.php`. This opens Sudo settings to any/all logged-in administrators. It requires filesystem access to activate and leaves a permanent audit trail while active.
 
 ## For developers and integrators
 
