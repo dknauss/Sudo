@@ -16,22 +16,22 @@ WP Sudo is a Multisite-compatible security-hardening plugin for WordPress. It ad
 
 Playground demo credentials are `admin` / `password`. When WP Sudo asks for reauthentication, enter the same password: `password`.
 
-## WP Sudo Overview
+## Overview
 
 Before performing high-risk (Administrator and Super Administrator) actions in any interface or API surface, a privileged user session must re-authenticate by re-entering their credentials, followed by any active and compatible two-factor authentication requirement. Successful reauthentication starts a short, configurable window (up to 15 minutes) for privileged, gated actions without further challenge. Each non-interactive surface — WP-CLI, Cron, XML-RPC, REST App Passwords, WPGraphQL — can be independently set to Disabled, Limited (Gated), or Unrestricted. A built-in Access tab controls which users hold Sudo management privileges, with a drift-detection panel that surfaces capability mismatches introduced by third-party role plugins. All privileged sessions can be monitored in the dashboard or with compatible plugins for logging user activity. 
 
 ## Why WP Sudo exists
 
-WordPress has roles, capabilities, and authentication. It has no native way to say, "This action is too consequential to assume a valid user session alone is sufficient to allow it."
+WordPress has roles, capabilities, and authentication limiting who/what can take privileged actions. However, it has no native way to say, "This action is too consequential to assume a valid user session alone is sufficient to allow it." 
 
-WP Sudo adds that missing layer to the covered paths, intercepting them with a password challenge and a secondary one-time password if 2FA is enabled. It is designed to reduce risk when an attacker has:
+For high-value single sites and multisite networks with multiple administrators, this default posture is far too open. A phished user account, a hijacked admin session, and a rogue agent/non-human identity all appear legitimate and can freely take destructive actions. WP Sudo adds a missing layer to reduce these risks and limit the potential damage by intercepting the most privileged actions with a standard password challenge, followed by a second authentication requirement if 2FA is enabled. 
+
+Sudo is designed to reduce risk when an attacker has:
 - a stolen browser session cookie,
 - access to an unattended authenticated browser,
 - or a delegated request path that reaches a high-impact operation.
 
 On those covered paths, a valid session without an active sudo window is not enough.
-
-**What this is not:** a general fix for broken authorization in plugin code. WP Sudo gates specific known operations on specific known surfaces. A plugin vulnerability that performs a privileged state change through its own code path — without routing through a surface WP Sudo intercepts — is outside this layer. WP Sudo is the guard at the door of the operations it knows about; it is not a monitor of arbitrary plugin execution.
 
 ## What WP Sudo gates and protects
 
@@ -47,6 +47,10 @@ WP Sudo currently gates built-in operations across categories such as:
 - and connector credential writes saved through the REST settings endpoint.
 
 For the canonical current rule totals and surface counts, see [docs/current-metrics.md](docs/current-metrics.md).
+
+## What Sudo _doesn't_ defend against
+
+WP Sudo is not a general fix for broken authorization in plugin code. WP Sudo gates specific known operations on specific known surfaces. A plugin vulnerability that performs a privileged state change through its own code path — without routing through a surface WP Sudo intercepts — is outside this layer. WP Sudo is the guard at the door of the operations it knows about; it is not a monitor of arbitrary plugin execution.
 
 ## Sudo administration and governance
 
