@@ -1842,9 +1842,9 @@ brief), strict TDD, and the Pre-Commit Reviewer Workflow, per `CLAUDE.md`.
   `docs/security-model.md` and `docs/FAQ.md`. (`readme.md` carries pre-existing
   unrelated working-tree edits; reconcile its recovery wording there.)
 - ✅ Updated `docs/llm-lies-log.md` #20 notes to mark the containment as built.
-- ⏳ `tests/MANUAL-TESTING.md` §23.8 still documents the *uncontained* behavior
-  (non-admin gains access); update it to expect denial for non-admins and add steps
-  for the notice and audit event.
+- ✅ `tests/MANUAL-TESTING.md` §23.8 documents the contained behavior — it expects
+  denial for non-administrators and includes steps for the non-dismissible notice and
+  the sampled `recovery_mode` audit event.
 
 #### Phase R4: E2E CI acceleration and release-assurance tuning
 
