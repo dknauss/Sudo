@@ -1870,12 +1870,12 @@ README/readme assets show the screens operators now use.
 
 ### Delivery Sequence
 
-1. Complete Phase 5 `05-02` WP 7.0 manual verification.
+1. ~~WP 7.0 manual verification.~~ ✅ Complete.
 2. ~~**Sprint A** (Security core): Stash redaction + per-user cap, upload-action coverage.~~ ✅ Complete.
 3. ~~**Sprint B** (Auth resilience): Non-blocking rate limiting.~~ ✅ Complete.
-4. **Sprint C** (Reliability): Rule-schema validation, MU loader hardening.
-5. After WordPress 7.0 final ships (currently planned for May 20, 2026): Phase 5 `05-03` `Tested up to: 7.0` readme bump.
-6. **Sprint D** (Surface + Observability): WPGraphQL persisted-query strategy, WSAL sensor.
+4. ~~**Sprint C** (Reliability): Rule-schema validation, MU loader hardening.~~ ✅ Complete.
+5. ~~`Tested up to: 7.0` readme bump.~~ ✅ Complete (v3.3.0).
+6. ~~**Sprint D** (Surface + Observability): WPGraphQL persisted-query strategy, WSAL sensor.~~ ✅ Complete.
 
 ### Release Gates
 
