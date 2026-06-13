@@ -62,7 +62,7 @@ Switching `wp_sudo_external_audit` away from `off` is gated by four checks,
 in order:
 
 1. **Capability.** Setting is editable only by `sudo_can( 'manage_wp_sudo' )`
-   (per the [governance spec](internal-admin-governance-spec.md)).
+   (per the [governance spec](archive/internal-admin-governance-spec.md)).
 2. **Sudo-gated.** The save handler writes through the
    `options.wp_sudo_access` gated rule, so the mutation itself requires an
    active sudo session. Changing audit destination is privilege-sensitive.

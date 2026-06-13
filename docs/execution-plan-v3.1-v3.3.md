@@ -353,7 +353,7 @@ review and need runtime confirmation or WP 7.0 RC source validation:
    - `sudo_can()` helper, `options.wp_sudo_access` gated rule, Access tab with
      drift detection, "last manager" guard, `WP_SUDO_RECOVERY_MODE`
      break-glass, audit hooks for all access-model transitions.
-   - See [`docs/internal-admin-governance-spec.md`](internal-admin-governance-spec.md).
+   - See [`docs/archive/internal-admin-governance-spec.md`](archive/internal-admin-governance-spec.md).
 6. Request-stash replay/data-minimization follow-up:
    - Add pattern-based redaction for non-standard secret names.
    - Add custom-rule metadata for redacted, replay-safe, and non-replayable
@@ -659,6 +659,6 @@ Across all phases:
 ## Source mapping
 
 - Primary roadmap source: [`docs/ROADMAP.md`](ROADMAP.md)
-- Governance spec: [`docs/internal-admin-governance-spec.md`](internal-admin-governance-spec.md)
+- Governance spec: [`docs/archive/internal-admin-governance-spec.md`](archive/internal-admin-governance-spec.md)
 - Session-store options: [`docs/session-store-evaluation.md`](session-store-evaluation.md)
 - External Audit Mode spec: [`docs/external-audit-mode-spec.md`](external-audit-mode-spec.md)
