@@ -35,9 +35,26 @@ jobs:
       - name: Install Composer dependencies
         run: composer install --no-interaction --prefer-dist
 
-      - name: Run Psalm
-        run: composer analyse:psalm
+      - name: Run Psalm (gate + silent-no-op guard)
+        # `composer analyse:psalm` exits nonzero on real errors (the gate). But a
+        # broken config can make Psalm exit 0 with zero output and no analysis (a
+        # silent no-op — e.g. a top-level `exit;` in an analyzed file). That would
+        # make this gate a false-pass. Guard against it: if the run completes
+        # without emitting a type-coverage figure, fail loudly.
+        run: |
+          output="$(composer analyse:psalm 2>&1)" || { printf '%s\n' "$output"; exit 1; }
+          printf '%s\n' "$output"
+          if printf '%s\n' "$output" | grep -qE 'infer types for [0-9.]+%'; then
+            echo "Type coverage measured — gate healthy."
+          else
+            echo "::error::Psalm emitted no type-coverage figure — analysis did not complete (silent no-op). See the uninstall.php note in psalm.xml.dist."
+            exit 1
+          fi
 
       - name: Publish Shepherd type coverage
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        # shepherd.dev is an experimental service; never let a badge-publish
+        # outage fail the Psalm release gate. A failed send is visible in the
+        # step log (no "🐑 results sent" line) without blocking the build.
+        continue-on-error: true
         run: composer analyse:psalm:shepherd

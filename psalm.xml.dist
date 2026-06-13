@@ -13,7 +13,14 @@
         <directory name="mu-plugin" />
         <directory name="bridges" />
         <file name="wp-sudo.php" />
-        <file name="uninstall.php" />
+        <!--
+            uninstall.php is intentionally NOT analyzed. Including it makes Psalm
+            6.16 silently abort the entire run (exit 0, zero output, no analysis),
+            which turns this gate into a false-pass. Reproduces with no plugins and
+            no baseline, on PHP 8.3 (CI) and 8.5. Tracked upstream against
+            vimeo/psalm. uninstall.php is a thin bootstrap of already-analyzed
+            classes; excluding it is the pragmatic fix until the upstream bug lands.
+        -->
         <ignoreFiles>
             <directory name="vendor" />
             <directory name="tests" />
