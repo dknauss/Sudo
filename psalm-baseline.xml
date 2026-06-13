@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<files psalm-version="6.15.1@28dc127af1b5aecd52314f6f645bafc10d0e11f9">
+<files psalm-version="6.16.0@7cf3e8b988edd75e0766963b0b9e671b220f5785">
   <file src="bridges/wp-sudo-webauthn-bridge.php">
     <HookNotFound>
       <code><![CDATA[add_filter(
@@ -214,6 +214,14 @@
       <code><![CDATA[\WSAL\Controllers\Alert_Manager]]></code>
     </UndefinedClass>
   </file>
+  <file src="includes/class-admin-bar.php">
+    <UndefinedConstant>
+      <code><![CDATA[WP_SUDO_PLUGIN_URL]]></code>
+      <code><![CDATA[WP_SUDO_PLUGIN_URL]]></code>
+      <code><![CDATA[WP_SUDO_VERSION]]></code>
+      <code><![CDATA[WP_SUDO_VERSION]]></code>
+    </UndefinedConstant>
+  </file>
   <file src="includes/class-admin.php">
     <InvalidArgument>
       <code><![CDATA[(array) $input]]></code>
@@ -235,7 +243,7 @@
       <code><![CDATA[array(
 				'label_for'   => Gate::SETTING_REST_APP_PASS_POLICY,
 				'key'         => Gate::SETTING_REST_APP_PASS_POLICY,
-				'description' => __( 'Controls non-cookie-auth REST requests (Application Passwords, Bearer tokens, OAuth). Cookie-auth browser requests always get the sudo challenge. Default: Limited.', 'wp-sudo' ),
+				'description' => __( 'Controls non-cookie-auth REST requests (Application Passwords, Bearer tokens, OAuth). Cookie-auth browser requests always get the sudo challenge. In multisite, Connectors credentials saved in the database remain per-site, but env or wp-config.php-backed connector keys may still apply across the whole install/network. Default: Limited.', 'wp-sudo' ),
 			)]]></code>
       <code><![CDATA[array(
 				'label_for'   => Gate::SETTING_XMLRPC_POLICY,
@@ -243,16 +251,91 @@
 				'description' => __( 'Disabled shuts off the entire XML-RPC protocol. Limited blocks only gated operations. Unrestricted allows everything. Default: Limited.', 'wp-sudo' ),
 			)]]></code>
     </InvalidArgument>
+    <UndefinedConstant>
+      <code><![CDATA[WP_SUDO_PLUGIN_BASENAME]]></code>
+      <code><![CDATA[WP_SUDO_PLUGIN_DIR]]></code>
+      <code><![CDATA[WP_SUDO_PLUGIN_DIR]]></code>
+      <code><![CDATA[WP_SUDO_PLUGIN_URL]]></code>
+      <code><![CDATA[WP_SUDO_PLUGIN_URL]]></code>
+      <code><![CDATA[WP_SUDO_PLUGIN_URL]]></code>
+      <code><![CDATA[WP_SUDO_VERSION]]></code>
+      <code><![CDATA[WP_SUDO_VERSION]]></code>
+      <code><![CDATA[WP_SUDO_VERSION]]></code>
+    </UndefinedConstant>
+    <UndefinedFunction>
+      <code><![CDATA[wp_sudo_can( 'manage_wp_sudo' )]]></code>
+      <code><![CDATA[wp_sudo_can( 'manage_wp_sudo' )]]></code>
+      <code><![CDATA[wp_sudo_can( 'manage_wp_sudo' )]]></code>
+      <code><![CDATA[wp_sudo_can( 'manage_wp_sudo' )]]></code>
+      <code><![CDATA[wp_sudo_can( 'manage_wp_sudo' )]]></code>
+      <code><![CDATA[wp_sudo_can( 'manage_wp_sudo' )]]></code>
+      <code><![CDATA[wp_sudo_can( 'manage_wp_sudo' )]]></code>
+      <code><![CDATA[wp_sudo_can( 'manage_wp_sudo' )]]></code>
+      <code><![CDATA[wp_sudo_can( 'revoke_wp_sudo_sessions' )]]></code>
+      <code><![CDATA[wp_sudo_is_recovery_mode()]]></code>
+      <code><![CDATA[wp_sudo_is_recovery_mode()]]></code>
+    </UndefinedFunction>
   </file>
   <file src="includes/class-challenge.php">
     <UndefinedClass>
       <code><![CDATA[\Two_Factor_Core]]></code>
       <code><![CDATA[\Two_Factor_Core]]></code>
     </UndefinedClass>
+    <UndefinedConstant>
+      <code><![CDATA[WP_SUDO_PLUGIN_URL]]></code>
+      <code><![CDATA[WP_SUDO_PLUGIN_URL]]></code>
+      <code><![CDATA[WP_SUDO_VERSION]]></code>
+      <code><![CDATA[WP_SUDO_VERSION]]></code>
+    </UndefinedConstant>
+  </file>
+  <file src="includes/class-dashboard-widget.php">
+    <HookInvalidArgs>
+      <code><![CDATA[add_action( 'wp_dashboard_setup', array( self::class, 'register' ) )]]></code>
+    </HookInvalidArgs>
+    <HookNotFound>
+      <code><![CDATA[add_action( 'wp_sudo_activated', array( self::class, 'flush_active_sessions_cache' ), 10, 0 )]]></code>
+      <code><![CDATA[add_action( 'wp_sudo_deactivated', array( self::class, 'flush_active_sessions_cache' ), 10, 0 )]]></code>
+    </HookNotFound>
+    <InvalidArgument>
+      <code><![CDATA[array(
+					'force' => true,
+				)]]></code>
+    </InvalidArgument>
+    <UndefinedFunction>
+      <code><![CDATA[wp_sudo_can( 'view_wp_sudo_activity' )]]></code>
+    </UndefinedFunction>
+  </file>
+  <file src="includes/class-event-recorder.php">
+    <HookNotFound>
+      <code><![CDATA[add_action( $hook, array( self::class, $callback_method ), 10, $accepted_args )]]></code>
+    </HookNotFound>
+  </file>
+  <file src="includes/class-event-store.php">
+    <MissingFile>
+      <code><![CDATA[require_once $upgrade_file]]></code>
+    </MissingFile>
+  </file>
+  <file src="includes/class-gate.php">
+    <InvalidArgument>
+      <code><![CDATA[array_merge(
+				is_array( $get_params ) ? $get_params : array(),
+				is_array( $post_params ) ? $post_params : array()
+			)]]></code>
+    </InvalidArgument>
+  </file>
+  <file src="includes/class-plugin.php">
+    <UndefinedConstant>
+      <code><![CDATA[WP_SUDO_PLUGIN_BASENAME]]></code>
+      <code><![CDATA[WP_SUDO_PLUGIN_URL]]></code>
+      <code><![CDATA[WP_SUDO_PLUGIN_URL]]></code>
+      <code><![CDATA[WP_SUDO_PLUGIN_URL]]></code>
+      <code><![CDATA[WP_SUDO_VERSION]]></code>
+      <code><![CDATA[WP_SUDO_VERSION]]></code>
+      <code><![CDATA[WP_SUDO_VERSION]]></code>
+    </UndefinedConstant>
   </file>
   <file src="includes/class-request-stash.php">
     <InvalidArgument>
-      <code><![CDATA[$_GET]]></code>
       <code><![CDATA[$_POST]]></code>
     </InvalidArgument>
   </file>
@@ -260,5 +343,11 @@
     <UndefinedClass>
       <code><![CDATA[\Two_Factor_Core]]></code>
     </UndefinedClass>
+  </file>
+  <file src="includes/class-upgrader.php">
+    <UndefinedConstant>
+      <code><![CDATA[WP_SUDO_VERSION]]></code>
+      <code><![CDATA[WP_SUDO_VERSION]]></code>
+    </UndefinedConstant>
   </file>
 </files>
