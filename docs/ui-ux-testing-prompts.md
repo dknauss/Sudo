@@ -354,3 +354,46 @@ Keep the URL from 5b, method DELETE:
 | **URL** | `https://example.com/wp-admin/admin-ajax.php?action=delete-plugin` |
 
 - [ ] Result shows matched rule `plugin.delete`, decision **gate** (or block depending on session state).
+
+---
+
+## 6. Playground Scenario Links
+
+Two specialized [WordPress Playground](https://playground.wordpress.net/) blueprints stage hard-to-reach states deterministically, so a reviewer can exercise them without building the precondition by hand. Both install the plugin from the `main` branch (where the relevant features live) on top of the standard demo seed (users, sessions, sample audit events) defined in `blueprint-main.json`.
+
+To launch, host the blueprint JSON at a public URL and open:
+`https://playground.wordpress.net/?blueprint-url=<RAW_URL>`
+(e.g. the raw GitHub URL for the file on the branch under test). Admin login is `admin` / `password`; the Sudo challenge password is also `password`.
+
+### 6a. Break-glass recovery mode — `blueprint-recovery-mode.json`
+
+Recovery mode is WP Sudo's own escape hatch (`define( 'WP_SUDO_RECOVERY_MODE', true )` in `wp-config.php`), **not** WordPress core's fatal-error recovery mode. It re-opens Sudo governance to every administrator holding `manage_options` for as long as the constant is set. The blueprint sets the constant via `defineWpConfigConsts` and lands on Settings › Sudo so the safeguards added in this release are immediately visible.
+
+- [ ] A **permanent, non-dismissible** warning notice appears at the top of the Sudo settings screen stating that break-glass recovery mode is active and instructing the operator to remove the constant.
+- [ ] The notice has no dismiss (×) control — reloading the page does not clear it.
+- [ ] On each load of a Sudo admin page, the `wp_sudo_recovery_mode_active` action fires (verify via a logging listener or by inspecting the events table).
+- [ ] The audit/events view shows a `recovery_mode` event with a **Recovery** label, sampled to at most one row per user per hour (repeated reloads within the hour do not add rows).
+- [ ] Compare against `blueprint-main.json` (no constant): neither the notice nor the `recovery_mode` event appears — confirming the feature is otherwise invisible until the constant is set.
+
+**Why Playground suits this:** the trigger is a single config constant read at runtime by `wp_sudo_is_recovery_mode()`, so there is no email or fatal-error precondition to reproduce — `defineWpConfigConsts` is sufficient and fully deterministic.
+
+### 6b. Session-theft proxy via User Switching — `blueprint-user-switching.json`
+
+This blueprint installs the [User Switching](https://wordpress.org/plugins/user-switching/) plugin and lands on the Users list. The demo seed already creates additional administrators (`carlosadmin`, `mariadev`), so an admin can "Switch To" another admin and observe that sudo privileges do **not** follow the switched identity.
+
+**The property under test:** holding a valid authenticated session for a user does not grant sudo. A gated action still demands a fresh reauth with *that user's* password, enforced by `Sudo_Session::verify_token()` (which requires `get_current_user_id() === $user_id` and a per-user token cookie). This models session/cookie theft: an attacker who assumes another user's authenticated session still cannot perform gated actions.
+
+- [ ] As `admin`, activate a sudo session (confirm via the admin-bar countdown timer).
+- [ ] From Users › Switch To, switch to `carlosadmin` (an administrator).
+- [ ] Confirm the admin-bar timer is **gone** — the active sudo session did not transfer to the switched-into user.
+- [ ] Attempt a gated action (e.g. activate/delete a plugin) as `carlosadmin`. The reauth challenge appears.
+- [ ] The challenge requires **carlosadmin's** password, not the original admin's. Entering the original admin's password fails.
+- [ ] "Switch back" to `admin`. If the original admin's sudo session is still within its window, it is restored (its token/meta were never touched) — this is expected, not a leak.
+
+**Honest caveats (state these when reporting):**
+
+- User Switching is *consensual admin impersonation*, not literal theft. It is a faithful proxy because the end state is identical — authenticated as a user whose password you do not hold — but it is not an exploit.
+- The **switch action itself is not gated** by default; it is not a built-in rule. The protection demonstrated is on the gated actions performed *as the switched-into user*, not on switching.
+- Playground is a single sandboxed origin, so genuine cross-browser cookie theft cannot be simulated — only the in-session identity swap.
+
+> **Note on 2FA in Playground:** the bundled Two Factor plugin installs and activates, but TOTP requires an authenticator secret and email codes are not delivered in the sandbox. Interactive 2FA reauth is the one scenario these links cannot fully exercise.
