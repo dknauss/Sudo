@@ -11,6 +11,24 @@ WP Sudo is a WordPress plugin that provides action-gated reauthentication. Dange
 
 Every destructive WordPress admin action requires proof that the person at the keyboard is still the authenticated user — not a hijacked session, XSS payload, or unattended browser.
 
+## Current Milestone: v4.0.0 — Major Release & Breaking Changes
+
+**Goal:** Ship the first major version — give the in-flight deprecations a destination, raise minimum requirements, complete the WordPress 7.0 Connectors security work, and make the public docs honest.
+
+**Target features:**
+- Connectors GA parity verification + registry-aware matcher (regex fallback retained)
+- Remove `compatibility` governance mode (ship deprecation notice + remove both branches and option-read paths in the same release)
+- Remove the deprecated `sudo_can()` alias (`@deprecated 3.3.0`)
+- Raise minimum requirements (WordPress + PHP floor bump; drop now-unconditional compat shims)
+- Public README/readme/.org screenshot refresh for the current UI
+- Managed-host + minimum-supported-WordPress manual testing checklist
+
+**Decisions locked at kickoff (2026-06-13):**
+- Minimum-requirement bumps: **raise both** WP and PHP floors (exact targets pinned in REQUIREMENTS.md).
+- Compatibility-mode removal: **bundled into 4.0.0** (deprecation notice + removal in one release; no interim 3.5.0), defensible because the plugin is not yet published to WordPress.org.
+
+**Source of truth:** `../docs/ROADMAP.md` "Next major (v4.0.0): planned breaking changes" + `.planning/connectors-matcher-strategy.md`.
+
 ## Requirements
 
 ### Validated
@@ -41,12 +59,14 @@ Every destructive WordPress admin action requires proof that the person at the k
 
 ### Active
 
-<!-- Current scope. Building toward these. -->
+<!-- Current scope (v4.0.0 milestone). Building toward these. -->
 
-- [ ] Connectors GA parity verification and registry-aware matcher upgrade — next compatibility/security phase
-- [ ] Deprecate `compatibility` governance mode before v4.0.0 removal
-- [ ] Keep GSD and public docs aligned with v3.4.0 tagged/package state and non-.org publication status
-- [ ] Refresh README/readme screenshots when current UI docs would otherwise mislead
+- [ ] Connectors GA parity verification + registry-aware matcher (regex fallback) — v4.0.0
+- [ ] Remove `compatibility` governance mode (deprecation notice + branch/option removal) — v4.0.0
+- [ ] Remove deprecated `sudo_can()` alias — v4.0.0
+- [ ] Raise minimum requirements (WordPress + PHP floor bump, shim cleanup) — v4.0.0
+- [ ] Refresh README/readme/.org screenshots for the current UI — v4.0.0
+- [ ] Managed-host + minimum-WP manual testing checklist — v4.0.0
 - [x] Playwright E2E test infrastructure and CI coverage — v2.14+
 - [x] WordPress 7.0 package compatibility metadata — v3.3.0+
 
@@ -101,4 +121,4 @@ Recommended next multisite browser sequence:
 | Local multisite browser verification stays outside hosted CI | GitHub-hosted `wp-env` is single-site; the multisite network-admin failure only surfaced on a symlinked Local install | Adopted — keep hosted CI single-site, add Local multisite regression + helper script + bootstrap hardening |
 
 ---
-*Last updated: 2026-06-13 — v3.4.0 planning-state refresh; historical v2.14 Playwright context retained where still useful.*
+*Last updated: 2026-06-13 — v4.0.0 milestone started (major release & breaking changes); historical v2.14 Playwright context retained where still useful.*

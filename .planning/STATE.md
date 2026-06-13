@@ -1,9 +1,9 @@
 ## Current Position
 
-Phase: Post-v3.4.0 planning hygiene and next-phase selection
-Plan: current GSD state refresh
-Status: ACTIVE — v3.4.0 is tagged on GitHub; plugin is not published to the WordPress.org plugin repository; current package metadata is `3.4.0` / `Tested up to: 7.0`.
-Last activity: 2026-06-13 — release-status, roadmap, metrics notes, and GSD planning cleanup after v3.4.0.
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements — Milestone v4.0.0 (Major Release & Breaking Changes). v3.4.0 is the latest tagged release; plugin is not published to WordPress.org; package metadata `3.4.0` / `Tested up to: 7.0`.
+Last activity: 2026-06-13 — Milestone v4.0.0 started.
 
 ## Project Reference
 
@@ -15,14 +15,17 @@ Canonical current facts:
 - `CHANGELOG.md` — shipped release contents.
 
 **Core value:** Every destructive admin action requires proof the person at the keyboard is still the authenticated user.
-**Current focus:** keep the v3.4.0 documentation/planning state consistent, then execute the next security/compatibility phase.
+**Current focus:** Milestone v4.0.0 — define requirements, then execute the major-release breaking-change and security work.
 
-## Active Priorities
+## Active Priorities (v4.0.0 milestone, likely phase order)
 
-1. Connectors GA parity verification and registry-aware matcher plan.
-2. Deprecate `compatibility` governance mode in the next minor release and queue removal for v4.0.0.
-3. Refresh public screenshots/docs for the current UI when visual docs would otherwise mislead.
-4. Preserve the dedicated session-table architecture as conditional work for Tier 2+ scale rather than immediate implementation.
+1. Connectors GA parity verification + registry-aware matcher (regex fallback). Source: `connectors-matcher-strategy.md`.
+2. Breaking changes: remove `compatibility` governance mode (deprecation notice + removal, bundled into 4.0.0) and the deprecated `sudo_can()` alias.
+3. Raise minimum requirements: bump WordPress + PHP floors and drop now-unconditional compat shims (exact targets pinned in REQUIREMENTS.md).
+4. Public README/readme/.org screenshot refresh for the current UI.
+5. Managed-host + minimum-supported-WordPress manual testing checklist.
+
+Out of immediate scope: dedicated session-table architecture stays conditional work for Tier 2+ scale.
 
 ## Accumulated Context
 
