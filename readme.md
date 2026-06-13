@@ -16,14 +16,6 @@ WP Sudo adds **action-gated reauthentication** to WordPress so high-risk operati
 
 Playground demo credentials are `admin` / `password`. When WP Sudo asks for reauthentication, enter the same password: `password`.
 
-> **3.3.0 lockout fix:** existing single-site admins on 3.1.x or 3.2.0 now receive the governance capabilities needed to access Settings → Sudo without recovery mode. See [CHANGELOG.md](CHANGELOG.md) and [docs/release-status.md](docs/release-status.md) for details.
-
-## What’s new in 3.3.0
-
-- **Governance backfill re-keyed (strict-mode lockout fix):** the migration granting `manage_wp_sudo` was keyed at the phantom `3.1.0` (never released); sites on any public 3.1.x or 3.2.0 skipped it and were locked out of Settings → Sudo in strict mode. Now keyed at `3.3.0` with an existing-holder guard that preserves deliberate Access-tab configurations.
-- **Audit column clamping:** `Event_Store` clamps `event`, `rule_id`, `surface`, and `ip` to their schema column widths before insert — over-length values truncate predictably in PHP instead of failing in strict MySQL or silently dropping the audit row.
-- **`wp_sudo_grant_session_on_login` filter:** the automatic sudo session granted on browser login can be suppressed (return `false`) for shared-terminal/kiosk hardening or SSO integrations.
-
 ## Why WP Sudo exists
 
 WordPress has roles, capabilities, and authentication, but it has no native way to say:
