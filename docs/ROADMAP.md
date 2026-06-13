@@ -81,6 +81,7 @@ The v3.0.0 release consolidates Phases 7–9 work plus pre-release fixes:
 - **Network policy hierarchy for multisite** — Super admins set minimum session duration and maximum entry-point policies; site admins can only tighten.
 - **Session-store architecture follow-up** — Evaluate and likely implement a dedicated sudo-session table, with the current recommendation favoring an authoritative table plus usermeta shadow writes. See [`docs/session-store-evaluation.md`](session-store-evaluation.md).
 - **Internal admin governance hardening** — ✅ Shipped in 3.2.0. Dedicated `manage_wp_sudo`, `view_wp_sudo_activity`, `export_wp_sudo_activity`, and `revoke_wp_sudo_sessions` capabilities replace broad `manage_options` defaults. See [`docs/archive/internal-admin-governance-spec.md`](archive/internal-admin-governance-spec.md) for the archived design spec.
+- **Deprecate and remove `compatibility` governance mode** — The `wp_sudo_governance_mode = 'compatibility'` DB option is a permanent security regression path: it lets any `manage_options` holder administer Sudo settings, undoing the governance model. `WP_SUDO_RECOVERY_MODE` (requires filesystem access) is the correct break-glass. Plan: fire `_doing_it_wrong()` + persistent admin notice when compatibility mode is active in the next minor release; remove the option and the fallback branch in the next major.
 
 ### UI Documentation Rule
 
@@ -464,7 +465,8 @@ not context retrieval.
 With the WordPress 7.0 compatibility release and v3.2.0 hardening work closed,
 the recommended implementation order is:
 
-1. **Implement E2E CI acceleration without reducing release assurance**
+1. **Deprecate `compatibility` governance mode** — Fire `_doing_it_wrong()` + persistent admin notice when `wp_sudo_governance_mode = 'compatibility'` is active. Update FAQ and developer reference. Queue removal for the next major release. `WP_SUDO_RECOVERY_MODE` is the only supported break-glass path going forward. **Effort:** Low
+2. **Implement E2E CI acceleration without reducing release assurance**
    - Rebalance the current long shard before adding cache/image/policy optimizations
    - Keep the full Playwright suite available for release-grade confidence, but shorten normal feedback loops
    - Treat path-based skipping and worker-level parallelism as later steps that require explicit safety rules
