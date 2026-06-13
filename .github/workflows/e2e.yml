@@ -11,8 +11,55 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Decide whether the heavy E2E matrix needs to run. Pull requests that touch
+  # only documentation skip the shards; the "E2E Tests" gate job below still
+  # runs and reports success, so the required status check is never left
+  # pending (which would deadlock the PR). Fail-safe: any non-doc file, any
+  # non-pull_request event, or any error → run E2E.
+  changes:
+    name: Detect code changes
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      code: ${{ steps.decide.outputs.code }}
+    steps:
+      - name: Decide whether to run E2E
+        id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "Event '${{ github.event_name }}' is not a pull_request — running E2E."
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if ! files=$(gh pr view "${{ github.event.pull_request.number }}" \
+                --repo "${{ github.repository }}" --json files \
+                --jq '.files[].path' 2>/dev/null); then
+            echo "Could not list changed files — running E2E (fail-safe)."
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          code=false
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            case "$f" in
+              *.md|*.txt|*.rst|docs/*|LICENSE) ;;   # documentation — does not require E2E
+              *) code=true ;;                        # any non-doc file requires E2E
+            esac
+          done <<< "$files"
+          echo "Changed files:"
+          echo "$files"
+          echo "Non-documentation files changed: $code"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
   e2e-shard:
     name: "E2E Tests shard ${{ matrix.shard-index }}/${{ matrix.shard-total }}"
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
@@ -80,18 +127,27 @@ jobs:
         if: always()
         run: npx wp-env stop --config .wp-env.e2e.json
 
+  # Required status check. Always runs (even when the shards are skipped) so the
+  # "E2E Tests" context is always reported. Passes when the shards succeeded, or
+  # when they were skipped because the PR was documentation-only; fails on any
+  # real shard failure or cancellation.
   e2e-tests:
     name: "E2E Tests"
     runs-on: ubuntu-24.04
-    needs: e2e-shard
+    needs: [changes, e2e-shard]
     if: always()
 
     steps:
       - name: Check shard results
         run: |
-          if [ "${{ needs.e2e-shard.result }}" != "success" ]; then
-            echo "E2E shard matrix result: ${{ needs.e2e-shard.result }}"
-            exit 1
+          result="${{ needs.e2e-shard.result }}"
+          if [ "$result" = "success" ]; then
+            echo "All E2E shards passed."
+            exit 0
           fi
-
-          echo "All E2E shards passed."
+          if [ "$result" = "skipped" ] && [ "${{ needs.changes.outputs.code }}" != "true" ]; then
+            echo "E2E shards skipped (documentation-only change) — passing the required gate."
+            exit 0
+          fi
+          echo "E2E shard matrix result: $result"
+          exit 1
