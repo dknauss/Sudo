@@ -109,6 +109,30 @@ Remaining Connectors tasks:
 - **Deprecate and remove `compatibility` governance mode** — The `wp_sudo_governance_mode = 'compatibility'` DB option is a permanent security regression path: it lets any `manage_options` holder administer Sudo settings, undoing the governance model. `WP_SUDO_RECOVERY_MODE` (requires filesystem access) is the intended break-glass — now hardened (role-gated, with notice + audit event; see below). Plan: fire `_doing_it_wrong()` + persistent admin notice when compatibility mode is active in the next minor release; remove the option and the fallback branch in the next major.
 - ~~**Contain `WP_SUDO_RECOVERY_MODE` break-glass**~~ ✅ Shipped (unreleased `main`, June 13, 2026) — The grant in both `wp_sudo_can()` and `wp_sudo_map_governance_meta_cap()` is role-gated to `manage_options` / `manage_network_options`; a permanent non-dismissible notice renders on the Sudo settings screen; and a new `wp_sudo_recovery_mode_active` audit hook fires (stored as a sampled `recovery_mode` event). Remaining: a scoped single-user recovery form (`define('WP_SUDO_RECOVERY_MODE', <user_id_or_login>)`). See §12.1 Phase R3.
 
+### Next major (v4.0.0): planned breaking changes
+
+A milestone to give the in-flight deprecations a destination and a defined
+deprecate → remove window (today "next major" is undefined).
+
+**Confirmed removals to bundle into 4.0.0:**
+- **`sudo_can()` deprecated alias** — already `@deprecated 3.3.0`, "scheduled for
+  removal in 4.0.0" (`includes/functions-governance.php`). Remove the alias.
+- **`compatibility` governance mode** — deprecate in 3.5.0 (fire `_doing_it_wrong()`
+  + admin notice; see the compatibility-mode item above), then in 4.0.0 remove both
+  `'compatibility'` branches in `wp_sudo_can()` / `wp_sudo_map_governance_meta_cap()`
+  and the option-read paths (uninstall already deletes the option).
+
+**Window:** deprecate compatibility mode in **3.5.0** → remove in **4.0.0**;
+`sudo_can()` already deprecated since 3.3.0 → remove in **4.0.0**.
+
+**Planning tasks (lightweight now; execute at 4.0.0 prep):** fresh `@deprecated`/grep
+sweep; integrator migration notes; update the CLAUDE.md version-sync checklist if the
+file set changes.
+
+**Open decisions for the major:** whether to bundle any minimum-requirement bumps
+(WordPress 6.2 → ?, PHP 8.0 → ?) — a major is the cheap moment to raise them — and the
+target date.
+
 ### UI Documentation Rule
 
 Any development phase that significantly changes the UI must include a
@@ -314,6 +338,41 @@ These gaps have been closed by the integration suite:
 6. ~~**Keep the standard local verification set green for each RC/GA checkpoint**~~ ✅ Done.
 7. ~~**Update version references when WordPress 7.0 final ships**~~ ✅ Done in v3.3.0 — `Tested up to: 7.0` in `readme.txt`.
 8. ~~**Remove `handle_err_admin_role()` workaround**~~ — done (v3.4.0); `rewrite_role_error()` and `render_role_error_notice()` removed after Trac #64690 confirmed in WP 7.0 GA.
+
+### Connectors registry-aware matcher (open — security coverage gap)
+
+**Problem (verified against core trunk):** the `connectors.update_credentials` rule
+identifies connector-secret writes to `/wp/v2/settings` by a **name convention** —
+`is_connector_api_key_setting_name()` matches `^connectors_[a-z0-9_]+_api_key$`
+(`includes/class-action-registry.php`). But WP 7.0 derives setting names from the
+connector registry, and they do not all fit that shape: core's own defaults include
+a connector whose key is `wordpress_api_key` (`wp-includes/connectors.php`), and
+`register_connector()` lets plugins set an arbitrary `authentication.setting_name`.
+A write to such a key is a registered connector secret that the current regex does
+**not** gate — a false negative on exactly the credential-replacement threat the
+security model advertises. (The regex can also false-positive on a benign option
+that happens to fit the pattern.)
+
+**Fix:** make the registry the source of truth.
+- Primary: when `function_exists( 'wp_get_connectors' )` (WP 7.0+), enumerate
+  `wp_get_connectors()`, collect `authentication.setting_name` for every connector
+  with `authentication.method === 'api_key'`, and gate any settings write whose
+  params touch one of those keys. Core shape: `{ id => { authentication: { method,
+  setting_name } } }`.
+- Fallback: keep the regex when the registry function is absent or returns empty
+  (older WP, or connectors not yet initialized at match time) — fail toward gating.
+- Files: `request_contains_connector_api_key()` / `is_connector_api_key_setting_name()`
+  and the rule definition in `includes/class-action-registry.php`.
+
+**Design-review questions (security-sensitive + execution-context-dependent):** is the
+registry populated when the gate evaluates (REST `permission_callback` / `admin_init`)
+relative to when `_wp_connectors_init` fires? Cache the setting-name set per request;
+verify the full set of core default setting_names against trunk before coding;
+multisite behavior.
+
+**Tests:** a registered connector with a non-`connectors_*` setting_name (e.g.
+`wordpress_api_key`) is gated; registry-unavailable falls back to the regex; a benign
+non-connector key is not over-gated. **Effort:** Low–Medium.
 
 ### Abilities API and MCP Adapter: the longer-range question
 
@@ -1204,6 +1263,16 @@ This is not just a UI polish item. It requires decisions about:
 - how 2FA provider rendering works outside the current full-page challenge
 - how file uploads, nonces, and nested dialogs behave in the editor UI
 - how the browser test matrix expands once challenge transport is no longer page-based
+- **transport choice:** an `apiFetch` middleware that catches the `sudo_required`
+  REST error, opens an in-editor challenge, then re-dispatches the original request
+  (client-side retry) — likely cleaner than server-side stash/replay for REST-driven
+  editor saves. Weigh client-retry vs. reusing the existing stash/replay machinery.
+- **surface inventory (do first):** enumerate *which* editor flows actually hit the
+  gate — most post saves are not gated; it's specific gated options/operations
+  reachable from editor panels. Scope the real trigger set before designing UI.
+- **build tooling:** the plugin currently has **no build step**; an editor bundle
+  introduces one (e.g. `@wordpress/scripts`). That is a standalone architecture
+  decision, not a detail.
 
 So the recommended order is:
 - ship the dashboard widget first
