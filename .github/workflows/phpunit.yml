@@ -8,9 +8,62 @@ on:
   schedule:
     - cron: '0 3 * * *'  # Nightly at 3 AM UTC — catches stable floor and 7.0 regressions.
 
+# Least-privilege default for GITHUB_TOKEN (CodeQL actions hardening). Jobs that
+# need more (the change detector's pull-requests: read; notify-on-failure's
+# issues: write) set it per-job.
+permissions:
+  contents: read
+
 jobs:
+  # Documentation-only pull requests skip the heavy test/quality jobs; the
+  # "PHPUnit" gate job below always runs and reports the required status, so the
+  # required check is never left pending (which would deadlock the PR).
+  # Fail-safe: any non-doc file, any non-pull_request event (push / nightly
+  # schedule), or any error → run the heavy jobs.
+  changes:
+    name: Detect code changes
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      code: ${{ steps.decide.outputs.code }}
+    steps:
+      - name: Decide whether to run the heavy jobs
+        id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "Event '${{ github.event_name }}' is not a pull_request — running heavy jobs."
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if ! files=$(gh pr view "${{ github.event.pull_request.number }}" \
+                --repo "${{ github.repository }}" --json files \
+                --jq '.files[].path' 2>/dev/null); then
+            echo "Could not list changed files — running heavy jobs (fail-safe)."
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          code=false
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            case "$f" in
+              *.md|*.txt|*.rst|docs/*|LICENSE) ;;   # documentation — does not require the test suite
+              *) code=true ;;                        # any non-doc file requires the test suite
+            esac
+          done <<< "$files"
+          echo "Changed files:"
+          echo "$files"
+          echo "Non-documentation files changed: $code"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
   unit-tests:
     name: "Unit Tests (PHP ${{ matrix.php }})"
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -64,6 +117,8 @@ jobs:
 
   unit-tests-coverage:
     name: "Unit Tests (Coverage)"
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
@@ -111,6 +166,8 @@ jobs:
 
   integration-tests:
     name: "Integration Tests (PHP ${{ matrix.php }}, WP ${{ matrix.wp }}, MS ${{ matrix.multisite }}, ${{ matrix.db_label }})"
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
@@ -235,6 +292,8 @@ jobs:
 
   code-quality:
     name: "Code Quality (lint + static analysis)"
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-24.04
     steps:
       - name: Checkout
@@ -270,14 +329,26 @@ jobs:
       - name: Run PHPStan
         run: composer analyse:phpstan
 
+  # Required status check. Always runs (even when the heavy jobs are skipped) so
+  # the "PHPUnit" context is always reported. Passes when the heavy jobs
+  # succeeded, or when they were skipped because the PR was documentation-only;
+  # fails on any real failure or cancellation.
   phpunit-summary:
     name: "PHPUnit"
     runs-on: ubuntu-24.04
-    needs: [unit-tests, unit-tests-coverage, integration-tests, code-quality]
+    needs: [changes, unit-tests, unit-tests-coverage, integration-tests, code-quality]
     if: ${{ always() }}
     steps:
       - name: Enforce successful PHPUnit workflow jobs
         run: |
+          if [ "${{ needs.changes.result }}" != "success" ]; then
+            echo "Change detector did not succeed (${{ needs.changes.result }}) — failing the gate (fail-safe)."
+            exit 1
+          fi
+          if [ "${{ needs.changes.outputs.code }}" != "true" ]; then
+            echo "Documentation-only change — heavy jobs skipped; passing the PHPUnit gate."
+            exit 0
+          fi
           for result in \
             "${{ needs.unit-tests.result }}" \
             "${{ needs.unit-tests-coverage.result }}" \
@@ -288,6 +359,7 @@ jobs:
               exit 1
             fi
           done
+          echo "All PHPUnit jobs passed."
 
   notify-on-failure:
     name: "Notify on failure"
