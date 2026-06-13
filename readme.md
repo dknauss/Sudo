@@ -1,6 +1,6 @@
 # WP Sudo
 
-WP Sudo is a security-hardening plugin for WordPress. It adds **action-gated reauthentication**, enables **attack surface definition** (open, closed, or sudo-gated), and gives **visibility to privileged action requests**.
+WP Sudo is a Multisite-compatible security-hardening plugin for WordPress. It adds **action-gated reauthentication**, enables **attack surface definition** (open, closed, or sudo-gated), and gives **visibility to privileged action requests**. 
 
 [![License: GPL v2+](https://img.shields.io/badge/License-GPL%20v2%2B-blue.svg)](https://spdx.org/licenses/GPL-2.0-or-later.html)
 [![WordPress: 6.2+](https://img.shields.io/badge/WordPress-6.2%2B-0073aa.svg)](https://wordpress.org/)
@@ -18,7 +18,7 @@ Playground demo credentials are `admin` / `password`. When WP Sudo asks for reau
 
 ## WP Sudo Overview
 
-Before performing high-risk actions in any interface or API surface, a privileged user session must re-authenticate by re-entering their credentials, followed by any active and compatible two-factor authentication requirement. Successful reauthentication starts a short, configurable window (up to 15 minutes) for privileged, gated actions without further challenge. Each surface can be configured as closed, open, or gated. All privileged sessions can be monitored in the dashboard or with compatible plugins for logging user activity.
+Before performing high-risk (Administrator and Super Administrator) actions in any interface or API surface, a privileged user session must re-authenticate by re-entering their credentials, followed by any active and compatible two-factor authentication requirement. Successful reauthentication starts a short, configurable window (up to 15 minutes) for privileged, gated actions without further challenge. Each non-interactive surface — WP-CLI, Cron, XML-RPC, REST App Passwords, WPGraphQL — can be independently set to Disabled, Limited (Gated), or Unrestricted. A built-in Access tab controls which users hold Sudo management privileges, with a drift-detection panel that surfaces capability mismatches introduced by third-party role plugins. All privileged sessions can be monitored in the dashboard or with compatible plugins for logging user activity. 
 
 ## Why WP Sudo exists
 
@@ -47,6 +47,21 @@ WP Sudo currently gates built-in operations across categories such as:
 - and connector credential writes saved through the REST settings endpoint.
 
 For the canonical current rule totals and surface counts, see [docs/current-metrics.md](docs/current-metrics.md).
+
+## Sudo administration and governance
+
+"With great power comes great responsibility," so users with the capability to change Sudo settings, view sudo session activity, kill sudo sessions, or export sudo activity logs are limited by default:  
+
+- On **single sites**, the installing administrator receives all four caps. Other admins receive none until explicitly granted.
+- On **multisite networks**, super administrators receive all four caps at network scope by default. Per-site admins receive none until explicitly delegated.
+
+(Export privileges are separated from view privileges because a portable export artifact is a distinct governance concern — SOC2/GDPR audits treat "can read" and "can take a copy offsite" differently.)
+
+WP Sudo integrates with the **Site Health** tool in WordPress core for rich security diagnostics and advisory notifications. 
+
+## For developers and integrators
+
+WP Sudo exposes a small, stable API. Custom gated rules are plain associative arrays registered via the `wp_sudo_gated_actions` filter, with per-surface matchers for admin, AJAX, REST, and CLI. The `wp_sudo_can()` helper centralizes all governance checks — super-admin short-circuit, recovery-mode bypass, and strict/compatibility mode — so integrations don't touch capability internals directly. Audit hooks fire on every session event, capability grant or revoke, tamper detection, and policy change; bridge classes for WP Activity Log and Stream are bundled. The `wp_sudo_grant_session_on_login` filter lets SSO and kiosk integrations suppress the automatic browser-login session grant. All of this is covered by a dual-layer test suite (unit tests + a full integration matrix) and PHPStan level 6.
 
 ## How it works
 
