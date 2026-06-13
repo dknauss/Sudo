@@ -22,13 +22,9 @@ Before performing high-risk actions in any interface or API surface, a privilege
 
 ## Why WP Sudo exists
 
-WordPress has roles, capabilities, and authentication, but it has no native way to say:
+WordPress has roles, capabilities, and authentication. It has no native way to say, "This action is too consequential to assume a valid user session alone is sufficient to allow it."
 
-> this action is consequential enough that a valid session alone should not be enough.
-
-WP Sudo adds that missing layer on the covered paths it intercepts.
-
-It is designed to reduce risk when an attacker has:
+WP Sudo adds that missing layer to the covered paths, intercepting them with a password challenge and a secondary one-time password if 2FA is enabled. It is designed to reduce risk when an attacker has:
 - a stolen browser session cookie,
 - access to an unattended authenticated browser,
 - or a delegated request path that reaches a high-impact operation.
@@ -97,7 +93,9 @@ For current release posture, supported lanes, and forward `main` notes, see [doc
 3. Choose a session duration.
 4. Review the default policies for non-interactive surfaces.
 5. Optionally install the bundled mu-plugin loader from the settings page for earlier hook registration.
-6. Test a covered action such as plugin activation or a protected settings change.
+6. Test a covered action, such as plugin activation or a protected settings change.
+
+You can also install [User Switching](https://en-ca.wordpress.org/plugins/user-switching/), switch to another admin user whose password is unknown, and see how your actions are limited by Sudo. 
 
 ### Recommended companion plugins
 
@@ -117,18 +115,18 @@ For current release posture, supported lanes, and forward `main` notes, see [doc
 - [docs/connectors-api-reference.md](docs/connectors-api-reference.md) — connector credential gating notes
 - [docs/ai-agentic-guidance.md](docs/ai-agentic-guidance.md) — AI and agent tooling guidance
 
-### Verification and project status
-- [tests/MANUAL-TESTING.md](tests/MANUAL-TESTING.md) — manual verification procedures
+### Verification and project status docs for humans and LLMs
+- [tests/MANUAL-TESTING.md](tests/MANUAL-TESTING.md) — manual verification procedures for all surfaces
 - [docs/current-metrics.md](docs/current-metrics.md) — canonical current counts and architectural facts
 - [docs/ROADMAP.md](docs/ROADMAP.md) — roadmap and backlog
 - [CHANGELOG.md](CHANGELOG.md) — release history
 
-### Background and research
+### Background, research, and lessons learned
 - [docs/sudo-architecture-comparison-matrix.md](docs/sudo-architecture-comparison-matrix.md) — comparison with other sudo/reauth approaches
 - [docs/abilities-api-assessment.md](docs/abilities-api-assessment.md) — WordPress Abilities API assessment
 - [docs/core-action-gate-proposal.md](docs/core-action-gate-proposal.md) — longer-form core proposal and design thinking
-- [docs/llm-lies-log.md](docs/llm-lies-log.md) — verification discipline and past documentation failures
-- [docs/project-introduction.md](docs/project-introduction.md) — the longer conceptual introduction, graphic, poem, and gate metaphor preserved from the earlier README
+- [docs/llm-lies-log.md](docs/llm-lies-log.md) — verification discipline for agentic coding and past documentation failures
+- [docs/project-introduction.md](docs/project-introduction.md) — the original conceptual introduction to sudo with some poetry, art, and history.
 
 ## Development
 
