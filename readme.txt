@@ -78,14 +78,14 @@ Developers can add custom rules via the `wp_sudo_gated_actions` filter.
 = Recommended plugins =
 
 * **[Two Factor](https://wordpress.org/plugins/two-factor/)** — Strongly recommended. Makes the sudo challenge a two-step process: password + authentication code (TOTP, email, backup codes). Add **[WebAuthn Provider for Two Factor](https://wordpress.org/plugins/two-factor-provider-webauthn/)** for passkey and security key support.
-* **[WP Activity Log](https://wordpress.org/plugins/wp-security-audit-log/)** or **[Stream](https://wordpress.org/plugins/stream/)** — Recommended for audit visibility. Sudo fires 10 action hooks covering session lifecycle, gated actions, policy decisions, preset application, lockouts, and tamper detection.
+* **[WP Activity Log](https://wordpress.org/plugins/wp-security-audit-log/)** or **[Stream](https://wordpress.org/plugins/stream/)** — Recommended for audit visibility. Sudo fires action hooks covering session lifecycle, gated actions, policy decisions, preset application, lockouts, and tamper detection.
 
 = User experience =
 
 * **Admin bar countdown** — a live M:SS timer shows remaining session time. Turns red in the final 60 seconds.
 * **Keyboard shortcut** — press Ctrl+Shift+S (Windows/Linux) or Cmd+Shift+S (Mac) to proactively start a sudo session.
 * **Accessible** — WCAG 2.1 AA throughout (screen-reader announcements, ARIA labels, focus management, keyboard support).
-* **Contextual help** — 12 help tabs on the settings page.
+* **Contextual help** — built-in help tabs on the settings page.
 
 = MU-plugin for early loading =
 
@@ -177,7 +177,7 @@ Testing: the suite is split into two tiers. Unit tests use Brain\Monkey to mock 
 
 CI: GitHub Actions runs PHPStan level 6 and PHPCS on every push and PR, the full test matrix across PHP 8.1-8.4 and WordPress latest + trunk, and a nightly scheduled run against WordPress trunk.
 
-Extensibility: the action registry is filterable via wp_sudo_gated_actions. Ten audit hooks cover session lifecycle, gated actions, policy decisions, preset application, and lockouts. See the GitHub repository for hook reference, CONTRIBUTING.md, and the full developer documentation.
+Extensibility: the action registry is filterable via wp_sudo_gated_actions. Audit hooks cover session lifecycle, gated actions, policy decisions, preset application, and lockouts. See the GitHub repository for hook reference, CONTRIBUTING.md, and the full developer documentation.
 
 == Screenshots ==
 
@@ -260,7 +260,7 @@ Extensibility: the action registry is filterable via wp_sudo_gated_actions. Ten 
 * **Fix: `wp_sudo_version` option not deleted on uninstall** — orphan option row left after plugin deletion.
 * **Fix: `Admin::get()` TypeError on PHP 8.2+** — corrupted settings no longer crash; falls back to defaults.
 * **Fix: `Gate::matches_rest()` crash on invalid third-party regex** — new `safe_preg_match()` wrapper fails closed.
-* **Psalm 6.15.1 + Shepherd type coverage** — dual static analysis; type coverage badge via shepherd.dev.
+* **Psalm 6.16 + Shepherd type coverage** — dual static analysis; type coverage badge via shepherd.dev.
 * **Codecov integration** — unit test coverage uploaded on CI.
 * **16 new unit tests** closing gaps in CLI cron-policy, network activation, settings save, admin bar, transient failures, cookie/token edges, 2FA provider.
 * **428 unit tests, 1043 assertions.**

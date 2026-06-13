@@ -232,7 +232,7 @@ Yes. After 5 failed password attempts on the reauthentication form, the user is 
 
 ## How do I log sudo activity?
 
-Install [WP Activity Log](https://wordpress.org/plugins/wp-security-audit-log/) or [Stream](https://wordpress.org/plugins/stream/). Sudo fires 10 action hooks covering session lifecycle, gated actions, policy decisions, preset application, lockouts, and tamper detection. See [Developer Reference](developer-reference.md) for hook signatures.
+Install [WP Activity Log](https://wordpress.org/plugins/wp-security-audit-log/) or [Stream](https://wordpress.org/plugins/stream/). Sudo fires action hooks covering session lifecycle, gated actions, policy decisions, preset application, lockouts, and tamper detection. See [Developer Reference](developer-reference.md) for hook signatures and [current-metrics.md](current-metrics.md) for the live count.
 
 ## How long are dashboard events retained, and when are they purged?
 

@@ -309,7 +309,7 @@ provider impact.
 
 ## Audit Hook Signatures
 
-Sudo fires audit action hooks for external logging integration with [WP Activity Log](https://wordpress.org/plugins/wp-security-audit-log/), [Stream](https://wordpress.org/plugins/stream/), and similar plugins. The live count is tracked in [current-metrics.md](current-metrics.md) (16 as of v3.2.0).
+Sudo fires audit action hooks for external logging integration with [WP Activity Log](https://wordpress.org/plugins/wp-security-audit-log/), [Stream](https://wordpress.org/plugins/stream/), and similar plugins. The live count is tracked in [current-metrics.md](current-metrics.md).
 
 ```php
 // Session lifecycle.
