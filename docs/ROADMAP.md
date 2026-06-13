@@ -450,7 +450,7 @@ not context retrieval.
 5. ~~Visual review against 7.0 admin refresh~~ — done (v2.4.0)
 6. ~~WPGraphQL surface gating~~ — done (v2.5.0–v2.5.2)
 7. ~~Abilities API coverage documented~~ — done (v2.5.1)
-8. **Update `Tested up to`** when WordPress 7.0 final ships (currently planned for May 20, 2026)
+8. ~~**Update `Tested up to`** when WordPress 7.0 final ships~~ — done (v3.3.0)
 9. ~~**Core design features** — login=sudo, gate password changes, grace period~~ — done (v2.6.0)
 10. ~~**Security hardening sprint** — stash redaction, upload-action gating, non-blocking rate limiting~~ — done (v2.10.2–v2.11.0)
 11. ~~**Rule-schema validation and MU loader resilience**~~ — done (v2.11.0)
