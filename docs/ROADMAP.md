@@ -1748,7 +1748,7 @@ Verified against the code path and WordPress core admin-page routing (describes 
 - WordPress core gates the Sudo submenu page by its own capability
   (`user_can_access_admin_page()` → `current_user_can('manage_wp_sudo')`, mapped to
   `exist` in recovery mode), so a non-admin reaching
-  `options-general.php?page=wp-sudo` directly passes — the hidden Settings menu is
+  `options-general.php?page=wp-sudo-settings` directly passes — the hidden Settings menu is
   not a real barrier.
 - The promised safeguards never existed: no admin notice and no
   `governance.recovery_mode` audit event are implemented anywhere in `includes/`.
