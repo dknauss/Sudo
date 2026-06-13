@@ -1,9 +1,10 @@
 # Execution Plan (v3.1–v3.3)
 
-*Status: active planning, April 20, 2026. Revised April 20, 2026 to reflect the clean-launch framing for internal admin governance (no public install base, strict-from-day-one in v3.1 rather than three-phase migration). Revised June 7, 2026 to put post-v3.1.3 security-review remediation ahead of lower-priority feature work. Revised June 8, 2026: ultracode security audit complete — 27 confirmed findings (2 HIGH, 14 LOW, 11 INFO); 2 HIGH + A3 + C1 remediated in commit 3531e0d; full finding register appended below. Revised June 12, 2026: added the Two Factor lifecycle bridge (drafted April 29, 2026) as a P1 item and Phase 1.5, and report-only bridge discovery to the long-horizon backlog.*
+> **Historical execution record.** This plan drove the v3.1–v3.3 security/governance work and includes an audit register captured at the time. Many findings listed as open below were later closed in v3.2.0–v3.4.0. Do **not** use this file as the current open-work tracker; use `docs/ROADMAP.md`, `docs/release-status.md`, and `.planning/STATE.md`.
 
-This plan organizes open roadmap/backlog work into a prioritized sequence for
-execution after v3.0.0.
+*Status: historical planning, April 20, 2026. Revised April 20, 2026 to reflect the clean-launch framing for internal admin governance (no public install base, strict-from-day-one in v3.1 rather than three-phase migration). Revised June 7, 2026 to put post-v3.1.3 security-review remediation ahead of lower-priority feature work. Revised June 8, 2026: ultracode security audit complete — 27 confirmed findings (2 HIGH, 14 LOW, 11 INFO); 2 HIGH + A3 + C1 remediated in commit 3531e0d; full finding register appended below. Revised June 12, 2026: added the Two Factor lifecycle bridge (drafted April 29, 2026) as a P1 item and Phase 1.5, and report-only bridge discovery to the long-horizon backlog.*
+
+This plan preserves the roadmap/backlog sequence used after v3.0.0. It is retained for auditability and implementation history, not as the canonical current priority list.
 
 ---
 
@@ -17,7 +18,7 @@ Adversarial Verify → Harden (4 lenses) → Synthesize. 27 confirmed findings:
 fail-safe), F18c (BOM), plus two bonus fixes: block-string escape and
 `safe_preg_match` fail-closed for built-in rules (C1).
 
-Legend: ✅ Fixed | ⚠️ Open | ℹ️ Open / low priority
+Legend as originally maintained: ✅ Fixed | ⚠️ Open | ℹ️ Open / low priority. Current status may differ; verify against `CHANGELOG.md` and `docs/ROADMAP.md` before acting.
 
 ### HIGH — Active gate bypasses (exploitable without shell access)
 

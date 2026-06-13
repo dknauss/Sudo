@@ -1,39 +1,44 @@
 ## Current Position
 
-> **Historical planning snapshot:** This file preserves milestone-era planning context and may contain stale counts, dates, or release assumptions. Do **not** treat it as the canonical current project state. Use `docs/current-metrics.md`, `docs/release-status.md`, and `docs/ROADMAP.md` for current facts.
-
-
-Phase: 8 (Keyboard Navigation + Admin Bar Interaction E2E) — COMPLETE
-Plan: 02 complete (2/2 plans done)
-Status: ALL COMPLETE — v2.14 Playwright E2E milestone plus post-milestone multisite hardening: 32/32 v1 requirements verified, 30 E2E tests defined, default single-site verification path passes 29 with 1 Local-only multisite skip
-Last activity: 2026-03-20 -- planning, workflow, and test-fixture alignment refreshed after state audit
+Phase: Post-v3.4.0 planning hygiene and next-phase selection
+Plan: current GSD state refresh
+Status: ACTIVE — v3.4.0 is tagged on GitHub; plugin is not published to the WordPress.org plugin repository; current package metadata is `3.4.0` / `Tested up to: 7.0`.
+Last activity: 2026-06-13 — release-status, roadmap, metrics notes, and GSD planning cleanup after v3.4.0.
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-03-20)
+Canonical current facts:
+
+- `docs/release-status.md` — tagged/package release state and WordPress.org publication status.
+- `docs/current-metrics.md` — current test, size, and architectural counts.
+- `docs/ROADMAP.md` — current roadmap and priority order.
+- `CHANGELOG.md` — shipped release contents.
 
 **Core value:** Every destructive admin action requires proof the person at the keyboard is still the authenticated user.
-**Current focus:** Playwright E2E Test Infrastructure
+**Current focus:** keep the v3.4.0 documentation/planning state consistent, then execute the next security/compatibility phase.
+
+## Active Priorities
+
+1. Connectors GA parity verification and registry-aware matcher plan.
+2. Deprecate `compatibility` governance mode in the next minor release and queue removal for v4.0.0.
+3. Refresh public screenshots/docs for the current UI when visual docs would otherwise mislead.
+4. Preserve the dedicated session-table architecture as conditional work for Tier 2+ scale rather than immediate implementation.
 
 ## Accumulated Context
 
-- Security Hardening Sprint (5 phases, v2.10.2-v2.13.0) complete and archived
-- Current test and size counts are centralized in `../docs/current-metrics.md`
-- PHPStan level 6 + Psalm clean
-- WP 7.0 GA ships April 9, 2026 -- visual regression baselines needed before then
-- 5 PHPUnit-uncoverable scenarios identified and scoped into 32 requirements
-- 3-phase roadmap: scaffold (Phase 6) → core tests (Phase 7) → keyboard/a11y (Phase 8)
-- Research complete: STACK.md, FEATURES.md, ARCHITECTURE.md, PITFALLS.md synthesized
-- Phase 6: 3 plans (06-01 toolchain, 06-02 Playwright config+smoke test, 06-03 CI workflow)
-- Plan checker: VERIFICATION PASSED (1 info-level note: npm test vs npm run test:e2e)
-- Phase 6: COMPLETE ✅ (all 3 waves, all 6 TOOL requirements verified)
-- Phase 7: 4 plans (07-01 cookie+gate, 07-02 timer, 07-03 challenge+MU-plugin, 07-04 visual regression)
-- Phase 7 plan checker: 1 blocker (MUPG mapping) + 4 warnings fixed; all selectors cross-referenced against source
-- Phase 7: COMPLETE ✅ (all 4 waves, all 20 requirements verified — 23 E2E tests passing)
-- Post-milestone hardening: COMPLETE ✅ (Local multisite network-admin regression added; symlink-safe bootstrap path recovery covered in unit + integration + Local browser runs)
-- Current Local multisite browser coverage is `MULTI-01` only: session reauth from `network/plugins.php` back to the same network-admin URL
-- Primary remaining multisite browser gap: real network-admin gated-action stash/challenge/replay
-- Recommended next sequence: `MULTI-02` `network/themes.php` GET replay → `MULTI-03` `sites.php` confirm/action2 replay → `MULTI-04` network settings POST replay
+- Security Hardening Sprint (5 phases, v2.10.2-v2.13.0) complete and archived.
+- Playwright E2E milestone (v2.14) complete; historical execution details are preserved below.
+- v3.0.0 shipped operator tooling: policy presets, Request / Rule Tester, event store, and dashboard widget.
+- v3.2.0 shipped governance capabilities and broad security hardening.
+- v3.3.0 fixed governance backfill and audit/event-store details.
+- v3.4.0 hardened recovery mode, repaired Psalm gating, hardened CI permissions, and corrected documentation drift.
+- Current test and size counts are centralized in `../docs/current-metrics.md`.
+- WordPress 7.0 GA shipped May 20, 2026; package metadata says `Tested up to: 7.0`.
+- This plugin is not currently published to the WordPress.org plugin repository.
+
+## Historical Playwright Milestone Notes
+
+The details below are retained because they contain useful test-environment decisions and E2E pitfalls, but they are not the current GSD phase.
 
 ## Phase 6 Execution Progress
 

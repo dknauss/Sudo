@@ -1,7 +1,17 @@
-# Roadmap: Playwright E2E Test Infrastructure
+# GSD Roadmap Context
 
-> **Historical planning snapshot:** This file preserves milestone-era planning context and may contain stale counts, dates, or release assumptions. Do **not** treat it as the canonical current project state. Use `docs/current-metrics.md`, `docs/release-status.md`, and `docs/ROADMAP.md` for current facts.
+> **Current routing note (2026-06-13):** the Playwright E2E milestone below is complete and retained for historical execution detail. Current roadmap truth is `../docs/ROADMAP.md`; current release/package truth is `../docs/release-status.md`.
 
+## Current next-phase candidates
+
+1. **Connectors GA parity + registry-aware matcher** — verify the released WordPress 7.0 Connectors API source, then implement registry-first matching with regex fallback.
+2. **Compatibility governance-mode deprecation** — add `_doing_it_wrong()` / persistent notice / docs updates in the next minor, with removal queued for v4.0.0.
+3. **Public docs screenshot refresh** — update screenshots/assets when current UI docs are misleading.
+4. **Managed-host manual checklist** — extend manual testing for Apache/managed-host/minimum-supported WP coverage before future releases.
+
+---
+
+# Historical Roadmap: Playwright E2E Test Infrastructure
 
 **Milestone:** v2.14 — Playwright E2E Test Infrastructure
 **Status:** COMPLETE — all 3 phases done, all 32 v1 requirements verified

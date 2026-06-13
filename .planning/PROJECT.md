@@ -1,6 +1,6 @@
 # WP Sudo
 
-> **Historical planning snapshot:** This file preserves milestone-era planning context and may contain stale counts, dates, or release assumptions. Do **not** treat it as the canonical current project state. Use `docs/current-metrics.md`, `docs/release-status.md`, and `docs/ROADMAP.md` for current facts.
+> **GSD project context.** Keep this file aligned enough for planning/routing. Canonical volatile facts still live in `docs/current-metrics.md`, `docs/release-status.md`, and `docs/ROADMAP.md`.
 
 
 ## What This Is
@@ -18,7 +18,7 @@ Every destructive WordPress admin action requires proof that the person at the k
 <!-- Shipped and confirmed valuable. -->
 
 - Action-gated reauthentication across 7 surfaces (admin UI, REST, AJAX, CLI, Cron, XML-RPC, WPGraphQL) — v1.0+, WPGraphQL v2.5.0
-- 32 built-in gated rules (23 single-site + 9 multisite) — v2.0+
+- Built-in gated rules across single-site and multisite contexts — see `../docs/current-metrics.md` for current counts
 - Cryptographic session tokens (cookie + SHA-256 user meta) — v1.0+
 - Two Factor plugin integration — v1.0+
 - Request stash and replay for POST interception — v1.0+
@@ -34,27 +34,27 @@ Every destructive WordPress admin action requires proof that the person at the k
 - WSAL sensor bridge and Stream audit bridge — v2.11.0, v2.12.0
 - WP-CLI subcommands (status, revoke) — v2.12.0
 - Public API (wp_sudo_check/wp_sudo_require) — v2.12.0
-- 10 audit hooks for external logging — v2.0+ (10th hook added unreleased for policy preset application)
-- Lockdown policy presets for remote/non-interactive surfaces — unreleased
+- Audit hooks for external logging — see `../docs/current-metrics.md` for current count
+- Lockdown policy presets for remote/non-interactive surfaces — v3.0.0
 - Editor unfiltered_html restriction + tamper detection — v2.0+
-- Comprehensive automated test coverage (current counts in `../docs/current-metrics.md`) — v2.13.0+
+- Comprehensive automated test coverage (current counts in `../docs/current-metrics.md`)
 
 ### Active
 
 <!-- Current scope. Building toward these. -->
 
-- [x] Playwright E2E test infrastructure covering PHPUnit-uncoverable scenarios — v2.14
-- [x] WP 7.0 visual regression baselines — v2.14
-- [x] Admin UI smoke tests in a real browser — v2.14
-- [x] E2E tests in CI on every push — v2.14
-- [x] Local multisite network-admin regression for symlinked plugin installs — v2.14.1
+- [ ] Connectors GA parity verification and registry-aware matcher upgrade — next compatibility/security phase
+- [ ] Deprecate `compatibility` governance mode before v4.0.0 removal
+- [ ] Keep GSD and public docs aligned with v3.4.0 tagged/package state and non-.org publication status
+- [ ] Refresh README/readme screenshots when current UI docs would otherwise mislead
+- [x] Playwright E2E test infrastructure and CI coverage — v2.14+
+- [x] WordPress 7.0 package compatibility metadata — v3.3.0+
 
 ### Out of Scope
 
 <!-- Explicit boundaries. Includes reasoning to prevent re-adding. -->
 
 - Client-side modal challenge — design-heavy, separate milestone
-- Session activity dashboard widget — feature work, not testing infrastructure
 - Gutenberg block editor integration — depends on Playwright being in place first
 - Network policy hierarchy — feature work, not testing infrastructure
 - Per-session sudo isolation — architectural change, not testing
@@ -70,9 +70,9 @@ WP Sudo has comprehensive PHPUnit coverage (see `../docs/current-metrics.md` for
 4. **Block editor snackbar** (future) — requires `@wordpress/notices` API in browser
 5. **Challenge page keyboard navigation** — real focus management needs browser DOM
 
-Those five scenarios drove the Phase 6-8 Playwright work. The settings page, challenge flow, admin bar, and one Local-only multisite network-admin regression are now covered end to end in a real browser. WP 7.0 GA ships April 9, 2026 with an admin visual refresh, so keeping those baselines current remains useful for drift detection.
+Those five scenarios drove the Phase 6-8 Playwright work. The settings page, challenge flow, admin bar, and one Local-only multisite network-admin regression are now covered end to end in a real browser. WordPress 7.0 GA shipped May 20, 2026; keeping browser and visual baselines current remains useful for drift detection.
 
-WordPress dev environment: PHP 8.1+, WP 6.7+. CI matrix: unit tests on PHP 8.1-8.4, integration tests on PHP 8.1/8.3, WP 6.7 and 7.0-beta4, single-site + multisite. Playwright hosted CI remains single-site via `wp-env`; Local `multisite-subdomains.local` now provides the dedicated multisite network-admin browser regression target.
+WordPress dev environment and CI matrix evolve over time; use `../docs/current-metrics.md` and workflow files for current lanes. Playwright hosted CI remains single-site via `wp-env`; Local `multisite-subdomains.local` now provides the dedicated multisite network-admin browser regression target.
 
 Current multisite browser coverage is intentionally narrow: `MULTI-01` proves network-admin session reauthentication returns to the correct network URL on a real Local multisite install. The main remaining browser gap is not return URL handling, but network-admin stash/challenge/replay for gated actions that only exist on multisite.
 
@@ -101,4 +101,4 @@ Recommended next multisite browser sequence:
 | Local multisite browser verification stays outside hosted CI | GitHub-hosted `wp-env` is single-site; the multisite network-admin failure only surfaced on a symlinked Local install | Adopted — keep hosted CI single-site, add Local multisite regression + helper script + bootstrap hardening |
 
 ---
-*Last updated: 2026-03-20 — milestone v2.14 complete plus multisite symlink hardening, planning/workflow alignment refresh, and explicit multisite regression sequencing (32/32 requirements, 30 E2E tests defined)*
+*Last updated: 2026-06-13 — v3.4.0 planning-state refresh; historical v2.14 Playwright context retained where still useful.*

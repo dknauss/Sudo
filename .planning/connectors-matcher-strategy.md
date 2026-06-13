@@ -1,6 +1,6 @@
 # Connectors Matcher Strategy
 
-*Created April 18, 2026*
+*Created April 18, 2026. Updated June 13, 2026 after WordPress 7.0 GA.*
 
 ## Context
 
@@ -12,15 +12,15 @@ preg_match( '#^connectors_[a-z0-9_]+_api_key$#', $key )
 
 This fires on setting names like `connectors_ai_openai_api_key`, `connectors_ai_anthropic_api_key`, etc.
 
-The WordPress 7.0 Connectors API was expected to ship April 9, 2026, but the release was [delayed](https://make.wordpress.org/core/2026/03/31/extending-the-7-0-cycle/) for real-time collaboration architecture work. No confirmed ship date. The API remains pre-release.
+WordPress 7.0 GA has shipped and WP Sudo now advertises compatibility with WordPress 7.0 in package metadata. This file has moved from a pre-GA wait plan to the current implementation plan for verifying GA parity and then upgrading the matcher.
 
-## Decision: Regex is correct for pre-release
+## Current decision: verify GA parity, then prefer registry metadata
 
-The current regex matcher is the right approach while the Connectors API is pre-release.
+The regex matcher was correct while the Connectors API was pre-release. Now that WordPress 7.0 is GA, the next step is source verification against the released API before implementation. If the released API still exposes connector authentication setting names as expected, upgrade to a registry-aware matcher with the regex retained as a fallback.
 
-**Why not use the registry now:**
+**Why the regex was used pre-GA:**
 
-1. **API stability.** `wp_get_connectors()`, `WP_Connector_Registry`, and the `wp_connectors_init` action are not committed to a stable release. Any of them could be renamed, restructured, or removed before GA.
+1. **API stability.** Before GA, `wp_get_connectors()`, `WP_Connector_Registry`, and the `wp_connectors_init` action were not committed to a stable release and could have changed before shipment.
 
 2. **No runtime dependency.** The regex fires on param shape alone. It works whether or not the Connectors feature is present in the WordPress build. This makes WP Sudo forward-compatible with 6.2–6.7 (where Connectors doesn't exist) and 7.0+ (where it does).
 
@@ -28,17 +28,17 @@ The current regex matcher is the right approach while the Connectors API is pre-
 
 4. **False positive risk is negligible.** No existing WordPress core or plugin option uses the `connectors_*_api_key` namespace. The pattern is specific enough to avoid collateral gating.
 
-**What Codex recommended and why it's premature:**
+**What was previously premature but is now the target path:**
 
-Codex suggested preferring registry metadata — calling `wp_get_connectors()` to enumerate `authentication.setting_name` values, with the regex as a fallback. This is the correct *eventual* approach, but building it now means:
+Codex suggested preferring registry metadata — calling `wp_get_connectors()` to enumerate `authentication.setting_name` values, with the regex as a fallback. This is now the desired approach, but only after verifying the exact released API shape:
 
-- Coupling to an API that may not ship in its current form
-- Adding `function_exists()` branching that can't be integration-tested until 7.0 GA
-- Risk of confabulation-driven bugs (the API surface is only known from pre-release trunk, not stable documentation)
+- Avoid coupling to names or structures that differ from the released source.
+- Add `function_exists()` branching only with tests that exercise the available 7.0 API path and the fallback path.
+- Avoid confabulation-driven bugs by citing the verified WordPress source in the implementation commit message.
 
 ## Post-GA upgrade path
 
-When WordPress 7.0 GA ships with a stable Connectors API, upgrade the matcher in this order:
+Upgrade the matcher in this order:
 
 ### Step 1: Verify GA parity (already in ROADMAP.md)
 
@@ -110,7 +110,7 @@ The Gated Actions table already shows the `connectors.update_credentials` rule (
 ## What this plan does NOT include
 
 - **No dedicated Connectors setting or toggle.** WP Sudo's model is consequence-based rules + surface policy. Connectors credential gating is a rule, not a surface. Adding a per-connector toggle would break the clean two-layer model.
-- **No pre-release `function_exists()` branching.** Not until GA ships.
+- **No unverified `function_exists()` branching.** GA has shipped, but implementation still starts with source verification.
 - **No new Phase.** This is a contingent upgrade to an existing rule's matcher, not a feature development phase. It belongs in the ROADMAP under "WordPress 7.0 Prep."
 
 ## Key file references

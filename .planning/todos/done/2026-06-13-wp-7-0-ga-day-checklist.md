@@ -1,3 +1,11 @@
+# WP 7.0 GA-Day Checklist — Completed / Superseded
+
+Completed: 2026-06-13
+
+WordPress 7.0 GA has shipped, WP Sudo package metadata is `Tested up to: 7.0`, and the temporary WP 7.0 role-error workaround was removed in v3.4.0. This checklist is moved out of pending GSD work. Future forward-lane work should be tracked as a new WP 7.1+ checklist if needed.
+
+---
+
 # WP 7.0 GA-Day Checklist
 
 Last checked: March 8, 2026

@@ -4,13 +4,14 @@ Last verified: 2026-06-13
 
 This file is the canonical source for **current release state** in this repository:
 
-- the latest public/stable WP Sudo version
+- the latest GitHub/tagged WP Sudo version
+- whether the plugin has been published to the WordPress.org plugin repository
 - unreleased work already present on `main`
-- the latest stable WordPress release WP Sudo should advertise in public metadata
+- the latest stable WordPress release WP Sudo package metadata should advertise
 - the forward WordPress lane used in CI, Playground, and manual verification
 - the current status of the delayed/rescheduled WordPress 7.0 final release
 
-## Latest public/tagged release
+## Latest GitHub/tagged release
 
 - **Latest tagged release:** `3.4.0`
 - **Latest git tag observed:** `v3.4.0`
@@ -20,8 +21,13 @@ This file is the canonical source for **current release state** in this reposito
 - **Next planned release:** TBD
 - **Current `main` runtime version constant:** `3.4.0`
 - **Current metadata should match:** `readme.txt` stable tag, `wp-sudo.php`, `tests/bootstrap.php`, `phpstan-bootstrap.php`
-- **Current public stable metadata:** `readme.txt` stable tag `3.4.0`
+- **Current package metadata:** `readme.txt` stable tag `3.4.0`
 - **Last completed release checklist:** `docs/release-3.0.0-checklist.md`
+
+## WordPress.org publication status
+
+- **WordPress.org plugin repository:** not published.
+- **`readme.txt` stable tag:** package/release metadata for generated plugin zips and future WordPress.org publication; it does not indicate that this plugin is currently live in the WordPress.org repository.
 
 ## Latest release contents
 
@@ -58,9 +64,9 @@ Current commits ahead of `v3.4.0`:
 - WordPress 7.0 **shipped on May 20, 2026** per the updated Make/Core schedule published April 22, 2026.
 - The `Tested up to` value in `readme.txt` and README support badges should now reflect `7.0`.
 
-## Public metadata rule
+## Package metadata rule
 
-WordPress 7.0 is now the latest stable release:
+WordPress 7.0 is now the latest stable release for package compatibility metadata:
 
 - keep `readme.txt` **Tested up to** at `7.0`
 - keep README support badges aligned with the `7.0` line
@@ -88,7 +94,7 @@ WordPress 7.0 is now the latest stable release:
 
 Update this file whenever any of the following changes:
 
-1. latest tagged public release or current `main` target version
+1. latest tagged release, WordPress.org publication status, or current `main` target version
 2. `CHANGELOG.md` unreleased feature list in a way that changes current `main` status
 3. latest stable WordPress release line
 4. forward WordPress lane (`7.0-RC1`, final `7.0`, etc.)

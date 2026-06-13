@@ -105,7 +105,7 @@ Remaining Connectors tasks:
 - **Session-store architecture follow-up** — Evaluate and likely implement a dedicated sudo-session table, with the current recommendation favoring an authoritative table plus usermeta shadow writes. See [`docs/session-store-evaluation.md`](session-store-evaluation.md).
 - ~~**Internal admin governance hardening**~~ ✅ Shipped in 3.2.0. Dedicated `manage_wp_sudo`, `view_wp_sudo_activity`, `export_wp_sudo_activity`, and `revoke_wp_sudo_sessions` capabilities replace broad `manage_options` defaults. See [`docs/archive/internal-admin-governance-spec.md`](archive/internal-admin-governance-spec.md) for the archived design spec.
 - **Deprecate and remove `compatibility` governance mode** — The `wp_sudo_governance_mode = 'compatibility'` DB option is a permanent security regression path: it lets any `manage_options` holder administer Sudo settings, undoing the governance model. `WP_SUDO_RECOVERY_MODE` (requires filesystem access) is the intended break-glass — now hardened (role-gated, with notice + audit event; see below). Plan: fire `_doing_it_wrong()` + persistent admin notice when compatibility mode is active in the next minor release; remove the option and the fallback branch in the next major.
-- ~~**Contain `WP_SUDO_RECOVERY_MODE` break-glass**~~ ✅ Shipped (unreleased `main`, June 13, 2026) — The grant in both `wp_sudo_can()` and `wp_sudo_map_governance_meta_cap()` is role-gated to `manage_options` / `manage_network_options`; a permanent non-dismissible notice renders on the Sudo settings screen; and a new `wp_sudo_recovery_mode_active` audit hook fires (stored as a sampled `recovery_mode` event). Remaining: a scoped single-user recovery form (`define('WP_SUDO_RECOVERY_MODE', <user_id_or_login>)`). See §12.1 Phase R3.
+- ~~**Contain `WP_SUDO_RECOVERY_MODE` break-glass**~~ ✅ Shipped in v3.4.0 (June 13, 2026) — The grant in both `wp_sudo_can()` and `wp_sudo_map_governance_meta_cap()` is role-gated to `manage_options` / `manage_network_options`; a permanent non-dismissible notice renders on the Sudo settings screen; and a new `wp_sudo_recovery_mode_active` audit hook fires (stored as a sampled `recovery_mode` event). Remaining: a scoped single-user recovery form (`define('WP_SUDO_RECOVERY_MODE', <user_id_or_login>)`). See §12.1 Phase R3.
 
 ### Next major (v4.0.0): planned breaking changes
 
@@ -231,7 +231,7 @@ This is a living document covering accumulated input and thinking about the stra
 challenges and priorities for WP Sudo. 
 
 Current project state (as of June 12, 2026):
-- **v3.3.0 is the latest tagged release** — governance capabilities, WPGraphQL classifier hardening, REST/plugin-rule hardening, request-stash minimization, lockout/2FA hardening, uninstall defense-in-depth, login-sudo opt-out filter, governance backfill upgrader fix, and `Tested up to: 7.0` have shipped.
+- **v3.4.0 is the latest tagged release** — governance capabilities, WPGraphQL classifier hardening, REST/plugin-rule hardening, request-stash minimization, lockout/2FA hardening, uninstall defense-in-depth, login-sudo opt-out filter, governance backfill upgrader fix, recovery-mode containment, CI hardening, documentation-audit fixes, and `Tested up to: 7.0` have shipped. The plugin is not currently published to the WordPress.org plugin repository; `readme.txt` stable tag is package/future-publication metadata.
 - Current test and size counts are centralized in [`docs/current-metrics.md`](current-metrics.md).
 - CI pipeline: unit tests on PHP 8.0–8.4; integration tests on PHP 8.0/8.1/8.3; WordPress 6.2, 6.7, and 7.0 GA; single-site + multisite; MySQL 8.0 plus one MariaDB lane; PCOV coverage job; 61 Playwright E2E tests
 - WordPress 7.0 GA shipped on May 20, 2026, and the forward lane is now pinned to the final 7.0 release. See `docs/release-status.md`.
@@ -318,7 +318,7 @@ These gaps have been closed by the integration suite:
 |--------|--------|---------------|
 | **PHP minimum raised to 7.4** (dropping 7.2/7.3) | WP Sudo requires PHP 8.0+. No impact. | None. Already ahead of the curve. |
 | **Always-iframed post editor** | All blocks render in iframe. WP Sudo's admin UI gating does not touch the block editor — it intercepts `admin_init` actions, not editor saves. | **Low risk.** Verify the challenge page CSS still works inside the admin chrome. |
-| **Admin visual refresh** (DataViews, design tokens, Trac #64308) | Settings → Sudo page uses standard `settings_fields()` / `do_settings_sections()`. If WP 7.0 reskins these, our page gets the new look for free. | **Test visually** on a 7.0-beta site. Check help tabs, gated-actions table, admin notices. |
+| **Admin visual refresh** (DataViews, design tokens, Trac #64308) | Settings → Sudo page uses standard `settings_fields()` / `do_settings_sections()`. If WP 7.0 reskins these, our page gets the new look for free. | ✅ Completed against WP 7.0 pre-release and GA builds; continue ordinary visual checks before future compatibility bumps. |
 | **Fragment Notes + @ mentions** | Extends 6.9 Notes (block-level comments). No auth surface — notes are post meta. | No impact on WP Sudo. |
 | **Abilities API expansion** | New REST surface for AI agents. 3 read-only core abilities in WP 7.0. Abilities use `permission_callback` (typically `current_user_can()`). Not gated by WP Sudo. | **No action for 7.0.** Existing REST surface interception already covers `/wp-abilities/v1/` routes. When destructive abilities appear (`DELETE` on `/run`), add a REST rule to `Action_Registry`. See [`docs/abilities-api-assessment.md`](abilities-api-assessment.md). |
 | **WP AI Client merge proposal** | Provider-agnostic AI API. Includes REST/JS layer. | No immediate impact. If merged, AI model calls routed through REST are covered by existing Gate. Monitor. |
@@ -329,9 +329,9 @@ These gaps have been closed by the integration suite:
 ### What to do now
 
 1. ~~**Install WP 7.0 Beta 1** on Local or Studio dev site~~ — done (February 19, 2026)
-2. ~~**Run the manual testing guide** against 7.0-beta~~ — done; all 15 sections PASS
+2. ~~**Run the manual testing guide** against WP 7.0 pre-release builds~~ — done; all 15 sections PASS
 3. ~~**Visual check:** settings page, help tabs, admin bar timer, challenge interstitial, admin notices~~ — done; all pass against refreshed admin chrome
-4. ~~**Run `composer test`**~~ — passing on WP 7.0-alpha / 7.0-beta; CI covers WP trunk
+4. ~~**Run `composer test`**~~ — passing through WP 7.0 GA; CI covers the current 7.0 lane
 5. ~~**Repeat manual verification on each later RC build and on the final release**~~ ✅ Done — WP 7.0 GA shipped May 20, 2026; final signoff recorded in `tests/MANUAL-TESTING.md`.
 6. ~~**Keep the standard local verification set green for each RC/GA checkpoint**~~ ✅ Done.
 7. ~~**Update version references when WordPress 7.0 final ships**~~ ✅ Done in v3.3.0 — `Tested up to: 7.0` in `readme.txt`.
@@ -542,13 +542,13 @@ not context retrieval.
 With the WordPress 7.0 compatibility release and v3.2.0 hardening work closed,
 the recommended implementation order is:
 
-1. **Deprecate `compatibility` governance mode** (break-glass containment now ✅ shipped) — Two paired governance security-debt items. (a) *Still open:* fire `_doing_it_wrong()` + persistent admin notice when `wp_sudo_governance_mode = 'compatibility'` is active; update FAQ and developer reference; queue removal for the next major release. (b) ✅ *Shipped (unreleased `main`):* the break-glass path that replaces it is hardened — the grant is role-gated to administrators, a non-dismissible notice renders, and the `wp_sudo_recovery_mode_active` audit hook fires (stored as a sampled `recovery_mode` event), so it is explicit, auditable, and bounded (see §12.1 Phase R3). `WP_SUDO_RECOVERY_MODE` is the only supported break-glass path going forward, and it is now sound; compatibility mode can be removed once (a) lands. **Effort:** Low (deprecation remaining)
+1. **Deprecate `compatibility` governance mode** (break-glass containment now ✅ shipped) — Two paired governance security-debt items. (a) *Still open:* fire `_doing_it_wrong()` + persistent admin notice when `wp_sudo_governance_mode = 'compatibility'` is active; update FAQ and developer reference; queue removal for the next major release. (b) ✅ *Shipped in v3.4.0:* the break-glass path that replaces it is hardened — the grant is role-gated to administrators, a non-dismissible notice renders, and the `wp_sudo_recovery_mode_active` audit hook fires (stored as a sampled `recovery_mode` event), so it is explicit, auditable, and bounded (see §12.1 Phase R3). `WP_SUDO_RECOVERY_MODE` is the only supported break-glass path going forward, and it is now sound; compatibility mode can be removed once (a) lands. **Effort:** Low (deprecation remaining)
 2. **Implement E2E CI acceleration without reducing release assurance**
    - Rebalance the current long shard before adding cache/image/policy optimizations
    - Keep the full Playwright suite available for release-grade confidence, but shorten normal feedback loops
    - Treat path-based skipping and worker-level parallelism as later steps that require explicit safety rules
    - **Effort:** Low to medium
-2. **Refresh README screenshots for the current UI**
+3. **Refresh README screenshots for the current UI**
    - Inventory existing README/readme screenshot references and WordPress.org asset needs
    - Recapture the Settings -> Sudo screens, Access tab, Session Activity dashboard widget, Rule Tester, and other new widgets/screens
    - Expect to redo this again after major UI changes; keep this pass focused on making current public docs honest
@@ -1782,7 +1782,7 @@ should shape the next phases.
   relax policies, view restricted activity, export logs, or revoke sessions.
 - Break-glass tests that prove recovery mode is explicit, auditable, and bounded.
 
-**Finding: `WP_SUDO_RECOVERY_MODE` break-glass is uncontained.** *(Found June 13, 2026; ✅ contained June 13, 2026 — items 1, 3, 4 below shipped on unreleased `main`. Item 2, the scoped single-user form, remains.)*
+**Finding: `WP_SUDO_RECOVERY_MODE` break-glass is uncontained.** *(Found June 13, 2026; ✅ contained June 13, 2026 — items 1, 3, 4 below shipped in v3.4.0. Item 2, the scoped single-user form, remains.)*
 
 Verified against the code path and WordPress core admin-page routing (describes the *pre-fix* behavior):
 
