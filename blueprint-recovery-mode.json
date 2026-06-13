@@ -4,7 +4,7 @@
     "php": "8.2",
     "wp": "7.0"
   },
-  "landingPage": "/wp-admin/options-general.php?page=wp-sudo",
+  "landingPage": "/wp-admin/options-general.php?page=wp-sudo-settings",
   "steps": [
     {
       "step": "runPHP",

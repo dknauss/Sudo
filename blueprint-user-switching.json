@@ -48,6 +48,10 @@
       "options": {
         "activate": true
       }
+    },
+    {
+      "step": "runPHP",
+      "code": "<?php require_once '/wordpress/wp-load.php'; $u = get_user_by( 'login', 'carlosadmin' ); if ( $u ) { wp_set_password( 'carlos-sudo', (int) $u->ID ); }"
     }
   ]
 }
