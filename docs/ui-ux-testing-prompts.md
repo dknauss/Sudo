@@ -379,6 +379,8 @@ Why a mu-plugin rather than `defineWpConfigConsts`: the Sudo settings page is re
 
 **Why Playground suits this:** the trigger is a single constant read at runtime by `wp_sudo_is_recovery_mode()`, so there is no email or fatal-error precondition to reproduce — defining it from a must-use plugin is fully deterministic.
 
+> **Playground cron artifact — not a WP Sudo issue.** Playground does not run WP-Cron on a schedule, so WordPress's Site Health "Scheduled events" test may report core events such as `recovery_mode_clean_expired_keys`, `wp_version_check`, or `wp_update_plugins` as "failed to run." The `recovery_mode` in `recovery_mode_clean_expired_keys` belongs to **WordPress core's** fatal-error recovery mode (`WP_Recovery_Mode`) — a different subsystem from WP Sudo's break-glass `WP_SUDO_RECOVERY_MODE`; the name overlap is coincidental. WP Sudo's only scheduled event is `wp_sudo_prune_events`. This warning is an environment artifact (it appears on a plugin-free Playground site too), not a fault in the recovery-mode feature.
+
 ### 6b. Session-theft proxy via User Switching — `blueprint-user-switching.json`
 
 This blueprint installs the [User Switching](https://wordpress.org/plugins/user-switching/) plugin and lands on the Users list. The demo seed creates additional administrators (`carlosadmin`, `mariadev`), so an admin can "Switch To" another admin and observe that sudo privileges do **not** follow the switched identity. The blueprint sets `carlosadmin`'s password to `carlos-sudo` (distinct from the shared `password` used by every other seeded account) so the per-user reauth requirement is actually demonstrable.
