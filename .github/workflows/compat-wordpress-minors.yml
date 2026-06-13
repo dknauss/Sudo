@@ -5,6 +5,10 @@ on:
   schedule:
     - cron: '30 5 * * 3'
 
+# Least-privilege default for GITHUB_TOKEN (CodeQL actions hardening).
+permissions:
+  contents: read
+
 jobs:
   integration-compat:
     name: "Compat Sweep (PHP 8.1, WP ${{ matrix.wp }}, ${{ matrix.db_label }})"

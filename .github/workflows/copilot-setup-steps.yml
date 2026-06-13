@@ -9,6 +9,10 @@ on:
     paths:
       - .github/workflows/copilot-setup-steps.yml
 
+# Least-privilege default for GITHUB_TOKEN (CodeQL actions hardening).
+permissions:
+  contents: read
+
 jobs:
   copilot-setup-steps:
     runs-on: ubuntu-latest

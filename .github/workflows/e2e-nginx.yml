@@ -9,6 +9,10 @@ on:
   schedule:
     - cron: '0 6 * * 2'
 
+# Least-privilege default for GITHUB_TOKEN (CodeQL actions hardening).
+permissions:
+  contents: read
+
 jobs:
   # See e2e.yml for the rationale. Documentation-only pull requests skip the
   # heavy smoke job; the "E2E Nginx Smoke" gate job below always runs and
@@ -155,6 +159,10 @@ jobs:
     steps:
       - name: Check smoke result
         run: |
+          if [ "${{ needs.changes.result }}" != "success" ]; then
+            echo "Change detector did not succeed (${{ needs.changes.result }}) — failing the gate (fail-safe)."
+            exit 1
+          fi
           result="${{ needs.nginx-smoke.result }}"
           if [ "$result" = "success" ]; then
             echo "Nginx smoke passed."
