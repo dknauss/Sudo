@@ -1825,7 +1825,7 @@ curl -sk -X POST "YOUR_SITE_URL/graphql" \
   `manage_wp_sudo`.
 
 1. Navigate directly to **Settings > Sudo** (or
-   `/wp-admin/options-general.php?page=wp-sudo`).
+   `/wp-admin/options-general.php?page=wp-sudo-settings`).
 2. **Expected:** WordPress displays "Sorry, you are not allowed to access this
    page." The **Settings > Sudo** menu item does not appear in the sidebar for
    this user.
@@ -1938,7 +1938,7 @@ access to non-administrators.
    should be removed once access is restored.
 5. Log out and log in as a **non-administrator** user (e.g. Editor or
    Subscriber) that lacks `manage_options`.
-6. Navigate directly to `/wp-admin/options-general.php?page=wp-sudo`.
+6. Navigate directly to `/wp-admin/options-general.php?page=wp-sudo-settings`.
 7. **Expected:** The page is **denied** — WordPress displays "Sorry, you are
    not allowed to access this page." The recovery path now requires
    `manage_options` / `manage_network_options`, so a non-admin gains nothing
