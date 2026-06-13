@@ -5,6 +5,10 @@ on:
   schedule:
     - cron: '30 4 * * *'
 
+# Least-privilege default for GITHUB_TOKEN (CodeQL actions hardening).
+permissions:
+  contents: read
+
 jobs:
   e2e-visual:
     name: "E2E Visual Baselines (Apache + MariaDB, non-blocking)"

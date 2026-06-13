@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [ main ]
 
+# Least-privilege default for GITHUB_TOKEN (CodeQL actions hardening).
+permissions:
+  contents: read
+
 jobs:
   docs-lint:
     runs-on: ubuntu-latest

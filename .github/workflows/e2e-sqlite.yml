@@ -5,6 +5,10 @@ on:
   schedule:
     - cron: '0 7 * * 4'
 
+# Least-privilege default for GITHUB_TOKEN (CodeQL actions hardening).
+permissions:
+  contents: read
+
 jobs:
   e2e-sqlite-smoke:
     name: "E2E Stack Smoke (Playground SQLite)"

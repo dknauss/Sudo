@@ -10,6 +10,10 @@ concurrency:
   group: e2e-tests-${{ github.ref }}
   cancel-in-progress: true
 
+# Least-privilege default for GITHUB_TOKEN (CodeQL actions hardening).
+permissions:
+  contents: read
+
 jobs:
   # Decide whether the heavy E2E matrix needs to run. Pull requests that touch
   # only documentation skip the shards; the "E2E Tests" gate job below still
@@ -140,6 +144,10 @@ jobs:
     steps:
       - name: Check shard results
         run: |
+          if [ "${{ needs.changes.result }}" != "success" ]; then
+            echo "Change detector did not succeed (${{ needs.changes.result }}) — failing the gate (fail-safe)."
+            exit 1
+          fi
           result="${{ needs.e2e-shard.result }}"
           if [ "$result" = "success" ]; then
             echo "All E2E shards passed."
