@@ -92,6 +92,7 @@ Remaining Connectors tasks:
   - **2FA challenge UI** — *partial value only:* Playground cannot deliver TOTP/email codes, so only the password step and the 2FA step's rendering are reviewable, not the full flow. Scope to a UI-render check, not an end-to-end flow.
   - **Scoped single-user recovery** — *deferred:* build alongside Phase R3's `define( 'WP_SUDO_RECOVERY_MODE', <user_id_or_login> )` form, not before the feature exists.
   - **Rot guard (do this first):** these blueprints install from `main.zip` and break silently when an option key or admin URL changes. Add a headless boot-smoke CI lane via `@wp-playground/cli` that loads each blueprint and asserts the landing page renders, reusing the `.github/playground/sqlite-stack-smoke.blueprint.json` pattern. Land the smoke lane before expanding the blueprint set so new scenarios are covered from day one.
+  - **Tag-pinned copies at release (release-task):** the current `blueprint-recovery-mode.json` and `blueprint-user-switching.json` install from `main.zip`, so they track a moving branch and only demo correctly while the feature lives on `main`. At each release, add tag-pinned copies that install from the release zip (e.g. `…/refs/tags/vX.Y.Z.zip`), mirroring the existing `blueprint.json` (tag-pinned) vs `blueprint-main.json` (`main`) split, so published/demo links stay reproducible against a fixed version. Add this to the release checklist alongside the existing blueprint-version steps.
 
 ### Medium-term: Multisite Network Admin Tools (v3.1+)
 
