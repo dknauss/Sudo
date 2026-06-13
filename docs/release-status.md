@@ -1,6 +1,6 @@
 # Release Status (Canonical Current State)
 
-Last verified: 2026-06-12
+Last verified: 2026-06-13
 
 This file is the canonical source for **current release state** in this repository:
 
@@ -12,30 +12,34 @@ This file is the canonical source for **current release state** in this reposito
 
 ## Latest public/tagged release
 
-- **Latest tagged release:** `3.3.0`
-- **Latest git tag observed:** `v3.3.0`
+- **Latest tagged release:** `3.4.0`
+- **Latest git tag observed:** `v3.4.0`
 
 ## Current `main` release target
 
 - **Next planned release:** TBD
-- **Current `main` runtime version constant:** `3.3.0`
+- **Current `main` runtime version constant:** `3.4.0`
 - **Current metadata should match:** `readme.txt` stable tag, `wp-sudo.php`, `tests/bootstrap.php`, `phpstan-bootstrap.php`
-- **Current public stable metadata:** `readme.txt` stable tag `3.3.0`
+- **Current public stable metadata:** `readme.txt` stable tag `3.4.0`
 - **Last completed release checklist:** `docs/release-3.0.0-checklist.md`
 
 ## Latest release contents
 
-`3.3.0` is a targeted fix release addressing a strict-mode lockout:
+`3.4.0` is a hardening release focused on recovery-mode containment, CI reliability, and documentation accuracy:
 
-- governance capability backfill re-keyed from the phantom `3.1.0` (never released; tags went v3.1.1 → v3.1.3 → v3.2.0) to `3.3.0`, with an existing-holder guard; sites stored at any public 3.1.x or 3.2.0 now receive the `manage_wp_sudo` and related governance capabilities on next page load
-- `Event_Store` audit column clamping before insert
-- `wp_sudo_grant_session_on_login` filter (audit register item F17)
+- `WP_SUDO_RECOVERY_MODE` is role-gated to existing administrators/super administrators, visible on the Sudo settings screen while active, and auditable through the new `wp_sudo_recovery_mode_active` hook.
+- Psalm analysis is repaired so the type-coverage gate fails loudly if it stops reporting coverage; `uninstall.php` is excluded from Psalm analysis because its top-level uninstall guard exits by design.
+- CI workflows now declare least-privilege permissions and documentation-only pull requests skip heavy jobs without deadlocking required checks.
+- The documentation audit corrected stale/confabulated technical details and points drift-prone counts at `docs/current-metrics.md`.
+- Playground demo coverage expanded with recovery-mode and user-switching scenarios.
 
-Canonical source for post-tag drift after `3.3.0`: `git log v3.3.0..main --oneline`
+Canonical source for post-tag drift after `3.4.0`: `git log v3.4.0..main --oneline`
 
 ## Unreleased `main` work
 
-None — `main` is at `3.3.0`.
+Current commits ahead of `v3.4.0`:
+
+- Roadmap additions for a Connectors registry-aware matcher, a v4.0.0 breaking-change milestone, and Gutenberg design scope.
 
 ## WordPress release posture
 
@@ -58,8 +62,8 @@ None — `main` is at `3.3.0`.
 
 WordPress 7.0 is now the latest stable release:
 
-- update `readme.txt` **Tested up to** to `7.0`
-- update README support badges to the `7.0` line
+- keep `readme.txt` **Tested up to** at `7.0`
+- keep README support badges aligned with the `7.0` line
 - CI forward lane is already `7.0` GA; no further lane change needed until 7.1 development opens
 
 ## Canonical sources

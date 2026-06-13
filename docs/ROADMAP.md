@@ -33,11 +33,9 @@
 A June 7, 2026 deep security review found two implementation weaknesses and two
 design hardening opportunities. Two are shipped; two remain open:
 
-- **2FA failure counters:** `Sudo_Session::attempt_activation()` resets failure counters
-  after a correct password, before the optional 2FA step completes. A session holder
-  with the account password can alternate password success with bad 2FA attempts and
-  avoid the intended lockout threshold. Fix: reset counters only after full sudo
-  activation succeeds. Patch-grade.
+- ~~**2FA failure counters**~~ ✅ Shipped in v3.2.0 — failure counters now reset
+  only after full sudo activation succeeds; bad 2FA attempts continue accumulating
+  toward lockout across repeated password-success / bad-2FA cycles.
 - ~~**WPGraphQL Limited mode encoding bypass**~~ ✅ Shipped in v3.2.0 — JSON bodies,
   GET/form `query` params, multipart `operations`, batched payloads, parser edge cases,
   and persisted-operation fail-safe are covered by unit tests.
@@ -1697,27 +1695,11 @@ should shape the next phases.
 
 #### Phase R1: Patch-grade auth and surface fixes
 
-**Finding: 2FA failure lockout can be reset before 2FA succeeds.**
+**Finding: 2FA failure lockout can be reset before 2FA succeeds.** ✅ Shipped in v3.2.0.
 
-- `Sudo_Session::attempt_activation()` resets failed attempts immediately after a
-  correct password, before the optional 2FA step completes.
-- Failed 2FA attempts are recorded later by `Challenge::handle_ajax_2fa()`.
-- A user or attacker with an authenticated session and the account password can
-  alternate password success with bad 2FA attempts and avoid the intended 2FA
-  lockout threshold.
-
-**Fix:**
-- Do not clear failure counters on password-only success when 2FA is required.
-- Reset attempts only after final sudo activation succeeds.
-- Consider separate password and 2FA counters if the shared counter creates
-  ambiguous UX or audit semantics.
-
-**Tests:**
-- Unit or integration test proving repeated `password -> bad 2FA -> password`
-  cycles still accumulate failures and reach lockout.
-- Regression test proving no-2FA password success still clears prior failed
-  password attempts only after activation.
-- Audit hook assertions for the lockout path.
+- Failure counters now reset only after final sudo activation succeeds.
+- Repeated `password -> bad 2FA -> password` cycles continue accumulating failures and reach lockout.
+- No-2FA password success still clears prior failed attempts after activation.
 
 **Finding: WPGraphQL Limited mode can fail open on encoded or persisted mutations.**
 
