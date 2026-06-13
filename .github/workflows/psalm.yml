@@ -10,6 +10,10 @@ jobs:
   psalm:
     name: "Psalm"
     runs-on: ubuntu-24.04
+    permissions:
+      # Needed by the type-coverage badge step to push coverage.json to the
+      # dedicated `badges` branch. The push step only runs on push to main.
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -38,9 +42,6 @@ jobs:
       - name: Run Psalm
         run: composer analyse:psalm
 
-      - name: Publish Shepherd type coverage
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
-        continue-on-error: true
-        env:
-          PSALM_SHEPHERD_SECRET: ${{ secrets.PSALM_SHEPHERD_SECRET }}
-        run: composer analyse:psalm:shepherd
+      - name: Publish type-coverage badge
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: bash bin/publish-type-coverage-badge.sh

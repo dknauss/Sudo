@@ -235,6 +235,34 @@ WP Sudo now has two different kinds of browser/compatibility workflows:
 
 The nginx smoke workflow is treated as a first-class release gate because it is fast, stable, and catches stack-sensitive issues around routing, cookies, redirects, replay, and AJAX behavior that the default Apache stack can miss.
 
+### Type-coverage badge (self-hosted)
+
+The README "Type Coverage" badge is self-hosted — it does **not** depend on
+shepherd.dev (which had no data for this repo and rendered "unknown"). On every
+push to `main`, the `Psalm` workflow runs
+[`bin/publish-type-coverage-badge.sh`](bin/publish-type-coverage-badge.sh),
+which:
+
+1. Runs `composer analyse:psalm` and greps the line Psalm always prints —
+   `Psalm was able to infer types for X% of the codebase` (computed by Psalm as
+   `100 * nonmixed / (mixed + nonmixed)`).
+2. Writes a [shields.io endpoint](https://shields.io/badges/endpoint-badge)
+   `coverage.json` (`{schemaVersion, label, message, color}`).
+3. Force-pushes that single file to the dedicated `badges` branch via git
+   plumbing, using the workflow's `GITHUB_TOKEN` (no secret required).
+
+The README badge reads `coverage.json` from the `badges` branch. The `badges`
+branch is intentionally not watched by any workflow, so this push never triggers
+a CI loop, and `main`'s history stays free of badge-update commits. The branch is
+created automatically by the first push-to-`main` run; until it exists the badge
+renders as "not found".
+
+To regenerate the badge file locally without pushing:
+
+```bash
+bin/publish-type-coverage-badge.sh --no-publish   # writes coverage.json only
+```
+
 The scheduled compatibility sweep and SQLite smoke workflow should still be checked before release when the touched code could plausibly affect:
 
 - WordPress version compatibility (`6.3` through `6.6`)
