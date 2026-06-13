@@ -63,7 +63,7 @@ WP Sudo is not a general fix for broken authorization in plugin code. WP Sudo ga
 
 WP Sudo integrates with the **Site Health** tool in WordPress core for rich security diagnostics and advisory notifications. 
 
-In a lost, last administrator scenario where no one has access to Sudo's settings, the break-glass mechanism is to set `WP_SUDO_RECOVERY_MODE` in `wp-config.php`. This opens Sudo settings to any/all logged-in administrators. It requires filesystem access to activate and leaves a permanent audit trail while active.
+In a lost, last administrator scenario where no one has access to Sudo's settings, the break-glass mechanism is to set `WP_SUDO_RECOVERY_MODE` in `wp-config.php`. This opens Sudo settings to any logged-in user. It requires filesystem access to activate and leaves a permanent audit trail while active.
 
 ## For developers and integrators
 
