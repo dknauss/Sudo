@@ -391,7 +391,7 @@ Use this checklist for each later RC and again at GA:
    - [`readme.txt`](readme.txt)
    - [`readme.md`](readme.md)
    - any release notes or changelog entry being prepared for the next tag
-5. After WordPress 7.0 GA lands, remove the temporary `handle_err_admin_role()` workaround noted in [`docs/ROADMAP.md`](docs/ROADMAP.md) if core `#64690` shipped as expected.
+5. ~~After WordPress 7.0 GA lands, remove the temporary `handle_err_admin_role()` workaround~~ — done; `rewrite_role_error()` and `render_role_error_notice()` removed in v3.4.0 after Trac #64690 confirmed in WP 7.0 GA.
 
 ### What you can test in Playground
 

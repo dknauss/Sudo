@@ -268,7 +268,7 @@ These gaps have been closed by the integration suite:
 
 ## 2. WordPress 7.0 Prep
 
-> **Status: Complete.** WP 7.0 GA shipped May 20, 2026. All RC and final signoffs are recorded in `tests/MANUAL-TESTING.md`. `Tested up to: 7.0` ships in v3.3.0. The `handle_err_admin_role()` workaround removal (Trac #64690) and the Connectors registry-aware matcher remain as follow-up work.
+> **Status: Complete.** WP 7.0 GA shipped May 20, 2026. All RC and final signoffs are recorded in `tests/MANUAL-TESTING.md`. `Tested up to: 7.0` ships in v3.3.0. The `rewrite_role_error()` / `render_role_error_notice()` workaround (Trac #64690) removed in v3.4.0. The Connectors registry-aware matcher remains as follow-up work.
 
 ### Verified changes that affect WP Sudo
 
@@ -282,7 +282,7 @@ These gaps have been closed by the integration suite:
 | **WP AI Client merge proposal** | Provider-agnostic AI API. Includes REST/JS layer. | No immediate impact. If merged, AI model calls routed through REST are covered by existing Gate. Monitor. |
 | **WordPress MCP Adapter** | Translates Abilities into MCP tools for AI agents (Claude, Cursor, etc.). Calls abilities through the same REST endpoints. | **No new surface.** MCP Adapter is a REST consumer — covered by existing `Gate::intercept_rest()`. Same gating strategy as Abilities API. See [`docs/abilities-api-assessment.md`](abilities-api-assessment.md). |
 | **Viewport-based block visibility** | Editor-only. No auth surface. | No impact. |
-| **Trac #64690 — Bulk role-change error message** ([ticket](https://core.trac.wordpress.org/ticket/64690)) | Core will replace the confusing "user editing capabilities" notice with a clear message when bulk role change skips the current user. Our workaround in `Admin::handle_err_admin_role()` (`class-admin.php`) does the same thing and can be **removed** once 7.0 ships. | **After 7.0 GA:** remove `handle_err_admin_role()` and its `admin_notices` hook; delete the corresponding unit tests in `AdminTest.php`. |
+| **Trac #64690 — Bulk role-change error message** ([ticket](https://core.trac.wordpress.org/ticket/64690)) | ✅ Core shipped the fix in WP 7.0 GA. `rewrite_role_error()` and `render_role_error_notice()` removed in v3.4.0; corresponding unit tests deleted. | Done. |
 
 ### What to do now
 
@@ -293,7 +293,7 @@ These gaps have been closed by the integration suite:
 5. ~~**Repeat manual verification on each later RC build and on the final release**~~ ✅ Done — WP 7.0 GA shipped May 20, 2026; final signoff recorded in `tests/MANUAL-TESTING.md`.
 6. ~~**Keep the standard local verification set green for each RC/GA checkpoint**~~ ✅ Done.
 7. ~~**Update version references when WordPress 7.0 final ships**~~ ✅ Done in v3.3.0 — `Tested up to: 7.0` in `readme.txt`.
-8. **Remove `handle_err_admin_role()` workaround** — Trac #64690 landed in WP 7.0 core; remove `Admin::handle_err_admin_role()` and its `admin_notices` hook, and delete the corresponding unit tests in `AdminTest.php`.
+8. ~~**Remove `handle_err_admin_role()` workaround**~~ — done (v3.4.0); `rewrite_role_error()` and `render_role_error_notice()` removed after Trac #64690 confirmed in WP 7.0 GA.
 
 ### Abilities API and MCP Adapter: the longer-range question
 
