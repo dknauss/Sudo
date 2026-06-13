@@ -44,9 +44,22 @@ class GateTest extends TestCase {
 
 	protected function setUp(): void {
 		parent::setUp();
+
+		// Clear request superglobals that other test files may leak. The notice
+		// tests assume get_current_admin_url() sees no REQUEST_URI (so it
+		// early-returns); a value leaked from a prior test pushes them into the
+		// is_ssl() branch, which under --order-by=random surfaced as a
+		// Brain\Monkey "is_ssl not defined nor mocked" flake.
+		unset( $_SERVER['REQUEST_URI'] );
+
 		$this->session = \Mockery::mock( Sudo_Session::class );
 		$this->stash   = \Mockery::mock( Request_Stash::class );
 		$this->gate    = new Gate( $this->session, $this->stash );
+
+		// Defense in depth: any test that does set REQUEST_URI and renders a
+		// notice reaches is_ssl(); stub it unconditionally so it is mocked
+		// regardless of execution order.
+		Functions\when( 'is_ssl' )->justReturn( false );
 	}
 
 	protected function tearDown(): void {
@@ -63,6 +76,7 @@ class GateTest extends TestCase {
 			$_POST['plugin'],
 			$_GET['download'],
 			$_SERVER['REQUEST_METHOD'],
+			$_SERVER['REQUEST_URI'],
 			$GLOBALS['pagenow'],
 			$GLOBALS['wpdb']
 		);
