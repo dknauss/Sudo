@@ -1839,8 +1839,7 @@ brief), strict TDD, and the Pre-Commit Reviewer Workflow, per `CLAUDE.md`.
 
 **Docs reconciled (shipped):**
 - ✅ Restored the (now accurate) notice/event/role-gate descriptions in
-  `docs/security-model.md` and `docs/FAQ.md`. (`readme.md` carries pre-existing
-  unrelated working-tree edits; reconcile its recovery wording there.)
+  `docs/security-model.md`, `docs/FAQ.md`, and `readme.md`.
 - ✅ Updated `docs/llm-lies-log.md` #20 notes to mark the containment as built.
 - ✅ `tests/MANUAL-TESTING.md` §23.8 documents the contained behavior — it expects
   denial for non-administrators and includes steps for the non-dismissible notice and
