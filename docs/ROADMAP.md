@@ -1868,28 +1868,6 @@ README/readme assets show the screens operators now use.
 | `enforce_editor_unfiltered_html()` optimization | Negligible overhead (cached role lookup); relocating to `admin_init` introduces a detection gap on frontend requests. |
 | REST early-exit optimization | No measured bottleneck at 29 rules; worth revisiting if rule count grows significantly. |
 
-### Delivery Sequence
-
-1. ~~WP 7.0 manual verification.~~ ✅ Complete.
-2. ~~**Sprint A** (Security core): Stash redaction + per-user cap, upload-action coverage.~~ ✅ Complete.
-3. ~~**Sprint B** (Auth resilience): Non-blocking rate limiting.~~ ✅ Complete.
-4. ~~**Sprint C** (Reliability): Rule-schema validation, MU loader hardening.~~ ✅ Complete.
-5. ~~`Tested up to: 7.0` readme bump.~~ ✅ Complete (v3.3.0).
-6. ~~**Sprint D** (Surface + Observability): WPGraphQL persisted-query strategy, WSAL sensor.~~ ✅ Complete.
-
-### Release Gates
-
-All hardening work must pass before merge:
-
-```
-composer test:unit
-composer test:integration -- --do-not-cache-result
-WP_MULTISITE=1 composer test:integration -- --do-not-cache-result
-composer analyse:phpstan
-psalm --no-cache
-composer lint
-```
-
 ---
 
 ## Appendix A: Accessibility Roadmap
