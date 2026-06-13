@@ -1,6 +1,6 @@
-_WP Sudo 3.3.0 fixes a strict-mode lockout: existing single-site admins on 3.1.x or 3.2.0 now receive the governance capabilities needed to access Settings → Sudo without needing recovery mode._
+_WP Sudo 3.4.0 hardens break-glass recovery: `WP_SUDO_RECOVERY_MODE` is now role-gated to administrators, shows a permanent non-dismissible notice while active, and fires a new `wp_sudo_recovery_mode_active` audit hook so the usage is logged._
 
-[Try the latest release in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fv3.3.0%2Fblueprint.json)
+[Try the latest release in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fv3.4.0%2Fblueprint.json)
 [Try current main in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint-main.json)
 
 Playground demo credentials are `admin` / `password`. When WP Sudo asks for reauthentication, enter the same password: `password`.
@@ -12,7 +12,7 @@ Tags:              sudo, security, reauthentication, access control, admin prote
 Requires at least: 6.2
 Tested up to:      7.0
 Requires PHP:      8.0
-Stable tag:        3.3.0
+Stable tag:        3.4.0
 License:           GPL-2.0-or-later
 License URI:       https://spdx.org/licenses/GPL-2.0-or-later.html
 
