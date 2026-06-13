@@ -7,7 +7,7 @@
 - **[Planned Development Timeline](#planned-development-timeline)** — Immediate, short-term, medium-term, and later work phases
 - **[Context](#context)** — current state, CI matrix, and WP 7.0 status (counts in `docs/current-metrics.md`)
 - **[1. Integration Tests](#1-integration-tests--scope-and-value)** — Complete ✓ (80 tests), coverage analysis, remaining gaps
-- **[2. WordPress 7.0 Prep](#2-wordpress-70-prep-planned-may-20-2026)** — Beta/RC checks recorded; final readme bump and Connectors parity check remain after 7.0 final ships
+- **[2. WordPress 7.0 Prep](#2-wordpress-70-prep)** — WP 7.0 GA shipped May 20, 2026; Connectors parity check and registry-aware matcher remain open
 - **[3. Collaboration & Sudo](#3-collaboration-and-sudo--multi-user-editing-scenarios)** — Multi-user editing, conflict resolution
 - **[4. Context Collapse & TDD](#4-context-collapse-and-tdd)** — LLM confabulation defense, test-driven development
 - **[Recommended Next Steps](#recommended-next-steps-priority-order)** — Immediate, short-term, medium-term priorities
@@ -28,46 +28,52 @@
 
 ## Planned Development Timeline
 
-### Immediate (WP 7.0 GA planned May 20, 2026)
+### Open: Security Review Remediation (post-v3.1.3)
 
-- **Update "Tested up to"** in readme files when WordPress 7.0 GA ships (originally April 9, 2026; [delayed](https://make.wordpress.org/core/2026/03/31/extending-the-7-0-cycle/) for real-time collaboration architecture work; currently planned for May 20, 2026)
-- **Verify Connectors GA parity** — the built-in `connectors.update_credentials` REST rule is already shipped on `main`, challenging `/wp/v2/settings` writes when request params contain `connectors_*_api_key`. When WordPress 7.0 GA ships, confirm the released Connectors implementation still matches the documented route, setting-name pattern, and masking/validation behavior.
-- **Revisit and split the Connectors reference doc after 7.0 GA** — once GA parity is confirmed, refactor [`docs/connectors-api-reference.md`](connectors-api-reference.md) into a leaner core/reference document plus a separate security-analysis companion so the reference stops mixing API details with the longer exploit memo.
-- **Upgrade Connectors matcher to registry-aware** — after GA parity is confirmed, replace the regex-only matcher (`is_connector_api_key_setting_name()`) with a two-tier check: (1) registry lookup via `wp_get_connectors()` matching `authentication.setting_name`, (2) regex fallback for pre-7.0 sites and timing edge cases. Add integration tests against the live API. See [`.planning/connectors-matcher-strategy.md`](../.planning/connectors-matcher-strategy.md) for the full rationale and implementation sketch.
-- **Manual release verification for Connectors gating** — run the new manual checks for cookie-auth and Application Password writes to `/wp/v2/settings` with connector credential fields and record the results in [tests/MANUAL-TESTING.md](../tests/MANUAL-TESTING.md) before the next public release.
+A June 7, 2026 deep security review found two implementation weaknesses and two
+design hardening opportunities. Two are shipped; two remain open:
 
-### ✅ Shipped: Operator Tooling and Ecosystem Reach (v2.12.0)
+- **2FA failure counters:** `Sudo_Session::attempt_activation()` resets failure counters
+  after a correct password, before the optional 2FA step completes. A session holder
+  with the account password can alternate password success with bad 2FA attempts and
+  avoid the intended lockout threshold. Fix: reset counters only after full sudo
+  activation succeeds. Patch-grade.
+- ~~**WPGraphQL Limited mode encoding bypass**~~ ✅ Shipped in v3.2.0 — JSON bodies,
+  GET/form `query` params, multipart `operations`, batched payloads, parser edge cases,
+  and persisted-operation fail-safe are covered by unit tests.
+- **Request stash pattern-based redaction:** Current stash redaction is exact-key based
+  and misses provider-specific names (`clientSecret`, `refreshToken`, `authorization`,
+  etc.). Add conservative pattern-based redaction and custom-rule metadata for
+  non-replayable fields.
+- ~~**Governance evolution**~~ ✅ Shipped in v3.2.0 — Dedicated `manage_wp_sudo`,
+  `view_wp_sudo_activity`, `export_wp_sudo_activity`, and `revoke_wp_sudo_sessions`
+  capabilities replace broad `manage_options` governance.
 
-The operator tooling tranche shipped in v2.12.0.
-
-- ~~**WP-CLI `wp sudo` subcommands**~~ ✅ implemented (`wp sudo status`, `wp sudo revoke [--user=<id>]`, `wp sudo revoke --all`)
-- ~~**Stream bridge**~~ ✅ implemented (`bridges/wp-sudo-stream-bridge.php`)
-- ~~**Public `wp_sudo_check()` / `wp_sudo_require()` API**~~ ✅ implemented (session check + challenge redirect helper for third-party integrations)
-
-### ✅ Shipped: IP + User Multidimensional Rate Limiting (v2.13.0)
-
-- ~~**Multi-dimensional rate limiting (IP + user)**~~ ✅ implemented — Per-IP tracking via transients alongside per-user tracking, combined lockout policy, and the triggering IP address added as the third `wp_sudo_lockout` hook argument.
-
-### Short-term: Testing Infrastructure (v2.14+)
-
-- **Playwright E2E test infrastructure** — 5 PHPUnit-uncoverable scenarios (cookie attributes, admin bar JS, MU-plugin AJAX, block editor snackbar, keyboard navigation). Also enables visual regression testing against WP 7.0's admin refresh. De-risks the modal challenge and all future JS work.
-- **Phase B:** Apache + MariaDB CI job
-- **Phase C:** Manual testing checklist for managed hosts
-
-### ✅ Shipped: Major Operator Tooling and Visibility (v3.0.0)
-
-The v3.0.0 release consolidates Phases 7–9 work plus pre-release fixes:
-
-- ~~**Connectors API gating**~~ ✅ — Gates `/wp/v2/settings` writes containing `connectors_*_api_key` fields
-- ~~**Policy presets**~~ ✅ — One-click Normal, Incident Lockdown, and Headless Friendly presets
-- ~~**Request / Rule Tester**~~ ✅ — Diagnostic panel for evaluating request shapes against gate rules
-- ~~**Settings UI revision**~~ ✅ — Tabbed navigation, dropdown policies, improved preset UX
-- ~~**Event_Store persistence layer**~~ ✅ — `wpsudo_events` table with 14-day retention, cron pruning, SQLite compat
-- ~~**Session Activity Dashboard Widget**~~ ✅ — Active sessions, recent events, policy summary for site admins
+See [§12.1](#121-post-v313-security-review-remediation-open) for the phased plan
+and acceptance criteria.
 
 ### Short-term: Security Bridge Coverage
 
 - **Two Factor lifecycle bridge** — Gate upstream Two Factor recovery-code generation, TOTP setup/deletion, and profile-form provider changes behind WP Sudo. This is a concrete factor-lifecycle gap: WP Sudo can require password + 2FA for sudo, but currently does not gate creation or replacement of the recovery codes that can satisfy that 2FA step later. See §11 Feature Backlog for verified source notes and implementation scope.
+
+### Open: Post-WP 7.0 Connectors Work
+
+~~**Update "Tested up to"**~~ ✅ Done in v3.3.0. WP 7.0 GA shipped May 20, 2026.
+
+Remaining Connectors tasks:
+
+- **Verify Connectors GA parity** — the built-in `connectors.update_credentials` REST rule is already shipped on `main`, challenging `/wp/v2/settings` writes when request params contain `connectors_*_api_key`. Confirm the released Connectors implementation still matches the documented route, setting-name pattern, and masking/validation behavior.
+- **Revisit and split the Connectors reference doc** — once GA parity is confirmed, refactor [`docs/connectors-api-reference.md`](connectors-api-reference.md) into a leaner core/reference document plus a separate security-analysis companion so the reference stops mixing API details with the longer exploit memo.
+- **Upgrade Connectors matcher to registry-aware** — after GA parity is confirmed, replace the regex-only matcher (`is_connector_api_key_setting_name()`) with a two-tier check: (1) registry lookup via `wp_get_connectors()` matching `authentication.setting_name`, (2) regex fallback for pre-7.0 sites and timing edge cases. Add integration tests against the live API. See [`.planning/connectors-matcher-strategy.md`](../.planning/connectors-matcher-strategy.md) for the full rationale and implementation sketch.
+- **Manual release verification for Connectors gating** — run the new manual checks for cookie-auth and Application Password writes to `/wp/v2/settings` with connector credential fields and record the results in [tests/MANUAL-TESTING.md](../tests/MANUAL-TESTING.md) before the next public release.
+
+### Short-term: Testing Infrastructure
+
+~~**Playwright E2E test infrastructure**~~ ✅ Done — 61 tests in CI across challenge, admin UI, replay, policy, and multi-factor flows; browser coverage and alternate-stack smoke lanes are in place.
+
+~~**Phase B: Apache + MariaDB CI job**~~ ✅ Done — covered by the named `wp-env` Playwright lane.
+
+- **Phase C: Manual testing checklist for managed hosts** — extend `tests/MANUAL-TESTING.md` with an environment checklist section. Before each release, run the manual guide on at least one Apache environment, one managed WordPress host (Pressable, WP Engine, or Cloudways), and the minimum supported WordPress version (6.2).
 
 ### Medium-term: Multisite Network Admin Tools (v3.1+)
 
@@ -80,7 +86,7 @@ The v3.0.0 release consolidates Phases 7–9 work plus pre-release fixes:
 - **Gutenberg block editor integration** — Detect block editor context, queue reauthentication via `@wordpress/notices` snackbar instead of page redirect. Natural trigger for Playwright E2E tests.
 - **Network policy hierarchy for multisite** — Super admins set minimum session duration and maximum entry-point policies; site admins can only tighten.
 - **Session-store architecture follow-up** — Evaluate and likely implement a dedicated sudo-session table, with the current recommendation favoring an authoritative table plus usermeta shadow writes. See [`docs/session-store-evaluation.md`](session-store-evaluation.md).
-- **Internal admin governance hardening** — ✅ Shipped in 3.2.0. Dedicated `manage_wp_sudo`, `view_wp_sudo_activity`, `export_wp_sudo_activity`, and `revoke_wp_sudo_sessions` capabilities replace broad `manage_options` defaults. See [`docs/archive/internal-admin-governance-spec.md`](archive/internal-admin-governance-spec.md) for the archived design spec.
+- ~~**Internal admin governance hardening**~~ ✅ Shipped in 3.2.0. Dedicated `manage_wp_sudo`, `view_wp_sudo_activity`, `export_wp_sudo_activity`, and `revoke_wp_sudo_sessions` capabilities replace broad `manage_options` defaults. See [`docs/archive/internal-admin-governance-spec.md`](archive/internal-admin-governance-spec.md) for the archived design spec.
 - **Deprecate and remove `compatibility` governance mode** — The `wp_sudo_governance_mode = 'compatibility'` DB option is a permanent security regression path: it lets any `manage_options` holder administer Sudo settings, undoing the governance model. `WP_SUDO_RECOVERY_MODE` (requires filesystem access) is the correct break-glass. Plan: fire `_doing_it_wrong()` + persistent admin notice when compatibility mode is active in the next minor release; remove the option and the fallback branch in the next major.
 
 ### UI Documentation Rule
@@ -99,6 +105,8 @@ misleading, and expect to redo the set after later major UI changes.
 - **Phase D:** Docker Compose with switchable stacks
 - **Third-party bridge discovery mode** — Report-only scanner/assistant for plugin AJAX, admin-post, REST, and generic dispatcher entry points; useful for bridge coverage without turning WP Sudo into a generic hook firewall.
 
+---
+
 ### ✅ Security Hardening Sprint — Complete (v2.10.2–v2.13.0)
 
 All 5 phases shipped. Identified by independent assessments from Codex, Gemini, and Claude (March 2026).
@@ -112,29 +120,28 @@ All 5 phases shipped. Identified by independent assessments from Codex, Gemini, 
 - ~~**P3 — WSAL sensor extension**~~ ✅ Phase 4
 - ~~**IP + user multidimensional rate limiting**~~ ✅ Phase 5
 
-### Immediate: Post-v3.1.3 Security Review Remediation
+### ✅ Shipped: Major Operator Tooling and Visibility (v3.0.0)
 
-A June 7, 2026 deep security review found two implementation weaknesses and two
-design hardening opportunities that should interrupt lower-priority feature work:
+The v3.0.0 release consolidates Phases 7–9 work plus pre-release fixes:
 
-- **Patch-grade auth fix:** 2FA failure counters can be cleared by repeating the
-  password step before second-factor success. Remediate first and release as a
-  patch if validated.
-- ~~**Surface hardening:** WPGraphQL Limited mode should decode request payloads
-  before fallback classification and fail closed for unknown persisted operations.~~
-  Shipped in v3.2.0: JSON bodies, GET/form `query` params,
-  multipart `operations`, batched payloads, parser edge cases, and
-  persisted-operation fail-safe are covered by unit tests.
-- **Data minimization follow-up:** Request stash redaction is exact-key based; add
-  pattern-based redaction and custom-rule metadata for sensitive/non-replayable
-  fields.
-- **Governance evolution:** Evolve governance with dedicated
-  `manage_wp_sudo`-style capabilities, stronger policy-change protections, and
-  safer custom-rule replay/redaction controls. This remains central to WP Sudo's
-  security purpose, not just admin UX polish.
+- ~~**Connectors API gating**~~ ✅ — Gates `/wp/v2/settings` writes containing `connectors_*_api_key` fields
+- ~~**Policy presets**~~ ✅ — One-click Normal, Incident Lockdown, and Headless Friendly presets
+- ~~**Request / Rule Tester**~~ ✅ — Diagnostic panel for evaluating request shapes against gate rules
+- ~~**Settings UI revision**~~ ✅ — Tabbed navigation, dropdown policies, improved preset UX
+- ~~**Event_Store persistence layer**~~ ✅ — `wpsudo_events` table with 14-day retention, cron pruning, SQLite compat
+- ~~**Session Activity Dashboard Widget**~~ ✅ — Active sessions, recent events, policy summary for site admins
 
-See [§12.1](#121-post-v313-security-review-remediation-open) for the phased plan
-and acceptance criteria.
+### ✅ Shipped: IP + User Multidimensional Rate Limiting (v2.13.0)
+
+- ~~**Multi-dimensional rate limiting (IP + user)**~~ ✅ implemented — Per-IP tracking via transients alongside per-user tracking, combined lockout policy, and the triggering IP address added as the third `wp_sudo_lockout` hook argument.
+
+### ✅ Shipped: Operator Tooling and Ecosystem Reach (v2.12.0)
+
+The operator tooling tranche shipped in v2.12.0.
+
+- ~~**WP-CLI `wp sudo` subcommands**~~ ✅ implemented (`wp sudo status`, `wp sudo revoke [--user=<id>]`, `wp sudo revoke --all`)
+- ~~**Stream bridge**~~ ✅ implemented (`bridges/wp-sudo-stream-bridge.php`)
+- ~~**Public `wp_sudo_check()` / `wp_sudo_require()` API**~~ ✅ implemented (session check + challenge redirect helper for third-party integrations)
 
 ### ✓ Completed in v2.11.0
 
@@ -172,7 +179,7 @@ and acceptance criteria.
 
 ### ✓ CI Matrix — ~~Phase A~~ ✅ Done v2.9.2
 
-- PHP 8.0–8.4 for unit tests; targeted integration coverage for WordPress 6.2, 6.7, and 7.0-RC1; single-site + multisite + PCOV coverage
+- PHP 8.0–8.4 for unit tests; targeted integration coverage for WordPress 6.2, 6.7, and 7.0 GA; single-site + multisite + PCOV coverage
 
 ---
 
@@ -181,10 +188,10 @@ and acceptance criteria.
 This is a living document covering accumulated input and thinking about the strategic
 challenges and priorities for WP Sudo. 
 
-Current project state (as of June 8, 2026):
-- **v3.2.0 is the latest tagged release** — governance capabilities, WPGraphQL classifier hardening, REST/plugin-rule hardening, request-stash minimization, lockout/2FA hardening, uninstall defense-in-depth, and release Playground fixes have shipped. `main` is now in the v3.3.0 planning lane.
+Current project state (as of June 12, 2026):
+- **v3.3.0 is the latest tagged release** — governance capabilities, WPGraphQL classifier hardening, REST/plugin-rule hardening, request-stash minimization, lockout/2FA hardening, uninstall defense-in-depth, login-sudo opt-out filter, governance backfill upgrader fix, and `Tested up to: 7.0` have shipped.
 - Current test and size counts are centralized in [`docs/current-metrics.md`](current-metrics.md).
-- CI pipeline: unit tests on PHP 8.0–8.4; integration tests on PHP 8.0/8.1/8.3; WordPress 6.2, 6.7, and 7.0; single-site + multisite; MySQL 8.0 plus one MariaDB lane; PCOV coverage job; 61 Playwright E2E tests
+- CI pipeline: unit tests on PHP 8.0–8.4; integration tests on PHP 8.0/8.1/8.3; WordPress 6.2, 6.7, and 7.0 GA; single-site + multisite; MySQL 8.0 plus one MariaDB lane; PCOV coverage job; 61 Playwright E2E tests
 - WordPress 7.0 GA shipped on May 20, 2026, and the forward lane is now pinned to the final 7.0 release. See `docs/release-status.md`.
 
 ---
@@ -193,7 +200,7 @@ Current project state (as of June 8, 2026):
 
 > **Status: Complete.** The integration test suite shipped in v2.4.0 (55 tests) and
 > expanded in v2.4.1 (73 tests). CI now runs targeted compatibility lanes across
-> PHP 8.0/8.1/8.3 and WordPress 6.2, 6.7, and 7.0-RC1 with single-site +
+> PHP 8.0/8.1/8.3 and WordPress 6.2, 6.7, and 7.0 GA with single-site +
 > multisite coverage. The analysis below is preserved for context on what drove
 > the test design.
 
@@ -259,9 +266,9 @@ These gaps have been closed by the integration suite:
 
 ---
 
-## 2. WordPress 7.0 Prep (planned May 20, 2026)
+## 2. WordPress 7.0 Prep
 
-> **Status:** WP 7.0 beta-era automation and manual beta checks are green, and RC1 signoff is recorded on 2026-03-24. The updated official schedule lists RC3 on May 8, RC4 on May 14, dry run/code freeze on May 19, and final release on May 20, 2026. Repeat the manual verification pass on each remaining RC build and on the final 7.0 release, log each result in `tests/MANUAL-TESTING.md`, keep the standard local verification set green, then do the final readme `Tested up to` bump only after the final release ships.
+> **Status: Complete.** WP 7.0 GA shipped May 20, 2026. All RC and final signoffs are recorded in `tests/MANUAL-TESTING.md`. `Tested up to: 7.0` ships in v3.3.0. The `handle_err_admin_role()` workaround removal (Trac #64690) and the Connectors registry-aware matcher remain as follow-up work.
 
 ### Verified changes that affect WP Sudo
 
@@ -283,17 +290,10 @@ These gaps have been closed by the integration suite:
 2. ~~**Run the manual testing guide** against 7.0-beta~~ — done; all 15 sections PASS
 3. ~~**Visual check:** settings page, help tabs, admin bar timer, challenge interstitial, admin notices~~ — done; all pass against refreshed admin chrome
 4. ~~**Run `composer test`**~~ — passing on WP 7.0-alpha / 7.0-beta; CI covers WP trunk
-5. **Repeat manual verification on each later RC build and on the final release**, and record date + build in the `15.0 Release Signoff Log` table in `tests/MANUAL-TESTING.md`.
-6. **Keep the standard local verification set green for each RC/GA checkpoint**:
-   - `composer test:integration`
-   - `WP_MULTISITE=1 composer test:integration`
-   - `composer analyse:phpstan`
-   - `composer analyse:psalm`
-   - `composer lint`
-7. **Update version references** when WordPress 7.0 final ships (currently planned for May 20, 2026):
-   - `readme.txt` / `readme.md` — "Tested up to" bump
-   - Any docs still referencing "WordPress 6.9" as latest
-8. **Remove `handle_err_admin_role()` workaround** once WP 7.0 GA ships (Trac #64690 lands in core — see table row above).
+5. ~~**Repeat manual verification on each later RC build and on the final release**~~ ✅ Done — WP 7.0 GA shipped May 20, 2026; final signoff recorded in `tests/MANUAL-TESTING.md`.
+6. ~~**Keep the standard local verification set green for each RC/GA checkpoint**~~ ✅ Done.
+7. ~~**Update version references when WordPress 7.0 final ships**~~ ✅ Done in v3.3.0 — `Tested up to: 7.0` in `readme.txt`.
+8. **Remove `handle_err_admin_role()` workaround** — Trac #64690 landed in WP 7.0 core; remove `Admin::handle_err_admin_role()` and its `admin_notices` hook, and delete the corresponding unit tests in `AdminTest.php`.
 
 ### Abilities API and MCP Adapter: the longer-range question
 
