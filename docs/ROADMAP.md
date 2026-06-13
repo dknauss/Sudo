@@ -1779,6 +1779,44 @@ break-glass mechanism should minimize the blast radius of its open window.
    `docs/developer-reference.md` updated. The stored event is unprefixed
    `recovery_mode`, not the archived `governance.recovery_mode` literal (that spec
    never shipped; consistency with existing Event_Store names wins).
+5. **Visibility / monitoring follow-up.** *Remaining — design reviewed June 13, 2026.*
+   The notice (item 3) and audit event (item 4) both fire only inside
+   `Admin::render_settings_page()`, so an operator who enables recovery, regains
+   access, and navigates away is never reminded again, and an external SIEM never
+   learns the bypass is active unless someone opens the Sudo settings page.
+   - **Ship:** a `Site_Health::test_recovery_mode()` returning a **critical** status
+     keyed strictly on `wp_sudo_is_recovery_mode()` — pull-based, REST-exposed (so
+     monitoring polls it), reflects live state, no cron dependence. Register it in
+     `Site_Health::register_tests()` alongside `test_stale_sessions`; confirm it
+     surfaces to the responsible operator on multisite (recovery maps to
+     `manage_network_options`).
+   - **Dropped:** a daily-cron audit heartbeat. It is unreliable exactly on the
+     neglected sites where recovery is most likely left on (opportunistic WP-Cron /
+     `DISABLE_WP_CRON`), is redundant with the Site Health REST status, and would
+     force a `user_id = 0` row that corrupts both the per-user sampling bucket and the
+     documented "user accessing the Sudo surface" semantics of
+     `wp_sudo_recovery_mode_active`. If a recorded daily signal is ever required, it
+     must be a *dedicated* `recovery_mode_heartbeat` hook + event type, never a reuse
+     of `recovery_mode_active`.
+   - **Deferred:** broadening the notice to `all_admin_notices`. Notice fatigue plus
+     multisite capability nuance outweigh the marginal reminder value once the Site
+     Health flag exists.
+   - **Naming / disambiguation.** WP Sudo's "recovery mode" shares the phrase with
+     WordPress core's own recovery mode (`WP_Recovery_Mode`, the fatal-error handler;
+     e.g. the core cron event `recovery_mode_clean_expired_keys`), which confuses
+     readers — a tester mistook a core Site Health cron warning for a WP Sudo fault.
+     **Decision: do not rename the public API.** Every WP Sudo symbol is already
+     prefixed (`WP_SUDO_RECOVERY_MODE`, `wp_sudo_is_recovery_mode()`,
+     `wp_sudo_recovery_mode_active`), so there is no code collision — only the English
+     phrase overlaps — and renaming would break operator `wp-config.php` constants,
+     external SIEM hook subscribers, and the stored `recovery_mode` event type (and its
+     historical rows). Instead: (a) standardize **"break-glass"** as the lead term in
+     all human-facing text (notice, FAQ, security-model, the future Site Health test
+     description) so "recovery" rarely appears unqualified; (b) one safe, non-breaking
+     relabel — the dashboard event label "Recovery" (a display string, not a stored
+     value or API symbol) → **"Break-glass"**; (c) a one-line FAQ/security-model note
+     disambiguating from core's `WP_Recovery_Mode`. Any true symbol rename is deferred
+     to a major version with deprecation aliases.
 
 **Process:** Shipped via a Pre-Implementation Design Review (reviewer agent + design
 brief), strict TDD, and the Pre-Commit Reviewer Workflow, per `CLAUDE.md`.
@@ -1795,6 +1833,9 @@ brief), strict TDD, and the Pre-Commit Reviewer Workflow, per `CLAUDE.md`.
   is removed (no DB persistence).
 - Audit event fires once per recovery-mode admin page load (or per access grant —
   decide in design review) with the expected payload.
+- Site Health (item 5): `test_recovery_mode()` returns `critical` only when the
+  constant is set; returns `good`/absent in both strict and compatibility governance
+  mode (no false positives); surfaces on multisite where the network operator sees it.
 
 **Docs reconciled (shipped):**
 - ✅ Restored the (now accurate) notice/event/role-gate descriptions in
