@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.4.0 - 2026-06-13
+
+- **Break-glass recovery mode hardened (role-gated + visible):** `WP_SUDO_RECOVERY_MODE` previously granted the master `manage_wp_sudo` capability to any logged-in user. The grant is now role-gated — it applies only to users who also hold `manage_options` (single-site) or `manage_network_options` (multisite), so a locked-out administrator recovers while subscribers, editors, and other non-admins gain nothing. A permanent, non-dismissible notice now renders on the Sudo settings screen while recovery mode is active, and a new `wp_sudo_recovery_mode_active` audit hook fires (stored as a sampled `recovery_mode` event, at most one per user per hour), so break-glass usage is explicit, bounded, and auditable.
+- **New audit hook `wp_sudo_recovery_mode_active`:** fires on each Sudo admin-page load while recovery mode is active. See the developer reference for the signature.
+- **Psalm gate repaired:** the type-coverage gate had been silently passing without analyzing anything — a top-level `exit` in `uninstall.php` aborted the Psalm run (exit 0, zero output). `uninstall.php` is now excluded from analysis, a guard fails the gate loudly if no type-coverage figure is emitted, and the shepherd.dev type-coverage badge reports again (~96%).
+- **CI hardening:** least-privilege `permissions` blocks added to all workflows; documentation-only pull requests now skip the heavy unit/integration/Psalm/CodeQL/E2E jobs without deadlocking the required status checks.
+- **Documentation audit:** a feature-implementation audit reconciled the docs with the code — corrected confabulated AJAX handler names and the OTP-resend rate-limit description in the changelog, and replaced drift-prone hardcoded counts (audit hooks, help tabs) with links to `docs/current-metrics.md`.
+- **Playground demos:** added recovery-mode and user-switching scenario blueprints for manual review.
+- **Fix:** removed an obsolete Editor role-error notice workaround in the admin UI; fixed a random-order unit-test flake in the SSL-detection path.
+
 ## 3.3.0 - 2026-06-12
 
 - **Governance backfill re-keyed to 3.3.0 (fixes strict-mode lockout):** the migration that grants `manage_wp_sudo` and the other governance capabilities to existing single-site administrators was keyed at `3.1.0` — a version that never had a public release (tags went v3.1.1 → v3.1.3 → v3.2.0). Sites upgrading from any public 3.1.x release skipped the backfill, leaving no `manage_wp_sudo` holders and locking administrators out of Settings → Sudo in the default strict governance mode (recovery only via `WP_SUDO_RECOVERY_MODE`). The routine is now keyed at `3.3.0` so it also runs once for sites already stamped `3.2.0`, and it skips when any user already holds `manage_wp_sudo`, preserving deliberate Access-tab grant/revoke configurations.
