@@ -260,7 +260,7 @@ Extensibility: the action registry is filterable via wp_sudo_gated_actions. Ten 
 * **Fix: `wp_sudo_version` option not deleted on uninstall** — orphan option row left after plugin deletion.
 * **Fix: `Admin::get()` TypeError on PHP 8.2+** — corrupted settings no longer crash; falls back to defaults.
 * **Fix: `Gate::matches_rest()` crash on invalid third-party regex** — new `safe_preg_match()` wrapper fails closed.
-* **Psalm 6.15.1 static analysis** — dual static analysis (PHPStan + Psalm); type coverage is published as a live badge in the README.
+* **Psalm 6.15.1 + Shepherd type coverage** — dual static analysis; type coverage badge via shepherd.dev.
 * **Codecov integration** — unit test coverage uploaded on CI.
 * **16 new unit tests** closing gaps in CLI cron-policy, network activation, settings save, admin bar, transient failures, cookie/token edges, 2FA provider.
 * **428 unit tests, 1043 assertions.**
