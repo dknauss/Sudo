@@ -66,7 +66,7 @@ Developers can add custom rules via the `wp_sudo_gated_actions` filter.
 
 = Security features =
 
-* **Zero-trust architecture** — a valid login session is never sufficient on its own. Dangerous operations require explicit identity confirmation whenever no active sudo session is already in place.
+* **Zero-trust-aligned reauthentication** — a valid login session is never sufficient on its own. Dangerous operations require explicit identity confirmation whenever no active sudo session is already in place. This is a focused proof-of-intent layer for known operations and surfaces, not a comprehensive zero-trust framework.
 * **Role-agnostic** — any user attempting a gated action without an active sudo session is challenged, including administrators.
 * **Full attack surface** — admin UI, AJAX, REST API, WP-CLI, Cron, XML-RPC, Application Passwords, and WPGraphQL.
 * **Session binding** — sudo sessions are cryptographically bound to the browser via a secure httponly cookie token.
