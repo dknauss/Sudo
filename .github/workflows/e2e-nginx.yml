@@ -10,8 +10,55 @@ on:
     - cron: '0 6 * * 2'
 
 jobs:
-  e2e-nginx-smoke:
-    name: "E2E Nginx Smoke"
+  # See e2e.yml for the rationale. Documentation-only pull requests skip the
+  # heavy smoke job; the "E2E Nginx Smoke" gate job below always runs and
+  # reports the required status. Fail-safe: any non-doc file, any
+  # non-pull_request event (push / schedule / workflow_dispatch), or any error
+  # → run the smoke job.
+  changes:
+    name: Detect code changes
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      code: ${{ steps.decide.outputs.code }}
+    steps:
+      - name: Decide whether to run the smoke job
+        id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "Event '${{ github.event_name }}' is not a pull_request — running smoke."
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if ! files=$(gh pr view "${{ github.event.pull_request.number }}" \
+                --repo "${{ github.repository }}" --json files \
+                --jq '.files[].path' 2>/dev/null); then
+            echo "Could not list changed files — running smoke (fail-safe)."
+            echo "code=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          code=false
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            case "$f" in
+              *.md|*.txt|*.rst|docs/*|LICENSE) ;;   # documentation — does not require the smoke job
+              *) code=true ;;                        # any non-doc file requires the smoke job
+            esac
+          done <<< "$files"
+          echo "Changed files:"
+          echo "$files"
+          echo "Non-documentation files changed: $code"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
+  nginx-smoke:
+    name: "E2E Nginx Smoke (run)"
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
 
@@ -94,3 +141,28 @@ jobs:
       - name: Stop nginx stack
         if: always()
         run: docker compose -f .github/docker/nginx-mariadb.compose.yml down -v
+
+  # Required status check. Always runs (even when the smoke job is skipped) so
+  # the "E2E Nginx Smoke" context is always reported. Passes when the smoke job
+  # succeeded, or when it was skipped because the PR was documentation-only;
+  # fails on any real failure or cancellation.
+  e2e-nginx-smoke:
+    name: "E2E Nginx Smoke"
+    runs-on: ubuntu-24.04
+    needs: [changes, nginx-smoke]
+    if: always()
+
+    steps:
+      - name: Check smoke result
+        run: |
+          result="${{ needs.nginx-smoke.result }}"
+          if [ "$result" = "success" ]; then
+            echo "Nginx smoke passed."
+            exit 0
+          fi
+          if [ "$result" = "skipped" ] && [ "${{ needs.changes.outputs.code }}" != "true" ]; then
+            echo "Nginx smoke skipped (documentation-only change) — passing the required gate."
+            exit 0
+          fi
+          echo "Nginx smoke result: $result"
+          exit 1
