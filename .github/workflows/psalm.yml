@@ -41,4 +41,6 @@ jobs:
       - name: Publish Shepherd type coverage
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master')
         continue-on-error: true
+        env:
+          PSALM_SHEPHERD_SECRET: ${{ secrets.PSALM_SHEPHERD_SECRET }}
         run: composer analyse:psalm:shepherd
