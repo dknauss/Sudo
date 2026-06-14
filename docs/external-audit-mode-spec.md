@@ -1,6 +1,10 @@
-# External Audit Mode Spec (v3.2 candidate)
+# External Audit Mode Spec
 
-*Draft: April 20, 2026. Status: not scheduled. Target: Phase 5 (governance polish) of [`execution-plan-v3.1-v3.3.md`](execution-plan-v3.1-v3.3.md), optional v3.2.*
+> **Design backlog draft.** This is not scheduled for the next release. Use the
+> current roadmap for priority order and acceptance criteria.
+
+*Draft: April 20, 2026. Status: design backlog. Related historical plan:
+[`archive/execution-plan-v3.1-v3.3.md`](archive/execution-plan-v3.1-v3.3.md).*
 
 ## Problem
 
@@ -61,7 +65,7 @@ guarantees that:
 Switching `wp_sudo_external_audit` away from `off` is gated by four checks,
 in order:
 
-1. **Capability.** Setting is editable only by `sudo_can( 'manage_wp_sudo' )`
+1. **Capability.** Setting is editable only by `wp_sudo_can( 'manage_wp_sudo' )`
    (per the [governance spec](archive/internal-admin-governance-spec.md)).
 2. **Sudo-gated.** The save handler writes through the
    `options.wp_sudo_access` gated rule, so the mutation itself requires an

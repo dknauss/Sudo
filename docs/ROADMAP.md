@@ -1,12 +1,12 @@
 # Roadmap: Past and Future Planning — Integration Tests, WP 7.0 Prep, Collaboration, TDD, and Core Design
 
-*Updated June 12, 2026*
+*Updated June 14, 2026*
 
 ## Table of Contents
 
 - **[Planned Development Timeline](#planned-development-timeline)** — Immediate, short-term, medium-term, and later work phases
 - **[Context](#context)** — current state, CI matrix, and WP 7.0 status (counts in `docs/current-metrics.md`)
-- **[1. Integration Tests](#1-integration-tests--scope-and-value)** — Complete ✓ (80 tests), coverage analysis, remaining gaps
+- **[1. Integration Tests](#1-integration-tests--scope-and-value)** — Current integration coverage, coverage analysis, remaining gaps
 - **[2. WordPress 7.0 Prep](#2-wordpress-70-prep)** — WP 7.0 GA shipped May 20, 2026; Connectors parity check and registry-aware matcher remain open
 - **[3. Collaboration & Sudo](#3-collaboration-and-sudo--multi-user-editing-scenarios)** — Multi-user editing, conflict resolution
 - **[4. Context Collapse & TDD](#4-context-collapse-and-tdd)** — LLM confabulation defense, test-driven development
@@ -230,7 +230,7 @@ The operator tooling tranche shipped in v2.12.0.
 This is a living document covering accumulated input and thinking about the strategic
 challenges and priorities for WP Sudo. 
 
-Current project state (as of June 12, 2026):
+Current project state (as of June 14, 2026):
 - **v3.4.0 is the latest tagged release** — governance capabilities, WPGraphQL classifier hardening, REST/plugin-rule hardening, request-stash minimization, lockout/2FA hardening, uninstall defense-in-depth, login-sudo opt-out filter, governance backfill upgrader fix, recovery-mode containment, CI hardening, documentation-audit fixes, and `Tested up to: 7.0` have shipped. The plugin is not currently published to the WordPress.org plugin repository; `readme.txt` stable tag is package/future-publication metadata.
 - Current test and size counts are centralized in [`docs/current-metrics.md`](current-metrics.md).
 - CI pipeline: unit tests on PHP 8.0–8.4; integration tests on PHP 8.0/8.1/8.3; WordPress 6.2, 6.7, and 7.0 GA; single-site + multisite; MySQL 8.0 plus one MariaDB lane; PCOV coverage job; 61 Playwright E2E tests
@@ -595,7 +595,7 @@ the recommended implementation order is:
 
 Use this default order after the v3.4.0 release unless a real user need overrides it:
 
-- **Do next:** README screenshot refresh and E2E explicit-group runtime monitoring
+- **Do next:** E2E explicit-group runtime monitoring, Plugin Check warning triage, and the next screenshot refresh when UI work changes public screens
 - **Most important major feature track:** Gutenberg Block Editor reauthentication UX design, then implementation
 - **Plan next:** The Two Factor lifecycle bridge (gate recovery-code generation, TOTP setup/delete, and profile-form provider changes), the modest Sudo Activity screen MVP, audit-visibility warnings, multisite operator controls, and governance polish
 - **Do later if demand exists:** Network Policy Hierarchy for Multisite, Cross-Site Session Revocation, network-enforced Passed-event logging policy (super admins can require immutable Passed-event audit visibility across subsites), Security Administrator governance mode (dedicated `manage_wp_sudo` capability, settings/widget visibility scoped to that capability, optional strict-mode assignee workflow, and documented recovery path for misconfiguration)
@@ -606,7 +606,7 @@ Use this default order after the v3.4.0 release unless a real user need override
 For the historical v3.1–v3.3 security/governance audit and remediation record,
 see:
 
-- [`docs/execution-plan-v3.1-v3.3.md`](execution-plan-v3.1-v3.3.md)
+- [`docs/archive/execution-plan-v3.1-v3.3.md`](archive/execution-plan-v3.1-v3.3.md)
 
 That file is retained for auditability. It is no longer the canonical current
 priority tracker; use this roadmap, `docs/release-status.md`, and

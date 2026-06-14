@@ -66,11 +66,11 @@ Source: `.github/workflows/phpunit.yml`, `.github/workflows/e2e.yml`, `.github/w
 
 ## Verification Notes
 
-- `composer test:unit` passed on 2026-06-13 (`788 tests`, `2256 assertions`).
-- `composer lint` passed on 2026-06-13.
-- `composer analyse` passed on 2026-06-13.
-- `composer analyse:psalm` passed on 2026-06-13 with 96.0050% inferred type coverage.
-- `composer verify:metrics` passed on 2026-06-13.
+- `composer test:unit` passed on 2026-06-14 (`788 tests`, `2256 assertions`).
+- `composer lint` passed on 2026-06-14.
+- `composer analyse` passed on 2026-06-14; Psalm reported 95.9975% inferred type coverage.
+- `composer verify:metrics` passed on 2026-06-14.
+- Plugin Check CI passed on 2026-06-14 against a clean production dist; warning triage remains a follow-up.
 - Full integration suites were not re-run during the June 13 lightweight state assessment. Last recorded single-site integration pass remains 2026-06-11 (`183 tests`, `604 assertions`, `15 skipped`, `0 failures`) via the wp-env `tests-cli` container; last recorded multisite integration note remains the 2026-06-10 abort described in repository history until a fresh full multisite run supersedes it.
 
 ## Update Procedure

@@ -3,7 +3,7 @@
 *Initial draft 2026-04-13 from `wordpress-develop` trunk source code.*
 *Revised extensively 2026-04-18 (13 commits) to correct security scenario analysis, clarify threat-model framing, and verify REST save behavior in WordPress Studio (`7.0-RC2-62241`).*
 *Minor scope clarifications 2026-04-19.*
-*There is now an official Core dev note for the Connectors API, but this reference remains source-derived because it goes deeper into the REST masking/write path than the high-level announcement. Verify against the GA release before relying on implementation details.*
+*There is now an official Core dev note for the Connectors API, but this reference remains source-derived because it goes deeper into the REST masking/write path than the high-level announcement. GA parity verification remains an open roadmap task before changing Connectors coverage.*
 
 This document focuses mostly on AI-provider connectors because those are the
 practical Connectors surfaces currently relevant to WP Sudo.
@@ -19,15 +19,15 @@ practical Connectors surfaces currently relevant to WP Sudo.
 > - Connectors credential writes currently flow through `/wp/v2/settings`.
 > - Current WP Sudo `main` gates connector credential writes on that path.
 > - Re-verify these implementation details against WordPress 7.0 GA before
->   relying on them.
+>   relying on them for new enforcement changes.
 
 The detailed sections below are still based on RC2 / trunk-era behavior and
-should be treated as source-derived until the final 7.0 release is confirmed.
+should be treated as source-derived until GA source/runtime parity is confirmed.
 
 > [!WARNING]
 > This reference is source-derived from WordPress 7.0 RC2 / trunk-era code and
-> should be re-verified against the final GA release before relying on
-> implementation details.
+> should be re-verified against the GA release before relying on implementation
+> details for new enforcement changes.
 
 **Official dev note:** [Introducing the Connectors API in WordPress 7.0](https://make.wordpress.org/core/2026/03/18/introducing-the-connectors-api-in-wordpress-7-0/)
 

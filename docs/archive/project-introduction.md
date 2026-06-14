@@ -2,9 +2,9 @@
 
 _This document preserves the longer conceptual introduction that originally opened the GitHub README. It is background and positioning, not the canonical security model or release-status document._
 
-For the current product overview, see [../readme.md](../readme.md). For the canonical threat model and boundaries, see [security-model.md](security-model.md).
+For the current product overview, see [../../readme.md](../../readme.md). For the canonical threat model and boundaries, see [../security-model.md](../security-model.md).
 
-![Fuwa-no-seki barrier gate](../assets/fuwa-no-seki-narrow.png)
+![Fuwa-no-seki barrier gate](../../assets/fuwa-no-seki-narrow.png)
 
 > So full of cracks,  
 > the barrier gatehouse of Fuwa  
@@ -80,8 +80,8 @@ Its value is in being a last-layer threshold check on the operations it actually
 
 ## Where to go next
 
-- [../readme.md](../readme.md) — lean project overview
-- [security-model.md](security-model.md) — threat model and explicit boundaries
-- [FAQ.md](FAQ.md) — practical questions and caveats
-- [developer-reference.md](developer-reference.md) — hooks, filters, and extension points
-- [core-action-gate-proposal.md](core-action-gate-proposal.md) — longer-form design thinking and core proposal work
+- [../../readme.md](../../readme.md) — lean project overview
+- [../security-model.md](../security-model.md) — threat model and explicit boundaries
+- [../FAQ.md](../FAQ.md) — practical questions and caveats
+- [../developer-reference.md](../developer-reference.md) — hooks, filters, and extension points
+- [../core-action-gate-proposal.md](../core-action-gate-proposal.md) — longer-form design thinking and core proposal work

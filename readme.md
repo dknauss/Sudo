@@ -173,7 +173,7 @@ For current release posture, supported lanes, and forward `main` notes, see [doc
 - [docs/abilities-api-assessment.md](docs/abilities-api-assessment.md) — WordPress Abilities API assessment
 - [docs/core-action-gate-proposal.md](docs/core-action-gate-proposal.md) — longer-form core proposal and design thinking
 - [docs/llm-lies-log.md](docs/llm-lies-log.md) — verification discipline and past documentation failures
-- [docs/project-introduction.md](docs/project-introduction.md) — the longer conceptual introduction, graphic, poem, and gate metaphor preserved from the earlier README
+- [docs/archive/project-introduction.md](docs/archive/project-introduction.md) — the longer conceptual introduction, graphic, poem, and gate metaphor preserved from the earlier README
 
 ## Development
 

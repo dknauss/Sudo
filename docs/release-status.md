@@ -1,6 +1,6 @@
 # Release Status (Canonical Current State)
 
-Last verified: 2026-06-13
+Last verified: 2026-06-14
 
 This file is the canonical source for **current release state** in this repository:
 
@@ -9,7 +9,7 @@ This file is the canonical source for **current release state** in this reposito
 - unreleased work already present on `main`
 - the latest stable WordPress release WP Sudo package metadata should advertise
 - the forward WordPress lane used in CI, Playground, and manual verification
-- the current status of the delayed/rescheduled WordPress 7.0 final release
+- the current WordPress 7.0 GA posture and next forward-lane assumptions
 
 ## Latest GitHub/tagged release
 
@@ -22,7 +22,7 @@ This file is the canonical source for **current release state** in this reposito
 - **Current `main` runtime version constant:** `3.4.0`
 - **Current metadata should match:** `readme.txt` stable tag, `wp-sudo.php`, `tests/bootstrap.php`, `phpstan-bootstrap.php`
 - **Current package metadata:** `readme.txt` stable tag `3.4.0`
-- **Last completed release checklist:** `docs/release-3.0.0-checklist.md`
+- **Last archived release checklist:** `docs/archive/release-3.0.0-checklist.md`
 
 ## WordPress.org publication status
 
@@ -50,13 +50,19 @@ Current commits ahead of `v3.4.0`:
   challenge/admin, 2FA/UI, lockout/surface, and replay/multisite groups.
 - README and WordPress.org-style screenshot assets refreshed for the current
   settings, Access, Rule Tester, dashboard activity, and recovery-mode screens.
+- Public README copy was clarified to explain the sudo window without implying
+  repeated prompts inside a burst of admin work.
+- Plugin Check CI now builds a clean production dist, runs the official Plugin
+  Check plugin through `wp-env`, and fails on reported PCP errors.
+- Historical planning docs moved under `docs/archive/`; active docs now point at
+  the current roadmap, release status, security model, and developer reference.
 
 ## WordPress release posture
 
 ### Latest stable WordPress release
 
 - **Latest stable major/minor branch:** `7.0`
-- **Latest stable patch release observed:** `7.0` GA (released May 20, 2026; verified as latest stable on June 8, 2026)
+- **Latest stable patch release observed:** `7.0` GA (released May 20, 2026; verified as latest stable on June 14, 2026)
 
 ### Forward lane used by this repository
 
@@ -101,5 +107,5 @@ Update this file whenever any of the following changes:
 1. latest tagged release, WordPress.org publication status, or current `main` target version
 2. `CHANGELOG.md` unreleased feature list in a way that changes current `main` status
 3. latest stable WordPress release line
-4. forward WordPress lane (`7.0-RC1`, final `7.0`, etc.)
+4. forward WordPress lane (current GA release or future RC/preview lane)
 5. WordPress release-date posture (delays, final date publication, GA completion)
