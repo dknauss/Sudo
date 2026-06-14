@@ -91,16 +91,16 @@ jobs:
         run: wp-env start --config .tmp/plugin-check-wp-env.json
 
       - name: Install Plugin Check
-        run: wp-env run cli wp plugin install plugin-check --activate
+        run: wp-env --config .tmp/plugin-check-wp-env.json run cli wp plugin install plugin-check --activate
 
       - name: Activate WP Sudo
-        run: wp-env run cli wp plugin activate wp-sudo
+        run: wp-env --config .tmp/plugin-check-wp-env.json run cli wp plugin activate wp-sudo
 
       - name: Run Plugin Check
         run: |
-          wp-env run cli wp plugin list
-          wp-env run cli wp plugin list-checks
-          wp-env run cli wp plugin check wp-sudo --format=json --ignore-warnings > .tmp/plugin-check-results.json
+          wp-env --config .tmp/plugin-check-wp-env.json run cli wp plugin list
+          wp-env --config .tmp/plugin-check-wp-env.json run cli wp plugin list-checks
+          wp-env --config .tmp/plugin-check-wp-env.json run cli wp plugin check wp-sudo --format=json --ignore-warnings > .tmp/plugin-check-results.json
           cat .tmp/plugin-check-results.json
 
       - name: Upload Plugin Check results
