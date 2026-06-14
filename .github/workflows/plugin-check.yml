@@ -59,19 +59,61 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+
+      - name: Install wp-env
+        run: npm --global --no-fund install @wordpress/env@11.1.0
+
       - name: Build Plugin Check dist
         run: bash bin/build-plugin-check-dist.sh build/wp-sudo
 
+      - name: Create wp-env config
+        run: |
+          mkdir -p .tmp
+          cat > .tmp/plugin-check-wp-env.json <<JSON
+          {
+            "mappings": {
+              "wp-content/plugins/wp-sudo": "${PWD}/build/wp-sudo"
+            },
+            "port": 8880,
+            "testsEnvironment": false,
+            "config": {
+              "WP_DEBUG": true,
+              "WP_DEBUG_LOG": true
+            }
+          }
+          JSON
+
+      - name: Start WordPress
+        run: wp-env start --config .tmp/plugin-check-wp-env.json
+
+      - name: Install Plugin Check
+        run: wp-env run cli wp plugin install plugin-check --activate
+
+      - name: Activate WP Sudo
+        run: wp-env run cli wp plugin activate wp-sudo
+
       - name: Run Plugin Check
-        # v1.1.x currently uses Node 24 and a URL-based wp-env plugin source
-        # path that can exit 0 without initializing Docker on ubuntu-24.04.
-        # Pin to the Node 20-based action until upstream wp-env/action catches up.
-        uses: wordpress/plugin-check-action@v1.0.6
+        run: |
+          wp-env run cli wp plugin list
+          wp-env run cli wp plugin list-checks
+          wp-env run cli wp plugin check wp-sudo --format=json --ignore-warnings > .tmp/plugin-check-results.json
+          cat .tmp/plugin-check-results.json
+
+      - name: Upload Plugin Check results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
         with:
-          build-dir: build/wp-sudo
-          wp-version: latest
-          include-experimental: false
-          ignore-warnings: true
+          name: plugin-check-results
+          path: .tmp/plugin-check-results.json
+          if-no-files-found: ignore
+
+      - name: Stop WordPress
+        if: ${{ always() }}
+        run: wp-env stop --config .tmp/plugin-check-wp-env.json
 
   plugin-check-summary:
     name: Plugin Check
