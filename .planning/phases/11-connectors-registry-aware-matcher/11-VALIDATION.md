@@ -10,7 +10,7 @@ created: 2026-06-14
 # Phase 11 — Validation Strategy
 
 > Per-phase validation contract for feedback sampling during execution.
-> Sourced from `11-CONTEXT.md` (decisions + Design Review section) — `--skip-research` was used; domain research lives in `.planning/research/v4.0/RESEARCH.md`.
+> **Derived from** the `## Validation Architecture` section of [`11-RESEARCH.md`](11-RESEARCH.md), which consolidates the milestone domain research (`.planning/research/v4.0/RESEARCH.md`) and the completed design review (`11-CONTEXT.md`).
 
 ---
 
