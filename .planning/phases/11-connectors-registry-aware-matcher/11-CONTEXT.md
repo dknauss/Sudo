@@ -1,7 +1,7 @@
 # Phase 11: Connectors Registry-Aware Matcher - Context
 
 **Gathered:** 2026-06-14
-**Status:** Ready for planning (pre-TDD design review required first — see Design-Review Agenda)
+**Status:** Ready for planning — pre-TDD design review COMPLETE (see Design Review section; 2 blockers resolved: cache mandate + audit-detail descope)
 
 <domain>
 ## Phase Boundary
@@ -29,7 +29,9 @@ Implementation is confined to rewriting `is_connector_api_key_setting_name()` in
 - **Standard `sudo_required` error.** Blocked connector-credential REST/App-Password writes return the existing generic gating error, uniform with every other gated REST action. No per-rule message handling (no other rule uses one).
 
 ### Audit-event detail
-- Audit hooks record **the matched field name and connector id** (e.g. `wordpress_api_key`) for observability in the Activity dashboard and the Stream/WSAL bridges — but **never the secret value**, consistent with the stash-redaction discipline. The field name is not secret; the value is.
+- **DESCOPED from Phase 11 (design review Finding 2).** Audit hooks fire with a fixed signature `($user_id, $rule_id, $surface)` (`class-gate.php:704` etc.) and the matcher returns a bare `bool`, so the matched field name/connector id are discarded before any hook runs. Delivering field-name detail requires changing the public audit-hook contract (touches the bundled Stream/WSAL bridges + Activity dashboard) — out of this phase's one-method scope and needing its own design review.
+- Phase 11 keeps the **existing** audit trail: `rule_id = connectors.update_credentials` is already logged on gate events (verified `tests/Unit/EventStoreTest.php:287`). The "never the secret value" guarantee still holds (the value was never captured).
+- Field-name + connector-id observability is **deferred to its own phase** — see Deferred.
 
 ### Rule Tester reflection
 - The operator Request/Rule Tester (v3.0) must evaluate through the **same two-tier matcher** as the live gate, so testing a write to `wordpress_api_key` reports "would be gated" on WP 7.0. Single source of truth; no divergence between Tester output and live gating.
@@ -41,10 +43,11 @@ Implementation is confined to rewriting `is_connector_api_key_setting_name()` in
 - **Release targeting:** ship in **v4.0.0 only** — no 3.4.x backport (plugin not yet on .org; 4.0.0 bundling already decided).
 
 ### Claude's Discretion (design-review/technical, not user calls)
-- Static per-request cache mechanism and its reset path (recommended: class-level `static` property cleared by `reset_cache()`).
 - Registry-iteration shape (`foreach ( wp_get_connectors() as $connector )`), `isset()` guards on `authentication.method`/`setting_name`, PHPStan level-6 typing.
 - Whether/how to touch `request_contains_connector_api_key()` traversal (research: outer loop unchanged).
 - Exact changelog wording and SECURITY.md phrasing.
+
+(Cache mechanism is NO LONGER discretionary — see Design Review Finding 1 below; it is a mandated requirement.)
 
 </decisions>
 
@@ -82,21 +85,38 @@ Implementation is confined to rewriting `is_connector_api_key_setting_name()` in
 
 </specifics>
 
-<design_review_agenda>
-## Pre-TDD Design Review (REQUIRED per CLAUDE.md — security-sensitive matcher)
+<design_review>
+## Design Review — COMPLETED 2026-06-14
 
-Spawn the design reviewer with these items before writing tests/code:
-- Static cache pattern and `reset_cache()` invalidation (unit-test isolation across a shared process).
-- Registry timing relative to the two gate surfaces; late/misregistered connectors falling to regex fallback.
-- Multisite behavior (confirm no special handling needed).
-- Contract integrity: rewriting the private matcher must not change the public `connectors.update_credentials` rule shape or `wp_sudo_gated_actions` semantics.
-- Scope check: union fallback must not over-gate benign settings writes (CONN-05).
+The CLAUDE.md pre-implementation design review ran before TDD. Core design verified sound (contract integrity, caller coverage, execution contexts, `api_key`-only scope all clean against the live code). Findings the PLAN/implementer MUST honor:
 
-</design_review_agenda>
+### Finding 1 (BLOCKER) — Cache MUST be a class property, not a function-local static
+- The RESEARCH.md "Proposed implementation" sketch uses a **function-local** `static $registry_names` — this is **wrong**: `reset_cache()` cannot clear a function-local static, so it would leak across the shared-process unit suite and poison tests (`tests/TestCase.php:78` calls `reset_cache()` in tearDown).
+- **Mandate:** `private static ?array $connector_setting_names_cache = null;` cleared by adding `self::$connector_setting_names_cache = null;` to `reset_cache()` (`class-action-registry.php:~850`). Strike the function-local sketch from RESEARCH.md so it isn't copied during GREEN. This is the single highest-risk item.
+
+### Finding 2 (BLOCKER) — Audit field-name detail descoped (resolved)
+- See "Audit-event detail" decision above. Phase 11 ships `rule_id`-only audit; field-name observability is deferred.
+
+### Finding 3 (MEDIUM) — Don't cache an empty registry result as "checked"
+- Distinguish "registry not yet built" (`null`) from "built, empty". Do not lock in an empty Tier-1 set that would persist for the request. Production is safe (no pre-`init` caller; registry frozen at `init@15`, both gate surfaces run after) — but the commit message must cite that `init@15` / `rest_request_before_callbacks` ordering as the explicit correctness premise.
+
+### Finding 4 (LOW/MED) — Preserve the regex contract under `wp_get_connectors` absence
+- Keep the `function_exists('wp_get_connectors')` Tier-1 guard (legitimate runtime integration check per CLAUDE.md, NOT a shim — do not remove).
+- Existing connector tests (`GateTest.php:917`, `AdminTest.php:1232`, using `connectors_ai_openai_api_key`) must stay green; they will now exercise the Tier-1 fall-through with no `wp_get_connectors` stub. Do not add `function_exists` mocks to them; rely on Brain\Monkey's falsy default.
+
+### Finding 5 (LOW) — Document the deliberate `api_key`-only scope
+- `method === 'api_key'`-only is correct and complete against verified WP 7.0 core (only `api_key`/`none` exist; `none` carries no secret). Add a code comment + a note in `docs/connectors-api-reference.md` stating a future core auth method is a known re-scoping trigger, not a silent gap. Integrators with other secret methods use `wp_sudo_gated_actions`.
+
+### Required RED-step tests (Findings 3 + 4)
+1. `wp_get_connectors` absent → regex tier still gates `connectors_ai_openai_api_key` (preserves pre-7.0 contract).
+2. After `reset_cache()`, a second evaluation re-reads `wp_get_connectors()` (pins the cache-invalidation contract against future drift).
+
+</design_review>
 
 <deferred>
 ## Deferred Ideas
 
+- **Connector field-name audit observability** — record the matched connector setting_name + connector id (never the value) in the audit trail. Descoped from Phase 11 (design review Finding 2): requires changing the audit-hook signature `($user_id, $rule_id, $surface)`, which touches the public hook contract + Stream/WSAL bridges + Activity dashboard. Its own phase, with its own design review.
 - **CVE / coordinated disclosure** — explicitly deferred unless a coverage-gap of this class is found in a publicly-distributed (.org) version (see Disclosure framing trigger).
 - **Split `docs/connectors-api-reference.md`** into a leaner core reference + a security-analysis companion — already tracked as Future RDOC-01; not part of CONN-06.
 - **Dedicated filter for non-api_key credential keys** — rejected for this phase; integrators use the existing `wp_sudo_gated_actions` filter.
