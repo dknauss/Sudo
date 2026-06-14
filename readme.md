@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/dknauss/Sudo/main/assets/fuwa-no-seki-narrow.png" alt="WP Sudo banner with Japanese gate calligraphy." width="100%">
+</p>
+
 # WP Sudo
 
 Require password confirmation before high-risk changes go through on your WordPress site — even from an already-authenticated admin session.
