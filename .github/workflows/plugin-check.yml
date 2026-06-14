@@ -63,10 +63,12 @@ jobs:
         run: bash bin/build-plugin-check-dist.sh build/wp-sudo
 
       - name: Run Plugin Check
-        uses: wordpress/plugin-check-action@v1
+        # v1.1.x currently uses Node 24 and a URL-based wp-env plugin source
+        # path that can exit 0 without initializing Docker on ubuntu-24.04.
+        # Pin to the Node 20-based action until upstream wp-env/action catches up.
+        uses: wordpress/plugin-check-action@v1.0.6
         with:
           build-dir: build/wp-sudo
-          slug: wp-sudo
           wp-version: latest
           include-experimental: false
           ignore-warnings: true
