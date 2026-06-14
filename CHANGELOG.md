@@ -7,6 +7,9 @@
   heavy challenge-flow tests are split across basic/admin, 2FA UI,
   lockout/surface, and replay/multisite groups while preserving the aggregate
   `E2E Tests` required status check.
+- **Screenshot refresh:** README and WordPress.org-style screenshot assets now
+  cover the current tabbed settings UI, Access tab, Request / Rule Tester,
+  Session Activity dashboard widget, and break-glass recovery notice.
 
 ## 3.4.0 - 2026-06-13
 

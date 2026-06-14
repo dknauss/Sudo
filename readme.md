@@ -16,6 +16,22 @@ Require password confirmation before high-risk changes go through on your WordPr
 
 Playground demo credentials are `admin` / `password`. When WP Sudo asks for reauthentication, enter the same password: `password`.
 
+## Screenshots
+
+![WP Sudo challenge page asking the current user to confirm their identity with a password.](assets/screenshot-1.png)
+
+![Settings tab with policy presets, session settings, and the active sudo timer in the admin bar.](assets/screenshot-2.png)
+
+![Gated Actions tab showing protected operations and the surfaces where each rule applies.](assets/screenshot-3.png)
+
+![Rule Tester tab evaluating a representative admin request without executing it.](assets/screenshot-4.png)
+
+![Access tab for managing dedicated WP Sudo governance capabilities.](assets/screenshot-5.png)
+
+![Dashboard widget with active sudo sessions, policy summary, and recent privilege-action events.](assets/screenshot-6.png)
+
+![Break-glass recovery mode notice on the Sudo settings screen.](assets/screenshot-7.png)
+
 ## Features
 
 - **Confirmation before destructive actions** — plugin installs/deletions, user management, settings changes, core updates, and more all require a fresh password before proceeding

@@ -549,12 +549,14 @@ the recommended implementation order is:
    - Measure grouped runtime before deciding whether cache/image/policy optimizations are still worth the complexity
    - Treat worker-level parallelism as a later step that requires explicit safety rules
    - **Effort:** Low to medium
-3. **Refresh README screenshots for the current UI**
-   - Inventory existing README/readme screenshot references and WordPress.org asset needs
-   - Recapture the Settings -> Sudo screens, Access tab, Session Activity dashboard widget, Rule Tester, and other new widgets/screens
-   - Expect to redo this again after major UI changes; keep this pass focused on making current public docs honest
-   - Redo the full screenshot set if visual consistency or stale WP admin styling makes piecemeal replacement misleading
-   - **Effort:** Low to medium
+3. ~~**Refresh README screenshots for the current UI**~~ — done on `main`
+   - Refreshed the WordPress.org-style screenshot assets for Settings -> Sudo,
+     Gated Actions, Rule Tester, Access, the Session Activity dashboard widget,
+     and break-glass recovery mode
+   - Added a compact screenshot gallery to the GitHub README and updated the
+     `readme.txt` captions
+   - Expect to redo this again after major UI changes; keep future passes focused
+     on making current public docs honest
 4. **Strengthen release-only environment checks instead of broadening required CI**
    - Add the managed-host/manual environment checklist promised in section 5
    - Keep SQLite as smoke/release assurance, not a required merge gate
@@ -1954,6 +1956,13 @@ coverage that protects challenge, replay, admin UI, and WordPress 7.0 behavior.
   release process expectations.
 
 #### Phase R5: README screenshot refresh and visual docs
+
+**Status:** completed on `main` after v3.4.0. The refreshed public screenshots
+use the WordPress Playground demo on WordPress 7.0, default admin color scheme,
+1280x760 CSS viewport cropped to the WordPress frame, 2x device scale, and the
+seeded demo users/sessions/events from `blueprint-main.json` plus the recovery
+state from `blueprint-recovery-mode.json`. Future UI-changing phases should add
+their own screenshot-refresh task when public docs would otherwise drift.
 
 **Goal:** bring public screenshots back in line with the v3.2 UI and make the
 README/readme assets show the screens operators now use.

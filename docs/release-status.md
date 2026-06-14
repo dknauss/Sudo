@@ -48,6 +48,8 @@ Current commits ahead of `v3.4.0`:
 - Roadmap additions for a Connectors registry-aware matcher, a v4.0.0 breaking-change milestone, and Gutenberg design scope.
 - E2E CI balancing that replaces opaque Playwright sharding with explicit
   challenge/admin, 2FA/UI, lockout/surface, and replay/multisite groups.
+- README and WordPress.org-style screenshot assets refreshed for the current
+  settings, Access, Rule Tester, dashboard activity, and recovery-mode screens.
 
 ## WordPress release posture
 

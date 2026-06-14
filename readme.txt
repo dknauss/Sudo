@@ -182,12 +182,12 @@ Extensibility: the action registry is filterable via wp_sudo_gated_actions. Audi
 == Screenshots ==
 
 1. Challenge page — reauthentication interstitial with password field.
-2. Two-factor authentication — after password confirmation, users with 2FA enabled enter their authentication code.
-3. Settings page — configure session duration, quick policy presets, and entry-point policies.
-4. Gate notice (plugins) — when no sudo session is active, a persistent notice links to the challenge page.
-5. Gate notice (themes) — the same gating notice appears on the themes page.
-6. Gated actions — the settings page lists all gated operations with their categories and surfaces.
-7. Active sudo session — the admin bar shows a green countdown timer.
+2. Settings tab — policy presets, session settings, and active sudo timer.
+3. Gated Actions tab — protected operations with rule IDs and covered surfaces.
+4. Rule Tester tab — evaluate representative request shapes without executing them.
+5. Access tab — manage dedicated Sudo governance capabilities and revoke sessions.
+6. Dashboard widget — active sessions, policy summary, and recent privilege-action events.
+7. Break-glass recovery notice — visible warning while WP_SUDO_RECOVERY_MODE is active.
 
 == Changelog ==
 
