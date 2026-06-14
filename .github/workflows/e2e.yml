@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   # Decide whether the heavy E2E matrix needs to run. Pull requests that touch
-  # only documentation skip the shards; the "E2E Tests" gate job below still
+  # only documentation skip the groups; the "E2E Tests" gate job below still
   # runs and reports success, so the required status check is never left
   # pending (which would deadlock the PR). Fail-safe: any non-doc file, any
   # non-pull_request event, or any error → run E2E.
@@ -60,8 +60,8 @@ jobs:
           echo "Non-documentation files changed: $code"
           echo "code=$code" >> "$GITHUB_OUTPUT"
 
-  e2e-shard:
-    name: "E2E Tests shard ${{ matrix.shard-index }}/${{ matrix.shard-total }}"
+  e2e-group:
+    name: "E2E Tests ${{ matrix.group-index }}/${{ matrix.group-total }} (${{ matrix.group-name }})"
     needs: changes
     if: ${{ needs.changes.outputs.code == 'true' }}
     runs-on: ubuntu-24.04
@@ -69,8 +69,30 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard-index: [1, 2, 3, 4]
-        shard-total: [4]
+        include:
+          - group-index: 1
+            group-total: 4
+            group-name: challenge-basic-admin
+            test-command: |
+              npm run test:e2e -- tests/e2e/specs/admin-bar-deactivate.spec.ts tests/e2e/specs/admin-bar-timer.spec.ts tests/e2e/specs/challenge.spec.ts --grep 'ABAR|TIMR|CHAL-0[1-5]'
+          - group-index: 2
+            group-total: 4
+            group-name: challenge-2fa-ui
+            test-command: |
+              npm run test:e2e -- tests/e2e/specs/challenge.spec.ts --grep 'CHAL-0[6-9]|CHAL-10|CHAL-11'
+              npm run test:e2e -- tests/e2e/specs/cookie.spec.ts tests/e2e/specs/gate-ui.spec.ts tests/e2e/specs/keyboard.spec.ts
+          - group-index: 3
+            group-total: 4
+            group-name: challenge-lockout-surfaces
+            test-command: |
+              npm run test:e2e -- tests/e2e/specs/challenge.spec.ts --grep 'CHAL-12|CHAL-13|CHAL-14'
+              npm run test:e2e -- tests/e2e/specs/public-api.spec.ts tests/e2e/specs/smoke.spec.ts tests/e2e/specs/stack-smoke.spec.ts
+          - group-index: 4
+            group-total: 4
+            group-name: challenge-replay-multisite
+            test-command: |
+              npm run test:e2e -- tests/e2e/specs/challenge.spec.ts --grep 'CHAL-15|CHAL-16|CHAL-17'
+              npm run test:e2e -- tests/e2e/specs/mu-plugin.spec.ts tests/e2e/specs/multisite-network-admin.spec.ts tests/e2e/specs/multisite-stack-smoke.spec.ts
 
     steps:
       - name: Checkout
@@ -114,13 +136,15 @@ jobs:
       - name: Run E2E tests
         env:
           WP_ENV_CONFIG_PATH: .wp-env.e2e.json
-        run: npm run test:e2e -- --shard=${{ matrix.shard-index }}/${{ matrix.shard-total }}
+        run: |
+          set -euo pipefail
+          ${{ matrix.test-command }}
 
       - name: Upload Playwright report on failure
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
         with:
-          name: playwright-report-shard-${{ matrix.shard-index }}-of-${{ matrix.shard-total }}
+          name: playwright-report-${{ matrix.group-index }}-${{ matrix.group-name }}
           path: |
             playwright-report/
             tests/e2e/artifacts/test-results/
@@ -131,31 +155,31 @@ jobs:
         if: always()
         run: npx wp-env stop --config .wp-env.e2e.json
 
-  # Required status check. Always runs (even when the shards are skipped) so the
-  # "E2E Tests" context is always reported. Passes when the shards succeeded, or
+  # Required status check. Always runs (even when the groups are skipped) so the
+  # "E2E Tests" context is always reported. Passes when the groups succeeded, or
   # when they were skipped because the PR was documentation-only; fails on any
-  # real shard failure or cancellation.
+  # real group failure or cancellation.
   e2e-tests:
     name: "E2E Tests"
     runs-on: ubuntu-24.04
-    needs: [changes, e2e-shard]
+    needs: [changes, e2e-group]
     if: always()
 
     steps:
-      - name: Check shard results
+      - name: Check group results
         run: |
           if [ "${{ needs.changes.result }}" != "success" ]; then
             echo "Change detector did not succeed (${{ needs.changes.result }}) — failing the gate (fail-safe)."
             exit 1
           fi
-          result="${{ needs.e2e-shard.result }}"
+          result="${{ needs.e2e-group.result }}"
           if [ "$result" = "success" ]; then
-            echo "All E2E shards passed."
+            echo "All E2E groups passed."
             exit 0
           fi
           if [ "$result" = "skipped" ] && [ "${{ needs.changes.outputs.code }}" != "true" ]; then
-            echo "E2E shards skipped (documentation-only change) — passing the required gate."
+            echo "E2E groups skipped (documentation-only change) — passing the required gate."
             exit 0
           fi
-          echo "E2E shard matrix result: $result"
+          echo "E2E group matrix result: $result"
           exit 1

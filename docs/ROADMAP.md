@@ -1,17 +1,17 @@
 # Roadmap: Past and Future Planning — Integration Tests, WP 7.0 Prep, Collaboration, TDD, and Core Design
 
-*Updated June 12, 2026*
+*Updated June 14, 2026*
 
 ## Table of Contents
 
 - **[Planned Development Timeline](#planned-development-timeline)** — Immediate, short-term, medium-term, and later work phases
 - **[Context](#context)** — current state, CI matrix, and WP 7.0 status (counts in `docs/current-metrics.md`)
-- **[1. Integration Tests](#1-integration-tests--scope-and-value)** — Complete ✓ (80 tests), coverage analysis, remaining gaps
+- **[1. Integration Tests](#1-integration-tests--scope-and-value)** — Current integration coverage, coverage analysis, remaining gaps
 - **[2. WordPress 7.0 Prep](#2-wordpress-70-prep)** — WP 7.0 GA shipped May 20, 2026; Connectors parity check and registry-aware matcher remain open
 - **[3. Collaboration & Sudo](#3-collaboration-and-sudo--multi-user-editing-scenarios)** — Multi-user editing, conflict resolution
 - **[4. Context Collapse & TDD](#4-context-collapse-and-tdd)** — LLM confabulation defense, test-driven development
 - **[Recommended Next Steps](#recommended-next-steps-priority-order)** — Immediate, short-term, medium-term priorities
-- **[Execution Companion (v3.1–v3.3)](#execution-companion-v31v33)** — prioritized backlog + phased GSD delivery plan
+- **[Archived Execution Record (v3.1–v3.3)](#archived-execution-record-v31v33)** — historical audit/remediation record; current priorities live in this roadmap and `.planning/STATE.md`
 - **[5. Environment Diversity Testing](#5-environment-diversity-testing-future-milestone)** — Apache, PHP 8.0, MariaDB, backward compat
 - **[6. Coverage Tooling](#6-coverage-tooling-baseline-established)** — PCOV baseline established, full matrix deferred
 - **[7. Mutation Testing](#7-mutation-testing-deferred-to-post-environment-diversity)** — Deferred until integration suite is fast enough
@@ -230,7 +230,7 @@ The operator tooling tranche shipped in v2.12.0.
 This is a living document covering accumulated input and thinking about the strategic
 challenges and priorities for WP Sudo. 
 
-Current project state (as of June 12, 2026):
+Current project state (as of June 14, 2026):
 - **v3.4.0 is the latest tagged release** — governance capabilities, WPGraphQL classifier hardening, REST/plugin-rule hardening, request-stash minimization, lockout/2FA hardening, uninstall defense-in-depth, login-sudo opt-out filter, governance backfill upgrader fix, recovery-mode containment, CI hardening, documentation-audit fixes, and `Tested up to: 7.0` have shipped. The plugin is not currently published to the WordPress.org plugin repository; `readme.txt` stable tag is package/future-publication metadata.
 - Current test and size counts are centralized in [`docs/current-metrics.md`](current-metrics.md).
 - CI pipeline: unit tests on PHP 8.0–8.4; integration tests on PHP 8.0/8.1/8.3; WordPress 6.2, 6.7, and 7.0 GA; single-site + multisite; MySQL 8.0 plus one MariaDB lane; PCOV coverage job; 61 Playwright E2E tests
@@ -537,79 +537,85 @@ not context retrieval.
 15. ~~**Playwright E2E test infrastructure**~~ — done; browser coverage and alternate-stack smoke lanes are in place
 16. ~~**Apache + MariaDB CI job**~~ — done; covered by the named `wp-env` Playwright lane
 
-### Post-v3.2.0 Priority Plan
+### Post-v3.4.0 Priority Plan
 
-With the WordPress 7.0 compatibility release and v3.2.0 hardening work closed,
+With the WordPress 7.0 compatibility release and v3.4.0 hardening work closed,
 the recommended implementation order is:
 
 1. **Deprecate `compatibility` governance mode** (break-glass containment now ✅ shipped) — Two paired governance security-debt items. (a) *Still open:* fire `_doing_it_wrong()` + persistent admin notice when `wp_sudo_governance_mode = 'compatibility'` is active; update FAQ and developer reference; queue removal for the next major release. (b) ✅ *Shipped in v3.4.0:* the break-glass path that replaces it is hardened — the grant is role-gated to administrators, a non-dismissible notice renders, and the `wp_sudo_recovery_mode_active` audit hook fires (stored as a sampled `recovery_mode` event), so it is explicit, auditable, and bounded (see §12.1 Phase R3). `WP_SUDO_RECOVERY_MODE` is the only supported break-glass path going forward, and it is now sound; compatibility mode can be removed once (a) lands. **Effort:** Low (deprecation remaining)
-2. **Implement E2E CI acceleration without reducing release assurance**
-   - Rebalance the current long shard before adding cache/image/policy optimizations
+2. **Monitor and tune E2E CI acceleration without reducing release assurance**
+   - Explicit CI groups now split the former long challenge shard across behavior-focused jobs
    - Keep the full Playwright suite available for release-grade confidence, but shorten normal feedback loops
-   - Treat path-based skipping and worker-level parallelism as later steps that require explicit safety rules
+   - Measure grouped runtime before deciding whether cache/image/policy optimizations are still worth the complexity
+   - Treat worker-level parallelism as a later step that requires explicit safety rules
    - **Effort:** Low to medium
-3. **Refresh README screenshots for the current UI**
-   - Inventory existing README/readme screenshot references and WordPress.org asset needs
-   - Recapture the Settings -> Sudo screens, Access tab, Session Activity dashboard widget, Rule Tester, and other new widgets/screens
-   - Expect to redo this again after major UI changes; keep this pass focused on making current public docs honest
-   - Redo the full screenshot set if visual consistency or stale WP admin styling makes piecemeal replacement misleading
-   - **Effort:** Low to medium
-3. **Strengthen release-only environment checks instead of broadening required CI**
+3. ~~**Refresh README screenshots for the current UI**~~ — done on `main`
+   - Refreshed the WordPress.org-style screenshot assets for Settings -> Sudo,
+     Gated Actions, Rule Tester, Access, the Session Activity dashboard widget,
+     and break-glass recovery mode
+   - Added a compact screenshot gallery to the GitHub README and updated the
+     `readme.txt` captions
+   - Expect to redo this again after major UI changes; keep future passes focused
+     on making current public docs honest
+4. **Strengthen release-only environment checks instead of broadening required CI**
    - Add the managed-host/manual environment checklist promised in section 5
    - Keep SQLite as smoke/release assurance, not a required merge gate
    - Add breadth only where a real compatibility signal is missing
    - **Effort:** Low to medium
-4. **Design Gutenberg Block Editor reauthentication UX**
+5. **Design Gutenberg Block Editor reauthentication UX**
    - Treat this as the most important next major product feature, even though it is the largest UX/design lift
    - Define challenge transport, snackbar/notices behavior, autosave/editor-state safety, replay semantics, and test strategy before implementation
    - Use the design phase to decide what needs Playwright coverage, whether any build tooling is required, and how failures should recover without losing editor work
    - **Effort:** High
-5. **Build the Sudo Activity screen MVP as a modest built-in visibility layer**
+6. **Build the Sudo Activity screen MVP as a modest built-in visibility layer**
    - Keep it focused on recent Sudo events, short retention, and support/debugging value
    - Do not make it a full audit-log, alerting, export, or notification product
    - Prepare the UI for External Audit Mode so Stream/WP Activity Log sites can delegate persistence and notifications
    - **Effort:** Medium
-6. **Add audit-visibility integrity warnings**
+7. **Add audit-visibility integrity warnings**
    - Warn when local passed-event logging is disabled or delegated audit coverage is missing
    - Make reduced visibility explicit in settings, dashboard, and activity surfaces
    - **Effort:** Low to medium
-7. ~~**Build the Session Activity Dashboard Widget**~~ ✅ Done (v3.0.0)
+8. ~~**Build the Session Activity Dashboard Widget**~~ ✅ Done (v3.0.0)
    - ~~This is the smallest meaningful product feature still open~~
    - ~~It adds operator value without forcing a major challenge-flow redesign~~
    - ~~It will also establish the audit-data persistence layer that other visibility features could reuse~~
    - ~~**Effort:** Medium~~
-8. **Extend Dashboard Widget for Multisite Network Admin** (see §11.1)
+9. **Extend Dashboard Widget for Multisite Network Admin** (see §11.1)
    - Build on the v3.0.0 foundation with cross-site aggregation
    - Add super admin visibility controls
    - This is the natural next step now that Event_Store and the per-site widget exist
    - **Effort:** Medium
-9. **Re-evaluate multisite Network Policy Hierarchy after the dashboard/audit work**
+10. **Re-evaluate multisite Network Policy Hierarchy after the dashboard/audit work**
    - This remains valuable, but only for a narrower audience
    - It becomes easier once policy state and audit visibility are clearer
    - **Effort:** High
 
-### Post-v3.0.0 Backlog Triage
+### Post-v3.4.0 Backlog Triage
 
-Use this default order after the v3.2.0 release unless a real user need overrides it:
+Use this default order after the v3.4.0 release unless a real user need overrides it:
 
-- **Do next:** E2E shard rebalance and README screenshot refresh
+- **Do next:** E2E explicit-group runtime monitoring, Plugin Check warning triage, and the next screenshot refresh when UI work changes public screens
+- **Small release-readiness hardening:** localization/translation packaging (POT generation, JS/CLI strings, translator comments, and an i18n check) before the next public packaging push
 - **Most important major feature track:** Gutenberg Block Editor reauthentication UX design, then implementation
 - **Plan next:** The Two Factor lifecycle bridge (gate recovery-code generation, TOTP setup/delete, and profile-form provider changes), the modest Sudo Activity screen MVP, audit-visibility warnings, multisite operator controls, and governance polish
 - **Do later if demand exists:** Network Policy Hierarchy for Multisite, Cross-Site Session Revocation, network-enforced Passed-event logging policy (super admins can require immutable Passed-event audit visibility across subsites), Security Administrator governance mode (dedicated `manage_wp_sudo` capability, settings/widget visibility scoped to that capability, optional strict-mode assignee workflow, and documented recovery path for misconfiguration)
 - **Keep as design backlog:** third-party bridge discovery mode, client-side modal challenge, per-session sudo isolation, REST sudo grant endpoint, SSO/SAML/OIDC framework
 
-## Execution Companion (v3.1–v3.3)
+## Archived Execution Record (v3.1–v3.3)
 
-For the normalized priority stack and phased GSD execution plan, use:
+For the historical v3.1–v3.3 security/governance audit and remediation record,
+see:
 
-- [`docs/execution-plan-v3.1-v3.3.md`](execution-plan-v3.1-v3.3.md)
+- [`docs/archive/execution-plan-v3.1-v3.3.md`](archive/execution-plan-v3.1-v3.3.md)
 
-This companion doc is the canonical implementation sequence for post-v3.0.0
-feature work and should be updated when backlog priority changes.
+That file is retained for auditability. It is no longer the canonical current
+priority tracker; use this roadmap, `docs/release-status.md`, and
+`.planning/STATE.md` for current planning.
 
 ### Activity UX follow-up (easy-first execution order)
 
-To keep shipping velocity high after v3.0.0, execute the Activity UX slice in this order:
+To keep shipping velocity high after v3.4.0, execute the Activity UX slice in this order:
 
 1. **Widget quick wins (low risk, same data model)**
    - Add Recent Events header sort toggles (Time/User/Event/Action/Surface) with sensible defaults (Time desc).
@@ -1617,9 +1623,9 @@ migration endpoint.
 
 - [`docs/archive/internal-admin-governance-spec.md`](archive/internal-admin-governance-spec.md)
 
-### Rollout
+### Rollout And Follow-Up
 
-1. **Phase 1 (v3.1) — ship strict governance as the default.**
+1. **Phase 1 (v3.1, shipped) — ship strict governance as the default.**
    - Introduce the full capability surface (`manage_wp_sudo`,
      `view_wp_sudo_activity`, `export_wp_sudo_activity`,
      `revoke_wp_sudo_sessions`) with a centralized `sudo_can()` helper.
@@ -1635,12 +1641,12 @@ migration endpoint.
    - Replace all `current_user_can('manage_options')` checks in governance
      surfaces with `sudo_can()`. Exit criterion: zero direct checks remain.
 
-2. **Phase 2 (v3.2, optional) — governance polish.**
+2. **Phase 2 (optional future polish) — governance polish.**
    - Integrity warnings when effective visibility is broader than intended.
    - Opt-in 2FA-enrollment requirement for `manage_wp_sudo` holders.
    - Audit visibility on governance-mode transitions.
 
-3. **Phase 3 (post-v3.2) — access tab UX.**
+3. **Phase 3 (post-v3.4 follow-up) — access tab UX.**
 
    - **User picker instead of user ID field.** The Grant Capability interface
      currently requires a numeric user ID. Replace with a searchable dropdown
@@ -1905,18 +1911,20 @@ coverage that protects challenge, replay, admin UI, and WordPress 7.0 behavior.
 - Shard the default Chromium Playwright suite across four GitHub runners.
 - Preserve a final aggregate check named `E2E Tests` so branch protection can keep
   relying on the existing required status.
-- Upload per-shard artifacts and cancel stale same-branch E2E runs after new
+- Upload per-run artifacts and cancel stale same-branch E2E runs after new
   pushes.
 
+**Completed second slice:**
+- Replace opaque Playwright `--shard` assignment with four explicit CI groups:
+  `challenge-basic-admin`, `challenge-2fa-ui`, `challenge-lockout-surfaces`, and
+  `challenge-replay-multisite`.
+- Split the heavy `challenge.spec.ts` coverage by behavior using `--grep`
+  ranges, without moving or rewriting the test bodies.
+- Keep the aggregate `E2E Tests` required status check unchanged.
+
 **Next implementation options, in priority order:**
-- Rebalance the Playwright shard long pole before other speedups. The first
-  four-shard release run put all `challenge.spec.ts` coverage (`CHAL-01` through
-  `CHAL-17`) plus the admin-bar tests into shard 1; shard 1 took `10m04s`, while
-  the other shards completed in about `2m28s`, `2m32s`, and `3m01s`.
-  Split `tests/e2e/specs/challenge.spec.ts` into smaller files or explicit CI
-  groups such as `challenge-basic`, `challenge-2fa`, `challenge-lockout`, and
-  `challenge-replay`, then verify `--list --shard=N/4` distribution before
-  investing in caching or custom images.
+- Measure the explicit-group runtime on GitHub Actions. If a new long pole
+  appears, adjust group membership before adding caching or custom images.
 - Cache Playwright browser binaries (`~/.cache/ms-playwright`) with keys derived
   from `package-lock.json` and the pinned Playwright version. Keep Linux system
   dependency installation explicit unless a runner image proves it is stable.
@@ -1934,7 +1942,7 @@ coverage that protects challenge, replay, admin UI, and WordPress 7.0 behavior.
 - Audit test isolation before enabling Playwright workers inside a single
   WordPress environment. Do not raise `workers` above `1` until shared database,
   cookie, user, nonce, and option state are proven isolated or reset per test.
-- Keep `retries: 2` until sharding establishes a lower flake baseline; reducing
+- Keep `retries: 2` until grouped CI establishes a lower flake baseline; reducing
   retries is a later optimization, not the first stability lever.
 
 **Acceptance criteria:**
@@ -1942,13 +1950,20 @@ coverage that protects challenge, replay, admin UI, and WordPress 7.0 behavior.
 - Full E2E must remain easy to trigger manually before tags and release branches.
 - Low-risk skips must be documented in the E2E Validation Policy and must fail
   closed when changed paths are ambiguous.
-- Record shard distribution and runtime before and after rebalancing; no shard
+- Record explicit-group distribution and runtime after rebalancing; no group
   should own all challenge lockout, 2FA, and replay coverage.
 - Measure before/after wall-clock duration for `E2E Tests` and record material
   changes in `docs/release-status.md` or the release notes when they affect
   release process expectations.
 
 #### Phase R5: README screenshot refresh and visual docs
+
+**Status:** completed on `main` after v3.4.0. The refreshed public screenshots
+use the WordPress Playground demo on WordPress 7.0, default admin color scheme,
+1280x760 CSS viewport cropped to the WordPress frame, 2x device scale, and the
+seeded demo users/sessions/events from `blueprint-main.json` plus the recovery
+state from `blueprint-recovery-mode.json`. Future UI-changing phases should add
+their own screenshot-refresh task when public docs would otherwise drift.
 
 **Goal:** bring public screenshots back in line with the v3.2 UI and make the
 README/readme assets show the screens operators now use.
@@ -1972,6 +1987,41 @@ README/readme assets show the screens operators now use.
   for both GitHub README and WordPress.org plugin asset expectations.
 - Visual QA confirms the screenshots are readable on common desktop widths and
   do not contradict current Playground/demo behavior.
+
+#### Phase R6: Localization and translation packaging readiness
+
+**Goal:** make the plugin cleanly translation-ready before the next public
+packaging push. Current PHP UI coverage is mostly good, but the repository does
+not yet ship a generated POT catalog and a few operator/JavaScript strings still
+need explicit localization.
+
+**Scope:**
+- Add a `languages/wp-sudo.pot` generation workflow, preferably via
+  `wp i18n make-pot`, and document the command.
+- Add a Composer script such as `composer i18n:pot` so release prep can refresh
+  the POT without remembering the raw command.
+- Localize admin-bar countdown JavaScript strings through PHP-provided script
+  data, or move them to `@wordpress/i18n` if the JavaScript build/runtime grows
+  enough to justify that dependency.
+- Localize WP-CLI operator messages, including plural forms with `_n()` where
+  counts are displayed.
+- Add translator comments for placeholder-heavy strings and any security text
+  where word order matters.
+- Add a lightweight CI or release-prep check that detects stale/generated POT
+  output, or explicitly documents POT regeneration as a required pre-release
+  manual step.
+
+**Acceptance criteria:**
+- User-facing PHP, JavaScript, and WP-CLI strings are either translatable or
+  deliberately excluded because they are technical identifiers, selectors, or
+  developer-only diagnostics.
+- The generated POT file includes current plugin strings and can be refreshed
+  reproducibly from a documented command.
+- `composer lint` remains clean, including WordPress text-domain and translator
+  comment sniffs.
+- This phase remains release-readiness hardening, not a security blocker, unless
+  the plugin is being packaged for WordPress.org or another translator-facing
+  distribution channel.
 
 #### Acceptance criteria
 

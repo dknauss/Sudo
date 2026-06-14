@@ -1,8 +1,8 @@
 # Abilities API Assessment
 
-**Date:** 2026-02-19 (updated 2026-04-13)
+**Date:** 2026-02-19 (updated 2026-06-14)
 **WP version evaluated:** 7.0 Beta 1 through RC2
-**Status:** No Abilities API gating changes required for WP 7.0; Connectors credential REST writes are now gated on `main`, and the PHP execution path remains monitor-only
+**Status:** Pre-GA assessment retained. No Abilities-specific gating change is planned from this review; Connectors credential REST writes are gated on `main`, and the PHP execution path remains monitor-only.
 **Covers:** Abilities API, WordPress MCP Adapter, AI Client, Connectors API
 
 ---
@@ -14,9 +14,11 @@ REST endpoints and (optionally) WP-CLI. The WordPress MCP Adapter translates the
 abilities into MCP tools for AI agents (Claude, Cursor, etc.) — it calls the same
 REST endpoints, so both are covered by the same gating analysis.
 
-This document evaluates the current surface, explains why WP Sudo does not need to
-gate any abilities for WP 7.0, and documents the strategy for when gating will
-become necessary.
+This document evaluates the pre-GA WP 7.0 surface, explains why WP Sudo does not
+currently need to gate Abilities API calls, and documents the strategy for when
+gating becomes necessary. Treat implementation details here as source-derived
+research; use [release-status.md](release-status.md) and [ROADMAP.md](ROADMAP.md)
+for current release posture and open follow-up tasks.
 
 **Verification sources for ability names and REST routes:**
 
@@ -29,10 +31,11 @@ Ability names were verified against official sources listed above and in
 
 ---
 
-## Current Abilities Surface in WP 7.0
+## Abilities Surface Evaluated for WP 7.0
 
-As of WP 7.0 Beta 1, WordPress core registers exactly three abilities. All three are
-read-only: they expose information but do not modify or destroy site state.
+As of the WP 7.0 Beta/RC review, WordPress core registered three abilities. All
+three were read-only: they exposed information but did not modify or destroy site
+state.
 
 | Ability ID | Label | Permission Callback | Destructive? |
 |------------|-------|---------------------|--------------|
@@ -64,8 +67,8 @@ The HTTP method for the `/run` endpoint is determined by the ability type:
 - Operations requiring input parameters use `POST`
 - Destructive operations use `DELETE`
 
-As of WP 7.0 Beta 1, no registered core abilities use `DELETE` on `/run`. All three
-core abilities use `GET`.
+In the evaluated Beta/RC surface, no registered core abilities used `DELETE` on
+`/run`. All three core abilities used `GET`.
 
 ---
 
@@ -77,7 +80,7 @@ WP Sudo's gating model intercepts operations that **modify or destroy site state
 activating plugins, deleting users, changing critical settings, installing themes,
 and so on. Read-only operations are explicitly outside WP Sudo's scope.
 
-All three core abilities in WP 7.0 are read-only. They expose information about the
+The evaluated core abilities were read-only. They expose information about the
 site, user, and environment — but they do not change anything. No reauthentication
 is warranted for information retrieval.
 
@@ -282,12 +285,12 @@ This is intentionally narrower than gating all REST settings writes. It closes
 the write-only key replacement path for database-backed connector credentials
 without interfering with unrelated settings updates.
 
-**Current source-grounded understanding:** the official dev note now exists, and
-current core routes connector credential writes through the standard REST
-settings endpoint rather than a bespoke admin form action. The remaining WP 7.0
-GA task is verification, not first implementation: confirm the released route,
-setting-name pattern, and masking/validation behavior still match the current
-analysis in `connectors-api-reference.md`.
+**Current source-grounded understanding:** the official dev note exists, and core
+routes connector credential writes through the standard REST settings endpoint
+rather than a bespoke admin form action. The remaining task is GA parity
+verification, not first implementation: confirm the released route, setting-name
+pattern, and masking/validation behavior still match the current analysis in
+`connectors-api-reference.md`.
 
 ### MCP Adapter: no persistent agent sessions
 
@@ -300,10 +303,10 @@ There is no persistent AI agent session concept, no long-lived agent tokens, and
 no session state maintained across requests. Each MCP tool call is an independent
 authenticated request that flows through the existing REST or CLI surface.
 
-As of WP 7.0 RC2, no core discussion (Make Core blog, Trac) has proposed
-persistent agent sessions or long-lived agent tokens. The real-time collaboration
-work (the cause of the 7.0 delay) uses short-lived WebSocket tokens for human
-editors, not AI agents.
+The pre-GA review did not find a core proposal for persistent agent sessions or
+long-lived agent tokens. The real-time collaboration work uses short-lived
+WebSocket tokens for human editors, not AI agents. Re-check this assumption
+before designing future agent-specific policy.
 
 **If a persistent agent session concept is introduced in a future release**, it
 would warrant a new policy tier in WP Sudo (comparable to CLI or Cron policy) —
@@ -314,9 +317,9 @@ authentication is a new trust boundary.
 
 ## Recommendation
 
-**No Gate changes are needed for WP 7.0.**
+**No Abilities-specific Gate changes are planned from this assessment alone.**
 
-All three core abilities are read-only. The existing REST surface interception in
+The evaluated core abilities were read-only. The existing REST surface interception in
 `Gate::intercept_rest()` already covers the `/wp-abilities/v1/` namespace routes if
 a matching rule is ever added to `Action_Registry`. The PHP execution path exists
 but is not a concern until destructive abilities are registered.
@@ -333,11 +336,11 @@ but is not a concern until destructive abilities are registered.
    `wp_before_execute_ability` to gate the PHP execution path.
 4. For WP-CLI `wp ability run` with destructive abilities, add a function-level hook
    in `Gate::register_function_hooks()` targeting the appropriate WordPress action.
-5. When WP 7.0 GA ships, verify that the released Connectors settings page still
-   writes credential changes through `/wp/v2/settings`, that connector setting
-   names still follow the documented `connectors_*_api_key` pattern, and that
-   the built-in `connectors.update_credentials` rule remains accurate.
+5. Before the next release that changes Connectors coverage, verify that the
+   released Connectors settings page still writes credential changes through
+   `/wp/v2/settings`, that connector setting names still follow the documented
+   `connectors_*_api_key` pattern, and that the built-in
+   `connectors.update_credentials` rule remains accurate.
 6. Monitor Make Core and Trac for any proposal to introduce persistent AI agent
    sessions or long-lived agent tokens — this would require a new WP Sudo policy tier.
-7. Monitor the WordPress MCP Adapter for any direct-execution path that bypasses REST
-   (none exists as of WP 7.0 RC2).
+7. Monitor the WordPress MCP Adapter for any direct-execution path that bypasses REST.

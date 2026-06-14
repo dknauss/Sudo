@@ -1,0 +1,142 @@
+name: Plugin Check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  changes:
+    name: Detect plugin changes
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      plugin: ${{ steps.decide.outputs.plugin }}
+    steps:
+      - name: Decide whether to run Plugin Check
+        id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" != "pull_request" ]; then
+            echo "Event '${{ github.event_name }}' is not a pull_request — running Plugin Check."
+            echo "plugin=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if ! files=$(gh pr view "${{ github.event.pull_request.number }}" \
+                --repo "${{ github.repository }}" --json files \
+                --jq '.files[].path' 2>/dev/null); then
+            echo "Could not list changed files — running Plugin Check (fail-safe)."
+            echo "plugin=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          plugin=false
+          while IFS= read -r f; do
+            [ -z "$f" ] && continue
+            case "$f" in
+              *.md|docs/*|LICENSE) ;;
+              *) plugin=true ;;
+            esac
+          done <<< "$files"
+          echo "Changed files:"
+          echo "$files"
+          echo "Plugin-relevant files changed: $plugin"
+          echo "plugin=$plugin" >> "$GITHUB_OUTPUT"
+
+  plugin-check-run:
+    name: Run Plugin Check (PCP)
+    needs: changes
+    if: ${{ needs.changes.outputs.plugin == 'true' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 20
+
+      - name: Install wp-env
+        run: npm --global --no-fund install @wordpress/env@11.1.0
+
+      - name: Build Plugin Check dist
+        run: bash bin/build-plugin-check-dist.sh build/wp-sudo
+
+      - name: Create wp-env config
+        run: |
+          mkdir -p .tmp
+          cat > .tmp/plugin-check-wp-env.json <<JSON
+          {
+            "mappings": {
+              "wp-content/plugins/wp-sudo": "${PWD}/build/wp-sudo"
+            },
+            "port": 8880,
+            "testsEnvironment": false,
+            "config": {
+              "WP_DEBUG": true,
+              "WP_DEBUG_LOG": true
+            }
+          }
+          JSON
+
+      - name: Start WordPress
+        run: wp-env start --config .tmp/plugin-check-wp-env.json
+
+      - name: Install Plugin Check
+        run: wp-env --config .tmp/plugin-check-wp-env.json run cli wp plugin install plugin-check --activate
+
+      - name: Activate WP Sudo
+        run: wp-env --config .tmp/plugin-check-wp-env.json run cli wp plugin activate wp-sudo
+
+      - name: Run Plugin Check
+        run: |
+          wp-env --config .tmp/plugin-check-wp-env.json run cli wp plugin list
+          wp-env --config .tmp/plugin-check-wp-env.json run cli wp plugin list-checks
+          wp-env --config .tmp/plugin-check-wp-env.json run cli wp plugin check wp-sudo --format=json --ignore-warnings > .tmp/plugin-check-results.json
+          cat .tmp/plugin-check-results.json
+          if grep -q '"type"[[:space:]]*:[[:space:]]*"ERROR"' .tmp/plugin-check-results.json; then
+            echo "::error::Plugin Check reported one or more errors."
+            exit 1
+          fi
+
+      - name: Upload Plugin Check results
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: plugin-check-results
+          path: .tmp/plugin-check-results.json
+          if-no-files-found: ignore
+
+      - name: Stop WordPress
+        if: ${{ always() }}
+        run: wp-env stop --config .tmp/plugin-check-wp-env.json
+
+  plugin-check-summary:
+    name: Plugin Check
+    runs-on: ubuntu-24.04
+    needs: [changes, plugin-check-run]
+    if: ${{ always() }}
+    steps:
+      - name: Enforce Plugin Check result
+        run: |
+          if [ "${{ needs.changes.result }}" != "success" ]; then
+            echo "Change detector did not succeed (${{ needs.changes.result }}) — failing the gate (fail-safe)."
+            exit 1
+          fi
+          if [ "${{ needs.changes.outputs.plugin }}" != "true" ]; then
+            echo "Documentation-only change — Plugin Check skipped; passing the gate."
+            exit 0
+          fi
+          if [ "${{ needs.plugin-check-run.result }}" != "success" ]; then
+            echo "Plugin Check did not succeed: ${{ needs.plugin-check-run.result }}"
+            exit 1
+          fi
+          echo "Plugin Check passed."

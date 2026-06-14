@@ -87,7 +87,7 @@ Documentation updated:
 - `CHANGELOG.md`
 - `docs/current-metrics.md`
 - `docs/developer-reference.md`
-- `docs/execution-plan-v3.1-v3.3.md`
+- `docs/archive/execution-plan-v3.1-v3.3.md`
 - `docs/release-status.md`
 - `docs/security-model.md`
 

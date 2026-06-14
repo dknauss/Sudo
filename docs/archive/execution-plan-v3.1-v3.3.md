@@ -1,6 +1,6 @@
-# Execution Plan (v3.1–v3.3)
+# Historical Execution Plan (v3.1–v3.3)
 
-> **Historical execution record.** This plan drove the v3.1–v3.3 security/governance work and includes an audit register captured at the time. Many findings listed as open below were later closed in v3.2.0–v3.4.0. Do **not** use this file as the current open-work tracker; use `docs/ROADMAP.md`, `docs/release-status.md`, and `.planning/STATE.md`.
+> **Historical execution record.** This plan drove the v3.1–v3.3 security/governance work and includes an audit register captured at the time. Many findings listed as open below were later closed in v3.2.0–v3.4.0. Do **not** use this file as the current open-work tracker; use [`../ROADMAP.md`](../ROADMAP.md), [`../release-status.md`](../release-status.md), and `.planning/STATE.md`.
 
 *Status: historical planning, April 20, 2026. Revised April 20, 2026 to reflect the clean-launch framing for internal admin governance (no public install base, strict-from-day-one in v3.1 rather than three-phase migration). Revised June 7, 2026 to put post-v3.1.3 security-review remediation ahead of lower-priority feature work. Revised June 8, 2026: ultracode security audit complete — 27 confirmed findings (2 HIGH, 14 LOW, 11 INFO); 2 HIGH + A3 + C1 remediated in commit 3531e0d; full finding register appended below. Revised June 12, 2026: added the Two Factor lifecycle bridge (drafted April 29, 2026) as a P1 item and Phase 1.5, and report-only bridge discovery to the long-horizon backlog.*
 
@@ -319,9 +319,9 @@ review and need runtime confirmation or WP 7.0 RC source validation:
 
 ---
 
-## Priority Stack
+## Historical Priority Stack
 
-## P0 — Release/Timing-Critical (WordPress 7.0 GA window)
+## P0 — Release/Timing-Critical (WordPress 7.0 GA window, historical)
 
 1. Post-v3.1.3 security remediation pack:
    - Fix 2FA failure-counter reset before second-factor success.
@@ -336,7 +336,7 @@ review and need runtime confirmation or WP 7.0 RC source validation:
    - Registry-aware Connectors matcher follow-up.
    - Remove `handle_err_admin_role()` workaround once core fix is confirmed in GA.
 
-## P1 — Highest Security + Operator Value
+## P1 — Highest Security + Operator Value (historical)
 
 3. Gutenberg block-editor sudo UX design:
    - Treat as the most important next major feature track after immediate
@@ -354,7 +354,7 @@ review and need runtime confirmation or WP 7.0 RC source validation:
    - `sudo_can()` helper, `options.wp_sudo_access` gated rule, Access tab with
      drift detection, "last manager" guard, `WP_SUDO_RECOVERY_MODE`
      break-glass, audit hooks for all access-model transitions.
-   - See [`docs/archive/internal-admin-governance-spec.md`](archive/internal-admin-governance-spec.md).
+   - See [`docs/archive/internal-admin-governance-spec.md`](internal-admin-governance-spec.md).
 6. Request-stash replay/data-minimization follow-up:
    - Add pattern-based redaction for non-standard secret names.
    - Add custom-rule metadata for redacted, replay-safe, and non-replayable
@@ -366,13 +366,13 @@ review and need runtime confirmation or WP 7.0 RC source validation:
 8. Audit-visibility integrity warnings:
    - explicit warnings when logging visibility is reduced by code-level overrides.
 
-## P2 — Multisite Operator Controls
+## P2 — Multisite Operator Controls (historical)
 
 9. Super-admin widget visibility controls.
 10. Network dashboard widget (cross-site aggregation).
 11. Cross-site session revocation.
 
-## P3 — Governance Polish (optional, v3.2)
+## P3 — Governance Polish (historical optional phase)
 
 12. Internal admin governance, Phase 2:
    - Integrity warnings when effective visibility is broader than intended.
@@ -383,26 +383,26 @@ review and need runtime confirmation or WP 7.0 RC source validation:
      firing hooks and showing session/policy status. Suppress local
      `wpsudo_events` writes only when bridge-presence preflight passes and
      integrity warnings are active. See
-     [`docs/external-audit-mode-spec.md`](external-audit-mode-spec.md).
+     [`docs/external-audit-mode-spec.md`](../external-audit-mode-spec.md).
 
    Phase 2 is scope-bounded and non-blocking; none of it is required to close
    the governance story, but real delegation patterns will surface edge cases
    that read-only drift detection misses.
 
-## P4 — Architecture / Scale (conditional, not scheduled)
+## P4 — Architecture / Scale (historical conditional phase)
 
 13. Session-store architecture implementation follow-up:
     - Execute recommended Option 1 (authoritative table + usermeta shadow)
-      from [`docs/session-store-evaluation.md`](session-store-evaluation.md).
+      from [`docs/session-store-evaluation.md`](../session-store-evaluation.md).
     - **Conditional on reaching Tier 2 in practice** (≥ ~1,000 concurrently
       sudo-active users per site; see the Scale and Load Analysis section of
       the session-store evaluation). Not scheduled for a specific version.
 
-## P5 — UX / Platform Expansion
+## P5 — UX / Platform Expansion (historical)
 
 14. Network policy hierarchy (after multisite operator controls stabilize).
 
-## P6 — Long-Horizon Design Backlog
+## P6 — Long-Horizon Design Backlog (historical)
 
 15. Client-side modal challenge.
 16. REST API sudo grant endpoint for headless clients.
@@ -597,7 +597,7 @@ Additive improvements that benefit from production field data from Phase 1.
   a supported audit plugin as the durable event store and notification layer
   while Sudo keeps firing hooks, showing session/policy status, and warning if
   delegated coverage disappears. See
-  [`docs/external-audit-mode-spec.md`](external-audit-mode-spec.md).
+  [`docs/external-audit-mode-spec.md`](../external-audit-mode-spec.md).
   - New `wp_sudo_external_audit` option (`off` default, `stream`, `wsal`).
   - Preflight: refuse activation when the chosen bridge is not loaded.
   - Event-store writes short-circuit while audit hooks keep firing.
@@ -624,7 +624,7 @@ Phase 8 is non-blocking; the governance model is complete after Phase 2.
 ## Phase 9 — Session-store architecture (P4, conditional, not scheduled)
 
 - Implement Option 1 from
-  [`docs/session-store-evaluation.md`](session-store-evaluation.md)
+  [`docs/session-store-evaluation.md`](../session-store-evaluation.md)
   (authoritative session table + usermeta shadow).
 - Migrate hot-path session reads to the table-backed model; keep usermeta
   shadow for one minor-version soak period before retiring.
@@ -659,7 +659,7 @@ Across all phases:
 
 ## Source mapping
 
-- Primary roadmap source: [`docs/ROADMAP.md`](ROADMAP.md)
-- Governance spec: [`docs/archive/internal-admin-governance-spec.md`](archive/internal-admin-governance-spec.md)
-- Session-store options: [`docs/session-store-evaluation.md`](session-store-evaluation.md)
-- External Audit Mode spec: [`docs/external-audit-mode-spec.md`](external-audit-mode-spec.md)
+- Primary roadmap source: [`docs/ROADMAP.md`](../ROADMAP.md)
+- Governance spec: [`docs/archive/internal-admin-governance-spec.md`](internal-admin-governance-spec.md)
+- Session-store options: [`docs/session-store-evaluation.md`](../session-store-evaluation.md)
+- External Audit Mode spec: [`docs/external-audit-mode-spec.md`](../external-audit-mode-spec.md)

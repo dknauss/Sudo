@@ -442,7 +442,9 @@ When the password step succeeds and 2FA is required, a one-time challenge cookie
 
 ## Emerging Boundaries: Abilities API, AI Client, and Connectors (WP 7.0+)
 
-*Added 2026-04-13. Full analysis in [abilities-api-assessment.md](abilities-api-assessment.md).*
+*Added 2026-04-13. Full pre-GA analysis in [abilities-api-assessment.md](abilities-api-assessment.md);
+use [release-status.md](release-status.md) and [ROADMAP.md](ROADMAP.md) for
+current release posture and GA parity follow-up tasks.*
 
 WordPress 7.0 introduces three new subsystems that interact with WP Sudo's trust
 model in different ways. None require Gate changes today, but they establish new
@@ -462,8 +464,9 @@ This path runs `check_permissions()` (the ability's `permission_callback`), whic
 is a capability check — authorization, not reauthentication. The Gate does not
 intercept it.
 
-**Current risk: none.** All three core abilities in WP 7.0 are read-only. The PHP
-path is not a concern until a destructive ability is registered.
+**Current risk: none from the evaluated core ability set.** The core abilities
+reviewed for WP 7.0 were read-only. The PHP path is not a concern until a
+destructive ability is registered.
 
 **Future risk: medium.** The Abilities API is designed as a uniform execution
 interface — plugins are expected to call it programmatically. When destructive
@@ -494,14 +497,14 @@ session tokens, user roles, plugin activations. Connectors credentials are
 | Replace API key with attacker's own | Billing fraud against the attacker's provider account | No — financial impact is off-site |
 | Delete provider credentials | Denial of service for AI-dependent features | Yes — but damage is already done |
 
-The Connectors settings page is now covered by a built-in REST rule:
+The Connectors settings page is covered by a built-in REST rule:
 `connectors.update_credentials`. It challenges `POST` / `PUT` / `PATCH`
 writes to `/wp/v2/settings` when the request body contains connector credential
 setting names matching `connectors_*_api_key`. This mitigates the credential
 replacement vector for database-backed connector keys, while leaving unrelated
-REST settings writes untouched. The remaining follow-up after the final
-WordPress 7.0 release is verification that core's released Connectors
-implementation still matches the documented route and setting-name pattern. See
+REST settings writes untouched. The remaining follow-up is GA source/runtime
+verification that core's released Connectors implementation still matches the
+documented route and setting-name pattern. See
 [release-status.md](release-status.md),
 [abilities-api-assessment.md](abilities-api-assessment.md), and
 [connectors-api-reference.md](connectors-api-reference.md).
@@ -521,5 +524,6 @@ independent authenticated request subject to the existing surface policies.
 **If a persistent agent session concept is introduced in a future release** — a
 long-lived token that can perform multiple operations without per-request
 authentication — it would constitute a new trust boundary requiring its own
-policy tier in WP Sudo, comparable to the existing CLI and Cron policies. As of
-WP 7.0 RC2, no such proposal exists in core.
+policy tier in WP Sudo, comparable to the existing CLI and Cron policies. The
+pre-GA WP 7.0 review found no such core proposal; re-check this before future
+agent-specific policy work.

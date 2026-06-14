@@ -203,7 +203,7 @@ Repos:   wp-sudo, wordpress-2fa-ecosystem
 
 
 16. FABRICATED HOOK NAME — wp_delete_application_password in execution plan
-    Files:  docs/execution-plan-v3.1-v3.3.md (F14 entry, line 145)
+    Files:  docs/archive/execution-plan-v3.1-v3.3.md (F14 entry, line 145)
     Claim:  "add `application_password_did_revoke` cleanup hook"
     Reality: The hook is `wp_delete_application_password`. No hook named
              `application_password_did_revoke` exists in WordPress core.
@@ -220,7 +220,7 @@ Repos:   wp-sudo, wordpress-2fa-ecosystem
     Files:  includes/class-plugin.php (grant_session_on_login docblock),
             tests/Unit/LoginSudoGrantTest.php (file header),
             docs/FAQ.md, docs/ROADMAP.md (v2.6.0 completed entry),
-            docs/execution-plan-v3.1-v3.3.md (F17 register entry)
+            docs/archive/execution-plan-v3.1-v3.3.md (F17 register entry)
     Claim:  Granting a sudo session automatically at login "mirrors the
             behaviour of Unix sudo and GitHub's sudo mode."
     Reality: Unix sudo does NOT pre-grant at login — its credential cache

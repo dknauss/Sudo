@@ -2439,18 +2439,6 @@ class Admin {
 
 		$message = __( 'Passed event logging is disabled by code override (constant/filter). Actions performed during active sudo sessions will not appear in dashboard event history.', 'wp-sudo' );
 
-		if ( function_exists( 'wp_get_admin_notice' ) ) {
-			$notice_html = wp_get_admin_notice(
-				$message,
-				array(
-					'type'               => 'warning',
-					'additional_classes' => array( 'wp-sudo-notice' ),
-				)
-			);
-			echo wp_kses_post( $notice_html );
-			return;
-		}
-
 		echo '<div class="notice notice-warning wp-sudo-notice"><p>' . esc_html( $message ) . '</p></div>';
 	}
 
@@ -2471,18 +2459,6 @@ class Admin {
 		}
 
 		$message = __( 'WP Sudo break-glass recovery mode is active (WP_SUDO_RECOVERY_MODE is defined in wp-config.php). While it is set, any administrator who holds manage_options regains full Sudo governance access. Remove the constant as soon as normal access is restored — leaving it enabled weakens the governance model.', 'wp-sudo' );
-
-		if ( function_exists( 'wp_get_admin_notice' ) ) {
-			$notice_html = wp_get_admin_notice(
-				$message,
-				array(
-					'type'               => 'warning',
-					'additional_classes' => array( 'wp-sudo-notice' ),
-				)
-			);
-			echo wp_kses_post( $notice_html );
-			return;
-		}
 
 		echo '<div class="notice notice-warning wp-sudo-notice"><p>' . esc_html( $message ) . '</p></div>';
 	}

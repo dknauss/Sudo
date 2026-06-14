@@ -2,7 +2,7 @@
 
 This document explains the current WordPress core browser-authentication path, cookie generation, and session validation flow.
 
-> Verified against WordPress core source and official Developer Documentation on **March 31, 2026**. The forward local test lane in this repo is currently pinned to **WordPress 7.0-RC1**.
+> Verified against WordPress core source and official Developer Documentation on **March 31, 2026**. The forward local test lane in this repo is currently pinned to **WordPress 7.0 GA**.
 
 ## 1. Sign-on Flow (`wp-login.php` → `wp_signon()` → authenticated session)
 

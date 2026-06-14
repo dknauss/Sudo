@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- **E2E CI balancing:** the default Chromium Playwright workflow now uses four
+  explicit test groups instead of Playwright's opaque `--shard` assignment. The
+  heavy challenge-flow tests are split across basic/admin, 2FA UI,
+  lockout/surface, and replay/multisite groups while preserving the aggregate
+  `E2E Tests` required status check.
+- **Screenshot refresh:** README and WordPress.org-style screenshot assets now
+  cover the current tabbed settings UI, Access tab, Request / Rule Tester,
+  Session Activity dashboard widget, and break-glass recovery notice.
+
 ## 3.4.0 - 2026-06-13
 
 - **Break-glass recovery mode hardened (role-gated + visible):** `WP_SUDO_RECOVERY_MODE` previously granted the master `manage_wp_sudo` capability to any logged-in user. The grant is now role-gated — it applies only to users who also hold `manage_options` (single-site) or `manage_network_options` (multisite), so a locked-out administrator recovers while subscribers, editors, and other non-admins gain nothing. A permanent, non-dismissible notice now renders on the Sudo settings screen while recovery mode is active, and a new `wp_sudo_recovery_mode_active` audit hook fires (stored as a sampled `recovery_mode` event, at most one per user per hour), so break-glass usage is explicit, bounded, and auditable.

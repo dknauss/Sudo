@@ -1,10 +1,3 @@
-_WP Sudo 3.4.0 hardens break-glass recovery: `WP_SUDO_RECOVERY_MODE` is now role-gated to administrators, shows a permanent non-dismissible notice while active, and fires a new `wp_sudo_recovery_mode_active` audit hook so the usage is logged._
-
-[Try the latest release in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fv3.4.0%2Fblueprint.json)
-[Try current main in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint-main.json)
-
-Playground demo credentials are `admin` / `password`. When WP Sudo asks for reauthentication, enter the same password: `password`.
-
 === Sudo ===
 Contributors:      dpknauss
 Donate link:       https://dan.knauss.ca
@@ -16,13 +9,20 @@ Stable tag:        3.4.0
 License:           GPL-2.0-or-later
 License URI:       https://spdx.org/licenses/GPL-2.0-or-later.html
 
-WordPress security plugins guard the door. Sudo governs what can happen inside the house.
+WordPress security plugins guard the door. Sudo governs what can happen inside the house. It helps site owners define, monitor, and audit the administrative attack surfaces where high-risk actions happen.
 
 == Description ==
 
 WordPress has rich access control — roles, capabilities, policies on who can do what. It has no native control over when those capabilities can be exercised within a session. Sudo fills that gap. By gating consequential actions behind reauthentication whenever no active sudo window is already in place, it lets site owners directly define the blast radius of many session-compromise paths. The attack surface becomes a policy decision.
 
 This is not role-based escalation. Every logged-in user is treated the same: attempt a gated action without an active sudo session, get challenged. Sessions are time-bounded and non-extendable, enforcing the zero-trust principle that trust must be continuously earned, never assumed. Sudo verifies that the current user is still the account holder; WordPress still decides whether that user is allowed to perform the action.
+
+= Playground demo =
+
+* [Try the latest release in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fv3.4.0%2Fblueprint.json)
+* [Try current main in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint-main.json)
+
+Playground demo credentials are `admin` / `password`. When WP Sudo asks for reauthentication, enter the same password: `password`.
 
 = What’s new in 3.2.0? =
 
@@ -182,12 +182,19 @@ Extensibility: the action registry is filterable via wp_sudo_gated_actions. Audi
 == Screenshots ==
 
 1. Challenge page — reauthentication interstitial with password field.
-2. Two-factor authentication — after password confirmation, users with 2FA enabled enter their authentication code.
-3. Settings page — configure session duration, quick policy presets, and entry-point policies.
-4. Gate notice (plugins) — when no sudo session is active, a persistent notice links to the challenge page.
-5. Gate notice (themes) — the same gating notice appears on the themes page.
-6. Gated actions — the settings page lists all gated operations with their categories and surfaces.
-7. Active sudo session — the admin bar shows a green countdown timer.
+   ![Challenge page](https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-1.png)
+2. Settings tab — policy presets, session settings, and active sudo timer.
+   ![Settings tab](https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-2.png)
+3. Gated Actions tab — protected operations with rule IDs and covered surfaces.
+   ![Gated Actions tab](https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-3.png)
+4. Rule Tester tab — evaluate representative request shapes without executing them.
+   ![Rule Tester tab](https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-4.png)
+5. Access tab — manage dedicated Sudo governance capabilities and revoke sessions.
+   ![Access tab](https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-5.png)
+6. Dashboard widget — active sessions, policy summary, and recent privilege-action events.
+   ![Dashboard widget](https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-6.png)
+7. Break-glass recovery notice — visible warning while WP_SUDO_RECOVERY_MODE is active.
+   ![Break-glass recovery notice](https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-7.png)
 
 == Changelog ==
 
