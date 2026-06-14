@@ -2,8 +2,9 @@
 
 Phase: 11 — Connectors Registry-Aware Matcher
 Plan: —
-Status: Not started — roadmap created 2026-06-13, ready to begin Phase 11
-Last activity: 2026-06-13 — v4.0.0 roadmap written; phases 11-15 defined.
+Status: Context gathered — 8 maintainer-policy decisions locked. Next: required pre-TDD design review, then /gsd:plan-phase 11.
+Resume file: .planning/phases/11-connectors-registry-aware-matcher/11-CONTEXT.md
+Last activity: 2026-06-14 — Phase 11 context gathered (matching scope, fallback posture, disclosure, credential-clear, gated response, audit detail, Rule Tester, doc depth).
 
 ## Project Reference
 
