@@ -1,4 +1,4 @@
-# Execution Plan (v3.1–v3.3)
+# Historical Execution Plan (v3.1–v3.3)
 
 > **Historical execution record.** This plan drove the v3.1–v3.3 security/governance work and includes an audit register captured at the time. Many findings listed as open below were later closed in v3.2.0–v3.4.0. Do **not** use this file as the current open-work tracker; use `docs/ROADMAP.md`, `docs/release-status.md`, and `.planning/STATE.md`.
 
@@ -319,9 +319,9 @@ review and need runtime confirmation or WP 7.0 RC source validation:
 
 ---
 
-## Priority Stack
+## Historical Priority Stack
 
-## P0 — Release/Timing-Critical (WordPress 7.0 GA window)
+## P0 — Release/Timing-Critical (WordPress 7.0 GA window, historical)
 
 1. Post-v3.1.3 security remediation pack:
    - Fix 2FA failure-counter reset before second-factor success.
@@ -336,7 +336,7 @@ review and need runtime confirmation or WP 7.0 RC source validation:
    - Registry-aware Connectors matcher follow-up.
    - Remove `handle_err_admin_role()` workaround once core fix is confirmed in GA.
 
-## P1 — Highest Security + Operator Value
+## P1 — Highest Security + Operator Value (historical)
 
 3. Gutenberg block-editor sudo UX design:
    - Treat as the most important next major feature track after immediate
@@ -366,13 +366,13 @@ review and need runtime confirmation or WP 7.0 RC source validation:
 8. Audit-visibility integrity warnings:
    - explicit warnings when logging visibility is reduced by code-level overrides.
 
-## P2 — Multisite Operator Controls
+## P2 — Multisite Operator Controls (historical)
 
 9. Super-admin widget visibility controls.
 10. Network dashboard widget (cross-site aggregation).
 11. Cross-site session revocation.
 
-## P3 — Governance Polish (optional, v3.2)
+## P3 — Governance Polish (historical optional phase)
 
 12. Internal admin governance, Phase 2:
    - Integrity warnings when effective visibility is broader than intended.
@@ -389,7 +389,7 @@ review and need runtime confirmation or WP 7.0 RC source validation:
    the governance story, but real delegation patterns will surface edge cases
    that read-only drift detection misses.
 
-## P4 — Architecture / Scale (conditional, not scheduled)
+## P4 — Architecture / Scale (historical conditional phase)
 
 13. Session-store architecture implementation follow-up:
     - Execute recommended Option 1 (authoritative table + usermeta shadow)
@@ -398,11 +398,11 @@ review and need runtime confirmation or WP 7.0 RC source validation:
       sudo-active users per site; see the Scale and Load Analysis section of
       the session-store evaluation). Not scheduled for a specific version.
 
-## P5 — UX / Platform Expansion
+## P5 — UX / Platform Expansion (historical)
 
 14. Network policy hierarchy (after multisite operator controls stabilize).
 
-## P6 — Long-Horizon Design Backlog
+## P6 — Long-Horizon Design Backlog (historical)
 
 15. Client-side modal challenge.
 16. REST API sudo grant endpoint for headless clients.

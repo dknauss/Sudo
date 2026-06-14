@@ -11,7 +11,7 @@
 - **[3. Collaboration & Sudo](#3-collaboration-and-sudo--multi-user-editing-scenarios)** — Multi-user editing, conflict resolution
 - **[4. Context Collapse & TDD](#4-context-collapse-and-tdd)** — LLM confabulation defense, test-driven development
 - **[Recommended Next Steps](#recommended-next-steps-priority-order)** — Immediate, short-term, medium-term priorities
-- **[Execution Companion (v3.1–v3.3)](#execution-companion-v31v33)** — prioritized backlog + phased GSD delivery plan
+- **[Archived Execution Record (v3.1–v3.3)](#archived-execution-record-v31v33)** — historical audit/remediation record; current priorities live in this roadmap and `.planning/STATE.md`
 - **[5. Environment Diversity Testing](#5-environment-diversity-testing-future-milestone)** — Apache, PHP 8.0, MariaDB, backward compat
 - **[6. Coverage Tooling](#6-coverage-tooling-baseline-established)** — PCOV baseline established, full matrix deferred
 - **[7. Mutation Testing](#7-mutation-testing-deferred-to-post-environment-diversity)** — Deferred until integration suite is fast enough
@@ -537,9 +537,9 @@ not context retrieval.
 15. ~~**Playwright E2E test infrastructure**~~ — done; browser coverage and alternate-stack smoke lanes are in place
 16. ~~**Apache + MariaDB CI job**~~ — done; covered by the named `wp-env` Playwright lane
 
-### Post-v3.2.0 Priority Plan
+### Post-v3.4.0 Priority Plan
 
-With the WordPress 7.0 compatibility release and v3.2.0 hardening work closed,
+With the WordPress 7.0 compatibility release and v3.4.0 hardening work closed,
 the recommended implementation order is:
 
 1. **Deprecate `compatibility` governance mode** (break-glass containment now ✅ shipped) — Two paired governance security-debt items. (a) *Still open:* fire `_doing_it_wrong()` + persistent admin notice when `wp_sudo_governance_mode = 'compatibility'` is active; update FAQ and developer reference; queue removal for the next major release. (b) ✅ *Shipped in v3.4.0:* the break-glass path that replaces it is hardened — the grant is role-gated to administrators, a non-dismissible notice renders, and the `wp_sudo_recovery_mode_active` audit hook fires (stored as a sampled `recovery_mode` event), so it is explicit, auditable, and bounded (see §12.1 Phase R3). `WP_SUDO_RECOVERY_MODE` is the only supported break-glass path going forward, and it is now sound; compatibility mode can be removed once (a) lands. **Effort:** Low (deprecation remaining)
@@ -554,43 +554,43 @@ the recommended implementation order is:
    - Expect to redo this again after major UI changes; keep this pass focused on making current public docs honest
    - Redo the full screenshot set if visual consistency or stale WP admin styling makes piecemeal replacement misleading
    - **Effort:** Low to medium
-3. **Strengthen release-only environment checks instead of broadening required CI**
+4. **Strengthen release-only environment checks instead of broadening required CI**
    - Add the managed-host/manual environment checklist promised in section 5
    - Keep SQLite as smoke/release assurance, not a required merge gate
    - Add breadth only where a real compatibility signal is missing
    - **Effort:** Low to medium
-4. **Design Gutenberg Block Editor reauthentication UX**
+5. **Design Gutenberg Block Editor reauthentication UX**
    - Treat this as the most important next major product feature, even though it is the largest UX/design lift
    - Define challenge transport, snackbar/notices behavior, autosave/editor-state safety, replay semantics, and test strategy before implementation
    - Use the design phase to decide what needs Playwright coverage, whether any build tooling is required, and how failures should recover without losing editor work
    - **Effort:** High
-5. **Build the Sudo Activity screen MVP as a modest built-in visibility layer**
+6. **Build the Sudo Activity screen MVP as a modest built-in visibility layer**
    - Keep it focused on recent Sudo events, short retention, and support/debugging value
    - Do not make it a full audit-log, alerting, export, or notification product
    - Prepare the UI for External Audit Mode so Stream/WP Activity Log sites can delegate persistence and notifications
    - **Effort:** Medium
-6. **Add audit-visibility integrity warnings**
+7. **Add audit-visibility integrity warnings**
    - Warn when local passed-event logging is disabled or delegated audit coverage is missing
    - Make reduced visibility explicit in settings, dashboard, and activity surfaces
    - **Effort:** Low to medium
-7. ~~**Build the Session Activity Dashboard Widget**~~ ✅ Done (v3.0.0)
+8. ~~**Build the Session Activity Dashboard Widget**~~ ✅ Done (v3.0.0)
    - ~~This is the smallest meaningful product feature still open~~
    - ~~It adds operator value without forcing a major challenge-flow redesign~~
    - ~~It will also establish the audit-data persistence layer that other visibility features could reuse~~
    - ~~**Effort:** Medium~~
-8. **Extend Dashboard Widget for Multisite Network Admin** (see §11.1)
+9. **Extend Dashboard Widget for Multisite Network Admin** (see §11.1)
    - Build on the v3.0.0 foundation with cross-site aggregation
    - Add super admin visibility controls
    - This is the natural next step now that Event_Store and the per-site widget exist
    - **Effort:** Medium
-9. **Re-evaluate multisite Network Policy Hierarchy after the dashboard/audit work**
+10. **Re-evaluate multisite Network Policy Hierarchy after the dashboard/audit work**
    - This remains valuable, but only for a narrower audience
    - It becomes easier once policy state and audit visibility are clearer
    - **Effort:** High
 
-### Post-v3.0.0 Backlog Triage
+### Post-v3.4.0 Backlog Triage
 
-Use this default order after the v3.2.0 release unless a real user need overrides it:
+Use this default order after the v3.4.0 release unless a real user need overrides it:
 
 - **Do next:** E2E shard rebalance and README screenshot refresh
 - **Most important major feature track:** Gutenberg Block Editor reauthentication UX design, then implementation
@@ -598,18 +598,20 @@ Use this default order after the v3.2.0 release unless a real user need override
 - **Do later if demand exists:** Network Policy Hierarchy for Multisite, Cross-Site Session Revocation, network-enforced Passed-event logging policy (super admins can require immutable Passed-event audit visibility across subsites), Security Administrator governance mode (dedicated `manage_wp_sudo` capability, settings/widget visibility scoped to that capability, optional strict-mode assignee workflow, and documented recovery path for misconfiguration)
 - **Keep as design backlog:** third-party bridge discovery mode, client-side modal challenge, per-session sudo isolation, REST sudo grant endpoint, SSO/SAML/OIDC framework
 
-## Execution Companion (v3.1–v3.3)
+## Archived Execution Record (v3.1–v3.3)
 
-For the normalized priority stack and phased GSD execution plan, use:
+For the historical v3.1–v3.3 security/governance audit and remediation record,
+see:
 
 - [`docs/execution-plan-v3.1-v3.3.md`](execution-plan-v3.1-v3.3.md)
 
-This companion doc is the canonical implementation sequence for post-v3.0.0
-feature work and should be updated when backlog priority changes.
+That file is retained for auditability. It is no longer the canonical current
+priority tracker; use this roadmap, `docs/release-status.md`, and
+`.planning/STATE.md` for current planning.
 
 ### Activity UX follow-up (easy-first execution order)
 
-To keep shipping velocity high after v3.0.0, execute the Activity UX slice in this order:
+To keep shipping velocity high after v3.4.0, execute the Activity UX slice in this order:
 
 1. **Widget quick wins (low risk, same data model)**
    - Add Recent Events header sort toggles (Time/User/Event/Action/Surface) with sensible defaults (Time desc).
@@ -1617,9 +1619,9 @@ migration endpoint.
 
 - [`docs/archive/internal-admin-governance-spec.md`](archive/internal-admin-governance-spec.md)
 
-### Rollout
+### Rollout And Follow-Up
 
-1. **Phase 1 (v3.1) — ship strict governance as the default.**
+1. **Phase 1 (v3.1, shipped) — ship strict governance as the default.**
    - Introduce the full capability surface (`manage_wp_sudo`,
      `view_wp_sudo_activity`, `export_wp_sudo_activity`,
      `revoke_wp_sudo_sessions`) with a centralized `sudo_can()` helper.
@@ -1635,12 +1637,12 @@ migration endpoint.
    - Replace all `current_user_can('manage_options')` checks in governance
      surfaces with `sudo_can()`. Exit criterion: zero direct checks remain.
 
-2. **Phase 2 (v3.2, optional) — governance polish.**
+2. **Phase 2 (optional future polish) — governance polish.**
    - Integrity warnings when effective visibility is broader than intended.
    - Opt-in 2FA-enrollment requirement for `manage_wp_sudo` holders.
    - Audit visibility on governance-mode transitions.
 
-3. **Phase 3 (post-v3.2) — access tab UX.**
+3. **Phase 3 (post-v3.4 follow-up) — access tab UX.**
 
    - **User picker instead of user ID field.** The Grant Capability interface
      currently requires a numeric user ID. Replace with a searchable dropdown
