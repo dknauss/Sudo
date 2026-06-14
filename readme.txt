@@ -9,7 +9,7 @@ Stable tag:        3.4.0
 License:           GPL-2.0-or-later
 License URI:       https://spdx.org/licenses/GPL-2.0-or-later.html
 
-WordPress security plugins guard the door. Sudo governs what can happen inside the house.
+WordPress security plugins guard the door. Sudo governs what can happen inside the house. It helps site owners define, monitor, and audit the administrative attack surfaces where high-risk actions happen.
 
 == Description ==
 
