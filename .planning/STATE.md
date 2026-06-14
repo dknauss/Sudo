@@ -2,9 +2,9 @@
 
 Phase: 11 — Connectors Registry-Aware Matcher
 Plan: —
-Status: Context gathered — 8 maintainer-policy decisions locked. Next: required pre-TDD design review, then /gsd:plan-phase 11.
+Status: Context gathered + pre-TDD design review COMPLETE (2 blockers resolved: class-property cache mandate; audit field-name detail descoped to a later phase). Ready for /gsd:plan-phase 11.
 Resume file: .planning/phases/11-connectors-registry-aware-matcher/11-CONTEXT.md
-Last activity: 2026-06-14 — Phase 11 context gathered (matching scope, fallback posture, disclosure, credential-clear, gated response, audit detail, Rule Tester, doc depth).
+Last activity: 2026-06-14 — Phase 11 context + design review done; 7 decisions locked (audit-detail descoped), planner guidance captured in CONTEXT.md Design Review section.
 
 ## Project Reference
 
