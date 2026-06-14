@@ -596,6 +596,7 @@ the recommended implementation order is:
 Use this default order after the v3.4.0 release unless a real user need overrides it:
 
 - **Do next:** E2E explicit-group runtime monitoring, Plugin Check warning triage, and the next screenshot refresh when UI work changes public screens
+- **Small release-readiness hardening:** localization/translation packaging (POT generation, JS/CLI strings, translator comments, and an i18n check) before the next public packaging push
 - **Most important major feature track:** Gutenberg Block Editor reauthentication UX design, then implementation
 - **Plan next:** The Two Factor lifecycle bridge (gate recovery-code generation, TOTP setup/delete, and profile-form provider changes), the modest Sudo Activity screen MVP, audit-visibility warnings, multisite operator controls, and governance polish
 - **Do later if demand exists:** Network Policy Hierarchy for Multisite, Cross-Site Session Revocation, network-enforced Passed-event logging policy (super admins can require immutable Passed-event audit visibility across subsites), Security Administrator governance mode (dedicated `manage_wp_sudo` capability, settings/widget visibility scoped to that capability, optional strict-mode assignee workflow, and documented recovery path for misconfiguration)
@@ -1986,6 +1987,41 @@ README/readme assets show the screens operators now use.
   for both GitHub README and WordPress.org plugin asset expectations.
 - Visual QA confirms the screenshots are readable on common desktop widths and
   do not contradict current Playground/demo behavior.
+
+#### Phase R6: Localization and translation packaging readiness
+
+**Goal:** make the plugin cleanly translation-ready before the next public
+packaging push. Current PHP UI coverage is mostly good, but the repository does
+not yet ship a generated POT catalog and a few operator/JavaScript strings still
+need explicit localization.
+
+**Scope:**
+- Add a `languages/wp-sudo.pot` generation workflow, preferably via
+  `wp i18n make-pot`, and document the command.
+- Add a Composer script such as `composer i18n:pot` so release prep can refresh
+  the POT without remembering the raw command.
+- Localize admin-bar countdown JavaScript strings through PHP-provided script
+  data, or move them to `@wordpress/i18n` if the JavaScript build/runtime grows
+  enough to justify that dependency.
+- Localize WP-CLI operator messages, including plural forms with `_n()` where
+  counts are displayed.
+- Add translator comments for placeholder-heavy strings and any security text
+  where word order matters.
+- Add a lightweight CI or release-prep check that detects stale/generated POT
+  output, or explicitly documents POT regeneration as a required pre-release
+  manual step.
+
+**Acceptance criteria:**
+- User-facing PHP, JavaScript, and WP-CLI strings are either translatable or
+  deliberately excluded because they are technical identifiers, selectors, or
+  developer-only diagnostics.
+- The generated POT file includes current plugin strings and can be refreshed
+  reproducibly from a documented command.
+- `composer lint` remains clean, including WordPress text-domain and translator
+  comment sniffs.
+- This phase remains release-readiness hardening, not a security blocker, unless
+  the plugin is being packaged for WordPress.org or another translator-facing
+  distribution channel.
 
 #### Acceptance criteria
 
