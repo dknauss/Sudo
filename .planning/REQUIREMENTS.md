@@ -109,46 +109,46 @@ Explicitly excluded from v4.0.0. Documented to prevent scope creep.
 
 ## Traceability
 
-Populated during roadmap creation (gsd-roadmapper maps each requirement to exactly one phase).
+Populated during roadmap creation (2026-06-13). Each requirement maps to exactly one phase.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CONN-01 | — | Pending |
-| CONN-02 | — | Pending |
-| CONN-03 | — | Pending |
-| CONN-04 | — | Pending |
-| CONN-05 | — | Pending |
-| CONN-06 | — | Pending |
-| BRK-01 | — | Pending |
-| BRK-02 | — | Pending |
-| BRK-03 | — | Pending |
-| BRK-04 | — | Pending |
-| BRK-05 | — | Pending |
-| BRK-06 | — | Pending |
-| BRK-07 | — | Pending |
-| MIG-01 | — | Pending |
-| MIG-02 | — | Pending |
-| MIG-03 | — | Pending |
-| MIG-04 | — | Pending |
-| MIG-05 | — | Pending |
-| MIG-06 | — | Pending |
-| MIG-07 | — | Pending |
-| ORG-01 | — | Pending |
-| ORG-02 | — | Pending |
-| ORG-03 | — | Pending |
-| ORG-04 | — | Pending |
-| ORG-05 | — | Pending |
-| ORG-06 | — | Pending |
-| ORG-07 | — | Pending |
-| ENV-01 | — | Pending |
-| ENV-02 | — | Pending |
-| ENV-03 | — | Pending |
+| CONN-01 | Phase 11 | Pending |
+| CONN-02 | Phase 11 | Pending |
+| CONN-03 | Phase 11 | Pending |
+| CONN-04 | Phase 11 | Pending |
+| CONN-05 | Phase 11 | Pending |
+| CONN-06 | Phase 11 | Pending |
+| BRK-01 | Phase 12 | Pending |
+| BRK-02 | Phase 12 | Pending |
+| BRK-03 | Phase 12 | Pending |
+| BRK-04 | Phase 12 | Pending |
+| BRK-05 | Phase 12 | Pending |
+| BRK-06 | Phase 12 | Pending |
+| BRK-07 | Phase 12 | Pending |
+| MIG-01 | Phase 13 | Pending |
+| MIG-02 | Phase 13 | Pending |
+| MIG-03 | Phase 13 | Pending |
+| MIG-04 | Phase 13 | Pending |
+| MIG-05 | Phase 13 | Pending |
+| MIG-06 | Phase 13 | Pending |
+| MIG-07 | Phase 13 | Pending |
+| ORG-01 | Phase 14 | Pending |
+| ORG-02 | Phase 14 | Pending |
+| ORG-03 | Phase 14 | Pending |
+| ORG-04 | Phase 14 | Pending |
+| ORG-05 | Phase 14 | Pending |
+| ORG-06 | Phase 14 | Pending |
+| ORG-07 | Phase 14 | Pending |
+| ENV-01 | Phase 15 | Pending |
+| ENV-02 | Phase 15 | Pending |
+| ENV-03 | Phase 15 | Pending |
 
 **Coverage:**
 - v1 requirements: 30 total
-- Mapped to phases: 0 (pending roadmap)
-- Unmapped: 30 ⚠️ (resolved by gsd-roadmapper)
+- Mapped to phases: 30/30
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-06-13*
-*Last updated: 2026-06-13 — v4.0.0 reframed as pre-public hardening baseline (Codex review)*
+*Last updated: 2026-06-13 — traceability populated by gsd-roadmapper (phases 11-15)*

@@ -1,13 +1,129 @@
 # GSD Roadmap Context
 
-> **Current routing note (2026-06-13):** the Playwright E2E milestone below is complete and retained for historical execution detail. Current roadmap truth is `../docs/ROADMAP.md`; current release/package truth is `../docs/release-status.md`.
+> **Current routing note (2026-06-13):** Milestone v4.0.0 (Pre-Public Hardening Baseline) is the active milestone. Phases 11-15 are defined below. The Playwright E2E milestone (phases 6-8) is complete and retained below for historical execution detail. Canonical roadmap truth is `../docs/ROADMAP.md`; current release/package truth is `../docs/release-status.md`.
 
-## Current next-phase candidates
+---
 
-1. **Connectors GA parity + registry-aware matcher** — verify the released WordPress 7.0 Connectors API source, then implement registry-first matching with regex fallback.
-2. **Compatibility governance-mode deprecation** — add `_doing_it_wrong()` / persistent notice / docs updates in the next minor, with removal queued for v4.0.0.
-3. **Public docs screenshot refresh** — update screenshots/assets when current UI docs are misleading.
-4. **Managed-host manual checklist** — extend manual testing for Apache/managed-host/minimum-supported WP coverage before future releases.
+# Active Roadmap: Milestone v4.0.0 — Pre-Public Hardening Baseline
+
+**Milestone:** v4.0.0
+**Status:** In progress — requirements defined, roadmap created 2026-06-13, execution not yet started
+**Previous milestone last phase:** 10 (Settings UI Revision, v3.4.0)
+**Phase numbering continues from:** 11
+
+**Strategic framing:** v4.0.0 is a focused pre-public hardening baseline, not a feature release. It simplifies governance, verifies WP 7.0 Connectors, removes legacy compatibility paths, sets final platform requirements, and prepares docs/assets for eventual WordPress.org publication. No new product features ship.
+
+## Phases
+
+- [ ] **Phase 11: Connectors Registry-Aware Matcher** - Close the `wordpress_api_key` gating gap with a two-tier registry-first, regex-fallback matcher
+- [ ] **Phase 12: Breaking Changes and Floor Bump** - Remove deprecated APIs (`sudo_can()`, `compatibility` mode), raise WP to 6.4 and PHP to 8.2, drop shims
+- [ ] **Phase 13: Migration Safety and Governance Audit** - Verify 3.0-3.4 upgrade paths are clean, audit capabilities, confirm lockout-safe first-run
+- [ ] **Phase 14: WordPress.org Readiness** - readme validator pass, screenshots/assets, brand consistency, SECURITY.md, submission checklist
+- [ ] **Phase 15: Manual Testing Environment Checklist** - Extend MANUAL-TESTING.md with environment matrix, Connectors verification steps
+
+## Phase Details
+
+### Phase 11: Connectors Registry-Aware Matcher
+
+**Goal**: The gate correctly intercepts connector-credential writes for all registered connectors — including Akismet's `wordpress_api_key` which the current regex misses — by querying the WP 7.0 registry first and falling back to the existing regex on pre-7.0 sites.
+
+**Depends on**: Nothing (independent; can lead the milestone)
+
+**Requirements**: CONN-01, CONN-02, CONN-03, CONN-04, CONN-05, CONN-06
+
+**Pre-Implementation Design Review Required**: YES — this touches the security-sensitive `is_connector_api_key_setting_name()` matcher in `includes/class-action-registry.php`. Per CLAUDE.md, write a 3-8 sentence design brief covering: the `wordpress_api_key` gap and threat; the two-tier approach (registry-first static cache, regex fallback); what the guard blocks and must NOT block (benign settings like `blogname`, `siteurl`); static cache invalidation for unit tests; multisite behavior; registry timing relative to gate evaluation. Spawn reviewer before TDD cycle.
+
+**Success Criteria** (what must be TRUE):
+  1. A `POST /wp/v2/settings` request writing `wordpress_api_key` is intercepted by the gate on a WP 7.0 install, triggering the reauthentication challenge (the bug is closed)
+  2. A `POST /wp/v2/settings` request writing a custom connector's arbitrary `setting_name` (non-`connectors_*_api_key` pattern) is gated when that connector is in the WP 7.0 registry
+  3. Standard `connectors_*_api_key` writes (e.g., `connectors_ai_openai_api_key`) remain gated with no regression
+  4. On a WP version without `wp_get_connectors`, the matcher falls back to regex-only and standard-pattern names are still gated (pre-7.0 backward compatibility preserved)
+  5. Benign settings writes (`blogname`, `siteurl`, `timezone_string`) pass through without being gated under the new matcher
+
+**Plans**: TBD
+
+### Phase 12: Breaking Changes and Floor Bump
+
+**Goal**: v4.0.0 ships with all deprecated APIs removed, `compatibility` governance mode fully excised (with a migration notice for sites still using it), and minimum requirements honestly declared as WordPress 6.4 and PHP 8.2 — with the corresponding shims deleted.
+
+**Depends on**: Nothing (independent; can run after Phase 11 or in parallel)
+
+**Requirements**: BRK-01, BRK-02, BRK-03, BRK-04, BRK-05, BRK-06, BRK-07
+
+**Pre-Implementation Design Review Required**: YES — removing `compatibility` governance mode changes the capability-check contract in `wp_sudo_can()` and `wp_sudo_map_governance_meta_cap()`. Per CLAUDE.md, write a design brief covering: what `compatibility` mode enabled and what its removal blocks; where the deprecation/migration notice fires (every request vs admin-context-only) and the fatigue tradeoff; whether `WP_SUDO_RECOVERY_MODE` remains the sole break-glass; that `uninstall.php` already deletes the governance option; the `sudo_can()` removal scope (collision-avoidance guard pattern preserved on surviving `wp_sudo_can()`). Spawn reviewer before TDD cycle.
+
+**Success Criteria** (what must be TRUE):
+  1. Calling `sudo_can()` produces a fatal error (function does not exist); `wp_sudo_can()` is the only surviving function and works correctly
+  2. A site with `wp_sudo_governance_mode = 'compatibility'` in the database shows a persistent admin notice after upgrading to 4.0.0, and governance behaves as `strict` — no undefined behavior, no broken capability checks
+  3. `WP_SUDO_RECOVERY_MODE` constant still grants access and is the sole remaining break-glass path
+  4. The plugin header, `readme.txt`, and `composer.json` all declare `Requires at least: 6.4` and `Requires PHP: 8.2`; the CI support-floor lane runs WP 6.4 (not 6.2)
+  5. `includes/class-admin.php` contains no `function_exists('wp_get_admin_notice')` branches; admin notices render via `wp_get_admin_notice()` unconditionally
+
+**Plans**: TBD
+
+### Phase 13: Migration Safety and Governance Audit
+
+**Goal**: No 3.0-3.4 upgrade path leaves an install in broken, undefined, or lockout-prone state after v4.0.0 lands. The capability model is audited, uninstall remains correct, and the first-run flow is documented as lockout-safe.
+
+**Depends on**: Phase 12 (governance simplification must land before migration safety can be verified against the final code)
+
+**Requirements**: MIG-01, MIG-02, MIG-03, MIG-04, MIG-05, MIG-06, MIG-07
+
+**Success Criteria** (what must be TRUE):
+  1. Upgrading from a v3.3 install with `wp_sudo_governance_mode = 'compatibility'` to v4.0.0 lands on `strict` governance with a visible admin notice and no PHP errors, broken UI, or missing capabilities
+  2. After compatibility-mode removal, `WP_SUDO_RECOVERY_MODE` break-glass grants full access and no other break-glass path exists
+  3. Uninstalling v4.0.0 (single-site and multisite) leaves no `wp_sudo_governance_mode` option, no `_wp_sudo_*` user meta, and no legacy v1 Site Manager role in the database
+  4. On a multisite upgrade, network governance state and super-admin capabilities are intact; no cross-site capability bleed
+  5. Every admin and settings screen renders without a bare `manage_options` check — all use dedicated Sudo capabilities (`manage_wp_sudo` etc.)
+  6. PHPUnit tests cover the lockout scenario (first activation with no super admin) and the compatibility-mode-upgrade recovery path
+
+**Plans**: TBD
+
+### Phase 14: WordPress.org Readiness
+
+**Goal**: The plugin repository entry and supporting assets accurately represent the current plugin, the readme passes the WordPress.org validator, brand/identity is internally consistent, security disclosure is documented, and a submission checklist exists in the repo.
+
+**Depends on**: Phase 12 (code and UI must be final before screenshots and readme reflect the accurate state)
+
+**Requirements**: ORG-01, ORG-02, ORG-03, ORG-04, ORG-05, ORG-06, ORG-07
+
+**Success Criteria** (what must be TRUE):
+  1. `readme.txt` passes the WordPress.org readme validator (correct headers, all required sections present, `Stable tag` and `Tested up to` consistent with current release)
+  2. `assets/` contains current screenshots of the live UI — Settings tabs, Access tab, Session Activity widget, Request/Rule Tester — plus banner and icon; no screenshots show stale or removed UI
+  3. UI strings in the plugin consistently read "Sudo" (product name); `wp-sudo` slug/text-domain and `dknauss/Sudo` GitHub URL are documented in the readme or developer reference as intentional divergences from the product name
+  4. `SECURITY.md` states the vulnerability reporting channel, supported-versions policy, and whether GitHub issues are acceptable for initial security contact
+  5. The request-stash redaction status in `docs/ROADMAP.md` correctly reflects what shipped (suffix-based redaction, not pattern-based build), verified against the redaction code in `class-request-stash.php`
+
+**Plans**: TBD
+
+### Phase 15: Manual Testing Environment Checklist
+
+**Goal**: Every release candidate is verified against a documented environment matrix that covers the new minimum floor, a managed-host environment, and Connectors-credential gating — so environment-specific regressions are caught before tagging.
+
+**Depends on**: Phase 12 (minimum-requirement bump must be locked before checklist can reference the correct floor; ENV-02 requires BRK-04's 6.4 floor to be established)
+
+**Requirements**: ENV-01, ENV-02, ENV-03
+
+**Success Criteria** (what must be TRUE):
+  1. `tests/MANUAL-TESTING.md` has an "Environment Matrix" section listing named environments to verify before each release
+  2. The checklist requires verification on at least one Apache environment, one managed WordPress host (Pressable, WP Engine, or Cloudways), and the minimum-supported WordPress version (6.4)
+  3. The checklist includes a "Connectors Credential Gating" section with explicit steps for verifying cookie-auth and Application Password `POST /wp/v2/settings` requests writing `wordpress_api_key` and at least one `connectors_*_api_key` field are intercepted by the gate
+
+**Plans**: TBD
+
+## Progress
+
+**Execution Order:**
+Phases execute in dependency order: 11 → 12 → 13 (after 12) → 14 (after 12) → 15 (after 12)
+Note: Phases 13, 14, and 15 all depend on Phase 12 completing. Phases 13 and 14 can run concurrently after Phase 12. Phase 15 is low-effort and can follow 12 directly.
+
+| Phase | Milestone | Plans Complete | Status | Completed |
+|-------|-----------|----------------|--------|-----------|
+| 11. Connectors Registry-Aware Matcher | v4.0.0 | 0/TBD | Not started | - |
+| 12. Breaking Changes and Floor Bump | v4.0.0 | 0/TBD | Not started | - |
+| 13. Migration Safety and Governance Audit | v4.0.0 | 0/TBD | Not started | - |
+| 14. WordPress.org Readiness | v4.0.0 | 0/TBD | Not started | - |
+| 15. Manual Testing Environment Checklist | v4.0.0 | 0/TBD | Not started | - |
 
 ---
 
@@ -147,7 +263,7 @@ Plans:
 
 ---
 
-## Phase Summary
+## Historical Phase Summary
 
 | Phase | Goal | Requirements | Plans | Depends On |
 |-------|------|-------------|-------|------------|
@@ -155,6 +271,4 @@ Plans:
 | 7 | Core E2E tests + visual regression | COOK, TIMR, MUPG, GATE, CHAL, VISN (20) | 4 | Phase 6 |
 | 8 | Keyboard + admin bar interaction | KEYB, ABAR (6) | 2 | Phase 7 |
 
-**Total:** 3 phases, 9 plans, 32 v1 requirements
-**Estimated effort:** ~2 weeks (Phase 6: 2-3 days, Phase 7: 5-7 days, Phase 8: 2-3 days)
-**Time-sensitive:** Visual regression baselines (VISN-01-04) should be captured before WP 7.0 GA (April 9, 2026)
+**Total (v2.14 milestone):** 3 phases, 9 plans, 32 v1 requirements
