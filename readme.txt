@@ -182,12 +182,19 @@ Extensibility: the action registry is filterable via wp_sudo_gated_actions. Audi
 == Screenshots ==
 
 1. Challenge page — reauthentication interstitial with password field.
+   ![Challenge page](https://raw.githubusercontent.com/dknauss/Sudo/main/assets/screenshot-1.png)
 2. Settings tab — policy presets, session settings, and active sudo timer.
+   ![Settings tab](https://raw.githubusercontent.com/dknauss/Sudo/main/assets/screenshot-2.png)
 3. Gated Actions tab — protected operations with rule IDs and covered surfaces.
+   ![Gated Actions tab](https://raw.githubusercontent.com/dknauss/Sudo/main/assets/screenshot-3.png)
 4. Rule Tester tab — evaluate representative request shapes without executing them.
+   ![Rule Tester tab](https://raw.githubusercontent.com/dknauss/Sudo/main/assets/screenshot-4.png)
 5. Access tab — manage dedicated Sudo governance capabilities and revoke sessions.
+   ![Access tab](https://raw.githubusercontent.com/dknauss/Sudo/main/assets/screenshot-5.png)
 6. Dashboard widget — active sessions, policy summary, and recent privilege-action events.
+   ![Dashboard widget](https://raw.githubusercontent.com/dknauss/Sudo/main/assets/screenshot-6.png)
 7. Break-glass recovery notice — visible warning while WP_SUDO_RECOVERY_MODE is active.
+   ![Break-glass recovery notice](https://raw.githubusercontent.com/dknauss/Sudo/main/assets/screenshot-7.png)
 
 == Changelog ==
 

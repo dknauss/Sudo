@@ -18,19 +18,40 @@ Playground demo credentials are `admin` / `password`. When WP Sudo asks for reau
 
 ## Screenshots
 
-![WP Sudo challenge page asking the current user to confirm their identity with a password.](assets/screenshot-1.png)
-
-![Settings tab with policy presets, session settings, and the active sudo timer in the admin bar.](assets/screenshot-2.png)
-
-![Gated Actions tab showing protected operations and the surfaces where each rule applies.](assets/screenshot-3.png)
-
-![Rule Tester tab evaluating a representative admin request without executing it.](assets/screenshot-4.png)
-
-![Access tab for managing dedicated WP Sudo governance capabilities.](assets/screenshot-5.png)
-
-![Dashboard widget with active sudo sessions, policy summary, and recent privilege-action events.](assets/screenshot-6.png)
-
-![Break-glass recovery mode notice on the Sudo settings screen.](assets/screenshot-7.png)
+<table>
+<tr>
+<td width="50%"><img src="https://raw.githubusercontent.com/dknauss/Sudo/main/assets/screenshot-1.png" alt="WP Sudo challenge page asking the current user to confirm their identity with a password."></td>
+<td width="50%"><img src="https://raw.githubusercontent.com/dknauss/Sudo/main/assets/screenshot-2.png" alt="Settings tab with policy presets, session settings, and the active sudo timer in the admin bar."></td>
+</tr>
+<tr>
+<td><strong>Challenge page</strong></td>
+<td><strong>Settings tab</strong></td>
+</tr>
+<tr>
+<td><img src="https://raw.githubusercontent.com/dknauss/Sudo/main/assets/screenshot-3.png" alt="Gated Actions tab showing protected operations and the surfaces where each rule applies."></td>
+<td><img src="https://raw.githubusercontent.com/dknauss/Sudo/main/assets/screenshot-4.png" alt="Rule Tester tab evaluating a representative admin request without executing it."></td>
+</tr>
+<tr>
+<td><strong>Gated Actions tab</strong></td>
+<td><strong>Rule Tester tab</strong></td>
+</tr>
+<tr>
+<td><img src="https://raw.githubusercontent.com/dknauss/Sudo/main/assets/screenshot-5.png" alt="Access tab for managing dedicated WP Sudo governance capabilities."></td>
+<td><img src="https://raw.githubusercontent.com/dknauss/Sudo/main/assets/screenshot-6.png" alt="Dashboard widget with active sudo sessions, policy summary, and recent privilege-action events."></td>
+</tr>
+<tr>
+<td><strong>Access tab</strong></td>
+<td><strong>Dashboard widget</strong></td>
+</tr>
+<tr>
+<td><img src="https://raw.githubusercontent.com/dknauss/Sudo/main/assets/screenshot-7.png" alt="Break-glass recovery mode notice on the Sudo settings screen."></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Break-glass recovery notice</strong></td>
+<td></td>
+</tr>
+</table>
 
 ## Features
 
