@@ -61,7 +61,7 @@ Playground demo credentials are `admin` / `password`. When WP Sudo asks for reau
 
 - **Confirmation before destructive actions** — plugin installs/deletions, user management, settings changes, core updates, and more all require a fresh password before proceeding
 - **Two-factor support** — integrates with the [Two Factor plugin](https://wordpress.org/plugins/two-factor/) so the challenge includes your second factor when active
-- **Short sudo window** — one confirmation covers 1–15 minutes of related work (your choice); no repeated prompts for a burst of activity
+- **Short sudo window** — one confirmation covers 1–15 minutes of related work (your choice) so admins can work without interruption following one reauthentication challenge before being challenged again
 - **Per-surface policies** — configure WP-CLI, Cron, XML-RPC, REST App Passwords, and WPGraphQL independently as Disabled, Limited, or Unrestricted
 - **Governance controls** — manage which users and roles can administer WP Sudo settings via a dedicated Access tab
 - **Activity visibility** — audit hooks fire on every gated event; works with WP Activity Log, Stream, and similar plugins
