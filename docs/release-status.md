@@ -46,6 +46,8 @@ Canonical source for post-tag drift after `3.4.0`: `git log v3.4.0..main --oneli
 Current commits ahead of `v3.4.0`:
 
 - Roadmap additions for a Connectors registry-aware matcher, a v4.0.0 breaking-change milestone, and Gutenberg design scope.
+- E2E CI balancing that replaces opaque Playwright sharding with explicit
+  challenge/admin, 2FA/UI, lockout/surface, and replay/multisite groups.
 
 ## WordPress release posture
 

@@ -543,10 +543,11 @@ With the WordPress 7.0 compatibility release and v3.4.0 hardening work closed,
 the recommended implementation order is:
 
 1. **Deprecate `compatibility` governance mode** (break-glass containment now ✅ shipped) — Two paired governance security-debt items. (a) *Still open:* fire `_doing_it_wrong()` + persistent admin notice when `wp_sudo_governance_mode = 'compatibility'` is active; update FAQ and developer reference; queue removal for the next major release. (b) ✅ *Shipped in v3.4.0:* the break-glass path that replaces it is hardened — the grant is role-gated to administrators, a non-dismissible notice renders, and the `wp_sudo_recovery_mode_active` audit hook fires (stored as a sampled `recovery_mode` event), so it is explicit, auditable, and bounded (see §12.1 Phase R3). `WP_SUDO_RECOVERY_MODE` is the only supported break-glass path going forward, and it is now sound; compatibility mode can be removed once (a) lands. **Effort:** Low (deprecation remaining)
-2. **Implement E2E CI acceleration without reducing release assurance**
-   - Rebalance the current long shard before adding cache/image/policy optimizations
+2. **Monitor and tune E2E CI acceleration without reducing release assurance**
+   - Explicit CI groups now split the former long challenge shard across behavior-focused jobs
    - Keep the full Playwright suite available for release-grade confidence, but shorten normal feedback loops
-   - Treat path-based skipping and worker-level parallelism as later steps that require explicit safety rules
+   - Measure grouped runtime before deciding whether cache/image/policy optimizations are still worth the complexity
+   - Treat worker-level parallelism as a later step that requires explicit safety rules
    - **Effort:** Low to medium
 3. **Refresh README screenshots for the current UI**
    - Inventory existing README/readme screenshot references and WordPress.org asset needs
@@ -592,7 +593,7 @@ the recommended implementation order is:
 
 Use this default order after the v3.4.0 release unless a real user need overrides it:
 
-- **Do next:** E2E shard rebalance and README screenshot refresh
+- **Do next:** README screenshot refresh and E2E explicit-group runtime monitoring
 - **Most important major feature track:** Gutenberg Block Editor reauthentication UX design, then implementation
 - **Plan next:** The Two Factor lifecycle bridge (gate recovery-code generation, TOTP setup/delete, and profile-form provider changes), the modest Sudo Activity screen MVP, audit-visibility warnings, multisite operator controls, and governance polish
 - **Do later if demand exists:** Network Policy Hierarchy for Multisite, Cross-Site Session Revocation, network-enforced Passed-event logging policy (super admins can require immutable Passed-event audit visibility across subsites), Security Administrator governance mode (dedicated `manage_wp_sudo` capability, settings/widget visibility scoped to that capability, optional strict-mode assignee workflow, and documented recovery path for misconfiguration)
@@ -1907,18 +1908,20 @@ coverage that protects challenge, replay, admin UI, and WordPress 7.0 behavior.
 - Shard the default Chromium Playwright suite across four GitHub runners.
 - Preserve a final aggregate check named `E2E Tests` so branch protection can keep
   relying on the existing required status.
-- Upload per-shard artifacts and cancel stale same-branch E2E runs after new
+- Upload per-run artifacts and cancel stale same-branch E2E runs after new
   pushes.
 
+**Completed second slice:**
+- Replace opaque Playwright `--shard` assignment with four explicit CI groups:
+  `challenge-basic-admin`, `challenge-2fa-ui`, `challenge-lockout-surfaces`, and
+  `challenge-replay-multisite`.
+- Split the heavy `challenge.spec.ts` coverage by behavior using `--grep`
+  ranges, without moving or rewriting the test bodies.
+- Keep the aggregate `E2E Tests` required status check unchanged.
+
 **Next implementation options, in priority order:**
-- Rebalance the Playwright shard long pole before other speedups. The first
-  four-shard release run put all `challenge.spec.ts` coverage (`CHAL-01` through
-  `CHAL-17`) plus the admin-bar tests into shard 1; shard 1 took `10m04s`, while
-  the other shards completed in about `2m28s`, `2m32s`, and `3m01s`.
-  Split `tests/e2e/specs/challenge.spec.ts` into smaller files or explicit CI
-  groups such as `challenge-basic`, `challenge-2fa`, `challenge-lockout`, and
-  `challenge-replay`, then verify `--list --shard=N/4` distribution before
-  investing in caching or custom images.
+- Measure the explicit-group runtime on GitHub Actions. If a new long pole
+  appears, adjust group membership before adding caching or custom images.
 - Cache Playwright browser binaries (`~/.cache/ms-playwright`) with keys derived
   from `package-lock.json` and the pinned Playwright version. Keep Linux system
   dependency installation explicit unless a runner image proves it is stable.
@@ -1936,7 +1939,7 @@ coverage that protects challenge, replay, admin UI, and WordPress 7.0 behavior.
 - Audit test isolation before enabling Playwright workers inside a single
   WordPress environment. Do not raise `workers` above `1` until shared database,
   cookie, user, nonce, and option state are proven isolated or reset per test.
-- Keep `retries: 2` until sharding establishes a lower flake baseline; reducing
+- Keep `retries: 2` until grouped CI establishes a lower flake baseline; reducing
   retries is a later optimization, not the first stability lever.
 
 **Acceptance criteria:**
@@ -1944,7 +1947,7 @@ coverage that protects challenge, replay, admin UI, and WordPress 7.0 behavior.
 - Full E2E must remain easy to trigger manually before tags and release branches.
 - Low-risk skips must be documented in the E2E Validation Policy and must fail
   closed when changed paths are ambiguous.
-- Record shard distribution and runtime before and after rebalancing; no shard
+- Record explicit-group distribution and runtime after rebalancing; no group
   should own all challenge lockout, 2FA, and replay coverage.
 - Measure before/after wall-clock duration for `E2E Tests` and record material
   changes in `docs/release-status.md` or the release notes when they affect
