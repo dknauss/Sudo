@@ -102,6 +102,10 @@ jobs:
           wp-env --config .tmp/plugin-check-wp-env.json run cli wp plugin list-checks
           wp-env --config .tmp/plugin-check-wp-env.json run cli wp plugin check wp-sudo --format=json --ignore-warnings > .tmp/plugin-check-results.json
           cat .tmp/plugin-check-results.json
+          if grep -q '"type"[[:space:]]*:[[:space:]]*"ERROR"' .tmp/plugin-check-results.json; then
+            echo "::error::Plugin Check reported one or more errors."
+            exit 1
+          fi
 
       - name: Upload Plugin Check results
         if: ${{ always() }}

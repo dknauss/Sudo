@@ -11,7 +11,6 @@ for path in \
 	assets \
 	bridges \
 	includes \
-	languages \
 	mu-plugin \
 	LICENSE \
 	readme.txt \
@@ -21,5 +20,13 @@ for path in \
 		cp -R "$path" "$DEST/"
 	fi
 done
+
+if [ -d languages ]; then
+	while IFS= read -r file; do
+		relative="${file#languages/}"
+		mkdir -p "$DEST/languages/$(dirname "$relative")"
+		cp "$file" "$DEST/languages/$relative"
+	done < <(find languages -type f ! -name '.*' -print)
+fi
 
 echo "Built Plugin Check dist at $DEST"

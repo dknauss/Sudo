@@ -1,10 +1,3 @@
-_WP Sudo 3.4.0 hardens break-glass recovery: `WP_SUDO_RECOVERY_MODE` is now role-gated to administrators, shows a permanent non-dismissible notice while active, and fires a new `wp_sudo_recovery_mode_active` audit hook so the usage is logged._
-
-[Try the latest release in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fv3.4.0%2Fblueprint.json)
-[Try current main in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint-main.json)
-
-Playground demo credentials are `admin` / `password`. When WP Sudo asks for reauthentication, enter the same password: `password`.
-
 === Sudo ===
 Contributors:      dpknauss
 Donate link:       https://dan.knauss.ca
@@ -23,6 +16,13 @@ WordPress security plugins guard the door. Sudo governs what can happen inside t
 WordPress has rich access control — roles, capabilities, policies on who can do what. It has no native control over when those capabilities can be exercised within a session. Sudo fills that gap. By gating consequential actions behind reauthentication whenever no active sudo window is already in place, it lets site owners directly define the blast radius of many session-compromise paths. The attack surface becomes a policy decision.
 
 This is not role-based escalation. Every logged-in user is treated the same: attempt a gated action without an active sudo session, get challenged. Sessions are time-bounded and non-extendable, enforcing the zero-trust principle that trust must be continuously earned, never assumed. Sudo verifies that the current user is still the account holder; WordPress still decides whether that user is allowed to perform the action.
+
+= Playground demo =
+
+* [Try the latest release in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fv3.4.0%2Fblueprint.json)
+* [Try current main in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint-main.json)
+
+Playground demo credentials are `admin` / `password`. When WP Sudo asks for reauthentication, enter the same password: `password`.
 
 = What’s new in 3.2.0? =
 
