@@ -40,7 +40,7 @@
   4. On a WP version without `wp_get_connectors`, the matcher falls back to regex-only and standard-pattern names are still gated (pre-7.0 backward compatibility preserved)
   5. Benign settings writes (`blogname`, `siteurl`, `timezone_string`) pass through without being gated under the new matcher
 
-**Plans**: TBD
+**Plans**: 1 — `11-01-PLAN.md` (RED unit tests → GREEN matcher rewrite → integration + docs)
 
 ### Phase 12: Breaking Changes and Floor Bump
 

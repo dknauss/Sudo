@@ -1,8 +1,8 @@
 ---
 phase: 11
 slug: connectors-registry-aware-matcher
-status: draft
-nyquist_compliant: false
+status: ready
+nyquist_compliant: true
 wave_0_complete: false
 created: 2026-06-14
 ---
@@ -41,14 +41,14 @@ Task IDs are assigned by the planner; rows below map each requirement + design-r
 
 | Task ID | Plan | Wave | Requirement | Test Type | Automated Command | File Exists | Status |
 |---------|------|------|-------------|-----------|-------------------|-------------|--------|
-| TBD | TBD | 1 | CONN-01 | unit (mock `wp_get_connectors` → Akismet) + integration (WP 7.0) | `composer test:unit` / `composer test:integration` | ❌ W0 | ⬜ pending |
-| TBD | TBD | 1 | CONN-02 | integration (custom connector via `$registry->register()` w/ arbitrary `setting_name`) | `composer test:integration` | ❌ W0 | ⬜ pending |
-| TBD | TBD | 1 | CONN-03 | unit + integration (`connectors_ai_openai_api_key` still gated — regression) | `composer test:unit` | ⚠️ extends `tests/Unit/GateTest.php` | ⬜ pending |
-| TBD | TBD | 1 | CONN-04 | unit (`wp_get_connectors` absent → regex still gates `connectors_*_api_key`) | `composer test:unit` | ❌ W0 | ⬜ pending |
-| TBD | TBD | 1 | CONN-05 | unit (benign `blogname`/`siteurl`/`timezone_string` NOT gated under union) | `composer test:unit` | ❌ W0 | ⬜ pending |
-| TBD | TBD | 1 | CONN-06 | manual — see Manual-Only (docs updated + commit cites verified core source) | n/a | n/a | ⬜ pending |
-| TBD | TBD | 1 | DR-1 (design review) | unit (`wp_get_connectors` absent → `connectors_ai_openai_api_key` still gated; preserves pre-7.0 contract) | `composer test:unit` | ❌ W0 | ⬜ pending |
-| TBD | TBD | 1 | DR-2 (design review) | unit (after `reset_cache()`, second eval re-reads `wp_get_connectors()`; pins cache-invalidation contract) | `composer test:unit` | ❌ W0 | ⬜ pending |
+| 11-01-01 / 11-01-03 | 01 | 1 | CONN-01 | unit (mock `wp_get_connectors` → Akismet) + integration (WP 7.0) | `composer test:unit` / `composer test:integration` | ❌ W0 | ⬜ pending |
+| 11-01-03 | 01 | 1 | CONN-02 | integration (custom connector via `$registry->register()` w/ arbitrary `setting_name`) | `composer test:integration` | ❌ W0 | ⬜ pending |
+| 11-01-01 / 11-01-02 | 01 | 1 | CONN-03 | unit (`connectors_ai_openai_api_key` still gated — regression) | `composer test:unit` | ⚠️ extends `tests/Unit/GateTest.php` | ⬜ pending |
+| 11-01-01 | 01 | 1 | CONN-04 | unit (`wp_get_connectors` absent → regex still gates `connectors_*_api_key`) | `composer test:unit` | ❌ W0 | ⬜ pending |
+| 11-01-01 | 01 | 1 | CONN-05 | unit (benign `blogname`/`siteurl`/`timezone_string` NOT gated under union) | `composer test:unit` | ❌ W0 | ⬜ pending |
+| 11-01-03 | 01 | 1 | CONN-06 | manual — see Manual-Only (docs updated + commit cites verified core source) | n/a | n/a | ⬜ pending |
+| 11-01-01 | 01 | 1 | DR-1 (design review) | unit (`wp_get_connectors` absent → `connectors_ai_openai_api_key` still gated; preserves pre-7.0 contract) | `composer test:unit` | ❌ W0 | ⬜ pending |
+| 11-01-01 | 01 | 1 | DR-2 (design review) | unit (after `reset_cache()`, second eval re-reads `wp_get_connectors()`; pins cache-invalidation contract) | `composer test:unit` | ❌ W0 | ⬜ pending |
 
 *Status: ⬜ pending · ✅ green · ❌ red · ⚠️ flaky*
 
