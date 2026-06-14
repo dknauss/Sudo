@@ -1,5 +1,7 @@
 # WP Sudo
 
+![WP Sudo](.wordpress-org/banner-1544x500.png)
+
 Require password confirmation before high-risk changes go through on your WordPress site — even from an already-authenticated admin session.
 
 [![License: GPL v2+](https://img.shields.io/badge/License-GPL%20v2%2B-blue.svg)](https://spdx.org/licenses/GPL-2.0-or-later.html)
@@ -25,6 +27,23 @@ Playground demo credentials are `admin` / `password`. When WP Sudo asks for reau
 - **Governance controls** — manage which users and roles can administer WP Sudo settings via a dedicated Access tab
 - **Activity visibility** — audit hooks fire on every gated event; works with WP Activity Log, Stream, and similar plugins
 - **Multisite support** — network-aware; super admins governed separately from per-site admins
+
+## Screenshots
+
+| Challenge page | Two-factor authentication |
+|---|---|
+| ![Challenge page — reauthentication interstitial with password field](.wordpress-org/screenshot-1.png) | ![Two-factor authentication step](.wordpress-org/screenshot-2.png) |
+| Reauthentication interstitial with password field. | After password confirmation, users with 2FA enabled enter their authentication code. |
+
+| Settings page | Gated actions |
+|---|---|
+| ![Settings page](.wordpress-org/screenshot-3.png) | ![Gated actions list](.wordpress-org/screenshot-6.png) |
+| Configure session duration, quick policy presets, and entry-point policies. | The settings page lists all gated operations with their categories and surfaces. |
+
+| Plugins gate notice | Themes gate notice | Active sudo session |
+|---|---|---|
+| ![Gate notice on the plugins page](.wordpress-org/screenshot-4.png) | ![Gate notice on the themes page](.wordpress-org/screenshot-5.png) | ![Admin bar countdown timer](.wordpress-org/screenshot-7.png) |
+| When no sudo session is active, a persistent notice links to the challenge page. | The same gating notice appears on the themes page. | The admin bar shows a green countdown timer during an active session. |
 
 ## Quick start
 
