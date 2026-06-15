@@ -3916,4 +3916,178 @@ class GateTest extends TestCase {
 		$this->assertNull( $result );
 		unset( $_COOKIE[ Sudo_Session::TOKEN_COOKIE ] );
 	}
+
+	// ── Connectors two-tier matcher (CONN-01…CONN-05, DR-1, DR-2) ────────
+
+	/**
+	 * CONN-01 / Registry tier — a non-regex setting_name registered with
+	 * method=api_key is gated via the registry lookup.
+	 *
+	 * Akismet uses 'wordpress_api_key' which does NOT match the regex
+	 * ^connectors_[a-z0-9_]+_api_key$. This test drives the registry-first
+	 * tier and is RED against the current regex-only implementation.
+	 *
+	 * Verified source: wp-includes/connectors.php Akismet registration block
+	 * (WordPress/wordpress-develop trunk, 2026-06-15).
+	 */
+	public function test_connector_registry_tier_gates_non_regex_setting_name(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+		Functions\when( 'wp_get_connectors' )->justReturn(
+			array(
+				'akismet' => array(
+					'authentication' => array(
+						'method'       => 'api_key',
+						'setting_name' => 'wordpress_api_key',
+					),
+				),
+			)
+		);
+
+		Action_Registry::reset_cache();
+
+		$request = new \WP_REST_Request( 'POST', '/wp/v2/settings' );
+		$request->set_body_params( array( 'wordpress_api_key' => 'abc123' ) );
+
+		$rule = $this->gate->match_request( 'rest', $request );
+
+		$this->assertNotNull( $rule );
+		$this->assertSame( 'connectors.update_credentials', $rule['id'] );
+
+		Action_Registry::reset_cache();
+	}
+
+	/**
+	 * DR-2 — reset_cache() clears the connector setting-name cache so a
+	 * subsequent evaluation reads the updated registry.
+	 *
+	 * This test is RED until the class-property cache + reset_cache() wiring
+	 * exists (a function-local static cannot be cleared between calls).
+	 */
+	public function test_connector_reset_cache_forces_registry_reread(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		// First evaluation: registry includes wordpress_api_key.
+		Functions\when( 'wp_get_connectors' )->justReturn(
+			array(
+				'akismet' => array(
+					'authentication' => array(
+						'method'       => 'api_key',
+						'setting_name' => 'wordpress_api_key',
+					),
+				),
+			)
+		);
+
+		Action_Registry::reset_cache();
+
+		$request1 = new \WP_REST_Request( 'POST', '/wp/v2/settings' );
+		$request1->set_body_params( array( 'wordpress_api_key' => 'abc123' ) );
+		$rule1 = $this->gate->match_request( 'rest', $request1 );
+
+		$this->assertNotNull( $rule1, 'First evaluation should match via registry.' );
+		$this->assertSame( 'connectors.update_credentials', $rule1['id'] );
+
+		// After reset, re-stub to a different set that does NOT include wordpress_api_key.
+		Action_Registry::reset_cache();
+		Functions\when( 'wp_get_connectors' )->justReturn(
+			array(
+				'myplugin' => array(
+					'authentication' => array(
+						'method'       => 'api_key',
+						'setting_name' => 'myplugin_different_key',
+					),
+				),
+			)
+		);
+
+		$request2 = new \WP_REST_Request( 'POST', '/wp/v2/settings' );
+		$request2->set_body_params( array( 'wordpress_api_key' => 'abc123' ) );
+		$rule2 = $this->gate->match_request( 'rest', $request2 );
+
+		// wordpress_api_key must NOT match the new registry (no regex match either).
+		$this->assertNull( $rule2, 'After reset_cache(), registry re-read should not match old key.' );
+
+		Action_Registry::reset_cache();
+	}
+
+	/**
+	 * CONN-03 — Regression guard: connectors_ai_openai_api_key is still
+	 * gated via the regex fallback when no registry is stubbed.
+	 */
+	public function test_connector_regex_fallback_gates_connectors_ai_openai_api_key_conn03(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		Action_Registry::reset_cache();
+
+		$request = new \WP_REST_Request( 'POST', '/wp/v2/settings' );
+		$request->set_body_params( array( 'connectors_ai_openai_api_key' => 'sk-test-1234' ) );
+
+		$rule = $this->gate->match_request( 'rest', $request );
+
+		$this->assertNotNull( $rule );
+		$this->assertSame( 'connectors.update_credentials', $rule['id'] );
+
+		Action_Registry::reset_cache();
+	}
+
+	/**
+	 * CONN-05 — Regression guard: benign settings (blogname, siteurl,
+	 * timezone_string) are NOT gated by the connector matcher.
+	 */
+	public function test_connector_matcher_does_not_gate_benign_settings_conn05(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		Action_Registry::reset_cache();
+
+		foreach ( array( 'blogname', 'siteurl', 'timezone_string' ) as $setting ) {
+			$request = new \WP_REST_Request( 'POST', '/wp/v2/settings' );
+			$request->set_body_params( array( $setting => 'some-value' ) );
+
+			$rule = $this->gate->match_request( 'rest', $request );
+
+			// These may match options.critical but must NOT match connectors.update_credentials.
+			if ( null !== $rule ) {
+				$this->assertNotSame(
+					'connectors.update_credentials',
+					$rule['id'],
+					"Setting '{$setting}' must not be gated as a connector credential."
+				);
+			} else {
+				$this->assertNull( $rule );
+			}
+		}
+
+		Action_Registry::reset_cache();
+	}
+
+	/**
+	 * CONN-04 / DR-1 — Regression guard: when wp_get_connectors() is absent
+	 * (no stub, Brain\Monkey default), connectors_ai_openai_api_key is still
+	 * gated via the regex fallback.
+	 *
+	 * No function_exists() mock added — the guard is a legitimate runtime
+	 * integration check; Brain\Monkey makes wp_get_connectors undefined,
+	 * function_exists() returns false, and the regex runs.
+	 */
+	public function test_connector_regex_fallback_when_registry_absent_conn04_dr1(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		// wp_get_connectors() is NOT stubbed — it is absent (Brain\Monkey default).
+		Action_Registry::reset_cache();
+
+		$request = new \WP_REST_Request( 'POST', '/wp/v2/settings' );
+		$request->set_body_params( array( 'connectors_ai_openai_api_key' => 'sk-test-5678' ) );
+
+		$rule = $this->gate->match_request( 'rest', $request );
+
+		$this->assertNotNull( $rule );
+		$this->assertSame( 'connectors.update_credentials', $rule['id'] );
+
+		Action_Registry::reset_cache();
+	}
 }
