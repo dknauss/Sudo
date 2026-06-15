@@ -203,6 +203,19 @@ behavior that the model cannot hold in working memory.
 - Always run tests and PHPStan before committing.
 - Use conventional commit format.
 
+## Branch Hygiene
+
+- Do not use agent-name prefixes such as `codex/`, `claude/`, or `copilot/` for
+  new branches.
+- Use short semantic branch names that describe the work:
+  `docs/...`, `fix/...`, `feat/...`, `ci/...`, `test/...`, `chore/...`, or
+  `release/...`.
+- Keep each branch tied to one logical PR or task. Prefer follow-up branches over
+  continually reusing a stale branch for unrelated work.
+- After a PR is merged, delete the remote branch and prune local tracking refs.
+- Before creating a branch, check whether an existing open PR already covers the
+  same scope.
+
 ## E2E Validation Policy
 
 - Do not automatically block on the full Playwright E2E suite for every push.
