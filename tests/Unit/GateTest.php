@@ -4014,11 +4014,18 @@ class GateTest extends TestCase {
 
 	/**
 	 * CONN-03 — Regression guard: connectors_ai_openai_api_key is still
-	 * gated via the regex fallback when no registry is stubbed.
+	 * gated via the regex fallback even when the registry is empty.
+	 *
+	 * Patchwork intercepts all WP function calls, so function_exists('wp_get_connectors')
+	 * returns true once any Brain\Monkey stub for it has been created in the process.
+	 * We stub it returning an empty array (no api_key connectors registered) and confirm
+	 * the regex tier still gates the standard naming pattern.
 	 */
 	public function test_connector_regex_fallback_gates_connectors_ai_openai_api_key_conn03(): void {
 		Functions\when( '__' )->returnArg();
 		Functions\when( 'apply_filters' )->returnArg( 2 );
+		// Registry exists but has no connectors — regex fallback must still gate the standard pattern.
+		Functions\when( 'wp_get_connectors' )->justReturn( array() );
 
 		Action_Registry::reset_cache();
 
@@ -4036,10 +4043,13 @@ class GateTest extends TestCase {
 	/**
 	 * CONN-05 — Regression guard: benign settings (blogname, siteurl,
 	 * timezone_string) are NOT gated by the connector matcher.
+	 *
+	 * Registry is empty (no api_key connectors); regex fallback also must not match.
 	 */
 	public function test_connector_matcher_does_not_gate_benign_settings_conn05(): void {
 		Functions\when( '__' )->returnArg();
 		Functions\when( 'apply_filters' )->returnArg( 2 );
+		Functions\when( 'wp_get_connectors' )->justReturn( array() );
 
 		Action_Registry::reset_cache();
 
@@ -4065,19 +4075,23 @@ class GateTest extends TestCase {
 	}
 
 	/**
-	 * CONN-04 / DR-1 — Regression guard: when wp_get_connectors() is absent
-	 * (no stub, Brain\Monkey default), connectors_ai_openai_api_key is still
-	 * gated via the regex fallback.
+	 * CONN-04 / DR-1 — Regression guard: when wp_get_connectors() returns no
+	 * api_key connectors, connectors_ai_openai_api_key is still gated via the
+	 * regex fallback.
 	 *
-	 * No function_exists() mock added — the guard is a legitimate runtime
-	 * integration check; Brain\Monkey makes wp_get_connectors undefined,
-	 * function_exists() returns false, and the regex runs.
+	 * Note: Patchwork intercepts all WP function calls in the unit test process,
+	 * making function_exists('wp_get_connectors') return true once any test in
+	 * the process has stubbed it. The legitimate "pre-WP-7.0 absent" scenario is
+	 * covered by the integration test suite on older WP lanes. Here we verify the
+	 * union fallback: even with a populated registry that has no api_key connector
+	 * matching the key, the regex tier still gates the standard naming pattern.
 	 */
 	public function test_connector_regex_fallback_when_registry_absent_conn04_dr1(): void {
 		Functions\when( '__' )->returnArg();
 		Functions\when( 'apply_filters' )->returnArg( 2 );
+		// Empty registry (simulates pre-7.0 or no api_key connectors); regex must still gate.
+		Functions\when( 'wp_get_connectors' )->justReturn( array() );
 
-		// wp_get_connectors() is NOT stubbed — it is absent (Brain\Monkey default).
 		Action_Registry::reset_cache();
 
 		$request = new \WP_REST_Request( 'POST', '/wp/v2/settings' );

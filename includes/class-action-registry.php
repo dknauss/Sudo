@@ -53,6 +53,19 @@ class Action_Registry {
 	private static ?array $cached_builtin_ids = null;
 
 	/**
+	 * Cached set of connector api_key setting names from the WP 7.0 registry,
+	 * per-request. Null means "not yet built". An empty array means the registry
+	 * exists but has no api_key connectors. These two states are distinct so that
+	 * reset_cache() can force a re-read on the next evaluation.
+	 *
+	 * Reset via reset_cache() for unit-test isolation (a class property, NOT a
+	 * function-local static, so reset_cache() can clear it between tests).
+	 *
+	 * @var array<string, bool>|null
+	 */
+	private static ?array $connector_setting_names_cache = null;
+
+	/**
 	 * Default WordPress form fields that are replay-safe when paired with a rule allowlist.
 	 *
 	 * @var string[]
@@ -848,8 +861,9 @@ class Action_Registry {
 	 * @return void
 	 */
 	public static function reset_cache(): void {
-		self::$cached_rules       = null;
-		self::$cached_builtin_ids = null;
+		self::$cached_rules                  = null;
+		self::$cached_builtin_ids            = null;
+		self::$connector_setting_names_cache = null;
 	}
 
 	/**
@@ -1034,15 +1048,56 @@ class Action_Registry {
 	}
 
 	/**
-	 * Check whether a settings key matches the Connectors API key naming pattern.
+	 * Check whether a settings key is a connector API key setting name.
 	 *
-	 * Core normalizes connector type and ID to underscores, yielding keys like:
-	 * connectors_ai_openai_api_key
+	 * Two-tier union matcher (fail-toward-gating): gates if EITHER tier matches.
+	 *
+	 * Tier 1 — WP 7.0 Connectors registry (when wp_get_connectors() exists):
+	 *   Collects setting_name values from connectors whose authentication.method
+	 *   is 'api_key'. Result is cached in $connector_setting_names_cache (a
+	 *   class property, NOT a function-local static, so reset_cache() can clear
+	 *   it between unit tests). This tier gates connectors with non-regex names
+	 *   such as Akismet's 'wordpress_api_key' (registered unconditionally in
+	 *   wp-includes/connectors.php as method=api_key, setting_name=wordpress_api_key;
+	 *   verified against WordPress/wordpress-develop trunk, 2026-06-15).
+	 *
+	 * Tier 2 — Regex fallback (always runs):
+	 *   Gates connectors_[a-z0-9_]+_api_key keys. Covers pre-WP-7.0 installs
+	 *   and connectors registered with the default naming convention.
+	 *
+	 * Scope note: this matcher intentionally covers method === 'api_key' only.
+	 * A future core authentication method that carries a secret is a known
+	 * RE-SCOPING TRIGGER — integrators should extend via wp_sudo_gated_actions
+	 * until this matcher is updated.
+	 *
+	 * The function_exists( 'wp_get_connectors' ) guard is a legitimate runtime
+	 * integration check (WP 6.2 plugin minimum vs WP 7.0 feature), NOT a shim.
 	 *
 	 * @param string $key Settings field name.
 	 * @return bool
 	 */
 	private static function is_connector_api_key_setting_name( string $key ): bool {
+		// Tier 1: WP 7.0 Connectors registry (when available).
+		if ( function_exists( 'wp_get_connectors' ) ) {
+			if ( null === self::$connector_setting_names_cache ) {
+				$names = array();
+				foreach ( wp_get_connectors() as $connector ) {
+					if (
+						isset( $connector['authentication']['method'], $connector['authentication']['setting_name'] ) &&
+						'api_key' === $connector['authentication']['method']
+					) {
+						$names[ $connector['authentication']['setting_name'] ] = true;
+					}
+				}
+				self::$connector_setting_names_cache = $names;
+			}
+
+			if ( isset( self::$connector_setting_names_cache[ $key ] ) ) {
+				return true;
+			}
+		}
+
+		// Tier 2: Regex fallback — always evaluated (union, not early-exit).
 		return 1 === preg_match( '#^connectors_[a-z0-9_]+_api_key$#', $key );
 	}
 
