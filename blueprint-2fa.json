@@ -1,0 +1,40 @@
+{
+  "name": "2FA Challenge",
+  "description": "A blueprint to test the 2FA challenge step",
+  "seed": {
+    "users": [
+      {
+        "username": "admin",
+        "email": "admin@example.com",
+        "password": "password",
+        "roles": ["administrator"]
+      }
+    ],
+    "plugins": [
+      "two-factor"
+    ]
+  },
+  "steps": [
+    {
+      "name": "Login",
+      "description": "Login as admin",
+      "actions": [
+        {
+          "type": "login",
+          "username": "admin",
+          "password": "password"
+        }
+      ]
+    },
+    {
+      "name": "2FA Challenge",
+      "description": "Complete the 2FA challenge",
+      "actions": [
+        {
+          "type": "2fa",
+          "code": "123456"
+        }
+      ]
+    }
+  ]
+}
