@@ -781,7 +781,7 @@ regression in the session token comparison or rate limiting logic?"
 
 **Why not now:**
 - Infection re-runs the full test suite for every mutant. With the current suite
-  (405 unit + 116 integration tests), a full Infection run would take 10–30 minutes
+  (794 unit + 182 integration tests; see `docs/current-metrics.md`), a full Infection run would take 10–30 minutes
   locally. That's acceptable for a pre-release check, not for CI on every push.
 - The more valuable immediate gap is environment diversity: knowing the tests pass
   on Apache/MariaDB and WP 6.2–6.9 is higher confidence signal than mutation score
