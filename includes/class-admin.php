@@ -247,6 +247,12 @@ class Admin {
 		add_action( 'admin_enqueue_scripts', array( $this, 'maybe_enqueue_app_password_assets' ) );
 		add_filter( 'plugin_action_links_' . WP_SUDO_PLUGIN_BASENAME, array( $this, 'add_action_links' ) );
 
+		// Persistent migration notice when a 3.x install still has the removed
+		// `compatibility` governance mode set (BRK-03). Hooked on all admin
+		// screens so an operator who never opens the Sudo page still sees it.
+		add_action( 'admin_notices', array( $this, 'render_compatibility_mode_notice' ), 10, 0 );
+		add_action( 'network_admin_notices', array( $this, 'render_compatibility_mode_notice' ), 10, 0 );
+
 		// MU-plugin install/uninstall AJAX handlers.
 		add_action( 'wp_ajax_' . self::AJAX_MU_INSTALL, array( $this, 'handle_mu_install' ), 10, 0 );
 		add_action( 'wp_ajax_' . self::AJAX_MU_UNINSTALL, array( $this, 'handle_mu_uninstall' ), 10, 0 );
@@ -2461,6 +2467,51 @@ class Admin {
 		$message = __( 'WP Sudo break-glass recovery mode is active (WP_SUDO_RECOVERY_MODE is defined in wp-config.php). While it is set, any administrator who holds manage_options regains full Sudo governance access. Remove the constant as soon as normal access is restored — leaving it enabled weakens the governance model.', 'wp-sudo' );
 
 		echo '<div class="notice notice-warning wp-sudo-notice"><p>' . esc_html( $message ) . '</p></div>';
+	}
+
+	/**
+	 * Render a persistent migration notice when a 3.x install still has the
+	 * removed `compatibility` governance mode set (BRK-03).
+	 *
+	 * The `compatibility` governance mode was removed in 4.0.0; governance is
+	 * now always strict (a stale `wp_sudo_governance_mode` option is inert). A
+	 * site that opted into compatibility mode before upgrading should remove the
+	 * option. This notice signals that state — it does NOT delete the option
+	 * (cleanup is handled separately). Persistent and non-dismissible because it
+	 * flags a real misconfiguration that should be resolved.
+	 *
+	 * Hooked on `admin_notices` and `network_admin_notices`; only one of the two
+	 * fires per request, so the paired `_doing_it_wrong()` warning is emitted at
+	 * most once per page load. The authority gate runs first so an unauthorized
+	 * user (e.g. a subscriber loading profile.php) triggers neither the notice
+	 * nor the developer warning.
+	 *
+	 * @since 4.0.0
+	 * @return void
+	 */
+	public function render_compatibility_mode_notice(): void {
+		// Authority first: no notice and no developer warning for users who
+		// cannot manage Sudo governance.
+		if ( ! wp_sudo_can( 'manage_wp_sudo' ) ) {
+			return;
+		}
+
+		if ( 'compatibility' !== get_option( 'wp_sudo_governance_mode' ) ) {
+			return;
+		}
+
+		_doing_it_wrong(
+			'wp_sudo_governance_mode',
+			esc_html__( 'The WP Sudo "compatibility" governance mode was removed in 4.0.0. Governance is now strict and the stored wp_sudo_governance_mode option is ignored.', 'wp-sudo' ),
+			'4.0.0'
+		);
+
+		$message = __( 'WP Sudo: the "compatibility" governance mode was removed in version 4.0.0. Governance now always uses strict, capability-based checks, and the stored setting is ignored. A site administrator should remove the wp_sudo_governance_mode option to clear this notice.', 'wp-sudo' );
+
+		printf(
+			'<div class="notice notice-warning wp-sudo-notice" role="alert"><p>%s</p></div>',
+			wp_kses_post( $message )
+		);
 	}
 
 	/**

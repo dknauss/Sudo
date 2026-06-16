@@ -2366,6 +2366,72 @@ class AdminTest extends TestCase {
 	}
 
 	// -----------------------------------------------------------------
+	// render_compatibility_mode_notice() — BRK-03
+	// -----------------------------------------------------------------
+
+	/**
+	 * Helper: invoke render_compatibility_mode_notice() and return its output.
+	 */
+	private function invoke_compatibility_notice(): string {
+		$admin  = new Admin();
+		$method = new \ReflectionMethod( Admin::class, 'render_compatibility_mode_notice' );
+		@$method->setAccessible( true ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		ob_start();
+		$method->invoke( $admin );
+		return (string) ob_get_clean();
+	}
+
+	public function test_compatibility_notice_renders_when_option_is_stale(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'esc_html__' )->returnArg();
+		Functions\when( 'wp_kses_post' )->returnArg();
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
+		Functions\when( 'get_option' )->justReturn( 'compatibility' );
+		Functions\expect( '_doing_it_wrong' )
+			->once()
+			->with( 'wp_sudo_governance_mode', \Mockery::type( 'string' ), '4.0.0' );
+
+		$output = $this->invoke_compatibility_notice();
+
+		$this->assertStringContainsString( 'notice-warning', $output );
+		$this->assertStringNotContainsString( 'is-dismissible', $output );
+	}
+
+	public function test_compatibility_notice_skips_when_user_lacks_authority(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'wp_kses_post' )->returnArg();
+		Functions\when( 'wp_sudo_can' )->justReturn( false );
+		Functions\when( 'get_option' )->justReturn( 'compatibility' );
+		Functions\expect( '_doing_it_wrong' )->never();
+
+		$this->assertSame( '', $this->invoke_compatibility_notice() );
+	}
+
+	public function test_compatibility_notice_skips_when_option_is_not_compatibility(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'wp_kses_post' )->returnArg();
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
+		Functions\when( 'get_option' )->justReturn( 'strict' );
+		Functions\expect( '_doing_it_wrong' )->never();
+
+		$this->assertSame( '', $this->invoke_compatibility_notice() );
+	}
+
+	public function test_compatibility_notice_registers_admin_and_network_hooks(): void {
+		Functions\when( '__' )->returnArg();
+
+		Actions\expectAdded( 'admin_notices' )
+			->with( array( \Mockery::type( Admin::class ), 'render_compatibility_mode_notice' ), 10, 0 )
+			->once();
+		Actions\expectAdded( 'network_admin_notices' )
+			->with( array( \Mockery::type( Admin::class ), 'render_compatibility_mode_notice' ), 10, 0 )
+			->once();
+
+		$admin = new Admin();
+		$admin->register();
+	}
+
+	// -----------------------------------------------------------------
 	// Users list screen: Sudo Active filter
 	// -----------------------------------------------------------------
 
