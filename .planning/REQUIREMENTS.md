@@ -36,7 +36,7 @@ The defining acts of the major: remove deprecated APIs and raise minimum require
 - [ ] **BRK-03**: On upgrade, if `wp_sudo_governance_mode` is still set to `compatibility`, a persistent admin notice and `_doing_it_wrong()` warn the operator that the mode was removed and governance is now strict
 - [ ] **BRK-04**: Minimum WordPress version is raised to 6.4 across the plugin header, `readme.txt`, and the CI support-floor lane
 - [ ] **BRK-05**: Minimum PHP version is raised to 8.2 across the plugin header, `readme.txt`, `composer.json` `require.php`, and `config.platform.php`
-- [ ] **BRK-06**: The `function_exists('wp_get_admin_notice')` compatibility shims (two call sites in `includes/class-admin.php`) are removed now that 6.4 is the floor
+- [x] **BRK-06**: ~~The `function_exists('wp_get_admin_notice')` compatibility shims (two call sites in `includes/class-admin.php`) are removed now that 6.4 is the floor~~ — **OBSOLETE (verified 2026-06-16, Phase 12).** The premise was stale: `wp_get_admin_notice` appears nowhere in `includes/` or `wp-sudo.php` (`grep -rn` returns zero). The only `function_exists` checks in `class-admin.php` guard `graphql` (legitimate runtime integration, not a 6.4 shim). No shim existed to remove; requirement closed as satisfied/obsolete.
 - [ ] **BRK-07**: Integrator migration notes document the removed APIs (`sudo_can()`, `compatibility` mode) and the raised WordPress/PHP minimums
 
 ### Migration Safety, Capability Audit & First-Run Governance
@@ -119,12 +119,12 @@ Populated during roadmap creation (2026-06-13). Each requirement maps to exactly
 | CONN-04 | Phase 11 | Complete |
 | CONN-05 | Phase 11 | Complete |
 | CONN-06 | Phase 11 | Complete |
-| BRK-01 | Phase 12 | Pending |
-| BRK-02 | Phase 12 | Pending |
-| BRK-03 | Phase 12 | Pending |
-| BRK-04 | Phase 12 | Pending |
-| BRK-05 | Phase 12 | Pending |
-| BRK-06 | Phase 12 | Pending |
+| BRK-01 | Phase 12 | Done |
+| BRK-02 | Phase 12 | Done |
+| BRK-03 | Phase 12 | Done |
+| BRK-04 | Phase 12 | Done |
+| BRK-05 | Phase 12 | Done |
+| BRK-06 | Phase 12 | Done (obsolete — no shim existed) |
 | BRK-07 | Phase 12 | Pending |
 | MIG-01 | Phase 13 | Pending |
 | MIG-02 | Phase 13 | Pending |
