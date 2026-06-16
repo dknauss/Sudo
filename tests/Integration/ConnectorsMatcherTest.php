@@ -2,14 +2,27 @@
 /**
  * Integration tests for the two-tier Connectors matcher (CONN-01, CONN-02).
  *
- * Requires a WP 7.0+ environment where wp_get_connectors() exists and the
- * Connectors registry is populated at init@15. Tests skip cleanly on older
- * WordPress lanes where the Connectors API is absent.
+ * These tests assert behavior that requires the WP 7.0 GA Connectors API:
+ * core must register an api_key connector whose setting_name does NOT match
+ * the Tier-2 regex ^connectors_[a-z0-9_]+_api_key$, and WP_Connector_Registry
+ * must honor an explicitly provided setting_name. Each test gates on the
+ * precise precondition it needs and skips (does not fail) where the build
+ * lacks it.
  *
- * Verified core source: wp-includes/connectors.php (_wp_connectors_init,
- * hooked at init@15 via default-filters.php) registers 'akismet' with
- * method='api_key', setting_name='wordpress_api_key' unconditionally.
- * Source: WordPress/wordpress-develop trunk, verified 2026-06-15.
+ * Version skew note: WP 7.0-RC1 shipped wp_get_connectors() but did NOT
+ * register the Akismet connector and force-normalized every api_key
+ * setting_name to connectors_ai_{id}_api_key, so a bare
+ * function_exists('wp_get_connectors') check is insufficient — it would let
+ * these tests false-fail on RC1. The guards below therefore probe the actual
+ * registry behavior, not just API presence.
+ *
+ * Verified core source (WordPress 7.0 GA, verified 2026-06-15 against
+ * downloads.wordpress.org/release/wordpress-7.0.zip and a live wp-env 7.0 GA
+ * container): wp-includes/connectors.php _wp_connectors_init() registers
+ * 'akismet' (type 'spam_filtering') with method='api_key',
+ * setting_name='wordpress_api_key'; wp-includes/class-wp-connector-registry.php
+ * register() stores an explicitly provided setting_name verbatim and only
+ * generates connectors_{type}_{id}_api_key when none is given.
  *
  * @covers \WP_Sudo\Action_Registry::is_connector_api_key_setting_name
  * @package WP_Sudo\Tests\Integration
@@ -34,24 +47,6 @@ class ConnectorsMatcherTest extends TestCase {
 	 */
 	private Gate $gate;
 
-	/**
-	 * Whether the WP 7.0 Connectors API is available in this environment.
-	 *
-	 * @var bool
-	 */
-	private static bool $has_connectors_api;
-
-	/**
-	 * One-time check for the Connectors API availability.
-	 *
-	 * Called before the first test in the class. Sets the skip flag used by
-	 * all tests that require the WP 7.0 Connectors registry.
-	 */
-	public static function set_up_before_class(): void {
-		parent::set_up_before_class();
-		self::$has_connectors_api = function_exists( 'wp_get_connectors' );
-	}
-
 	public function set_up(): void {
 		parent::set_up();
 		$this->gate = new Gate( new Sudo_Session(), new Request_Stash() );
@@ -60,15 +55,97 @@ class ConnectorsMatcherTest extends TestCase {
 	// ── Helpers ────────────────────────────────────────────────────────────
 
 	/**
-	 * Skip this test if the WP 7.0 Connectors API is absent.
+	 * Whether core registers $setting_name as an api_key connector setting.
 	 *
-	 * Call at the start of any test that requires wp_get_connectors().
+	 * Probed per-test (not in set_up_before_class) so the result is immune to
+	 * any cross-class ordering that could mutate the registry singleton.
+	 *
+	 * @param string $setting_name The connector setting_name to look for.
+	 * @return bool True if a registered api_key connector uses $setting_name.
 	 */
-	private function require_connectors_api(): void {
-		if ( ! self::$has_connectors_api ) {
+	private function connector_api_key_setting_registered( string $setting_name ): bool {
+		if ( ! function_exists( 'wp_get_connectors' ) ) {
+			return false;
+		}
+
+		foreach ( wp_get_connectors() as $connector ) {
+			if (
+				isset( $connector['authentication']['method'], $connector['authentication']['setting_name'] )
+				&& 'api_key' === $connector['authentication']['method']
+				&& $setting_name === $connector['authentication']['setting_name']
+			) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	/**
+	 * Skip unless core registers Akismet's 'wordpress_api_key' connector.
+	 *
+	 * This is the exact fixture the CONN-01 tests assert against: a core api_key
+	 * connector whose setting_name does NOT match the Tier-2 regex. Absent on
+	 * WP 7.0-RC1 and earlier. Gating CONN-01 on this specific key (rather than a
+	 * generic "some non-regex connector") keeps the skip honest if a future core
+	 * build ever drops the Akismet connector.
+	 */
+	private function require_wordpress_api_key_connector(): void {
+		if ( ! $this->connector_api_key_setting_registered( 'wordpress_api_key' ) ) {
 			$this->markTestSkipped(
-				'wp_get_connectors() is not available — requires WordPress 7.0+. ' .
-				'This test is expected to pass on the WP 7.0 integration lane.'
+				'Core does not register an api_key connector with setting_name ' .
+				"'wordpress_api_key' (Akismet) — requires WordPress 7.0 GA. Absent on " .
+				'WP 7.0-RC1 and earlier; this test is expected to pass on the 7.0 GA lane.'
+			);
+		}
+	}
+
+	/**
+	 * Skip unless WP_Connector_Registry::register() honors an explicit setting_name.
+	 *
+	 * CONN-02 registers a connector with its own non-regex setting_name and
+	 * asserts it is gated. On WP 7.0-RC1 register() force-normalized every
+	 * api_key setting_name to connectors_ai_{id}_api_key, so a custom name could
+	 * never round-trip and the test would false-fail. Probe with a throwaway
+	 * connector (registered and immediately unregistered) to detect the GA
+	 * behavior directly, independent of the Akismet connector.
+	 */
+	private function require_registry_honors_setting_name(): void {
+		if ( ! class_exists( '\WP_Connector_Registry' ) || ! function_exists( 'wp_get_connectors' ) ) {
+			$this->markTestSkipped( 'WP_Connector_Registry is unavailable — requires WordPress 7.0+.' );
+		}
+
+		$registry = \WP_Connector_Registry::get_instance();
+		if ( null === $registry ) {
+			$this->markTestSkipped( 'WP_Connector_Registry::get_instance() returned null — requires WordPress 7.0+.' );
+		}
+
+		$probe_id      = 'wp-sudo-probe-' . wp_generate_uuid4();
+		$probe_setting = 'wp_sudo_probe_explicit_key';
+		$registered    = $registry->register(
+			$probe_id,
+			array(
+				'name'           => 'WP Sudo Probe',
+				'type'           => 'wp_sudo_probe',
+				'authentication' => array(
+					'method'       => 'api_key',
+					'setting_name' => $probe_setting,
+				),
+			)
+		);
+
+		$honored = is_array( $registered )
+			&& ( $registered['authentication']['setting_name'] ?? null ) === $probe_setting;
+
+		if ( is_array( $registered ) ) {
+			$registry->unregister( $probe_id );
+			Action_Registry::reset_cache();
+		}
+
+		if ( ! $honored ) {
+			$this->markTestSkipped(
+				'WP_Connector_Registry::register() does not honor an explicit setting_name ' .
+				'(force-normalized on WP 7.0-RC1) — this test is expected to pass on the 7.0 GA lane.'
 			);
 		}
 	}
@@ -77,19 +154,15 @@ class ConnectorsMatcherTest extends TestCase {
 
 	/**
 	 * CONN-01: POST /wp/v2/settings writing wordpress_api_key (Akismet's
-	 * api_key setting_name, registered unconditionally in core) is gated as
+	 * api_key setting_name on WP 7.0 GA) is gated as
 	 * connectors.update_credentials.
 	 *
-	 * This key does NOT match the regex ^connectors_[a-z0-9_]+_api_key$ and
-	 * was a live false-negative on WP 7.0 before this fix. The registry tier
-	 * must catch it.
-	 *
-	 * Verified: wp-includes/connectors.php _wp_connectors_init() registers
-	 * 'akismet' with method='api_key', setting_name='wordpress_api_key'.
-	 * Source: WordPress/wordpress-develop trunk, 2026-06-15.
+	 * This key does NOT match the regex ^connectors_[a-z0-9_]+_api_key$ and is a
+	 * live false-negative without the registry tier — the registry tier must
+	 * catch it. See the file docblock for the verified 7.0 GA core source.
 	 */
 	public function test_conn01_wordpress_api_key_gated_via_registry_tier(): void {
-		$this->require_connectors_api();
+		$this->require_wordpress_api_key_connector();
 
 		$user = $this->make_admin();
 		wp_set_current_user( $user->ID );
@@ -123,7 +196,7 @@ class ConnectorsMatcherTest extends TestCase {
 	 * rule for wordpress_api_key, not null.
 	 */
 	public function test_conn01_match_request_identifies_connectors_update_credentials(): void {
-		$this->require_connectors_api();
+		$this->require_wordpress_api_key_connector();
 
 		Action_Registry::reset_cache();
 
@@ -152,16 +225,16 @@ class ConnectorsMatcherTest extends TestCase {
 	 * instance (the registry is populated at init@15 and remains accessible
 	 * during tests). Uses a unique ID to avoid collisions.
 	 *
-	 * Verified: WP_Connector_Registry::register() stores connectors in the
-	 * singleton; wp_get_connectors() reads from it.
-	 * Source: WordPress/wordpress-develop trunk class-wp-connector-registry.php, 2026-06-15.
+	 * Verified (WP 7.0 GA, see file docblock): WP_Connector_Registry::register()
+	 * stores connectors in the singleton and honors an explicit setting_name;
+	 * wp_get_connectors() reads from it.
 	 */
 	public function test_conn02_custom_api_key_connector_is_auto_gated(): void {
-		$this->require_connectors_api();
+		$this->require_registry_honors_setting_name();
 
 		// Use a unique ID to avoid collision with any existing connector.
-		$connector_id   = 'wp-sudo-test-' . wp_generate_uuid4();
-		$setting_name   = 'my_custom_plugin_secret_key';
+		$connector_id = 'wp-sudo-test-' . wp_generate_uuid4();
+		$setting_name = 'my_custom_plugin_secret_key';
 
 		// Register directly on the live registry instance.
 		$registry = \WP_Connector_Registry::get_instance();
@@ -196,7 +269,7 @@ class ConnectorsMatcherTest extends TestCase {
 		$this->assertSame(
 			'connectors.update_credentials',
 			$rule['id'],
-			"Custom connector credential must match the connectors.update_credentials rule."
+			'Custom connector credential must match the connectors.update_credentials rule.'
 		);
 
 		// Verify the registry-tier read also prevents the benign form from matching.
