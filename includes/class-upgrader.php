@@ -75,6 +75,16 @@ class Upgrader {
 			return;
 		}
 
+		// Prime the global $wp_roles before any routine runs. Migrations run at
+		// plugins_loaded (under WP-CLI/admin), where $wp_roles may not yet be
+		// initialized. On WP 7.0+, WP_User_Query::prepare_query() dereferences
+		// the raw global directly for a `capability` query ($wp_roles->for_site()),
+		// so a null global fatals with "Call to a member function for_site() on
+		// null". wp_roles() lazily instantiates the global; calling it here makes
+		// every present and future capability-based user query in the routines
+		// below safe, regardless of how early the upgrade fires.
+		wp_roles();
+
 		// Run each applicable routine in order.
 		foreach ( self::UPGRADES as $version => $method ) {
 			if ( version_compare( $stored, $version, '<' ) && is_callable( array( $this, $method ) ) ) {
