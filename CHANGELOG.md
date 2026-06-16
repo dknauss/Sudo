@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+- **Connector credential writes gated on WordPress 7.0 (registry-aware
+  matcher):** the `connectors.update_credentials` rule now matches connector
+  API-key writes to `POST /wp/v2/settings` with a two-tier matcher. Tier 1
+  reads the WordPress 7.0 Connectors registry (`wp_get_connectors()`, guarded
+  by `function_exists()`) and gates every setting name belonging to an
+  `api_key`-method connector; Tier 2 retains the existing
+  `^connectors_[a-z0-9_]+_api_key$` regex as a union fallback. This closes a
+  false-negative where connectors whose setting name does not match the regex —
+  notably Akismet's `wordpress_api_key` — were ungated on every WP 7.0 install.
+  The registry read is cached per request and re-read after
+  `Action_Registry::reset_cache()`. Verified against WordPress 7.0 GA.
+  (CONN-01 through CONN-06.)
+- **WordPress 7.0 upgrade-path fatal fixed:** `Upgrader::maybe_upgrade()` now
+  primes `wp_roles()` before running migration routines. On WordPress 7.0,
+  `WP_User_Query` dereferences the global `$wp_roles` for capability queries,
+  which is not yet initialized at `plugins_loaded` under WP-CLI/cron — so the
+  `upgrade_3_3_0()` governance backfill (a
+  `get_users( array( 'capability' => 'manage_wp_sudo' ) )` call) fataled with
+  `Call to a member function for_site() on null` when a site upgraded across the
+  3.3.0 boundary in a non-interactive context. Priming the global once makes the
+  upgrade path safe regardless of how early it fires.
 - **E2E CI balancing:** the default Chromium Playwright workflow now uses four
   explicit test groups instead of Playwright's opaque `--shard` assignment. The
   heavy challenge-flow tests are split across basic/admin, 2FA UI,
