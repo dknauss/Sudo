@@ -240,12 +240,10 @@ of:
 
 Decision order: multisite super admins always pass; break-glass recovery mode
 (`WP_SUDO_RECOVERY_MODE`) grants `manage_wp_sudo` to the current user only; then
-the `wp_sudo_governance_mode` option decides — `strict` (default) checks the
-specific cap, `compatibility` falls back to `manage_options` /
-`manage_network_options`.
+the strict cap check runs — `user_can( $user_id, $cap )`.
 
-> `wp_sudo_can()` was named `sudo_can()` in 3.2.0. The unprefixed name is a
-> deprecated alias as of 3.3.0 and will be removed in 4.0.0 — use `wp_sudo_can()`.
+> Since 4.0.0, governance is always strict. The `compatibility` mode and the
+> `sudo_can()` alias were removed — see [Migrating to 4.0](#migrating-to-40).
 
 ### `wp_sudo_is_recovery_mode(): bool`
 
@@ -253,6 +251,52 @@ Returns `true` when `WP_SUDO_RECOVERY_MODE` is defined and truthy in
 `wp-config.php`. Break-glass escape hatch for the "last manager locked out"
 scenario; leaving it enabled permanently effectively bypasses the governance
 model.
+
+## Migrating to 4.0
+
+Version 4.0.0 is a breaking release. Three changes affect integrators:
+
+### `sudo_can()` removed → use `wp_sudo_can()`
+
+The unprefixed `sudo_can()` alias (shipped in 3.2.0, deprecated in 3.3.0 with a
+documented removal target of 4.0.0) is gone. The promise is now delivered:
+calling `sudo_can()` is a fatal undefined-function error. Replace it with
+`wp_sudo_can()`, which has the identical signature and behavior:
+
+```php
+wp_sudo_can( string $cap, ?int $user_id = null ): bool
+```
+
+Search-replace any remaining `sudo_can(` call sites with `wp_sudo_can(`. No other
+change is needed — the parameters and return value are unchanged.
+
+### `compatibility` governance mode removed → governance is always strict
+
+The `compatibility` value of the `wp_sudo_governance_mode` option used to make
+`wp_sudo_can()` and `wp_sudo_map_governance_meta_cap()` delegate to
+`manage_options` / `manage_network_options` instead of the dedicated
+`manage_wp_sudo` capability family. That mode is removed. Governance is now always
+*strict*: `wp_sudo_can()` delegates to `user_can( $user_id, $cap )`.
+
+A site that still has `wp_sudo_governance_mode = 'compatibility'` stored is not
+broken — the stale value is **inert** (treated as strict). While the stale value
+is present, WP Sudo renders a persistent, non-dismissible admin notice to users
+with `manage_wp_sudo` and emits
+`_doing_it_wrong( 'wp_sudo_governance_mode', …, '4.0.0' )` for developers, until
+the option is removed. (Automatic normalization of the stored option ships in a
+later release; this version only signals it.)
+
+`WP_SUDO_RECOVERY_MODE` (see `wp_sudo_is_recovery_mode()`) remains the **sole**
+break-glass path for a locked-out administrator.
+
+### Minimum requirements raised
+
+- **WordPress 6.4** (from 6.2). Among other things, 6.4 guarantees
+  `wp_get_admin_notice()`, so no compatibility shim is needed for it.
+- **PHP 8.2** (from 8.0). `composer.json` requires `php >=8.2`; the CI test
+  matrix drops the 8.0 and 8.1 lanes.
+
+Confirm the host meets both minimums before upgrading.
 
 ## Request / Rule Tester
 
