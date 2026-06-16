@@ -185,6 +185,73 @@ class UpgraderTest extends TestCase {
 	}
 
 	/**
+	 * Regression: 3.3.0 backfill must not fatal when the global $wp_roles is
+	 * uninitialized at the time the migration runs.
+	 *
+	 * Reproduces the WP 7.0 WP-CLI provisioning fatal. On WP 7.0,
+	 * WP_User_Query::prepare_query() dereferences the raw global $wp_roles
+	 * ($wp_roles->for_site()) when handling a `capability` query. At
+	 * plugins_loaded — where maybe_upgrade() runs under WP-CLI — that global can
+	 * be null, fataling with "Call to a member function for_site() on null".
+	 *
+	 * The integration suite's bootstrap initializes roles before plugins_loaded,
+	 * so we must explicitly null $wp_roles here to reproduce the production
+	 * condition, then restore it in finally to avoid cross-test pollution (the
+	 * base TestCase does not snapshot $wp_roles).
+	 *
+	 * Single-site only — the 3.3.0 backfill returns early on multisite.
+	 */
+	public function test_3_3_0_backfill_survives_uninitialized_wp_roles_global(): void {
+		if ( is_multisite() ) {
+			$this->markTestSkipped( 'The 3.3.0 governance backfill is single-site only.' );
+		}
+
+		// Arrange: stored 3.2.0 so only upgrade_3_3_0() is pending, and a fresh
+		// administrator with no governance cap so the backfill actually runs.
+		$this->update_wp_sudo_option( Upgrader::VERSION_OPTION, '3.2.0' );
+		$admin = $this->make_admin();
+		$this->assertFalse(
+			$admin->has_cap( 'manage_wp_sudo' ),
+			'Precondition: the new admin must not already hold the governance cap.'
+		);
+
+		$saved_roles = $GLOBALS['wp_roles'] ?? null;
+
+		try {
+			// Simulate the WP-CLI / plugins_loaded condition: roles not yet built.
+			// With the bug, the capability holder query inside upgrade_3_3_0()
+			// dereferences this null global and fatals.
+			// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Intentionally reproducing an uninitialized $wp_roles; restored in finally.
+			$GLOBALS['wp_roles'] = null;
+
+			$upgrader = new Upgrader();
+			$upgrader->maybe_upgrade();
+		} finally {
+			// Restore the saved roles object regardless of outcome so a failure
+			// (or the pre-fix fatal) cannot leak null $wp_roles into later tests.
+			// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Restoring the snapshot taken above.
+			$GLOBALS['wp_roles'] = $saved_roles;
+		}
+
+		// Assert: no fatal (reaching here proves it), version stamped, and the
+		// backfill granted the governance caps to the existing administrator.
+		$this->assertSame(
+			WP_SUDO_VERSION,
+			$this->get_wp_sudo_option( Upgrader::VERSION_OPTION ),
+			'maybe_upgrade() must complete and stamp the current version.'
+		);
+
+		$refetched = get_user_by( 'id', $admin->ID );
+		$this->assertInstanceOf( \WP_User::class, $refetched );
+		foreach ( Admin::GOVERNANCE_CAPS as $cap ) {
+			$this->assertTrue(
+				$refetched->has_cap( $cap ),
+				"Backfill must grant the {$cap} governance cap to existing admins."
+			);
+		}
+	}
+
+	/**
 	 * SURF-01: 2.2.0 preserves already-valid three-tier policy values.
 	 *
 	 * Verifies that 'disabled', 'limited', 'unrestricted' values survive

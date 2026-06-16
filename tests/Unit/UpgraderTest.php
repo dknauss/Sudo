@@ -30,6 +30,9 @@ class UpgraderTest extends TestCase {
 		Functions\when( 'wp_next_scheduled' )->justReturn( true );
 		Functions\when( 'wp_schedule_event' )->justReturn( true );
 		Functions\when( 'get_users' )->justReturn( array() );
+		// maybe_upgrade() primes wp_roles() before running routines so that
+		// capability-based user queries do not fatal on WP 7.0 (null $wp_roles).
+		Functions\when( 'wp_roles' )->justReturn( null );
 
 		// Preserve any existing wpdb.
 		$this->original_wpdb = isset( $GLOBALS['wpdb'] ) && is_object( $GLOBALS['wpdb'] ) ? $GLOBALS['wpdb'] : null;
@@ -422,6 +425,67 @@ class UpgraderTest extends TestCase {
 		$method->invoke( $upgrader );
 
 		$this->assertSame( 0, $queries, 'Multisite must return before any user query.' );
+	}
+
+	public function test_maybe_upgrade_primes_wp_roles_before_capability_user_query(): void {
+		// Regression for the WP 7.0 WP-CLI provisioning fatal. On WP 7.0,
+		// WP_User_Query::prepare_query() dereferences the raw global $wp_roles
+		// ($wp_roles->for_site()) when handling a `capability` query. At
+		// plugins_loaded — where maybe_upgrade() runs under WP-CLI — that global
+		// can be null, fataling with "Call to a member function for_site() on
+		// null". maybe_upgrade() must prime wp_roles() (which lazily initializes
+		// the global) BEFORE any routine issues a capability-based get_users()
+		// query, so this fatal cannot occur.
+		Functions\when( 'is_multisite' )->justReturn( false );
+
+		// Stored 3.2.0 < WP_SUDO_VERSION (3.4.0) and >= every earlier routine,
+		// so only upgrade_3_3_0() — the one with the capability query — runs.
+		Functions\when( 'get_option' )->alias(
+			function ( $key, $default = false ) {
+				if ( Upgrader::VERSION_OPTION === $key ) {
+					return '3.2.0';
+				}
+				return $default;
+			}
+		);
+		Functions\when( 'update_option' )->justReturn( true );
+
+		$sequence = array();
+		Functions\when( 'wp_roles' )->alias(
+			function () use ( &$sequence ) {
+				$sequence[] = 'wp_roles';
+				return null;
+			}
+		);
+		Functions\when( 'get_users' )->alias(
+			function ( array $args ) use ( &$sequence ) {
+				if ( isset( $args['capability'] ) ) {
+					$sequence[] = 'capability_query';
+				}
+				// No holders and no admins → backfill is a no-op (no add_cap).
+				return array();
+			}
+		);
+
+		$upgrader = new Upgrader();
+		$upgrader->maybe_upgrade();
+
+		$roles_pos      = array_search( 'wp_roles', $sequence, true );
+		$capability_pos = array_search( 'capability_query', $sequence, true );
+
+		$this->assertNotFalse(
+			$capability_pos,
+			'The 3.3.0 routine must issue the capability holder query.'
+		);
+		$this->assertNotFalse(
+			$roles_pos,
+			'maybe_upgrade() must call wp_roles() to initialize the global $wp_roles before capability queries.'
+		);
+		$this->assertLessThan(
+			$capability_pos,
+			$roles_pos,
+			'wp_roles() must be primed BEFORE the capability get_users() query to avoid a null $wp_roles fatal on WP 7.0.'
+		);
 	}
 
 	public function test_330_backfill_runs_via_maybe_upgrade_for_sites_stored_at_313(): void {
