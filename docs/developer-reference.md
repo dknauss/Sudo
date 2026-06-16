@@ -140,7 +140,18 @@ entire endpoint.
 - **Methods:** `POST`, `PUT`, `PATCH`
 - **Problem:** the endpoint is used for many unrelated settings writes
 - **Narrowing strategy:** only match when request params include connector
-  credential setting names matching `connectors_[a-z0-9_]+_api_key`
+  credential setting names — using a two-tier registry-first union matcher
+
+**Matcher details (`is_connector_api_key_setting_name`):**
+On WP 7.0+, Tier 1 reads all connectors where `authentication.method === 'api_key'`
+from `wp_get_connectors()` and gates their `setting_name` values. This catches
+non-regex names like Akismet's `wordpress_api_key`. Tier 2 always runs as a
+union fallback: `^connectors_[a-z0-9_]+_api_key$` covers pre-WP-7.0 installs
+and connectors that auto-generate their setting name. Any connector with
+`method=api_key` is gated automatically — no WP Sudo configuration needed.
+
+For full details see
+[`docs/connectors-api-reference.md` — Two-tier matcher](connectors-api-reference.md).
 
 This pattern is useful when a third-party plugin reuses a generic REST or admin
 save path for multiple settings classes, but only one subset is security

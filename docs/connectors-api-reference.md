@@ -292,14 +292,73 @@ when omitted. Connector IDs must match `/^[a-z0-9_-]+$/`.
 #### Credential save path
 
 The Connectors UI saves credentials via `POST /wp/v2/settings`. This route is
-already in scope for `Gate::intercept_rest()`, and WP Sudo now ships a built-in
-rule:
+already in scope for `Gate::intercept_rest()`, and WP Sudo ships a built-in
+rule with a two-tier matcher:
 
 - **Rule ID:** `connectors.update_credentials`
 - **Route:** `#^/wp/v2/settings$#`
 - **Methods:** `POST`, `PUT`, `PATCH`
-- **Matcher:** only fires when request params contain setting names matching
-  `connectors_[a-z0-9_]+_api_key`
+- **Matcher:** `Action_Registry::is_connector_api_key_setting_name()` — gates
+  when a request param matches either the registry tier OR the regex fallback.
+
+#### Two-tier matcher (`is_connector_api_key_setting_name`)
+
+As of Phase 11 (`main` / v4.0.0-dev), the matcher is registry-first:
+
+**Tier 1 — WP 7.0 Connectors registry (when `wp_get_connectors()` exists):**
+Reads all connectors where `authentication.method === 'api_key'` and collects
+their `authentication.setting_name` values. Gates any request param whose key
+is in that set. This catches connectors with non-regex setting names, such as
+Akismet's `wordpress_api_key` (registered unconditionally in `wp-includes/connectors.php`
+as `method=api_key`, `setting_name=wordpress_api_key` — verified against
+`WordPress/wordpress-develop` trunk, 2026-06-15).
+
+**Tier 2 — Regex fallback (always runs, union):**
+Gates setting names matching `^connectors_[a-z0-9_]+_api_key$`. Covers
+pre-WP-7.0 installs, late-registered connectors, and connectors that omit an
+explicit `setting_name` (the registry auto-generates one matching this pattern).
+
+The two tiers form a **union**: a key is gated if EITHER tier matches. The
+matcher fails toward gating (false positive is a challenge prompt; false
+negative is an ungated credential write).
+
+**Cache:** the registry read is cached per-request in a class property
+(`Action_Registry::$connector_setting_names_cache`). `Action_Registry::reset_cache()`
+clears it. The cache distinguishes "not yet built" (`null`) from "built,
+empty" (`[]`), so an empty registry is not frozen as "checked" forever.
+
+**Scope note:** this matcher intentionally covers `method === 'api_key'` only.
+A future core authentication method that carries a secret is a known
+RE-SCOPING TRIGGER — integrators should extend via `wp_sudo_gated_actions` until
+the matcher is updated to cover the new method.
+
+#### Custom connector auto-gating
+
+Any connector registered with `method=api_key` is automatically gated without
+requiring any WP Sudo configuration:
+
+- If the connector provides an explicit `setting_name`, the registry tier gates it.
+- If the connector omits `setting_name`, the registry auto-generates
+  `connectors_{type}_{id}_api_key`, which also matches the regex fallback.
+
+This means third-party plugin connectors are gated automatically on WP 7.0 as
+soon as they are registered, even if they appear in the registry after the
+page-load cache is built (the cache is cleared at the start of each new request).
+
+```php
+// This connector's 'my-plugin-key' setting_name is gated automatically
+// via the registry tier on WP 7.0. No wp_sudo_gated_actions customization needed.
+add_action( 'wp_connectors_init', function ( WP_Connector_Registry $registry ) {
+    $registry->register( 'my-plugin', array(
+        'name'           => 'My Plugin',
+        'type'           => 'my_type',
+        'authentication' => array(
+            'method'       => 'api_key',
+            'setting_name' => 'my-plugin-key', // non-regex name; gated by Tier 1
+        ),
+    ) );
+} );
+```
 
 This is intentionally narrower than gating the entire settings endpoint. Normal
 REST settings updates remain untouched unless the request is attempting to
