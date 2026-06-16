@@ -20,12 +20,12 @@ Requirements for the v4.0.0 release. Each maps to exactly one roadmap phase.
 
 Closes a verified gating bug: `wordpress_api_key` (the Akismet connector, registered unconditionally on every WP 7.0 install) does not match the current `^connectors_[a-z0-9_]+_api_key$` regex, so connector-credential writes to it pass ungated today. See `research/v4.0/RESEARCH.md` §1.3.
 
-- [ ] **CONN-01**: WP Sudo gates a `POST /wp/v2/settings` write to any registered connector's `api_key` setting name — including names that do not fit the `connectors_*_api_key` pattern (e.g. Akismet's `wordpress_api_key`) — when the WP 7.0 Connectors registry is available
-- [ ] **CONN-02**: WP Sudo gates connector-credential writes for custom-registered connectors that declare an arbitrary `authentication.setting_name`
-- [ ] **CONN-03**: WP Sudo continues to gate standard `connectors_*_api_key` writes with no regression
-- [ ] **CONN-04**: On WordPress versions without the Connectors API (`wp_get_connectors` absent), WP Sudo falls back to regex matching and still gates `connectors_*_api_key` writes
-- [ ] **CONN-05**: WP Sudo does not over-gate benign (non-connector) settings writes (e.g. `blogname`, `siteurl`) under the new matcher
-- [ ] **CONN-06**: The two-tier matcher and the closed `wordpress_api_key` gap are documented in `docs/connectors-api-reference.md` and `docs/developer-reference.md`, with the verified WordPress core source cited in the implementation commit (confabulation-prevention requirement)
+- [x] **CONN-01**: WP Sudo gates a `POST /wp/v2/settings` write to any registered connector's `api_key` setting name — including names that do not fit the `connectors_*_api_key` pattern (e.g. Akismet's `wordpress_api_key`) — when the WP 7.0 Connectors registry is available
+- [x] **CONN-02**: WP Sudo gates connector-credential writes for custom-registered connectors that declare an arbitrary `authentication.setting_name`
+- [x] **CONN-03**: WP Sudo continues to gate standard `connectors_*_api_key` writes with no regression
+- [x] **CONN-04**: On WordPress versions without the Connectors API (`wp_get_connectors` absent), WP Sudo falls back to regex matching and still gates `connectors_*_api_key` writes
+- [x] **CONN-05**: WP Sudo does not over-gate benign (non-connector) settings writes (e.g. `blogname`, `siteurl`) under the new matcher
+- [x] **CONN-06**: The two-tier matcher and the closed `wordpress_api_key` gap are documented in `docs/connectors-api-reference.md` and `docs/developer-reference.md`, with the verified WordPress core source cited in the implementation commit (confabulation-prevention requirement)
 
 ### Breaking Changes & Minimum-Floor Bump
 
@@ -113,12 +113,12 @@ Populated during roadmap creation (2026-06-13). Each requirement maps to exactly
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| CONN-01 | Phase 11 | Pending |
-| CONN-02 | Phase 11 | Pending |
-| CONN-03 | Phase 11 | Pending |
-| CONN-04 | Phase 11 | Pending |
-| CONN-05 | Phase 11 | Pending |
-| CONN-06 | Phase 11 | Pending |
+| CONN-01 | Phase 11 | Complete |
+| CONN-02 | Phase 11 | Complete |
+| CONN-03 | Phase 11 | Complete |
+| CONN-04 | Phase 11 | Complete |
+| CONN-05 | Phase 11 | Complete |
+| CONN-06 | Phase 11 | Complete |
 | BRK-01 | Phase 12 | Pending |
 | BRK-02 | Phase 12 | Pending |
 | BRK-03 | Phase 12 | Pending |
