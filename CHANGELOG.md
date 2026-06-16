@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- **Breaking changes (4.0.0):**
+  - **`sudo_can()` removed.** The deprecated unprefixed alias (deprecated in
+    3.3.0) no longer exists; calling it is a fatal undefined-function error. Use
+    `wp_sudo_can( string $cap, ?int $user_id = null ): bool` — identical
+    signature. Search-replace any remaining `sudo_can(` calls with `wp_sudo_can(`.
+  - **`compatibility` governance mode removed.** Governance is now always
+    *strict* — capability checks delegate to `user_can( $user_id, $cap )` against
+    the dedicated `manage_wp_sudo` family. A site that set
+    `wp_sudo_governance_mode = 'compatibility'` is now treated as strict; the
+    stale option is inert and triggers a persistent (non-dismissible) admin
+    notice — plus a `_doing_it_wrong()` warning for developers — until the option
+    is removed (automatic cleanup ships in a later release). `WP_SUDO_RECOVERY_MODE`
+    remains the only break-glass path.
+  - **Minimum WordPress raised to 6.4** (from 6.2).
+  - **Minimum PHP raised to 8.2** (from 8.0). `composer.json` now requires
+    `php >=8.2`, and the CI matrix drops the 8.0/8.1 lanes.
 - **Connector credential writes gated on WordPress 7.0 (registry-aware
   matcher):** the `connectors.update_credentials` rule now matches connector
   API-key writes to `POST /wp/v2/settings` with a two-tier matcher. Tier 1
