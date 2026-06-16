@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: milestone
 status: completed
-last_updated: "2026-06-16T00:12:24.350Z"
+last_updated: "2026-06-16T06:40:58.644Z"
 last_activity: 2026-06-15 — Phase 11 executed; two-tier connector matcher shipped (commits b1ad0bb, 8970c23, dba8672). 793 unit tests passing, PHPStan L6 clean. SUMMARY at .planning/phases/11-connectors-registry-aware-matcher/11-01-SUMMARY.md.
 progress:
   total_phases: 8
@@ -17,7 +17,7 @@ progress:
 Phase: 11 — Connectors Registry-Aware Matcher
 Plan: 11-01-PLAN.md (1 plan, 1 wave, 3 TDD tasks) — EXECUTED
 Status: PHASE COMPLETE — all CONN-01…CONN-06 requirements fulfilled. Advance to Phase 12.
-Resume file: None
+Resume file: .planning/phases/12-breaking-changes-and-floor-bump/12-CONTEXT.md
 Last activity: 2026-06-15 — Phase 11 executed; two-tier connector matcher shipped (commits b1ad0bb, 8970c23, dba8672). 793 unit tests passing, PHPStan L6 clean. SUMMARY at .planning/phases/11-connectors-registry-aware-matcher/11-01-SUMMARY.md.
 
 ## Project Reference
