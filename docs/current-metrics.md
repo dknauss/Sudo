@@ -2,28 +2,28 @@
 
 This file is the single source of truth for current repository counts.
 
-Last verified: 2026-06-14
+Last verified: 2026-06-15
 Verification environment: local workspace, PHP 8.x
 
 ## Test Metrics
 
 | Metric | Value | Verification |
 |---|---:|---|
-| Unit tests | 788 tests | `composer test:unit` |
-| Unit assertions | 2256 assertions | `composer test:unit` |
-| Integration tests in suite | 178 test methods | `rg -c "function test" tests/Integration/*.php | awk -F: '{sum+=$2} END{print sum}'` |
+| Unit tests | 794 tests | `composer test:unit` |
+| Unit assertions | 2271 assertions | `composer test:unit` |
+| Integration tests in suite | 182 test methods | `rg -c "function test" tests/Integration/*.php | awk -F: '{sum+=$2} END{print sum}'` |
 | Unit test files | 25 | `ls tests/Unit/*.php | wc -l` |
-| Integration test files | 24 | `ls tests/Integration/*.php | wc -l` |
+| Integration test files | 25 | `ls tests/Integration/*.php | wc -l` |
 
 ## Size Metrics
 
 | Metric | Value | Verification |
 |---|---:|---|
-| Production PHP lines (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 14,815 | `find ./includes ./wp-sudo.php ./uninstall.php ./mu-plugin ./bridges -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
-| Tests PHP lines (`tests/`) | 27,740 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
-| Production + tests PHP lines | 42,555 | sum of the two rows above |
-| Test-to-production ratio | 1.87:1 | `27740 / 14815` |
-| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`) | 42,818 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Production PHP lines (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 14,880 | `find ./includes ./wp-sudo.php ./uninstall.php ./mu-plugin ./bridges -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Tests PHP lines (`tests/`) | 28,353 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Production + tests PHP lines | 43,233 | sum of the two rows above |
+| Test-to-production ratio | 1.91:1 | `28353 / 14880` |
+| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`) | 43,496 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
 
 ## Architectural Facts
 
@@ -66,12 +66,12 @@ Source: `.github/workflows/phpunit.yml`, `.github/workflows/e2e.yml`, `.github/w
 
 ## Verification Notes
 
-- `composer test:unit` passed on 2026-06-14 (`788 tests`, `2256 assertions`).
-- `composer lint` passed on 2026-06-14.
-- `composer analyse` passed on 2026-06-14; Psalm reported 95.9975% inferred type coverage.
-- `composer verify:metrics` passed on 2026-06-14.
+- `composer test:unit` passed on 2026-06-15 (`794 tests`, `2271 assertions`).
+- `composer lint` passed on 2026-06-15.
+- `composer analyse` passed on 2026-06-15 (PHPStan L6 `[OK] No errors`).
+- `composer verify:metrics` passed on 2026-06-15 (after this update).
 - Plugin Check CI passed on 2026-06-14 against a clean production dist; warning triage remains a follow-up.
-- Full integration suites were not re-run during the June 13 lightweight state assessment. Last recorded single-site integration pass remains 2026-06-11 (`183 tests`, `604 assertions`, `15 skipped`, `0 failures`) via the wp-env `tests-cli` container; last recorded multisite integration note remains the 2026-06-10 abort described in repository history until a fresh full multisite run supersedes it.
+- Full single-site integration suite passed on 2026-06-15 against real WordPress 7.0 GA via the wp-env `tests-cli` container (`187 tests`, `634 assertions`, `9 skipped`, `0 failures`); last recorded multisite integration note remains the 2026-06-10 abort described in repository history until a fresh full multisite run supersedes it.
 
 ## Update Procedure
 
