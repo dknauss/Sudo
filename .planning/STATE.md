@@ -1,10 +1,24 @@
+---
+gsd_state_version: 1.0
+milestone: v4.0
+milestone_name: milestone
+status: completed
+last_updated: "2026-06-16T00:08:19.414Z"
+last_activity: 2026-06-15 — Phase 11 executed; two-tier connector matcher shipped (commits b1ad0bb, 8970c23, dba8672). 793 unit tests passing, PHPStan L6 clean. SUMMARY at .planning/phases/11-connectors-registry-aware-matcher/11-01-SUMMARY.md.
+progress:
+  total_phases: 8
+  completed_phases: 4
+  total_plans: 10
+  completed_plans: 10
+---
+
 ## Current Position
 
 Phase: 11 — Connectors Registry-Aware Matcher
-Plan: 11-01-PLAN.md (1 plan, 1 wave, 3 TDD tasks) — plan-checker PASSED
-Status: PLANNED & VERIFIED — ready to execute. Resume with `/gsd:execute-phase 11` (clear context first).
-Resume file: .planning/phases/11-connectors-registry-aware-matcher/11-01-PLAN.md
-Last activity: 2026-06-14 — Phase 11 planned + verified; RESEARCH/VALIDATION/CONTEXT/PLAN all committed and pushed to origin/main (HEAD 9e838a2). Design-review constraints baked into the plan (class-property cache; audit-detail descoped).
+Plan: 11-01-PLAN.md (1 plan, 1 wave, 3 TDD tasks) — EXECUTED
+Status: PHASE COMPLETE — all CONN-01…CONN-06 requirements fulfilled. Advance to Phase 12.
+Resume file: None
+Last activity: 2026-06-15 — Phase 11 executed; two-tier connector matcher shipped (commits b1ad0bb, 8970c23, dba8672). 793 unit tests passing, PHPStan L6 clean. SUMMARY at .planning/phases/11-connectors-registry-aware-matcher/11-01-SUMMARY.md.
 
 ## Project Reference
 
