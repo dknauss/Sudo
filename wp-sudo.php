@@ -4,8 +4,8 @@
  * Plugin URI:        https://github.com/dknauss/Sudo
  * Description:       Action-gated reauthentication for WordPress. Dangerous operations require password confirmation before they proceed — regardless of user role.
  * Version:           3.4.0
- * Requires at least: 6.2
- * Requires PHP:      8.0
+ * Requires at least: 6.4
+ * Requires PHP:      8.2
  * Author:            Dan Knauss
  * Author URI:        https://profiles.wordpress.org/danknauss/
  * License:           GPL-2.0-or-later

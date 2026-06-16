@@ -2,9 +2,9 @@
 Contributors:      dpknauss
 Donate link:       https://dan.knauss.ca
 Tags:              sudo, security, reauthentication, access control, admin protection
-Requires at least: 6.2
+Requires at least: 6.4
 Tested up to:      7.0
-Requires PHP:      8.0
+Requires PHP:      8.2
 Stable tag:        3.4.0
 License:           GPL-2.0-or-later
 License URI:       https://spdx.org/licenses/GPL-2.0-or-later.html
