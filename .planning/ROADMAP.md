@@ -59,7 +59,12 @@
   4. The plugin header, `readme.txt`, and `composer.json` all declare `Requires at least: 6.4` and `Requires PHP: 8.2`; the CI support-floor lane runs WP 6.4 (not 6.2)
   5. `includes/class-admin.php` contains no `function_exists('wp_get_admin_notice')` branches; admin notices render via `wp_get_admin_notice()` unconditionally
 
-**Plans**: TBD
+**Plans**: 3 plans
+
+Plans:
+- [ ] 12-01-PLAN.md — Remove compatibility mode + `sudo_can()` alias + persistent migration notice (BRK-01, BRK-02, BRK-03; design review first, TDD)
+- [ ] 12-02-PLAN.md — Raise WP 6.4 / PHP 8.2 floors across header/readme/composer/CI, drop php80-tests, close BRK-06 (BRK-04, BRK-05, BRK-06)
+- [ ] 12-03-PLAN.md — Integrator migration notes: CHANGELOG block + readme Upgrade Notice + developer-reference "Migrating to 4.0" (BRK-07)
 
 ### Phase 13: Migration Safety and Governance Audit
 
@@ -120,7 +125,7 @@ Note: Phases 13, 14, and 15 all depend on Phase 12 completing. Phases 13 and 14 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 11. Connectors Registry-Aware Matcher | 1/1 | Complete    | 2026-06-16 | - |
-| 12. Breaking Changes and Floor Bump | v4.0.0 | 0/TBD | Not started | - |
+| 12. Breaking Changes and Floor Bump | v4.0.0 | 0/3 | Planned | - |
 | 13. Migration Safety and Governance Audit | v4.0.0 | 0/TBD | Not started | - |
 | 14. WordPress.org Readiness | v4.0.0 | 0/TBD | Not started | - |
 | 15. Manual Testing Environment Checklist | v4.0.0 | 0/TBD | Not started | - |
