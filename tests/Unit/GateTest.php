@@ -60,6 +60,13 @@ class GateTest extends TestCase {
 		// notice reaches is_ssl(); stub it unconditionally so it is mocked
 		// regardless of execution order.
 		Functions\when( 'is_ssl' )->justReturn( false );
+
+		// Defense in depth: the connector matcher calls wp_get_connectors() once
+		// function_exists() reports it (Patchwork makes that true for the rest of
+		// the process after ANY test stubs it). Stub an empty registry by default
+		// so matcher-exercising tests are order-independent under --order-by=random;
+		// registry-tier tests override this with their own connector list.
+		Functions\when( 'wp_get_connectors' )->justReturn( array() );
 	}
 
 	protected function tearDown(): void {
