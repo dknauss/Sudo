@@ -18,16 +18,22 @@ practical Connectors surfaces currently relevant to WP Sudo.
 >   **effective** key install-wide across the whole network.
 > - Connectors credential writes currently flow through `/wp/v2/settings`.
 > - Current WP Sudo `main` gates connector credential writes on that path.
-> - Re-verify these implementation details against WordPress 7.0 GA before
->   relying on them for new enforcement changes.
+> - The connector registration and credential-write gating behaviors (the
+>   two-tier matcher) are verified against WordPress 7.0 GA (2026-06-15). The
+>   REST masking/read-path, multisite, and env/constant-override details below
+>   remain RC2/trunk-derived — re-verify those against GA before relying on them
+>   for new enforcement changes.
 
-The detailed sections below are still based on RC2 / trunk-era behavior and
-should be treated as source-derived until GA source/runtime parity is confirmed.
+Except where a section cites WordPress 7.0 GA verification, the detailed sections
+below are based on RC2 / trunk-era behavior and should be treated as
+source-derived until full GA source/runtime parity is confirmed.
 
 > [!WARNING]
-> This reference is source-derived from WordPress 7.0 RC2 / trunk-era code and
-> should be re-verified against the GA release before relying on implementation
-> details for new enforcement changes.
+> The connector registration and credential-write gating behaviors (the
+> two-tier matcher section) are verified against WordPress 7.0 GA (2026-06-15).
+> The remaining REST masking/read-path, multisite, and env/constant-override
+> details are source-derived from WordPress 7.0 RC2 / trunk-era code and should
+> be re-verified against GA before relying on them for new enforcement changes.
 
 **Official dev note:** [Introducing the Connectors API in WordPress 7.0](https://make.wordpress.org/core/2026/03/18/introducing-the-connectors-api-in-wordpress-7-0/)
 
@@ -311,7 +317,7 @@ their `authentication.setting_name` values. Gates any request param whose key
 is in that set. This catches connectors with non-regex setting names, such as
 Akismet's `wordpress_api_key` (registered unconditionally in `wp-includes/connectors.php`
 as `method=api_key`, `setting_name=wordpress_api_key` — verified against
-`WordPress/wordpress-develop` trunk, 2026-06-15).
+WordPress 7.0 GA, 2026-06-15).
 
 **Tier 2 — Regex fallback (always runs, union):**
 Gates setting names matching `^connectors_[a-z0-9_]+_api_key$`. Covers

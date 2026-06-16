@@ -1059,7 +1059,7 @@ class Action_Registry {
 	 *   it between unit tests). This tier gates connectors with non-regex names
 	 *   such as Akismet's 'wordpress_api_key' (registered unconditionally in
 	 *   wp-includes/connectors.php as method=api_key, setting_name=wordpress_api_key;
-	 *   verified against WordPress/wordpress-develop trunk, 2026-06-15).
+	 *   verified against WordPress 7.0 GA, 2026-06-15).
 	 *
 	 * Tier 2 — Regex fallback (always runs):
 	 *   Gates connectors_[a-z0-9_]+_api_key keys. Covers pre-WP-7.0 installs
