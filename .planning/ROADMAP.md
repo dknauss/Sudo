@@ -16,7 +16,7 @@
 ## Phases
 
 - [x] **Phase 11: Connectors Registry-Aware Matcher** - Close the `wordpress_api_key` gating gap with a two-tier registry-first, regex-fallback matcher (completed 2026-06-16)
-- [ ] **Phase 12: Breaking Changes and Floor Bump** - Remove deprecated APIs (`sudo_can()`, `compatibility` mode), raise WP to 6.4 and PHP to 8.2, drop shims
+- [x] **Phase 12: Breaking Changes and Floor Bump** - Remove deprecated APIs (`sudo_can()`, `compatibility` mode), raise WP to 6.4 and PHP to 8.2, drop shims (completed 2026-06-16)
 - [ ] **Phase 13: Migration Safety and Governance Audit** - Verify 3.0-3.4 upgrade paths are clean, audit capabilities, confirm lockout-safe first-run
 - [ ] **Phase 14: WordPress.org Readiness** - readme validator pass, screenshots/assets, brand consistency, SECURITY.md, submission checklist
 - [ ] **Phase 15: Manual Testing Environment Checklist** - Extend MANUAL-TESTING.md with environment matrix, Connectors verification steps
@@ -125,7 +125,7 @@ Note: Phases 13, 14, and 15 all depend on Phase 12 completing. Phases 13 and 14 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 11. Connectors Registry-Aware Matcher | 1/1 | Complete    | 2026-06-16 | - |
-| 12. Breaking Changes and Floor Bump | 2/3 | In Progress|  | - |
+| 12. Breaking Changes and Floor Bump | 3/3 | Complete   | 2026-06-16 | - |
 | 13. Migration Safety and Governance Audit | v4.0.0 | 0/TBD | Not started | - |
 | 14. WordPress.org Readiness | v4.0.0 | 0/TBD | Not started | - |
 | 15. Manual Testing Environment Checklist | v4.0.0 | 0/TBD | Not started | - |
@@ -148,7 +148,7 @@ Note: Phases 13, 14, and 15 all depend on Phase 12 completing. Phases 13 and 14 
 
 **Requirements covered:** TOOL-01, TOOL-02, TOOL-03, TOOL-04, TOOL-05, TOOL-06
 
-**Plans:** 2/3 plans executed
+**Plans:** 3/3 plans complete
 
 Plans:
 - [ ] 06-01-PLAN.md — Node.js toolchain: package.json, .nvmrc, .wp-env.json, tsconfig.json
