@@ -247,6 +247,10 @@ class PluginTest extends TestCase {
 		Functions\when( 'get_user_meta' )->justReturn( 0 );
 		Functions\when( 'admin_url' )->alias( fn( $path = '' ) => 'https://example.com/wp-admin/' . $path );
 		Functions\when( 'add_query_arg' )->justReturn( 'https://example.com/wp-admin/admin.php?page=wp-sudo-challenge' );
+		// Mock is_ssl() unconditionally: the return-URL path can reach it, and a
+		// leaked mock from a sibling test must not be relied on (order-dependent
+		// "is_ssl is not defined nor mocked" failure on the CI PHP 8.1 lane).
+		Functions\when( 'is_ssl' )->justReturn( true );
 
 		$_GET['page'] = 'some-other-page';
 
