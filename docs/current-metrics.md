@@ -9,9 +9,9 @@ Verification environment: local workspace, PHP 8.x
 
 | Metric | Value | Verification |
 |---|---:|---|
-| Unit tests | 794 tests | `composer test:unit` |
-| Unit assertions | 2271 assertions | `composer test:unit` |
-| Integration tests in suite | 182 test methods | `rg -c "function test" tests/Integration/*.php | awk -F: '{sum+=$2} END{print sum}'` |
+| Unit tests | 795 tests | `composer test:unit` |
+| Unit assertions | 2275 assertions | `composer test:unit` |
+| Integration tests in suite | 184 test methods | `rg -c "function test" tests/Integration/*.php | awk -F: '{sum+=$2} END{print sum}'` |
 | Unit test files | 25 | `ls tests/Unit/*.php | wc -l` |
 | Integration test files | 25 | `ls tests/Integration/*.php | wc -l` |
 
@@ -66,7 +66,7 @@ Source: `.github/workflows/phpunit.yml`, `.github/workflows/e2e.yml`, `.github/w
 
 ## Verification Notes
 
-- `composer test:unit` passed on 2026-06-15 (`794 tests`, `2271 assertions`).
+- `composer test:unit` passed on 2026-06-16 (`795 tests`, `2275 assertions`).
 - `composer lint` passed on 2026-06-15.
 - `composer analyse` passed on 2026-06-15 (PHPStan L6 `[OK] No errors`).
 - `composer verify:metrics` passed on 2026-06-15 (after this update).
