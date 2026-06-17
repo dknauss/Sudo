@@ -47,8 +47,8 @@ Post-removal verification track. Confirms the governance simplification did not 
 - [ ] **MIG-02**: `WP_SUDO_RECOVERY_MODE` break-glass still works after `compatibility` mode removal and is the only remaining break-glass path
 - [ ] **MIG-03**: Uninstall cleanup remains correct after the removals (governance option, `_wp_sudo_*` user meta, legacy role) on both single-site and multisite
 - [ ] **MIG-04**: Multisite upgrade behavior is verified — network governance state and super-admin capabilities remain intact through the upgrade
-- [ ] **MIG-05**: Post-removal capability audit — all settings/admin/widget screens use the dedicated Sudo capabilities (`manage_wp_sudo`, etc.) with no fallback to bare `manage_options`
-- [ ] **MIG-06**: First-run governance is clear and lockout-safe — on first activation an administrator holds `manage_wp_sudo`, and the recovery path for a misconfigured grant is documented
+- [x] **MIG-05**: Post-removal capability audit — all settings/admin/widget screens use the dedicated Sudo capabilities (`manage_wp_sudo`, etc.) with no fallback to bare `manage_options`
+- [x] **MIG-06**: First-run governance is clear and lockout-safe — on first activation an administrator holds `manage_wp_sudo`, and the recovery path for a misconfigured grant is documented
 - [ ] **MIG-07**: Tests cover lockout and misconfiguration-recovery scenarios introduced or affected by the governance simplification
 
 ### WordPress.org Readiness
@@ -130,8 +130,8 @@ Populated during roadmap creation (2026-06-13). Each requirement maps to exactly
 | MIG-02 | Phase 13 | Pending |
 | MIG-03 | Phase 13 | Pending |
 | MIG-04 | Phase 13 | Pending |
-| MIG-05 | Phase 13 | Pending |
-| MIG-06 | Phase 13 | Pending |
+| MIG-05 | Phase 13 | Complete |
+| MIG-06 | Phase 13 | Complete |
 | MIG-07 | Phase 13 | Pending |
 | ORG-01 | Phase 14 | Pending |
 | ORG-02 | Phase 14 | Pending |
