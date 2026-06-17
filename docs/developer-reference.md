@@ -320,13 +320,24 @@ against. Removing the mode collapses governance to a single, auditable strict
 path and eliminates a second capability-check code branch — less complexity and
 less attack surface, in keeping with the 4.0.0 pre-public hardening baseline.
 
-A site that still has `wp_sudo_governance_mode = 'compatibility'` stored is not
-broken — the stale value is **inert** (treated as strict). While the stale value
-is present, WP Sudo renders a persistent, non-dismissible admin notice to users
-with `manage_wp_sudo` and emits
-`_doing_it_wrong( 'wp_sudo_governance_mode', …, '4.0.0' )` for developers, until
-the option is removed. (Automatic normalization of the stored option ships in a
-later release; this version only signals it.)
+A site that still has `wp_sudo_governance_mode` stored is not broken — any stored
+value is **inert** (treated as strict) — and **4.0.0 removes it automatically**; no
+manual database cleanup is required:
+
+- **On upgrade.** `Upgrader::upgrade_4_0_0()` deletes `wp_sudo_governance_mode` on
+  the 3.x → 4.0.0 boundary, from both the per-site option store and (on multisite)
+  network sitemeta. Deleting an absent option is a no-op, so it is safe on fresh
+  installs upgrading through 4.0.0.
+- **On detection (self-heal).** `Admin::cleanup_inert_governance_mode_option()`
+  runs on `admin_init` (priority 1) and deletes the option from both stores if it
+  ever reappears after the version stamp is already 4.0.0 — for an authorized
+  (`manage_wp_sudo`) admin loading any admin page.
+- **The signal.** After the option is cleared, an admin with `manage_wp_sudo` sees
+  a single **dismissible** success notice confirming the leftover setting was
+  removed (no action needed). There is **no** persistent warning and **no**
+  `_doing_it_wrong()`; the developer/audit signal is the
+  `wp_sudo_inert_governance_mode_detected` action, fired at most once per request
+  when the cleanup deletes the option.
 
 `WP_SUDO_RECOVERY_MODE` (see `wp_sudo_is_recovery_mode()`) remains the **sole**
 break-glass path for a locked-out administrator.
