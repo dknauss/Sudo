@@ -4,7 +4,7 @@ milestone: v4.0
 milestone_name: milestone
 status: completed
 last_updated: "2026-06-17T07:27:10.051Z"
-last_activity: 2026-06-15 — Phase 11 executed; two-tier connector matcher shipped (commits b1ad0bb, 8970c23, dba8672). 793 unit tests passing, PHPStan L6 clean. SUMMARY at .planning/phases/11-connectors-registry-aware-matcher/11-01-SUMMARY.md.
+last_activity: 2026-06-17 — Phases 12-13 landed on PR #86 (gsd/phase-13-migration-safety-audit). Phase 13 integration suite proven green against a real DB (single-site 198/0, multisite 198/0); upgrade_4_0_0 migration + clear-on-detection notice shipped. WP_SUDO_VERSION + Stable tag bumped to 4.0.0 (migration is version-gated). 810 unit tests, PHPStan L6 + Psalm clean. PR #86 open as draft; CI matrix turning green. Next: Phase 14.
 progress:
   total_phases: 8
   completed_phases: 5
@@ -15,10 +15,11 @@ progress:
 ## Current Position
 
 Phase: 13 — Migration Safety and Governance Audit
-Plan: 13-03-PLAN.md (MIG-02, MIG-03, MIG-04, MIG-06, MIG-07) — EXECUTED
-Status: COMPLETE — All 3 plans in Phase 13 complete. Phase 13 integration tests authored.
+Plan: 13-01/02/03 — ALL EXECUTED (MIG-01 … MIG-07)
+Status: COMPLETE (verification: integration suite GREEN on real DB; was human_needed, now satisfied). On PR #86, pending merge. GSD phase-complete (roadmap/REQUIREMENTS) not yet run — holding until PR #86 merges.
+Open threads: PR #86 still draft; docs/current-metrics.md refresh handed to debugger; Phase 14 (WordPress.org Readiness) is next.
 Resume file: None
-Last activity: 2026-06-17 — Phase 13-03 executed; 10 integration test methods across UpgraderTest, MultisiteTest, UninstallTest, GovernanceTest shipped (commits 4362054, 6d9dd60, 2db2b9a). 810 unit tests passing, PHPStan L6 clean. SUMMARY at .planning/phases/13-migration-safety-and-governance-audit/13-03-SUMMARY.md.
+Last activity: 2026-06-17 — CI on PR #86 surfaced 5 integration failures; root-caused to a missing version bump (WP_SUDO_VERSION was 3.4.0, so upgrade_4_0_0 never fired) + test-design bugs (WP_SUDO_RECOVERY_MODE constant leaking process-wide via the map_meta_cap mapper; activation-hook basename). Fixed: version bump to 4.0.0 (2fdb9b2), Psalm baseline refresh (11dd67c), integration test fixes (reviewer-approved, real-DB verified), readme Stable tag → 4.0.0 (PCP stable_tag_mismatch). 810 unit tests, PHPStan L6 + Psalm clean.
 
 ## Project Reference
 
@@ -30,7 +31,7 @@ Canonical current facts:
 - `CHANGELOG.md` — shipped release contents.
 
 **Core value:** Every destructive admin action requires proof the person at the keyboard is still the authenticated user.
-**Current focus:** Milestone v4.0.0 — Phase 13 (Migration Safety and Governance Audit), plan 13-02.
+**Current focus:** Milestone v4.0.0 — Phase 13 complete and green on PR #86 (pending merge). Next: Phase 14 (WordPress.org Readiness).
 
 ## Active Priorities (v4.0.0 milestone)
 

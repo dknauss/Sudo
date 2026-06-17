@@ -1,6 +1,6 @@
 # Release Status (Canonical Current State)
 
-Last verified: 2026-06-16
+Last verified: 2026-06-17
 
 This file is the canonical source for **current release state** in this repository:
 
@@ -18,10 +18,9 @@ This file is the canonical source for **current release state** in this reposito
 
 ## Current `main` release target
 
-- **Next planned release:** `4.0.0` — active milestone **v4.0.0 (Pre-Public Hardening Baseline)**, in development on `main`. Breaking release (see Unreleased work below).
-- **Current `main` runtime version constant:** `3.4.0` — **not yet bumped.** Per the v4.0.0 plan, the platform *floor* declarations were raised on `main` (Requires at least `6.4`, Requires PHP `8.2`) while `WP_SUDO_VERSION` / `Stable tag` deliberately stay `3.4.0`; the version bump to `4.0.0` happens at tag time.
-- **Current metadata should match:** `readme.txt` stable tag, `wp-sudo.php` (header + `WP_SUDO_VERSION`), `tests/bootstrap.php`, `phpstan-bootstrap.php` — all still `3.4.0` until the release bump.
-- **Current package metadata:** `readme.txt` stable tag `3.4.0`; `Requires at least 6.4`, `Requires PHP 8.2`, `Tested up to 7.0`.
+- **Next planned release:** `4.0.0` — active milestone **v4.0.0 (Pre-Public Hardening Baseline)**, in development. Breaking release (see Unreleased work below). Not yet tagged or merged to `main`.
+- **Runtime version constant:** `4.0.0` — **bumped on the Phase 13 work branch** (`gsd/phase-13-migration-safety-audit`, PR [#86](https://github.com/dknauss/Sudo/pull/86)). The bump moved earlier than the original "tag time" plan because the `upgrade_4_0_0()` migration is version-gated (`maybe_upgrade()` only runs it when stored `<` `WP_SUDO_VERSION`), so the constant must be exactly `4.0.0` for the migration to fire. `WP_SUDO_VERSION` is set in `wp-sudo.php` (header + constant), `tests/bootstrap.php`, and `phpstan-bootstrap.php`. `main` itself still reads `3.4.0` until PR #86 merges.
+- **Current package metadata (PR #86 branch):** `readme.txt` stable tag `4.0.0` (bumped to satisfy the Plugin Check `stable_tag_mismatch` rule, which requires Stable tag == header Version); `Requires at least 6.4`, `Requires PHP 8.2`, `Tested up to 7.0`.
 - **Last archived release checklist:** `docs/archive/release-3.0.0-checklist.md`
 
 ## WordPress.org publication status
@@ -43,10 +42,12 @@ Canonical source for post-tag drift after `3.4.0`: `git log v3.4.0..main --oneli
 
 ## Unreleased `main` work
 
-Commits ahead of `v3.4.0` (canonical source: `git log v3.4.0..main --oneline`).
-This is the v4.0.0 milestone in progress. Phases 11–12 have landed; phases 13–15
-(migration-safety audit, WordPress.org readiness, manual-testing environment matrix)
-are planned/not yet executed.
+Canonical source for `main`: `git log v3.4.0..main --oneline`. The current v4.0.0
+work additionally lives on PR [#86](https://github.com/dknauss/Sudo/pull/86)
+(`gsd/phase-13-migration-safety-audit`), which carries the full unmerged v4.0.0
+delta. Phases 11–13 have landed (Phase 13 on PR #86, CI green, pending merge);
+phases 14–15 (WordPress.org readiness, manual-testing environment matrix) are
+planned/not yet executed.
 
 **Breaking changes (v4.0.0 — not yet tagged):**
 
@@ -54,13 +55,15 @@ are planned/not yet executed.
   fatal undefined-function error. Use `wp_sudo_can()` (identical signature).
 - **`compatibility` governance mode removed.** Governance is always *strict*
   (capability checks against the dedicated `manage_wp_sudo` family). A stale
-  `wp_sudo_governance_mode = 'compatibility'` option is inert and triggers a
-  persistent admin notice plus a `_doing_it_wrong()` developer warning until removed
-  (automatic cleanup is planned for a later v4.0.0 phase). `WP_SUDO_RECOVERY_MODE`
-  remains the sole break-glass path.
+  `wp_sudo_governance_mode` option is inert and is now **auto-removed** (Phase 13):
+  `upgrade_4_0_0()` deletes it on the 3.x → 4.0.0 boundary from both option stores,
+  and an `admin_init` self-heal (`cleanup_inert_governance_mode_option()`) clears it
+  if it reappears. The notice is now a one-time, dismissible "fixed" confirmation
+  (no `_doing_it_wrong()`; a `wp_sudo_inert_governance_mode_detected` audit action
+  fires instead). `WP_SUDO_RECOVERY_MODE` remains the sole break-glass path.
 - **Minimum platform floor raised:** WordPress `6.2 → 6.4`, PHP `8.0 → 8.2`
   (`composer.json` requires `php >=8.2`; CI drops the 8.0/8.1 lanes and the
-  `php80-tests` infrastructure). `WP_SUDO_VERSION` itself is not bumped on `main`.
+  `php80-tests` infrastructure).
 
 **New gating coverage:**
 
@@ -94,9 +97,10 @@ are planned/not yet executed.
   dashboard activity, recovery-mode screens); README copy clarified re: the sudo
   window. Historical planning docs moved under `docs/archive/`.
 
-**Pre-tag checklist reminder:** before tagging `4.0.0`, bump `WP_SUDO_VERSION` in all
-four places + `readme.txt` stable tag, re-verify external claims, and update this
-file's "Latest tagged release".
+**Pre-tag checklist reminder:** `WP_SUDO_VERSION` (three code constants + plugin
+header) and `readme.txt` stable tag are already at `4.0.0` on PR #86. Before
+tagging `4.0.0`, confirm those are still in sync, re-verify external claims, and
+update this file's "Latest tagged release" once the tag is cut.
 
 ## WordPress release posture
 
