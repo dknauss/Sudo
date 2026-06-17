@@ -9,16 +9,16 @@ progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 16
-  completed_plans: 15
+  completed_plans: 16
 ---
 
 ## Current Position
 
 Phase: 13 — Migration Safety and Governance Audit
-Plan: 13-01-PLAN.md (MIG-01, MIG-05) — EXECUTED
-Status: IN PROGRESS — 13-01 complete. Advance to 13-02 (break-glass docs) then 13-03 (transient examples + static flag).
+Plan: 13-03-PLAN.md (MIG-02, MIG-03, MIG-04, MIG-06, MIG-07) — EXECUTED
+Status: COMPLETE — All 3 plans in Phase 13 complete. Phase 13 integration tests authored.
 Resume file: None
-Last activity: 2026-06-17 — Phase 13-01 executed; upgrade_4_0_0() + cleanup_inert_governance_mode_option + reworked notice + MIG-05 lock shipped (commits 8f02184, d758f4f, e01a566, 6ab2f3e, be71ffb). 810 unit tests passing, PHPStan L6 clean. SUMMARY at .planning/phases/13-migration-safety-and-governance-audit/13-01-SUMMARY.md.
+Last activity: 2026-06-17 — Phase 13-03 executed; 10 integration test methods across UpgraderTest, MultisiteTest, UninstallTest, GovernanceTest shipped (commits 4362054, 6d9dd60, 2db2b9a). 810 unit tests passing, PHPStan L6 clean. SUMMARY at .planning/phases/13-migration-safety-and-governance-audit/13-03-SUMMARY.md.
 
 ## Project Reference
 
@@ -60,6 +60,13 @@ Phases 13, 14, and 15 can run concurrently after Phase 12 completes.
 - Current test and size counts are centralized in `../docs/current-metrics.md`.
 - WordPress 7.0 GA shipped May 20, 2026; package metadata says `Tested up to: 7.0`.
 - This plugin is not currently published to the WordPress.org plugin repository.
+
+## Key Decisions (Phase 13-03, 2026-06-17)
+
+- WP_SUDO_RECOVERY_MODE PHP constant cannot be undefined in integration tests; tests define once as true and use manage_options scope (subscriber is denied even with constant active) to prove no other break-glass exists.
+- ReflectionProperty used to read private static $compat_option_cleared in clear-on-detection test per suite pattern; Admin::reset_cache() resets flag before arrange.
+- Integration test environment (MySQL + WP test suite) not available in this session; files are RED-capable and syntax-verified; execution deferred to CI or manual provisioning.
+- Pre-commit reviewer subagent could not be spawned (agent lacks Agent tool); manual quality gate verification substituted.
 
 ## Key Decisions (Phase 13-01, 2026-06-17)
 
