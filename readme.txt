@@ -369,7 +369,7 @@ See the plugin's `CHANGELOG.md` for all versions.
 == Upgrade Notice ==
 
 = 4.0.0 =
-Breaking release. The deprecated `sudo_can()` function is removed — switch any calls to `wp_sudo_can()`. The `compatibility` governance mode is removed; governance is now always strict, and if you used compatibility mode a persistent admin notice will appear until you remove the `wp_sudo_governance_mode` option. `WP_SUDO_RECOVERY_MODE` remains the only break-glass path. Minimum requirements are now WordPress 6.4 and PHP 8.2 — confirm your host meets them before upgrading.
+Breaking release. The deprecated `sudo_can()` function is removed — switch any calls to `wp_sudo_can()`. The `compatibility` governance mode is removed; it was a transitional bridge added in 3.2.0 for the dedicated-capability model and is no longer needed now that the model is established and `WP_SUDO_RECOVERY_MODE` covers lockout recovery. Governance is now always strict, and if you used compatibility mode a persistent admin notice will appear until you remove the `wp_sudo_governance_mode` option. `WP_SUDO_RECOVERY_MODE` remains the only break-glass path. Minimum requirements are now WordPress 6.4 and PHP 8.2 — confirm your host meets them before upgrading.
 
 = 2.7.0 =
 New `wp_sudo_wpgraphql_bypass` filter for JWT authentication compatibility. No settings migration required.

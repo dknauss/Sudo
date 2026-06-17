@@ -278,6 +278,21 @@ The `compatibility` value of the `wp_sudo_governance_mode` option used to make
 `manage_wp_sudo` capability family. That mode is removed. Governance is now always
 *strict*: `wp_sudo_can()` delegates to `user_can( $user_id, $cap )`.
 
+**Why it existed, and why it's gone.** WP Sudo 3.2.0 introduced a dedicated
+capability model — the `manage_wp_sudo` family — to separate "who may administer
+Sudo" from the generic site-admin `manage_options` capability. `compatibility`
+mode was the **transitional bridge** for that change: it let a site keep
+authorizing Sudo administration via the old `manage_options` check while its
+administrators were being migrated onto the dedicated capabilities, so adopting
+the stricter model could not lock an existing admin out before the capability
+backfill had run. By 4.0.0 the bridge has done its job — the dedicated-capability
+model is the established default, the 3.3.0 backfill grants the caps to existing
+administrators automatically, and the 3.4.0-hardened `WP_SUDO_RECOVERY_MODE`
+covers the "last manager locked out" recovery case the bridge was guarding
+against. Removing the mode collapses governance to a single, auditable strict
+path and eliminates a second capability-check code branch — less complexity and
+less attack surface, in keeping with the 4.0.0 pre-public hardening baseline.
+
 A site that still has `wp_sudo_governance_mode = 'compatibility'` stored is not
 broken — the stale value is **inert** (treated as strict). While the stale value
 is present, WP Sudo renders a persistent, non-dismissible admin notice to users

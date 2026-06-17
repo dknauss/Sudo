@@ -9,7 +9,14 @@
     signature. Search-replace any remaining `sudo_can(` calls with `wp_sudo_can(`.
   - **`compatibility` governance mode removed.** Governance is now always
     *strict* — capability checks delegate to `user_can( $user_id, $cap )` against
-    the dedicated `manage_wp_sudo` family. A site that set
+    the dedicated `manage_wp_sudo` family. Compatibility mode was added in 3.2.0
+    as a transitional bridge when the dedicated-capability model replaced bare
+    `manage_options` checks — it let sites keep the old `manage_options` authority
+    while administrators were migrated onto the new caps, avoiding lockout before
+    the backfill ran. It is removed now that the model is the established default,
+    the 3.3.0 backfill grants the caps automatically, and the 3.4.0-hardened
+    `WP_SUDO_RECOVERY_MODE` covers the lockout-recovery case — collapsing
+    governance to one auditable path. A site that set
     `wp_sudo_governance_mode = 'compatibility'` is now treated as strict; the
     stale option is inert and triggers a persistent (non-dismissible) admin
     notice — plus a `_doing_it_wrong()` warning for developers — until the option
