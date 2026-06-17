@@ -42,12 +42,25 @@ WordPress.org-readiness work (Phase 14); environment checklist (Phase 15).
   is detected (e.g. a small `admin_init` cleanup, which runs before `admin_notices`),
   so it self-heals on the **next admin page load**. This makes the reworded notice's
   promise truthful and answers "when does it clear?" concretely.
-- **Consequence — does the notice still need to persist?** With clear-on-detection
-  the option cannot survive past one admin page load, so the persistent notice is
-  near-vestigial. Decide at plan time: drop it entirely (silent cleanup of an inert
-  value), or downgrade it to a single transient/dismissible "removed a leftover
-  setting" confirmation. Either way the persistent-until-resolved behavior from
-  Phase 12 is replaced.
+- **Notice becomes a one-time "fixed" confirmation (decided with user).** With
+  clear-on-detection the option cannot survive past one admin page load, so the
+  Phase 12 persistent-until-resolved notice is replaced by a single, brief,
+  dismissible confirmation that the leftover setting was found and removed — it
+  needs little explanation because no action is required. Wording uses plain
+  language: "leftover setting" / "leftover permission-mode setting" (NOT the jargon
+  "governance mode", NOT "custom" — it was a built-in option, not user-created).
+  Suggested copy: *"WP Sudo removed a leftover permission-mode setting left over from
+  before version 4.0.0. WP Sudo now always enforces strict, role-based permission
+  checks. No action is needed."* Drop the persistent/non-dismissible behavior.
+- **Reconsider the developer signal (UAT nit).** The current `_doing_it_wrong()` call
+  passes the OPTION name `wp_sudo_governance_mode` as the first argument, so WordPress
+  renders *"Function wp_sudo_governance_mode was called incorrectly"* — but it is an
+  option, not a function, and nothing was called incorrectly (a stale DB value is not
+  a misused function call). `_doing_it_wrong()` is semantically for misused function
+  calls, so it is a poor fit. Phase 13: either pass a real function/method context as
+  the first arg, reword to fit the fixed "Function %s was called incorrectly" prefix,
+  or switch the dev signal to a plain `error_log()`/`trigger_error()` or an audit
+  action hook. Whatever is chosen must still fire at most once per admin request.
 - This closes the loop Phase 12 opened: the persistent migration notice (BRK-03)
   self-clears after upgrade because the option is gone. The notice remains as
   defense-in-depth for the edge case where the option is present without the routine
