@@ -54,6 +54,7 @@ class Upgrader {
 		'2.15.0' => 'upgrade_2_15_0',
 		'3.0.0'  => 'upgrade_3_0_0',
 		'3.3.0'  => 'upgrade_3_3_0',
+		'4.0.0'  => 'upgrade_4_0_0',
 	);
 
 	/**
@@ -308,6 +309,27 @@ class Upgrader {
 			foreach ( Admin::GOVERNANCE_CAPS as $cap ) {
 				$admin->add_cap( $cap );
 			}
+		}
+	}
+
+	/**
+	 * 4.0.0 migration: delete the now-inert wp_sudo_governance_mode option.
+	 *
+	 * The `compatibility` governance mode was removed in 4.0.0. The stored
+	 * wp_sudo_governance_mode option is inert — governance is always strict in
+	 * 4.0.0+ regardless of its value. This routine removes the option from both
+	 * the per-site and network-wide option stores on the 3.x -> 4.0.0 upgrade
+	 * boundary, mirroring uninstall.php's cleanup. Deleting an absent option is
+	 * a no-op, so this routine is idempotent and safe for fresh installs
+	 * upgrading through 4.0.0.
+	 *
+	 * @since 4.0.0
+	 * @return void
+	 */
+	private function upgrade_4_0_0(): void {
+		delete_option( 'wp_sudo_governance_mode' );
+		if ( is_multisite() ) {
+			delete_site_option( 'wp_sudo_governance_mode' );
 		}
 	}
 }
