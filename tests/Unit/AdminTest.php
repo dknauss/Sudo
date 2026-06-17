@@ -341,8 +341,10 @@ class AdminTest extends TestCase {
 		Actions\expectAdded( 'admin_menu' )
 			->once();
 
+		// admin_init is registered twice: once for register_settings (priority 10)
+		// and once for cleanup_inert_governance_mode_option (priority 1).
 		Actions\expectAdded( 'admin_init' )
-			->once();
+			->twice();
 
 		Actions\expectAdded( 'admin_enqueue_scripts' )
 			->twice();
@@ -1348,7 +1350,9 @@ class AdminTest extends TestCase {
 
 		Actions\expectAdded( 'network_admin_menu' )->once();
 		Actions\expectAdded( 'network_admin_edit_wp_sudo_settings' )->once();
-		Actions\expectAdded( 'admin_init' )->once();
+		// admin_init is registered twice: once for register_sections (priority 10)
+		// and once for cleanup_inert_governance_mode_option (priority 1).
+		Actions\expectAdded( 'admin_init' )->twice();
 		Actions\expectAdded( 'admin_enqueue_scripts' )->twice();
 
 		Filters\expectAdded( 'plugin_action_links_' . WP_SUDO_PLUGIN_BASENAME )->once();
@@ -2366,8 +2370,17 @@ class AdminTest extends TestCase {
 	}
 
 	// -----------------------------------------------------------------
-	// render_compatibility_mode_notice() — BRK-03
+	// render_compatibility_mode_notice() — BRK-03 (reworked in 4.0.0)
 	// -----------------------------------------------------------------
+
+	/**
+	 * Helper: set the private static compat_option_cleared flag via reflection.
+	 */
+	private function set_compat_option_cleared( bool $value ): void {
+		$ref = new \ReflectionProperty( Admin::class, 'compat_option_cleared' );
+		@$ref->setAccessible( true ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		$ref->setValue( null, $value );
+	}
 
 	/**
 	 * Helper: invoke render_compatibility_mode_notice() and return its output.
@@ -2381,40 +2394,72 @@ class AdminTest extends TestCase {
 		return (string) ob_get_clean();
 	}
 
-	public function test_compatibility_notice_renders_when_option_is_stale(): void {
+	/**
+	 * Notice renders a one-time dismissible "fixed" confirmation when the static
+	 * flag is set (option was cleaned up this request). It must:
+	 *   - output class "notice-success" (not notice-warning)
+	 *   - output class "is-dismissible"
+	 *   - NOT call _doing_it_wrong()
+	 *   - NOT read get_option('wp_sudo_governance_mode')
+	 */
+	public function test_compatibility_notice_renders_when_flag_is_set(): void {
 		Functions\when( '__' )->returnArg();
 		Functions\when( 'esc_html__' )->returnArg();
 		Functions\when( 'wp_kses_post' )->returnArg();
 		Functions\when( 'wp_sudo_can' )->justReturn( true );
-		Functions\when( 'get_option' )->justReturn( 'compatibility' );
-		Functions\expect( '_doing_it_wrong' )
-			->once()
-			->with( 'wp_sudo_governance_mode', \Mockery::type( 'string' ), '4.0.0' );
+		Functions\expect( '_doing_it_wrong' )->never();
 
+		$this->set_compat_option_cleared( true );
 		$output = $this->invoke_compatibility_notice();
 
-		$this->assertStringContainsString( 'notice-warning', $output );
-		$this->assertStringNotContainsString( 'is-dismissible', $output );
+		$this->assertStringContainsString( 'notice-success', $output );
+		$this->assertStringContainsString( 'is-dismissible', $output );
+		$this->assertStringNotContainsString( 'notice-warning', $output );
 	}
 
+	/**
+	 * Notice skips entirely for unauthorized users (no output, no flag check).
+	 */
 	public function test_compatibility_notice_skips_when_user_lacks_authority(): void {
 		Functions\when( '__' )->returnArg();
 		Functions\when( 'wp_kses_post' )->returnArg();
 		Functions\when( 'wp_sudo_can' )->justReturn( false );
-		Functions\when( 'get_option' )->justReturn( 'compatibility' );
 		Functions\expect( '_doing_it_wrong' )->never();
 
+		$this->set_compat_option_cleared( true );
 		$this->assertSame( '', $this->invoke_compatibility_notice() );
 	}
 
-	public function test_compatibility_notice_skips_when_option_is_not_compatibility(): void {
+	/**
+	 * Notice skips when the static cleared flag is false (no cleanup occurred
+	 * this request — the option was already gone or cleanup hasn't run yet).
+	 */
+	public function test_compatibility_notice_skips_when_flag_is_not_set(): void {
 		Functions\when( '__' )->returnArg();
 		Functions\when( 'wp_kses_post' )->returnArg();
 		Functions\when( 'wp_sudo_can' )->justReturn( true );
-		Functions\when( 'get_option' )->justReturn( 'strict' );
 		Functions\expect( '_doing_it_wrong' )->never();
 
+		$this->set_compat_option_cleared( false );
 		$this->assertSame( '', $this->invoke_compatibility_notice() );
+	}
+
+	/**
+	 * The notice must NOT call _doing_it_wrong() — the dev signal moved to the
+	 * audit hook fired by cleanup_inert_governance_mode_option().
+	 */
+	public function test_compatibility_notice_does_not_call_doing_it_wrong(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'esc_html__' )->returnArg();
+		Functions\when( 'wp_kses_post' )->returnArg();
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
+		Functions\expect( '_doing_it_wrong' )->never();
+
+		$this->set_compat_option_cleared( true );
+		$this->invoke_compatibility_notice();
+
+		// If _doing_it_wrong() was never called, the Mockery expectation above passes.
+		$this->assertTrue( true );
 	}
 
 	public function test_compatibility_notice_registers_admin_and_network_hooks(): void {
@@ -2429,6 +2474,266 @@ class AdminTest extends TestCase {
 
 		$admin = new Admin();
 		$admin->register();
+	}
+
+	// -----------------------------------------------------------------
+	// cleanup_inert_governance_mode_option() — BRK-03 clear-on-detection
+	// -----------------------------------------------------------------
+
+	/**
+	 * Helper: invoke cleanup_inert_governance_mode_option() on a fresh Admin.
+	 *
+	 * @return Admin The Admin instance used (for static state inspection).
+	 */
+	private function invoke_cleanup(): Admin {
+		$admin  = new Admin();
+		$method = new \ReflectionMethod( Admin::class, 'cleanup_inert_governance_mode_option' );
+		@$method->setAccessible( true ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		$method->invoke( $admin );
+		return $admin;
+	}
+
+	/**
+	 * Helper: read the private static compat_option_cleared flag via reflection.
+	 */
+	private function get_compat_option_cleared(): bool {
+		$ref = new \ReflectionProperty( Admin::class, 'compat_option_cleared' );
+		@$ref->setAccessible( true ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		return (bool) $ref->getValue( null );
+	}
+
+	/**
+	 * cleanup_inert_governance_mode_option() must be hooked on admin_init at
+	 * priority 1 so it runs before admin_notices.
+	 *
+	 * register() also adds admin_init for register_settings (priority 10), so
+	 * we expect admin_init twice in total.
+	 */
+	public function test_cleanup_registered_on_admin_init_priority_1(): void {
+		// The cleanup hook — the assertion under test.
+		Actions\expectAdded( 'admin_init' )
+			->with(
+				array( \Mockery::type( Admin::class ), 'cleanup_inert_governance_mode_option' ),
+				1,
+				0
+			)
+			->once();
+
+		// The settings registration hook that also adds admin_init.
+		Actions\expectAdded( 'admin_init' )
+			->once();
+
+		$admin = new Admin();
+		$admin->register();
+	}
+
+	/**
+	 * cleanup returns early without deleting or setting the flag when the user
+	 * is not authorized.
+	 */
+	public function test_cleanup_returns_early_when_user_unauthorized(): void {
+		Functions\when( 'wp_sudo_can' )->justReturn( false );
+		Functions\expect( 'get_option' )->never();
+		Functions\expect( 'delete_option' )->never();
+
+		$this->set_compat_option_cleared( false );
+		$this->invoke_cleanup();
+
+		$this->assertFalse( $this->get_compat_option_cleared() );
+	}
+
+	/**
+	 * On single-site, when the option is present in the per-site store, cleanup
+	 * must: delete the option, set the static flag, and fire the audit action.
+	 */
+	public function test_cleanup_deletes_option_and_sets_flag_on_single_site(): void {
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
+		Functions\when( 'is_multisite' )->justReturn( false );
+		// Option present in per-site store.
+		Functions\when( 'get_option' )->alias(
+			function ( string $key ) {
+				if ( 'wp_sudo_governance_mode' === $key ) {
+					return 'compatibility';
+				}
+				return false;
+			}
+		);
+
+		$deleted = array();
+		Functions\when( 'delete_option' )->alias(
+			function ( string $key ) use ( &$deleted ) {
+				$deleted[] = $key;
+				return true;
+			}
+		);
+
+		$actions_fired = array();
+		Functions\when( 'do_action' )->alias(
+			function ( string $hook ) use ( &$actions_fired ) {
+				$actions_fired[] = $hook;
+			}
+		);
+
+		$this->set_compat_option_cleared( false );
+		$this->invoke_cleanup();
+
+		$this->assertContains( 'wp_sudo_governance_mode', $deleted );
+		$this->assertTrue( $this->get_compat_option_cleared() );
+		$this->assertContains( 'wp_sudo_inert_governance_mode_detected', $actions_fired );
+	}
+
+	/**
+	 * On multisite, cleanup must delete from both per-site and network-wide stores.
+	 */
+	public function test_cleanup_deletes_from_both_stores_on_multisite(): void {
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
+		Functions\when( 'is_multisite' )->justReturn( true );
+		// Option present in per-site store (get_option).
+		Functions\when( 'get_option' )->alias(
+			function ( string $key ) {
+				return 'wp_sudo_governance_mode' === $key ? 'compatibility' : false;
+			}
+		);
+		// Not in sitemeta — doesn't matter, $found is already true.
+		Functions\when( 'get_site_option' )->justReturn( false );
+
+		$deleted      = array();
+		$site_deleted = array();
+
+		Functions\when( 'delete_option' )->alias(
+			function ( string $key ) use ( &$deleted ) {
+				$deleted[] = $key;
+				return true;
+			}
+		);
+
+		Functions\when( 'delete_site_option' )->alias(
+			function ( string $key ) use ( &$site_deleted ) {
+				$site_deleted[] = $key;
+				return true;
+			}
+		);
+
+		Functions\when( 'do_action' )->justReturn( null );
+
+		$this->invoke_cleanup();
+
+		$this->assertContains( 'wp_sudo_governance_mode', $deleted );
+		$this->assertContains( 'wp_sudo_governance_mode', $site_deleted );
+	}
+
+	/**
+	 * cleanup must fire do_action('wp_sudo_inert_governance_mode_detected') when
+	 * it finds and deletes the option — this is the semantically-correct
+	 * developer/audit signal replacing _doing_it_wrong().
+	 */
+	public function test_cleanup_fires_audit_action_when_option_found(): void {
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
+		Functions\when( 'is_multisite' )->justReturn( false );
+		Functions\when( 'get_option' )->alias(
+			function ( string $key ) {
+				return 'wp_sudo_governance_mode' === $key ? 'any-value' : false;
+			}
+		);
+		Functions\when( 'delete_option' )->justReturn( true );
+
+		$actions_fired = array();
+		Functions\when( 'do_action' )->alias(
+			function ( string $hook ) use ( &$actions_fired ) {
+				$actions_fired[] = $hook;
+			}
+		);
+
+		$this->invoke_cleanup();
+
+		$this->assertContains( 'wp_sudo_inert_governance_mode_detected', $actions_fired );
+	}
+
+	/**
+	 * cleanup must also detect the option when it lives in sitemeta only
+	 * (get_option returns false but get_site_option has a value).
+	 */
+	public function test_cleanup_finds_option_in_sitemeta_on_multisite(): void {
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
+		Functions\when( 'is_multisite' )->justReturn( true );
+		// Not in per-site store.
+		Functions\when( 'get_option' )->justReturn( false );
+		// Present in sitemeta.
+		Functions\when( 'get_site_option' )->alias(
+			function ( string $key ) {
+				return 'wp_sudo_governance_mode' === $key ? 'compatibility' : false;
+			}
+		);
+
+		$deleted      = array();
+		$site_deleted = array();
+
+		Functions\when( 'delete_option' )->alias(
+			function ( string $key ) use ( &$deleted ) {
+				$deleted[] = $key;
+				return true;
+			}
+		);
+		Functions\when( 'delete_site_option' )->alias(
+			function ( string $key ) use ( &$site_deleted ) {
+				$site_deleted[] = $key;
+				return true;
+			}
+		);
+		Functions\when( 'do_action' )->justReturn( null );
+
+		$this->invoke_cleanup();
+
+		$this->assertContains( 'wp_sudo_governance_mode', $deleted );
+		$this->assertContains( 'wp_sudo_governance_mode', $site_deleted );
+		$this->assertTrue( $this->get_compat_option_cleared() );
+	}
+
+	/**
+	 * When neither store has the option, cleanup must not delete, set flag,
+	 * or fire the audit action.
+	 */
+	public function test_cleanup_does_nothing_when_option_absent(): void {
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
+		Functions\when( 'is_multisite' )->justReturn( false );
+		Functions\when( 'get_option' )->justReturn( false );
+		Functions\expect( 'delete_option' )->never();
+		Functions\expect( 'do_action' )->never();
+
+		$this->set_compat_option_cleared( false );
+		$this->invoke_cleanup();
+
+		$this->assertFalse( $this->get_compat_option_cleared() );
+	}
+
+	/**
+	 * cleanup detects any non-false value, not just 'compatibility' — the
+	 * deletion is intentional regardless of value (per design: broadened
+	 * detection from Phase 13 clarification Issue 8).
+	 */
+	public function test_cleanup_deletes_any_present_value_not_just_compatibility(): void {
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
+		Functions\when( 'is_multisite' )->justReturn( false );
+		// Non-'compatibility' value — still present (truthy), must be deleted.
+		Functions\when( 'get_option' )->alias(
+			function ( string $key ) {
+				return 'wp_sudo_governance_mode' === $key ? 'strict' : false;
+			}
+		);
+
+		$deleted = array();
+		Functions\when( 'delete_option' )->alias(
+			function ( string $key ) use ( &$deleted ) {
+				$deleted[] = $key;
+				return true;
+			}
+		);
+		Functions\when( 'do_action' )->justReturn( null );
+
+		$this->invoke_cleanup();
+
+		$this->assertContains( 'wp_sudo_governance_mode', $deleted );
+		$this->assertTrue( $this->get_compat_option_cleared() );
 	}
 
 	// -----------------------------------------------------------------
