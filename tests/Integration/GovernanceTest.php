@@ -72,6 +72,17 @@ class GovernanceTest extends TestCase {
 	 * Tests that require recovery mode INACTIVE rely on the user-capability check
 	 * (the subscriber lacks manage_options, so the break-glass guard denies them
 	 * regardless of the constant value).
+	 *
+	 * PROCESS ISOLATION: defining WP_SUDO_RECOVERY_MODE here would otherwise leak
+	 * into every later test in the same PHP process, because a PHP constant cannot
+	 * be undefined. While the constant is set, the production map_meta_cap mapper
+	 * (wp_sudo_map_governance_meta_cap) rewrites manage_wp_sudo -> manage_options
+	 * for the current user, so user_can()/has_cap() checks for manage_wp_sudo in
+	 * UninstallTest and UpgraderTest would wrongly report TRUE. Running this test
+	 * in a separate process contains the constant to its own interpreter.
+	 *
+	 * @runInSeparateProcess
+	 * @preserveGlobalState disabled
 	 */
 	public function test_recovery_mode_is_sole_break_glass(): void {
 		// Make WP_SUDO_RECOVERY_MODE active for this test process.
@@ -84,23 +95,39 @@ class GovernanceTest extends TestCase {
 			'WP_SUDO_RECOVERY_MODE must be truthy for this test to be meaningful.'
 		);
 
-		// Assertion 1: admin holds manage_options but NOT manage_wp_sudo — break-glass grants access.
+		// Assertion 1: admin holds site/network admin authority but NOT manage_wp_sudo
+		// — break-glass grants access. The break-glass guard keys on manage_options
+		// single-site and manage_network_options multisite (see wp_sudo_can()), so on
+		// multisite the test admin must hold network-admin authority for the path to
+		// apply. A plain administrator is not a super admin and lacks it by default.
 		$admin = $this->make_admin();
 		$admin->remove_cap( 'manage_wp_sudo' );
+		if ( is_multisite() ) {
+			$admin->add_cap( 'manage_network_options' );
+		}
 		wp_set_current_user( $admin->ID );
 
-		$this->assertFalse(
-			user_can( $admin->ID, 'manage_wp_sudo' ),
-			'Precondition: admin must not hold manage_wp_sudo directly.'
+		// Probe the RAW stored capability, not user_can(). While recovery mode is
+		// active and this admin is the current user, the production map_meta_cap
+		// mapper (wp_sudo_map_governance_meta_cap) rewrites a manage_wp_sudo check
+		// to manage_options, so user_can( $id, 'manage_wp_sudo' ) intentionally
+		// returns true. The precondition we actually need is that the cap was not
+		// directly granted to the user record — read $user->caps for that.
+		$fresh = get_user_by( 'id', $admin->ID );
+		$this->assertArrayNotHasKey(
+			'manage_wp_sudo',
+			$fresh->caps,
+			'Precondition: admin must not hold manage_wp_sudo as a directly-granted user capability.'
 		);
+		$break_glass_authority = is_multisite() ? 'manage_network_options' : 'manage_options';
 		$this->assertTrue(
-			user_can( $admin->ID, 'manage_options' ),
-			'Precondition: admin must hold manage_options so break-glass applies.'
+			user_can( $admin->ID, $break_glass_authority ),
+			"Precondition: admin must hold {$break_glass_authority} so break-glass applies."
 		);
 
 		$this->assertTrue(
 			wp_sudo_can( 'manage_wp_sudo', $admin->ID ),
-			'wp_sudo_can() must grant access via WP_SUDO_RECOVERY_MODE for a manage_options holder lacking manage_wp_sudo.'
+			'wp_sudo_can() must grant access via WP_SUDO_RECOVERY_MODE for a site/network admin lacking manage_wp_sudo.'
 		);
 
 		// Assertion 2: a subscriber lacks manage_options — break-glass must NOT grant them access.
@@ -132,6 +159,13 @@ class GovernanceTest extends TestCase {
 	 *
 	 * CONSTANT NOTE: see test_recovery_mode_is_sole_break_glass() for the
 	 * WP_SUDO_RECOVERY_MODE constant strategy used across this test class.
+	 *
+	 * PROCESS ISOLATION: see test_recovery_mode_is_sole_break_glass(). The
+	 * WP_SUDO_RECOVERY_MODE define is contained to a separate process so it cannot
+	 * leak into UninstallTest / UpgraderTest via the map_meta_cap mapper.
+	 *
+	 * @runInSeparateProcess
+	 * @preserveGlobalState disabled
 	 */
 	public function test_no_sudo_lockout_is_recoverable_via_recovery_mode(): void {
 		// Ensure WP_SUDO_RECOVERY_MODE is active (idempotent if already defined).
@@ -144,18 +178,30 @@ class GovernanceTest extends TestCase {
 			'WP_SUDO_RECOVERY_MODE must be truthy for the lockout recovery scenario.'
 		);
 
-		// Arrange: an administrator who lost manage_wp_sudo (lockout scenario).
+		// Arrange: an administrator who lost manage_wp_sudo (lockout scenario) but
+		// retains site/network admin authority. On multisite the break-glass guard
+		// keys on manage_network_options, which a plain administrator lacks, so grant
+		// it explicitly to model the "admin who still holds network authority" case.
 		$locked_out_admin = $this->make_admin();
 		$locked_out_admin->remove_cap( 'manage_wp_sudo' );
 		$locked_out_admin->remove_cap( 'view_wp_sudo_activity' );
 		$locked_out_admin->remove_cap( 'export_wp_sudo_activity' );
 		$locked_out_admin->remove_cap( 'revoke_wp_sudo_sessions' );
+		if ( is_multisite() ) {
+			$locked_out_admin->add_cap( 'manage_network_options' );
+		}
 		wp_set_current_user( $locked_out_admin->ID );
 
-		// Verify the lockout: strict cap check denies access.
-		$this->assertFalse(
-			user_can( $locked_out_admin->ID, 'manage_wp_sudo' ),
-			'Precondition: locked-out admin must not hold manage_wp_sudo directly.'
+		// Verify the lockout: the cap is no longer directly granted to the user
+		// record. Probe $user->caps rather than user_can(), because under active
+		// recovery mode the production map_meta_cap mapper rewrites a
+		// manage_wp_sudo check for the current user to manage_options — that
+		// remap is the escape hatch under test, not a precondition violation.
+		$locked_out_fresh = get_user_by( 'id', $locked_out_admin->ID );
+		$this->assertArrayNotHasKey(
+			'manage_wp_sudo',
+			$locked_out_fresh->caps,
+			'Precondition: locked-out admin must not hold manage_wp_sudo as a directly-granted user capability.'
 		);
 
 		// Verify the escape hatch: recovery mode restores access.
@@ -167,6 +213,14 @@ class GovernanceTest extends TestCase {
 		// Simulate recovery: the operator uses the restored access to re-grant the cap.
 		$locked_out_admin->add_cap( 'manage_wp_sudo' );
 		$recovered = get_user_by( 'id', $locked_out_admin->ID );
+
+		// Prove the cap is now directly granted on the user record (not merely the
+		// recovery-mode remap), so governance no longer depends on recovery mode.
+		$this->assertArrayHasKey(
+			'manage_wp_sudo',
+			$recovered->caps,
+			'After re-grant, manage_wp_sudo must be a directly-granted user capability.'
+		);
 
 		$this->assertTrue(
 			$recovered->has_cap( 'manage_wp_sudo' ),

@@ -122,10 +122,20 @@ class TestCase extends \WP_UnitTestCase {
 	 *
 	 * The plugin is loaded via muplugins_loaded in the bootstrap, which does not
 	 * fire the activation hook. Tests that verify activation side effects
-	 * (unfiltered_html removal, option creation) must call this method.
+	 * (unfiltered_html removal, option creation, governance-cap grant) must call
+	 * this method.
+	 *
+	 * register_activation_hook() registers its callback under the dynamic action
+	 * "activate_{plugin_basename}". The integration bootstrap loads the plugin via
+	 * an absolute require_once from the repo root, which is OUTSIDE WP_PLUGIN_DIR,
+	 * so WP_SUDO_PLUGIN_BASENAME is NOT the canonical "wp-sudo/wp-sudo.php" — it is
+	 * a path-derived value (e.g. ".../wp-sudo/wp-sudo.php"). Firing the hard-coded
+	 * "activate_wp-sudo/wp-sudo.php" action therefore does nothing in this and the
+	 * CI host topology. Use the actual registered basename so the activation
+	 * callback runs regardless of where the plugin file lives.
 	 */
 	protected function activate_plugin(): void {
-		do_action( 'activate_wp-sudo/wp-sudo.php' );
+		do_action( 'activate_' . WP_SUDO_PLUGIN_BASENAME );
 	}
 
 	/**
