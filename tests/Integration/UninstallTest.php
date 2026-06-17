@@ -224,8 +224,15 @@ class UninstallTest extends TestCase {
 		$this->assertNotEmpty( get_user_meta( $user->ID, '_wp_sudo_failure_event', false ), 'Failure event meta should exist before uninstall.' );
 		$this->assertNotEmpty( get_user_meta( $user->ID, '_wp_sudo_throttle_until', true ), 'Throttle meta should exist before uninstall.' );
 
-		// Set site options.
+		// Set site options, including the governance-mode sitemeta that uninstall must delete
+		// (MIG-03: uninstall leaves no wp_sudo_governance_mode on single-site OR multisite).
 		update_site_option( 'wp_sudo_settings', array( 'session_duration' => 5 ) );
+		update_site_option( 'wp_sudo_governance_mode', 'compatibility' );
+
+		$this->assertNotFalse(
+			get_site_option( 'wp_sudo_governance_mode' ),
+			'Precondition: sitemeta governance option must exist before multisite uninstall.'
+		);
 
 		$this->assertTrue( $this->ensure_events_table(), 'Events table should exist before uninstall.' );
 
@@ -246,6 +253,11 @@ class UninstallTest extends TestCase {
 
 		// Assert: network options are cleaned.
 		$this->assertFalse( get_site_option( 'wp_sudo_settings' ), 'Network settings option should be deleted.' );
+		// MIG-03: sitemeta governance option must be deleted on multisite uninstall.
+		$this->assertFalse(
+			get_site_option( 'wp_sudo_governance_mode' ),
+			'wp_sudo_governance_mode must be deleted from sitemeta on multisite uninstall (MIG-03).'
+		);
 		$this->assertFalse( $this->table_exists(), 'Events table should be dropped on multisite uninstall.' );
 	}
 }
