@@ -217,6 +217,20 @@ class Admin {
 	private static ?array $cached_settings = null;
 
 	/**
+	 * Set to true within a request when cleanup_inert_governance_mode_option()
+	 * finds and deletes the wp_sudo_governance_mode option. The flag signals
+	 * render_compatibility_mode_notice() to show the one-time "fixed"
+	 * confirmation. No transient is needed because admin_init and admin_notices
+	 * fire in the same HTTP request with no intervening redirect.
+	 *
+	 * Reset in reset_cache() for test hygiene.
+	 *
+	 * @since 4.0.0
+	 * @var bool
+	 */
+	private static bool $compat_option_cleared = false;
+
+	/**
 	 * Gate instance used by the Request / Rule Tester, lazily built on first use.
 	 *
 	 * @var Gate|null
@@ -247,9 +261,17 @@ class Admin {
 		add_action( 'admin_enqueue_scripts', array( $this, 'maybe_enqueue_app_password_assets' ) );
 		add_filter( 'plugin_action_links_' . WP_SUDO_PLUGIN_BASENAME, array( $this, 'add_action_links' ) );
 
-		// Persistent migration notice when a 3.x install still has the removed
-		// `compatibility` governance mode set (BRK-03). Hooked on all admin
-		// screens so an operator who never opens the Sudo page still sees it.
+		// Clear-on-detection: delete the inert wp_sudo_governance_mode option on
+		// the next admin load after the 4.0.0 upgrade if it was not removed by
+		// upgrade_4_0_0() (e.g. version already stamped). Priority 1 ensures this
+		// runs before admin_notices so the flag is set when the notice checks it.
+		// Note: admin_init does NOT fire under WP-CLI or cron — cleanup is
+		// admin-HTTP-only by design; upgrade_4_0_0() covers non-admin contexts.
+		add_action( 'admin_init', array( $this, 'cleanup_inert_governance_mode_option' ), 1, 0 );
+
+		// One-time "fixed" confirmation notice after clear-on-detection runs
+		// (BRK-03 reworked). Hooked on all admin screens so an operator who
+		// never opens the Sudo page still sees the confirmation.
 		add_action( 'admin_notices', array( $this, 'render_compatibility_mode_notice' ), 10, 0 );
 		add_action( 'network_admin_notices', array( $this, 'render_compatibility_mode_notice' ), 10, 0 );
 
@@ -796,7 +818,8 @@ class Admin {
 	 * @return void
 	 */
 	public static function reset_cache(): void {
-		self::$cached_settings = null;
+		self::$cached_settings       = null;
+		self::$compat_option_cleared = false;
 	}
 
 	/**
@@ -2470,46 +2493,93 @@ class Admin {
 	}
 
 	/**
-	 * Render a persistent migration notice when a 3.x install still has the
-	 * removed `compatibility` governance mode set (BRK-03).
+	 * Delete the inert wp_sudo_governance_mode option if found on this admin
+	 * request (clear-on-detection, BRK-03 defense-in-depth).
 	 *
-	 * The `compatibility` governance mode was removed in 4.0.0; governance is
-	 * now always strict (a stale `wp_sudo_governance_mode` option is inert). A
-	 * site that opted into compatibility mode before upgrading should remove the
-	 * option. This notice signals that state — it does NOT delete the option
-	 * (cleanup is handled separately). Persistent and non-dismissible because it
-	 * flags a real misconfiguration that should be resolved.
+	 * Runs on admin_init at priority 1 (before admin_notices). When the option
+	 * is present in either the per-site or network-wide store, it is deleted from
+	 * both, the static $compat_option_cleared flag is set, and the audit action
+	 * fires. The notice method then reads the flag on the same request.
 	 *
-	 * Hooked on `admin_notices` and `network_admin_notices`; only one of the two
-	 * fires per request, so the paired `_doing_it_wrong()` warning is emitted at
-	 * most once per page load. The authority gate runs first so an unauthorized
-	 * user (e.g. a subscriber loading profile.php) triggers neither the notice
-	 * nor the developer warning.
+	 * Authority-gated: only an authorized manage_wp_sudo user triggers cleanup.
+	 * Returns early when the option is absent (no writes, no flag, no action).
+	 *
+	 * Note: admin_init does NOT fire under WP-CLI or cron — this cleanup is
+	 * admin-HTTP-only by design. The upgrade_4_0_0() migration routine handles
+	 * the 3.x → 4.0.0 boundary for non-admin contexts.
+	 *
+	 * @since 4.0.0
+	 * @return void
+	 */
+	public function cleanup_inert_governance_mode_option(): void {
+		if ( ! wp_sudo_can( 'manage_wp_sudo' ) ) {
+			return;
+		}
+
+		// Check both stores. On single-site only the per-site store is relevant;
+		// on multisite the value may live in either (historical inconsistency).
+		$found = ( false !== get_option( 'wp_sudo_governance_mode' ) );
+		if ( is_multisite() ) {
+			$found = $found || ( false !== get_site_option( 'wp_sudo_governance_mode' ) );
+		}
+
+		if ( ! $found ) {
+			return;
+		}
+
+		delete_option( 'wp_sudo_governance_mode' );
+		if ( is_multisite() ) {
+			delete_site_option( 'wp_sudo_governance_mode' );
+		}
+
+		self::$compat_option_cleared = true;
+
+		/**
+		 * Fires when cleanup_inert_governance_mode_option() detects and removes
+		 * the stale wp_sudo_governance_mode option left over from before 4.0.0.
+		 *
+		 * This is the semantically-correct developer and audit signal — the option
+		 * name was never a callable, so _doing_it_wrong() was inappropriate here.
+		 *
+		 * @since 4.0.0
+		 */
+		do_action( 'wp_sudo_inert_governance_mode_detected' );
+	}
+
+	/**
+	 * Render a one-time dismissible "fixed" confirmation notice after the inert
+	 * wp_sudo_governance_mode option is cleaned up on this admin request (BRK-03).
+	 *
+	 * The notice is gated on the static $compat_option_cleared flag set by
+	 * cleanup_inert_governance_mode_option() on admin_init (priority 1). Because
+	 * no redirect intervenes between admin_init and admin_notices, a transient is
+	 * not needed — the flag lives only for the duration of this request.
+	 *
+	 * The notice is dismissible and uses notice-success because the cleanup
+	 * already happened — this is a confirmation, not a warning. It does NOT call
+	 * _doing_it_wrong(); the developer/audit signal moved to the audit action hook
+	 * in cleanup_inert_governance_mode_option().
+	 *
+	 * Hooked on admin_notices and network_admin_notices. Only one fires per
+	 * request. Returns immediately for unauthorized users and when the flag is
+	 * not set.
 	 *
 	 * @since 4.0.0
 	 * @return void
 	 */
 	public function render_compatibility_mode_notice(): void {
-		// Authority first: no notice and no developer warning for users who
-		// cannot manage Sudo governance.
 		if ( ! wp_sudo_can( 'manage_wp_sudo' ) ) {
 			return;
 		}
 
-		if ( 'compatibility' !== get_option( 'wp_sudo_governance_mode' ) ) {
+		if ( ! self::$compat_option_cleared ) {
 			return;
 		}
 
-		_doing_it_wrong(
-			'wp_sudo_governance_mode',
-			esc_html__( 'The WP Sudo "compatibility" governance mode was removed in 4.0.0. Governance is now strict and the stored wp_sudo_governance_mode option is ignored.', 'wp-sudo' ),
-			'4.0.0'
-		);
-
-		$message = __( 'WP Sudo: the "compatibility" governance mode was removed in version 4.0.0. Governance now always uses strict, capability-based checks, and the stored setting is ignored. A site administrator should remove the wp_sudo_governance_mode option to clear this notice.', 'wp-sudo' );
+		$message = __( 'WP Sudo removed a leftover permission-mode setting left over from before version 4.0.0. WP Sudo now always enforces strict, role-based permission checks. No action is needed.', 'wp-sudo' );
 
 		printf(
-			'<div class="notice notice-warning wp-sudo-notice" role="alert"><p>%s</p></div>',
+			'<div class="notice notice-success is-dismissible wp-sudo-notice" role="alert"><p>%s</p></div>',
 			wp_kses_post( $message )
 		);
 	}
