@@ -36,6 +36,16 @@ WordPress.org-readiness work (Phase 14); environment checklist (Phase 15).
   self-clears after upgrade because the option is gone. The notice remains as
   defense-in-depth for the edge case where the option is present without the routine
   having run (e.g. set manually post-upgrade, or before the upgrade fires).
+- **Reword the migration notice (UAT feedback, Phase 12 Test 1).** Since the routine
+  now auto-deletes the option, the current message wording — *"A site administrator
+  should remove the wp_sudo_governance_mode option to clear this notice"* — is
+  misleading (the system removes it automatically on upgrade). Rewrite the notice in
+  plain language: explain in non-jargon terms what changed (drop the bare term
+  "governance mode" or define it as "WP Sudo's permission model"), state that the old
+  setting is now ignored, and that **no action is needed — it is cleared automatically
+  on upgrade**. Drop the manual-removal instruction (or keep it only as a fallback for
+  the can't-auto-clear edge case). This touches
+  `Admin::render_compatibility_mode_notice()` + its unit tests in `AdminTest.php`.
 
 ### Multisite option scope (MIG-04)
 - **Verify + add multisite regression tests** — no behavior change unless a real bug
