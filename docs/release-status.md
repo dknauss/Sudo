@@ -1,6 +1,6 @@
 # Release Status (Canonical Current State)
 
-Last verified: 2026-06-14
+Last verified: 2026-06-16
 
 This file is the canonical source for **current release state** in this repository:
 
@@ -18,10 +18,10 @@ This file is the canonical source for **current release state** in this reposito
 
 ## Current `main` release target
 
-- **Next planned release:** TBD
-- **Current `main` runtime version constant:** `3.4.0`
-- **Current metadata should match:** `readme.txt` stable tag, `wp-sudo.php`, `tests/bootstrap.php`, `phpstan-bootstrap.php`
-- **Current package metadata:** `readme.txt` stable tag `3.4.0`
+- **Next planned release:** `4.0.0` — active milestone **v4.0.0 (Pre-Public Hardening Baseline)**, in development on `main`. Breaking release (see Unreleased work below).
+- **Current `main` runtime version constant:** `3.4.0` — **not yet bumped.** Per the v4.0.0 plan, the platform *floor* declarations were raised on `main` (Requires at least `6.4`, Requires PHP `8.2`) while `WP_SUDO_VERSION` / `Stable tag` deliberately stay `3.4.0`; the version bump to `4.0.0` happens at tag time.
+- **Current metadata should match:** `readme.txt` stable tag, `wp-sudo.php` (header + `WP_SUDO_VERSION`), `tests/bootstrap.php`, `phpstan-bootstrap.php` — all still `3.4.0` until the release bump.
+- **Current package metadata:** `readme.txt` stable tag `3.4.0`; `Requires at least 6.4`, `Requires PHP 8.2`, `Tested up to 7.0`.
 - **Last archived release checklist:** `docs/archive/release-3.0.0-checklist.md`
 
 ## WordPress.org publication status
@@ -43,19 +43,60 @@ Canonical source for post-tag drift after `3.4.0`: `git log v3.4.0..main --oneli
 
 ## Unreleased `main` work
 
-Current commits ahead of `v3.4.0`:
+Commits ahead of `v3.4.0` (canonical source: `git log v3.4.0..main --oneline`).
+This is the v4.0.0 milestone in progress. Phases 11–12 have landed; phases 13–15
+(migration-safety audit, WordPress.org readiness, manual-testing environment matrix)
+are planned/not yet executed.
 
-- Roadmap additions for a Connectors registry-aware matcher, a v4.0.0 breaking-change milestone, and Gutenberg design scope.
-- E2E CI balancing that replaces opaque Playwright sharding with explicit
+**Breaking changes (v4.0.0 — not yet tagged):**
+
+- **`sudo_can()` removed.** The deprecated unprefixed alias is gone; calling it is a
+  fatal undefined-function error. Use `wp_sudo_can()` (identical signature).
+- **`compatibility` governance mode removed.** Governance is always *strict*
+  (capability checks against the dedicated `manage_wp_sudo` family). A stale
+  `wp_sudo_governance_mode = 'compatibility'` option is inert and triggers a
+  persistent admin notice plus a `_doing_it_wrong()` developer warning until removed
+  (automatic cleanup is planned for a later v4.0.0 phase). `WP_SUDO_RECOVERY_MODE`
+  remains the sole break-glass path.
+- **Minimum platform floor raised:** WordPress `6.2 → 6.4`, PHP `8.0 → 8.2`
+  (`composer.json` requires `php >=8.2`; CI drops the 8.0/8.1 lanes and the
+  `php80-tests` infrastructure). `WP_SUDO_VERSION` itself is not bumped on `main`.
+
+**New gating coverage:**
+
+- **Connectors registry-aware matcher (WP 7.0).** `connectors.update_credentials`
+  now matches connector API-key writes to `POST /wp/v2/settings` with a two-tier
+  matcher: tier 1 reads the WordPress 7.0 Connectors registry (`wp_get_connectors()`,
+  `function_exists()`-guarded) and gates every setting belonging to an `api_key`
+  connector; tier 2 retains the `^connectors_[a-z0-9_]+_api_key$` regex as a union
+  fallback. Closes a false-negative where Akismet's `wordpress_api_key` was ungated
+  on WP 7.0. Verified against WordPress 7.0 GA.
+
+**Reliability:**
+
+- **WordPress 7.0 upgrade-path fatal fixed.** `Upgrader::maybe_upgrade()` primes
+  `wp_roles()` before the capability-query migration, which otherwise fataled
+  (`for_site() on null`) under WP-CLI/cron at `plugins_loaded` on WP 7.0.
+
+**CI / tooling:**
+
+- **Plugin Check CI** builds a clean production dist, runs the official Plugin Check
+  plugin through `wp-env`, and fails on reported PCP errors.
+- **E2E CI balancing** replaces opaque Playwright sharding with explicit
   challenge/admin, 2FA/UI, lockout/surface, and replay/multisite groups.
-- README and WordPress.org-style screenshot assets refreshed for the current
-  settings, Access, Rule Tester, dashboard activity, and recovery-mode screens.
-- Public README copy was clarified to explain the sudo window without implying
-  repeated prompts inside a burst of admin work.
-- Plugin Check CI now builds a clean production dist, runs the official Plugin
-  Check plugin through `wp-env`, and fails on reported PCP errors.
-- Historical planning docs moved under `docs/archive/`; active docs now point at
-  the current roadmap, release status, security model, and developer reference.
+
+**Docs / assets:**
+
+- v4.0.0 migration notes (CHANGELOG breaking-changes block, `readme.txt` Upgrade
+  Notice, developer-reference "Migrating to 4.0") — including the rationale for why
+  `compatibility` mode was added (3.2.0 transitional bridge) and removed.
+- README / WordPress.org screenshot assets refreshed (settings, Access, Rule Tester,
+  dashboard activity, recovery-mode screens); README copy clarified re: the sudo
+  window. Historical planning docs moved under `docs/archive/`.
+
+**Pre-tag checklist reminder:** before tagging `4.0.0`, bump `WP_SUDO_VERSION` in all
+four places + `readme.txt` stable tag, re-verify external claims, and update this
+file's "Latest tagged release".
 
 ## WordPress release posture
 
