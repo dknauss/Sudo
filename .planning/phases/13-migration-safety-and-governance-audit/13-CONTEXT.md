@@ -32,6 +32,22 @@ WordPress.org-readiness work (Phase 14); environment checklist (Phase 15).
   'strict' — the value is meaningless now). Delete on **both** single-site
   (`delete_option`) and multisite (`delete_site_option`) to match the existing
   uninstall cleanup.
+- **ALSO clear-on-detection — not only on the version boundary (UAT finding).** The
+  upgrade routine is version-gated, so it runs once. But the migration notice can
+  still appear when the inert option is present *after* the version is already
+  stamped 4.0.0 (re-added manually, or any non-upgrade path). In that case the
+  version-gated routine will NOT run again, so an upgrade-routine-only design would
+  leave the notice showing forever — contradicting the planned "no action needed;
+  this clears automatically" wording. Fix: also delete the inert option whenever it
+  is detected (e.g. a small `admin_init` cleanup, which runs before `admin_notices`),
+  so it self-heals on the **next admin page load**. This makes the reworded notice's
+  promise truthful and answers "when does it clear?" concretely.
+- **Consequence — does the notice still need to persist?** With clear-on-detection
+  the option cannot survive past one admin page load, so the persistent notice is
+  near-vestigial. Decide at plan time: drop it entirely (silent cleanup of an inert
+  value), or downgrade it to a single transient/dismissible "removed a leftover
+  setting" confirmation. Either way the persistent-until-resolved behavior from
+  Phase 12 is replaced.
 - This closes the loop Phase 12 opened: the persistent migration notice (BRK-03)
   self-clears after upgrade because the option is gone. The notice remains as
   defense-in-depth for the edge case where the option is present without the routine
