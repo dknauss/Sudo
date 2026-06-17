@@ -43,7 +43,7 @@ The defining acts of the major: remove deprecated APIs and raise minimum require
 
 Post-removal verification track. Confirms the governance simplification did not strand existing 3.0–3.4 installs or leave a lockout/misconfiguration trap before public distribution.
 
-- [ ] **MIG-01**: Upgrades from 3.0–3.4 to 4.0.0 complete cleanly with no orphaned governance state (a leftover `wp_sudo_governance_mode = 'compatibility'` does not produce broken or undefined behavior)
+- [x] **MIG-01**: Upgrades from 3.0–3.4 to 4.0.0 complete cleanly with no orphaned governance state (a leftover `wp_sudo_governance_mode = 'compatibility'` does not produce broken or undefined behavior)
 - [ ] **MIG-02**: `WP_SUDO_RECOVERY_MODE` break-glass still works after `compatibility` mode removal and is the only remaining break-glass path
 - [ ] **MIG-03**: Uninstall cleanup remains correct after the removals (governance option, `_wp_sudo_*` user meta, legacy role) on both single-site and multisite
 - [ ] **MIG-04**: Multisite upgrade behavior is verified — network governance state and super-admin capabilities remain intact through the upgrade
@@ -126,7 +126,7 @@ Populated during roadmap creation (2026-06-13). Each requirement maps to exactly
 | BRK-05 | Phase 12 | Done |
 | BRK-06 | Phase 12 | Done (obsolete — no shim existed) |
 | BRK-07 | Phase 12 | Pending |
-| MIG-01 | Phase 13 | Pending |
+| MIG-01 | Phase 13 | Complete |
 | MIG-02 | Phase 13 | Pending |
 | MIG-03 | Phase 13 | Pending |
 | MIG-04 | Phase 13 | Pending |

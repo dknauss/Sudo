@@ -3,22 +3,22 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: milestone
 status: completed
-last_updated: "2026-06-17T06:08:29.987Z"
+last_updated: "2026-06-17T07:27:10.051Z"
 last_activity: 2026-06-15 — Phase 11 executed; two-tier connector matcher shipped (commits b1ad0bb, 8970c23, dba8672). 793 unit tests passing, PHPStan L6 clean. SUMMARY at .planning/phases/11-connectors-registry-aware-matcher/11-01-SUMMARY.md.
 progress:
   total_phases: 8
   completed_phases: 5
   total_plans: 16
-  completed_plans: 14
+  completed_plans: 15
 ---
 
 ## Current Position
 
-Phase: 11 — Connectors Registry-Aware Matcher
-Plan: 11-01-PLAN.md (1 plan, 1 wave, 3 TDD tasks) — EXECUTED
-Status: PHASE COMPLETE — all CONN-01…CONN-06 requirements fulfilled. Advance to Phase 12.
+Phase: 13 — Migration Safety and Governance Audit
+Plan: 13-01-PLAN.md (MIG-01, MIG-05) — EXECUTED
+Status: IN PROGRESS — 13-01 complete. Advance to 13-02 (break-glass docs) then 13-03 (transient examples + static flag).
 Resume file: None
-Last activity: 2026-06-15 — Phase 11 executed; two-tier connector matcher shipped (commits b1ad0bb, 8970c23, dba8672). 793 unit tests passing, PHPStan L6 clean. SUMMARY at .planning/phases/11-connectors-registry-aware-matcher/11-01-SUMMARY.md.
+Last activity: 2026-06-17 — Phase 13-01 executed; upgrade_4_0_0() + cleanup_inert_governance_mode_option + reworked notice + MIG-05 lock shipped (commits 8f02184, d758f4f, e01a566, 6ab2f3e, be71ffb). 810 unit tests passing, PHPStan L6 clean. SUMMARY at .planning/phases/13-migration-safety-and-governance-audit/13-01-SUMMARY.md.
 
 ## Project Reference
 
@@ -30,7 +30,7 @@ Canonical current facts:
 - `CHANGELOG.md` — shipped release contents.
 
 **Core value:** Every destructive admin action requires proof the person at the keyboard is still the authenticated user.
-**Current focus:** Milestone v4.0.0 — Phase 11 (Connectors Registry-Aware Matcher). Design review required before TDD.
+**Current focus:** Milestone v4.0.0 — Phase 13 (Migration Safety and Governance Audit), plan 13-02.
 
 ## Active Priorities (v4.0.0 milestone)
 
@@ -60,6 +60,14 @@ Phases 13, 14, and 15 can run concurrently after Phase 12 completes.
 - Current test and size counts are centralized in `../docs/current-metrics.md`.
 - WordPress 7.0 GA shipped May 20, 2026; package metadata says `Tested up to: 7.0`.
 - This plugin is not currently published to the WordPress.org plugin repository.
+
+## Key Decisions (Phase 13-01, 2026-06-17)
+
+- Static bool flag (not transient) for admin_init→admin_notices same-request signaling in compat mode cleanup.
+- do_action('wp_sudo_inert_governance_mode_detected') replaces _doing_it_wrong() for governance-mode detection signal.
+- Cleanup broadened: any non-false option value triggers delete, not just 'compatibility'.
+- admin_init does NOT fire under WP-CLI/cron; cleanup is admin-HTTP-only; upgrade_4_0_0() covers non-admin contexts.
+- MIG-05 verified clean: no bare manage_options access gate in includes/ except documented break-glass exceptions.
 
 ## Key Decisions Locked (v4.0.0 kickoff, 2026-06-13)
 
