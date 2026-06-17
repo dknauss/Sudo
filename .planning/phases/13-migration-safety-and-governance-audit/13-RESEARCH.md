@@ -240,7 +240,7 @@ Also test idempotency: option absent before routine runs (e.g. fresh install upg
 |---------|-------------|-------------|-----|
 | Multisite-aware option read/write | Custom abstraction | Follow the is_multisite() → get_site_option/get_option pattern already established in Upgrader::get_db_version() | Consistent with all existing routines |
 | Test isolation for WP_Roles global | Global teardown in set_up/tear_down | Copy the try/finally snapshot pattern from UpgraderTest::test_3_3_0_backfill_survives_uninitialized_wp_roles_global | Already proven safe in this project |
-| "One-time notice" state | Transient or option flag | Use `set_transient('wp_sudo_compat_option_cleared', 1, HOUR_IN_SECONDS)` pattern | Avoids custom state mechanism; already in project stack |
+| "One-time notice" state | Transient or option flag | **⚠ SUPERSEDED — use a STATIC BOOLEAN FLAG on `Admin`, NOT a transient.** The state mechanism is LOCKED by 13-01 Task 0 to `private static $compat_option_cleared` (set in `cleanup_inert_governance_mode_option()` on `admin_init` priority 1, read in `render_compatibility_mode_notice()` on `admin_notices`, same request). Do NOT use `set_transient`/`get_transient` for this signal. | No DB write needed — no redirect intervenes between `admin_init` and `admin_notices`. The transient mention here is non-authoritative. |
 
 **Key insight:** Every pattern needed for Phase 13 already exists in the codebase. The upgrade routine, multisite-aware deletion, admin_init hooks, and integration test structure are all modeled in existing code. No new abstractions required.
 
@@ -311,7 +311,11 @@ private const UPGRADES = array(
 // The wp_roles() priming call in maybe_upgrade() is untouched.
 ```
 
-### clear-on-detection with transient flag
+### clear-on-detection signaling
+
+> **⚠ SUPERSEDED — the state mechanism is LOCKED to a STATIC BOOLEAN FLAG on `Admin` (not a transient) by the 13-01 Task 0 design decision.**
+> The transient-based code below is retained ONLY to illustrate the sequencing problem (why same-request signaling is needed at all: `cleanup` deletes the option on `admin_init` before `admin_notices` renders, so the notice cannot re-read the option — it must read a flag set during cleanup).
+> **Do NOT implement this transient version.** Do NOT use `set_transient`/`get_transient` for this signal. Implement the static flag instead: set `self::$compat_option_cleared = true` in `cleanup_inert_governance_mode_option()` and gate the notice on `self::$compat_option_cleared`. Tests read the flag via `ReflectionProperty` per the suite's reflection pattern — NOT via `get_transient()`. See 13-01 Tasks 0 and 2 for the authoritative contract.
 ```php
 // admin_init hook (priority 1 — before admin_notices)
 public function cleanup_inert_governance_mode_option(): void {
@@ -327,7 +331,7 @@ public function cleanup_inert_governance_mode_option(): void {
         return;
     }
     // Set flag BEFORE deleting so the notice can read it on admin_notices.
-    set_transient( 'wp_sudo_compat_option_cleared', 1, HOUR_IN_SECONDS );
+    set_transient( 'wp_sudo_compat_option_cleared', 1, HOUR_IN_SECONDS );  // SUPERSEDED — LOCKED implementation is: self::$compat_option_cleared = true;
     delete_option( 'wp_sudo_governance_mode' );
     if ( is_multisite() ) {
         delete_site_option( 'wp_sudo_governance_mode' );
@@ -341,10 +345,10 @@ public function render_compatibility_mode_notice(): void {
     if ( ! wp_sudo_can( 'manage_wp_sudo' ) ) {
         return;
     }
-    if ( ! get_transient( 'wp_sudo_compat_option_cleared' ) ) {
+    if ( ! get_transient( 'wp_sudo_compat_option_cleared' ) ) {  // SUPERSEDED — LOCKED implementation is: if ( ! self::$compat_option_cleared ) {
         return;
     }
-    delete_transient( 'wp_sudo_compat_option_cleared' );
+    delete_transient( 'wp_sudo_compat_option_cleared' );  // SUPERSEDED — static flag is request-scoped; no delete needed
 
     $message = __( 'WP Sudo removed a leftover permission-mode setting left over from before version 4.0.0. WP Sudo now always enforces strict, role-based permission checks. No action is needed.', 'wp-sudo' );
 
@@ -420,7 +424,11 @@ public function test_clear_on_detection_removes_option_when_already_at_4_0_0(): 
 
     // Assert: option deleted, transient set.
     $this->assertFalse( get_option( 'wp_sudo_governance_mode' ) );
-    $this->assertNotFalse( get_transient( 'wp_sudo_compat_option_cleared' ) );
+    // ⚠ SUPERSEDED — the cleared signal is a STATIC BOOLEAN FLAG, not a transient (LOCKED, 13-01 Task 0).
+    // Assert the static flag via ReflectionProperty per the suite pattern, NOT get_transient():
+    //   $ref = new \ReflectionProperty( Admin::class, 'compat_option_cleared' ); $ref->setAccessible( true );
+    //   $this->assertTrue( $ref->getValue() );
+    $this->assertNotFalse( get_transient( 'wp_sudo_compat_option_cleared' ) );  // SUPERSEDED — do not use
 }
 ```
 
@@ -430,7 +438,7 @@ public function test_clear_on_detection_removes_option_when_already_at_4_0_0(): 
 
 | Old State (Phase 12 output) | Phase 13 Target | Impact |
 |-----------------------------|-----------------|--------|
-| `render_compatibility_mode_notice()` reads option directly, persistent, non-dismissible | Notice checks transient, dismissible, "fixed" confirmation | Notice truthfully reflects auto-cleanup; no persistent nag |
+| `render_compatibility_mode_notice()` reads option directly, persistent, non-dismissible | Notice checks a STATIC BOOLEAN FLAG (`self::$compat_option_cleared`), dismissible, "fixed" confirmation — **⚠ NOT a transient; LOCKED by 13-01 Task 0** | Notice truthfully reflects auto-cleanup; no persistent nag; no DB write |
 | `_doing_it_wrong('wp_sudo_governance_mode', ...)` — option name as function arg | Audit action hook `wp_sudo_inert_governance_mode_detected` or `error_log()` | Semantically correct, extensible |
 | No `upgrade_4_0_0()` routine — option cleanup only via uninstall | `upgrade_4_0_0()` deletes option on upgrade boundary | State is clean immediately on upgrade |
 | No `admin_init` clear-on-detection | `cleanup_inert_governance_mode_option()` on `admin_init` priority 1 | Self-healing edge cases (manually re-added option, non-upgrade path) |
