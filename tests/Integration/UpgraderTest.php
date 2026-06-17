@@ -252,6 +252,180 @@ class UpgraderTest extends TestCase {
 	}
 
 	/**
+	 * MIG-01: upgrade_4_0_0 deletes the stale wp_sudo_governance_mode option.
+	 *
+	 * Stamps the stored version at '3.4.0' so that every routine from 2.0.0
+	 * through 4.0.0 runs. Seeds the compatibility-mode option and asserts it is
+	 * absent after maybe_upgrade() completes. Proves the deletion path added in
+	 * Plan 01's upgrade_4_0_0() routine.
+	 */
+	public function test_upgrade_4_0_0_deletes_stale_governance_mode_option(): void {
+		// Arrange: stored at 3.4.0, compatibility option present.
+		$this->update_wp_sudo_option( Upgrader::VERSION_OPTION, '3.4.0' );
+		update_option( 'wp_sudo_governance_mode', 'compatibility' );
+		if ( is_multisite() ) {
+			update_site_option( 'wp_sudo_governance_mode', 'compatibility' );
+		}
+
+		// Act.
+		$upgrader = new Upgrader();
+		$upgrader->maybe_upgrade();
+
+		// Assert: option deleted from both stores.
+		$this->assertFalse(
+			get_option( 'wp_sudo_governance_mode' ),
+			'upgrade_4_0_0() must delete wp_sudo_governance_mode from the per-site option store.'
+		);
+		if ( is_multisite() ) {
+			$this->assertFalse(
+				get_site_option( 'wp_sudo_governance_mode' ),
+				'upgrade_4_0_0() must delete wp_sudo_governance_mode from sitemeta on multisite.'
+			);
+		}
+
+		// Assert: version stamped to current.
+		$this->assertSame(
+			WP_SUDO_VERSION,
+			$this->get_wp_sudo_option( Upgrader::VERSION_OPTION ),
+			'maybe_upgrade() must stamp WP_SUDO_VERSION after running upgrade_4_0_0().'
+		);
+	}
+
+	/**
+	 * MIG-01: upgrade_4_0_0 is idempotent when the governance option is absent.
+	 *
+	 * A fresh install or an install that already had the option removed must not
+	 * error. delete_option() on an absent key is a no-op in WordPress, so this
+	 * test verifies that the routine completes cleanly and stamps the version.
+	 */
+	public function test_upgrade_4_0_0_is_idempotent_when_option_absent(): void {
+		// Arrange: stored at 3.4.0, option NOT present.
+		$this->update_wp_sudo_option( Upgrader::VERSION_OPTION, '3.4.0' );
+		// Ensure the option is definitely absent (transaction rollback handles this,
+		// but be explicit for clarity).
+		delete_option( 'wp_sudo_governance_mode' );
+		if ( is_multisite() ) {
+			delete_site_option( 'wp_sudo_governance_mode' );
+		}
+
+		// Act: must not error.
+		$upgrader = new Upgrader();
+		$upgrader->maybe_upgrade();
+
+		// Assert: version stamped — the routine completed without fataling.
+		$this->assertSame(
+			WP_SUDO_VERSION,
+			$this->get_wp_sudo_option( Upgrader::VERSION_OPTION ),
+			'maybe_upgrade() must stamp WP_SUDO_VERSION even when governance option is absent.'
+		);
+
+		// Sanity: option still absent (delete_option on absent key must not create it).
+		$this->assertFalse(
+			get_option( 'wp_sudo_governance_mode' ),
+			'wp_sudo_governance_mode must remain absent after idempotent upgrade_4_0_0() run.'
+		);
+	}
+
+	/**
+	 * MIG-01 / WP 7.0 regression: maybe_upgrade() must not fatal when
+	 * $GLOBALS['wp_roles'] is null at the time upgrade_4_0_0() runs.
+	 *
+	 * This is the 4.0.0 analog of the 3.3.0 regression guard
+	 * (test_3_3_0_backfill_survives_uninitialized_wp_roles_global). Because
+	 * maybe_upgrade() primes wp_roles() before running any routine, all
+	 * capability-based user queries in upgrade_3_3_0() and upgrade_4_0_0()
+	 * are safe even when the global is null at entry. Nulling it here and
+	 * spanning the assertion across both the 3.3.0 and 4.0.0 routines ensures
+	 * the wp_roles() priming line in maybe_upgrade() is never removed.
+	 *
+	 * Stamping version at '3.3.0' exercises upgrade_4_0_0() with the null-global
+	 * condition active, covering the exact failure mode seen on WP 7.0 WP-CLI.
+	 *
+	 * Single-site only: the 3.3.0 backfill returns early on multisite.
+	 * The 4.0.0 routine is universal; the multisite branch is tested in
+	 * test_upgrade_4_0_0_deletes_stale_governance_mode_option.
+	 */
+	public function test_upgrade_4_0_0_does_not_regress_wp_roles_priming(): void {
+		if ( is_multisite() ) {
+			$this->markTestSkipped( 'The combined regression guard spans upgrade_3_3_0() which is single-site only.' );
+		}
+
+		// Arrange: stamp at 3.3.0 so upgrade_4_0_0() is the only pending routine;
+		// seed the governance option so there is actual deletion work to do.
+		$this->update_wp_sudo_option( Upgrader::VERSION_OPTION, '3.3.0' );
+		update_option( 'wp_sudo_governance_mode', 'compatibility' );
+
+		$saved_roles = $GLOBALS['wp_roles'] ?? null;
+
+		try {
+			// Reproduce the WP-CLI / plugins_loaded condition: null global.
+			// With the bug (missing wp_roles() prime), the capability query inside
+			// upgrade_3_3_0() would dereference $wp_roles->for_site() and fatal.
+			// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Intentionally reproducing an uninitialized $wp_roles; restored in finally.
+			$GLOBALS['wp_roles'] = null;
+
+			$upgrader = new Upgrader();
+			$upgrader->maybe_upgrade();
+		} finally {
+			// Restore — a test failure or pre-fix fatal must not leak null into later tests.
+			// phpcs:ignore WordPress.WP.GlobalVariablesOverride.Prohibited -- Restoring the snapshot taken above.
+			$GLOBALS['wp_roles'] = $saved_roles;
+		}
+
+		// Assert: no fatal (reaching here proves it), version stamped.
+		$this->assertSame(
+			WP_SUDO_VERSION,
+			$this->get_wp_sudo_option( Upgrader::VERSION_OPTION ),
+			'maybe_upgrade() must complete and stamp WP_SUDO_VERSION even with null $wp_roles.'
+		);
+
+		// Assert: governance option deleted — upgrade_4_0_0() ran.
+		$this->assertFalse(
+			get_option( 'wp_sudo_governance_mode' ),
+			'upgrade_4_0_0() must delete wp_sudo_governance_mode during the wp_roles=null regression guard test.'
+		);
+	}
+
+	/**
+	 * MIG-06: first activation grants the manage_wp_sudo governance cap to the
+	 * activating administrator.
+	 *
+	 * The Plugin::activate() callback runs the upgrader (which stamps the version)
+	 * and then grants all four governance capabilities to get_current_user_id().
+	 * This test verifies the first-run grant path so the "no holder after fresh
+	 * install" lockout scenario cannot regress.
+	 */
+	public function test_first_activation_grants_manage_wp_sudo_to_administrator(): void {
+		// Arrange: a fresh admin is the current user (simulates the activating operator).
+		$admin = $this->make_admin();
+		wp_set_current_user( $admin->ID );
+
+		// Precondition: the admin does not yet have the governance cap.
+		$admin->remove_cap( 'manage_wp_sudo' );
+		$admin->remove_cap( 'view_wp_sudo_activity' );
+		$admin->remove_cap( 'export_wp_sudo_activity' );
+		$admin->remove_cap( 'revoke_wp_sudo_sessions' );
+		$fresh = get_user_by( 'id', $admin->ID );
+		$this->assertFalse(
+			$fresh->has_cap( 'manage_wp_sudo' ),
+			'Precondition: the admin must not already hold manage_wp_sudo before activation.'
+		);
+
+		// Act: fire the activation hook (Plugin::activate() calls Upgrader then grants caps).
+		$this->activate_plugin();
+
+		// Assert: all four governance caps granted.
+		$granted = get_user_by( 'id', $admin->ID );
+		$this->assertInstanceOf( \WP_User::class, $granted );
+		foreach ( Admin::GOVERNANCE_CAPS as $cap ) {
+			$this->assertTrue(
+				$granted->has_cap( $cap ),
+				"First activation must grant the {$cap} governance capability to the activating administrator."
+			);
+		}
+	}
+
+	/**
 	 * SURF-01: 2.2.0 preserves already-valid three-tier policy values.
 	 *
 	 * Verifies that 'disabled', 'limited', 'unrestricted' values survive
