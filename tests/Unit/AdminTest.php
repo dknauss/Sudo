@@ -3604,4 +3604,61 @@ class AdminTest extends TestCase {
 		@$method->setAccessible( true ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
 		$method->invoke( $admin );
 	}
+
+	// -----------------------------------------------------------------
+	// MIG-05: manage_wp_sudo capability routing (regression lock)
+	// -----------------------------------------------------------------
+
+	/**
+	 * MIG-05 regression lock: add_settings_page() must register the settings
+	 * page with capability 'manage_wp_sudo', never bare 'manage_options'.
+	 *
+	 * This encodes the governance-first routing requirement: admin surfaces
+	 * route through the dedicated sudo cap, not the WordPress primitive.
+	 *
+	 * @since 4.0.0 (MIG-05 regression lock)
+	 */
+	public function test_mig05_single_site_settings_page_routes_through_manage_wp_sudo(): void {
+		Functions\when( '__' )->returnArg();
+
+		Functions\expect( 'add_options_page' )
+			->once()
+			->with(
+				\Mockery::type( 'string' ),
+				\Mockery::type( 'string' ),
+				'manage_wp_sudo',
+				Admin::PAGE_SLUG,
+				\Mockery::type( 'array' )
+			)
+			->andReturn( false );
+
+		$admin = new Admin();
+		$admin->add_settings_page();
+	}
+
+	/**
+	 * MIG-05 regression lock: add_network_settings_page() must register the
+	 * network settings page with capability 'manage_wp_sudo', never bare
+	 * 'manage_options' or 'manage_network_options'.
+	 *
+	 * @since 4.0.0 (MIG-05 regression lock)
+	 */
+	public function test_mig05_network_settings_page_routes_through_manage_wp_sudo(): void {
+		Functions\when( '__' )->returnArg();
+
+		Functions\expect( 'add_submenu_page' )
+			->once()
+			->with(
+				'settings.php',
+				\Mockery::type( 'string' ),
+				\Mockery::type( 'string' ),
+				'manage_wp_sudo',
+				Admin::PAGE_SLUG,
+				\Mockery::type( 'array' )
+			)
+			->andReturn( false );
+
+		$admin = new Admin();
+		$admin->add_network_settings_page();
+	}
 }
