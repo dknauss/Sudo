@@ -304,6 +304,47 @@ later release; this version only signals it.)
 `WP_SUDO_RECOVERY_MODE` (see `wp_sudo_is_recovery_mode()`) remains the **sole**
 break-glass path for a locked-out administrator.
 
+### Recovery from a misconfigured `manage_wp_sudo` grant
+
+If every holder of `manage_wp_sudo` is removed — for example, the capability was
+accidentally revoked from the only administrator who had it — no one can reach the
+Sudo settings page to re-grant it. `WP_SUDO_RECOVERY_MODE` is the way out:
+
+1. Add `define( 'WP_SUDO_RECOVERY_MODE', true );` to `wp-config.php`.
+2. Log in (or reload) as an administrator who holds WordPress's `manage_options`
+   capability (any standard single-site admin). On multisite, the account must hold
+   `manage_network_options` (super admin).
+3. Navigate to **Settings → Sudo → Access** and grant `manage_wp_sudo` to the
+   intended user(s).
+4. Remove `define( 'WP_SUDO_RECOVERY_MODE', true );` from `wp-config.php`
+   immediately after access is restored.
+
+**Why it works.** While the constant is defined, `wp_sudo_can( 'manage_wp_sudo' )`
+returns `true` for the current user — but only if they also hold `manage_options`
+(single-site) or `manage_network_options` (multisite). Subscribers, editors, and
+non-admin users gain nothing. Once the constant is removed, the dedicated-capability
+check resumes and only explicitly granted users can access Sudo settings.
+
+**What it does not cover.** A user who holds `manage_wp_sudo` *without* a WordPress
+admin role (i.e. `manage_options`) cannot recover this way — recovery mode requires
+the admin primitive cap. Use WP-CLI to re-grant the capability in that case:
+
+```bash
+wp user add-cap <user_login> manage_wp_sudo
+```
+
+See [security-model.md §Break-glass recovery](security-model.md#internal-admin-users-and-governance-boundary)
+for the full risk analysis of the recovery window and the audit hooks that fire
+while `WP_SUDO_RECOVERY_MODE` is active.
+
+**First-run lockout safety.** On a fresh install, the activating administrator
+automatically receives all four Sudo governance capabilities during plugin
+activation — the `upgrade_3_3_0()` backfill routine runs and grants
+`manage_wp_sudo` to any existing administrator. A first-run lockout (no one holds
+`manage_wp_sudo` after activation) can only occur if no WordPress administrator
+existed at activation time, which is atypical. If it does occur, `WP_SUDO_RECOVERY_MODE`
+is the recovery path.
+
 ### Minimum requirements raised
 
 - **WordPress 6.4** (from 6.2). Among other things, 6.4 guarantees

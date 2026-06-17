@@ -37,11 +37,12 @@ capabilities. Other admins receive none until explicitly granted from
 (via `is_super_admin()` short-circuit in `wp_sudo_can()`). Per-site admins receive
 no Sudo-management authority until explicitly delegated.
 
-**Compatibility mode:** operators who want the old `manage_options` fallback can
-set `wp_sudo_governance_mode = compatibility` in the database. This is an opt-in,
-not the default.
+**4.0.0 note:** the `compatibility` governance mode and the `sudo_can()` alias
+were removed in 4.0.0. Governance is now always strict — `wp_sudo_can()` delegates
+directly to `user_can( $user_id, $cap )` with no `manage_options` fallback. See
+[Migrating to 4.0](developer-reference.md#migrating-to-40).
 
-**Break-glass recovery:** if every holder of `manage_wp_sudo` is removed,
+**Break-glass recovery — the sole remaining escape hatch:** if every holder of `manage_wp_sudo` is removed,
 `define('WP_SUDO_RECOVERY_MODE', true)` in `wp-config.php` grants temporary
 access. The recovery check is **role-gated**: while the constant is defined, the
 current user receives effective `manage_wp_sudo` only if they *also* hold site
