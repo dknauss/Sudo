@@ -252,6 +252,33 @@ Returns `true` when `WP_SUDO_RECOVERY_MODE` is defined and truthy in
 scenario; leaving it enabled permanently effectively bypasses the governance
 model.
 
+### Capability-model audit (4.0.0)
+
+Every Sudo admin surface was audited at 4.0.0 and confirmed to gate exclusively
+on the dedicated Sudo capability family — no surface falls back to bare
+`manage_options`. The surface-to-cap mapping is:
+
+| Surface | Capability |
+|---|---|
+| Settings page (`add_options_page` / `add_network_options_page`) | `manage_wp_sudo` |
+| Settings page callback (`render_settings_page`) | `manage_wp_sudo` |
+| AJAX handlers (grant/revoke cap, revoke session, mu-plugin install/uninstall) | `manage_wp_sudo` |
+| Dashboard widget | `view_wp_sudo_activity` |
+
+**Intentional non-gate uses of `manage_options`** (these are correct behavior, not
+gaps):
+
+- The break-glass gate inside `wp_sudo_can()` — when `WP_SUDO_RECOVERY_MODE` is
+  active, `manage_options` is the *authority check* that limits recovery to
+  WordPress administrators. This is not an access gate replacing `manage_wp_sudo`;
+  it is an additional restriction applied during the emergency escape hatch.
+- `wp_sudo_map_governance_meta_cap()` — maps `manage_wp_sudo` to `manage_options`
+  during recovery mode so WordPress core's own admin-page gate enforces the same
+  check. Same recovery scope; same intent.
+- The Access tab informational panel — reads the list of users who hold
+  `manage_options` for display purposes only. This is a read-only UI element, not
+  an authorization gate.
+
 ## Migrating to 4.0
 
 Version 4.0.0 is a breaking release. Three changes affect integrators:
