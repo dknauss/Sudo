@@ -71,7 +71,7 @@ Source: `.github/workflows/phpunit.yml`, `.github/workflows/e2e.yml`, `.github/w
 - `composer analyse` passed on 2026-06-17 (PHPStan L6 `[OK] No errors`; Psalm `No errors found!`, 95.8% type coverage, baseline current).
 - `composer verify:metrics` passed on 2026-06-17 (after this update).
 - Plugin Check CI passed on 2026-06-14 against a clean production dist; warning triage remains a follow-up.
-- Full integration suite passed on 2026-06-17 against a provisioned WordPress 7.0-RC1 test library (via `bin/install-wp-tests.sh`): single-site `198 tests`, `0 failures`, `14 skipped`; multisite (`WP_MULTISITE=1`) `198 tests`, `0 failures`, `7 skipped`. This was the Phase 13 PR #86 real-DB run that surfaced and fixed the integration test-design bugs.
+- Full integration suite passed on 2026-06-17 against a provisioned WordPress 7.0 (GA) test library (via `bin/install-wp-tests.sh wordpress_test root root 127.0.0.1 7.0`): single-site `198 tests`, `664 assertions`, `11 skipped`, `0 failures`; multisite (`WP_MULTISITE=1`) `198 tests`, `676 assertions`, `4 skipped`, `0 failures`. This is the Phase 13 PR #86 real-DB verification (re-run on GA after the initial RC1 run surfaced and fixed the integration test-design bugs).
 
 ## Update Procedure
 
