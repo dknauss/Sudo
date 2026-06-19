@@ -10,7 +10,7 @@ Verification environment: local workspace, PHP 8.x
 | Metric | Value | Verification |
 |---|---:|---|
 | Unit tests | 810 tests | `composer test:unit` |
-| Unit assertions | 2307 assertions | `composer test:unit` |
+| Unit assertions | 2311 assertions | `composer test:unit` |
 | Integration tests in suite | 193 test methods | `rg -c "function test" tests/Integration/*.php | awk -F: '{sum+=$2} END{print sum}'` |
 | Unit test files | 25 | `ls tests/Unit/*.php | wc -l` |
 | Integration test files | 26 | `ls tests/Integration/*.php | wc -l` |
@@ -20,10 +20,10 @@ Verification environment: local workspace, PHP 8.x
 | Metric | Value | Verification |
 |---|---:|---|
 | Production PHP lines (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 14,991 | `find ./includes ./wp-sudo.php ./uninstall.php ./mu-plugin ./bridges -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
-| Tests PHP lines (`tests/`) | 29,452 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
-| Production + tests PHP lines | 44,443 | sum of the two rows above |
-| Test-to-production ratio | 1.96:1 | `29452 / 14991` |
-| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`) | 44,706 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Tests PHP lines (`tests/`) | 29,460 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Production + tests PHP lines | 44,451 | sum of the two rows above |
+| Test-to-production ratio | 1.97:1 | `29460 / 14991` |
+| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`) | 44,714 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
 
 ## Architectural Facts
 

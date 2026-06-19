@@ -3564,6 +3564,14 @@ class AdminTest extends TestCase {
 		$this->assertStringContainsString( 'notice-warning', $output );
 		// Permanent notice: must NOT be dismissible.
 		$this->assertStringNotContainsString( 'is-dismissible', $output );
+
+		// Accuracy: the break-glass gate is capability-based, not role-based, and
+		// keys on manage_network_options under multisite. The warning must not
+		// understate the blast radius by implying only "administrators" qualify.
+		$this->assertStringContainsString( 'manage_options', $output );
+		$this->assertStringContainsString( 'manage_network_options', $output );
+		$this->assertStringContainsString( 'regardless of role', $output );
+		$this->assertStringNotContainsString( 'any administrator who holds', $output );
 	}
 
 	public function test_recovery_mode_notice_renders_nothing_when_inactive(): void {

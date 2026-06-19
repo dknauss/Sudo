@@ -56,9 +56,11 @@ core's own admin-page gate and multisite super-admin bypass do the enforcing),
 and the multisite super-admin short-circuit is unchanged.
 
 This narrows but does not eliminate the residual risk: while the constant is set,
-*every* administrator who holds `manage_options` regains full Sudo governance —
-on a multi-admin site that is still a meaningful elevation, since any such admin
-can self-grant the other three caps and change gating policy from the Access tab.
+*every* user who holds `manage_options` (`manage_network_options` on multisite)
+regains full Sudo governance **regardless of role** — so a custom non-administrator
+role granted `manage_options` qualifies too. On a multi-admin site that is still a
+meaningful elevation, since any such user can self-grant the other three caps and
+change gating policy from the Access tab.
 Two safeguards make the window visible:
 
 - A **permanent, non-dismissible warning notice** appears on the Sudo settings
