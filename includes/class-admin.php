@@ -1451,7 +1451,16 @@ class Admin {
 		$drift = array_filter(
 			is_array( $options_admins ) ? $options_admins : array(),
 			static function ( \WP_User $user ): bool {
-				return ! $user->has_cap( 'manage_wp_sudo' );
+				// Check the RAW stored capability via allcaps, not has_cap().
+				// has_cap() routes through map_meta_cap, where the break-glass
+				// recovery mapper (wp_sudo_map_governance_meta_cap) rewrites
+				// manage_wp_sudo -> manage_options for the CURRENT user under
+				// recovery mode — which would hide a drifted admin from their own
+				// drift list while another viewer still sees them. allcaps holds
+				// role-derived + add_cap()-granted primitives and is immune to
+				// that remap, so drift reflects true stored governance state
+				// consistently regardless of who is viewing or recovery mode.
+				return empty( $user->allcaps['manage_wp_sudo'] );
 			}
 		);
 
