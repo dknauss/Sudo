@@ -62,6 +62,10 @@ Phases 13, 14, and 15 can run concurrently after Phase 12 completes.
 - WordPress 7.0 GA shipped May 20, 2026; package metadata says `Tested up to: 7.0`.
 - This plugin is not currently published to the WordPress.org plugin repository.
 
+### Roadmap Evolution
+
+- Phase 13.1 inserted after Phase 13 (2026-06-19): Access-tab UX polish (user picker + plain-English capability labels) + CI test-speed (matrix trim, WP-test-lib cache, E2E shard rebalance). GSD-routes the PR #88 follow-up (merged `6abd333`) and spawned task `task_671a7d54` into one reviewable cleanup phase ahead of Phase 14 (WordPress.org Readiness).
+
 ## Key Decisions (Phase 13-03, 2026-06-17)
 
 - WP_SUDO_RECOVERY_MODE PHP constant cannot be undefined in integration tests; tests define once as true and use manage_options scope (subscriber is denied even with constant active) to prove no other break-glass exists.

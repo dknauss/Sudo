@@ -18,6 +18,7 @@
 - [x] **Phase 11: Connectors Registry-Aware Matcher** - Close the `wordpress_api_key` gating gap with a two-tier registry-first, regex-fallback matcher (completed 2026-06-16)
 - [x] **Phase 12: Breaking Changes and Floor Bump** - Remove deprecated APIs (`sudo_can()`, `compatibility` mode), raise WP to 6.4 and PHP to 8.2, drop shims (completed 2026-06-16)
 - [x] **Phase 13: Migration Safety and Governance Audit** - Verify 3.0-3.4 upgrade paths are clean, audit capabilities, confirm lockout-safe first-run
+- [ ] **Phase 13.1: Access-tab UX polish and CI test-speed** (INSERTED) - User-picker + plain-English capability labels on the Access tab; trim/cache/rebalance CI test fan-out
 - [ ] **Phase 14: WordPress.org Readiness** - readme validator pass, screenshots/assets, brand consistency, SECURITY.md, submission checklist
 - [ ] **Phase 15: Manual Testing Environment Checklist** - Extend MANUAL-TESTING.md with environment matrix, Connectors verification steps
 
@@ -88,6 +89,26 @@ Plans:
 - [x] 13-01-PLAN.md — upgrade_4_0_0() option-delete + clear-on-detection + reworked "fixed" notice + MIG-05 capability lock (design review first, TDD)
 - [x] 13-02-PLAN.md — Recovery-path + capability-model docs: WP_SUDO_RECOVERY_MODE sole break-glass (MIG-05, MIG-06)
 - [x] 13-03-PLAN.md — Integration coverage: upgrade/uninstall/multisite/recovery-mode/lockout (MIG-02, MIG-03, MIG-04, MIG-06, MIG-07)
+
+### Phase 13.1: Access-tab UX polish and CI test-speed (INSERTED)
+
+**Goal**: The Settings → Sudo **Access tab** grant UI is operator-friendly — a searchable user picker (admin-scoped) replaces the raw numeric user-ID field, and capability choices read in plain English with the slug demoted to secondary text — without weakening any server-side authorization. Separately, CI wall-clock and runner-minutes drop by trimming integration-matrix fan-out, caching the WordPress test library, and rebalancing the E2E shards, with every coverage tradeoff documented. This phase GSD-routes the Access-tab polish follow-up flagged in PR #88 (now merged) and the `task_671a7d54` CI-speed investigation into one reviewable cleanup phase.
+
+**Depends on**: Phase 13 (governance/migration audit) and PR #88 (Access-tab grant/revoke UI, merged to `main` 2026-06-19) — the polish builds directly on the grant form and Access JS module #88 added.
+
+**Requirements**: ACC-01, ACC-02, ACC-03, CIS-01, CIS-02, CIS-03
+
+**Success Criteria** (what must be TRUE):
+  1. The Grant Capability form selects the target user via a searchable picker populated from real WordPress users (default scope: administrator-role users), not a free-text numeric ID; an invalid/empty selection is rejected client-side and the existing server-side `(int)` user-ID handling is unchanged.
+  2. The capability `<select>` presents plain-English labels (per the `docs/ROADMAP.md` mapping) with the raw slug retained as secondary text/tooltip; option `value` attributes remain the exact capability slugs so the AJAX grant/revoke contract and `GOVERNANCE_CAPS` validation are unaffected.
+  3. Server-side authorization is provably unchanged — nonce + `wp_sudo_can` + `GOVERNANCE_CAPS` checks in the grant/revoke handlers are untouched; the polish is presentation-only. The #88 E2E grant-flow regression spec is updated to the new markup and stays green; a11y (`wp.a11y.speak`, labels) preserved.
+  4. The PHPUnit **integration matrix** is reduced from 11 lanes to a documented representative subset (full PHP×WP on MS=false, MS=true on one representative combo, MariaDB LTS retained), and the dropped coverage is explicitly recorded in the workflow and/or docs.
+  5. The WordPress test library produced by `bin/install-wp-tests.sh` is cached across integration lanes (e.g. `actions/cache` on the install paths), so each lane skips the download/install on cache hit.
+  6. The E2E Playwright shards are rebalanced (or re-sharded) to lower the critical-path shard time; the change notes the fixed wp-env spin-up floor and the realized wall-clock improvement.
+
+**Operational note (not a requirement):** Studio `wp-config.php` still has `WP_SUDO_RECOVERY_MODE` ON for testing (backup at `wp-config.php.wpsudo-bak`). Restore the backup once Access-tab UAT for this phase is complete. Local-env only; nothing to ship.
+
+**Plans**: TBD (run /gsd:plan-phase 13.1 to break down)
 
 ### Phase 14: WordPress.org Readiness
 
