@@ -50,7 +50,7 @@ jobs:
       WP_TESTS_DIR: /tmp/wordpress-tests-lib
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install SVN and unzip
         run: sudo apt-get update && sudo apt-get install -y subversion unzip
