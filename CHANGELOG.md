@@ -2,6 +2,32 @@
 
 ## Unreleased
 
+- **Breaking changes (4.0.0):**
+  - **`sudo_can()` removed.** The deprecated unprefixed alias (deprecated in
+    3.3.0) no longer exists; calling it is a fatal undefined-function error. Use
+    `wp_sudo_can( string $cap, ?int $user_id = null ): bool` — identical
+    signature. Search-replace any remaining `sudo_can(` calls with `wp_sudo_can(`.
+  - **`compatibility` governance mode removed.** Governance is now always
+    *strict* — capability checks delegate to `user_can( $user_id, $cap )` against
+    the dedicated `manage_wp_sudo` family. Compatibility mode was added in 3.2.0
+    as a transitional bridge when the dedicated-capability model replaced bare
+    `manage_options` checks — it let sites keep the old `manage_options` authority
+    while administrators were migrated onto the new caps, avoiding lockout before
+    the backfill ran. It is removed now that the model is the established default,
+    the 3.3.0 backfill grants the caps automatically, and the 3.4.0-hardened
+    `WP_SUDO_RECOVERY_MODE` covers the lockout-recovery case — collapsing
+    governance to one auditable path. A site that set
+    `wp_sudo_governance_mode` is now treated as strict, and the inert option is
+    **removed automatically** — no manual cleanup needed: `upgrade_4_0_0()` deletes
+    it (both option stores on multisite) on the 3.x → 4.0.0 boundary, and an
+    `admin_init` self-heal (`cleanup_inert_governance_mode_option()`) clears it if
+    it reappears. After cleanup, an admin with `manage_wp_sudo` sees a one-time
+    **dismissible** success notice (no persistent warning, no `_doing_it_wrong()`);
+    the developer/audit signal is the `wp_sudo_inert_governance_mode_detected`
+    action. `WP_SUDO_RECOVERY_MODE` remains the only break-glass path.
+  - **Minimum WordPress raised to 6.4** (from 6.2).
+  - **Minimum PHP raised to 8.2** (from 8.0). `composer.json` now requires
+    `php >=8.2`, and the CI matrix drops the 8.0/8.1 lanes.
 - **Connector credential writes gated on WordPress 7.0 (registry-aware
   matcher):** the `connectors.update_credentials` rule now matches connector
   API-key writes to `POST /wp/v2/settings` with a two-tier matcher. Tier 1

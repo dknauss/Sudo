@@ -1,6 +1,6 @@
 # Release Status (Canonical Current State)
 
-Last verified: 2026-06-14
+Last verified: 2026-06-17
 
 This file is the canonical source for **current release state** in this repository:
 
@@ -18,10 +18,9 @@ This file is the canonical source for **current release state** in this reposito
 
 ## Current `main` release target
 
-- **Next planned release:** TBD
-- **Current `main` runtime version constant:** `3.4.0`
-- **Current metadata should match:** `readme.txt` stable tag, `wp-sudo.php`, `tests/bootstrap.php`, `phpstan-bootstrap.php`
-- **Current package metadata:** `readme.txt` stable tag `3.4.0`
+- **Next planned release:** `4.0.0` — active milestone **v4.0.0 (Pre-Public Hardening Baseline)**, in development. Breaking release (see Unreleased work below). Not yet tagged or merged to `main`.
+- **Runtime version constant:** `4.0.0` — **bumped on the Phase 13 work branch** (`gsd/phase-13-migration-safety-audit`, PR [#86](https://github.com/dknauss/Sudo/pull/86)). The bump moved earlier than the original "tag time" plan because the `upgrade_4_0_0()` migration is version-gated (`maybe_upgrade()` only runs it when stored `<` `WP_SUDO_VERSION`), so the constant must be exactly `4.0.0` for the migration to fire. `WP_SUDO_VERSION` is set in `wp-sudo.php` (header + constant), `tests/bootstrap.php`, and `phpstan-bootstrap.php`. `main` itself still reads `3.4.0` until PR #86 merges.
+- **Current package metadata (PR #86 branch):** `readme.txt` stable tag `4.0.0` (bumped to satisfy the Plugin Check `stable_tag_mismatch` rule, which requires Stable tag == header Version); `Requires at least 6.4`, `Requires PHP 8.2`, `Tested up to 7.0`.
 - **Last archived release checklist:** `docs/archive/release-3.0.0-checklist.md`
 
 ## WordPress.org publication status
@@ -43,19 +42,65 @@ Canonical source for post-tag drift after `3.4.0`: `git log v3.4.0..main --oneli
 
 ## Unreleased `main` work
 
-Current commits ahead of `v3.4.0`:
+Canonical source for `main`: `git log v3.4.0..main --oneline`. The current v4.0.0
+work additionally lives on PR [#86](https://github.com/dknauss/Sudo/pull/86)
+(`gsd/phase-13-migration-safety-audit`), which carries the full unmerged v4.0.0
+delta. Phases 11–13 have landed (Phase 13 on PR #86, CI green, pending merge);
+phases 14–15 (WordPress.org readiness, manual-testing environment matrix) are
+planned/not yet executed.
 
-- Roadmap additions for a Connectors registry-aware matcher, a v4.0.0 breaking-change milestone, and Gutenberg design scope.
-- E2E CI balancing that replaces opaque Playwright sharding with explicit
+**Breaking changes (v4.0.0 — not yet tagged):**
+
+- **`sudo_can()` removed.** The deprecated unprefixed alias is gone; calling it is a
+  fatal undefined-function error. Use `wp_sudo_can()` (identical signature).
+- **`compatibility` governance mode removed.** Governance is always *strict*
+  (capability checks against the dedicated `manage_wp_sudo` family). A stale
+  `wp_sudo_governance_mode` option is inert and is now **auto-removed** (Phase 13):
+  `upgrade_4_0_0()` deletes it on the 3.x → 4.0.0 boundary from both option stores,
+  and an `admin_init` self-heal (`cleanup_inert_governance_mode_option()`) clears it
+  if it reappears. The notice is now a one-time, dismissible "fixed" confirmation
+  (no `_doing_it_wrong()`; a `wp_sudo_inert_governance_mode_detected` audit action
+  fires instead). `WP_SUDO_RECOVERY_MODE` remains the sole break-glass path.
+- **Minimum platform floor raised:** WordPress `6.2 → 6.4`, PHP `8.0 → 8.2`
+  (`composer.json` requires `php >=8.2`; CI drops the 8.0/8.1 lanes and the
+  `php80-tests` infrastructure).
+
+**New gating coverage:**
+
+- **Connectors registry-aware matcher (WP 7.0).** `connectors.update_credentials`
+  now matches connector API-key writes to `POST /wp/v2/settings` with a two-tier
+  matcher: tier 1 reads the WordPress 7.0 Connectors registry (`wp_get_connectors()`,
+  `function_exists()`-guarded) and gates every setting belonging to an `api_key`
+  connector; tier 2 retains the `^connectors_[a-z0-9_]+_api_key$` regex as a union
+  fallback. Closes a false-negative where Akismet's `wordpress_api_key` was ungated
+  on WP 7.0. Verified against WordPress 7.0 GA.
+
+**Reliability:**
+
+- **WordPress 7.0 upgrade-path fatal fixed.** `Upgrader::maybe_upgrade()` primes
+  `wp_roles()` before the capability-query migration, which otherwise fataled
+  (`for_site() on null`) under WP-CLI/cron at `plugins_loaded` on WP 7.0.
+
+**CI / tooling:**
+
+- **Plugin Check CI** builds a clean production dist, runs the official Plugin Check
+  plugin through `wp-env`, and fails on reported PCP errors.
+- **E2E CI balancing** replaces opaque Playwright sharding with explicit
   challenge/admin, 2FA/UI, lockout/surface, and replay/multisite groups.
-- README and WordPress.org-style screenshot assets refreshed for the current
-  settings, Access, Rule Tester, dashboard activity, and recovery-mode screens.
-- Public README copy was clarified to explain the sudo window without implying
-  repeated prompts inside a burst of admin work.
-- Plugin Check CI now builds a clean production dist, runs the official Plugin
-  Check plugin through `wp-env`, and fails on reported PCP errors.
-- Historical planning docs moved under `docs/archive/`; active docs now point at
-  the current roadmap, release status, security model, and developer reference.
+
+**Docs / assets:**
+
+- v4.0.0 migration notes (CHANGELOG breaking-changes block, `readme.txt` Upgrade
+  Notice, developer-reference "Migrating to 4.0") — including the rationale for why
+  `compatibility` mode was added (3.2.0 transitional bridge) and removed.
+- README / WordPress.org screenshot assets refreshed (settings, Access, Rule Tester,
+  dashboard activity, recovery-mode screens); README copy clarified re: the sudo
+  window. Historical planning docs moved under `docs/archive/`.
+
+**Pre-tag checklist reminder:** `WP_SUDO_VERSION` (three code constants + plugin
+header) and `readme.txt` stable tag are already at `4.0.0` on PR #86. Before
+tagging `4.0.0`, confirm those are still in sync, re-verify external claims, and
+update this file's "Latest tagged release" once the tag is cut.
 
 ## WordPress release posture
 

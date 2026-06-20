@@ -100,7 +100,7 @@ jobs:
         run: |
           wp-env --config .tmp/plugin-check-wp-env.json run cli wp plugin list
           wp-env --config .tmp/plugin-check-wp-env.json run cli wp plugin list-checks
-          # Ignore wp_function_not_compatible_with_requires_wp: the only newer-than-6.2
+          # Ignore wp_function_not_compatible_with_requires_wp: the only newer-than-6.4
           # calls in the plugin (e.g. wp_get_connectors(), WP 7.0) are wrapped in
           # function_exists() runtime guards, which Plugin Check's static compatibility
           # check does not recognize. The guards are the actual compatibility mechanism.

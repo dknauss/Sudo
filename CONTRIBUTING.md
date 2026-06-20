@@ -46,8 +46,10 @@ Runs in ~0.3s. No external dependencies — all WordPress functions are mocked w
 export WP_TESTS_DIR="$PWD/.tmp/wordpress-tests-lib"
 export WP_CORE_DIR="$PWD/.tmp/wordpress"
 
-# One-time setup: installs the current forward-lane WordPress 7.0-RC1 test library and creates test DB
-bash bin/install-wp-tests.sh wordpress_test root root 127.0.0.1 7.0-RC1
+# One-time setup: installs the WordPress 7.0 (GA) test library and creates test DB.
+# 7.0 resolves to the branches/7.0 test library (the same lane CI's WP 7.0 matrix uses)
+# and the latest 7.0.x core. Pass "latest" to track the newest stable line instead.
+bash bin/install-wp-tests.sh wordpress_test root root 127.0.0.1 7.0
 
 # Run tests
 composer test:integration
@@ -76,7 +78,7 @@ bash bin/install-wp-tests.sh \
   root \
   root \
   "localhost:$HOME/Library/Application Support/Local/run/<site-id>/mysql/mysqld.sock" \
-  7.0-RC1
+  7.0
 ```
 
 To discover the available Local sockets:

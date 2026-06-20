@@ -251,6 +251,11 @@ class PluginTest extends TestCase {
 		// leaked mock from a sibling test must not be relied on (order-dependent
 		// "is_ssl is not defined nor mocked" failure on the CI PHP 8.1 lane).
 		Functions\when( 'is_ssl' )->justReturn( true );
+		// Same defense for esc_url_raw(): when $_SERVER['REQUEST_URI'] and
+		// HTTP_HOST leak in from a sibling test, get_current_admin_url() reaches
+		// esc_url_raw() (class-plugin.php:540). Stub it unconditionally so the
+		// test does not depend on execution order (surfaced on the CI PHP 8.4 lane).
+		Functions\when( 'esc_url_raw' )->returnArg();
 
 		$_GET['page'] = 'some-other-page';
 

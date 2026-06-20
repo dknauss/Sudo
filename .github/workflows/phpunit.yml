@@ -68,7 +68,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        php: ['8.0', '8.1', '8.2', '8.3', '8.4']
+        php: ['8.2', '8.3', '8.4']
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -92,28 +92,16 @@ jobs:
           restore-keys: ${{ runner.os }}-composer-
 
       - name: Install Composer dependencies
-        run: |
-          if [ "${{ matrix.php }}" = "8.0" ]; then
-            composer install --working-dir=.github/php80-tests --no-interaction --prefer-dist
-          else
-            composer install --no-interaction --prefer-dist
-          fi
+        run: composer install --no-interaction --prefer-dist
 
       - name: Run unit tests
-        env:
-          WP_SUDO_VENDOR_AUTOLOAD: ${{ github.workspace }}/.github/php80-tests/vendor/autoload.php
         # Random order guards against cross-file test coupling (leaked
         # process-global state). PHPUnit prints "Random Seed: N" in its
         # header; reproduce a failure locally with
         # ./vendor/bin/phpunit --order-by=random --random-order-seed=N
         # The coverage job below stays in default order so one
         # deterministic lane remains for comparison.
-        run: |
-          if [ "${{ matrix.php }}" = "8.0" ]; then
-            ./.github/php80-tests/vendor/bin/phpunit --configuration phpunit.xml.dist --order-by=random
-          else
-            composer test:unit -- --order-by=random
-          fi
+        run: composer test:unit -- --order-by=random
 
   unit-tests-coverage:
     name: "Unit Tests (Coverage)"
@@ -173,17 +161,17 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - php: '8.0'
-            wp: '6.2'
+          - php: '8.2'
+            wp: '6.4'
             multisite: false
             db_label: 'MySQL 8.0'
             db_image: 'public.ecr.aws/docker/library/mysql:8.0'
-          - php: '8.1'
+          - php: '8.2'
             wp: '6.7'
             multisite: false
             db_label: 'MySQL 8.0'
             db_image: 'public.ecr.aws/docker/library/mysql:8.0'
-          - php: '8.1'
+          - php: '8.2'
             wp: '6.7'
             multisite: true
             db_label: 'MySQL 8.0'
@@ -198,12 +186,12 @@ jobs:
             multisite: true
             db_label: 'MySQL 8.0'
             db_image: 'public.ecr.aws/docker/library/mysql:8.0'
-          - php: '8.1'
+          - php: '8.2'
             wp: '7.0'
             multisite: false
             db_label: 'MySQL 8.0'
             db_image: 'public.ecr.aws/docker/library/mysql:8.0'
-          - php: '8.1'
+          - php: '8.2'
             wp: '7.0'
             multisite: true
             db_label: 'MySQL 8.0'
@@ -218,7 +206,7 @@ jobs:
             multisite: true
             db_label: 'MySQL 8.0'
             db_image: 'public.ecr.aws/docker/library/mysql:8.0'
-          - php: '8.1'
+          - php: '8.2'
             wp: '6.7'
             multisite: false
             db_label: 'MariaDB LTS'
@@ -267,12 +255,7 @@ jobs:
           restore-keys: ${{ runner.os }}-composer-
 
       - name: Install Composer dependencies
-        run: |
-          if [ "${{ matrix.php }}" = "8.0" ]; then
-            composer install --working-dir=.github/php80-tests --no-interaction --prefer-dist
-          else
-            composer install --no-interaction --prefer-dist
-          fi
+        run: composer install --no-interaction --prefer-dist
 
       - name: Install WordPress test suite
         env:
@@ -280,15 +263,7 @@ jobs:
         run: bash bin/install-wp-tests.sh wordpress_test root root 127.0.0.1 ${{ matrix.wp }}
 
       - name: Run integration tests
-        env:
-          WP_SUDO_VENDOR_AUTOLOAD: ${{ github.workspace }}/.github/php80-tests/vendor/autoload.php
-          WP_SUDO_PHPUNIT_POLYFILLS_PATH: ${{ github.workspace }}/.github/php80-tests/vendor/yoast/phpunit-polyfills
-        run: |
-          if [ "${{ matrix.php }}" = "8.0" ]; then
-            ./.github/php80-tests/vendor/bin/phpunit --configuration phpunit-integration.xml.dist
-          else
-            composer test:integration
-          fi
+        run: composer test:integration
 
   code-quality:
     name: "Code Quality (lint + static analysis)"

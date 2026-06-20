@@ -240,12 +240,10 @@ of:
 
 Decision order: multisite super admins always pass; break-glass recovery mode
 (`WP_SUDO_RECOVERY_MODE`) grants `manage_wp_sudo` to the current user only; then
-the `wp_sudo_governance_mode` option decides — `strict` (default) checks the
-specific cap, `compatibility` falls back to `manage_options` /
-`manage_network_options`.
+the strict cap check runs — `user_can( $user_id, $cap )`.
 
-> `wp_sudo_can()` was named `sudo_can()` in 3.2.0. The unprefixed name is a
-> deprecated alias as of 3.3.0 and will be removed in 4.0.0 — use `wp_sudo_can()`.
+> Since 4.0.0, governance is always strict. The `compatibility` mode and the
+> `sudo_can()` alias were removed — see [Migrating to 4.0](#migrating-to-40).
 
 ### `wp_sudo_is_recovery_mode(): bool`
 
@@ -253,6 +251,146 @@ Returns `true` when `WP_SUDO_RECOVERY_MODE` is defined and truthy in
 `wp-config.php`. Break-glass escape hatch for the "last manager locked out"
 scenario; leaving it enabled permanently effectively bypasses the governance
 model.
+
+### Capability-model audit (4.0.0)
+
+Every Sudo admin surface was audited at 4.0.0 and confirmed to gate exclusively
+on the dedicated Sudo capability family — no surface falls back to bare
+`manage_options`. The surface-to-cap mapping is:
+
+| Surface | Capability |
+|---|---|
+| Settings page (`add_options_page` / `add_network_options_page`) | `manage_wp_sudo` |
+| Settings page callback (`render_settings_page`) | `manage_wp_sudo` |
+| AJAX handlers (grant/revoke cap, revoke session, mu-plugin install/uninstall) | `manage_wp_sudo` |
+| Dashboard widget | `view_wp_sudo_activity` |
+
+**Intentional non-gate uses of `manage_options`** (these are correct behavior, not
+gaps):
+
+- The break-glass gate inside `wp_sudo_can()` — when `WP_SUDO_RECOVERY_MODE` is
+  active, `manage_options` is the *authority check* that limits recovery to
+  WordPress administrators. This is not an access gate replacing `manage_wp_sudo`;
+  it is an additional restriction applied during the emergency escape hatch.
+- `wp_sudo_map_governance_meta_cap()` — maps `manage_wp_sudo` to `manage_options`
+  during recovery mode so WordPress core's own admin-page gate enforces the same
+  check. Same recovery scope; same intent.
+- The Access tab informational panel — reads the list of users who hold
+  `manage_options` for display purposes only. This is a read-only UI element, not
+  an authorization gate.
+
+## Migrating to 4.0
+
+Version 4.0.0 is a breaking release. Three changes affect integrators:
+
+### `sudo_can()` removed → use `wp_sudo_can()`
+
+The unprefixed `sudo_can()` alias (shipped in 3.2.0, deprecated in 3.3.0 with a
+documented removal target of 4.0.0) is gone. The promise is now delivered:
+calling `sudo_can()` is a fatal undefined-function error. Replace it with
+`wp_sudo_can()`, which has the identical signature and behavior:
+
+```php
+wp_sudo_can( string $cap, ?int $user_id = null ): bool
+```
+
+Search-replace any remaining `sudo_can(` call sites with `wp_sudo_can(`. No other
+change is needed — the parameters and return value are unchanged.
+
+### `compatibility` governance mode removed → governance is always strict
+
+The `compatibility` value of the `wp_sudo_governance_mode` option used to make
+`wp_sudo_can()` and `wp_sudo_map_governance_meta_cap()` delegate to
+`manage_options` / `manage_network_options` instead of the dedicated
+`manage_wp_sudo` capability family. That mode is removed. Governance is now always
+*strict*: `wp_sudo_can()` delegates to `user_can( $user_id, $cap )`.
+
+**Why it existed, and why it's gone.** WP Sudo 3.2.0 introduced a dedicated
+capability model — the `manage_wp_sudo` family — to separate "who may administer
+Sudo" from the generic site-admin `manage_options` capability. `compatibility`
+mode was the **transitional bridge** for that change: it let a site keep
+authorizing Sudo administration via the old `manage_options` check while its
+administrators were being migrated onto the dedicated capabilities, so adopting
+the stricter model could not lock an existing admin out before the capability
+backfill had run. By 4.0.0 the bridge has done its job — the dedicated-capability
+model is the established default, the 3.3.0 backfill grants the caps to existing
+administrators automatically, and the 3.4.0-hardened `WP_SUDO_RECOVERY_MODE`
+covers the "last manager locked out" recovery case the bridge was guarding
+against. Removing the mode collapses governance to a single, auditable strict
+path and eliminates a second capability-check code branch — less complexity and
+less attack surface, in keeping with the 4.0.0 pre-public hardening baseline.
+
+A site that still has `wp_sudo_governance_mode` stored is not broken — any stored
+value is **inert** (treated as strict) — and **4.0.0 removes it automatically**; no
+manual database cleanup is required:
+
+- **On upgrade.** `Upgrader::upgrade_4_0_0()` deletes `wp_sudo_governance_mode` on
+  the 3.x → 4.0.0 boundary, from both the per-site option store and (on multisite)
+  network sitemeta. Deleting an absent option is a no-op, so it is safe on fresh
+  installs upgrading through 4.0.0.
+- **On detection (self-heal).** `Admin::cleanup_inert_governance_mode_option()`
+  runs on `admin_init` (priority 1) and deletes the option from both stores if it
+  ever reappears after the version stamp is already 4.0.0 — for an authorized
+  (`manage_wp_sudo`) admin loading any admin page.
+- **The signal.** After the option is cleared, an admin with `manage_wp_sudo` sees
+  a single **dismissible** success notice confirming the leftover setting was
+  removed (no action needed). There is **no** persistent warning and **no**
+  `_doing_it_wrong()`; the developer/audit signal is the
+  `wp_sudo_inert_governance_mode_detected` action, fired at most once per request
+  when the cleanup deletes the option.
+
+`WP_SUDO_RECOVERY_MODE` (see `wp_sudo_is_recovery_mode()`) remains the **sole**
+break-glass path for a locked-out administrator.
+
+### Recovery from a misconfigured `manage_wp_sudo` grant
+
+If every holder of `manage_wp_sudo` is removed — for example, the capability was
+accidentally revoked from the only administrator who had it — no one can reach the
+Sudo settings page to re-grant it. `WP_SUDO_RECOVERY_MODE` is the way out:
+
+1. Add `define( 'WP_SUDO_RECOVERY_MODE', true );` to `wp-config.php`.
+2. Log in (or reload) as an administrator who holds WordPress's `manage_options`
+   capability (any standard single-site admin). On multisite, the account must hold
+   `manage_network_options` (super admin).
+3. Navigate to **Settings → Sudo → Access** and grant `manage_wp_sudo` to the
+   intended user(s).
+4. Remove `define( 'WP_SUDO_RECOVERY_MODE', true );` from `wp-config.php`
+   immediately after access is restored.
+
+**Why it works.** While the constant is defined, `wp_sudo_can( 'manage_wp_sudo' )`
+returns `true` for the current user — but only if they also hold `manage_options`
+(single-site) or `manage_network_options` (multisite). Subscribers, editors, and
+non-admin users gain nothing. Once the constant is removed, the dedicated-capability
+check resumes and only explicitly granted users can access Sudo settings.
+
+**What it does not cover.** A user who holds `manage_wp_sudo` *without* a WordPress
+admin role (i.e. `manage_options`) cannot recover this way — recovery mode requires
+the admin primitive cap. Use WP-CLI to re-grant the capability in that case:
+
+```bash
+wp user add-cap <user_login> manage_wp_sudo
+```
+
+See [security-model.md §Break-glass recovery](security-model.md#internal-admin-users-and-governance-boundary)
+for the full risk analysis of the recovery window and the audit hooks that fire
+while `WP_SUDO_RECOVERY_MODE` is active.
+
+**First-run lockout safety.** On a fresh install, the activating administrator
+automatically receives all four Sudo governance capabilities during plugin
+activation — the `upgrade_3_3_0()` backfill routine runs and grants
+`manage_wp_sudo` to any existing administrator. A first-run lockout (no one holds
+`manage_wp_sudo` after activation) can only occur if no WordPress administrator
+existed at activation time, which is atypical. If it does occur, `WP_SUDO_RECOVERY_MODE`
+is the recovery path.
+
+### Minimum requirements raised
+
+- **WordPress 6.4** (from 6.2). Among other things, 6.4 guarantees
+  `wp_get_admin_notice()`, so no compatibility shim is needed for it.
+- **PHP 8.2** (from 8.0). `composer.json` requires `php >=8.2`; the CI test
+  matrix drops the 8.0 and 8.1 lanes.
+
+Confirm the host meets both minimums before upgrading.
 
 ## Request / Rule Tester
 

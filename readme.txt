@@ -2,10 +2,10 @@
 Contributors:      dpknauss
 Donate link:       https://dan.knauss.ca
 Tags:              sudo, security, reauthentication, access control, admin protection
-Requires at least: 6.2
+Requires at least: 6.4
 Tested up to:      7.0
-Requires PHP:      8.0
-Stable tag:        3.4.0
+Requires PHP:      8.2
+Stable tag:        4.0.0
 License:           GPL-2.0-or-later
 License URI:       https://spdx.org/licenses/GPL-2.0-or-later.html
 
@@ -367,6 +367,9 @@ Extensibility: the action registry is filterable via wp_sudo_gated_actions. Audi
 See the plugin's `CHANGELOG.md` for all versions.
 
 == Upgrade Notice ==
+
+= 4.0.0 =
+Breaking release. The deprecated `sudo_can()` function is removed — switch any calls to `wp_sudo_can()`. The `compatibility` governance mode is removed; it was a transitional bridge added in 3.2.0 for the dedicated-capability model and is no longer needed now that the model is established and `WP_SUDO_RECOVERY_MODE` covers lockout recovery. Governance is now always strict. If you used compatibility mode, the leftover `wp_sudo_governance_mode` option is removed automatically on upgrade (no manual cleanup) — you'll see a one-time dismissible confirmation notice, not a persistent warning. `WP_SUDO_RECOVERY_MODE` remains the only break-glass path. Minimum requirements are now WordPress 6.4 and PHP 8.2 — confirm your host meets them before upgrading.
 
 = 2.7.0 =
 New `wp_sudo_wpgraphql_bypass` filter for JWT authentication compatibility. No settings migration required.

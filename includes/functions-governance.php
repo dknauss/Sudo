@@ -44,12 +44,13 @@ if ( ! defined( 'ABSPATH' ) ) {
  *    one cap and only for the user making the current request; does not bypass
  *    the reauth challenge. See docs/security-model.md §Break-glass recovery.
  *
- * 3. **Governance mode** — `wp_sudo_governance_mode` option:
- *    - `strict`        (default) — delegates to user_can($user_id, $cap).
- *    - `compatibility` (opt-in)  — delegates to manage_options / manage_network_options.
+ * 3. **Strict cap check** — delegates to user_can($user_id, $cap). This is the
+ *    only governance behavior; the `compatibility` mode option was removed in
+ *    4.0.0. A stale `wp_sudo_governance_mode` option value is inert.
  *
  * @since 3.2.0
  * @since 3.3.0 Renamed from sudo_can() to the wp_sudo_ prefix.
+ * @since 4.0.0 Removed `compatibility` governance mode; strict is the only path.
  *
  * @param string   $cap     Governance capability slug. One of:
  *                          'manage_wp_sudo', 'view_wp_sudo_activity',
@@ -78,37 +79,8 @@ function wp_sudo_can( string $cap, ?int $user_id = null ): bool {
 		return true;
 	}
 
-	// 3. Governance-mode cap check.
-	if ( 'compatibility' === get_option( 'wp_sudo_governance_mode', 'strict' ) ) {
-		$fallback = is_multisite() ? 'manage_network_options' : 'manage_options';
-		return user_can( $user_id, $fallback );
-	}
-
+	// 3. Strict cap check.
 	return user_can( $user_id, $cap );
-}
-
-if ( ! function_exists( 'sudo_can' ) ) {
-	/**
-	 * Deprecated alias for wp_sudo_can().
-	 *
-	 * Shipped unprefixed in 3.2.0; kept as a thin alias so 3.2.0 integrators
-	 * are not broken by the rename. Scheduled for removal in 4.0.0. The
-	 * function_exists guard means WP Sudo no longer collides with — or depends
-	 * on — a foreign sudo_can() once its own callers use wp_sudo_can().
-	 *
-	 * @since      3.2.0
-	 * @deprecated 3.3.0 Use wp_sudo_can().
-	 *
-	 * @param string   $cap     Governance capability slug.
-	 * @param int|null $user_id User to check. Defaults to the current user.
-	 * @return bool
-	 */
-	function sudo_can( string $cap, ?int $user_id = null ): bool {
-		if ( function_exists( '_deprecated_function' ) ) {
-			_deprecated_function( __FUNCTION__, '3.3.0', 'wp_sudo_can()' );
-		}
-		return wp_sudo_can( $cap, $user_id );
-	}
 }
 
 /**
@@ -156,16 +128,12 @@ function wp_sudo_map_governance_meta_cap( array $caps, string $cap, int $user_id
 	// Break-glass recovery mode maps manage_wp_sudo to the site/network admin
 	// primitive cap, so WordPress core's own admin-page gate only admits users
 	// who actually hold manage_options / manage_network_options. This delegates
-	// the role check (including the multisite super-admin bypass) to core,
-	// matching the compatibility-mode mapping below. Current user only.
+	// the role check (including the multisite super-admin bypass) to core.
+	// Current user only.
 	if ( 'manage_wp_sudo' === $cap
 		&& wp_sudo_is_recovery_mode()
 		&& get_current_user_id() === $user_id
 	) {
-		return array( is_multisite() ? 'manage_network_options' : 'manage_options' );
-	}
-
-	if ( 'compatibility' === get_option( 'wp_sudo_governance_mode', 'strict' ) ) {
 		return array( is_multisite() ? 'manage_network_options' : 'manage_options' );
 	}
 

@@ -219,4 +219,107 @@ class MultisiteTest extends TestCase {
 
 		restore_current_blog();
 	}
+
+	/**
+	 * MIG-03 / MIG-04: upgrade_4_0_0 deletes wp_sudo_governance_mode from sitemeta
+	 * on multisite.
+	 *
+	 * On multisite, the governance option may have been stored in sitemeta (via
+	 * update_site_option()). The upgrade_4_0_0() routine calls both delete_option()
+	 * and delete_site_option() to cover both stores. This test stamps the version at
+	 * '3.4.0', seeds the governance option in sitemeta, runs maybe_upgrade(), and
+	 * asserts the sitemeta key is gone.
+	 */
+	public function test_multisite_upgrade_deletes_governance_mode_from_sitemeta(): void {
+		$this->require_multisite();
+
+		// Arrange: stamp at 3.4.0 (network-wide), seed governance option in sitemeta.
+		update_site_option( Upgrader::VERSION_OPTION, '3.4.0' );
+		update_site_option( 'wp_sudo_governance_mode', 'compatibility' );
+
+		$this->assertNotFalse(
+			get_site_option( 'wp_sudo_governance_mode' ),
+			'Precondition: governance option must be present in sitemeta before upgrade.'
+		);
+
+		// Act.
+		$upgrader = new Upgrader();
+		$upgrader->maybe_upgrade();
+
+		// Assert: sitemeta governance option deleted.
+		$this->assertFalse(
+			get_site_option( 'wp_sudo_governance_mode' ),
+			'upgrade_4_0_0() must delete wp_sudo_governance_mode from sitemeta on multisite.'
+		);
+
+		// Assert: version stamped.
+		$this->assertSame(
+			WP_SUDO_VERSION,
+			get_site_option( Upgrader::VERSION_OPTION ),
+			'maybe_upgrade() must stamp WP_SUDO_VERSION after multisite upgrade_4_0_0().'
+		);
+	}
+
+	/**
+	 * MIG-04: multisite upgrade preserves super-admin capabilities and causes no
+	 * cross-site capability bleed.
+	 *
+	 * After running the 4.0.0 upgrade from '3.4.0', a super admin who held all
+	 * governance caps before must still hold them. A per-site admin on a second
+	 * blog who did NOT hold them must NOT gain network-level caps (no bleed).
+	 * Proves that upgrade_4_0_0() touches only the option and does not alter
+	 * user capabilities.
+	 */
+	public function test_multisite_upgrade_preserves_super_admin_capabilities(): void {
+		$this->require_multisite();
+
+		// Arrange: a super admin with all governance caps.
+		$super_admin = $this->make_admin();
+		grant_super_admin( $super_admin->ID );
+		foreach ( Admin::GOVERNANCE_CAPS as $cap ) {
+			$super_admin->add_cap( $cap );
+		}
+
+		// Arrange: a second blog with a per-site admin who lacks network caps.
+		$second_blog_id  = self::factory()->blog->create();
+		$subsite_user_id = self::factory()->user->create(
+			array( 'role' => 'administrator' )
+		);
+		add_user_to_blog( $second_blog_id, $subsite_user_id, 'administrator' );
+		$subsite_admin = get_user_by( 'id', $subsite_user_id );
+		// The subsite admin must NOT be a super admin (no network caps).
+		$this->assertFalse(
+			is_super_admin( $subsite_admin->ID ),
+			'Precondition: per-site admin must not be a super admin.'
+		);
+
+		// Arrange: stamp version and run upgrade.
+		update_site_option( Upgrader::VERSION_OPTION, '3.4.0' );
+		update_site_option( 'wp_sudo_governance_mode', 'compatibility' );
+
+		$upgrader = new Upgrader();
+		$upgrader->maybe_upgrade();
+
+		// Assert: super admin caps are intact.
+		$refreshed_super = get_user_by( 'id', $super_admin->ID );
+		$this->assertTrue(
+			is_super_admin( $refreshed_super->ID ),
+			'Super admin must remain a super admin after upgrade_4_0_0().'
+		);
+		foreach ( Admin::GOVERNANCE_CAPS as $cap ) {
+			$this->assertTrue(
+				$refreshed_super->has_cap( $cap ),
+				"Super admin must still hold governance cap {$cap} after upgrade_4_0_0()."
+			);
+		}
+
+		// Assert: subsite admin did NOT gain any governance caps (no cross-site bleed).
+		$refreshed_subsite = get_user_by( 'id', $subsite_admin->ID );
+		foreach ( Admin::GOVERNANCE_CAPS as $cap ) {
+			$this->assertFalse(
+				$refreshed_subsite->has_cap( $cap ),
+				"Per-site admin must NOT gain governance cap {$cap} via upgrade_4_0_0() (no cross-site bleed)."
+			);
+		}
+	}
 }

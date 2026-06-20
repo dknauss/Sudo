@@ -36,20 +36,20 @@ The defining acts of the major: remove deprecated APIs and raise minimum require
 - [ ] **BRK-03**: On upgrade, if `wp_sudo_governance_mode` is still set to `compatibility`, a persistent admin notice and `_doing_it_wrong()` warn the operator that the mode was removed and governance is now strict
 - [ ] **BRK-04**: Minimum WordPress version is raised to 6.4 across the plugin header, `readme.txt`, and the CI support-floor lane
 - [ ] **BRK-05**: Minimum PHP version is raised to 8.2 across the plugin header, `readme.txt`, `composer.json` `require.php`, and `config.platform.php`
-- [ ] **BRK-06**: The `function_exists('wp_get_admin_notice')` compatibility shims (two call sites in `includes/class-admin.php`) are removed now that 6.4 is the floor
+- [x] **BRK-06**: ~~The `function_exists('wp_get_admin_notice')` compatibility shims (two call sites in `includes/class-admin.php`) are removed now that 6.4 is the floor~~ — **OBSOLETE (verified 2026-06-16, Phase 12).** The premise was stale: `wp_get_admin_notice` appears nowhere in `includes/` or `wp-sudo.php` (`grep -rn` returns zero). The only `function_exists` checks in `class-admin.php` guard `graphql` (legitimate runtime integration, not a 6.4 shim). No shim existed to remove; requirement closed as satisfied/obsolete.
 - [ ] **BRK-07**: Integrator migration notes document the removed APIs (`sudo_can()`, `compatibility` mode) and the raised WordPress/PHP minimums
 
 ### Migration Safety, Capability Audit & First-Run Governance
 
 Post-removal verification track. Confirms the governance simplification did not strand existing 3.0–3.4 installs or leave a lockout/misconfiguration trap before public distribution.
 
-- [ ] **MIG-01**: Upgrades from 3.0–3.4 to 4.0.0 complete cleanly with no orphaned governance state (a leftover `wp_sudo_governance_mode = 'compatibility'` does not produce broken or undefined behavior)
-- [ ] **MIG-02**: `WP_SUDO_RECOVERY_MODE` break-glass still works after `compatibility` mode removal and is the only remaining break-glass path
-- [ ] **MIG-03**: Uninstall cleanup remains correct after the removals (governance option, `_wp_sudo_*` user meta, legacy role) on both single-site and multisite
-- [ ] **MIG-04**: Multisite upgrade behavior is verified — network governance state and super-admin capabilities remain intact through the upgrade
-- [ ] **MIG-05**: Post-removal capability audit — all settings/admin/widget screens use the dedicated Sudo capabilities (`manage_wp_sudo`, etc.) with no fallback to bare `manage_options`
-- [ ] **MIG-06**: First-run governance is clear and lockout-safe — on first activation an administrator holds `manage_wp_sudo`, and the recovery path for a misconfigured grant is documented
-- [ ] **MIG-07**: Tests cover lockout and misconfiguration-recovery scenarios introduced or affected by the governance simplification
+- [x] **MIG-01**: Upgrades from 3.0–3.4 to 4.0.0 complete cleanly with no orphaned governance state (a leftover `wp_sudo_governance_mode = 'compatibility'` does not produce broken or undefined behavior)
+- [x] **MIG-02**: `WP_SUDO_RECOVERY_MODE` break-glass still works after `compatibility` mode removal and is the only remaining break-glass path
+- [x] **MIG-03**: Uninstall cleanup remains correct after the removals (governance option, `_wp_sudo_*` user meta, legacy role) on both single-site and multisite
+- [x] **MIG-04**: Multisite upgrade behavior is verified — network governance state and super-admin capabilities remain intact through the upgrade
+- [x] **MIG-05**: Post-removal capability audit — all settings/admin/widget screens use the dedicated Sudo capabilities (`manage_wp_sudo`, etc.) with no fallback to bare `manage_options`
+- [x] **MIG-06**: First-run governance is clear and lockout-safe — on first activation an administrator holds `manage_wp_sudo`, and the recovery path for a misconfigured grant is documented
+- [x] **MIG-07**: Tests cover lockout and misconfiguration-recovery scenarios introduced or affected by the governance simplification
 
 ### WordPress.org Readiness
 
@@ -119,20 +119,20 @@ Populated during roadmap creation (2026-06-13). Each requirement maps to exactly
 | CONN-04 | Phase 11 | Complete |
 | CONN-05 | Phase 11 | Complete |
 | CONN-06 | Phase 11 | Complete |
-| BRK-01 | Phase 12 | Pending |
-| BRK-02 | Phase 12 | Pending |
-| BRK-03 | Phase 12 | Pending |
-| BRK-04 | Phase 12 | Pending |
-| BRK-05 | Phase 12 | Pending |
-| BRK-06 | Phase 12 | Pending |
+| BRK-01 | Phase 12 | Done |
+| BRK-02 | Phase 12 | Done |
+| BRK-03 | Phase 12 | Done |
+| BRK-04 | Phase 12 | Done |
+| BRK-05 | Phase 12 | Done |
+| BRK-06 | Phase 12 | Done (obsolete — no shim existed) |
 | BRK-07 | Phase 12 | Pending |
-| MIG-01 | Phase 13 | Pending |
-| MIG-02 | Phase 13 | Pending |
-| MIG-03 | Phase 13 | Pending |
-| MIG-04 | Phase 13 | Pending |
-| MIG-05 | Phase 13 | Pending |
-| MIG-06 | Phase 13 | Pending |
-| MIG-07 | Phase 13 | Pending |
+| MIG-01 | Phase 13 | Complete |
+| MIG-02 | Phase 13 | Complete |
+| MIG-03 | Phase 13 | Complete |
+| MIG-04 | Phase 13 | Complete |
+| MIG-05 | Phase 13 | Complete |
+| MIG-06 | Phase 13 | Complete |
+| MIG-07 | Phase 13 | Complete |
 | ORG-01 | Phase 14 | Pending |
 | ORG-02 | Phase 14 | Pending |
 | ORG-03 | Phase 14 | Pending |

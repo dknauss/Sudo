@@ -3,22 +3,23 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: milestone
 status: completed
-last_updated: "2026-06-16T00:12:24.350Z"
-last_activity: 2026-06-15 — Phase 11 executed; two-tier connector matcher shipped (commits b1ad0bb, 8970c23, dba8672). 793 unit tests passing, PHPStan L6 clean. SUMMARY at .planning/phases/11-connectors-registry-aware-matcher/11-01-SUMMARY.md.
+last_updated: "2026-06-17T07:27:10.051Z"
+last_activity: 2026-06-17 — Phases 12-13 landed on PR #86 (gsd/phase-13-migration-safety-audit). Phase 13 integration suite proven green against a real DB (single-site 198/0, multisite 198/0); upgrade_4_0_0 migration + clear-on-detection notice shipped. WP_SUDO_VERSION + Stable tag bumped to 4.0.0 (migration is version-gated). 810 unit tests, PHPStan L6 + Psalm clean. PR #86 open as draft; CI matrix turning green. Next: Phase 14.
 progress:
   total_phases: 8
-  completed_phases: 4
-  total_plans: 10
-  completed_plans: 10
+  completed_phases: 5
+  total_plans: 16
+  completed_plans: 16
 ---
 
 ## Current Position
 
-Phase: 11 — Connectors Registry-Aware Matcher
-Plan: 11-01-PLAN.md (1 plan, 1 wave, 3 TDD tasks) — EXECUTED
-Status: PHASE COMPLETE — all CONN-01…CONN-06 requirements fulfilled. Advance to Phase 12.
+Phase: 13 — Migration Safety and Governance Audit
+Plan: 13-01/02/03 — ALL EXECUTED (MIG-01 … MIG-07)
+Status: COMPLETE (verification: integration suite GREEN on real DB; was human_needed, now satisfied). On PR #86, pending merge. GSD phase-complete (roadmap/REQUIREMENTS) not yet run — holding until PR #86 merges.
+Open threads: PR #86 still draft; docs/current-metrics.md refresh handed to debugger; Phase 14 (WordPress.org Readiness) is next.
 Resume file: None
-Last activity: 2026-06-15 — Phase 11 executed; two-tier connector matcher shipped (commits b1ad0bb, 8970c23, dba8672). 793 unit tests passing, PHPStan L6 clean. SUMMARY at .planning/phases/11-connectors-registry-aware-matcher/11-01-SUMMARY.md.
+Last activity: 2026-06-17 — CI on PR #86 surfaced 5 integration failures; root-caused to a missing version bump (WP_SUDO_VERSION was 3.4.0, so upgrade_4_0_0 never fired) + test-design bugs (WP_SUDO_RECOVERY_MODE constant leaking process-wide via the map_meta_cap mapper; activation-hook basename). Fixed: version bump to 4.0.0 (2fdb9b2), Psalm baseline refresh (11dd67c), integration test fixes (reviewer-approved, real-DB verified), readme Stable tag → 4.0.0 (PCP stable_tag_mismatch). 810 unit tests, PHPStan L6 + Psalm clean.
 
 ## Project Reference
 
@@ -30,7 +31,7 @@ Canonical current facts:
 - `CHANGELOG.md` — shipped release contents.
 
 **Core value:** Every destructive admin action requires proof the person at the keyboard is still the authenticated user.
-**Current focus:** Milestone v4.0.0 — Phase 11 (Connectors Registry-Aware Matcher). Design review required before TDD.
+**Current focus:** Milestone v4.0.0 — Phase 13 complete and green on PR #86 (pending merge). Next: Phase 14 (WordPress.org Readiness).
 
 ## Active Priorities (v4.0.0 milestone)
 
@@ -60,6 +61,21 @@ Phases 13, 14, and 15 can run concurrently after Phase 12 completes.
 - Current test and size counts are centralized in `../docs/current-metrics.md`.
 - WordPress 7.0 GA shipped May 20, 2026; package metadata says `Tested up to: 7.0`.
 - This plugin is not currently published to the WordPress.org plugin repository.
+
+## Key Decisions (Phase 13-03, 2026-06-17)
+
+- WP_SUDO_RECOVERY_MODE PHP constant cannot be undefined in integration tests; tests define once as true and use manage_options scope (subscriber is denied even with constant active) to prove no other break-glass exists.
+- ReflectionProperty used to read private static $compat_option_cleared in clear-on-detection test per suite pattern; Admin::reset_cache() resets flag before arrange.
+- Integration test environment (MySQL + WP test suite) not available in this session; files are RED-capable and syntax-verified; execution deferred to CI or manual provisioning.
+- Pre-commit reviewer subagent could not be spawned (agent lacks Agent tool); manual quality gate verification substituted.
+
+## Key Decisions (Phase 13-01, 2026-06-17)
+
+- Static bool flag (not transient) for admin_init→admin_notices same-request signaling in compat mode cleanup.
+- do_action('wp_sudo_inert_governance_mode_detected') replaces _doing_it_wrong() for governance-mode detection signal.
+- Cleanup broadened: any non-false option value triggers delete, not just 'compatibility'.
+- admin_init does NOT fire under WP-CLI/cron; cleanup is admin-HTTP-only; upgrade_4_0_0() covers non-admin contexts.
+- MIG-05 verified clean: no bare manage_options access gate in includes/ except documented break-glass exceptions.
 
 ## Key Decisions Locked (v4.0.0 kickoff, 2026-06-13)
 

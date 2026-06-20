@@ -33,6 +33,10 @@ class UpgraderTest extends TestCase {
 		// maybe_upgrade() primes wp_roles() before running routines so that
 		// capability-based user queries do not fatal on WP 7.0 (null $wp_roles).
 		Functions\when( 'wp_roles' )->justReturn( null );
+		// Baseline stubs for option delete functions called by upgrade_4_0_0().
+		// Tests that need strict assertions override these with Functions\expect().
+		Functions\when( 'delete_option' )->justReturn( true );
+		Functions\when( 'delete_site_option' )->justReturn( true );
 
 		// Preserve any existing wpdb.
 		$this->original_wpdb = isset( $GLOBALS['wpdb'] ) && is_object( $GLOBALS['wpdb'] ) ? $GLOBALS['wpdb'] : null;
@@ -182,12 +186,20 @@ class UpgraderTest extends TestCase {
 		Functions\when( 'get_role' )->justReturn( null );
 		Functions\when( 'dbDelta' )->justReturn( array() );
 
-		Functions\expect( 'delete_option' )
-			->once()
-			->with( 'wp_sudo_role_version' );
+		// upgrade_2_0_0() deletes 'wp_sudo_role_version'; upgrade_4_0_0() also
+		// deletes 'wp_sudo_governance_mode'. Both run when stored is 1.2.1.
+		$deleted = array();
+		Functions\when( 'delete_option' )->alias(
+			function ( string $key ) use ( &$deleted ) {
+				$deleted[] = $key;
+				return true;
+			}
+		);
 
 		$upgrader = new Upgrader();
 		$upgrader->maybe_upgrade();
+
+		$this->assertContains( 'wp_sudo_role_version', $deleted );
 	}
 
 	public function test_200_skips_settings_update_when_no_allowed_roles(): void {
@@ -808,5 +820,98 @@ class UpgraderTest extends TestCase {
 
 		$upgrader = new Upgrader();
 		$upgrader->maybe_upgrade();
+	}
+
+	// ── 4.0.0 migration ─────────────────────────────────────────────
+
+	/**
+	 * UPGRADES map must contain '4.0.0' => 'upgrade_4_0_0' as the last entry
+	 * so ascending version order is preserved.
+	 */
+	public function test_upgrades_map_contains_400_entry_last(): void {
+		$reflection = new \ReflectionClass( Upgrader::class );
+		$upgrades   = $reflection->getConstant( 'UPGRADES' );
+
+		$this->assertIsArray( $upgrades );
+		$this->assertArrayHasKey( '4.0.0', $upgrades );
+		$this->assertSame( 'upgrade_4_0_0', $upgrades['4.0.0'] );
+
+		// '4.0.0' must be the last entry.
+		$last_key = array_key_last( $upgrades );
+		$this->assertSame( '4.0.0', $last_key, "'4.0.0' must be the last entry in UPGRADES to preserve ascending order." );
+	}
+
+	/**
+	 * On single-site, upgrade_4_0_0() must call delete_option('wp_sudo_governance_mode').
+	 */
+	public function test_400_deletes_governance_mode_option_single_site(): void {
+		Functions\when( 'is_multisite' )->justReturn( false );
+
+		$deleted = array();
+		Functions\when( 'delete_option' )->alias(
+			function ( string $key ) use ( &$deleted ) {
+				$deleted[] = $key;
+				return true;
+			}
+		);
+
+		$upgrader = new Upgrader();
+		$method   = new \ReflectionMethod( Upgrader::class, 'upgrade_4_0_0' );
+		@$method->setAccessible( true ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		$method->invoke( $upgrader );
+
+		$this->assertContains( 'wp_sudo_governance_mode', $deleted );
+	}
+
+	/**
+	 * On multisite, upgrade_4_0_0() must call both delete_option AND
+	 * delete_site_option to remove the value from both option stores.
+	 */
+	public function test_400_deletes_governance_mode_from_both_stores_on_multisite(): void {
+		Functions\when( 'is_multisite' )->justReturn( true );
+
+		$deleted      = array();
+		$site_deleted = array();
+
+		Functions\when( 'delete_option' )->alias(
+			function ( string $key ) use ( &$deleted ) {
+				$deleted[] = $key;
+				return true;
+			}
+		);
+
+		Functions\when( 'delete_site_option' )->alias(
+			function ( string $key ) use ( &$site_deleted ) {
+				$site_deleted[] = $key;
+				return true;
+			}
+		);
+
+		$upgrader = new Upgrader();
+		$method   = new \ReflectionMethod( Upgrader::class, 'upgrade_4_0_0' );
+		@$method->setAccessible( true ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		$method->invoke( $upgrader );
+
+		$this->assertContains( 'wp_sudo_governance_mode', $deleted );
+		$this->assertContains( 'wp_sudo_governance_mode', $site_deleted );
+	}
+
+	/**
+	 * Idempotency: deleting an absent option is a no-op. No error should be
+	 * thrown even when the option does not exist (delete_option returns false).
+	 */
+	public function test_400_is_idempotent_when_option_is_absent(): void {
+		Functions\when( 'is_multisite' )->justReturn( false );
+
+		// delete_option returning false (absent option) must not cause an error.
+		Functions\when( 'delete_option' )->justReturn( false );
+
+		$upgrader = new Upgrader();
+		$method   = new \ReflectionMethod( Upgrader::class, 'upgrade_4_0_0' );
+		@$method->setAccessible( true ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		$method->invoke( $upgrader );
+
+		// No exception thrown, no assertion failure — the test passes if execution reaches here.
+		$this->assertTrue( true );
 	}
 }

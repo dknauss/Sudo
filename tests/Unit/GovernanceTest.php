@@ -42,25 +42,17 @@ class GovernanceTest extends TestCase {
 		);
 	}
 
-	public function test_map_governance_meta_cap_compatibility_single_site_maps_to_manage_options(): void {
+	public function test_map_governance_meta_cap_treats_compatibility_as_strict_after_removal(): void {
+		// BRK-02: compatibility mode is removed. A stale 'compatibility' option
+		// value is inert — the mapper falls through to strict, returning the
+		// requested cap itself rather than manage_options / manage_network_options.
 		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( false );
 		Functions\when( 'get_option' )->justReturn( 'compatibility' );
 		Functions\when( 'is_multisite' )->justReturn( false );
 
 		$this->assertSame(
-			array( 'manage_options' ),
+			array( 'manage_wp_sudo' ),
 			wp_sudo_map_governance_meta_cap( array(), 'manage_wp_sudo', 42 )
-		);
-	}
-
-	public function test_map_governance_meta_cap_compatibility_multisite_maps_to_manage_network_options(): void {
-		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( false );
-		Functions\when( 'get_option' )->justReturn( 'compatibility' );
-		Functions\when( 'is_multisite' )->justReturn( true );
-
-		$this->assertSame(
-			array( 'manage_network_options' ),
-			wp_sudo_map_governance_meta_cap( array(), 'view_wp_sudo_activity', 42 )
 		);
 	}
 
@@ -168,47 +160,21 @@ class GovernanceTest extends TestCase {
 	}
 
 	// ----------------------------------------------------------------
-	// wp_sudo_can() — compatibility mode
+	// wp_sudo_can() — stale compatibility option is inert (BRK-02)
 	// ----------------------------------------------------------------
 
 	/**
-	 * Compatibility mode on single-site falls back to manage_options.
+	 * BRK-02: compatibility mode is removed. A stale 'compatibility' option
+	 * value falls through to the strict cap check — wp_sudo_can() delegates to
+	 * user_can() for the requested cap, never the manage_options fallback.
 	 */
-	public function test_sudo_can_compatibility_single_site_checks_manage_options(): void {
+	public function test_sudo_can_treats_compatibility_as_strict_after_removal(): void {
 		Functions\when( 'is_multisite' )->justReturn( false );
 		Functions\when( 'get_option' )->justReturn( 'compatibility' );
 		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( false );
 		Functions\expect( 'user_can' )
 			->once()
-			->with( 42, 'manage_options' )
-			->andReturn( true );
-
-		$this->assertTrue( wp_sudo_can( 'manage_wp_sudo', 42 ) );
-	}
-
-	/**
-	 * Compatibility mode on single-site returns false when manage_options absent.
-	 */
-	public function test_sudo_can_compatibility_single_site_returns_false_without_manage_options(): void {
-		Functions\when( 'is_multisite' )->justReturn( false );
-		Functions\when( 'get_option' )->justReturn( 'compatibility' );
-		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( false );
-		Functions\when( 'user_can' )->justReturn( false );
-
-		$this->assertFalse( wp_sudo_can( 'manage_wp_sudo', 42 ) );
-	}
-
-	/**
-	 * Compatibility mode on multisite falls back to manage_network_options.
-	 */
-	public function test_sudo_can_compatibility_multisite_checks_manage_network_options(): void {
-		Functions\when( 'is_multisite' )->justReturn( true );
-		Functions\when( 'is_super_admin' )->justReturn( false );
-		Functions\when( 'get_option' )->justReturn( 'compatibility' );
-		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( false );
-		Functions\expect( 'user_can' )
-			->once()
-			->with( 42, 'manage_network_options' )
+			->with( 42, 'manage_wp_sudo' )
 			->andReturn( true );
 
 		$this->assertTrue( wp_sudo_can( 'manage_wp_sudo', 42 ) );
@@ -365,24 +331,15 @@ class GovernanceTest extends TestCase {
 	}
 
 	// ----------------------------------------------------------------
-	// sudo_can() deprecated alias
+	// sudo_can() deprecated alias — removed in 4.0.0 (BRK-01)
 	// ----------------------------------------------------------------
 
 	/**
-	 * The deprecated sudo_can() alias delegates to wp_sudo_can() and emits a
-	 * deprecation notice naming the replacement.
+	 * BRK-01: the deprecated sudo_can() alias is hard-removed. The function must
+	 * not exist; calling it would fatal. wp_sudo_can() is the only survivor.
 	 */
-	public function test_deprecated_sudo_can_alias_delegates_and_warns(): void {
-		Functions\when( 'is_multisite' )->justReturn( false );
-		Functions\when( 'get_option' )->justReturn( 'strict' );
-		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( false );
-		Functions\when( 'user_can' )->justReturn( true );
-
-		Functions\expect( '_deprecated_function' )
-			->once()
-			->with( 'sudo_can', '3.3.0', 'wp_sudo_can()' );
-
-		$this->assertTrue( sudo_can( 'manage_wp_sudo', 42 ) );
+	public function test_sudo_can_alias_no_longer_exists(): void {
+		$this->assertFalse( function_exists( 'sudo_can' ) );
 	}
 
 	// ----------------------------------------------------------------

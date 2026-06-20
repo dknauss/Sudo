@@ -3,9 +3,9 @@
  * Plugin Name:       WP Sudo
  * Plugin URI:        https://github.com/dknauss/Sudo
  * Description:       Action-gated reauthentication for WordPress. Dangerous operations require password confirmation before they proceed — regardless of user role.
- * Version:           3.4.0
- * Requires at least: 6.2
- * Requires PHP:      8.0
+ * Version:           4.0.0
+ * Requires at least: 6.4
+ * Requires PHP:      8.2
  * Author:            Dan Knauss
  * Author URI:        https://profiles.wordpress.org/danknauss/
  * License:           GPL-2.0-or-later
@@ -27,7 +27,7 @@ require_once __DIR__ . '/includes/functions-governance.php';
 add_filter( 'map_meta_cap', 'wp_sudo_map_governance_meta_cap', 10, 4 );
 
 // Plugin version.
-define( 'WP_SUDO_VERSION', '3.4.0' );
+define( 'WP_SUDO_VERSION', '4.0.0' );
 
 // Plugin directory path.
 define( 'WP_SUDO_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
