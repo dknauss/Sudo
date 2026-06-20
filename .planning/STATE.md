@@ -2,12 +2,12 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: milestone
-status: completed
-last_updated: "2026-06-17T07:27:10.051Z"
-last_activity: 2026-06-17 — Phases 12-13 landed on PR #86 (gsd/phase-13-migration-safety-audit). Phase 13 integration suite proven green against a real DB (single-site 198/0, multisite 198/0); upgrade_4_0_0 migration + clear-on-detection notice shipped. WP_SUDO_VERSION + Stable tag bumped to 4.0.0 (migration is version-gated). 810 unit tests, PHPStan L6 + Psalm clean. PR #86 open as draft; CI matrix turning green. Next: Phase 14.
+status: verifying
+last_updated: "2026-06-20T01:53:33.844Z"
+last_activity: "2026-06-17 — CI on PR #86 surfaced 5 integration failures; root-caused to a missing version bump (WP_SUDO_VERSION was 3.4.0, so upgrade_4_0_0 never fired) + test-design bugs (WP_SUDO_RECOVERY_MODE constant leaking process-wide via the map_meta_cap mapper; activation-hook basename). Fixed: version bump to 4.0.0 (2fdb9b2), Psalm baseline refresh (11dd67c), integration test fixes (reviewer-approved, real-DB verified), readme Stable tag → 4.0.0 (PCP stable_tag_mismatch). 810 unit tests, PHPStan L6 + Psalm clean."
 progress:
   total_phases: 8
-  completed_phases: 5
+  completed_phases: 6
   total_plans: 16
   completed_plans: 16
 ---
