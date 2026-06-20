@@ -1,6 +1,6 @@
 <?php
 /**
- * Plugin Name:       WP Sudo
+ * Plugin Name:       Sudo
  * Plugin URI:        https://github.com/dknauss/Sudo
  * Description:       Action-gated reauthentication for WordPress. Dangerous operations require password confirmation before they proceed — regardless of user role.
  * Version:           4.0.0
