@@ -46,22 +46,22 @@ class Site_Health {
 	 */
 	public function register_tests( array $tests ): array {
 		$tests['direct']['wp_sudo_mu_plugin'] = array(
-			'label' => __( 'WP Sudo MU-Plugin', 'wp-sudo' ),
+			'label' => __( 'Sudo MU-Plugin', 'wp-sudo' ),
 			'test'  => array( $this, 'test_mu_plugin_status' ),
 		);
 
 		$tests['direct']['wp_sudo_policies'] = array(
-			'label' => __( 'WP Sudo Entry Point Policies', 'wp-sudo' ),
+			'label' => __( 'Sudo Entry Point Policies', 'wp-sudo' ),
 			'test'  => array( $this, 'test_policy_review' ),
 		);
 
 		$tests['direct']['wp_sudo_stale_sessions'] = array(
-			'label' => __( 'WP Sudo Stale Sessions', 'wp-sudo' ),
+			'label' => __( 'Sudo Stale Sessions', 'wp-sudo' ),
 			'test'  => array( $this, 'test_stale_sessions' ),
 		);
 
 		$tests['direct']['wp_sudo_gated_action_integrity'] = array(
-			'label' => __( 'WP Sudo Gated Action Integrity', 'wp-sudo' ),
+			'label' => __( 'Sudo Gated Action Integrity', 'wp-sudo' ),
 			'test'  => array( $this, 'test_gated_action_integrity' ),
 		);
 
@@ -81,25 +81,25 @@ class Site_Health {
 
 		if ( $mu_installed ) {
 			return array(
-				'label'       => __( 'WP Sudo MU-Plugin is installed', 'wp-sudo' ),
+				'label'       => __( 'Sudo MU-Plugin is installed', 'wp-sudo' ),
 				'status'      => 'good',
 				'badge'       => array(
 					'label' => __( 'Security', 'wp-sudo' ),
 					'color' => 'blue',
 				),
-				'description' => '<p>' . __( 'The WP Sudo MU-Plugin is installed, ensuring gate hooks are registered before any regular plugin loads.', 'wp-sudo' ) . '</p>',
+				'description' => '<p>' . __( 'The Sudo MU-Plugin is installed, ensuring gate hooks are registered before any regular plugin loads.', 'wp-sudo' ) . '</p>',
 				'test'        => 'wp_sudo_mu_plugin',
 			);
 		}
 
 		return array(
-			'label'       => __( 'WP Sudo MU-Plugin is not installed', 'wp-sudo' ),
+			'label'       => __( 'Sudo MU-Plugin is not installed', 'wp-sudo' ),
 			'status'      => 'recommended',
 			'badge'       => array(
 				'label' => __( 'Security', 'wp-sudo' ),
 				'color' => 'orange',
 			),
-			'description' => '<p>' . __( 'The optional WP Sudo MU-Plugin is not installed. While the plugin works without it, the MU-Plugin ensures gate hooks are registered before any regular plugin can interfere.', 'wp-sudo' ) . '</p>',
+			'description' => '<p>' . __( 'The optional Sudo MU-Plugin is not installed. While the plugin works without it, the MU-Plugin ensures gate hooks are registered before any regular plugin can interfere.', 'wp-sudo' ) . '</p>',
 			'actions'     => '<p>' . sprintf(
 				/* translators: %s: URL to the Sudo settings page */
 				__( 'Install the MU-Plugin with one click from <a href="%s">Settings &rarr; Sudo</a>.', 'wp-sudo' ),
@@ -149,7 +149,7 @@ class Site_Health {
 
 		if ( empty( $unrestricted ) ) {
 			return array(
-				'label'       => __( 'All WP Sudo entry point policies are secure', 'wp-sudo' ),
+				'label'       => __( 'All Sudo entry point policies are secure', 'wp-sudo' ),
 				'status'      => 'good',
 				'badge'       => array(
 					'label' => __( 'Security', 'wp-sudo' ),
@@ -161,7 +161,7 @@ class Site_Health {
 		}
 
 		return array(
-			'label'       => __( 'Some WP Sudo entry point policies are unrestricted', 'wp-sudo' ),
+			'label'       => __( 'Some Sudo entry point policies are unrestricted', 'wp-sudo' ),
 			'status'      => 'recommended',
 			'badge'       => array(
 				'label' => __( 'Security', 'wp-sudo' ),
@@ -192,19 +192,19 @@ class Site_Health {
 
 		if ( empty( $missing ) ) {
 			return array(
-				'label'       => __( 'All built-in WP Sudo gated actions are registered', 'wp-sudo' ),
+				'label'       => __( 'All built-in Sudo gated actions are registered', 'wp-sudo' ),
 				'status'      => 'good',
 				'badge'       => array(
 					'label' => __( 'Security', 'wp-sudo' ),
 					'color' => 'blue',
 				),
-				'description' => '<p>' . __( 'The filtered gated action registry still includes the built-in WP Sudo protection set.', 'wp-sudo' ) . '</p>',
+				'description' => '<p>' . __( 'The filtered gated action registry still includes the built-in Sudo protection set.', 'wp-sudo' ) . '</p>',
 				'test'        => 'wp_sudo_gated_action_integrity',
 			);
 		}
 
 		return array(
-			'label'       => __( 'Some built-in WP Sudo gated actions are not registered', 'wp-sudo' ),
+			'label'       => __( 'Some built-in Sudo gated actions are not registered', 'wp-sudo' ),
 			'status'      => 'recommended',
 			'badge'       => array(
 				'label' => __( 'Security', 'wp-sudo' ),
@@ -233,7 +233,7 @@ class Site_Health {
 
 		if ( empty( $stale_users ) ) {
 			return array(
-				'label'       => __( 'No stale WP Sudo sessions found', 'wp-sudo' ),
+				'label'       => __( 'No stale Sudo sessions found', 'wp-sudo' ),
 				'status'      => 'good',
 				'badge'       => array(
 					'label' => __( 'Security', 'wp-sudo' ),
@@ -256,8 +256,8 @@ class Site_Health {
 			'label'       => sprintf(
 				/* translators: %d: number of stale sessions cleaned */
 				_n(
-					'%d stale WP Sudo session cleaned up',
-					'%d stale WP Sudo sessions cleaned up',
+					'%d stale Sudo session cleaned up',
+					'%d stale Sudo sessions cleaned up',
 					$count,
 					'wp-sudo'
 				),

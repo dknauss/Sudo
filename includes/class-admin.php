@@ -1288,7 +1288,7 @@ class Admin {
 		?>
 		<h2><?php esc_html_e( 'Gated Actions', 'wp-sudo' ); ?></h2>
 		<p class="description">
-			<?php esc_html_e( 'The following actions require reauthentication before execution. The surfaces shown (Admin, AJAX, REST) reflect interactive entry points where WordPress provides APIs. WP-CLI, Cron, and XML-RPC Limited mode use WP Sudo\'s built-in function-hook coverage for core rules; custom non-interactive workflows need an explicit integration or a stricter surface policy. Application Password requests are covered when a rule defines REST criteria. WPGraphQL is governed separately at the surface level — when the WPGraphQL policy is Limited, all mutations require an active sudo session regardless of which operation is being performed. Developers can add custom rules via the wp_sudo_gated_actions filter.', 'wp-sudo' ); ?>
+			<?php esc_html_e( 'The following actions require reauthentication before execution. The surfaces shown (Admin, AJAX, REST) reflect interactive entry points where WordPress provides APIs. WP-CLI, Cron, and XML-RPC Limited mode use Sudo\'s built-in function-hook coverage for core rules; custom non-interactive workflows need an explicit integration or a stricter surface policy. Application Password requests are covered when a rule defines REST criteria. WPGraphQL is governed separately at the surface level — when the WPGraphQL policy is Limited, all mutations require an active sudo session regardless of which operation is being performed. Developers can add custom rules via the wp_sudo_gated_actions filter.', 'wp-sudo' ); ?>
 		</p>
 		<table class="widefat striped">
 			<caption class="screen-reader-text"><?php esc_html_e( 'Gated actions requiring reauthentication, grouped by category', 'wp-sudo' ); ?></caption>
@@ -2504,7 +2504,7 @@ class Admin {
 			return;
 		}
 
-		$message = __( 'WP Sudo break-glass recovery mode is active (WP_SUDO_RECOVERY_MODE is defined in wp-config.php). While it is set, any user who holds the manage_options capability — manage_network_options on multisite — regains full Sudo governance access, regardless of role. Remove the constant as soon as normal access is restored — leaving it enabled weakens the governance model.', 'wp-sudo' );
+		$message = __( 'Sudo break-glass recovery mode is active (WP_SUDO_RECOVERY_MODE is defined in wp-config.php). While it is set, any user who holds the manage_options capability — manage_network_options on multisite — regains full Sudo governance access, regardless of role. Remove the constant as soon as normal access is restored — leaving it enabled weakens the governance model.', 'wp-sudo' );
 
 		echo '<div class="notice notice-warning wp-sudo-notice"><p>' . esc_html( $message ) . '</p></div>';
 	}
@@ -2593,7 +2593,7 @@ class Admin {
 			return;
 		}
 
-		$message = __( 'WP Sudo removed a leftover permission-mode setting left over from before version 4.0.0. WP Sudo now always enforces strict, role-based permission checks. No action is needed.', 'wp-sudo' );
+		$message = __( 'Sudo removed a leftover permission-mode setting left over from before version 4.0.0. Sudo now always enforces strict, role-based permission checks. No action is needed.', 'wp-sudo' );
 
 		printf(
 			'<div class="notice notice-success is-dismissible wp-sudo-notice" role="alert"><p>%s</p></div>',

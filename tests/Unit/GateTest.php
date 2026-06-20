@@ -2212,7 +2212,7 @@ class GateTest extends TestCase {
 			->with(
 				\Mockery::on(
 					static function ( $message ) {
-						return is_string( $message ) && str_contains( $message, 'WP-Cron is disabled by WP Sudo policy' );
+						return is_string( $message ) && str_contains( $message, 'WP-Cron is disabled by Sudo policy' );
 					}
 				),
 				'',
@@ -2659,7 +2659,7 @@ class GateTest extends TestCase {
 
 		$this->assertSame( 'plugin.delete', $result['matched_rule_id'] );
 		$this->assertSame( 'allow', $result['decision'] );
-		$this->assertContains( 'REST Application Password policy is Unrestricted, so WP Sudo would allow the matched request.', $result['notes'] );
+		$this->assertContains( 'REST Application Password policy is Unrestricted, so Sudo would allow the matched request.', $result['notes'] );
 	}
 
 	/**
@@ -2783,7 +2783,7 @@ class GateTest extends TestCase {
 		);
 
 		$this->assertSame( 'allow', $result['decision'] );
-		$this->assertContains( 'WP Sudo only gates authenticated users; anonymous requests fall through to WordPress authentication and capability checks first.', $result['notes'] );
+		$this->assertContains( 'Sudo only gates authenticated users; anonymous requests fall through to WordPress authentication and capability checks first.', $result['notes'] );
 	}
 
 	/**

@@ -1,5 +1,17 @@
 # Developer Reference
 
+
+## Naming, Slug, and Repository Identifiers
+
+Sudo intentionally uses a few different names in different contexts:
+
+- **Product and UI name:** Sudo. User-facing admin labels, notices, and diagnostics should use this name.
+- **Plugin file header name:** WP Sudo. The source header keeps this longer WordPress plugin name for plugin metadata and tooling compatibility; do not change it when normalizing UI copy.
+- **Slug, text domain, option/meta prefixes, and hook prefixes:** `wp-sudo` / `wp_sudo`. These are stable identifiers and must not be renamed to match the shorter UI label because doing so would break translations, stored settings, integrations, and existing extension code.
+- **GitHub repository:** `dknauss/Sudo`. Repository URLs should use the renamed GitHub repo, while package/folder identifiers may still intentionally use `wp-sudo`.
+
+When adding or reviewing code, normalize display text toward **Sudo** but leave technical identifiers alone unless a migration explicitly owns that change.
+
 ## Gated Action Rule Structure
 
 Use the `wp_sudo_gated_actions` filter to add custom rules. Each rule defines matching criteria for admin UI (`pagenow`, actions, HTTP method), AJAX (action names), and REST (route patterns, HTTP methods). Custom rules appear in the Gated Actions table on the settings page.
