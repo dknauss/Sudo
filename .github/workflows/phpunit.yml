@@ -160,6 +160,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Phase 13.1 CI-speed trim: keep all five single-site lanes, one
+        # multisite representative (PHP 8.3 / WP 7.0), and the MariaDB lane.
+        # Dropped redundant multisite lanes: PHP 8.2 / WP 6.7, PHP 8.3 / WP
+        # 6.7, and PHP 8.2 / WP 7.0. Multisite-specific tests still run in
+        # the retained latest-combo multisite lane; broader single-site
+        # PHP/WP coverage remains in the five non-multisite lanes.
         include:
           - php: '8.2'
             wp: '6.4'
@@ -171,29 +177,14 @@ jobs:
             multisite: false
             db_label: 'MySQL 8.0'
             db_image: 'public.ecr.aws/docker/library/mysql:8.0'
-          - php: '8.2'
-            wp: '6.7'
-            multisite: true
-            db_label: 'MySQL 8.0'
-            db_image: 'public.ecr.aws/docker/library/mysql:8.0'
           - php: '8.3'
             wp: '6.7'
             multisite: false
             db_label: 'MySQL 8.0'
             db_image: 'public.ecr.aws/docker/library/mysql:8.0'
-          - php: '8.3'
-            wp: '6.7'
-            multisite: true
-            db_label: 'MySQL 8.0'
-            db_image: 'public.ecr.aws/docker/library/mysql:8.0'
           - php: '8.2'
             wp: '7.0'
             multisite: false
-            db_label: 'MySQL 8.0'
-            db_image: 'public.ecr.aws/docker/library/mysql:8.0'
-          - php: '8.2'
-            wp: '7.0'
-            multisite: true
             db_label: 'MySQL 8.0'
             db_image: 'public.ecr.aws/docker/library/mysql:8.0'
           - php: '8.3'
@@ -257,10 +248,22 @@ jobs:
       - name: Install Composer dependencies
         run: composer install --no-interaction --prefer-dist
 
+      - name: Cache WordPress test library
+        uses: actions/cache@v5
+        with:
+          path: |
+            /tmp/wordpress-tests-lib/includes
+            /tmp/wordpress-tests-lib/data
+            /tmp/wordpress
+          key: wp-tests-${{ matrix.wp }}-${{ hashFiles('bin/install-wp-tests.sh') }}
+          restore-keys: wp-tests-${{ matrix.wp }}-
+
       - name: Install WordPress test suite
         env:
           WP_SUDO_FORCE_DROP_DB: '1'
-        run: bash bin/install-wp-tests.sh wordpress_test root root 127.0.0.1 ${{ matrix.wp }}
+        run: |
+          rm -f /tmp/wordpress-tests-lib/wp-tests-config.php
+          bash bin/install-wp-tests.sh wordpress_test root root 127.0.0.1 ${{ matrix.wp }}
 
       - name: Run integration tests
         run: composer test:integration

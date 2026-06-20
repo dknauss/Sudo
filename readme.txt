@@ -9,7 +9,7 @@ Stable tag:        4.0.0
 License:           GPL-2.0-or-later
 License URI:       https://spdx.org/licenses/GPL-2.0-or-later.html
 
-WordPress security plugins guard the door. Sudo governs what can happen inside the house. It helps site owners define, monitor, and audit the administrative attack surfaces where high-risk actions happen.
+Security plugins guard the door. Sudo governs what happens inside by requiring reauthentication for dangerous admin actions.
 
 == Description ==
 
@@ -175,26 +175,19 @@ Architecture: a single SPL autoloader maps the WP_Sudo\* namespace to includes/c
 
 Testing: the suite is split into two tiers. Unit tests use Brain\Monkey to mock WordPress functions and run in ~0.4s. Integration tests run against real WordPress + MySQL and cover full reauth flows, AJAX and REST gating, Two Factor interaction, multisite isolation, uninstall cleanup, and all audit hooks. Current suite counts are maintained in the GitHub repository.
 
-CI: GitHub Actions runs PHPStan level 6 and PHPCS on every push and PR, the full test matrix across PHP 8.1-8.4 and WordPress latest + trunk, and a nightly scheduled run against WordPress trunk.
+CI: GitHub Actions runs PHPStan level 6 and PHPCS on every push and PR, unit tests across PHP 8.2-8.4, integration lanes across WordPress 6.4/6.7/7.0, and scheduled compatibility sweeps for supported WordPress minors.
 
 Extensibility: the action registry is filterable via wp_sudo_gated_actions. Audit hooks cover session lifecycle, gated actions, policy decisions, preset application, and lockouts. See the GitHub repository for hook reference, CONTRIBUTING.md, and the full developer documentation.
 
 == Screenshots ==
 
 1. Challenge page — reauthentication interstitial with password field.
-   ![Challenge page](https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-1.png)
 2. Settings tab — policy presets, session settings, and active sudo timer.
-   ![Settings tab](https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-2.png)
 3. Gated Actions tab — protected operations with rule IDs and covered surfaces.
-   ![Gated Actions tab](https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-3.png)
 4. Rule Tester tab — evaluate representative request shapes without executing them.
-   ![Rule Tester tab](https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-4.png)
 5. Access tab — manage dedicated Sudo governance capabilities and revoke sessions.
-   ![Access tab](https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-5.png)
 6. Dashboard widget — active sessions, policy summary, and recent privilege-action events.
-   ![Dashboard widget](https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-6.png)
 7. Break-glass recovery notice — visible warning while WP_SUDO_RECOVERY_MODE is active.
-   ![Break-glass recovery notice](https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-7.png)
 
 == Changelog ==
 

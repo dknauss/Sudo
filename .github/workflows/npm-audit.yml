@@ -1,0 +1,68 @@
+name: NPM Security Audit
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - package.json
+      - package-lock.json
+      - .github/workflows/npm-audit.yml
+  push:
+    branches: [main]
+    paths:
+      - package.json
+      - package-lock.json
+      - .github/workflows/npm-audit.yml
+  schedule:
+    - cron: '17 5 * * 2'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  npm-audit:
+    name: NPM Audit (informational)
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Run npm audit without blocking release gates
+        id: audit
+        run: |
+          set +e
+          npm audit --audit-level=moderate --json > npm-audit.json
+          status=$?
+          set -e
+
+          node <<'NODE'
+          const fs = require('fs');
+          const audit = JSON.parse(fs.readFileSync('npm-audit.json', 'utf8'));
+          const vulns = audit.metadata && audit.metadata.vulnerabilities ? audit.metadata.vulnerabilities : {};
+          const total = Number(vulns.total || 0);
+          const summary = `npm audit found ${total} vulnerability record(s): critical=${vulns.critical || 0}, high=${vulns.high || 0}, moderate=${vulns.moderate || 0}, low=${vulns.low || 0}, info=${vulns.info || 0}.`;
+          fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, `### NPM audit (informational)\n\n${summary}\n\nThis project has no production npm dependencies; current findings are development-tooling exposure unless package metadata changes.\n`);
+          if (total > 0) {
+            console.log(`::warning::${summary}`);
+          } else {
+            console.log(summary);
+          }
+          NODE
+
+          echo "audit_exit_status=$status" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: Upload npm audit JSON
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: npm-audit-results
+          path: npm-audit.json
+          if-no-files-found: ignore

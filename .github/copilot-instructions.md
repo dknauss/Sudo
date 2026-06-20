@@ -9,7 +9,7 @@ Use this file as a quick execution guide for this repository. If instructions co
 ## Repository Snapshot
 
 - Project: WP Sudo (WordPress plugin)
-- Runtime requirements: WordPress 6.2+, PHP 8.0+
+- Runtime requirements: WordPress 6.4+, PHP 8.2+
 - Plugin version source of truth: `wp-sudo.php` (`Version` header + `WP_SUDO_VERSION`)
 - Architecture center: `includes/class-gate.php`
 - Built-in gated actions: 32 rules (single-site + multisite)

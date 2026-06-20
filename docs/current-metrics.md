@@ -2,7 +2,7 @@
 
 This file is the single source of truth for current repository counts.
 
-Last verified: 2026-06-15
+Last verified: 2026-06-20
 Verification environment: local workspace, PHP 8.x
 
 ## Test Metrics
@@ -20,10 +20,10 @@ Verification environment: local workspace, PHP 8.x
 | Metric | Value | Verification |
 |---|---:|---|
 | Production PHP lines (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 15,008 | `find ./includes ./wp-sudo.php ./uninstall.php ./mu-plugin ./bridges -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
-| Tests PHP lines (`tests/`) | 29,596 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
-| Production + tests PHP lines | 44,604 | sum of the two rows above |
-| Test-to-production ratio | 1.97:1 | `29596 / 15008` |
-| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`) | 44,867 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Tests PHP lines (`tests/`) | 29,597 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Production + tests PHP lines | 44,605 | sum of the two rows above |
+| Test-to-production ratio | 1.97:1 | `29597 / 15008` |
+| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`) | 44,868 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
 
 ## Architectural Facts
 
@@ -41,7 +41,7 @@ the count in prose without a verification command.
 | Audit hooks | 17 | `python3 - <<'PY'\nimport pathlib, re\nhooks = set()\nfor path in pathlib.Path('includes').glob('class-*.php'):\n    hooks.update(re.findall(r\"do_action\\(\\s*'([^']+)'\", path.read_text()))\nhooks.discard('wp_sudo_render_two_factor_fields')\nprint(len(hooks))\nPY` | v3.4.0 |
 | Settings fields (base) | 6 | 1 numeric (duration) + 1 preset chooser + 4 policy dropdowns (REST, CLI, Cron, XML-RPC) | v3.0.0 |
 | Settings fields (with WPGraphQL) | 7 | +1 conditional WPGraphQL policy dropdown | v3.0.0 |
-| E2E tests | 61 | `npx playwright test --config tests/e2e/playwright.config.ts --list` | v3.2.0 |
+| E2E tests | 63 | `npx playwright test --config tests/e2e/playwright.config.ts --list` | v4.0.0 |
 
 ### Files that reference these counts
 
@@ -59,19 +59,19 @@ value across these known consumers:
 
 Source: `.github/workflows/phpunit.yml`, `.github/workflows/e2e.yml`, `.github/workflows/e2e-nginx.yml`, `.github/workflows/e2e-sqlite.yml`, `.github/workflows/compat-wordpress-minors.yml`
 
-- Unit test matrix: PHP 8.0, 8.1, 8.2, 8.3, 8.4
-- Integration matrix: PHP 8.0, 8.1, 8.3; WordPress 6.2, 6.7, 7.0; MySQL 8.0 plus one MariaDB LTS lane; multisite true/false on the main MySQL lanes
-- Scheduled compat sweep: PHP 8.1 on WordPress 6.3, 6.4, 6.5, and 6.6, plus MariaDB LTS overlap lanes on WordPress 6.4 and 6.5
+- Unit test matrix: PHP 8.2, 8.3, 8.4
+- Integration matrix: 7 lanes — PHP 8.2/8.3 across WordPress 6.4, 6.7, and 7.0; five single-site MySQL 8.0 lanes, one multisite MySQL 8.0 representative lane (PHP 8.3 / WP 7.0), and one MariaDB LTS lane
+- Scheduled compat sweep: PHP 8.2 on WordPress 6.4, 6.5, and 6.6, plus MariaDB LTS overlap lanes on WordPress 6.4 and 6.5
 - Browser stack smoke workflows: Apache + MariaDB (`wp-env`), nginx + php-fpm + MariaDB, and Playground SQLite
 
 ## Verification Notes
 
-- `composer test:unit` passed on 2026-06-17 (`810 tests`, `2307 assertions`).
-- `composer lint` passed on 2026-06-17.
-- `composer analyse` passed on 2026-06-17 (PHPStan L6 `[OK] No errors`; Psalm `No errors found!`, 95.8% type coverage, baseline current).
-- `composer verify:metrics` passed on 2026-06-17 (after this update).
+- `composer test:unit` passed on 2026-06-20 (`812 tests`, `2315 assertions`).
+- `composer lint` passed on 2026-06-20.
+- `composer analyse` passed on 2026-06-20 (PHPStan L6 `[OK] No errors`; Psalm `No errors found!`, 95.8% type coverage, baseline current).
+- `composer verify:metrics` passed on 2026-06-20 (after this update).
 - Plugin Check CI passed on 2026-06-14 against a clean production dist; warning triage remains a follow-up.
-- Full integration suite passed on 2026-06-17 against a provisioned WordPress 7.0 (GA) test library (via `bin/install-wp-tests.sh wordpress_test root root 127.0.0.1 7.0`): single-site `198 tests`, `664 assertions`, `11 skipped`, `0 failures`; multisite (`WP_MULTISITE=1`) `198 tests`, `676 assertions`, `4 skipped`, `0 failures`. This is the Phase 13 PR #86 real-DB verification (re-run on GA after the initial RC1 run surfaced and fixed the integration test-design bugs).
+- `composer test:integration` passed locally on 2026-06-20: single-site `199 tests`, `669 assertions`, `11 skipped`, `0 failures`. The latest multisite real-DB verification remains the 2026-06-17 Phase 13 PR #86 run: `198 tests`, `676 assertions`, `4 skipped`, `0 failures`.
 
 ## Update Procedure
 
