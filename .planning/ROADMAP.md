@@ -125,7 +125,11 @@ Plans:
   4. `SECURITY.md` states the vulnerability reporting channel, supported-versions policy, and whether GitHub issues are acceptable for initial security contact
   5. The request-stash redaction status in `docs/ROADMAP.md` correctly reflects what shipped (suffix-based redaction, not pattern-based build), verified against the redaction code in `class-request-stash.php`
 
-**Plans**: TBD
+**Plans**: 4 plans
+  - 14-01 (wave 1, ORG-01/05): readme validator + plugin-header/license/stable-tag compliance
+  - 14-02 (wave 2, depends 01, ORG-03): brand/identity consistency — UI strings → "Sudo", document name/slug/repo divergence
+  - 14-03 (wave 1, ORG-04/06/07): SECURITY.md, request-stash redaction doc reconciliation, WordPress.org submission checklist
+  - 14-04 (wave 3, depends 01, ORG-02): **manual/browser** screenshot capture — gated on Phase 13.1 EXECUTION + browser handoff (autonomous:false)
 
 ### Phase 15: Manual Testing Environment Checklist
 
