@@ -235,4 +235,223 @@
 			}
 		}
 	}
+
+	// --- Access tab: grant / revoke governance capabilities ---
+	//
+	// The grant/revoke/manage buttons POST to admin-ajax. Each carries its own
+	// wp_sudo_access data-nonce (NOT wpSudoAdmin.nonce, which is the MU-plugin
+	// nonce). These actions are gated by the Action Registry, so the Gate returns
+	// success:false with data.code === 'sudo_required' (plus a helpful message)
+	// when there is no active sudo session — surfaced verbatim, never bypassed.
+	var accessStrings = ( wpSudoAdmin && wpSudoAdmin.access ) || {};
+
+	/**
+	 * Announce a message to assistive technology (wp.a11y.speak is guarded).
+	 *
+	 * @param {string} msg Message to announce.
+	 */
+	function announce( msg ) {
+		if ( msg && window.wp && window.wp.a11y && window.wp.a11y.speak ) {
+			window.wp.a11y.speak( msg );
+		}
+	}
+
+	/**
+	 * POST an access action and route the outcome.
+	 *
+	 * Surfaces data.message verbatim on both success and ALL error responses,
+	 * so the operator sees the server's actionable guidance: sudo_required
+	 * (reauthenticate and retry), the 409 last-manager block, and the 429
+	 * revoke rate-limit all carry a specific message.
+	 *
+	 * @param {string}   action    AJAX action name.
+	 * @param {string}   nonce     The wp_sudo_access nonce from the element.
+	 * @param {Object}   fields    Extra POST fields (user_id, cap).
+	 * @param {Element}  button    The clicked button (disabled during the request).
+	 * @param {Function} onSuccess Optional DOM update to run on success.
+	 * @param {Element}  resultEl  Optional aria-live element for inline feedback.
+	 */
+	function sendAccessAction( action, nonce, fields, button, onSuccess, resultEl ) {
+		if ( ! wpSudoAdmin || ! wpSudoAdmin.ajaxUrl || ! action ) {
+			return;
+		}
+
+		if ( button ) {
+			button.disabled = true;
+			button.setAttribute( 'aria-busy', 'true' );
+		}
+		if ( resultEl ) {
+			resultEl.textContent = '';
+		}
+
+		var body = new FormData();
+		body.append( 'action', action );
+		body.append( '_nonce', nonce || '' );
+		Object.keys( fields ).forEach( function ( key ) {
+			body.append( key, fields[ key ] );
+		} );
+
+		fetch( wpSudoAdmin.ajaxUrl, {
+			method: 'POST',
+			credentials: 'same-origin',
+			body: body,
+		} )
+			.then( function ( response ) {
+				return response.json();
+			} )
+			.then( function ( result ) {
+				if ( button ) {
+					button.setAttribute( 'aria-busy', 'false' );
+				}
+				var data = result.data || {};
+
+				if ( result.success ) {
+					var smsg = data.message || accessStrings.success || '';
+					if ( resultEl ) {
+						resultEl.textContent = smsg;
+					}
+					announce( smsg );
+					// Re-enable for repeated use BEFORE onSuccess, so the controls
+					// that should not stay active still win: drift-grant/revoke-cap
+					// remove the button, and revoke-session re-disables + relabels.
+					if ( button ) {
+						button.disabled = false;
+					}
+					if ( onSuccess ) {
+						onSuccess();
+					}
+				} else {
+					if ( button ) {
+						button.disabled = false;
+					}
+					var emsg = data.message || strings.genericError || '';
+					if ( resultEl ) {
+						resultEl.textContent = emsg;
+					} else {
+						// eslint-disable-next-line no-alert
+						window.alert( emsg );
+					}
+					announce( emsg );
+				}
+			} )
+			.catch( function () {
+				if ( button ) {
+					button.disabled = false;
+					button.setAttribute( 'aria-busy', 'false' );
+				}
+				var nmsg = strings.networkError || '';
+				if ( resultEl ) {
+					resultEl.textContent = nmsg;
+				} else {
+					// eslint-disable-next-line no-alert
+					window.alert( nmsg );
+				}
+				announce( nmsg );
+			} );
+	}
+
+	// Main "Grant Capability" form.
+	var grantBtn    = document.getElementById( 'wp-sudo-grant-submit' );
+	var grantResult = document.getElementById( 'wp-sudo-grant-result' );
+	if ( grantBtn ) {
+		grantBtn.addEventListener( 'click', function () {
+			var userInput = document.getElementById( 'wp-sudo-grant-user' );
+			var capSelect = document.getElementById( 'wp-sudo-grant-cap' );
+			var userId    = userInput ? parseInt( userInput.value, 10 ) : 0;
+
+			if ( ! userId || userId < 1 ) {
+				var vmsg = accessStrings.invalidUser || '';
+				if ( grantResult ) {
+					grantResult.textContent = vmsg;
+				}
+				announce( vmsg );
+				if ( userInput ) {
+					userInput.focus();
+				}
+				return;
+			}
+
+			sendAccessAction(
+				wpSudoAdmin.grantAction,
+				grantBtn.getAttribute( 'data-nonce' ),
+				{ user_id: userId, cap: capSelect ? capSelect.value : '' },
+				grantBtn,
+				null,
+				grantResult
+			);
+		} );
+	}
+
+	// Delegated handlers for the (re-rendered) grantee/drift table rows.
+	document.addEventListener( 'click', function ( event ) {
+		var target = event.target;
+		if ( ! target || ! target.classList ) {
+			return;
+		}
+
+		// Drift-panel: grant manage_wp_sudo. On success the user no longer
+		// drifts, so remove their row.
+		if ( target.classList.contains( 'wp-sudo-grant-manage' ) ) {
+			var driftRow = target.closest( 'tr' );
+			sendAccessAction(
+				wpSudoAdmin.grantAction,
+				target.getAttribute( 'data-nonce' ),
+				{ user_id: target.getAttribute( 'data-user-id' ), cap: target.getAttribute( 'data-cap' ) },
+				target,
+				function () {
+					if ( driftRow && driftRow.parentNode ) {
+						driftRow.parentNode.removeChild( driftRow );
+					}
+				},
+				null
+			);
+			return;
+		}
+
+		// Revoke a single capability. Remove the cap label + its button; if the
+		// holder has no caps left, remove the whole row.
+		if ( target.classList.contains( 'wp-sudo-revoke-cap' ) ) {
+			var capCell = target.closest( 'td' );
+			var capRow  = target.closest( 'tr' );
+			var capCode = target.previousElementSibling;
+			sendAccessAction(
+				wpSudoAdmin.revokeCapAction,
+				target.getAttribute( 'data-nonce' ),
+				{ user_id: target.getAttribute( 'data-user-id' ), cap: target.getAttribute( 'data-cap' ) },
+				target,
+				function () {
+					if ( capCode && 'CODE' === capCode.tagName ) {
+						capCode.parentNode.removeChild( capCode );
+					}
+					if ( target.parentNode ) {
+						target.parentNode.removeChild( target );
+					}
+					if ( capRow && capCell && ! capCell.querySelector( '.wp-sudo-revoke-cap' ) && capRow.parentNode ) {
+						capRow.parentNode.removeChild( capRow );
+					}
+				},
+				null
+			);
+			return;
+		}
+
+		// Revoke an active session. The session can be re-established, so do not
+		// remove the row — disable and relabel the button.
+		if ( target.classList.contains( 'wp-sudo-revoke-session' ) ) {
+			sendAccessAction(
+				wpSudoAdmin.revokeSessionAction,
+				target.getAttribute( 'data-nonce' ),
+				{ user_id: target.getAttribute( 'data-user-id' ) },
+				target,
+				function () {
+					target.disabled = true;
+					if ( accessStrings.sessionRevoked ) {
+						target.textContent = accessStrings.sessionRevoked;
+					}
+				},
+				null
+			);
+			return;
+		}
+	} );
 } )();

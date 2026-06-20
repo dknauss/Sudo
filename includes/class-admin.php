@@ -977,7 +977,7 @@ class Admin {
 		wp_enqueue_script(
 			'wp-sudo-admin',
 			WP_SUDO_PLUGIN_URL . 'admin/js/wp-sudo-admin.js',
-			array(),
+			array( 'wp-a11y' ),
 			WP_SUDO_VERSION,
 			true
 		);
@@ -986,16 +986,24 @@ class Admin {
 			'wp-sudo-admin',
 			'wpSudoAdmin',
 			array(
-				'ajaxUrl'            => admin_url( 'admin-ajax.php' ),
-				'nonce'              => wp_create_nonce( 'wp_sudo_mu_plugin' ),
-				'installAction'      => self::AJAX_MU_INSTALL,
-				'uninstallAction'    => self::AJAX_MU_UNINSTALL,
-				'presetDescriptions' => self::get_preset_descriptions(),
-				'presetPolicies'     => self::get_preset_policies(),
-				'surfaceKeys'        => self::get_surface_keys(),
-				'strings'            => array(
+				'ajaxUrl'             => admin_url( 'admin-ajax.php' ),
+				'nonce'               => wp_create_nonce( 'wp_sudo_mu_plugin' ),
+				'installAction'       => self::AJAX_MU_INSTALL,
+				'uninstallAction'     => self::AJAX_MU_UNINSTALL,
+				'grantAction'         => self::AJAX_GRANT_CAP,
+				'revokeCapAction'     => self::AJAX_REVOKE_CAP,
+				'revokeSessionAction' => self::AJAX_REVOKE_SESSION,
+				'presetDescriptions'  => self::get_preset_descriptions(),
+				'presetPolicies'      => self::get_preset_policies(),
+				'surfaceKeys'         => self::get_surface_keys(),
+				'strings'             => array(
 					'genericError' => __( 'An error occurred.', 'wp-sudo' ),
 					'networkError' => __( 'A network error occurred. Please try again.', 'wp-sudo' ),
+				),
+				'access'              => array(
+					'success'        => __( 'Done.', 'wp-sudo' ),
+					'invalidUser'    => __( 'Enter a valid user ID.', 'wp-sudo' ),
+					'sessionRevoked' => __( 'Session revoked', 'wp-sudo' ),
 				),
 			)
 		);
