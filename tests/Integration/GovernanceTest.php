@@ -285,7 +285,6 @@ class GovernanceTest extends TestCase {
 
 		// Assert: static flag set (the LOCKED mechanism — NOT a transient; read via ReflectionProperty).
 		$ref = new \ReflectionProperty( Admin::class, 'compat_option_cleared' );
-		$ref->setAccessible( true );
 		$this->assertTrue(
 			$ref->getValue(),
 			'cleanup_inert_governance_mode_option() must set the static $compat_option_cleared flag to true.'

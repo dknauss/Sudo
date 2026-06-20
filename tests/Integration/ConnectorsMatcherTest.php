@@ -254,41 +254,43 @@ class ConnectorsMatcherTest extends TestCase {
 		);
 		$this->assertNotNull( $registered, "Registering connector '{$connector_id}' must succeed." );
 
-		// Reset the matcher cache so it re-reads the now-updated registry.
-		Action_Registry::reset_cache();
+		try {
+			// Reset the matcher cache so it re-reads the now-updated registry.
+			Action_Registry::reset_cache();
 
-		$request = new \WP_REST_Request( 'POST', '/wp/v2/settings' );
-		$request->set_body_params( array( $setting_name => 'secret-value' ) );
+			$request = new \WP_REST_Request( 'POST', '/wp/v2/settings' );
+			$request->set_body_params( array( $setting_name => 'secret-value' ) );
 
-		$rule = $this->gate->match_request( 'rest', $request );
+			$rule = $this->gate->match_request( 'rest', $request );
 
-		$this->assertNotNull(
-			$rule,
-			"Custom connector setting '{$setting_name}' must be gated via the registry tier."
-		);
-		$this->assertSame(
-			'connectors.update_credentials',
-			$rule['id'],
-			'Custom connector credential must match the connectors.update_credentials rule.'
-		);
-
-		// Verify the registry-tier read also prevents the benign form from matching.
-		$benign_request = new \WP_REST_Request( 'POST', '/wp/v2/settings' );
-		$benign_request->set_body_params( array( 'blogname' => 'My Site' ) );
-
-		$benign_rule = $this->gate->match_request( 'rest', $benign_request );
-		if ( null !== $benign_rule ) {
-			$this->assertNotSame(
-				'connectors.update_credentials',
-				$benign_rule['id'],
-				"Benign setting 'blogname' must not match connectors.update_credentials."
+			$this->assertNotNull(
+				$rule,
+				"Custom connector setting '{$setting_name}' must be gated via the registry tier."
 			);
-		} else {
-			$this->assertNull( $benign_rule );
-		}
+			$this->assertSame(
+				'connectors.update_credentials',
+				$rule['id'],
+				'Custom connector credential must match the connectors.update_credentials rule.'
+			);
 
-		// Unregister to avoid polluting subsequent tests.
-		$registry->unregister( $connector_id );
-		Action_Registry::reset_cache();
+			// Verify the registry-tier read also prevents the benign form from matching.
+			$benign_request = new \WP_REST_Request( 'POST', '/wp/v2/settings' );
+			$benign_request->set_body_params( array( 'blogname' => 'My Site' ) );
+
+			$benign_rule = $this->gate->match_request( 'rest', $benign_request );
+			if ( null !== $benign_rule ) {
+				$this->assertNotSame(
+					'connectors.update_credentials',
+					$benign_rule['id'],
+					"Benign setting 'blogname' must not match connectors.update_credentials."
+				);
+			} else {
+				$this->assertNull( $benign_rule );
+			}
+		} finally {
+			// Always unregister to avoid polluting subsequent tests if an assertion fails.
+			$registry->unregister( $connector_id );
+			Action_Registry::reset_cache();
+		}
 	}
 }
