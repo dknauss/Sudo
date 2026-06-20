@@ -291,4 +291,73 @@ class GovernanceTest extends TestCase {
 			'cleanup_inert_governance_mode_option() must set the static $compat_option_cleared flag to true.'
 		);
 	}
+
+	/**
+	 * Drift detection must reflect the RAW stored capability, immune to the
+	 * recovery-mode remap. Regression for the bug where a manage_options-holder
+	 * lacking a stored manage_wp_sudo cap was hidden from their OWN drift list
+	 * under recovery mode: wp_sudo_map_governance_meta_cap() remaps
+	 * manage_wp_sudo -> manage_options for the current user, so has_cap() (the
+	 * old filter) returned true and excluded them. render_drift_detection_panel()
+	 * now filters on $user->allcaps, which the remap does not touch.
+	 *
+	 * This proof MUST be an integration test — the unit WP_User stub has no
+	 * map_meta_cap, so it cannot reproduce the remap.
+	 *
+	 * @runInSeparateProcess
+	 * @preserveGlobalState disabled
+	 */
+	public function test_drift_panel_self_lists_current_user_under_recovery_mode(): void {
+		if ( ! defined( 'WP_SUDO_RECOVERY_MODE' ) ) {
+			define( 'WP_SUDO_RECOVERY_MODE', true );
+		}
+		$this->assertTrue( wp_sudo_is_recovery_mode() );
+
+		// Drifted CURRENT user: holds manage_options, no stored manage_wp_sudo.
+		$drifted = $this->make_admin();
+		$drifted->remove_cap( 'manage_wp_sudo' );
+		if ( is_multisite() ) {
+			$drifted->add_cap( 'manage_network_options' );
+		}
+		wp_set_current_user( $drifted->ID );
+
+		// Genuine holder: stored manage_wp_sudo (must be EXCLUDED from drift).
+		$holder = $this->make_admin();
+		$holder->add_cap( 'manage_wp_sudo' );
+		if ( is_multisite() ) {
+			$holder->add_cap( 'manage_network_options' );
+		}
+
+		// The bug trigger: under recovery mode the current user's has_cap() is
+		// remapped to true even though the cap is not stored on the record.
+		$current = wp_get_current_user();
+		$this->assertTrue(
+			$current->has_cap( 'manage_wp_sudo' ),
+			'Recovery remap makes has_cap() true for the current user (the old filter would hide them).'
+		);
+		$this->assertArrayNotHasKey(
+			'manage_wp_sudo',
+			$current->caps,
+			'But the cap is not stored on the user record.'
+		);
+
+		// Render the drift panel AS the drifted current user.
+		$admin  = new Admin();
+		$method = new \ReflectionMethod( Admin::class, 'render_drift_detection_panel' );
+		@$method->setAccessible( true ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		ob_start();
+		$method->invoke( $admin, 'test-nonce' );
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString(
+			$drifted->user_login,
+			$output,
+			'The drifted current user MUST appear in their own drift list under recovery mode.'
+		);
+		$this->assertStringNotContainsString(
+			$holder->user_login,
+			$output,
+			'A user holding a stored manage_wp_sudo cap MUST be excluded from drift.'
+		);
+	}
 }

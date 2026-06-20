@@ -977,7 +977,7 @@ class Admin {
 		wp_enqueue_script(
 			'wp-sudo-admin',
 			WP_SUDO_PLUGIN_URL . 'admin/js/wp-sudo-admin.js',
-			array(),
+			array( 'wp-a11y' ),
 			WP_SUDO_VERSION,
 			true
 		);
@@ -986,16 +986,24 @@ class Admin {
 			'wp-sudo-admin',
 			'wpSudoAdmin',
 			array(
-				'ajaxUrl'            => admin_url( 'admin-ajax.php' ),
-				'nonce'              => wp_create_nonce( 'wp_sudo_mu_plugin' ),
-				'installAction'      => self::AJAX_MU_INSTALL,
-				'uninstallAction'    => self::AJAX_MU_UNINSTALL,
-				'presetDescriptions' => self::get_preset_descriptions(),
-				'presetPolicies'     => self::get_preset_policies(),
-				'surfaceKeys'        => self::get_surface_keys(),
-				'strings'            => array(
+				'ajaxUrl'             => admin_url( 'admin-ajax.php' ),
+				'nonce'               => wp_create_nonce( 'wp_sudo_mu_plugin' ),
+				'installAction'       => self::AJAX_MU_INSTALL,
+				'uninstallAction'     => self::AJAX_MU_UNINSTALL,
+				'grantAction'         => self::AJAX_GRANT_CAP,
+				'revokeCapAction'     => self::AJAX_REVOKE_CAP,
+				'revokeSessionAction' => self::AJAX_REVOKE_SESSION,
+				'presetDescriptions'  => self::get_preset_descriptions(),
+				'presetPolicies'      => self::get_preset_policies(),
+				'surfaceKeys'         => self::get_surface_keys(),
+				'strings'             => array(
 					'genericError' => __( 'An error occurred.', 'wp-sudo' ),
 					'networkError' => __( 'A network error occurred. Please try again.', 'wp-sudo' ),
+				),
+				'access'              => array(
+					'success'        => __( 'Done.', 'wp-sudo' ),
+					'invalidUser'    => __( 'Enter a valid user ID.', 'wp-sudo' ),
+					'sessionRevoked' => __( 'Session revoked', 'wp-sudo' ),
 				),
 			)
 		);
@@ -1451,7 +1459,16 @@ class Admin {
 		$drift = array_filter(
 			is_array( $options_admins ) ? $options_admins : array(),
 			static function ( \WP_User $user ): bool {
-				return ! $user->has_cap( 'manage_wp_sudo' );
+				// Check the RAW stored capability via allcaps, not has_cap().
+				// has_cap() routes through map_meta_cap, where the break-glass
+				// recovery mapper (wp_sudo_map_governance_meta_cap) rewrites
+				// manage_wp_sudo -> manage_options for the CURRENT user under
+				// recovery mode — which would hide a drifted admin from their own
+				// drift list while another viewer still sees them. allcaps holds
+				// role-derived + add_cap()-granted primitives and is immune to
+				// that remap, so drift reflects true stored governance state
+				// consistently regardless of who is viewing or recovery mode.
+				return empty( $user->allcaps['manage_wp_sudo'] );
 			}
 		);
 

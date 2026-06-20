@@ -43,12 +43,13 @@ define( 'COOKIE_DOMAIN', '' );
 
 if ( ! class_exists( 'WP_User' ) ) {
 	class WP_User {
-		public int    $ID         = 0;
-		public array  $roles      = [];
-		public array  $caps       = [];
-		public string $user_pass  = '';
-		public array  $allcaps    = [];
-		public string $user_login = '';
+		public int    $ID           = 0;
+		public array  $roles        = [];
+		public array  $caps         = [];
+		public string $user_pass    = '';
+		public array  $allcaps      = [];
+		public string $user_login   = '';
+		public string $display_name = '';
 
 		public function __construct( int $id = 0, array $roles = [] ) {
 			$this->ID    = $id;

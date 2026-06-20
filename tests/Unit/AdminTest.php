@@ -3544,6 +3544,72 @@ class AdminTest extends TestCase {
 	}
 
 	// -----------------------------------------------------------------
+	// render_drift_detection_panel()
+	// -----------------------------------------------------------------
+
+	/**
+	 * The drift filter must use the raw stored capability (allcaps), so a
+	 * manage_options-holder WITHOUT a stored manage_wp_sudo primitive is listed
+	 * and a holder (role- or directly-granted) is excluded. The recovery-mode
+	 * remap immunity is proven at the integration level (real map_meta_cap);
+	 * see tests/Integration — the unit WP_User stub has no map_meta_cap.
+	 */
+	public function test_drift_panel_lists_by_raw_stored_capability(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'esc_attr' )->returnArg();
+		Functions\when( 'esc_html_e' )->alias( static function ( $s ) { echo $s; } );
+		Functions\when( 'esc_attr_e' )->alias( static function ( $s ) { echo $s; } );
+		Functions\when( 'is_multisite' )->justReturn( false );
+
+		$drifted        = new \WP_User( 2 );
+		$drifted->display_name = 'Drifted Editor';
+		$drifted->user_login   = 'drifted';
+		$drifted->allcaps      = array( 'manage_options' => true ); // no manage_wp_sudo
+
+		$holder         = new \WP_User( 3 );
+		$holder->display_name  = 'Real Manager';
+		$holder->user_login    = 'manager';
+		$holder->allcaps       = array( 'manage_options' => true, 'manage_wp_sudo' => true );
+
+		Functions\when( 'get_users' )->justReturn( array( $drifted, $holder ) );
+
+		$admin = new Admin();
+		ob_start();
+		$method = new \ReflectionMethod( Admin::class, 'render_drift_detection_panel' );
+		@$method->setAccessible( true ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		$method->invoke( $admin, 'test-nonce' );
+		$output = ob_get_clean();
+
+		// Drifted user (manage_options, no stored manage_wp_sudo) is listed.
+		$this->assertStringContainsString( 'Drifted Editor', $output );
+		$this->assertStringContainsString( 'drifted', $output );
+		// Holder (stored manage_wp_sudo) is excluded.
+		$this->assertStringNotContainsString( 'Real Manager', $output );
+	}
+
+	public function test_drift_panel_renders_nothing_when_no_drift(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'esc_attr' )->returnArg();
+		Functions\when( 'esc_html_e' )->alias( static function ( $s ) { echo $s; } );
+		Functions\when( 'is_multisite' )->justReturn( false );
+
+		$holder            = new \WP_User( 3 );
+		$holder->allcaps   = array( 'manage_options' => true, 'manage_wp_sudo' => true );
+		Functions\when( 'get_users' )->justReturn( array( $holder ) );
+
+		$admin = new Admin();
+		ob_start();
+		$method = new \ReflectionMethod( Admin::class, 'render_drift_detection_panel' );
+		@$method->setAccessible( true ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		$method->invoke( $admin, 'test-nonce' );
+		$output = ob_get_clean();
+
+		$this->assertSame( '', $output );
+	}
+
+	// -----------------------------------------------------------------
 	// render_recovery_mode_notice() / maybe_record_recovery_mode_usage()
 	// -----------------------------------------------------------------
 
