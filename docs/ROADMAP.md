@@ -88,7 +88,7 @@ Remaining Connectors tasks:
 
 ~~**Phase B: Apache + MariaDB CI job**~~ ✅ Done — covered by the named `wp-env` Playwright lane.
 
-- **Phase C: Manual testing checklist for managed hosts** — extend `tests/MANUAL-TESTING.md` with an environment checklist section. Before each release, run the manual guide on at least one Apache environment, one managed WordPress host (Pressable, WP Engine, or Cloudways), and the minimum supported WordPress version (6.2).
+- ~~**Phase C: Manual testing checklist for managed hosts**~~ ✅ Substantially delivered by external PR [#98](https://github.com/dknauss/Sudo/pull/98) (merged 2026-06-21): `tests/MANUAL-TESTING.md` now has a "Release Environment Matrix Checklist" covering an Apache lane, a managed-WordPress-host lane (Pressable / WP Engine / Cloudways), and a minimum-supported-WordPress lane, with per-lane core-smoke section refs and the WP floor sourced from `docs/release-status.md` (not hardcoded). Maps to GSD Phase 15 (ENV-01…03). Remaining: run the matrix at each release.
 
 - **Phase D: Scenario blueprints for manual review** — Grow the staged-state Playground blueprints (`blueprint-recovery-mode.json`, `blueprint-user-switching.json`) only where the state is hard to reproduce by hand *and* review is visual/UX rather than behavioral (behavioral cases stay in the unit/integration/Playwright suites). Candidates, in priority order:
   - **Lockout state** — pre-seed failed attempts so the challenge page loads already locked-out with a live countdown. Hard to stage manually (needs 5 rapid failures); the countdown UI is the thing under review.
@@ -108,7 +108,7 @@ Remaining Connectors tasks:
 
 - **Gutenberg block editor integration** — Detect block editor context, queue reauthentication via `@wordpress/notices` snackbar instead of page redirect. Natural trigger for Playwright E2E tests.
 - **Network policy hierarchy for multisite** — Super admins set minimum session duration and maximum entry-point policies; site admins can only tighten.
-- **Core Trac alignment: privileged-action confirmation + Multisite terminology** — Map Core Trac [#20140](https://core.trac.wordpress.org/ticket/20140), [#37593](https://core.trac.wordpress.org/ticket/37593), and [#39174](https://core.trac.wordpress.org/ticket/39174) to Sudo's product language and gated-rule catalog. Deliverables: confirm coverage for password/email/user/role changes; identify missing network-level actions; standardize docs on “network administrator” for ordinary Multisite authority, “super admin” only for Core's technical concept, and “break-glass recovery mode” / “sudo session” for Sudo's temporary elevation concepts.
+- **Core Trac alignment: privileged-action confirmation + Multisite terminology** — Map Core Trac [#20140](https://core.trac.wordpress.org/ticket/20140), [#37593](https://core.trac.wordpress.org/ticket/37593), and [#39174](https://core.trac.wordpress.org/ticket/39174) to Sudo's product language and gated-rule catalog. Deliverables: confirm coverage for password/email/user/role changes; identify missing network-level actions; standardize docs on “network administrator” for ordinary Multisite authority, “super admin” only for Core's technical concept, and “break-glass recovery mode” / “sudo session” for Sudo's temporary elevation concepts. **Progress (2026-06-21, external PRs):** [#97](https://github.com/dknauss/Sudo/pull/97) standardized the docs on “break-glass recovery mode” and added explicit disambiguation from core's `WP_Recovery_Mode` (FAQ, security-model, readme.md, readme.txt); [#96](https://github.com/dknauss/Sudo/pull/96) renamed the dashboard event label Recovery→Break-glass to match. Remaining: the “network administrator” vs “super admin” terminology pass and the network-level gated-action coverage review.
 - **Session-store architecture follow-up** — Evaluate and likely implement a dedicated sudo-session table, with the current recommendation favoring an authoritative table plus usermeta shadow writes. See [`docs/session-store-evaluation.md`](session-store-evaluation.md).
 - ~~**Internal admin governance hardening**~~ ✅ Shipped in 3.2.0. Dedicated `manage_wp_sudo`, `view_wp_sudo_activity`, `export_wp_sudo_activity`, and `revoke_wp_sudo_sessions` capabilities replace broad `manage_options` defaults. See [`docs/archive/internal-admin-governance-spec.md`](archive/internal-admin-governance-spec.md) for the archived design spec.
 - **Deprecate and remove `compatibility` governance mode** — The `wp_sudo_governance_mode = 'compatibility'` DB option is a permanent security regression path: it lets any `manage_options` holder administer Sudo settings, undoing the governance model. `WP_SUDO_RECOVERY_MODE` (requires filesystem access) is the intended break-glass — now hardened (role-gated, with notice + audit event; see below). Plan: fire `_doing_it_wrong()` + persistent admin notice when compatibility mode is active in the next minor release; remove the option and the fallback branch in the next major.
@@ -694,13 +694,13 @@ The Playwright workflow already runs against the default `wp-env` Docker stack,
 which is Apache + MariaDB. That lane is now named explicitly in CI so it is
 visible as an intentional compatibility signal rather than an accidental default.
 
-**Phase C: Manual testing matrix (low effort, recurring)**
+**Phase C: Manual testing matrix (low effort, recurring)** — ✅ checklist section added by external PR [#98](https://github.com/dknauss/Sudo/pull/98) (merged 2026-06-21); the recurring per-release runs remain.
 
-Extend `tests/MANUAL-TESTING.md` with an environment checklist section. Before each
+`tests/MANUAL-TESTING.md` now has a "Release Environment Matrix Checklist". Before each
 release, run the manual guide on at least:
 - One Apache environment (DDEV, MAMP, or a staging host)
 - One managed WordPress host (Pressable, WP Engine, or Cloudways free trial)
-- The minimum supported WordPress version (currently 6.2)
+- The minimum supported WordPress version (the floor in `docs/release-status.md`; 6.4 as of v4.0.0)
 
 **Phase D: Docker-based local testing (medium effort)** ➜ partially completed
 

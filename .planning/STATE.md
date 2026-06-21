@@ -15,9 +15,9 @@ progress:
 ## Current Position
 
 Phase: 14 — WordPress.org Readiness (ACTIVE, in flight)
-Branch: docs/wordpress-org-readiness (1 commit ahead of main, also on origin)
+Branch: docs/wordpress-org-readiness (several local commits ahead of main: 14-03 docs, scripted screenshot capture + .mcp.json, lies-log #25; synced with origin/main 2026-06-21 — NOT yet pushed since this session's work)
 Done & merged to main: Phase 11 (Connectors matcher, #86), Phase 12 (breaking changes/floor bump, #86), Phase 13 (migration safety, #86/#89), Phase 13.1 (Access-tab UX + CI speed, #88/#95). main reads version 4.0.0 (NOT yet tagged).
-Open threads: Phase 14 (ORG-01…07) in progress — **14-03 COMPLETE** (ORG-04/06/07: SECURITY.md, redaction-status reconcile, wporg-submission-checklist.md); 14-01 (readme/header, reviewer-gated) and 14-02 (brand strings, reviewer-gated) NOT started; 14-04 (screenshots) browser-blocked. Phase 15 (ENV-01…03) pending; tag v4.0.0 after 14+15 land.
+Open threads: Phase 14 (ORG-01…07) in progress — **14-03 COMPLETE** (ORG-04/06/07: SECURITY.md, redaction-status reconcile, wporg-submission-checklist.md); 14-01 (readme/header, reviewer-gated) and 14-02 (brand strings, reviewer-gated) NOT started; 14-04 (screenshots) now SCRIPTABLE via `npm run screenshots` (new capture spec — needs wp-env + a visual eyeball, no longer a hard browser-handoff block). Phase 15 (ENV-01…03) **substantially delivered by external PR #98** (manual env matrix). Tag v4.0.0 after 14 closes + Phase 15 verified.
 Resume file: None
 Last activity: 2026-06-21 — Confirmed PR #86 merged (2026-06-20 01:42 UTC). main at 4.0.0, zero open PRs. Pruned three dead local branches; cleared stale 'pending merge' drift in this file and docs/release-status.md.
 
@@ -41,7 +41,7 @@ Phase execution order:
 3. ✅ **Phase 13 — Migration Safety and Governance Audit** (MIG-01 through MIG-07): merged to main (#86/#89).
 3a. ✅ **Phase 13.1 — Access-tab UX polish + CI test-speed**: merged to main (#88/#95).
 4. ▶ **Phase 14 — WordPress.org Readiness** (ORG-01 through ORG-07): ACTIVE on branch docs/wordpress-org-readiness.
-5. ◻ **Phase 15 — Manual Testing Environment Checklist** (ENV-01 through ENV-03): pending; can run concurrently with Phase 14.
+5. ◑ **Phase 15 — Manual Testing Environment Checklist** (ENV-01 through ENV-03): **SUBSTANTIALLY DELIVERED** by external PR #98 (release environment matrix — Apache / managed-host / min-WP lanes — added to `tests/MANUAL-TESTING.md`, references `docs/release-status.md` for the WP floor; merged to main 2026-06-21). Remaining: confirm ENV-01…03 acceptance criteria are met by the merged matrix and close the phase (thin verification pass, not new authoring).
 
 After Phases 14 + 15 land: tag v4.0.0 (verify WP_SUDO_VERSION sync + readme stable tag, re-verify external claims, update docs/release-status.md "Latest tagged release").
 
@@ -66,6 +66,7 @@ After Phases 14 + 15 land: tag v4.0.0 (verify WP_SUDO_VERSION sync + readme stab
 ### Roadmap Evolution
 
 - Phase 13.1 inserted after Phase 13 (2026-06-19): Access-tab UX polish (user picker + plain-English capability labels) + CI test-speed (matrix trim, WP-test-lib cache, E2E shard rebalance). GSD-routes the PR #88 follow-up (merged `6abd333`) and spawned task `task_671a7d54` into one reviewable cleanup phase ahead of Phase 14 (WordPress.org Readiness).
+- External contributions merged to main 2026-06-21 (Nathan / `nathanpixodeo`, all reviewed + approved): **#96** `fix: rename recovery dashboard label` Recovery→Break-glass (closes #68; locally validated 813 tests + lint + PHPStan/Psalm green as CI substitute), **#97** `docs: clarify break-glass recovery terminology` (advances the Core-Trac terminology-alignment roadmap item), **#98** `docs: add manual environment matrix` (**substantially delivers Phase 15 / ENV-01…03**). Admin-merged because fork CI can't be triggered for a first-time contributor without maintainer approval; #96 validated locally instead. These external PRs overlap planned GSD work — reconcile when closing Phase 14/15.
 
 ## Key Decisions (Phase 13-03, 2026-06-17)
 
