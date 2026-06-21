@@ -2,13 +2,17 @@
  * Capture WordPress.org listing screenshots (ORG-02 / Plan 14-04).
  *
  * Deterministic replacement for the manual "browser handoff" screenshot step.
- * Writes .wordpress-org/screenshot-{1..7}.png from the live wp-env dev site,
+ * Writes .wordpress-org/screenshot-{1..9}.png from the live wp-env dev site,
  * reusing the pre-authenticated admin storageState (see global-setup.ts).
  *
- * The seven shots and their order match the readme.txt `== Screenshots ==`
+ * The nine shots and their order match the readme.txt `== Screenshots ==`
  * captions exactly (caption N <-> screenshot-N.png):
- *   1 Challenge page · 2 Settings tab · 3 Gated Actions tab · 4 Rule Tester tab
- *   5 Access tab · 6 Dashboard widget · 7 Break-glass recovery notice
+ *   1 Challenge page · 2 Gated plugin activation · 3 Settings tab · 4 Gated Actions
+ *   5 Rule Tester · 6 Access tab · 7 Dashboard widget · 8 Admin-bar timer
+ *   9 Break-glass recovery notice
+ *
+ * Ordering matters: shots that must run WITHOUT an active sudo session (1 challenge,
+ * 2 gated plugins) come first; shot 8 activates a session for the admin-bar timer.
  *
  * Run:      npm run screenshots          (sets WP_SUDO_CAPTURE=1)
  * Requires: wp-env running (npm run env:start) + Playwright browser installed.
@@ -17,16 +21,18 @@
  * never overwrites the committed screenshot set.
  *
  * Verified surfaces (against live source):
- *   - Challenge page:   admin.php?page=wp-sudo-challenge, card #wp-sudo-challenge-card
- *                       (class-challenge.php PAGE_SLUG = 'wp-sudo-challenge')
- *   - Settings page:    options-general.php?page=wp-sudo-settings (add_options_page,
- *                       class-admin.php:303); tabs settings|actions|tester|access (:1187);
- *                       active tab nav .nav-tab-active (:1221)
- *   - Dashboard widget: #wp_sudo_activity (class-dashboard-widget.php:32)
- *   - Recovery notice:  .wp-sudo-notice rendered by render_recovery_mode_notice()
- *                       (class-admin.php:2509) only while WP_SUDO_RECOVERY_MODE is set
+ *   - Challenge page:    admin.php?page=wp-sudo-challenge, card #wp-sudo-challenge-card
+ *   - Gated activation:  plugins.php, .wp-sudo-disabled span (class-gate.php:2228;
+ *                        filter_plugin_action_links replaces the Activate link)
+ *   - Settings page:     options-general.php?page=wp-sudo-settings (add_options_page,
+ *                        class-admin.php:303); tabs settings|actions|tester|access (:1187);
+ *                        active tab nav .nav-tab-active (:1221)
+ *   - Dashboard widget:  #wp_sudo_activity (class-dashboard-widget.php:32)
+ *   - Admin-bar timer:   #wp-admin-bar-wp-sudo-active (class-admin-bar.php node 'wp-sudo-active')
+ *   - Recovery notice:   .wp-sudo-notice (render_recovery_mode_notice(), class-admin.php:2509)
+ *                        only while WP_SUDO_RECOVERY_MODE is set
  */
-import { test } from '../fixtures/test';
+import { test, activateSudoSession } from '../fixtures/test';
 import { execSync } from 'child_process';
 import { wpEnvRun } from '../fixtures/wp-env';
 import * as path from 'path';
@@ -53,13 +59,20 @@ test.describe( 'WordPress.org listing screenshots (ORG-02)', () => {
 		await page.locator( '#wp-sudo-challenge-card' ).waitFor();
 		await page.screenshot( { path: shot( 1 ), fullPage: true } );
 
-		// 2..5 — Settings → Sudo tabs. The .nav-tab-active anchor only exists on the
+		// 2 — Gated plugin activation. With no active sudo session the gate replaces
+		// inactive plugins' "Activate" link with a reauthentication prompt (.wp-sudo-disabled).
+		// MUST run before shot 8 activates a session.
+		await visitAdminPage( 'plugins.php' );
+		await page.locator( '.wp-sudo-disabled' ).first().waitFor();
+		await page.screenshot( { path: shot( 2 ), fullPage: true } );
+
+		// 3..6 — Settings → Sudo tabs. The .nav-tab-active anchor only exists on the
 		// Sudo settings page, so a wrong/error page can't satisfy the wait.
 		const tabs: Array< [ number, string ] > = [
-			[ 2, 'settings' ],
-			[ 3, 'actions' ],
-			[ 4, 'tester' ],
-			[ 5, 'access' ], // post-Phase-13.1 user-picker + plain-English labels
+			[ 3, 'settings' ],
+			[ 4, 'actions' ],
+			[ 5, 'tester' ],
+			[ 6, 'access' ], // post-Phase-13.1 user-picker + plain-English labels
 		];
 		for ( const [ n, tab ] of tabs ) {
 			await visitAdminPage( 'options-general.php', `page=wp-sudo-settings&tab=${ tab }` );
@@ -67,13 +80,20 @@ test.describe( 'WordPress.org listing screenshots (ORG-02)', () => {
 			await page.screenshot( { path: shot( n ), fullPage: true } );
 		}
 
-		// 6 — Session Activity dashboard widget (cropped to the widget postbox).
+		// 7 — Session Activity dashboard widget (cropped to the widget postbox).
 		await visitAdminPage( 'index.php' );
 		const widget = page.locator( '#wp_sudo_activity' );
 		await widget.scrollIntoViewIfNeeded();
-		await widget.screenshot( { path: shot( 6 ) } );
+		await widget.screenshot( { path: shot( 7 ) } );
 
-		// 7 — Break-glass recovery notice. Toggle WP_SUDO_RECOVERY_MODE on for this one
+		// 8 — Admin-bar live session timer. Activate a sudo session, then the toolbar
+		// shows the countdown node. Clip the top strip so the toolbar is the focus.
+		await activateSudoSession( page );
+		await visitAdminPage( 'index.php' );
+		await page.locator( '#wp-admin-bar-wp-sudo-active' ).waitFor( { state: 'visible' } );
+		await page.screenshot( { path: shot( 8 ), clip: { x: 0, y: 0, width: 1280, height: 150 } } );
+
+		// 9 — Break-glass recovery notice. Toggle WP_SUDO_RECOVERY_MODE on for this one
 		// shot only; the try/finally guarantees it is removed even if the shot fails.
 		try {
 			execSync( `${ CLI } wp config set WP_SUDO_RECOVERY_MODE true --raw`, { stdio: 'ignore' } );
@@ -98,7 +118,7 @@ test.describe( 'WordPress.org listing screenshots (ORG-02)', () => {
 				);
 			}
 			await notice.first().waitFor();
-			await page.screenshot( { path: shot( 7 ), fullPage: true } );
+			await page.screenshot( { path: shot( 9 ), fullPage: true } );
 		} finally {
 			try {
 				execSync( `${ CLI } wp config delete WP_SUDO_RECOVERY_MODE`, { stdio: 'ignore' } );
