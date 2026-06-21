@@ -28,6 +28,9 @@ tests/e2e/artifacts/
 playwright-report/
 test-results/
 
+# Playwright MCP output (.mcp.json server)
+.playwright-mcp-output/
+
 # wp-env Docker state
 .wp-env/
 
