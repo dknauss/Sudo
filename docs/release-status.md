@@ -13,14 +13,14 @@ This file is the canonical source for **current release state** in this reposito
 
 ## Latest GitHub/tagged release
 
-- **Latest tagged release:** `3.4.0`
-- **Latest git tag observed:** `v3.4.0`
+- **Latest tagged release:** `4.0.0`
+- **Latest git tag observed:** `v4.0.0` (annotated, cut 2026-06-21 at commit `a4c1e67`)
 
 ## Current `main` release target
 
-- **Next planned release:** `4.0.0` — active milestone **v4.0.0 (Pre-Public Hardening Baseline)**. Breaking release (see Unreleased work below). **Merged to `main` but not yet tagged.** PR [#86](https://github.com/dknauss/Sudo/pull/86) merged 2026-06-20 01:42 UTC (commit `a91672f`); Phases 11–13.1 are all on `main`.
-- **Runtime version constant:** `4.0.0` — now on `main` (commit `a91672f`). The bump moved earlier than the original "tag time" plan because the `upgrade_4_0_0()` migration is version-gated (`maybe_upgrade()` only runs it when stored `<` `WP_SUDO_VERSION`), so the constant must be exactly `4.0.0` for the migration to fire. `WP_SUDO_VERSION` is set in `wp-sudo.php` (header + constant), `tests/bootstrap.php`, and `phpstan-bootstrap.php`.
-- **Current package metadata (on `main`):** `readme.txt` stable tag `4.0.0` (bumped to satisfy the Plugin Check `stable_tag_mismatch` rule, which requires Stable tag == header Version); `Requires at least 6.4`, `Requires PHP 8.2`, `Tested up to 7.0`. Note: `Stable tag 4.0.0` is package metadata; the `v4.0.0` git tag is not yet cut (see "Latest tagged release" above — still `3.4.0`).
+- **Latest release:** `4.0.0` — milestone **v4.0.0 (Pre-Public Hardening Baseline)**, **tagged `v4.0.0` 2026-06-21**. Breaking release (see Unreleased/shipped work below). All phases (11, 12, 13, 13.1, 14, 15) merged to `main`; PR [#99](https://github.com/dknauss/Sudo/pull/99) (Phase 14, WordPress.org readiness) merged as `7b7b85a`.
+- **Runtime version constant:** `4.0.0` on `main` and at the `v4.0.0` tag. `WP_SUDO_VERSION` is set in `wp-sudo.php` (header + constant), `tests/bootstrap.php`, and `phpstan-bootstrap.php`; `readme.txt` Stable tag is `4.0.0`. All five in sync.
+- **Current package metadata (on `main`):** `readme.txt` Stable tag `4.0.0` == header Version (no `stable_tag_mismatch`); `Requires at least 6.4`, `Requires PHP 8.2`, `Tested up to 7.0`. WordPress.org listing name: **"Sudo – Admin Action Gating"** (UI brand "Sudo"; slug/text-domain stay `wp-sudo` — lock the slug at submission).
 - **Last archived release checklist:** `docs/archive/release-3.0.0-checklist.md`
 
 ## WordPress.org publication status
