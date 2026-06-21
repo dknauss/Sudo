@@ -19,6 +19,30 @@ wp-env, DDEV, etc.).
 > Use the multisite for network admin rules (section 13), WP-CLI, and
 > app-password `curl` tests.
 
+### Release Environment Matrix Checklist
+
+Before each release, run the core manual smoke set on at least one environment
+in each row below. Confirm the current supported WordPress floor in
+[`docs/release-status.md`](../docs/release-status.md) instead of copying a
+version number into this checklist.
+
+| Environment lane | Example targets | Core smoke set |
+|------------------|-----------------|----------------|
+| Apache stack | DDEV, MAMP, Local, or a staging host using Apache | Sections 1.1, 2.1, 2.9, 4.1, 5.2, 9.1 |
+| Managed WordPress host | Pressable, WP Engine, Cloudways, or equivalent trial/staging site | Sections 1.1, 2.1, 2.9, 9.1, 10.1 |
+| Minimum supported WordPress version | The current floor listed in `docs/release-status.md` | Sections 1.1, 2.1, 2.9, 4.1, 5.2, 9.1 |
+
+- [ ] Apache environment completed; record host/tool, PHP version, database,
+      browser, and any rewrite/auth-header notes.
+- [ ] Managed WordPress host completed; record host, plan/trial type, caching
+      or security features enabled, and any blocked filesystem or mu-plugin
+      operations.
+- [ ] Minimum supported WordPress version completed; record the exact WordPress
+      version from `docs/release-status.md`, PHP version, and whether this run
+      used single-site or multisite.
+- [ ] Any skipped core smoke item has a reason and a follow-up issue or release
+      note entry if it affects release confidence.
+
 ---
 
 ## Prerequisites
