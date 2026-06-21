@@ -437,12 +437,33 @@ These criteria are intentionally narrower than â€œanything security-sensitive.â€
 
 | Action ID | Backing core function(s) or flow |
 |---|---|
+| `core/change-own-password` | profile password change flow and REST self-account updates |
+| `core/change-user-password` | privileged user-edit password change flow and REST user updates |
+| `core/change-own-email` | profile email change flow and REST self-account updates |
+| `core/change-user-email` | privileged user-edit email change flow and REST user updates |
+| `core/create-user` | `wp_insert_user()`, `wpmu_create_user()`, and admin user-creation flows |
+| `core/delete-user` | `wp_delete_user()` |
+| `core/promote-user` | role change to administrator, network-administrator, or super-admin-equivalent authority |
 | `core/activate-plugin` | `activate_plugin()`, plugin activation flows |
 | `core/install-plugin` | plugin upload and installer flows |
 | `core/delete-plugin` | `delete_plugins()` |
-| `core/delete-user` | `wp_delete_user()` |
-| `core/promote-user` | role change to administrator or super-admin equivalent |
 | `core/update-connector-credentials` | `/wp/v2/settings` writes containing `connectors_*_api_key` |
+
+The account-change entries reflect the long-running discussion in
+[Core Trac #20140](https://core.trac.wordpress.org/ticket/20140): the important
+security boundary is not the target user's old password, but recent
+authentication by the actor performing the change. A site owner changing their
+own password, an administrator changing another user's password, and a network
+administrator granting higher privileges are different authorization cases, but
+each benefits from a shared consequential-action identifier.
+
+For Multisite terminology, this proposal follows
+[Core Trac #37593](https://core.trac.wordpress.org/ticket/37593) and
+[#39174](https://core.trac.wordpress.org/ticket/39174): use
+**network administrator** for ordinary network-level authority, reserve
+**super admin** for Core's technical super-admin concept, and treat
+**sudo mode** as temporary reauthentication state rather than a permanent
+role.
 
 ### Why keep it this small
 
