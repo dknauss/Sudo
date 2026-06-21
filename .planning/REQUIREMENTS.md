@@ -76,9 +76,9 @@ Prepares the repo for eventual `.org` submission. The plugin is not yet publishe
 
 ### Manual Testing Environment Checklist
 
-- [ ] **ENV-01**: `tests/MANUAL-TESTING.md` has an environment checklist section listing the environments to verify before each release
-- [ ] **ENV-02**: The checklist requires at least one Apache environment, one managed WordPress host (Pressable / WP Engine / Cloudways), and the new minimum-supported WordPress version (6.4)
-- [ ] **ENV-03**: The checklist captures Connectors-credential manual verification — cookie-auth and Application Password writes to `/wp/v2/settings` with connector credential fields, including `wordpress_api_key`
+- [x] **ENV-01**: `tests/MANUAL-TESTING.md` has an environment checklist section listing the environments to verify before each release
+- [x] **ENV-02**: The checklist requires at least one Apache environment, one managed WordPress host (Pressable / WP Engine / Cloudways), and the new minimum-supported WordPress version (6.4)
+- [x] **ENV-03**: The checklist captures Connectors-credential manual verification — cookie-auth and Application Password writes to `/wp/v2/settings` with connector credential fields, including `wordpress_api_key`
 
 ## Future Requirements
 
@@ -157,9 +157,9 @@ Populated during roadmap creation (2026-06-13). Each requirement maps to exactly
 | ORG-05 | Phase 14 | Pending |
 | ORG-06 | Phase 14 | Pending |
 | ORG-07 | Phase 14 | Pending |
-| ENV-01 | Phase 15 | Pending |
-| ENV-02 | Phase 15 | Pending |
-| ENV-03 | Phase 15 | Pending |
+| ENV-01 | Phase 15 | Complete |
+| ENV-02 | Phase 15 | Complete |
+| ENV-03 | Phase 15 | Complete |
 
 **Coverage:**
 - v1 requirements: 30 total

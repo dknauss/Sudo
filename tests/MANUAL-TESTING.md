@@ -43,6 +43,24 @@ version number into this checklist.
 - [ ] Any skipped core smoke item has a reason and a follow-up issue or release
       note entry if it affects release confidence.
 
+#### Connectors credential gating (manual, WordPress 7.0+)
+
+Verify connector API-key writes to `POST /wp/v2/settings` are gated by the
+registry-aware `connectors.update_credentials` rule. Run on a WordPress 7.0+ site
+with at least one `api_key` connector configured (core ships Akismet, whose key is
+`wordpress_api_key`).
+
+- [ ] **Cookie-auth (browser):** with no active sudo session, attempt to save a
+      connector credential field — both a `connectors_<id>_api_key` setting and the
+      core `wordpress_api_key` — via a cookie-authenticated `POST /wp/v2/settings`
+      (or the connector settings screen). Confirm the write is challenged/blocked.
+- [ ] **Application Password (`curl`):** `POST /wp/v2/settings` with an Application
+      Password and a connector credential field (`wordpress_api_key` and a
+      `connectors_<id>_api_key`). Confirm the REST/App-Password entry-point policy
+      gates or blocks it as configured.
+- [ ] Record the WordPress version, the connector(s) and setting name(s) tested,
+      and the observed allow/gate/block outcome for each.
+
 ---
 
 ## Prerequisites

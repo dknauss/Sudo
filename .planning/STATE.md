@@ -14,12 +14,12 @@ progress:
 
 ## Current Position
 
-Phase: 14 — WordPress.org Readiness (ACTIVE, in flight)
-Branch: docs/wordpress-org-readiness (several local commits ahead of main: 14-03 docs, scripted screenshot capture + .mcp.json, lies-log #25; synced with origin/main 2026-06-21 — NOT yet pushed since this session's work)
-Done & merged to main: Phase 11 (Connectors matcher, #86), Phase 12 (breaking changes/floor bump, #86), Phase 13 (migration safety, #86/#89), Phase 13.1 (Access-tab UX + CI speed, #88/#95). main reads version 4.0.0 (NOT yet tagged).
-Open threads: Phase 14 (ORG-01…07) on branch docs/wordpress-org-readiness — **14-01 COMPLETE** (ORG-01/05: readme title + plugin header set to "Sudo – Admin Action Gating", short desc 130 bytes, stale 3.2.0 subsection removed, version-sync/license asserted; USER NAMING DECISION 2026-06-21 — "Sudo – Admin Action Gating", supersedes both the plan's "Sudo Security" and 14-02's "WP Sudo"; UI brand stays "Sudo", slug/text-domain stay wp-sudo), **14-02 COMPLETE** (ORG-03 brand strings; c10ce12), **14-03 COMPLETE** (ORG-04/06/07). **14-04 COMPLETE** (ORG-02: all 7 `.wordpress-org` screenshots recaptured via reworked `npm run screenshots` spec, matching readme captions 1–7 incl. post-13.1 Access tab + recovery-notice toggle; verified visually + sent to maintainer). **ALL of Phase 14 (ORG-01…07) DONE on the branch.** Phase 15 (ENV-01…03) **substantially delivered by external PR #98**. Submission-time: lock slug to wp-sudo (header derives sudo-admin-action-gating). Next: merge PR #99, then a thin Phase 15 verify, then tag v4.0.0.
+Phase: v4.0.0 milestone — ALL PHASES COMPLETE; tagging in progress
+Branch: main (PR #99 merged as 7b7b85a, 2026-06-21). Working directly on main for release finalization.
+Done & merged to main: Phase 11 (Connectors matcher, #86), Phase 12 (breaking changes/floor bump, #86), Phase 13 (migration safety, #86/#89), Phase 13.1 (Access-tab UX + CI speed, #88/#95), **Phase 14 (WordPress.org Readiness, ORG-01…07, #99)**, **Phase 15 (ENV-01…03)**. main reads version 4.0.0.
+Open threads: **v4.0.0 milestone COMPLETE.** Phase 14 done (naming "Sudo – Admin Action Gating", security/redaction/checklist docs, brand strings, 9 `.wordpress-org` screenshots). Phase 15 done: ENV-01/02 via #98 env matrix; **ENV-03 closed 2026-06-21** (added Connectors-credential manual-verification to MANUAL-TESTING.md — cookie-auth + App Password writes to /wp/v2/settings incl. wordpress_api_key). Remaining: cut the **v4.0.0 git tag** (version constants already 4.0.0; update release-status.md "Latest tagged release" after). Submission-time reminder: lock .org slug to wp-sudo.
 Resume file: None
-Last activity: 2026-06-21 — Confirmed PR #86 merged (2026-06-20 01:42 UTC). main at 4.0.0, zero open PRs. Pruned three dead local branches; cleared stale 'pending merge' drift in this file and docs/release-status.md.
+Last activity: 2026-06-21 — Merged PR #99 (Phase 14) to main as 7b7b85a; verified Phase 15 (closed ENV-03 Connectors manual check). v4.0.0 milestone complete; tagging next.
 
 ## Project Reference
 
