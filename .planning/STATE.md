@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: milestone
-status: verifying
-last_updated: "2026-06-20T01:53:33.844Z"
-last_activity: "2026-06-17 — CI on PR #86 surfaced 5 integration failures; root-caused to a missing version bump (WP_SUDO_VERSION was 3.4.0, so upgrade_4_0_0 never fired) + test-design bugs (WP_SUDO_RECOVERY_MODE constant leaking process-wide via the map_meta_cap mapper; activation-hook basename). Fixed: version bump to 4.0.0 (2fdb9b2), Psalm baseline refresh (11dd67c), integration test fixes (reviewer-approved, real-DB verified), readme Stable tag → 4.0.0 (PCP stable_tag_mismatch). 810 unit tests, PHPStan L6 + Psalm clean."
+status: executing
+last_updated: "2026-06-21"
+last_activity: "2026-06-21 — Confirmed PR #86 merged to main (2026-06-20 01:42 UTC, commit a91672f); Phases 11/12/13/13.1 are all on main and main now reads version 4.0.0 (untagged). No open PRs. Phase 14 (WordPress.org Readiness) is the active in-flight phase on branch docs/wordpress-org-readiness. Housekeeping: pruned dead local branches gsd/phase-13-migration-safety-audit, gsd/plan-13.1-and-14, backup/main-before-sync-20260620-094426; refreshed this file and docs/release-status.md to clear the stale 'pending merge' / 'main reads 3.4.0' drift."
 progress:
   total_phases: 8
   completed_phases: 6
@@ -14,12 +14,12 @@ progress:
 
 ## Current Position
 
-Phase: 13 — Migration Safety and Governance Audit
-Plan: 13-01/02/03 — ALL EXECUTED (MIG-01 … MIG-07)
-Status: COMPLETE (verification: integration suite GREEN on real DB; was human_needed, now satisfied). On PR #86, pending merge. GSD phase-complete (roadmap/REQUIREMENTS) not yet run — holding until PR #86 merges.
-Open threads: PR #86 still draft; docs/current-metrics.md refresh handed to debugger; Phase 14 (WordPress.org Readiness) is next.
+Phase: 14 — WordPress.org Readiness (ACTIVE, in flight)
+Branch: docs/wordpress-org-readiness (1 commit ahead of main, also on origin)
+Done & merged to main: Phase 11 (Connectors matcher, #86), Phase 12 (breaking changes/floor bump, #86), Phase 13 (migration safety, #86/#89), Phase 13.1 (Access-tab UX + CI speed, #88/#95). main reads version 4.0.0 (NOT yet tagged).
+Open threads: Phase 14 (ORG-01…07) in progress; Phase 15 (Manual Testing Environment Checklist, ENV-01…03) still pending; tag v4.0.0 after 14+15 land.
 Resume file: None
-Last activity: 2026-06-17 — CI on PR #86 surfaced 5 integration failures; root-caused to a missing version bump (WP_SUDO_VERSION was 3.4.0, so upgrade_4_0_0 never fired) + test-design bugs (WP_SUDO_RECOVERY_MODE constant leaking process-wide via the map_meta_cap mapper; activation-hook basename). Fixed: version bump to 4.0.0 (2fdb9b2), Psalm baseline refresh (11dd67c), integration test fixes (reviewer-approved, real-DB verified), readme Stable tag → 4.0.0 (PCP stable_tag_mismatch). 810 unit tests, PHPStan L6 + Psalm clean.
+Last activity: 2026-06-21 — Confirmed PR #86 merged (2026-06-20 01:42 UTC). main at 4.0.0, zero open PRs. Pruned three dead local branches; cleared stale 'pending merge' drift in this file and docs/release-status.md.
 
 ## Project Reference
 
@@ -31,18 +31,19 @@ Canonical current facts:
 - `CHANGELOG.md` — shipped release contents.
 
 **Core value:** Every destructive admin action requires proof the person at the keyboard is still the authenticated user.
-**Current focus:** Milestone v4.0.0 — Phase 13 complete and green on PR #86 (pending merge). Next: Phase 14 (WordPress.org Readiness).
+**Current focus:** Milestone v4.0.0 — Phases 11–13.1 merged to main (main reads 4.0.0, untagged). Active: Phase 14 (WordPress.org Readiness). Then Phase 15 (Manual Testing Environment Checklist), then tag v4.0.0.
 
 ## Active Priorities (v4.0.0 milestone)
 
 Phase execution order:
-1. **Phase 11 — Connectors Registry-Aware Matcher** (CONN-01 through CONN-06): Close the `wordpress_api_key` gating gap. Design review required first.
-2. **Phase 12 — Breaking Changes and Floor Bump** (BRK-01 through BRK-07): Remove `compatibility` mode + `sudo_can()`, raise floors, drop shims. Design review required first.
-3. **Phase 13 — Migration Safety and Governance Audit** (MIG-01 through MIG-07): After Phase 12.
-4. **Phase 14 — WordPress.org Readiness** (ORG-01 through ORG-07): After Phase 12.
-5. **Phase 15 — Manual Testing Environment Checklist** (ENV-01 through ENV-03): After Phase 12.
+1. ✅ **Phase 11 — Connectors Registry-Aware Matcher** (CONN-01 through CONN-06): merged to main (#86).
+2. ✅ **Phase 12 — Breaking Changes and Floor Bump** (BRK-01 through BRK-07): merged to main (#86).
+3. ✅ **Phase 13 — Migration Safety and Governance Audit** (MIG-01 through MIG-07): merged to main (#86/#89).
+3a. ✅ **Phase 13.1 — Access-tab UX polish + CI test-speed**: merged to main (#88/#95).
+4. ▶ **Phase 14 — WordPress.org Readiness** (ORG-01 through ORG-07): ACTIVE on branch docs/wordpress-org-readiness.
+5. ◻ **Phase 15 — Manual Testing Environment Checklist** (ENV-01 through ENV-03): pending; can run concurrently with Phase 14.
 
-Phases 13, 14, and 15 can run concurrently after Phase 12 completes.
+After Phases 14 + 15 land: tag v4.0.0 (verify WP_SUDO_VERSION sync + readme stable tag, re-verify external claims, update docs/release-status.md "Latest tagged release").
 
 ## Performance Metrics
 

@@ -1,6 +1,6 @@
 # Release Status (Canonical Current State)
 
-Last verified: 2026-06-17
+Last verified: 2026-06-21
 
 This file is the canonical source for **current release state** in this repository:
 
@@ -18,9 +18,9 @@ This file is the canonical source for **current release state** in this reposito
 
 ## Current `main` release target
 
-- **Next planned release:** `4.0.0` — active milestone **v4.0.0 (Pre-Public Hardening Baseline)**, in development. Breaking release (see Unreleased work below). Not yet tagged or merged to `main`.
-- **Runtime version constant:** `4.0.0` — **bumped on the Phase 13 work branch** (`gsd/phase-13-migration-safety-audit`, PR [#86](https://github.com/dknauss/Sudo/pull/86)). The bump moved earlier than the original "tag time" plan because the `upgrade_4_0_0()` migration is version-gated (`maybe_upgrade()` only runs it when stored `<` `WP_SUDO_VERSION`), so the constant must be exactly `4.0.0` for the migration to fire. `WP_SUDO_VERSION` is set in `wp-sudo.php` (header + constant), `tests/bootstrap.php`, and `phpstan-bootstrap.php`. `main` itself still reads `3.4.0` until PR #86 merges.
-- **Current package metadata (PR #86 branch):** `readme.txt` stable tag `4.0.0` (bumped to satisfy the Plugin Check `stable_tag_mismatch` rule, which requires Stable tag == header Version); `Requires at least 6.4`, `Requires PHP 8.2`, `Tested up to 7.0`.
+- **Next planned release:** `4.0.0` — active milestone **v4.0.0 (Pre-Public Hardening Baseline)**. Breaking release (see Unreleased work below). **Merged to `main` but not yet tagged.** PR [#86](https://github.com/dknauss/Sudo/pull/86) merged 2026-06-20 01:42 UTC (commit `a91672f`); Phases 11–13.1 are all on `main`.
+- **Runtime version constant:** `4.0.0` — now on `main` (commit `a91672f`). The bump moved earlier than the original "tag time" plan because the `upgrade_4_0_0()` migration is version-gated (`maybe_upgrade()` only runs it when stored `<` `WP_SUDO_VERSION`), so the constant must be exactly `4.0.0` for the migration to fire. `WP_SUDO_VERSION` is set in `wp-sudo.php` (header + constant), `tests/bootstrap.php`, and `phpstan-bootstrap.php`.
+- **Current package metadata (on `main`):** `readme.txt` stable tag `4.0.0` (bumped to satisfy the Plugin Check `stable_tag_mismatch` rule, which requires Stable tag == header Version); `Requires at least 6.4`, `Requires PHP 8.2`, `Tested up to 7.0`. Note: `Stable tag 4.0.0` is package metadata; the `v4.0.0` git tag is not yet cut (see "Latest tagged release" above — still `3.4.0`).
 - **Last archived release checklist:** `docs/archive/release-3.0.0-checklist.md`
 
 ## WordPress.org publication status
@@ -42,12 +42,12 @@ Canonical source for post-tag drift after `3.4.0`: `git log v3.4.0..main --oneli
 
 ## Unreleased `main` work
 
-Canonical source for `main`: `git log v3.4.0..main --oneline`. The current v4.0.0
-work additionally lives on PR [#86](https://github.com/dknauss/Sudo/pull/86)
-(`gsd/phase-13-migration-safety-audit`), which carries the full unmerged v4.0.0
-delta. Phases 11–13 have landed (Phase 13 on PR #86, CI green, pending merge);
-phases 14–15 (WordPress.org readiness, manual-testing environment matrix) are
-planned/not yet executed.
+Canonical source for `main`: `git log v3.4.0..main --oneline`. The full v4.0.0
+delta is now **merged to `main`** — PR [#86](https://github.com/dknauss/Sudo/pull/86)
+merged 2026-06-20. Phases 11, 12, 13, and 13.1 have all landed. Phase 14
+(WordPress.org readiness) is in progress on branch `docs/wordpress-org-readiness`;
+Phase 15 (manual-testing environment matrix) is pending. The `v4.0.0` tag will be
+cut after Phases 14–15 land.
 
 **Breaking changes (v4.0.0 — not yet tagged):**
 

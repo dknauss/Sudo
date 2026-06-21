@@ -98,6 +98,36 @@ Operationally, this implies:
 See [`docs/archive/internal-admin-governance-spec.md`](archive/internal-admin-governance-spec.md)
 for the archived design spec (implemented in 3.2.0).
 
+### Multisite role terminology and Sudo's boundary
+
+Several long-running WordPress Core tickets separate three related ideas that are
+easy to collapse in security documentation:
+
+- [#37593](https://core.trac.wordpress.org/ticket/37593) treats **network
+  administrator** as the clearer user-facing name for the ordinary Multisite
+  network-level administrator.
+- [#39174](https://core.trac.wordpress.org/ticket/39174) explores network roles,
+  global roles, and whether **super admin** should mean a permanent role, a
+  global administrator, or a special emergency authority.
+- [#20140](https://core.trac.wordpress.org/ticket/20140) is about asking for the
+  current password before account changes, but the discussion expands naturally
+  into a general recent-authentication gate for high-impact actions.
+
+Sudo should align with those distinctions. It is **not** a Multisite role system
+and does not try to define site, network, or global administrator roles for Core.
+It is the reauthentication layer around actions that are already authorized
+by WordPress. In user-facing prose, prefer **network administrator** for ordinary
+Multisite authority. Use **super admin** only when referring to WordPress Core's
+technical super-admin concept or APIs such as `is_super_admin()`. Use
+**break-glass recovery mode** for Sudo's emergency governance recovery path, and
+use **sudo session** or **sudo window** for the short-lived recent-authentication
+state that allows a gated action to proceed.
+
+This distinction matters for future Core alignment: network roles decide **who is
+authorized** to act; Sudo decides whether an already-authorized actor has proved
+their current presence and intent recently enough to perform a covered high-risk
+action.
+
 ## Threat Model: The Kill Chain
 
 Model a WordPress compromise as a kill chain:
