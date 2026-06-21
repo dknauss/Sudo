@@ -163,6 +163,37 @@ class DashboardWidgetFakeWpdbWithEvents {
 }
 
 /**
+ * Fake wpdb that returns a recovery-mode event for label rendering tests.
+ */
+class DashboardWidgetFakeWpdbWithRecoveryEvent extends DashboardWidgetFakeWpdbWithEvents {
+
+	/**
+	 * Mock get_results() - returns a recovery-mode event row.
+	 *
+	 * @param string $query SQL query.
+	 * @return array<int, object>
+	 */
+	public function get_results( string $query ): array {
+		$this->last_get_results_query = $query;
+		if ( strpos( $query, 'wpsudo_events' ) !== false ) {
+			return [
+				(object) [
+					'id'         => 2,
+					'user_id'    => 1,
+					'event'      => 'recovery_mode',
+					'rule_id'    => '',
+					'surface'    => 'admin',
+					'created_at' => gmdate( 'Y-m-d H:i:s', time() - 60 ),
+				],
+			];
+		}
+
+		return [];
+	}
+
+}
+
+/**
  * Fake wpdb that returns a critical event for badge rendering tests.
  */
 class DashboardWidgetFakeWpdbWithCriticalEvent {
@@ -948,6 +979,44 @@ class DashboardWidgetTest extends TestCase {
 		$this->assertStringContainsString( 'title="Update options"', $output );
 		$this->assertStringContainsString( 'title="admin"', $output );
 		$this->assertStringContainsString( '<code class="wp-sudo-action-id" title="Technical action ID: options.update">options.update</code>', $output );
+
+		$this->restoreWpdb();
+	}
+
+	/**
+	 * Test recovery-mode events render the break-glass display label.
+	 *
+	 * @return void
+	 */
+	public function testRecoveryModeEventsRenderBreakGlassLabel(): void {
+		$this->setUpRenderStubs();
+		\WP_User_Query::$mock_total   = 0;
+		\WP_User_Query::$mock_results = [];
+		Functions\when( 'human_time_diff' )->justReturn( '1 min ago' );
+		Functions\when( 'get_option' )->justReturn( [] );
+		Functions\when( 'get_users' )->alias(
+			function ( array $args ): array {
+				if ( isset( $args['include'] ) ) {
+					$user             = (object) array();
+					$user->ID         = 1;
+					$user->user_login = 'testuser';
+					return array( $user );
+				}
+
+				return array();
+			}
+		);
+
+		$GLOBALS['wpdb'] = new DashboardWidgetFakeWpdbWithRecoveryEvent();
+
+		ob_start();
+		Dashboard_Widget::render();
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( 'Break-glass', $output );
+		$this->assertStringContainsString( 'title="Break-glass"', $output );
+		$this->assertStringContainsString( 'data-event="recovery_mode"', $output );
+		$this->assertStringNotContainsString( 'title="Recovery"', $output );
 
 		$this->restoreWpdb();
 	}
