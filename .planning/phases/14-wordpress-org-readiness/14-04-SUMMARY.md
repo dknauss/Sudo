@@ -8,20 +8,27 @@ requirements: [ORG-02]
 
 # Plan 14-04 Summary — WordPress.org listing screenshots (ORG-02)
 
-Captured all seven `.wordpress-org/screenshot-{1..7}.png` from the live wp-env dev
+Captured all nine `.wordpress-org/screenshot-{1..9}.png` from the live wp-env dev
 site via the (reworked) deterministic Playwright spec — replacing the manual
-browser-handoff step. Order matches readme.txt `== Screenshots ==` captions 1–7
-exactly.
+browser-handoff step. Order matches readme.txt `== Screenshots ==` captions 1–9
+exactly. Expanded from 7 → 9 to add two "in-action" shots (#2 gated plugin
+activation, #8 admin-bar timer) so the listing isn't all config screens.
 
 | # | Caption | Source |
 |---|---------|--------|
 | 1 | Challenge page | `admin.php?page=wp-sudo-challenge`, `#wp-sudo-challenge-card` |
-| 2 | Settings tab | `options-general.php?page=wp-sudo-settings&tab=settings` |
-| 3 | Gated Actions tab | `&tab=actions` |
-| 4 | Rule Tester tab | `&tab=tester` |
-| 5 | Access tab (post-13.1) | `&tab=access` — user-picker + grant/revoke UI |
-| 6 | Dashboard widget | `index.php`, `#wp_sudo_activity` |
-| 7 | Break-glass recovery notice | settings page with `WP_SUDO_RECOVERY_MODE` on |
+| 2 | Gated plugin activation | `plugins.php`, `.wp-sudo-disabled` (gate notice + replaced Activate) |
+| 3 | Settings tab | `options-general.php?page=wp-sudo-settings&tab=settings` |
+| 4 | Gated Actions tab | `&tab=actions` |
+| 5 | Rule Tester tab | `&tab=tester` |
+| 6 | Access tab (post-13.1) | `&tab=access` — user-picker + grant/revoke UI |
+| 7 | Dashboard widget | `index.php`, `#wp_sudo_activity` |
+| 8 | Admin-bar timer | `activateSudoSession()` then `#wp-admin-bar-wp-sudo-active` (top-strip clip) |
+| 9 | Break-glass recovery notice | settings page with `WP_SUDO_RECOVERY_MODE` on |
+
+Ordering constraint: #1 (challenge) and #2 (gated plugins) must run with NO active
+sudo session (so the gating is visible); #8 activates a session for the timer, so it
+comes after the gated shots.
 
 ## Spec rework (tests/e2e/specs/capture-screenshots.spec.ts)
 
