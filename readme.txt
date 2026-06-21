@@ -191,6 +191,21 @@ Extensibility: the action registry is filterable via wp_sudo_gated_actions. Audi
 * **Fixed a WordPress 7.0 upgrade fatal** under WP-CLI/cron (the governance backfill dereferenced an uninitialized roles global).
 * **WordPress.org readiness** — listing name "Sudo – Admin Action Gating", added SECURITY.md, refreshed listing screenshots, and a manual release environment matrix.
 
+= 3.4.0 =
+* **Break-glass recovery mode hardened** — `WP_SUDO_RECOVERY_MODE` is now role-gated (only `manage_options` / `manage_network_options` holders recover), shows a permanent notice while active, and fires the new `wp_sudo_recovery_mode_active` audit hook (sampled, at most one event per user per hour).
+* **CI and quality** — repaired the Psalm type-coverage gate (it had been silently passing without analyzing), added least-privilege permissions to all workflows, and reconciled documentation drift.
+* **Fix** — removed an obsolete Editor role-error notice in the admin UI; fixed an SSL-detection unit-test flake.
+
+= 3.3.0 =
+* **Fix strict-mode lockout** — the governance-capability backfill was keyed to a version (3.1.0) that never shipped, so sites upgrading from public 3.1.x releases skipped it and could be locked out of Settings → Sudo. It is re-keyed to 3.3.0, runs once for affected sites, and skips when any user already holds `manage_wp_sudo`.
+* **Audit column clamping** — `Event_Store` clamps `event`, `rule_id`, `surface`, and `ip` to their schema widths before insert, so over-length third-party values truncate predictably instead of dropping the audit row.
+* **New `wp_sudo_grant_session_on_login` filter** — suppress the automatic sudo session granted on browser login for shared-terminal/kiosk or SSO scenarios.
+
+= 3.2.0 =
+* **Governance capabilities** — new `wp_sudo_can()` helper and an Access tab for managing who can administer Sudo, mapped to standard WordPress capabilities so WP-CLI and audit plugins can evaluate them via `current_user_can()`.
+* **Security hardening** — 2FA lockout integrity, WPGraphQL mutation-detection hardening (tokenizer, persisted-query fail-safe, multipart/batched coverage), REST gating for folder-based plugins, per-user IP lockout, admin-email gating, cookie Secure-flag fallback behind TLS proxies, and request-stash minimization.
+* **App Password policy validation** — per-App-Password policy overrides require UUID format + existence checks, with automatic cleanup when the App Password is deleted.
+
 = 3.1.3 =
 * **Fix: release Playground link** — the stable release Blueprint installs the tag ZIP through `pluginData` instead of using Playground's currently brittle `git:directory` tag fetch path.
 * **Playground link posture** — README Playground links now distinguish the immutable latest-release demo from the current `main` demo.
