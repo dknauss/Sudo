@@ -133,9 +133,9 @@ WP Sudo gates specific operations on specific surfaces. It is not a firewall, ex
 
 WP Sudo integrates with the **Site Health** tool in WordPress core for rich security diagnostics and advisory notifications.
 
-### Break glass recovery scenario
+### Break-glass recovery scenario
 
-In a lost, last administrator scenario where no one has access to Sudo's settings, the break-glass mechanism is to set `WP_SUDO_RECOVERY_MODE` in `wp-config.php`. It requires filesystem access to activate, so it is not a remote-escalation vector. The grant is **role-gated**: while the constant is defined, the current user receives the master `manage_wp_sudo` capability only if they also hold `manage_options` (single-site) / `manage_network_options` (multisite), so a locked-out administrator recovers while non-admins gain nothing. A permanent non-dismissible notice appears on the Sudo settings screen while it is active, and the `wp_sudo_recovery_mode_active` audit hook fires so the usage is logged. The role gate does not eliminate the residual risk — every administrator regains full Sudo governance while the constant is set — so remove it the moment normal access is restored.
+In a lost, last administrator scenario where no one has access to Sudo's settings, the break-glass mechanism is to set `WP_SUDO_RECOVERY_MODE` in `wp-config.php`. This is WP Sudo's break-glass governance recovery path, not WordPress core's `WP_Recovery_Mode`. It requires filesystem access to activate, so it is not a remote-escalation vector. The grant is **role-gated**: while the constant is defined, the current user receives the master `manage_wp_sudo` capability only if they also hold `manage_options` (single-site) / `manage_network_options` (multisite), so a locked-out administrator recovers while non-admins gain nothing. A permanent non-dismissible notice appears on the Sudo settings screen while it is active, and the `wp_sudo_recovery_mode_active` audit hook fires so the usage is logged. The role gate does not eliminate the residual risk — every administrator regains full Sudo governance while the constant is set — so remove it the moment normal access is restored.
 
 ## For developers and integrators
 
