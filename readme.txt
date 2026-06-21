@@ -182,6 +182,15 @@ Extensibility: the action registry is filterable via wp_sudo_gated_actions. Audi
 
 == Changelog ==
 
+= 4.0.0 =
+**Breaking release — review before upgrading.**
+* **Removed `sudo_can()`** — use the prefixed `wp_sudo_can()` (identical signature). Search-replace any remaining calls.
+* **Removed the `compatibility` governance mode** — governance is now always strict. The leftover `wp_sudo_governance_mode` option is deleted automatically on upgrade (one-time dismissible notice); `WP_SUDO_RECOVERY_MODE` remains the only break-glass recovery path.
+* **Minimum requirements raised** to WordPress 6.4 and PHP 8.2.
+* **Connectors credential gating on WordPress 7.0** — a registry-aware matcher gates connector API-key writes to `/wp/v2/settings`, closing a gap where names like Akismet's `wordpress_api_key` were ungated.
+* **Fixed a WordPress 7.0 upgrade fatal** under WP-CLI/cron (the governance backfill dereferenced an uninitialized roles global).
+* **WordPress.org readiness** — listing name "Sudo – Admin Action Gating", added SECURITY.md, refreshed listing screenshots, and a manual release environment matrix.
+
 = 3.1.3 =
 * **Fix: release Playground link** — the stable release Blueprint installs the tag ZIP through `pluginData` instead of using Playground's currently brittle `git:directory` tag fetch path.
 * **Playground link posture** — README Playground links now distinguish the immutable latest-release demo from the current `main` demo.

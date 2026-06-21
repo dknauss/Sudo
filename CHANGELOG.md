@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 4.0.0 - 2026-06-21
 
 - **Breaking changes (4.0.0):**
   - **`sudo_can()` removed.** The deprecated unprefixed alias (deprecated in
@@ -54,9 +54,26 @@
   heavy challenge-flow tests are split across basic/admin, 2FA UI,
   lockout/surface, and replay/multisite groups while preserving the aggregate
   `E2E Tests` required status check.
-- **Screenshot refresh:** README and WordPress.org-style screenshot assets now
-  cover the current tabbed settings UI, Access tab, Request / Rule Tester,
-  Session Activity dashboard widget, and break-glass recovery notice.
+- **WordPress.org readiness:** the listing name is set to **"Sudo – Admin Action
+  Gating"** (plugin header + readme title; the in-product UI brand stays "Sudo"
+  and the slug/text-domain stay `wp-sudo`). Adds `SECURITY.md` and a
+  WordPress.org submission checklist, trims the readme short description to the
+  150-character limit, and reconciles the request-stash redaction status (the
+  shipped matcher is exact-match **plus** suffix-based via
+  `SENSITIVE_KEY_SUFFIXES`, not exact-key only). Plugin Check (PCP) passes the
+  plugin-name, trademark, and stable-tag rules. (ORG-01 through ORG-07.)
+- **Screenshots (9):** a deterministic, env-gated Playwright capture spec
+  (`npm run screenshots`) regenerates the nine `.wordpress-org` listing
+  screenshots — challenge page, gated plugin activation, the four settings tabs
+  (Settings, Gated Actions, Rule Tester, Access), the Session Activity dashboard
+  widget, the admin-bar session timer, and the break-glass recovery notice —
+  matching the readme `== Screenshots ==` captions one-to-one.
+- **Manual release environment matrix:** `tests/MANUAL-TESTING.md` gains a
+  release environment matrix (an Apache stack, a managed WordPress host, and the
+  minimum supported WordPress version) plus a Connectors-credential manual
+  verification — cookie-auth and Application Password writes to
+  `POST /wp/v2/settings` with connector credential fields, including
+  `wordpress_api_key`. (ENV-01 through ENV-03.)
 
 ## 3.4.0 - 2026-06-13
 
