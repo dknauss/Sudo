@@ -1,7 +1,7 @@
-=== Sudo ===
+=== Sudo – Admin Action Gating ===
 Contributors:      dpknauss
 Donate link:       https://dan.knauss.ca
-Tags:              sudo, security, reauthentication, access control, admin protection
+Tags:              reauthentication, access control, admin protection, multisite, security
 Requires at least: 6.4
 Tested up to:      7.0
 Requires PHP:      8.2
@@ -9,7 +9,7 @@ Stable tag:        4.0.0
 License:           GPL-2.0-or-later
 License URI:       https://spdx.org/licenses/GPL-2.0-or-later.html
 
-Security plugins guard the door. Sudo governs what happens inside by requiring reauthentication for dangerous admin actions.
+Sudo gates dangerous admin actions (plugins, users, roles, settings, network changes) behind reauthentication, regardless of role.
 
 == Description ==
 
@@ -23,17 +23,6 @@ This is not role-based escalation. Every logged-in user is treated the same: att
 * [Try current main in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint-main.json)
 
 Playground demo credentials are `admin` / `password`. When WP Sudo asks for reauthentication, enter the same password: `password`.
-
-= What’s new in 3.2.0? =
-
-* **Governance capabilities** — `wp_sudo_can()` helper, Access tab for managing who can administer sudo settings, WordPress capability integration for WP-CLI and audit plugins
-* **WPGraphQL gate hardening** — CR/CRLF tokenizer, block-string escaping, BOM stripping, persisted-query fail-safe, multipart and GET `query` param coverage
-* **REST plugin gate** — folder-based plugins (e.g. `akismet/akismet`) correctly gated on the REST surface
-* **Per-user IP lockout** — shared egress IPs can no longer be used to lock out all admins with five attempts from one account
-* **Cookie Secure-flag hardening** — `FORCE_SSL_ADMIN` fallback and `wp_sudo_cookie_secure` filter for TLS-terminating proxy setups
-* **Request-stash minimization** — `$_GET` removed from stash, per-rule POST allowlists, suffix-based secret redaction for compound field names, unsafe-replay blocking
-* **App Password policy validation** — UUID format + existence check; automatic cleanup on password deletion
-* **Admin email gating** — `new_admin_email` writes challenge-gated on interactive and REST surfaces
 
 = Why Sudo? =
 
