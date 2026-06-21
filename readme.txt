@@ -1,7 +1,7 @@
-=== Sudo ===
+=== Sudo – Admin Action Gating ===
 Contributors:      dpknauss
 Donate link:       https://dan.knauss.ca
-Tags:              sudo, security, reauthentication, access control, admin protection
+Tags:              reauthentication, access control, admin protection, multisite, security
 Requires at least: 6.4
 Tested up to:      7.0
 Requires PHP:      8.2
@@ -9,7 +9,7 @@ Stable tag:        4.0.0
 License:           GPL-2.0-or-later
 License URI:       https://spdx.org/licenses/GPL-2.0-or-later.html
 
-Security plugins guard the door. Sudo governs what happens inside by requiring reauthentication for dangerous admin actions.
+Sudo gates dangerous admin actions (plugins, users, roles, settings, network changes) behind reauthentication, regardless of role.
 
 == Description ==
 
@@ -23,17 +23,6 @@ This is not role-based escalation. Every logged-in user is treated the same: att
 * [Try current main in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint-main.json)
 
 Playground demo credentials are `admin` / `password`. When WP Sudo asks for reauthentication, enter the same password: `password`.
-
-= What’s new in 3.2.0? =
-
-* **Governance capabilities** — `wp_sudo_can()` helper, Access tab for managing who can administer sudo settings, WordPress capability integration for WP-CLI and audit plugins
-* **WPGraphQL gate hardening** — CR/CRLF tokenizer, block-string escaping, BOM stripping, persisted-query fail-safe, multipart and GET `query` param coverage
-* **REST plugin gate** — folder-based plugins (e.g. `akismet/akismet`) correctly gated on the REST surface
-* **Per-user IP lockout** — shared egress IPs can no longer be used to lock out all admins with five attempts from one account
-* **Cookie Secure-flag hardening** — `FORCE_SSL_ADMIN` fallback and `wp_sudo_cookie_secure` filter for TLS-terminating proxy setups
-* **Request-stash minimization** — `$_GET` removed from stash, per-rule POST allowlists, suffix-based secret redaction for compound field names, unsafe-replay blocking
-* **App Password policy validation** — UUID format + existence check; automatic cleanup on password deletion
-* **Admin email gating** — `new_admin_email` writes challenge-gated on interactive and REST surfaces
 
 = Why Sudo? =
 
@@ -182,12 +171,14 @@ Extensibility: the action registry is filterable via wp_sudo_gated_actions. Audi
 == Screenshots ==
 
 1. Challenge page — reauthentication interstitial with password field.
-2. Settings tab — policy presets, session settings, and active sudo timer.
-3. Gated Actions tab — protected operations with rule IDs and covered surfaces.
-4. Rule Tester tab — evaluate representative request shapes without executing them.
-5. Access tab — manage dedicated Sudo governance capabilities and revoke sessions.
-6. Dashboard widget — active sessions, policy summary, and recent privilege-action events.
-7. Break-glass recovery notice — visible warning while WP_SUDO_RECOVERY_MODE is active.
+2. Gated plugin activation — the Plugins page Activate link replaced with a reauthentication prompt.
+3. Settings tab — policy presets, session duration, and entry-point policies.
+4. Gated Actions tab — protected operations with rule IDs and covered surfaces.
+5. Rule Tester tab — evaluate representative request shapes without executing them.
+6. Access tab — manage dedicated Sudo governance capabilities and revoke sessions.
+7. Dashboard widget — active sessions, policy summary, and recent privilege-action events.
+8. Admin bar timer — live countdown while a sudo session is active.
+9. Break-glass recovery notice — visible warning while WP_SUDO_RECOVERY_MODE is active.
 
 == Changelog ==
 

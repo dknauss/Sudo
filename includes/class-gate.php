@@ -221,7 +221,7 @@ class Gate {
 		// Disabled: kill all CLI immediately.
 		if ( self::POLICY_DISABLED === $policy ) {
 			wp_die(
-				esc_html__( 'WP-CLI is disabled by WP Sudo policy.', 'wp-sudo' ),
+				esc_html__( 'WP-CLI is disabled by Sudo policy.', 'wp-sudo' ),
 				'',
 				array( 'response' => 403 )
 			);
@@ -262,7 +262,7 @@ class Gate {
 
 		if ( self::POLICY_DISABLED === $cron_policy ) {
 			wp_die(
-				esc_html__( 'WP-Cron is disabled by WP Sudo policy. The wp cron command is not available.', 'wp-sudo' ),
+				esc_html__( 'WP-Cron is disabled by Sudo policy. The wp cron command is not available.', 'wp-sudo' ),
 				'',
 				array( 'response' => 403 )
 			);
@@ -826,7 +826,7 @@ class Gate {
 		}
 
 		if ( ! $is_authenticated ) {
-			$result['notes'][] = __( 'WP Sudo only gates authenticated users; anonymous requests fall through to WordPress authentication and capability checks first.', 'wp-sudo' );
+			$result['notes'][] = __( 'Sudo only gates authenticated users; anonymous requests fall through to WordPress authentication and capability checks first.', 'wp-sudo' );
 			return $result;
 		}
 
@@ -862,14 +862,14 @@ class Gate {
 		$policy = $this->get_policy( self::SETTING_REST_APP_PASS_POLICY );
 
 		if ( self::POLICY_UNRESTRICTED === $policy ) {
-			$result['notes'][] = __( 'REST Application Password policy is Unrestricted, so WP Sudo would allow the matched request.', 'wp-sudo' );
+			$result['notes'][] = __( 'REST Application Password policy is Unrestricted, so Sudo would allow the matched request.', 'wp-sudo' );
 			return $result;
 		}
 
 		$result['decision'] = 'hard-block';
 
 		if ( self::POLICY_DISABLED === $policy ) {
-			$result['notes'][] = __( 'REST Application Password policy is Disabled, so WP Sudo would reject the request at the surface level.', 'wp-sudo' );
+			$result['notes'][] = __( 'REST Application Password policy is Disabled, so Sudo would reject the request at the surface level.', 'wp-sudo' );
 			return $result;
 		}
 
@@ -1171,7 +1171,7 @@ class Gate {
 			if ( self::POLICY_DISABLED === $policy ) {
 				return new \WP_Error(
 					'sudo_disabled',
-					__( 'This REST API operation is disabled by WP Sudo policy.', 'wp-sudo' ),
+					__( 'This REST API operation is disabled by Sudo policy.', 'wp-sudo' ),
 					array( 'status' => 403 )
 				);
 			}
@@ -1236,7 +1236,7 @@ class Gate {
 		if ( self::POLICY_DISABLED === $policy ) {
 			return new \WP_Error(
 				'sudo_disabled',
-				__( 'WPGraphQL is disabled by WP Sudo policy.', 'wp-sudo' ),
+				__( 'WPGraphQL is disabled by Sudo policy.', 'wp-sudo' ),
 				array( 'status' => 403 )
 			);
 		}

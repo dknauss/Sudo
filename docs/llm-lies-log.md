@@ -386,6 +386,27 @@ Repos:   wp-sudo, wordpress-2fa-ecosystem
     Notes:  Same root cause as #6 (help-tab count drift). Fixed by dropping the
             bare count from readme.txt prose. Found by the v3.3.0 audit.
 
+25. CONFABULATED ADMIN URL — Sudo settings page as admin.php (caught pre-commit)
+    Files:  tests/e2e/specs/capture-screenshots.spec.ts (working tree; the error
+            was never committed)
+    Claim:  The Settings -> Sudo page is reached at
+            admin.php?page=wp-sudo-settings (four visitAdminPage calls).
+    Reality: The settings page registers via add_options_page
+            (includes/class-admin.php:303), so its URL is
+            options-general.php?page=wp-sudo-settings. No admin.php?page=wp-sudo-settings
+            route exists on single-site; the wrong path would have silently captured an
+            error/empty page, because the spec waited on a generic .wrap selector that an
+            admin error shell also satisfies.
+    Source:  includes/class-admin.php:303 (add_options_page); sibling specs
+            tests/e2e/specs/access-grant.spec.ts:94 and stack-smoke.spec.ts:13 already
+            use options-general.php; verified 2026-06-21.
+    Notes:  Extrapolated from the challenge page route (admin.php?page=wp-sudo-challenge,
+            which IS an admin-menu route) without checking how the settings page
+            registers. Caught by the pre-commit reviewer agent BEFORE commit — never
+            shipped. Fix: four URLs corrected to options-general.php; the wait assertion
+            hardened from .wrap to .nav-tab-active (a Sudo-settings-specific anchor) so a
+            wrong page can no longer satisfy the wait and capture silently.
+
 ROOT CAUSE
 ----------
 All errors have stemmed from patterns that boil down to *not checking the 
