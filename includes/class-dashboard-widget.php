@@ -317,7 +317,7 @@ class Dashboard_Widget {
 		'action_allowed'  => 'Allowed',
 		'action_passed'   => 'Passed',
 		'action_replayed' => 'Replayed',
-		'recovery_mode'   => 'Recovery',
+		'recovery_mode'   => 'Break-glass',
 	);
 
 	/**
