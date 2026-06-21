@@ -97,6 +97,5 @@ Do **not** initiate the WordPress.org submission until **all** of the following 
 
 ---
 
-*See also: [`docs/release-status.md`](release-status.md) (canonical release state),
-[`docs/documentation-remediation-checklist.md`](documentation-remediation-checklist.md)
-(doc-drift cleanup), and `CLAUDE.md` (version-sync + pre-release audit rules).*
+*See also: [`docs/release-status.md`](release-status.md) (canonical release state)
+and `CLAUDE.md` (version-sync + pre-release audit rules).*
