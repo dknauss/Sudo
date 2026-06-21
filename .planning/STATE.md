@@ -17,7 +17,7 @@ progress:
 Phase: 14 — WordPress.org Readiness (ACTIVE, in flight)
 Branch: docs/wordpress-org-readiness (1 commit ahead of main, also on origin)
 Done & merged to main: Phase 11 (Connectors matcher, #86), Phase 12 (breaking changes/floor bump, #86), Phase 13 (migration safety, #86/#89), Phase 13.1 (Access-tab UX + CI speed, #88/#95). main reads version 4.0.0 (NOT yet tagged).
-Open threads: Phase 14 (ORG-01…07) in progress; Phase 15 (Manual Testing Environment Checklist, ENV-01…03) still pending; tag v4.0.0 after 14+15 land.
+Open threads: Phase 14 (ORG-01…07) in progress — **14-03 COMPLETE** (ORG-04/06/07: SECURITY.md, redaction-status reconcile, wporg-submission-checklist.md); 14-01 (readme/header, reviewer-gated) and 14-02 (brand strings, reviewer-gated) NOT started; 14-04 (screenshots) browser-blocked. Phase 15 (ENV-01…03) pending; tag v4.0.0 after 14+15 land.
 Resume file: None
 Last activity: 2026-06-21 — Confirmed PR #86 merged (2026-06-20 01:42 UTC). main at 4.0.0, zero open PRs. Pruned three dead local branches; cleared stale 'pending merge' drift in this file and docs/release-status.md.
 
