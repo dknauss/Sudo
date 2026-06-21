@@ -124,6 +124,7 @@ No build step. No production dependencies — only dev dependencies (PHPUnit 9.6
 - `docs/sudo-architecture-comparison-matrix.md` — competitive comparison with other sudo/reauth approaches.
 - `docs/ROADMAP.md` — unified roadmap: integration tests, WP 7.0 prep, collaboration analysis, TDD strategy, core design features, feature backlog, accessibility appendix.
 - `docs/release-status.md` — canonical current release status: stable tag, unreleased `main` work, and WordPress forward-lane posture.
+- `docs/wporg-submission-checklist.md` — WordPress.org submission process: validation gates, asset specs, SVN trunk/tags layout, and the version-sync gate.
 - `docs/documentation-remediation-checklist.md` — audit-driven cleanup checklist for doc drift and archival labeling.
 
 ## Verification Requirements
