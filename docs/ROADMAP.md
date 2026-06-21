@@ -39,10 +39,16 @@ design hardening opportunities. Two are shipped; two remain open:
 - ~~**WPGraphQL Limited mode encoding bypass**~~ ✅ Shipped in v3.2.0 — JSON bodies,
   GET/form `query` params, multipart `operations`, batched payloads, parser edge cases,
   and persisted-operation fail-safe are covered by unit tests.
-- **Request stash pattern-based redaction:** Current stash redaction is exact-key based
-  and misses provider-specific names (`clientSecret`, `refreshToken`, `authorization`,
-  etc.). Add conservative pattern-based redaction and custom-rule metadata for
-  non-replayable fields.
+- **Request stash redaction — suffix-based (shipped v2.11.0):** Stash redaction is
+  exact-match **plus suffix-based**, not exact-key only. `Request_Stash::is_sensitive_key()`
+  (`includes/class-request-stash.php`) lowercases each field name and matches it against an
+  exact list (`sensitive_field_keys()`) and 28 secret-value suffixes (`SENSITIVE_KEY_SUFFIXES`,
+  `@since 2.11.0`) via `str_ends_with`. Residual: camelCase provider names whose lowercased
+  form ends in no listed suffix — e.g. `clientSecret`, `refreshToken`, `authorization` — are
+  still not redacted, because the list omits bare `secret`/`token` to avoid false positives
+  (e.g. matching `page` → `password`). Broadening to conservative pattern-based redaction plus
+  custom-rule non-replay metadata is intentionally OUT OF SCOPE for v4.0.0 (REQUIREMENTS);
+  tracked here as a future option, not an open gap.
 - ~~**Governance evolution**~~ ✅ Shipped in v3.2.0 — Dedicated `manage_wp_sudo`,
   `view_wp_sudo_activity`, `export_wp_sudo_activity`, and `revoke_wp_sudo_sessions`
   capabilities replace broad `manage_options` governance.
@@ -1737,13 +1743,17 @@ should shape the next phases.
 
 #### Phase R2: Data minimization and custom-rule replay hardening
 
-**Finding: request-stash redaction is exact-key based.**
+**Finding (reconciled 2026-06-21): request-stash redaction is exact-match + suffix-based, not exact-key only.**
 
-- Built-in redaction covers common names such as `password`, `token`, `secret`,
-  and `api_key`.
-- Third-party gated forms can still use names such as `clientSecret`,
-  `refreshToken`, `authorization`, `bearer`, `totp_seed`, or provider-specific
-  secret names.
+- `Request_Stash::is_sensitive_key()` (`includes/class-request-stash.php`, `@since 2.11.0`)
+  matches each lowercased field name against an exact list (`sensitive_field_keys()`) AND
+  28 secret-value suffixes (`SENSITIVE_KEY_SUFFIXES`) such as `_api_key`, `-secret`,
+  `accesstoken`, and `apisecret`, via `str_ends_with`.
+- Residual: third-party camelCase names whose lowercased form ends in no listed suffix —
+  e.g. `clientSecret`, `refreshToken`, `authorization`, `bearer`, `totp_seed` — are still
+  not redacted. The suffix list deliberately omits bare `secret`/`token` to avoid false
+  positives. Broadening this is intentionally out of scope (REQUIREMENTS); the fix sketch
+  below is retained as a future option, not an open gap.
 
 **Fix:**
 - Add conservative pattern-based redaction for common secret-like substrings and
