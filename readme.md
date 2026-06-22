@@ -49,10 +49,18 @@ Playground demo credentials are `admin` / `password`. When Sudo asks for reauthe
 </tr>
 <tr>
 <td><img src="https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-7.png" alt="Dashboard widget with active sudo sessions, policy summary, and recent privilege-action events."></td>
-<td></td>
+<td width="50%"><img src="https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-8.png" alt="Admin bar showing a live countdown timer while a sudo session is active."></td>
 </tr>
 <tr>
 <td><strong>Dashboard widget</strong></td>
+<td><strong>Admin bar timer</strong></td>
+</tr>
+<tr>
+<td><img src="https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-9.png" alt="Break-glass recovery notice shown on the Sudo settings screen while WP_SUDO_RECOVERY_MODE is active."></td>
+<td></td>
+</tr>
+<tr>
+<td><strong>Break-glass recovery notice</strong></td>
 <td></td>
 </tr>
 </table>
