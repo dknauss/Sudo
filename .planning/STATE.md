@@ -14,12 +14,12 @@ progress:
 
 ## Current Position
 
-Phase: v4.0.0 milestone — ALL PHASES COMPLETE; tagging in progress
-Branch: main (PR #99 merged as 7b7b85a, 2026-06-21). Working directly on main for release finalization.
-Done & merged to main: Phase 11 (Connectors matcher, #86), Phase 12 (breaking changes/floor bump, #86), Phase 13 (migration safety, #86/#89), Phase 13.1 (Access-tab UX + CI speed, #88/#95), **Phase 14 (WordPress.org Readiness, ORG-01…07, #99)**, **Phase 15 (ENV-01…03)**. main reads version 4.0.0.
-Open threads: **v4.0.0 milestone COMPLETE.** Phase 14 done (naming "Sudo – Admin Action Gating", security/redaction/checklist docs, brand strings, 9 `.wordpress-org` screenshots). Phase 15 done: ENV-01/02 via #98 env matrix; **ENV-03 closed 2026-06-21** (added Connectors-credential manual-verification to MANUAL-TESTING.md — cookie-auth + App Password writes to /wp/v2/settings incl. wordpress_api_key). Remaining: cut the **v4.0.0 git tag** (version constants already 4.0.0; update release-status.md "Latest tagged release" after). Submission-time reminder: lock .org slug to wp-sudo.
+Phase: v4.0.0 milestone — **RELEASED**. No active phase; next gate is WordPress.org submission (not started).
+Branch: main @ c8e692e — clean tree, pushed, version-synced at 4.0.0. Zero open PRs.
+Done & merged to main: Phase 11 (Connectors matcher, #86), Phase 12 (breaking changes/floor bump, #86), Phase 13 (migration safety, #86/#89), Phase 13.1 (Access-tab UX + CI speed, #88/#95), Phase 14 (WordPress.org Readiness, ORG-01…07, #99), Phase 15 (ENV-01…03). Plus external #96/#97/#98 and #100 (readme.md rebrand to "Sudo" + full 9-shot gallery).
+Open threads: **v4.0.0 RELEASED 2026-06-21** — annotated tag `v4.0.0` (→ `a4c1e67`) pushed; GitHub Release published as Latest; CHANGELOG.md + readme.txt changelog complete (4.0.0 entry + 3.2–3.4 backfill); `docs/release-status.md` "Latest tagged release: 4.0.0". **NOT yet on WordPress.org.** Remaining = the .org submission (see `docs/wporg-submission-checklist.md`): lock slug to `wp-sudo`, run readme validator + Plugin Check on the build, complete the manual env-matrix + Connectors checks, then SVN trunk/tags upload.
 Resume file: None
-Last activity: 2026-06-21 — Merged PR #99 (Phase 14) to main as 7b7b85a; verified Phase 15 (closed ENV-03 Connectors manual check). v4.0.0 milestone complete; tagging next.
+Last activity: 2026-06-21 — Tagged + released v4.0.0; backfilled changelogs (3.2–3.4); merged PR #100 (readme.md "Sudo" rebrand + 9-shot gallery). Plugin synced/active on the Dirtbag Studio site with seeded events; Two Factor installed (inactive).
 
 ## Project Reference
 
@@ -31,7 +31,7 @@ Canonical current facts:
 - `CHANGELOG.md` — shipped release contents.
 
 **Core value:** Every destructive admin action requires proof the person at the keyboard is still the authenticated user.
-**Current focus:** Milestone v4.0.0 — Phases 11–13.1 merged to main (main reads 4.0.0, untagged). Active: Phase 14 (WordPress.org Readiness). Then Phase 15 (Manual Testing Environment Checklist), then tag v4.0.0.
+**Current focus:** Milestone v4.0.0 — **RELEASED** (tag `v4.0.0` + GitHub Release, 2026-06-21; main reads 4.0.0). All phases merged. Next: WordPress.org submission (`docs/wporg-submission-checklist.md`) — not yet started.
 
 ## Active Priorities (v4.0.0 milestone)
 
@@ -40,10 +40,10 @@ Phase execution order:
 2. ✅ **Phase 12 — Breaking Changes and Floor Bump** (BRK-01 through BRK-07): merged to main (#86).
 3. ✅ **Phase 13 — Migration Safety and Governance Audit** (MIG-01 through MIG-07): merged to main (#86/#89).
 3a. ✅ **Phase 13.1 — Access-tab UX polish + CI test-speed**: merged to main (#88/#95).
-4. ▶ **Phase 14 — WordPress.org Readiness** (ORG-01 through ORG-07): ACTIVE on branch docs/wordpress-org-readiness.
-5. ◑ **Phase 15 — Manual Testing Environment Checklist** (ENV-01 through ENV-03): **SUBSTANTIALLY DELIVERED** by external PR #98 (release environment matrix — Apache / managed-host / min-WP lanes — added to `tests/MANUAL-TESTING.md`, references `docs/release-status.md` for the WP floor; merged to main 2026-06-21). Remaining: confirm ENV-01…03 acceptance criteria are met by the merged matrix and close the phase (thin verification pass, not new authoring).
+4. ✅ **Phase 14 — WordPress.org Readiness** (ORG-01 through ORG-07): merged to main (#99). Listing name "Sudo – Admin Action Gating", SECURITY.md + submission checklist, brand strings, 9 listing screenshots.
+5. ✅ **Phase 15 — Manual Testing Environment Checklist** (ENV-01 through ENV-03): complete — env matrix via #98; ENV-03 Connectors-credential manual check added.
 
-After Phases 14 + 15 land: tag v4.0.0 (verify WP_SUDO_VERSION sync + readme stable tag, re-verify external claims, update docs/release-status.md "Latest tagged release").
+**v4.0.0 RELEASED 2026-06-21** — annotated tag `v4.0.0` (→ `a4c1e67`) + GitHub Release (Latest); WP_SUDO_VERSION sync + readme Stable tag verified; CHANGELOG.md/readme.txt changelog complete; `docs/release-status.md` updated. Next gate: WordPress.org submission (`docs/wporg-submission-checklist.md`).
 
 ## Performance Metrics
 
