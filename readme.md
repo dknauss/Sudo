@@ -7,8 +7,8 @@
 Require password confirmation before high-risk changes go through on your WordPress site — even from an already-authenticated admin session. Sudo also lets site owners define the shape of their administrative attack surface across admin UI, AJAX, REST, WP-CLI, Cron, XML-RPC, Application Passwords, and WPGraphQL. Built-in activity visibility, audit hooks, and governance controls help administrators see who is attempting sensitive actions and decide which users can manage Sudo policy.
 
 [![License: GPL v2+](https://img.shields.io/badge/License-GPL%20v2%2B-blue.svg)](https://spdx.org/licenses/GPL-2.0-or-later.html) [![Security Policy](https://img.shields.io/badge/security-policy-4c1)](SECURITY.md) [![Docs](https://img.shields.io/badge/docs-available-0a7ea4.svg)](docs/) [![AI Authorship](https://img.shields.io/badge/AI%20authorship-disclosed-8a63d2.svg)](docs/ai-authorship.md)
-[![WordPress: 6.2+](https://img.shields.io/badge/WordPress-6.2%2B-0073aa.svg)](https://wordpress.org/)
-[![PHP: 8.0+](https://img.shields.io/badge/PHP-8.0%2B-777bb4.svg)](https://www.php.net/)
+[![WordPress: 6.4+](https://img.shields.io/badge/WordPress-6.4%2B-0073aa.svg)](https://wordpress.org/)
+[![PHP: 8.2+](https://img.shields.io/badge/PHP-8.2%2B-777bb4.svg)](https://www.php.net/)
 [![PHPUnit](https://github.com/dknauss/Sudo/actions/workflows/phpunit.yml/badge.svg)](https://github.com/dknauss/Sudo/actions/workflows/phpunit.yml)
 [![Psalm](https://github.com/dknauss/Sudo/actions/workflows/psalm.yml/badge.svg)](https://github.com/dknauss/Sudo/actions/workflows/psalm.yml)
 [![Playwright Tests](https://github.com/dknauss/Sudo/actions/workflows/e2e.yml/badge.svg)](https://github.com/dknauss/Sudo/actions/workflows/e2e.yml)
@@ -151,8 +151,8 @@ Sudo exposes a small, stable API. Custom gated rules are plain associative array
 
 ## Requirements
 
-- **WordPress:** 6.2+
-- **PHP:** 8.0+
+- **WordPress:** 6.4+
+- **PHP:** 8.2+
 - **Multisite:** supported
 
 For current release posture, supported lanes, and forward `main` notes, see [docs/release-status.md](docs/release-status.md).

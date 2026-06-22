@@ -90,7 +90,7 @@ USER_COMMIT=1 git commit -m "message"
 
 WP Sudo is a WordPress plugin that provides action-gated reauthentication. Dangerous operations (plugin activation, user deletion, critical settings changes, etc.) require password confirmation before they proceed — regardless of user role.
 
-**Requirements:** WordPress 6.2+, PHP 8.0+
+**Requirements:** WordPress 6.4+, PHP 8.2+
 
 ## Commands
 
