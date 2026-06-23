@@ -59,7 +59,7 @@ class CliCommandTest extends TestCase {
 		Functions\when( 'headers_sent' )->justReturn( true );
 
 		Functions\expect( 'delete_user_meta' )
-			->twice()
+			->times( 3 ) // META_KEY + TOKEN_META_KEY + SESSION_BIND_META_KEY.
 			->with( 9, \Mockery::type( 'string' ) );
 
 		Functions\expect( 'do_action' )
@@ -90,7 +90,7 @@ class CliCommandTest extends TestCase {
 			->andReturn( array( 2, 3 ) );
 
 		Functions\expect( 'delete_user_meta' )
-			->times( 4 )
+			->times( 6 ) // 2 users × (META_KEY + TOKEN_META_KEY + SESSION_BIND_META_KEY).
 			->with( \Mockery::type( 'int' ), \Mockery::type( 'string' ) );
 
 		Functions\expect( 'do_action' )

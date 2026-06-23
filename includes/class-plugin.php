@@ -138,6 +138,15 @@ class Plugin {
 		add_action( 'after_password_reset', array( $this, 'deactivate_session_on_password_reset' ), 10, 2 );
 		add_action( 'profile_update', array( $this, 'deactivate_session_on_profile_update' ), 10, 3 );
 
+		// Logout teardown: end the sudo window when the login session ends, so a
+		// captured sudo cookie cannot outlive the login that created it.
+		add_action( 'wp_logout', array( $this, 'deactivate_session_on_logout' ), 10, 1 );
+
+		// Capture the login-session token as the auth cookie is issued, so a
+		// session granted during the login request (grant_session_on_login) binds
+		// to it before $_COOKIE is populated.
+		add_action( 'set_logged_in_cookie', array( $this, 'capture_login_session_token' ), 10, 6 );
+
 		// Admin settings page (admin-only).
 		if ( is_admin() ) {
 			$this->admin = new Admin();
@@ -364,6 +373,53 @@ class Plugin {
 				Sudo_Session::deactivate( $user_id );
 			}
 		}
+	}
+
+	/**
+	 * Expire the sudo session when the user logs out.
+	 *
+	 * The sudo proof is bound to the login session that created it
+	 * (Sudo_Session::SESSION_BIND_META_KEY), so a stale cookie would already
+	 * fail verification once the login session is gone. Deactivating here makes
+	 * logout a clean boundary: the meta and cookie are cleared immediately
+	 * rather than lingering until the next is_active() check or expiry.
+	 *
+	 * @since 4.1.0
+	 *
+	 * @param int $user_id The user who logged out. Passed by core since WP 5.5.
+	 * @return void
+	 */
+	public function deactivate_session_on_logout( int $user_id = 0 ): void {
+		if ( $user_id <= 0 ) {
+			$user_id = get_current_user_id();
+		}
+
+		if ( $user_id > 0 && get_user_meta( $user_id, Sudo_Session::META_KEY, true ) ) {
+			Sudo_Session::deactivate( $user_id );
+		}
+	}
+
+	/**
+	 * Capture the login-session token as the logged-in cookie is issued.
+	 *
+	 * Hooked to set_logged_in_cookie, which fires inside wp_set_auth_cookie()
+	 * during the login request — before $_COOKIE[LOGGED_IN_COOKIE] is populated,
+	 * so wp_get_session_token() would otherwise return ''. Stashing the token
+	 * here lets a sudo session granted later in the same request (on wp_login)
+	 * bind to the correct login session.
+	 *
+	 * @since 4.1.0
+	 *
+	 * @param string $logged_in_cookie The logged-in cookie value (unused).
+	 * @param int    $expire           Cookie expiry timestamp (unused).
+	 * @param int    $expiration       Session expiration timestamp (unused).
+	 * @param int    $user_id          The authenticating user ID (unused).
+	 * @param string $scheme           Authentication scheme (unused).
+	 * @param string $token            The login-session token.
+	 * @return void
+	 */
+	public function capture_login_session_token( string $logged_in_cookie, int $expire, int $expiration, int $user_id, string $scheme, string $token = '' ): void { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed, VariableAnalysis.CodeAnalysis.VariableAnalysis.UnusedVariable -- Signature parity with the set_logged_in_cookie hook; only $token is consumed.
+		Sudo_Session::set_pending_login_token( $token );
 	}
 
 	/**

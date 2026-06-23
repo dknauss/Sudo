@@ -139,6 +139,15 @@ class Gate {
 		// Admin UI + AJAX interception (admin-ajax.php also fires admin_init).
 		add_action( 'admin_init', array( $this, 'intercept' ), 1, 0 );
 
+		// Defense-in-depth backstop: arm session-aware effect-level guards on the
+		// interactive admin surface so a gated-equivalent destructive action
+		// invoked through a non-enumerated handler (e.g. a third-party
+		// admin-post.php route) cannot run while no sudo window is open.
+		// Enumerated flows are still handled by intercept() at priority 1
+		// (challenge + stash/replay); this only catches what request-pattern
+		// matching cannot see.
+		add_action( 'admin_init', array( $this, 'register_interactive_backstop' ), 0, 0 );
+
 		// REST API interception — fires after route matching, before callbacks.
 		add_filter( 'rest_request_before_callbacks', array( $this, 'intercept_rest' ), 10, 3 );
 
@@ -175,6 +184,116 @@ class Gate {
 	 */
 	public function register_early(): void {
 		add_action( 'init', array( $this, 'gate_non_interactive' ), 0, 0 );
+	}
+
+	/**
+	 * Arm the interactive effect-level backstop on the admin surface.
+	 *
+	 * Hooks the unambiguous destructive WordPress effect actions so that, when
+	 * no sudo window is active, a gated-equivalent action invoked through a
+	 * handler that request-pattern matching does not enumerate (third-party
+	 * admin-post.php routes, custom dispatchers) is blocked at the effect
+	 * boundary instead of running silently.
+	 *
+	 * Scope is deliberately limited to file/record-destroying actions whose hook
+	 * fires only inside the named effect function (wp_delete_user(),
+	 * delete_plugins(), etc.). Option-level filters (pre_update_option_*) are
+	 * intentionally excluded: WordPress core rewrites those options incidentally
+	 * during ordinary admin loads (e.g. validate_active_plugins()), so guarding
+	 * them here would hard-block legitimate non-gated workflows. user.create and
+	 * user.promote are likewise excluded — their hooks fire on benign,
+	 * high-frequency paths (every wp_insert_user / role assignment).
+	 *
+	 * Enumerated admin flows never reach these guards while unauthenticated for
+	 * sudo: intercept() (admin_init priority 1) redirects them to the challenge
+	 * before the effect fires. When a sudo window is active the guard allows the
+	 * effect silently; the enumerated path owns the wp_sudo_action_passed audit
+	 * signal, so the backstop does not duplicate it.
+	 *
+	 * @since 4.1.0
+	 *
+	 * @return void
+	 */
+	public function register_interactive_backstop(): void {
+		$user_id = get_current_user_id();
+
+		if ( ! $user_id ) {
+			return;
+		}
+
+		$guard = function ( string $rule_id, string $label ) use ( $user_id ): void {
+			// Sudo window open (or within grace) — allow, silently.
+			if ( Sudo_Session::is_active( $user_id ) || Sudo_Session::is_within_grace( $user_id ) ) {
+				return;
+			}
+
+			/** This action is documented in includes/class-gate.php */
+			do_action( 'wp_sudo_action_blocked', $user_id, $rule_id, 'admin' );
+
+			wp_die(
+				esc_html(
+					sprintf(
+						/* translators: %s: action label */
+						__( 'This operation (%s) requires sudo. Activate a sudo session and try again.', 'wp-sudo' ),
+						$label
+					)
+				),
+				'',
+				array( 'response' => 403 )
+			);
+		};
+
+		add_action(
+			'activate_plugin',
+			function () use ( $guard ) {
+				$guard( 'plugin.activate', __( 'Activate plugin', 'wp-sudo' ) );
+			},
+			0
+		);
+
+		add_action(
+			'delete_plugin',
+			function () use ( $guard ) {
+				$guard( 'plugin.delete', __( 'Delete plugin', 'wp-sudo' ) );
+			},
+			0
+		);
+
+		add_action(
+			'delete_theme',
+			function () use ( $guard ) {
+				$guard( 'theme.delete', __( 'Delete theme', 'wp-sudo' ) );
+			},
+			0
+		);
+
+		add_action(
+			'delete_user',
+			function () use ( $guard ) {
+				$guard( 'user.delete', __( 'Delete user', 'wp-sudo' ) );
+			},
+			0
+		);
+
+		add_action(
+			'export_wp',
+			function () use ( $guard ) {
+				$guard( 'tools.export', __( 'Export site data', 'wp-sudo' ) );
+			},
+			0
+		);
+
+		add_filter(
+			'upgrader_pre_install',
+			function ( $response ) use ( $guard ) {
+				if ( is_wp_error( $response ) ) {
+					return $response;
+				}
+				$guard( 'plugin.install', __( 'Install or update plugin/theme', 'wp-sudo' ) );
+				return $response;
+			},
+			0
+		);
 	}
 
 	/**
