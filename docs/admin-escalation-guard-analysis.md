@@ -102,6 +102,48 @@ over-block.
   separate hook on `grant_super_admin` is required.
   *(Verified against WP core `wp-includes/capabilities.php`.)*
 
+### Hook coverage matrix (verified against WP core)
+
+Every role-name path to `administrator` converges on a `{prefix}capabilities`
+user-meta write, because `WP_User::set_role()` and `WP_User::add_role()` both end
+in `update_user_meta( $this->ID, $this->cap_key, $this->caps )` where
+`$this->cap_key = $wpdb->get_blog_prefix( $site_id ) . 'capabilities'`. That meta
+write fires `add_user_metadata` (first assignment, empty prev value) /
+`update_user_metadata` (subsequent). So the two effect-level hooks
+(`{prefix}capabilities` meta + `grant_super_admin`) cover:
+
+| Admin-grant path | Reaches the guard via | Caught? |
+|---|---|---|
+| `wp_insert_user( ['role'=>'administrator'] )` | post-insert `set_role()` → caps meta | ✅ (as a promotion; creation excluded, §3) |
+| `wp_update_user( ['role'=>...] )` | `set_role()` → caps meta | ✅ |
+| `WP_User::set_role()` / `add_role()` | caps meta write | ✅ |
+| Direct `update_user_meta( id, '{prefix}capabilities', … )` | the meta hooks fire directly | ✅ |
+| REST `POST`/`PUT /wp/v2/users` with `roles` | core `wp_update_user` → `set_role()` | ✅ |
+| WP-CLI `wp user create/set-role/add-role` | same core functions | ✅ (also already policy-governed) |
+| Multisite `add_user_to_blog( $blog, $uid, 'administrator' )` | `$user->set_role()` on that blog → that blog's caps meta | ✅ (requires blog-prefixed key match, below) |
+| Multisite `grant_super_admin( $uid )` | `grant_super_admin` action (before) | ✅ via the separate hook |
+
+*(Verified: `wp-includes/class-wp-user.php` `set_role`/`add_role`/`cap_key`;
+`wp-includes/ms-functions.php` `add_user_to_blog` → `set_role`;
+`wp-includes/capabilities.php` `grant_super_admin`/`granted_super_admin`.)*
+
+**Coverage requirements and known gaps:**
+
+- **Blog-prefixed key match (multisite).** On secondary blogs `cap_key` is
+  `{$base_prefix}{$blog_id}_capabilities`, not `{$base_prefix}capabilities`. The
+  guard's `is_user_capabilities_meta_key()` must match the **blog-prefixed
+  variants**, or per-blog admin grants on non-main sites slip through.
+- **Both meta filters.** Hook `add_user_metadata` *and* `update_user_metadata` —
+  brand-new users hit the `add` path (empty `$prev_value`).
+- **Gap — runtime `user_has_cap` grants.** A plugin can grant administrator-tier
+  *capabilities* at runtime via the `user_has_cap` / `map_meta_cap` filters
+  **without writing capabilities meta**. A role-name/meta guard does **not** see
+  this. It is the §6 deferred "capability-based check" tradeoff; document as a
+  known limitation rather than chase it (high false-positive cost).
+- **Gap — direct DB writes.** A raw `$wpdb->update` on the usermeta table bypasses
+  the meta filters entirely. Out of scope: anything with direct DB access has
+  already won.
+
 ## 4. Ecosystem implications
 
 ### WooCommerce — NOT affected by the narrowed guard (verified)
