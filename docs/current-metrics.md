@@ -9,21 +9,21 @@ Verification environment: local workspace, PHP 8.x
 
 | Metric | Value | Verification |
 |---|---:|---|
-| Unit tests | 813 tests | `composer test:unit` |
-| Unit assertions | 2319 assertions | `composer test:unit` |
+| Unit tests | 834 tests | `composer test:unit` |
+| Unit assertions | 2399 assertions | `composer test:unit` |
 | Integration tests in suite | 194 test methods | `rg -c "function test" tests/Integration/*.php | awk -F: '{sum+=$2} END{print sum}'` |
-| Unit test files | 25 | `ls tests/Unit/*.php | wc -l` |
+| Unit test files | 26 | `ls tests/Unit/*.php | wc -l` |
 | Integration test files | 26 | `ls tests/Integration/*.php | wc -l` |
 
 ## Size Metrics
 
 | Metric | Value | Verification |
 |---|---:|---|
-| Production PHP lines (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 15,008 | `find ./includes ./wp-sudo.php ./uninstall.php ./mu-plugin ./bridges -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
-| Tests PHP lines (`tests/`) | 29,666 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
-| Production + tests PHP lines | 44,674 | sum of the two rows above |
-| Test-to-production ratio | 1.98:1 | `29666 / 15008` |
-| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`) | 44,937 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Production PHP lines (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 15,322 | `find ./includes ./wp-sudo.php ./uninstall.php ./mu-plugin ./bridges -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Tests PHP lines (`tests/`) | 30,357 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Production + tests PHP lines | 45,679 | sum of the two rows above |
+| Test-to-production ratio | 1.98:1 | `30357 / 15322` |
+| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`) | 45,942 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
 
 ## Architectural Facts
 
@@ -66,7 +66,7 @@ Source: `.github/workflows/phpunit.yml`, `.github/workflows/e2e.yml`, `.github/w
 
 ## Verification Notes
 
-- `composer test:unit` passed on 2026-06-21 (`813 tests`, `2319 assertions`).
+- `composer test:unit` passed on 2026-06-23 (`834 tests`, `2399 assertions`).
 - `composer lint` passed on 2026-06-20.
 - `composer analyse` passed on 2026-06-20 (PHPStan L6 `[OK] No errors`; Psalm `No errors found!`, 95.8% type coverage, baseline current).
 - `composer verify:metrics` passed on 2026-06-20 (after this update).

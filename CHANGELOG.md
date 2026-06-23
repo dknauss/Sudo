@@ -1,5 +1,38 @@
 # Changelog
 
+## 4.1.0 - unreleased
+
+- **Security (gate completeness):** Two coordinated-disclosure findings in the
+  action-gating model are closed. Affected versions: ≤ 4.0.0 (both predate 4.0.0
+  — F2 since the plugin's inception, F1 since the multi-surface gate).
+  - **Interactive effect-level backstop.** The admin surface previously gated
+    only by request-pattern matching against enumerated core pages, so a
+    gated-equivalent destructive action invoked through a non-enumerated handler
+    (e.g. a third-party `admin-post.php` route or custom dispatcher) could run
+    without a sudo challenge — even though the identical action was blocked on
+    WP-CLI and on core's enumerated REST routes. A session-aware backstop now
+    arms on `admin_init` and hard-blocks the unambiguous destructive effect
+    actions (`delete_user`, `delete_plugin`, `delete_theme`, `activate_plugin`,
+    `upgrader_pre_install`, `export_wp`) when no sudo window is active. It is
+    deliberately scoped to those effect hooks; the `pre_update_option_*` filters
+    are excluded because WordPress core rewrites those options incidentally
+    during ordinary admin loads. When blocked it fires `wp_sudo_action_blocked`
+    on the `admin` surface with the real user ID. (Custom REST routes and the
+    `user.create`/`user.promote` paths are tracked as follow-up increments.)
+  - **Login-session binding.** The sudo proof is now bound to the WordPress
+    login session that created it via the new `_wp_sudo_session_bind` user-meta
+    key (SHA-256 of the login-session token). A captured `wp_sudo_token` cookie
+    can no longer be replayed from another session; the session is ended on
+    `wp_logout`, and a bound proof stops verifying once its login session is no
+    longer valid (e.g. after `WP_Session_Tokens::destroy_all()` the user is no
+    longer authenticated, so the window is unreachable). Binding is
+    enforced only when a bind value is present, so existing sessions need no
+    migration; cookie-less surfaces (CLI/cron/Application Passwords/WPGraphQL)
+    carry no bind and remain governed by policy. The session is now also
+    deactivated on `wp_logout`, and the login-session token is captured from
+    `set_logged_in_cookie` so sessions granted during the login request bind
+    correctly.
+
 ## 4.0.0 - 2026-06-21
 
 - **Breaking changes (4.0.0):**

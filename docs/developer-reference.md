@@ -488,6 +488,12 @@ do_action( 'wp_sudo_lockout', int $user_id, int $attempts, string $ip );
 // Application Password request. On 'cli'/'cron'/'xmlrpc' the $user_id is 0 (no
 // authenticated user in those contexts), and only action_allowed/action_blocked
 // fire there — never action_gated/action_passed.
+// Since 4.1.0 the interactive effect-level backstop also fires action_blocked on
+// the 'admin' surface (with the real $user_id) when a destructive effect
+// (delete_user/delete_plugin/delete_theme/activate_plugin/upgrader_pre_install/
+// export_wp) is reached through a non-enumerated handler while no sudo window is
+// active. The backstop is silent on the allow path; the enumerated request flow
+// owns the action_passed signal.
 do_action( 'wp_sudo_action_gated', int $user_id, string $rule_id, string $surface );
 do_action( 'wp_sudo_action_blocked', int $user_id, string $rule_id, string $surface );
 do_action( 'wp_sudo_action_allowed', int $user_id, string $rule_id, string $surface ); // Unrestricted policy (v2.9.0).

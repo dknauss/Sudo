@@ -43,6 +43,20 @@ class Sudo_Session {
 	public const TOKEN_META_KEY = '_wp_sudo_token';
 
 	/**
+	 * User-meta key that binds the sudo proof to a WordPress login session.
+	 *
+	 * Stores a SHA-256 hash of the login-session token (the value returned by
+	 * wp_get_session_token()) captured when the sudo session was activated. The
+	 * Gate rejects a sudo proof whose stored bind no longer matches the current
+	 * login session, so a captured cookie cannot be replayed from another
+	 * session and the window does not outlive logout / destroy_all().
+	 *
+	 * @since 4.1.0
+	 * @var string
+	 */
+	public const SESSION_BIND_META_KEY = '_wp_sudo_session_bind';
+
+	/**
 	 * Cookie name for session binding.
 	 *
 	 * @var string
@@ -156,6 +170,19 @@ class Sudo_Session {
 	 * @var array<int, bool>
 	 */
 	private static array $active_cache = array();
+
+	/**
+	 * Request-scoped login-session token captured at set_logged_in_cookie time.
+	 *
+	 * During a login request the logged-in cookie is issued via header but
+	 * $_COOKIE is not yet populated, so wp_get_session_token() returns ''. The
+	 * Plugin captures the token from the set_logged_in_cookie hook and stashes
+	 * it here so a session granted later in the same request (on wp_login) can
+	 * still bind. Single-use: consumed and cleared by set_token().
+	 *
+	 * @var string|null
+	 */
+	private static ?string $pending_login_token = null;
 
 	// -------------------------------------------------------------------------
 	// Session helpers
@@ -312,7 +339,42 @@ class Sudo_Session {
 	 * @return void
 	 */
 	public static function reset_cache(): void {
-		self::$active_cache = array();
+		self::$active_cache        = array();
+		self::$pending_login_token = null;
+	}
+
+	/**
+	 * Stash the login-session token captured at set_logged_in_cookie time.
+	 *
+	 * @since 4.1.0
+	 *
+	 * @param string $token The login-session token, or '' to clear.
+	 * @return void
+	 */
+	public static function set_pending_login_token( string $token ): void {
+		self::$pending_login_token = '' !== $token ? $token : null;
+	}
+
+	/**
+	 * Resolve the current login-session token for binding.
+	 *
+	 * Prefers a token captured during the login request (before $_COOKIE is
+	 * populated); otherwise falls back to wp_get_session_token(). Returns '' on
+	 * cookie-less surfaces (CLI, cron, Application Passwords, WPGraphQL), where
+	 * binding is intentionally absent and policy governs access instead.
+	 *
+	 * @since 4.1.0
+	 *
+	 * @return string
+	 */
+	private static function current_session_token(): string {
+		if ( null !== self::$pending_login_token ) {
+			return self::$pending_login_token;
+		}
+
+		$token = wp_get_session_token();
+
+		return is_string( $token ) ? $token : '';
 	}
 
 	/**
@@ -787,6 +849,19 @@ class Sudo_Session {
 
 		update_user_meta( $user_id, self::TOKEN_META_KEY, hash( 'sha256', $token ) );
 
+		// Bind the sudo proof to the WordPress login session that created it,
+		// when one is resolvable. On cookie-less surfaces (CLI/cron/app-password/
+		// WPGraphQL) there is no login-session token; binding is intentionally
+		// absent there, so clear any stale bind to keep the empty-bind skip path
+		// clean. The pending token is single-use — consume it afterwards.
+		$session_token = self::current_session_token();
+		if ( '' !== $session_token ) {
+			update_user_meta( $user_id, self::SESSION_BIND_META_KEY, hash( 'sha256', $session_token ) );
+		} else {
+			delete_user_meta( $user_id, self::SESSION_BIND_META_KEY );
+		}
+		self::$pending_login_token = null;
+
 		$duration = (int) Admin::get( 'session_duration', 15 );
 
 		// Only send Set-Cookie headers when the HTTP response is not yet started.
@@ -858,7 +933,26 @@ class Sudo_Session {
 			return false;
 		}
 
-		return hash_equals( $stored_hash, hash( 'sha256', $cookie_token ) );
+		if ( ! hash_equals( $stored_hash, hash( 'sha256', $cookie_token ) ) ) {
+			return false;
+		}
+
+		// Enforce login-session binding when present. Sessions minted before this
+		// guard existed — or on cookie-less surfaces — store no bind value and
+		// skip the check, so upgrades need no migration. A non-empty bind that no
+		// longer matches the current login session (captured cookie replayed from
+		// another session, or a session destroyed via logout/destroy_all) fails.
+		$bound_session = get_user_meta( $user_id, self::SESSION_BIND_META_KEY, true );
+		if ( is_string( $bound_session ) && '' !== $bound_session ) {
+			$current_session = self::current_session_token();
+			if ( '' === $current_session
+				|| ! hash_equals( $bound_session, hash( 'sha256', $current_session ) )
+			) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	/**
@@ -870,6 +964,7 @@ class Sudo_Session {
 	private static function clear_session_data( int $user_id ): void {
 		delete_user_meta( $user_id, self::META_KEY );
 		delete_user_meta( $user_id, self::TOKEN_META_KEY );
+		delete_user_meta( $user_id, self::SESSION_BIND_META_KEY );
 
 		// Expire cookies on both paths — clears the current COOKIEPATH cookie
 		// and any stale cookie from the old ADMIN_COOKIE_PATH scope.

@@ -44,6 +44,12 @@ abstract class TestCase extends PHPUnitTestCase {
 				)
 			);
 
+		// Default stub for the login-session token used by Sudo_Session binding.
+		// Empty by default so binding stays inert for tests that do not exercise
+		// it (no SESSION_BIND_META_KEY value => verify_token skips the check, and
+		// set_token clears any bind). Binding tests override this with when().
+		Functions\when( 'wp_get_session_token' )->justReturn( '' );
+
 		// Default stub for application password UUID — null means not app-password auth.
 		// Individual tests can override with Functions\when() for specific UUIDs.
 		Functions\when( 'rest_get_authenticated_app_password' )->justReturn( null );

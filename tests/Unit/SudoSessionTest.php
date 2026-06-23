@@ -196,7 +196,7 @@ class SudoSessionTest extends TestCase
 		Functions\when('setcookie')->justReturn(true);
 
 		Functions\expect('delete_user_meta')
-			->twice(); // META_KEY + TOKEN_META_KEY
+			->times(3); // META_KEY + TOKEN_META_KEY + SESSION_BIND_META_KEY
 
 		Sudo_Session::is_active(1);
 	}
@@ -340,7 +340,7 @@ class SudoSessionTest extends TestCase
 		Functions\when('setcookie')->justReturn(true);
 
 		Functions\expect('delete_user_meta')
-			->twice(); // META_KEY + TOKEN_META_KEY
+			->times(3); // META_KEY + TOKEN_META_KEY + SESSION_BIND_META_KEY
 
 		Actions\expectDone('wp_sudo_deactivated')
 			->once()
@@ -1220,7 +1220,7 @@ class SudoSessionTest extends TestCase
 		Functions\when('setcookie')->justReturn(true);
 
 		Functions\expect('delete_user_meta')
-			->twice(); // META_KEY + TOKEN_META_KEY
+			->times(3); // META_KEY + TOKEN_META_KEY + SESSION_BIND_META_KEY
 
 		$result = Sudo_Session::is_active(1);
 
@@ -1344,8 +1344,9 @@ class SudoSessionTest extends TestCase
 		Functions\when( 'setcookie' )->justReturn( true );
 		Functions\when( 'get_option' )->justReturn( array() );
 
-		// reset_failed_attempts deletes: legacy lockout + lockout_until + failure_event + throttle.
-		Functions\expect( 'delete_user_meta' )->times( 4 );
+		// reset_failed_attempts deletes: legacy lockout + lockout_until + failure_event + throttle (4).
+		// set_token() also clears SESSION_BIND_META_KEY when no login-session token resolves (+1).
+		Functions\expect( 'delete_user_meta' )->times( 5 );
 
 		Sudo_Session::activate( 1 );
 	}
