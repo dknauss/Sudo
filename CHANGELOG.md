@@ -22,8 +22,10 @@
   - **Login-session binding.** The sudo proof is now bound to the WordPress
     login session that created it via the new `_wp_sudo_session_bind` user-meta
     key (SHA-256 of the login-session token). A captured `wp_sudo_token` cookie
-    can no longer be replayed from another session, and the sudo window no
-    longer outlives logout or `WP_Session_Tokens::destroy_all()`. Binding is
+    can no longer be replayed from another session; the session is ended on
+    `wp_logout`, and a bound proof stops verifying once its login session is no
+    longer valid (e.g. after `WP_Session_Tokens::destroy_all()` the user is no
+    longer authenticated, so the window is unreachable). Binding is
     enforced only when a bind value is present, so existing sessions need no
     migration; cookie-less surfaces (CLI/cron/Application Passwords/WPGraphQL)
     carry no bind and remain governed by policy. The session is now also

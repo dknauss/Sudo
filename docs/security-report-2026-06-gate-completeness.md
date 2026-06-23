@@ -128,7 +128,12 @@ diligence.
   ordinary admin loads (e.g. `validate_active_plugins()`), so guarding them would
   block non-gated workflows. Silent on allow (the enumerated flow owns
   `wp_sudo_action_passed`); on block fires `wp_sudo_action_blocked` on the
-  `admin` surface with the real user ID.
+  `admin` surface with the real user ID. The shared `upgrader_pre_install` hook
+  is classified by its `hook_extra` payload so it maps to the precise rule
+  (`plugin.install`/`plugin.update`/`theme.install`/`theme.update`) and passes
+  through updater types that are not a covered rule — language packs (which use
+  `language_update_type`, not `type`) and core updates — rather than
+  mislabelling them or over-blocking translation updates.
 - **F2 — login-session binding** (`includes/class-sudo-session.php`,
   `includes/class-plugin.php`): new `_wp_sudo_session_bind` user meta = SHA-256 of
   the login-session token, captured at activation (via `set_logged_in_cookie` so

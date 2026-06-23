@@ -185,7 +185,7 @@ Extensibility: the action registry is filterable via wp_sudo_gated_actions. Audi
 = 4.1.0 =
 **Security — gate completeness (coordinated disclosure). Affected versions: ≤ 4.0.0.**
 * **Interactive effect-level backstop** — a session-aware guard on `admin_init` now hard-blocks the destructive core effects (`delete_user`, `delete_plugin`, `delete_theme`, `activate_plugin`, `upgrader_pre_install`, `export_wp`) when no sudo window is active, closing a gap where those actions could run through a non-enumerated handler such as a third-party `admin-post.php` route. Scoped to those effect hooks by design; option writes and role/user-create paths are excluded to avoid blocking legitimate workflows.
-* **Login-session binding** — the sudo proof is now bound to the WordPress login session that created it (new `_wp_sudo_session_bind` user meta). A captured `wp_sudo_token` cookie can no longer be replayed from another session, and the sudo window no longer survives logout or `destroy_all()`. No migration required; cookie-less surfaces and pre-4.1.0 sessions are unaffected.
+* **Login-session binding** — the sudo proof is now bound to the WordPress login session that created it (new `_wp_sudo_session_bind` user meta). A captured `wp_sudo_token` cookie can no longer be replayed from another session; the window ends on logout and a bound proof stops verifying once its login session is no longer valid (e.g. after `destroy_all()`). No migration required; cookie-less surfaces and pre-4.1.0 sessions are unaffected.
 
 = 4.0.0 =
 **Breaking release — review before upgrading.**

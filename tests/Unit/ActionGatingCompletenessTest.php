@@ -448,7 +448,8 @@ class ActionGatingCompletenessTest extends TestCase {
 						return is_callable( $candidate );
 					}
 				),
-				0
+				0,
+				2
 			);
 
 		foreach ( $action_hooks as $rule_id ) {
@@ -464,7 +465,8 @@ class ActionGatingCompletenessTest extends TestCase {
 			$closures[ $hook ]();
 		}
 		$this->assertIsCallable( $upgrader );
-		$this->assertNull( $upgrader( null ) ); // Non-WP_Error response => guard fires, response returned.
+		// A plugin install through a non-enumerated handler is blocked as plugin.install.
+		$this->assertTrue( $upgrader( true, array( 'type' => 'plugin', 'action' => 'install' ) ) );
 	}
 
 	/**
@@ -485,7 +487,8 @@ class ActionGatingCompletenessTest extends TestCase {
 						return is_callable( $candidate );
 					}
 				),
-				0
+				0,
+				2
 			);
 
 		Actions\expectDone( 'wp_sudo_action_blocked' )->never();
@@ -495,6 +498,53 @@ class ActionGatingCompletenessTest extends TestCase {
 
 		$error = \Mockery::mock( 'WP_Error' );
 		$this->assertSame( $error, $upgrader( $error ) );
+	}
+
+	/**
+	 * The upgrader_pre_install guard maps hook_extra to the precise gated rule,
+	 * and passes through updater types that are not a covered rule (language
+	 * packs use language_update_type, not type; core carries no plugin/theme
+	 * type) so they are neither mislabelled nor over-blocked.
+	 */
+	public function test_backstop_upgrader_classifies_by_hook_extra(): void {
+		Functions\when( 'get_current_user_id' )->justReturn( 1 );
+		Functions\when( 'get_user_meta' )->justReturn( '' ); // No active sudo.
+		Functions\when( 'is_wp_error' )->justReturn( false );
+
+		$upgrader = null;
+		Filters\expectAdded( 'upgrader_pre_install' )
+			->once()
+			->with(
+				\Mockery::on(
+					static function ( $candidate ) use ( &$upgrader ): bool {
+						$upgrader = $candidate;
+						return is_callable( $candidate );
+					}
+				),
+				0,
+				2
+			);
+
+		// Each covered plugin/theme operation blocks with its precise rule id.
+		Actions\expectDone( 'wp_sudo_action_blocked' )->once()->with( 1, 'plugin.install', 'admin' );
+		Actions\expectDone( 'wp_sudo_action_blocked' )->once()->with( 1, 'plugin.update', 'admin' );
+		Actions\expectDone( 'wp_sudo_action_blocked' )->once()->with( 1, 'theme.install', 'admin' );
+		Actions\expectDone( 'wp_sudo_action_blocked' )->once()->with( 1, 'theme.update', 'admin' );
+		// Four covered operations block; the two pass-through cases do not.
+		Functions\expect( 'wp_die' )->times( 4 )->with( \Mockery::type( 'string' ), '', array( 'response' => 403 ) );
+
+		$this->gate->register_interactive_backstop();
+		$this->assertIsCallable( $upgrader );
+
+		$this->assertTrue( $upgrader( true, array( 'type' => 'plugin', 'action' => 'install' ) ) );
+		$this->assertTrue( $upgrader( true, array( 'type' => 'plugin', 'action' => 'update' ) ) );
+		$this->assertTrue( $upgrader( true, array( 'type' => 'theme', 'action' => 'install' ) ) );
+		$this->assertTrue( $upgrader( true, array( 'type' => 'theme', 'action' => 'update' ) ) );
+
+		// Language pack: uses language_update_type (no `type`) → pass through.
+		$this->assertTrue( $upgrader( true, array( 'language_update_type' => 'plugin' ) ) );
+		// Core update / unknown updater: no plugin/theme type → pass through.
+		$this->assertTrue( $upgrader( true, array() ) );
 	}
 
 	/**

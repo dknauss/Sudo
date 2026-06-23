@@ -285,15 +285,58 @@ class Gate {
 
 		add_filter(
 			'upgrader_pre_install',
-			function ( $response ) use ( $guard ) {
+			function ( $response, $hook_extra = array() ) use ( $guard ) {
 				if ( is_wp_error( $response ) ) {
 					return $response;
 				}
-				$guard( 'plugin.install', __( 'Install or update plugin/theme', 'wp-sudo' ) );
+				// upgrader_pre_install is shared by the plugin, theme, core, and
+				// language-pack updaters. Only guard the covered plugin/theme
+				// install/update operations, with their precise rule id/label;
+				// core updates (enumerated via update-core.php) and language packs
+				// (not a gated rule) pass through rather than being mislabelled or
+				// over-blocked.
+				$rule = $this->classify_upgrader_effect( is_array( $hook_extra ) ? $hook_extra : array() );
+				if ( null !== $rule ) {
+					$guard( $rule[0], $rule[1] );
+				}
 				return $response;
 			},
-			0
+			0,
+			2
 		);
+	}
+
+	/**
+	 * Map an upgrader_pre_install hook_extra payload to a covered gated rule.
+	 *
+	 * WordPress core's plugin and theme upgraders set `type` (plugin|theme) and
+	 * `action` (install|update) in the hook_extra array. The language-pack
+	 * upgrader uses `language_update_type` instead (no `type` key), and core
+	 * updates do not carry a plugin/theme type — both therefore return null and
+	 * pass through. Returns array{0:string rule_id, 1:string label} or null.
+	 *
+	 * @since 4.1.0
+	 *
+	 * @param array<string, mixed> $hook_extra Upgrader hook_extra payload.
+	 * @return array{0: string, 1: string}|null
+	 */
+	private function classify_upgrader_effect( array $hook_extra ): ?array {
+		$type   = isset( $hook_extra['type'] ) ? (string) $hook_extra['type'] : '';
+		$action = isset( $hook_extra['action'] ) ? (string) $hook_extra['action'] : '';
+
+		if ( 'plugin' === $type ) {
+			return 'install' === $action
+				? array( 'plugin.install', __( 'Install plugin', 'wp-sudo' ) )
+				: array( 'plugin.update', __( 'Update plugin', 'wp-sudo' ) );
+		}
+
+		if ( 'theme' === $type ) {
+			return 'install' === $action
+				? array( 'theme.install', __( 'Install theme', 'wp-sudo' ) )
+				: array( 'theme.update', __( 'Update theme', 'wp-sudo' ) );
+		}
+
+		return null;
 	}
 
 	/**
