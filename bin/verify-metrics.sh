@@ -68,6 +68,24 @@ ACTUAL_TOTAL_LINES="$(( ACTUAL_PROD_LINES + ACTUAL_TEST_LINES ))"
 ACTUAL_RATIO="$(awk -v tests="$ACTUAL_TEST_LINES" -v prod="$ACTUAL_PROD_LINES" 'BEGIN { printf "%.2f", tests / prod }')"
 ACTUAL_REPO_PHP="$(find "$REPO_ROOT" -type f -name '*.php' ! -path '*/vendor/*' ! -path '*/vendor_test/*' ! -path '*/.tmp/*' ! -path '*/.git/*' -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}')"
 
+# Architectural facts (security-relevant counts). These use the same commands
+# documented in the metric rows, so the gate and the doc stay self-consistent.
+REGISTRY_FILE="$REPO_ROOT/includes/class-action-registry.php"
+ACTUAL_GATED_SINGLE="$(grep "'id'" "$REGISTRY_FILE" | grep -v network | grep -v "rule\[" | wc -l | tr -d ' ')"
+ACTUAL_GATED_MULTI="$(grep "'id'" "$REGISTRY_FILE" | grep -c "network" || true)"
+ACTUAL_GATED_TOTAL="$(grep "'id'" "$REGISTRY_FILE" | grep -v "rule\[" | wc -l | tr -d ' ')"
+# Unique do_action() hook names across includes/class-*.php (multi-line aware),
+# excluding the render-only two-factor fields hook — identical to the doc method.
+ACTUAL_AUDIT_HOOKS="$(cd "$REPO_ROOT" && python3 - <<'PY'
+import pathlib, re
+hooks = set()
+for path in pathlib.Path('includes').glob('class-*.php'):
+    hooks.update(re.findall(r"do_action\(\s*'([^']+)'", path.read_text()))
+hooks.discard('wp_sudo_render_two_factor_fields')
+print(len(hooks))
+PY
+)"
+
 DOC_UNIT_TESTS="$(metric_number 'Unit tests')"
 DOC_UNIT_ASSERTIONS="$(metric_number 'Unit assertions')"
 DOC_INTEGRATION_METHODS="$(metric_number 'Integration tests in suite')"
@@ -78,6 +96,10 @@ DOC_TEST_LINES="$(metric_number 'Tests PHP lines (`tests/`)')"
 DOC_TOTAL_LINES="$(metric_number 'Production + tests PHP lines')"
 DOC_RATIO="$(metric_number 'Test-to-production ratio')"
 DOC_REPO_PHP="$(metric_number 'Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`)')"
+DOC_GATED_SINGLE="$(metric_number 'Gated rules (single-site)')"
+DOC_GATED_MULTI="$(metric_number 'Gated rules (multisite)')"
+DOC_GATED_TOTAL="$(metric_number 'Gated rules (total)')"
+DOC_AUDIT_HOOKS="$(metric_number 'Audit hooks')"
 
 FAILURES=""
 
@@ -91,6 +113,10 @@ FAILURES=""
 [ "$DOC_TOTAL_LINES" = "$ACTUAL_TOTAL_LINES" ] || add_failure "Production + tests PHP lines" "$DOC_TOTAL_LINES" "$ACTUAL_TOTAL_LINES"
 [ "$DOC_RATIO" = "$ACTUAL_RATIO" ] || add_failure "Test-to-production ratio" "$DOC_RATIO" "$ACTUAL_RATIO"
 [ "$DOC_REPO_PHP" = "$ACTUAL_REPO_PHP" ] || add_failure "Total repo PHP lines" "$DOC_REPO_PHP" "$ACTUAL_REPO_PHP"
+[ "$DOC_GATED_SINGLE" = "$ACTUAL_GATED_SINGLE" ] || add_failure "Gated rules (single-site)" "$DOC_GATED_SINGLE" "$ACTUAL_GATED_SINGLE"
+[ "$DOC_GATED_MULTI" = "$ACTUAL_GATED_MULTI" ] || add_failure "Gated rules (multisite)" "$DOC_GATED_MULTI" "$ACTUAL_GATED_MULTI"
+[ "$DOC_GATED_TOTAL" = "$ACTUAL_GATED_TOTAL" ] || add_failure "Gated rules (total)" "$DOC_GATED_TOTAL" "$ACTUAL_GATED_TOTAL"
+[ "$DOC_AUDIT_HOOKS" = "$ACTUAL_AUDIT_HOOKS" ] || add_failure "Audit hooks" "$DOC_AUDIT_HOOKS" "$ACTUAL_AUDIT_HOOKS"
 
 if [ -n "$FAILURES" ]; then
 	echo "Metrics drift detected in docs/current-metrics.md:"
