@@ -212,4 +212,76 @@ class SudoSessionTest extends TestCase {
 		$this->assertTrue( Sudo_Session::is_active( $user->ID ) );
 		$this->assertSame( $before + 1, did_action( 'wp_sudo_activated' ), 'wp_sudo_activated should fire once.' );
 	}
+
+	/**
+	 * INTG-F2: a sudo proof bound to one login session is rejected once the
+	 * current login-session token differs (re-login / a different session).
+	 *
+	 * This is the real binding guarantee under live WordPress: activate() binds
+	 * the proof to the token returned by wp_get_session_token() (read from the
+	 * logged-in cookie). When that token changes, the unchanged sudo proof cookie
+	 * must no longer verify — a captured cookie cannot be replayed from another
+	 * login session.
+	 */
+	public function test_binding_rejects_when_login_session_token_changes(): void {
+		$user = $this->make_admin();
+		wp_set_current_user( $user->ID );
+
+		$expiration = time() + DAY_IN_SECONDS;
+		$manager    = \WP_Session_Tokens::get_instance( $user->ID );
+
+		// Establish login session A and the logged-in cookie wp_get_session_token() reads.
+		$token_a                     = $manager->create( $expiration );
+		$_COOKIE[ LOGGED_IN_COOKIE ] = wp_generate_auth_cookie( $user->ID, $expiration, 'logged_in', $token_a );
+		$this->assertSame( $token_a, wp_get_session_token(), 'Precondition: cookie resolves login token A.' );
+
+		// Activate sudo — binds the proof to token A.
+		Sudo_Session::activate( $user->ID );
+		Sudo_Session::reset_cache();
+		$this->assertTrue( Sudo_Session::is_active( $user->ID ), 'Active within the binding session.' );
+		$this->assertSame(
+			hash( 'sha256', $token_a ),
+			get_user_meta( $user->ID, Sudo_Session::SESSION_BIND_META_KEY, true ),
+			'The stored bind is the SHA-256 of the login-session token.'
+		);
+
+		// Switch to a different login session (token B). The sudo proof cookie is
+		// unchanged; only the login-session token differs.
+		$token_b                     = $manager->create( $expiration );
+		$_COOKIE[ LOGGED_IN_COOKIE ] = wp_generate_auth_cookie( $user->ID, $expiration, 'logged_in', $token_b );
+		Sudo_Session::reset_cache();
+
+		$this->assertFalse(
+			Sudo_Session::is_active( $user->ID ),
+			'A proof bound to session A must not verify under session B.'
+		);
+	}
+
+	/**
+	 * INTG-F2: logging out ends the sudo window. The plugin hooks wp_logout to
+	 * deactivate, so a bound proof does not outlive the login that created it.
+	 */
+	public function test_logout_deactivates_bound_session(): void {
+		$user = $this->make_admin();
+		wp_set_current_user( $user->ID );
+
+		$expiration                  = time() + DAY_IN_SECONDS;
+		$manager                     = \WP_Session_Tokens::get_instance( $user->ID );
+		$token                       = $manager->create( $expiration );
+		$_COOKIE[ LOGGED_IN_COOKIE ] = wp_generate_auth_cookie( $user->ID, $expiration, 'logged_in', $token );
+
+		Sudo_Session::activate( $user->ID );
+		Sudo_Session::reset_cache();
+		$this->assertTrue( Sudo_Session::is_active( $user->ID ), 'Active before logout.' );
+
+		// The plugin's wp_logout handler must clear the sudo session.
+		do_action( 'wp_logout', $user->ID );
+		Sudo_Session::reset_cache();
+
+		$this->assertFalse( Sudo_Session::is_active( $user->ID ), 'Logout must end the sudo window.' );
+		$this->assertEmpty(
+			get_user_meta( $user->ID, Sudo_Session::TOKEN_META_KEY, true ),
+			'Logout clears the sudo token meta.'
+		);
+	}
 }
