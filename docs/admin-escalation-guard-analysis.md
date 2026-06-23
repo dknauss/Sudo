@@ -1,10 +1,16 @@
-# Admin-Surface User Escalation Guard — Implications Analysis
+# User Privilege-Escalation Guard — Implications Analysis
 
-> **Status: analysis / decision input.** Revisits the deferred "Item 2" from the
-> gate-completeness work (PRs #102/#104). Not implemented. If implemented, the
-> guard ships **behind an opt-out filter defaulting OFF** (a recorded
-> decision). This document exists so the over-block surface is understood
-> before any code lands.
+> **Status: analysis / decision input.** Began as the deferred "Item 2"
+> (admin-surface escalation guard) from the gate-completeness work
+> (PRs #102/#104). Not implemented. **Scope has since evolved:** the analysis now
+> recommends an **effect-level** guard (hooked on the capabilities-meta write and
+> `grant_super_admin`) that covers *all* surfaces uniformly, rather than an
+> admin-`init`-only guard — because the exploit paths this defends against live on
+> REST/AJAX/unauthenticated surfaces, not the interactive admin (§1, §5). If
+> implemented, the guard ships **behind a filter defaulting OFF** (a recorded
+> decision), with a documented path to default-ON once escape hatches are proven
+> (§8). This document exists so the over-block surface is understood before any
+> code lands.
 
 ## 1. The gap
 
@@ -14,20 +20,49 @@ both deliberately **exclude** `user.create` and `user.promote`. The
 non-interactive path (`register_function_hooks`, CLI/cron/XML-RPC) *does* guard
 them, because those surfaces are wholly policy-governed and headless.
 
-So the uncovered vector is narrow: a **non-enumerated *interactive* admin
-handler** (a third-party `admin-post.php` route, or programmatic
-`wp_insert_user()` / `WP_User::add_role()` on an admin request) that
+As originally scoped, the uncovered vector looked narrow: a **non-enumerated
+*interactive* admin handler** (a third-party `admin-post.php` route, or
+programmatic `wp_insert_user()` / `WP_User::add_role()` on an admin request) that
 creates or promotes a user **while no sudo window is active**. Enumerated admin
 flows (`users.php`, `user-new.php`, `user-edit.php`, `profile.php`) are already
 redirected to the challenge by `intercept()` before the effect fires; enumerated
 REST user routes (`PUT /wp/v2/users/<id>` with `roles`) are gated by
-`intercept_rest()`. The attacker already needs an authenticated admin-context
-request **plus** a custom escalating handler — real defense-in-depth, but narrow.
+`intercept_rest()`.
+
+**That narrow framing understates the threat.** The high-value exploit paths for
+this vulnerability class are *not* the interactive admin surface; they are
+**unauthenticated or low-privilege REST / AJAX / front-end endpoints with broken
+access control** — OWASP A01 (Broken Access Control), the most common serious
+WordPress plugin vuln class (arbitrary user creation and privilege escalation
+recur near the top of Patchstack/Wordfence year-end advisories). What makes a
+reauth gate a *genuine mitigation* there — not mere friction — is a structural
+property:
+
+> **In the common exploit shapes, the attacker structurally cannot hold a sudo
+> session.**
+
+- **Unauthenticated** broken-endpoint exploit (the classic `role=administrator`
+  POST to a missing-capability route): `current_user` is `0`, so no sudo session
+  can possibly exist → an `administrator` grant is **blocked**.
+- **Low-privilege authenticated** escalation (e.g. a subscriber escalating self to
+  admin): that user cannot obtain a sudo session without the admin password →
+  **blocked**.
+
+So the reauth requirement becomes a capability the attacker **cannot forge**, and
+— decisively — it holds **even when the vulnerable plugin's own access control is
+completely broken**. That is the "don't trust the vulnerable code" property you
+want from a mitigation, and it reframes the feature from modest defense-in-depth
+into a real mitigation for the #1 broken-access-control category.
+
+**Residual bypass (honest limit):** the property fails only if the escalation
+fires *during a legitimate admin's own active sudo window* (e.g. CSRF or stored
+XSS landing mid-session). That window is short (1–15 min) and much smaller than
+the unauthenticated/low-priv surface the guard closes, but it is real.
 
 ## 2. Why the blanket guard was rejected, and the narrowing
 
-Guarding **all** `user.create` / `user.promote` on the admin surface hard-`403`s
-legitimate non-enumerated flows that assign **low-privilege** roles. The fix is
+Guarding **all** `user.create` / `user.promote` (on any surface) hard-`403`s
+legitimate flows that assign **low-privilege** roles. The fix is
 to guard only **privilege escalation to administrator** (single-site) /
 **super-admin** (multisite) — i.e. block only when a write *newly grants*
 administrator-tier control. Everything below that (customer, subscriber,
@@ -153,15 +188,35 @@ So an admin-surface escalation guard does **not** cover:
   blocks *all* role changes there).
 
 This means a fully-symmetric "escalation can never happen without sudo" property
-would require guards on **three** surfaces (admin, REST, non-interactive), of
-which only the non-interactive one exists today. Item 2 as scoped here closes
-only the **interactive admin** third.
+would, *if pursued surface-by-surface*, require guards on **three** surfaces
+(admin, REST, non-interactive), of which only the non-interactive one exists
+today. The admin-`init`-only "Item 2" closes only the **interactive admin** third
+— which, per §1, is the **least valuable** third, since the broken-access-control
+exploits land on REST/AJAX/unauthenticated endpoints, not `admin_init`.
+
+**The surface-thirds problem dissolves when you hook the *effect* instead of the
+surface.** Role assignment and super-admin grants converge on two effect-level
+hooks — the `{prefix}capabilities` user-meta write (`add_user_metadata` /
+`update_user_metadata`) and `grant_super_admin` — that fire **regardless of
+surface** (admin, REST, AJAX, cron, XML-RPC, *and* unauthenticated front-end
+requests). A single guard hung on those hooks ("block a newly-granted
+administrator/super-admin when the acting user has no active sudo session")
+therefore covers **all** surfaces with one mechanism, including precisely the
+unauth/low-priv paths where these exploits live. This is the same hook the CLI
+`user.promote` guard already uses (§3), so it is architecturally consistent — not
+new machinery. **The recommended design is this effect-level guard, not a set of
+per-surface guards.** One consequence: on non-interactive surfaces there is no
+human to send to the challenge, so the only available response is a **hard block**
+(short-circuit the write), not a reauth prompt (§6, §8).
 
 ## 6. Implementation shape (if approved)
 
-- **Hooks:** reuse the `add_user_metadata` / `update_user_metadata` filter on the
-  `{prefix}capabilities` key; additionally hook `grant_super_admin` for the
-  multisite path.
+- **Hooks (effect-level, surface-agnostic):** reuse the `add_user_metadata` /
+  `update_user_metadata` filter on the `{prefix}capabilities` key; additionally
+  hook `grant_super_admin` for the multisite path. These fire on **every** surface
+  (admin, REST, AJAX, cron, XML-RPC, unauthenticated), so one guard here covers
+  all of them — this is the recommended scope (§5), not an admin-`init`-only
+  guard.
 - **Trigger condition:** block only when the write **newly grants**
   `administrator` (single-site) or super-admin (multisite) AND no
   `Sudo_Session::is_active()/is_within_grace()`. "Newly grants" = administrator
@@ -179,10 +234,19 @@ only the **interactive admin** third.
   *(Open question for the design review: a silent short-circuit may confuse an
   operator who sees no error; a redirect-to-challenge is not possible this deep
   in the write. Weigh short-circuit+audit vs. `wp_die` with a clear 403.)*
-- **Opt-out filter:** `wp_sudo_guard_admin_escalation` (name TBD), **default
+- **Default-OFF filter:** `wp_sudo_guard_escalation` (name TBD), **default
   `false`** (OFF) per the recorded decision — security-conscious sites opt in;
-  SSO/provisioning sites are unaffected by default.
-- **Exclude `user.create`** from the admin guard (orphan problem, §3).
+  SSO/provisioning sites are unaffected by default. See §8 for the path to a
+  future default-ON.
+- **Escape hatches (prerequisites for ever flipping default-ON):**
+  - an **allowlist filter** so known-good provisioners (SSO/SAML/OIDC, directory
+    sync) can mark a specific grant as legitimate;
+  - a **constant / WP-CLI bypass** (e.g. a defined constant, plus the existing CLI
+    policy) for deployment, migration, and first-admin bootstrapping;
+  - **audit events on every block** (`wp_sudo_action_blocked`) so a silent
+    short-circuit is diagnosable rather than a mystery.
+- **Exclude `user.create`** from the guard (orphan problem, §3); admin *creation*
+  is still caught as the subsequent administrator capabilities write.
 
 ## 7. Required TDD scenarios (before any implementation)
 
@@ -199,16 +263,42 @@ only the **interactive admin** third.
    allowed.
 7. Enumerated `user-edit.php` role change → still handled by `intercept()` (guard
    does not double-fire).
+8. **Core value case** — escalation to `administrator` via an *unauthenticated*
+   request (`current_user` = 0) and via a *low-privilege* authenticated user
+   (subscriber), filter ON → **blocked** in both, since neither can hold a sudo
+   session. This exercises the effect-level/all-surfaces property from §1/§5.
 
 ## 8. Recommendation
 
-The narrowed, escalation-only, **default-OFF**, creation-excluded guard is
-**safe enough to implement** for the interactive-admin third of the surface,
-*provided* the opt-out default is OFF and the membership/SSO implications above
-are documented for operators. The marginal security gain is modest (narrow
-vector; attacker already admin-context), so this remains optional hardening
-rather than a correctness fix. A formal Pre-Implementation Design Review (per
-`CLAUDE.md`) and the §7 TDD scenarios are prerequisites to writing code.
+**Build it — escalation-only, effect-level, creation-excluded — and treat it as a
+real mitigation, not optional polish.** An earlier draft of this section called
+the security gain "modest" on the theory that the attacker is "already
+admin-context." **That was wrong** and is corrected here: in the common exploit
+shapes the attacker is *unauthenticated or low-privilege* and (per §1)
+**structurally cannot hold a sudo session**, so the guard meaningfully blocks the
+#1 broken-access-control category — and does so even when the vulnerable plugin's
+own access control is broken. Scoping it at the **effect level** (§5) makes it
+cover the REST/AJAX/unauth surfaces where these exploits actually land, with one
+mechanism.
+
+**Default posture — OFF first, earn ON:**
+
+- **Ship default-OFF** behind the `wp_sudo_guard_escalation` filter, with the §6
+  escape hatches (allowlist, constant/CLI bypass, audit-on-block) built *before*
+  release. The breakage case (silent denial of legitimate SSO/sync/migration
+  admin provisioning, §4) is confusing precisely because the operator will not
+  connect a failed SAML admin grant to this plugin — silent breakage of admin
+  provisioning would burn the trust the plugin exists to build.
+- **Plan to flip default-ON in a later major**, once the false-positive surface is
+  mapped and the escape hatches are proven in the field. For a security plugin,
+  "granting administrator requires an active reauth" is squarely on-thesis and is
+  a defensible — arguably correct — default; it simply has to *earn* that default
+  rather than ship with it.
+
+A formal Pre-Implementation Design Review (per `CLAUDE.md`) and the §7 TDD
+scenarios remain prerequisites to writing code; the design review should
+specifically weigh the short-circuit-vs-`wp_die` block mechanism (§6) and the
+residual mid-session bypass (§1).
 
 ## Verification sources
 
