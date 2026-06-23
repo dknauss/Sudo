@@ -48,8 +48,12 @@ class Sudo_Session {
 	 * Stores a SHA-256 hash of the login-session token (the value returned by
 	 * wp_get_session_token()) captured when the sudo session was activated. The
 	 * Gate rejects a sudo proof whose stored bind no longer matches the current
-	 * login session, so a captured cookie cannot be replayed from another
-	 * session and the window does not outlive logout / destroy_all().
+	 * login session, so a captured cookie cannot be replayed from another login
+	 * session, and the window ends on logout (the plugin also hooks wp_logout).
+	 * Note: the bind compares the cookie's token *string*, which does not consult
+	 * the session-token store, so WP_Session_Tokens::destroy_all() takes effect
+	 * on the *next* request — when WordPress re-validates the auth cookie against
+	 * the now-empty store — not within the request that destroys the sessions.
 	 *
 	 * @since 4.1.0
 	 * @var string
@@ -939,9 +943,10 @@ class Sudo_Session {
 
 		// Enforce login-session binding when present. Sessions minted before this
 		// guard existed — or on cookie-less surfaces — store no bind value and
-		// skip the check, so upgrades need no migration. A non-empty bind that no
-		// longer matches the current login session (captured cookie replayed from
-		// another session, or a session destroyed via logout/destroy_all) fails.
+		// skip the check, so upgrades need no migration. A non-empty bind fails
+		// when it no longer matches the current login-session token — a captured
+		// cookie replayed from another session, or (across requests) once the
+		// bound session is gone and WordPress hands us a different token or none.
 		$bound_session = get_user_meta( $user_id, self::SESSION_BIND_META_KEY, true );
 		if ( is_string( $bound_session ) && '' !== $bound_session ) {
 			$current_session = self::current_session_token();
