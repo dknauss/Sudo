@@ -548,6 +548,66 @@ class ActionGatingCompletenessTest extends TestCase {
 	}
 
 	/**
+	 * Direct-call coverage for current_session_token(): pending token wins; a
+	 * non-string wp_get_session_token() normalizes to ''; otherwise the session
+	 * token string is returned.
+	 */
+	public function test_current_session_token_resolution(): void {
+		$method = new \ReflectionMethod( Sudo_Session::class, 'current_session_token' );
+		@$method->setAccessible( true ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+
+		// Pending token (captured at set_logged_in_cookie) takes precedence.
+		Sudo_Session::set_pending_login_token( 'pending-tok' );
+		$this->assertSame( 'pending-tok', $method->invoke( null ) );
+
+		// No pending token: a non-string return normalizes to ''.
+		Sudo_Session::set_pending_login_token( '' );
+		Functions\when( 'wp_get_session_token' )->justReturn( false );
+		$this->assertSame( '', $method->invoke( null ) );
+
+		// No pending token: a real session token string is returned as-is.
+		Functions\when( 'wp_get_session_token' )->justReturn( 'live-session' );
+		$this->assertSame( 'live-session', $method->invoke( null ) );
+	}
+
+	/**
+	 * Direct-call coverage for the upgrader classifier, every branch.
+	 */
+	public function test_classify_upgrader_effect_maps_every_type(): void {
+		$method = new \ReflectionMethod( Gate::class, 'classify_upgrader_effect' );
+		@$method->setAccessible( true ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+
+		$this->assertSame(
+			array( 'plugin.install', 'Install plugin' ),
+			$method->invoke( $this->gate, array( 'type' => 'plugin', 'action' => 'install' ) )
+		);
+		$this->assertSame(
+			array( 'plugin.update', 'Update plugin' ),
+			$method->invoke( $this->gate, array( 'type' => 'plugin', 'action' => 'update' ) )
+		);
+		$this->assertSame(
+			array( 'theme.install', 'Install theme' ),
+			$method->invoke( $this->gate, array( 'type' => 'theme', 'action' => 'install' ) )
+		);
+		$this->assertSame(
+			array( 'theme.update', 'Update theme' ),
+			$method->invoke( $this->gate, array( 'type' => 'theme', 'action' => 'update' ) )
+		);
+		// bulk_upgrade omits `action`; a known plugin/theme type defaults to update.
+		$this->assertSame(
+			array( 'plugin.update', 'Update plugin' ),
+			$method->invoke( $this->gate, array( 'type' => 'plugin' ) )
+		);
+		$this->assertSame(
+			array( 'theme.update', 'Update theme' ),
+			$method->invoke( $this->gate, array( 'type' => 'theme' ) )
+		);
+		// Language packs (language_update_type, no `type`) and core/unknown → null.
+		$this->assertNull( $method->invoke( $this->gate, array( 'language_update_type' => 'plugin' ) ) );
+		$this->assertNull( $method->invoke( $this->gate, array() ) );
+	}
+
+	/**
 	 * A non-empty bind with an empty current session token is rejected — covers
 	 * the cookie-less / destroyed-session branch of verify_token().
 	 */
