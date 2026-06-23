@@ -406,6 +406,141 @@ class ActionGatingCompletenessTest extends TestCase {
 		$callback();
 	}
 
+	/**
+	 * Every armed destructive effect (not just delete_user) blocks with its own
+	 * rule id when no sudo window is active.
+	 */
+	public function test_backstop_blocks_every_destructive_effect_without_sudo(): void {
+		Functions\when( 'get_current_user_id' )->justReturn( 1 );
+		Functions\when( 'get_user_meta' )->justReturn( '' ); // is_active false; no cookie => no grace.
+		Functions\when( 'is_wp_error' )->justReturn( false );
+
+		$action_hooks = array(
+			'activate_plugin' => 'plugin.activate',
+			'delete_plugin'   => 'plugin.delete',
+			'delete_theme'    => 'theme.delete',
+			'delete_user'     => 'user.delete',
+			'export_wp'       => 'tools.export',
+		);
+
+		$closures = array();
+		foreach ( array_keys( $action_hooks ) as $hook ) {
+			Actions\expectAdded( $hook )
+				->once()
+				->with(
+					\Mockery::on(
+						static function ( $candidate ) use ( &$closures, $hook ): bool {
+							$closures[ $hook ] = $candidate;
+							return is_callable( $candidate );
+						}
+					),
+					0
+				);
+		}
+
+		$upgrader = null;
+		Filters\expectAdded( 'upgrader_pre_install' )
+			->once()
+			->with(
+				\Mockery::on(
+					static function ( $candidate ) use ( &$upgrader ): bool {
+						$upgrader = $candidate;
+						return is_callable( $candidate );
+					}
+				),
+				0
+			);
+
+		foreach ( $action_hooks as $rule_id ) {
+			Actions\expectDone( 'wp_sudo_action_blocked' )->once()->with( 1, $rule_id, 'admin' );
+		}
+		Actions\expectDone( 'wp_sudo_action_blocked' )->once()->with( 1, 'plugin.install', 'admin' );
+		Functions\expect( 'wp_die' )->times( 6 )->with( \Mockery::type( 'string' ), '', array( 'response' => 403 ) );
+
+		$this->gate->register_interactive_backstop();
+
+		foreach ( $action_hooks as $hook => $rule_id ) {
+			$this->assertIsCallable( $closures[ $hook ] );
+			$closures[ $hook ]();
+		}
+		$this->assertIsCallable( $upgrader );
+		$this->assertNull( $upgrader( null ) ); // Non-WP_Error response => guard fires, response returned.
+	}
+
+	/**
+	 * The upgrader_pre_install guard passes an existing WP_Error straight
+	 * through without firing the gate.
+	 */
+	public function test_backstop_upgrader_passes_through_existing_wp_error(): void {
+		Functions\when( 'get_current_user_id' )->justReturn( 1 );
+		Functions\when( 'is_wp_error' )->justReturn( true );
+
+		$upgrader = null;
+		Filters\expectAdded( 'upgrader_pre_install' )
+			->once()
+			->with(
+				\Mockery::on(
+					static function ( $candidate ) use ( &$upgrader ): bool {
+						$upgrader = $candidate;
+						return is_callable( $candidate );
+					}
+				),
+				0
+			);
+
+		Actions\expectDone( 'wp_sudo_action_blocked' )->never();
+		Functions\expect( 'wp_die' )->never();
+
+		$this->gate->register_interactive_backstop();
+
+		$error = \Mockery::mock( 'WP_Error' );
+		$this->assertSame( $error, $upgrader( $error ) );
+	}
+
+	/**
+	 * A non-empty bind with an empty current session token is rejected — covers
+	 * the cookie-less / destroyed-session branch of verify_token().
+	 */
+	public function test_is_active_rejects_when_bind_present_but_session_token_empty(): void {
+		$future = time() + 300;
+		$token  = 'valid-token';
+
+		Functions\when( 'get_current_user_id' )->justReturn( 1 );
+		Functions\when( 'wp_get_session_token' )->justReturn( '' ); // No current login session.
+		Functions\when( 'get_user_meta' )->alias(
+			static function ( $uid, $key, $single ) use ( $future, $token ) {
+				if ( Sudo_Session::META_KEY === $key ) {
+					return $future;
+				}
+				if ( Sudo_Session::TOKEN_META_KEY === $key ) {
+					return hash( 'sha256', $token );
+				}
+				if ( Sudo_Session::SESSION_BIND_META_KEY === $key ) {
+					return hash( 'sha256', 'session-A' );
+				}
+				return '';
+			}
+		);
+
+		$_COOKIE[ Sudo_Session::TOKEN_COOKIE ] = $token;
+
+		$this->assertFalse( Sudo_Session::is_active( 1 ) );
+	}
+
+	/**
+	 * Logout with no explicit user id falls back to the current user.
+	 */
+	public function test_logout_falls_back_to_current_user(): void {
+		Functions\when( 'get_current_user_id' )->justReturn( 15 );
+		Functions\when( 'get_user_meta' )->justReturn( time() + 600 );
+		Functions\when( 'delete_user_meta' )->justReturn( true );
+		Functions\when( 'headers_sent' )->justReturn( true );
+
+		Actions\expectDone( 'wp_sudo_deactivated' )->once()->with( 15 );
+
+		( new Plugin() )->deactivate_session_on_logout( 0 );
+	}
+
 	// =====================================================================
 	// Helpers
 	// =====================================================================
