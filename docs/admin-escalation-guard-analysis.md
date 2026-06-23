@@ -99,6 +99,45 @@ opt-out/opt-in filter (§6). It is defensible to *gate* admin provisioning (it i
 privilege-sensitive and matches the plugin's thesis), but it must not be the
 out-of-the-box default.
 
+### REST user-creation frequency — yes, heavily, but all low-privilege
+
+Plugins *do* create users over REST at high volume — which is precisely why a
+**blanket** REST user-creation guard would be unacceptable, yet does **not**
+threaten an escalation-only guard:
+
+- **WooCommerce Store API checkout** (`POST /wc/store/v1/checkout`) creates a
+  customer account during checkout when `create_account` is set or the store
+  requires registration, by calling `wc_create_new_customer()` (role
+  `customer`). Its `permission_callback` is `__return_true` and it runs in a
+  **guest** context authenticated by a cart token / Store API nonce (or an
+  authenticated shopper). This is **storefront-volume** — potentially every
+  guest signup / checkout-with-account. *(Verified: StoreApi `Checkout` route
+  `process_customer()` / `should_create_customer_account()`.)*
+- **WooCommerce REST `POST /wc/v3/customers`** — integrations, ERPs, and headless
+  frontends create customers (often in batches); authenticated with
+  customer-management caps, `role` read-only → `customer`.
+- **Core `POST /wp/v2/users`** — admin tooling and headless WordPress; requires
+  `create_users`.
+
+All three create **low-privilege** users, and the two high-volume WooCommerce
+paths force the customer role / mark `role` read-only — **none can mint an
+administrator**. Therefore:
+
+1. An **escalation-only** guard (fires only on a *newly granted
+   administrator/super-admin*) **never triggers** on these flows, regardless of
+   volume — frequency is a non-issue for the recommended design.
+2. A **blanket** REST `user.create` guard **would** break storefront signups and
+   checkout-with-account at scale, and would run in a guest context where "sudo"
+   is meaningless — a decisive argument against ever guarding REST *creation*
+   broadly, and against the blanket option generally.
+3. If the REST *surface* ever gains an escalation guard (separate from this
+   admin-surface item), it must be escalation-to-admin **only** and
+   App-Password/policy-aware (Unrestricted passes), and must explicitly not touch
+   Store API guest account creation.
+
+Net: REST user-creation volume argues *for* narrowing to escalation-only — not
+against the feature.
+
 ## 5. Surface boundaries (important scoping clarification)
 
 The admin backstop arms on `admin_init` — it does **not** run for REST requests.
