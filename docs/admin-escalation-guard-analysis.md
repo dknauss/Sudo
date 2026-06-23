@@ -182,16 +182,56 @@ These confirm, for the two open-source leaders, the invariant the guard depends
 on — *legitimate membership/LMS provisioning does not grant the administrator
 role*. MemberPress is the one unverified gap.
 
-### SSO / identity-sync — the real residual false positive
+### SSO / identity-sync / bulk-import — the real residual false positive (verified)
 
-Plugins that **auto-provision administrators** (SAML/OIDC SSO mapping an IdP
-group to `administrator`, directory-sync tools) perform exactly the guarded
-action — granting admin — and often on a non-enumerated request with no sudo
-window. The narrowed guard **would block these**. This is the single concrete
-breakage case and the reason the guard must ship **default OFF** behind an
-opt-out/opt-in filter (§6). It is defensible to *gate* admin provisioning (it is
-privilege-sensitive and matches the plugin's thesis), but it must not be the
-out-of-the-box default.
+Plugins that **auto-provision administrators** perform exactly the guarded action
+— granting admin — often on an *unattended* request (a 3am SSO login, a scheduled
+directory sync) with no sudo window. The narrowed guard **would block these**.
+This is the concrete breakage case and the reason the guard must ship **default
+OFF** behind a filter (§6), with an **allowlist** for trusted provisioners.
+
+Source-verified plugins that can reach `administrator` (and the mechanism, all of
+which the effect-level guard catches — §3):
+
+| Plugin | Can grant admin? | Mechanism (verified) |
+|---|---|---|
+| **Next Active Directory Integration** (NADI) | Yes — "Role Equivalent Groups" map any AD group → `administrator`; the literal `super admin` token → super-admin | `add_role('administrator')`; `grant_super_admin()` for the super-admin token *(`src/.../Role/Manager.php`)* |
+| **WP SAML Auth** (Pantheon) | Yes — `default_role` set to `administrator`, or a SAML attribute via the `wp_saml_auth_insert_user` filter | `wp_insert_user(['role'=>…])` *(`inc/class-wp-saml-auth.php`)* |
+| **Authorizer** (UH) | Yes — default-role / per-user dropdowns include `administrator` (single-site) | `wp_insert_user`/`set_role`/`add_role`/`add_user_to_blog` *(`src/authorizer/class-authorization.php`)* |
+| **Import users from CSV with meta** (codection) | Yes — a CSV `role=administrator` column; no exclusion | `wp_insert_user`/`wp_update_user`/`set_role`; `add_user_to_blog` on multisite |
+| **Trifoia Cognito Login** (`cognito-login`) | Yes — maps an **unvalidated** Cognito `custom:role` token straight to the WP role, no allowlist | `wp_insert_user(['role'=>$token['custom:role']])` *(`includes/units/user.php`)* |
+| **Login with Google** (rtCamp) / **Google Apps Login** | Configurable — default-role / `rt_gauth_user_role` filter; free versions default to the site role (admin only if a site sets it) | `wp_insert_user(['role'=>…])` |
+| **miniOrange SAML / OAuth** | SAML: group→role mapping incl. admin in an **old (v3.0) mirror**; OAuth (v4.8 mirror) had none. Current free trunk **unverified** (see caveat) | `wp_update_user(['role'=>…])` |
+
+Two plugins are *not* false positives: **OpenID Connect Generic** sets **no role**
+in core (admin only if a site's own callback does it via its action/filter hooks),
+and **WP OAuth Server** is an identity *provider*, not a client that provisions
+users. Premium/closed mapping logic (miniOrange enforcement, WP All Import /
+Ultimate CSV Importer user add-ons, commercial Cognito connectors) is
+**UNVERIFIED** — if any grant admin via the `user_has_cap` runtime filter rather
+than a meta write, the guard would miss them (§3 gap).
+
+**Design takeaways:**
+
+1. The allowlist is **not hypothetical** — at least five verified, legitimately
+   installed plugins map an external identity to `administrator`. The guard's
+   filter/allowlist must let an operator exempt a named provisioner.
+2. **Interactive vs. unattended matters.** A bulk CSV import an admin runs in
+   `wp-admin` happens *inside* an active sudo window, so the guard naturally lets
+   it through; the breakage is the **unattended** path (SSO login, cron sync) with
+   no session. Framing the escape hatch around "trusted unattended context" (a
+   constant/allowlist) rather than blanket-OFF is the better long-term shape.
+3. Every verified mechanism writes `{prefix}capabilities` or calls
+   `grant_super_admin` — so the §3 effect-level guard *does* cover them, **and**
+   the per-blog capability-key coverage (NADI/Authorizer/CSV via
+   `add_user_to_blog`) is load-bearing, not optional.
+
+> **Verification caveat:** this session's egress policy blocks all
+> `*.wordpress.org` hosts (SVN/API/downloads → 403), so the two miniOrange rows
+> rest on **older `wp-plugins` GitHub mirror snapshots** (SAML v3.0, OAuth v4.8),
+> not current trunk. Re-verify current free versions from an unrestricted
+> environment before publishing version-specific claims. All other rows were
+> verified against current GitHub upstreams.
 
 ### REST user-creation frequency — yes, heavily, but all low-privilege
 
@@ -379,3 +419,16 @@ residual mid-session bypass (§1).
   Report (privilege escalation = 2nd most common type); Patchstack State of
   WordPress Security 2025 + 2025 mid-year breakdown (majority of disclosures
   unauthenticated). Full report bodies were not machine-fetchable at write time.
+- WP-core hook chain (§3 matrix): `wp-includes/class-wp-user.php`
+  (`set_role`/`add_role`/`cap_key`), `wp-includes/ms-functions.php`
+  (`add_user_to_blog` → `set_role`), `wp-includes/capabilities.php`
+  (`grant_super_admin`/`granted_super_admin`) — WordPress/WordPress master (GitHub raw).
+- SSO/provisioning admin-grant mechanisms (§4 table): NADI
+  `src/.../Role/Manager.php` (NeosIT); WP SAML Auth `inc/class-wp-saml-auth.php`
+  (pantheon-systems); Authorizer `src/authorizer/class-authorization.php` (uhm-coe);
+  OpenID Connect Generic `includes/openid-connect-generic-client-wrapper.php`
+  (oidc-wp); Login with Google `src/Modules/Login.php` (rtCamp); Google Apps Login
+  `core/core_google_apps_login.php`; Trifoia Cognito Login
+  `includes/units/user.php`; codection Import-users-from-CSV
+  `import-users-from-csv-with-meta.php`. miniOrange rows from `wp-plugins`
+  GitHub mirrors (SAML v3.0, OAuth v4.8) — current trunk unverified, see §4 caveat.
