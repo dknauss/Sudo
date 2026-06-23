@@ -201,21 +201,26 @@ which the effect-level guard catches — §3):
 | **Import users from CSV with meta** (codection) | Yes — a CSV `role=administrator` column; no exclusion | `wp_insert_user`/`wp_update_user`/`set_role`; `add_user_to_blog` on multisite |
 | **Trifoia Cognito Login** (`cognito-login`) | Yes — maps an **unvalidated** Cognito `custom:role` token straight to the WP role, no allowlist | `wp_insert_user(['role'=>$token['custom:role']])` *(`includes/units/user.php`)* |
 | **Login with Google** (rtCamp) / **Google Apps Login** | Configurable — default-role / `rt_gauth_user_role` filter; free versions default to the site role (admin only if a site sets it) | `wp_insert_user(['role'=>…])` |
+| **`import-users` addon** (the user-import engine split out of WP Ultimate CSV Importer) | Yes — CSV `role` column accepts **any** registered role incl. `administrator`, with **no** editable-roles check | `wp_insert_user`/`wp_update_user(['role'=>…])` *(`importExtensions/UsersImport.php`)* |
+| **wp-openid** (nicko170; generic OIDC, Keycloak-capable) | Yes — configurable default role and a claim→`role` mapping; admin dropdown via `get_editable_roles()` | `wp_insert_user(['role'=>…])` *(`OpenID.php`)* |
 | **miniOrange SAML / OAuth** | SAML: group→role mapping incl. admin in an **old (v3.0) mirror**; OAuth (v4.8 mirror) had none. Current free trunk **unverified** (see caveat) | `wp_update_user(['role'=>…])` |
 
 Two plugins are *not* false positives: **OpenID Connect Generic** sets **no role**
 in core (admin only if a site's own callback does it via its action/filter hooks),
-and **WP OAuth Server** is an identity *provider*, not a client that provisions
-users. Premium/closed mapping logic (miniOrange enforcement, WP All Import /
-Ultimate CSV Importer user add-ons, commercial Cognito connectors) is
-**UNVERIFIED** — if any grant admin via the `user_has_cap` runtime filter rather
-than a meta write, the guard would miss them (§3 gap).
+and **WP OAuth Server** (`oauth2-provider`) is an identity *provider* — verified to
+contain no user-creation/role-write code at all, so it cannot promote anyone.
+**Keycloak** has no dedicated WP.org plugin; it is consumed through generic OIDC
+clients (wp-openid, Authorizer, OpenID Connect Generic) whose role behaviour is
+covered above. Still **UNVERIFIED** (premium/closed): the **WP All Import** user
+add-on, miniOrange premium attribute→role enforcement, and commercial Cognito
+connectors — if any grant admin via the `user_has_cap` runtime filter rather than a
+meta write, the guard would miss them (§3 gap).
 
 **Design takeaways:**
 
-1. The allowlist is **not hypothetical** — at least five verified, legitimately
-   installed plugins map an external identity to `administrator`. The guard's
-   filter/allowlist must let an operator exempt a named provisioner.
+1. The allowlist is **not hypothetical** — at least seven verified, legitimately
+   installed plugins map an external identity (or CSV row) to `administrator`. The
+   guard's filter/allowlist must let an operator exempt a named provisioner.
 2. **Interactive vs. unattended matters.** A bulk CSV import an admin runs in
    `wp-admin` happens *inside* an active sudo window, so the guard naturally lets
    it through; the breakage is the **unattended** path (SSO login, cron sync) with
@@ -429,6 +434,11 @@ residual mid-session bypass (§1).
   OpenID Connect Generic `includes/openid-connect-generic-client-wrapper.php`
   (oidc-wp); Login with Google `src/Modules/Login.php` (rtCamp); Google Apps Login
   `core/core_google_apps_login.php`; Trifoia Cognito Login
-  `includes/units/user.php`; codection Import-users-from-CSV
-  `import-users-from-csv-with-meta.php`. miniOrange rows from `wp-plugins`
-  GitHub mirrors (SAML v3.0, OAuth v4.8) — current trunk unverified, see §4 caveat.
+  `includes/units/user.php`; codection Import-users-from-CSV `classes/import.php`;
+  the `import-users` addon (user engine split from WP Ultimate CSV Importer)
+  `importExtensions/UsersImport.php`; wp-openid (nicko170) `OpenID.php`; WP OAuth
+  Server (`oauth2-provider`) verified to contain no role-write code. miniOrange
+  rows from `wp-plugins` GitHub mirrors (SAML v3.0, OAuth v4.8) — current trunk
+  unverified, see §4 caveat. WP All Import user add-on remains unverified
+  (premium/closed). Non-`wordpress.org` sources used because SVN/API are egress-blocked
+  (see §4 caveat): current-release mirror `github.com/common-repository/<slug>`.
