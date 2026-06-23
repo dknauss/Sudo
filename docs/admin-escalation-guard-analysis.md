@@ -2,8 +2,8 @@
 
 > **Status: analysis / decision input.** Revisits the deferred "Item 2" from the
 > gate-completeness work (PRs #102/#104). Not implemented. If implemented, the
-> guard ships **behind an opt-out filter defaulting OFF** (decision recorded
-> 2026-06-23). This document exists so the over-block surface is understood
+> guard ships **behind an opt-out filter defaulting OFF** (a recorded
+> decision). This document exists so the over-block surface is understood
 > before any code lands.
 
 ## 1. The gap
@@ -59,7 +59,7 @@ over-block.
   action (before) and `granted_super_admin` action (after), each with `$user_id`.
   So the per-blog capabilities guard will **not** catch super-admin grants; a
   separate hook on `grant_super_admin` is required.
-  *(Verified against WP core `wp-includes/capabilities.php`, 2026-06-23.)*
+  *(Verified against WP core `wp-includes/capabilities.php`.)*
 
 ## 4. Ecosystem implications
 
@@ -68,11 +68,11 @@ over-block.
 - `wc_create_new_customer()` creates users with `'role' => 'customer'` and never
   assigns `administrator`. It is the only `wp_insert_user()` caller in
   `includes/wc-user-functions.php`.
-  *(Verified: WooCommerce `trunk/.../includes/wc-user-functions.php`, 2026-06-23.)*
+  *(Verified: WooCommerce `trunk/.../includes/wc-user-functions.php`.)*
 - The WooCommerce REST customers controller exposes `role` as **`readonly`** in
   its schema, so a REST caller cannot request `administrator`; creation funnels
   to the customer role.
-  *(Verified: `class-wc-rest-customers-controller.php` schema, 2026-06-23.)*
+  *(Verified: `class-wc-rest-customers-controller.php` schema.)*
 
 **Conclusion:** customer creation/registration/checkout-account and
 `POST /wc/v3/customers` all assign `customer`, so a "newly-granted
@@ -141,7 +141,7 @@ only the **interactive admin** third.
   operator who sees no error; a redirect-to-challenge is not possible this deep
   in the write. Weigh short-circuit+audit vs. `wp_die` with a clear 403.)*
 - **Opt-out filter:** `wp_sudo_guard_admin_escalation` (name TBD), **default
-  `false`** (OFF) per the 2026-06-23 decision — security-conscious sites opt in;
+  `false`** (OFF) per the recorded decision — security-conscious sites opt in;
   SSO/provisioning sites are unaffected by default.
 - **Exclude `user.create`** from the admin guard (orphan problem, §3).
 
@@ -174,11 +174,11 @@ rather than a correctness fix. A formal Pre-Implementation Design Review (per
 ## Verification sources
 
 - WooCommerce `wc_create_new_customer()` role: `woocommerce/trunk` →
-  `plugins/woocommerce/includes/wc-user-functions.php` (GitHub raw, 2026-06-23).
+  `plugins/woocommerce/includes/wc-user-functions.php` (GitHub raw).
 - WooCommerce REST customer `role` readonly: `class-wc-rest-customers-controller.php`
-  schema (GitHub raw, 2026-06-23).
+  schema (GitHub raw).
 - WordPress super-admin storage/hooks: `wp-includes/capabilities.php`
-  (`grant_super_admin` / `revoke_super_admin`, GitHub raw, 2026-06-23).
+  (`grant_super_admin` / `revoke_super_admin`, GitHub raw).
 - In-tree mechanics: `includes/class-gate.php`
   (`register_function_hooks`, `is_user_capabilities_meta_key`,
   `register_interactive_backstop`, `register_rest_backstop`).
