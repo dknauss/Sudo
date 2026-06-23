@@ -24,8 +24,8 @@ use Brain\Monkey\Filters;
 /**
  * @covers \WP_Sudo\Gate::register_rest_backstop
  * @covers \WP_Sudo\Gate::arm_effect_guards
- * @covers \WP_Sudo\Gate::rest_auth_mode
- * @covers \WP_Sudo\Gate::die_rest_sudo_required
+ * @covers \WP_Sudo\Gate::is_rest_cookie_auth
+ * @covers \WP_Sudo\Gate::die_sudo_required
  */
 class RestBackstopTest extends TestCase {
 
@@ -92,14 +92,14 @@ class RestBackstopTest extends TestCase {
 	}
 
 	/**
-	 * Invoke the private rest_auth_mode() classifier via reflection.
+	 * Invoke the private is_rest_cookie_auth() classifier via reflection.
 	 *
-	 * @return string
+	 * @return bool
 	 */
-	private function invoke_rest_auth_mode(): string {
-		$method = new \ReflectionMethod( Gate::class, 'rest_auth_mode' );
+	private function invoke_is_rest_cookie_auth(): bool {
+		$method = new \ReflectionMethod( Gate::class, 'is_rest_cookie_auth' );
 		@$method->setAccessible( true ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
-		return (string) $method->invoke( $this->gate, null );
+		return (bool) $method->invoke( $this->gate, null );
 	}
 
 	// =====================================================================
@@ -252,49 +252,49 @@ class RestBackstopTest extends TestCase {
 	}
 
 	// =====================================================================
-	// rest_auth_mode() classification (shared with intercept_rest)
+	// is_rest_cookie_auth() classification (shared with intercept_rest)
 	// =====================================================================
 
 	/**
 	 * A valid nonce with no App Password credential classifies as cookie auth.
 	 */
-	public function test_rest_auth_mode_cookie_when_valid_nonce_and_no_app_password(): void {
+	public function test_is_rest_cookie_auth_true_when_valid_nonce_and_no_app_password(): void {
 		$_SERVER['HTTP_X_WP_NONCE'] = 'valid';
 		Functions\when( 'wp_verify_nonce' )->justReturn( true );
 		Functions\when( 'rest_get_authenticated_app_password' )->justReturn( null );
 
-		$this->assertSame( 'cookie', $this->invoke_rest_auth_mode() );
+		$this->assertTrue( $this->invoke_is_rest_cookie_auth() );
 	}
 
 	/**
 	 * A request presenting BOTH a valid nonce AND an App Password is headless —
 	 * the nonce cannot be used to bypass the App Password policy (C2).
 	 */
-	public function test_rest_auth_mode_app_password_when_credential_present_despite_nonce(): void {
+	public function test_is_rest_cookie_auth_false_when_credential_present_despite_nonce(): void {
 		$_SERVER['HTTP_X_WP_NONCE'] = 'valid';
 		Functions\when( 'wp_verify_nonce' )->justReturn( true );
 		Functions\when( 'rest_get_authenticated_app_password' )->justReturn( 'uuid-123' );
 
-		$this->assertSame( 'app_password', $this->invoke_rest_auth_mode() );
+		$this->assertFalse( $this->invoke_is_rest_cookie_auth() );
 	}
 
 	/**
 	 * No nonce at all classifies as headless (app-password / bearer).
 	 */
-	public function test_rest_auth_mode_app_password_when_no_nonce(): void {
+	public function test_is_rest_cookie_auth_false_when_no_nonce(): void {
 		Functions\when( 'wp_verify_nonce' )->justReturn( false );
 
-		$this->assertSame( 'app_password', $this->invoke_rest_auth_mode() );
+		$this->assertFalse( $this->invoke_is_rest_cookie_auth() );
 	}
 
 	/**
 	 * The _wpnonce request parameter is honoured when the header is absent.
 	 */
-	public function test_rest_auth_mode_reads_wpnonce_request_param(): void {
+	public function test_is_rest_cookie_auth_reads_wpnonce_request_param(): void {
 		$_REQUEST['_wpnonce'] = 'param-nonce';
 		Functions\when( 'wp_verify_nonce' )->justReturn( true );
 		Functions\when( 'rest_get_authenticated_app_password' )->justReturn( null );
 
-		$this->assertSame( 'cookie', $this->invoke_rest_auth_mode() );
+		$this->assertTrue( $this->invoke_is_rest_cookie_auth() );
 	}
 }

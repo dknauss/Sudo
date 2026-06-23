@@ -236,17 +236,7 @@ class Gate {
 			/** This action is documented in includes/class-gate.php */
 			do_action( 'wp_sudo_action_blocked', $user_id, $rule_id, 'admin' );
 
-			wp_die(
-				esc_html(
-					sprintf(
-						/* translators: %s: action label */
-						__( 'This operation (%s) requires sudo. Activate a sudo session and try again.', 'wp-sudo' ),
-						$label
-					)
-				),
-				'',
-				array( 'response' => 403 )
-			);
+			$this->die_sudo_required( $label );
 		};
 
 		$this->arm_effect_guards( $guard );
@@ -264,7 +254,7 @@ class Gate {
 	 * callback runs and this guard allows the effect silently.
 	 *
 	 * Unlike the admin guard, the REST guard honours the Application Password
-	 * policy via the shared rest_auth_mode() classification: an Unrestricted
+	 * policy via the shared is_rest_cookie_auth() classification: an Unrestricted
 	 * headless client is allowed (audit only), while a cookie-authenticated
 	 * browser request or a Limited/Disabled app-password request is blocked.
 	 * Because an action hook cannot return a WP_Error, the block is delivered via
@@ -289,14 +279,14 @@ class Gate {
 				return;
 			}
 
-			if ( 'cookie' === $this->rest_auth_mode() ) {
+			if ( $this->is_rest_cookie_auth() ) {
 				// Cookie-authenticated browser request — hard block. An effect
 				// hook cannot stash and replay the request the way intercept_rest()
 				// does for enumerated routes, so surface a blocked (not gated)
 				// audit on 'rest': no challenge will follow.
 				/** This action is documented in includes/class-gate.php */
 				do_action( 'wp_sudo_action_blocked', $user_id, $rule_id, 'rest' );
-				$this->die_rest_sudo_required( $label );
+				$this->die_sudo_required( $label );
 			} else {
 				// Headless (app-password / bearer) — honour the App Password policy.
 				$policy = $this->get_app_password_policy();
@@ -314,7 +304,7 @@ class Gate {
 					do_action( 'wp_sudo_action_blocked', $user_id, $rule_id, 'rest_app_password' );
 				}
 
-				$this->die_rest_sudo_required( $label );
+				$this->die_sudo_required( $label );
 			}
 		};
 
@@ -402,23 +392,24 @@ class Gate {
 	}
 
 	/**
-	 * Terminate a REST request that requires sudo with a 403.
+	 * Terminate a request that requires sudo with a 403.
 	 *
-	 * Used by the REST backstop, which fires inside an effect action hook and so
-	 * cannot return a WP_Error. During a REST request WordPress routes wp_die()
-	 * through the REST die handler, producing a JSON 403 response.
+	 * Shared by the interactive (admin) and REST effect-level backstops, which
+	 * fire inside effect hooks and so cannot return a WP_Error. wp_die() renders
+	 * an HTML page on the admin surface and a JSON error during a REST request —
+	 * WordPress selects the handler from the request context.
 	 *
 	 * @since 4.1.0
 	 *
 	 * @param string $label Human-readable action label.
 	 * @return void
 	 */
-	private function die_rest_sudo_required( string $label ): void {
+	private function die_sudo_required( string $label ): void {
 		wp_die(
 			esc_html(
 				sprintf(
 					/* translators: %s: action label */
-					__( 'This operation (%s) requires sudo and cannot be performed without an active sudo session.', 'wp-sudo' ),
+					__( 'This operation (%s) requires sudo. Activate a sudo session and try again.', 'wp-sudo' ),
 					$label
 				)
 			),
@@ -428,16 +419,15 @@ class Gate {
 	}
 
 	/**
-	 * Classify the current REST request's authentication for gating.
+	 * Whether the current REST request is cookie-authenticated (a browser request).
 	 *
-	 * Returns 'cookie' when the request carries a valid wp_rest nonce AND is not
-	 * authenticated via an Application Password (a browser/cookie request);
-	 * returns 'app_password' otherwise (App Password, bearer, or any headless
-	 * credential). A request presenting BOTH a valid nonce AND an App Password is
-	 * classified as headless, so a headless client cannot bypass the App Password
-	 * policy by also sending a nonce (C2). WordPress core accepts the REST nonce
-	 * via the X-WP-Nonce header or the _wpnonce parameter (see
-	 * rest_cookie_check_errors() in wp-includes/rest-api.php).
+	 * Returns true when the request carries a valid wp_rest nonce AND is not
+	 * authenticated via an Application Password; false otherwise (App Password,
+	 * bearer, or any headless credential). A request presenting BOTH a valid nonce
+	 * AND an App Password is treated as headless, so a headless client cannot
+	 * bypass the App Password policy by also sending a nonce (C2). WordPress core
+	 * accepts the REST nonce via the X-WP-Nonce header or the _wpnonce parameter
+	 * (see rest_cookie_check_errors() in wp-includes/rest-api.php).
 	 *
 	 * Shared by intercept_rest() (enumerated routes) and register_rest_backstop()
 	 * (non-enumerated routes) so the two paths cannot drift. The optional request
@@ -449,9 +439,9 @@ class Gate {
 	 * @since 4.1.0
 	 *
 	 * @param \WP_REST_Request|null $request The REST request, when available.
-	 * @return string 'cookie' or 'app_password'.
+	 * @return bool True for cookie/browser auth, false for any headless credential.
 	 */
-	private function rest_auth_mode( ?\WP_REST_Request $request = null ): string {
+	private function is_rest_cookie_auth( ?\WP_REST_Request $request = null ): bool {
 		$nonce = '';
 		if ( $request instanceof \WP_REST_Request ) {
 			$nonce = (string) $request->get_header( 'X-WP-Nonce' );
@@ -463,11 +453,9 @@ class Gate {
 			$nonce = self::sanitize_input_string( $_REQUEST['_wpnonce'] ?? '' ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Read-only classification; sanitized in helper.
 		}
 
-		$is_cookie_auth = '' !== $nonce
+		return '' !== $nonce
 			&& wp_verify_nonce( $nonce, 'wp_rest' )
 			&& ! rest_get_authenticated_app_password();
-
-		return $is_cookie_auth ? 'cookie' : 'app_password';
 	}
 
 	/**
@@ -1461,7 +1449,7 @@ class Gate {
 
 		// Distinguish cookie-auth (browser) from app-password/bearer (headless)
 		// via the shared classifier (also used by the REST effect backstop).
-		$is_cookie_auth = 'cookie' === $this->rest_auth_mode( $request );
+		$is_cookie_auth = $this->is_rest_cookie_auth( $request );
 
 		if ( ! $is_cookie_auth ) {
 			// Non-browser auth (app-password, bearer, etc.) — check policy.
