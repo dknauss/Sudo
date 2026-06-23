@@ -1,6 +1,6 @@
 # Release Status (Canonical Current State)
 
-Last verified: 2026-06-21
+Last verified: 2026-06-23
 
 This file is the canonical source for **current release state** in this repository:
 
@@ -18,9 +18,10 @@ This file is the canonical source for **current release state** in this reposito
 
 ## Current `main` release target
 
-- **Latest release:** `4.0.0` — milestone **v4.0.0 (Pre-Public Hardening Baseline)**, **tagged `v4.0.0` 2026-06-21**. Breaking release (see Unreleased/shipped work below). All phases (11, 12, 13, 13.1, 14, 15) merged to `main`; PR [#99](https://github.com/dknauss/Sudo/pull/99) (Phase 14, WordPress.org readiness) merged as `7b7b85a`.
-- **Runtime version constant:** `4.0.0` on `main` and at the `v4.0.0` tag. `WP_SUDO_VERSION` is set in `wp-sudo.php` (header + constant), `tests/bootstrap.php`, and `phpstan-bootstrap.php`; `readme.txt` Stable tag is `4.0.0`. All five in sync.
-- **Current package metadata (on `main`):** `readme.txt` Stable tag `4.0.0` == header Version (no `stable_tag_mismatch`); `Requires at least 6.4`, `Requires PHP 8.2`, `Tested up to 7.0`. WordPress.org listing name: **"Sudo – Admin Action Gating"** (UI brand "Sudo"; slug/text-domain stay `wp-sudo` — lock the slug at submission).
+- **Current `main` development version:** `4.1.0` (**unreleased — not yet tagged**). `WP_SUDO_VERSION` was bumped from `4.0.0` to `4.1.0` on `main` to open the 4.1.0 line, matching the `@since 4.1.0` annotations and the `## 4.1.0 - unreleased` CHANGELOG section for the post-4.0.0 gate-completeness work (PRs #102, #104, #105, #107). The latest **tagged** release remains `v4.0.0` (2026-06-21); `v4.1.0` will be tagged when the 4.1.0 line is cut.
+- **Latest tagged release:** `4.0.0` — milestone **v4.0.0 (Pre-Public Hardening Baseline)**, **tagged `v4.0.0` 2026-06-21**. Breaking release. All phases (11, 12, 13, 13.1, 14, 15) merged to `main`; PR [#99](https://github.com/dknauss/Sudo/pull/99) (Phase 14, WordPress.org readiness) merged as `7b7b85a`.
+- **Runtime version constant:** `4.1.0` on `main`. `WP_SUDO_VERSION` is set in `wp-sudo.php` (header + constant), `tests/bootstrap.php`, and `phpstan-bootstrap.php`; `readme.txt` Stable tag is `4.1.0`. All five in sync. (Stable tag is package/zip metadata for the unreleased 4.1.0 line; see WordPress.org publication status below — the plugin is not published.)
+- **Current package metadata (on `main`):** `readme.txt` Stable tag `4.1.0` == header Version (no `stable_tag_mismatch`); `Requires at least 6.4`, `Requires PHP 8.2`, `Tested up to 7.0`. WordPress.org listing name: **"Sudo – Admin Action Gating"** (UI brand "Sudo"; slug/text-domain stay `wp-sudo` — lock the slug at submission).
 - **Last archived release checklist:** `docs/archive/release-3.0.0-checklist.md`
 
 ## WordPress.org publication status
@@ -97,10 +98,15 @@ cut after Phases 14–15 land.
   dashboard activity, recovery-mode screens); README copy clarified re: the sudo
   window. Historical planning docs moved under `docs/archive/`.
 
+> **Note:** the v4.0.0 narrative above is historical — `v4.0.0` was tagged
+> 2026-06-21. `main` has since advanced to the unreleased `4.1.0` line (see
+> "Current `main` release target").
+
 **Pre-tag checklist reminder:** `WP_SUDO_VERSION` (three code constants + plugin
-header) and `readme.txt` stable tag are already at `4.0.0` on PR #86. Before
-tagging `4.0.0`, confirm those are still in sync, re-verify external claims, and
-update this file's "Latest tagged release" once the tag is cut.
+header) and `readme.txt` stable tag are at `4.1.0` on `main` (the unreleased
+4.1.0 line). Before tagging `v4.1.0`, confirm those five are still in sync,
+re-verify external claims, and update this file's "Latest tagged release" once
+the tag is cut.
 
 ## WordPress release posture
 
