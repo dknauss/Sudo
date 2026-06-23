@@ -93,7 +93,8 @@ over-block.
   *after* the user row exists → an **orphaned, roleless user**. → **Creation must
   be excluded** from the admin guard; admin *creation* still surfaces as an
   administrator capabilities write and is caught there as a *promotion*, at the
-  cost of the orphan caveat (mitigated by short-circuit, §6).
+  cost of the orphan caveat (mitigated by excluding creation + halting before the
+  write, §6/§9).
 - **Multisite super-admin is NOT in capabilities meta.** `grant_super_admin()` /
   `revoke_super_admin()` store status in the network `site_admins` site option
   (`update_site_option( 'site_admins', … )`) and fire the `grant_super_admin`
@@ -311,7 +312,8 @@ unauth/low-priv paths where these exploits live. This is the same hook the CLI
 new machinery. **The recommended design is this effect-level guard, not a set of
 per-surface guards.** One consequence: on non-interactive surfaces there is no
 human to send to the challenge, so the only available response is a **hard block**
-(short-circuit the write), not a reauth prompt (§6, §8).
+(halt the request before the write — §6/§9, not a short-circuit return), not a
+reauth prompt (§6, §8).
 
 ## 6. Implementation shape (if approved)
 
@@ -331,13 +333,42 @@ human to send to the challenge, so the only available response is a **hard block
   and low false positives. A capability-based check (gaining `manage_options` /
   `promote_users` / `edit_users`) would catch custom admin-equivalent roles but
   raises false positives; defer unless a concrete bypass is shown.
-- **Block mechanism:** prefer **short-circuit-return** from the metadata filter
-  (return the `$check` short-circuit value to *prevent* the capabilities write)
-  over `wp_die()` mid-write, to avoid half-applied state; pair with the standard
-  `wp_sudo_action_blocked` audit (surface `admin`) so the block is observable.
-  *(Open question for the design review: a silent short-circuit may confuse an
-  operator who sees no error; a redirect-to-challenge is not possible this deep
-  in the write. Weigh short-circuit+audit vs. `wp_die` with a clear 403.)*
+- **Block mechanism (corrected by design review — §9):** **halt the request**
+  (`wp_die()` for HTTP surfaces with a clear 403; `exit` for cron, mirroring the
+  existing CLI guard's cron handling) **before** the capabilities write proceeds —
+  *not* a short-circuit return. Short-circuit-returning a non-null value from
+  `add_user_metadata`/`update_user_metadata` is **unsound**: it makes core treat
+  the write as *succeeded* (the in-memory `WP_User::$caps`/`$roles` update and
+  downstream actions still fire) → a **half-applied** state worse than the orphan
+  it was meant to avoid; and a `false` return is indistinguishable from a
+  legitimate "value unchanged" no-op. Halting before the write is the only clean
+  stop and is consistent with the existing CLI `user.promote` guard on the same
+  hook. Pair with the `wp_sudo_action_blocked` audit so the block is observable.
+- **Coexist with the existing CLI guard on the same hook.** The CLI
+  `user.promote` guard already hooks `add_user_metadata`/`update_user_metadata`.
+  Two guards on one filter must not double-fire, emit contradictory audit signals,
+  or race on registration order — the escalation guard must be a no-op whenever the
+  CLI guard already owns the block for that surface.
+- **Respect the operator's entry-point policy (do not override it).** The guard is
+  surface-agnostic, but a site that explicitly set CLI/Cron/REST/App-Password to
+  **Unrestricted** has opted those surfaces *out* of gating. The escalation guard
+  must **consult that policy and defer** on an Unrestricted surface, or it silently
+  contradicts a setting the operator already chose.
+- **Constant / WP-CLI bypass is checked FIRST**, before any session or caps read,
+  so deployment / migration / sole-admin recovery is never hard-blocked.
+- **Multisite key matching must be pattern-based.** `is_user_capabilities_meta_key()`
+  currently builds a fixed list from the *current* blog prefix; secondary-blog keys
+  are `{base_prefix}{blog_id}_capabilities` (e.g. `wp_2_capabilities`). Match via a
+  regex (`/^{base_prefix}(\d+_)?capabilities$/`). NOTE: this also changes the
+  **shipped CLI `user.promote` guard's** match surface → needs its own regression
+  test, not just a new-guard test.
+- **`grant_super_admin` idempotency.** The action can fire for an already-super
+  user; read `get_super_admins()` and treat already-present as *not newly granted*,
+  mirroring the single-site "newly grants" rule.
+- **Exception-free by construction.** The guard must use plain array reads /
+  `in_array` and **no** `try/catch( \Throwable )` — a swallowed exception fails
+  *open* (grant proceeds), violating `CLAUDE.md`; an unhandled throw in a meta
+  filter fails *closed* and bricks all role writes. Neither is acceptable.
 - **Default-OFF filter:** `wp_sudo_guard_escalation` (name TBD), **default
   `false`** (OFF) per the recorded decision — security-conscious sites opt in;
   SSO/provisioning sites are unaffected by default. See §8 for the path to a
@@ -371,6 +402,25 @@ human to send to the challenge, so the only available response is a **hard block
    request (`current_user` = 0) and via a *low-privilege* authenticated user
    (subscriber), filter ON → **blocked** in both, since neither can hold a sudo
    session. This exercises the effect-level/all-surfaces property from §1/§5.
+9. **Sole-admin self-edit with password change (regression for the §9 BLOCKER).**
+   An administrator (no active sudo) updates their own profile in a request that
+   *also* changes the password and re-asserts the `administrator` role; the
+   plugin's `profile_update`/`after_password_reset` hooks deactivate the session
+   mid-request → the re-assert is an **idempotent** re-grant (admin already in
+   current caps) → **allowed, no half-apply**. Proves the current-caps read is
+   evaluated against pre-mutation state.
+10. **Policy deference.** With CLI (or Cron/REST/App-Password) set to
+    **Unrestricted**, an admin grant on that surface with no sudo, filter ON →
+    **allowed** (the guard defers to the operator's explicit policy).
+11. **Constant bypass first.** With the bypass constant defined, an admin grant
+    with no sudo, filter ON → **allowed** (bypass is checked before session/caps).
+12. **Multisite secondary blog.** `add_user_to_blog( $blog2, $uid, 'administrator' )`
+    (key `wp_2_capabilities`), no sudo, filter ON → **blocked** (proves the
+    blog-prefixed key regex). Plus a **regression** asserting the existing CLI
+    `user.promote` guard still matches after the key-matching change.
+13. **Coexistence.** On a CLI request where the CLI guard already owns the block,
+    the escalation guard does **not** double-fire or emit a second/contradictory
+    `wp_sudo_action_blocked`.
 
 ## 8. Recommendation
 
@@ -399,10 +449,50 @@ mechanism.
   a defensible — arguably correct — default; it simply has to *earn* that default
   rather than ship with it.
 
-A formal Pre-Implementation Design Review (per `CLAUDE.md`) and the §7 TDD
-scenarios remain prerequisites to writing code; the design review should
-specifically weigh the short-circuit-vs-`wp_die` block mechanism (§6) and the
-residual mid-session bypass (§1).
+The Pre-Implementation Design Review (per `CLAUDE.md`) has now been **run** — its
+findings are incorporated in §9 and have already corrected §6 (block mechanism)
+and §7 (added scenarios 9–13). The §7 TDD scenarios remain prerequisites to
+writing code.
+
+## 9. Design review findings (incorporated)
+
+A pre-implementation design review of §1–§8 surfaced three **BLOCKERs** and
+several concerns. The design above has been updated to reflect them; this section
+records them so the rationale is not lost.
+
+1. **Block mechanism was unsound (fixed in §6).** Short-circuit-returning from
+   `add_user_metadata`/`update_user_metadata` does **not** cleanly prevent the
+   write — core treats it as success (in-memory caps/roles update and downstream
+   actions still fire → *half-applied* state), and a `false` return is
+   indistinguishable from a legitimate no-op. Resolution: **halt the request**
+   (`wp_die`/`exit`) before the write, consistent with the existing CLI guard on
+   the same hook. The original "short-circuit avoids half-apply" premise was
+   inverted.
+2. **Sole-admin self-edit can be blocked (fixed via §6 trigger + §7 scenario 9).**
+   The plugin's own `profile_update`/`after_password_reset` hooks deactivate the
+   sudo session *mid-request*, so a sole admin changing their own password while
+   re-asserting their role could lose the session and be blocked/half-applied.
+   Resolution: the "newly grants" rule must evaluate current caps **before** any
+   in-request mutation; an idempotent re-grant of `administrator` to a user who
+   already has it is **never** blocked, independent of session state.
+3. **Surface-agnostic guard silently overrode the operator's entry-point policy
+   (fixed in §6).** A site with CLI/Cron/REST set to **Unrestricted** would still
+   be blocked, contradicting an explicit operator choice. Resolution: the guard
+   **consults the existing policy and defers** on Unrestricted surfaces; the
+   constant bypass is checked first.
+
+Concerns also folded in (§6/§7): coexistence with the existing CLI guard on the
+same filter (no double-fire / contradictory audit); pattern-based multisite
+capability-key matching (`{base_prefix}{blog_id}_capabilities`), which also
+changes the shipped CLI guard's match surface and needs a regression test;
+`grant_super_admin` idempotency; exception-free construction (no `try/catch` —
+fail-open violates `CLAUDE.md`, fail-closed bricks role writes); and documenting
+the `user_has_cap` runtime-filter blind spot (§3) in the shipped FAQ, since it
+narrows the security claim to *meta-backed* role grants.
+
+**Status:** design corrected; not approved for code. The three BLOCKERs are
+resolved at the design level here, but each must be proven by its §7 TDD scenario
+before and during implementation.
 
 ## Verification sources
 
