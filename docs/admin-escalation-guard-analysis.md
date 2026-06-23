@@ -90,11 +90,13 @@ over-block.
   **not** carry the role; the role is applied afterward via the capabilities meta
   write. Consequence: an admin-surface guard cannot see "is this a new admin?" at
   pre-insert time, and blocking at the later capabilities write would `wp_die()`
-  *after* the user row exists → an **orphaned, roleless user**. → **Creation must
-  be excluded** from the admin guard; admin *creation* still surfaces as an
-  administrator capabilities write and is caught there as a *promotion*, at the
-  cost of the orphan caveat (mitigated by excluding creation + halting before the
-  write, §6/§9).
+  *after* the user row exists → a roleless user row. → Because the block halts
+  **before** the administrator role persists, no admin capability is ever written;
+  the only residual on the *creation* path is a brand-new user left **roleless and
+  powerless** (never an admin). The guard deletes that just-created roleless row
+  in-hook (the user ID is known), or a scheduled sweep removes it. **Promotions of
+  existing users have no orphan risk** — the prior role is simply retained. See §10
+  for the plain-language resolution.
 - **Multisite super-admin is NOT in capabilities meta.** `grant_super_admin()` /
   `revoke_super_admin()` store status in the network `site_admins` site option
   (`update_site_option( 'site_admins', … )`) and fire the `grant_super_admin`
@@ -380,8 +382,11 @@ reauth prompt (§6, §8).
     policy) for deployment, migration, and first-admin bootstrapping;
   - **audit events on every block** (`wp_sudo_action_blocked`) so a silent
     short-circuit is diagnosable rather than a mystery.
-- **Exclude `user.create`** from the guard (orphan problem, §3); admin *creation*
-  is still caught as the subsequent administrator capabilities write.
+- **Creation path is guarded too** (revises the earlier "exclude creation"
+  caution). A blocked one-shot admin-create leaves at most a **roleless, powerless**
+  user row — never an admin — which the hook deletes in place (user ID is known) or
+  a scheduled sweep removes. Promotions of existing users retain their prior role
+  (no orphan). Rationale and plain-language walkthrough in §10.
 
 ## 7. Required TDD scenarios (before any implementation)
 
@@ -493,6 +498,91 @@ narrows the security claim to *meta-backed* role grants.
 **Status:** design corrected; not approved for code. The three BLOCKERs are
 resolved at the design level here, but each must be proven by its §7 TDD scenario
 before and during implementation.
+
+## 10. Plain-language summary
+
+### What attack does this block?
+
+**Privilege escalation through broken access control** — the most common serious
+WordPress plugin vulnerability class. A buggy or malicious plugin exposes an
+endpoint (a REST route, an AJAX action, a form handler) that **creates a new
+administrator, or promotes an existing user to administrator, without properly
+checking who is allowed to**. An unauthenticated visitor, or a logged-in
+low-privilege user (a subscriber, a customer), triggers it and walks away with
+full control of the site.
+
+This guard adds a second, independent lock: granting administrator (or
+super-admin) requires that whoever is doing it has **recently re-confirmed their
+identity** (an active WP Sudo session). The attacker in these exploits is
+unauthenticated or low-privilege, so they *cannot* hold that session — the grant
+is denied **even though the vulnerable plugin's own permission check failed**. It
+is protection that works on code you did not write and cannot audit.
+
+### How do we avoid leaving "orphaned" users in the database?
+
+The guard stops the role change at the exact moment it would be saved — and (per
+WordPress internals) that is *before* the administrator role is ever persisted.
+
+- **Promoting an existing user** (the common case): we prevent the new role from
+  saving; the user simply keeps the role they already had. Nothing is half-written.
+- **Creating a brand-new admin in one request:** WordPress inserts the user row
+  first, then assigns the role second. If we block the role step, the row can be
+  left with *no* role. That leftover is **powerless** — zero capabilities, not an
+  administrator, can do nothing. Because the guard knows the user ID at block time,
+  the implementation **deletes that just-created roleless row** in the same step
+  (or a scheduled sweep removes it).
+
+The guarantee: **the worst possible leftover is an empty, powerless record — never
+a privileged one, and never a half-applied admin.**
+
+### How do we avoid illicit admin capabilities being written to the database?
+
+Administrator power becomes "real" only when it is written to the `wp_usermeta`
+capabilities row. The guard intercepts **that write** and halts the request
+*before* it lands, so the illicit capability is never persisted — the next request
+reads a clean database. WordPress had updated its in-memory copy, but that copy is
+discarded when the request ends.
+
+*Honest limit:* if a plugin grants admin powers a different way — computing them
+per-request via the `user_has_cap` filter, or writing raw SQL straight to the
+database — that bypasses the hook we watch, and this guard cannot see it. Those are
+uncommon for real "rogue admin" *persistence* (which needs the stored capability),
+and chasing them would cause heavy false positives, so we document the boundary
+rather than over-reach.
+
+### How do we make sure a legitimate admin is never locked out of changing roles?
+
+Three layers, and a legitimate admin trips none of them:
+
+1. **Re-saving your own role does nothing.** WordPress itself skips the database
+   write entirely when you assign a role someone already has, so an admin editing
+   their own profile or re-asserting their own admin role never reaches the guard.
+2. **Only *new* admin grants count.** The guard fires only when administrator is
+   being *added* to someone who does not currently have it. Demotions, role swaps,
+   and any edit to a user who is already an admin pass straight through.
+3. **A re-confirmed admin is always allowed.** With an active sudo session every
+   grant proceeds. Plus two escape hatches checked first: an **allowlist** for
+   trusted automation (SSO, directory sync, importers) and a **bypass constant**
+   for deployment, migrations, WP-CLI, and sole-admin recovery.
+
+So the only thing ever stopped is a *brand-new administrator grant by someone who
+has not recently proven who they are* — exactly the attack, never normal admin
+work. (The earlier worry that an admin changing their own password mid-request
+could lock themselves out is fully resolved by layer 1: re-asserting your existing
+admin role is a no-op WordPress skips before the guard can see it.)
+
+### The feature and its benefit (marketing framing)
+
+**Feature — Admin-Escalation Shield.** WP Sudo refuses to grant administrator or
+super-admin access unless the person doing it has just re-confirmed their identity.
+
+**Benefit.** It neutralizes the #1 class of serious WordPress plugin
+vulnerabilities — privilege escalation through broken access control — **even when
+the flaw is in someone else's plugin**. One vulnerable plugin can no longer hand
+your whole site to an attacker. In plain terms: **if any plugin tries to quietly
+hand out admin access to someone who hasn't proven who they are, WP Sudo slams the
+door.** A safety net for code you can't audit — off by default, opt-in, with
+escape hatches for the automation that legitimately provisions admins.
 
 ## Verification sources
 
