@@ -33,10 +33,16 @@ REST user routes (`PUT /wp/v2/users/<id>` with `roles`) are gated by
 this vulnerability class are *not* the interactive admin surface; they are
 **unauthenticated or low-privilege REST / AJAX / front-end endpoints with broken
 access control** — OWASP A01 (Broken Access Control), the most common serious
-WordPress plugin vuln class (arbitrary user creation and privilege escalation
-recur near the top of Patchstack/Wordfence year-end advisories). What makes a
-reauth gate a *genuine mitigation* there — not mere friction — is a structural
-property:
+WordPress plugin vuln class. In Wordfence's 2024 Annual WordPress Security
+Report, **privilege escalation ranked as the second most common vulnerability
+type** disclosed that year; Patchstack's State of WordPress Security 2025 reports
+that the **majority of disclosed vulnerabilities require no authentication**
+(e.g. its 2025 mid-year breakdown puts only ~20.6% at Contributor and ~11.5% at
+Subscriber level, the rest lower or unauthenticated). *(Figures are taken from
+the published report summaries; the full report bodies were not machine-fetchable
+at write time — treat as indicative, not exact, and re-verify before quoting in
+shipping copy.)* What makes a reauth gate a *genuine mitigation* there — not mere
+friction — is a structural property:
 
 > **In the common exploit shapes, the attacker structurally cannot hold a sudo
 > session.**
@@ -114,14 +120,25 @@ over-block.
 administrator" guard never fires for them. This is the core evidence that the
 narrowing removes the blanket version's over-block.
 
-### Membership / LMS plugins — expected safe, NOT individually verified
+### Membership / LMS plugins — verified for LifterLMS and PMPro
 
-MemberPress, LifterLMS, Paid Memberships Pro, etc. provision members into their
-own membership/subscriber-tier roles, not `administrator`, by convention. This
-was **not** individually verified here. The guard's safety for them rests on the
-same invariant — *they do not grant the administrator role* — which should be
-confirmed per integration before relying on it. (Per the project's verification
-discipline: stated as an assumption, not a verified fact.)
+- **LifterLMS** — front-end registration assigns the **`student`** role (its
+  person/form handler sets the registration default role to `student`), never
+  `administrator`. *(Verified: gocodebox/lifterlms trunk
+  `includes/class.llms.person.handler.php`.)*
+- **Paid Memberships Pro** — checkout creates the WordPress user with the **site
+  default role**: `$wpuser->set_role( get_option( 'default_role', 'subscriber' ) )`,
+  never `administrator`. The optional pmpro-roles add-on maps each membership
+  level to a *custom* role — still not `administrator`. *(Verified:
+  strangerstudios/paid-memberships-pro `preheaders/checkout.php`.)*
+- **MemberPress** — closed-source / premium; **not verifiable from public
+  source**. By convention it provisions members into a subscriber-tier role, but
+  per the project's verification discipline this remains an **assumption**, not a
+  verified fact; confirm against the licensed source before relying on it.
+
+These confirm, for the two open-source leaders, the invariant the guard depends
+on — *legitimate membership/LMS provisioning does not grant the administrator
+role*. MemberPress is the one unverified gap.
 
 ### SSO / identity-sync — the real residual false positive
 
@@ -311,3 +328,12 @@ residual mid-session bypass (§1).
 - In-tree mechanics: `includes/class-gate.php`
   (`register_function_hooks`, `is_user_capabilities_meta_key`,
   `register_interactive_backstop`, `register_rest_backstop`).
+- LifterLMS registration role (`student`): gocodebox/lifterlms trunk
+  `includes/class.llms.person.handler.php` (GitHub).
+- Paid Memberships Pro checkout role
+  (`get_option( 'default_role', 'subscriber' )`):
+  strangerstudios/paid-memberships-pro `preheaders/checkout.php` (GitHub raw).
+- Threat figures (indicative, see §1): Wordfence 2024 Annual WordPress Security
+  Report (privilege escalation = 2nd most common type); Patchstack State of
+  WordPress Security 2025 + 2025 mid-year breakdown (majority of disclosures
+  unauthenticated). Full report bodies were not machine-fetchable at write time.
