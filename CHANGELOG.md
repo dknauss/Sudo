@@ -3,7 +3,8 @@
 ## 4.1.0 - unreleased
 
 - **Security (gate completeness):** Two coordinated-disclosure findings in the
-  action-gating model are closed.
+  action-gating model are closed. Affected versions: ≤ 4.0.0 (both predate 4.0.0
+  — F2 since the plugin's inception, F1 since the multi-surface gate).
   - **Interactive effect-level backstop.** The admin surface previously gated
     only by request-pattern matching against enumerated core pages, so a
     gated-equivalent destructive action invoked through a non-enumerated handler
