@@ -80,6 +80,18 @@ private static function is_connector_api_key_setting_name( string $key ): bool {
 - Covers sites running WP < 7.0 where the API doesn't exist
 - Costs nothing — the regex is fast and the false positive surface is empty
 
+**Cache scope (evaluated post-4.1.0):** the per-request
+`$connector_setting_names_cache` is intentionally **not** keyed by blog, and that is
+correct. The registry is an `init`-populated in-process singleton
+(`WP_Connector_Registry`), blog-invariant within a request — `switch_to_blog()` does
+not re-run `init` or connector registration, so `wp_get_connectors()` returns the same
+`method`/`setting_name` mapping on every blog. A design review rejected per-blog keying
+(adds complexity + unbounded growth under `switch_to_blog` loops; untestable, since core
+never emits a per-blog-varying registry). The only Tier-1 residual is the
+**late-registration** timing edge above, accepted and backstopped by the Tier-2 regex.
+Caveat: this depends on the matcher running *after* `init` (it does — REST dispatch is
+well after `init`); invoking it earlier would be the real staleness vector.
+
 ### Step 3: Add integration tests
 
 Integration tests require a real WordPress environment with the Connectors API available:
