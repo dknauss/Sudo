@@ -4531,4 +4531,87 @@ class GateTest extends TestCase {
 		$guard = $this->capture_delete_escalation_guard();
 		$guard( 9 );
 	}
+
+	// ── Slice 4: allow-path coverage for the super-admin & delete guards ──
+
+	/**
+	 * An allowlisted super-admin grant passes untouched.
+	 */
+	public function test_super_admin_guard_allows_when_allowlisted(): void {
+		$this->prime_escalation_env( true );
+		Functions\when( 'is_super_admin' )->justReturn( false );
+		Functions\when( 'apply_filters' )->alias(
+			static function ( $hook, $value = null ) {
+				if ( 'wp_sudo_guard_escalation' === $hook ) {
+					return true;
+				}
+				if ( 'wp_sudo_allow_escalation' === $hook ) {
+					return true;
+				}
+				return $value;
+			}
+		);
+
+		Actions\expectDone( 'wp_sudo_escalation_blocked' )->never();
+		Functions\expect( 'wp_die' )->never();
+
+		$guard = $this->capture_super_admin_guard();
+		$guard( 7 );
+	}
+
+	/**
+	 * On a non-interactive surface the super-admin guard defers to the policy
+	 * layer and does not fire.
+	 */
+	public function test_super_admin_guard_defers_on_non_interactive_surface(): void {
+		$this->prime_escalation_env( true );
+		Functions\when( 'wp_doing_cron' )->justReturn( true ); // surface = 'cron'.
+		Functions\when( 'is_super_admin' )->justReturn( false );
+
+		Actions\expectDone( 'wp_sudo_escalation_blocked' )->never();
+		Functions\expect( 'wp_die' )->never();
+
+		$guard = $this->capture_super_admin_guard();
+		$guard( 7 );
+	}
+
+	/**
+	 * An allowlisted administrator deletion raises no alarm.
+	 */
+	public function test_delete_guard_allows_when_allowlisted(): void {
+		$this->prime_escalation_env( true );
+		Functions\when( 'is_super_admin' )->justReturn( false );
+		Functions\when( 'get_userdata' )->justReturn( new \WP_User( 9, array( 'administrator' ) ) );
+		Functions\when( 'apply_filters' )->alias(
+			static function ( $hook, $value = null ) {
+				if ( 'wp_sudo_guard_escalation' === $hook ) {
+					return true;
+				}
+				if ( 'wp_sudo_allow_escalation' === $hook ) {
+					return true;
+				}
+				return $value;
+			}
+		);
+
+		Actions\expectDone( 'wp_sudo_escalation_blocked' )->never();
+
+		$guard = $this->capture_delete_escalation_guard();
+		$guard( 9 );
+	}
+
+	/**
+	 * On a non-interactive surface the delete alarm defers to the policy layer.
+	 */
+	public function test_delete_guard_defers_on_non_interactive_surface(): void {
+		$this->prime_escalation_env( true );
+		Functions\when( 'wp_doing_cron' )->justReturn( true ); // surface = 'cron'.
+		Functions\when( 'is_super_admin' )->justReturn( false );
+		Functions\when( 'get_userdata' )->justReturn( new \WP_User( 9, array( 'administrator' ) ) );
+
+		Actions\expectDone( 'wp_sudo_escalation_blocked' )->never();
+
+		$guard = $this->capture_delete_escalation_guard();
+		$guard( 9 );
+	}
 }
