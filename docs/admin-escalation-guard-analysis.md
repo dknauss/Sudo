@@ -90,10 +90,17 @@ over-block.
   **not** carry the role; the role is applied afterward via the capabilities meta
   write. Consequence: an admin-surface guard cannot see "is this a new admin?" at
   pre-insert time, and blocking at the later capabilities write would `wp_die()`
-  *after* the user row exists → an **orphaned, roleless user**. → **Creation must
-  be excluded** from the admin guard; admin *creation* still surfaces as an
-  administrator capabilities write and is caught there as a *promotion*, at the
-  cost of the orphan caveat (mitigated by short-circuit, §6).
+  *after* the user row exists → a roleless user row. → Because the block halts
+  **before** the administrator role persists, no admin capability is ever written;
+  the only residual on the *creation* path is a brand-new user left **roleless and
+  powerless** (never an admin). That row is **left in place** — a no-privilege
+  record — rather than deleted mid-request: calling `wp_delete_user()` inside the
+  capabilities meta filter, on a possibly-unauthenticated request, carries its own
+  risks (admin-file loading, multisite `wpmu_delete_user`, post-reassignment and
+  deletion hooks firing during an attack request, and attacker-driven
+  create-then-block deletion loops). See the §11 decision. An optional future sweep
+  may remove such rows. **Promotions of existing users have no orphan risk** — the
+  prior role is simply retained. See §10 for the plain-language resolution.
 - **Multisite super-admin is NOT in capabilities meta.** `grant_super_admin()` /
   `revoke_super_admin()` store status in the network `site_admins` site option
   (`update_site_option( 'site_admins', … )`) and fire the `grant_super_admin`
@@ -311,7 +318,8 @@ unauth/low-priv paths where these exploits live. This is the same hook the CLI
 new machinery. **The recommended design is this effect-level guard, not a set of
 per-surface guards.** One consequence: on non-interactive surfaces there is no
 human to send to the challenge, so the only available response is a **hard block**
-(short-circuit the write), not a reauth prompt (§6, §8).
+(halt the request before the write — §6/§9, not a short-circuit return), not a
+reauth prompt (§6, §8).
 
 ## 6. Implementation shape (if approved)
 
@@ -331,13 +339,42 @@ human to send to the challenge, so the only available response is a **hard block
   and low false positives. A capability-based check (gaining `manage_options` /
   `promote_users` / `edit_users`) would catch custom admin-equivalent roles but
   raises false positives; defer unless a concrete bypass is shown.
-- **Block mechanism:** prefer **short-circuit-return** from the metadata filter
-  (return the `$check` short-circuit value to *prevent* the capabilities write)
-  over `wp_die()` mid-write, to avoid half-applied state; pair with the standard
-  `wp_sudo_action_blocked` audit (surface `admin`) so the block is observable.
-  *(Open question for the design review: a silent short-circuit may confuse an
-  operator who sees no error; a redirect-to-challenge is not possible this deep
-  in the write. Weigh short-circuit+audit vs. `wp_die` with a clear 403.)*
+- **Block mechanism (corrected by design review — §9):** **halt the request**
+  (`wp_die()` for HTTP surfaces with a clear 403; `exit` for cron, mirroring the
+  existing CLI guard's cron handling) **before** the capabilities write proceeds —
+  *not* a short-circuit return. Short-circuit-returning a non-null value from
+  `add_user_metadata`/`update_user_metadata` is **unsound**: it makes core treat
+  the write as *succeeded* (the in-memory `WP_User::$caps`/`$roles` update and
+  downstream actions still fire) → a **half-applied** state worse than the orphan
+  it was meant to avoid; and a `false` return is indistinguishable from a
+  legitimate "value unchanged" no-op. Halting before the write is the only clean
+  stop and is consistent with the existing CLI `user.promote` guard on the same
+  hook. Pair with the `wp_sudo_action_blocked` audit so the block is observable.
+- **Coexist with the existing CLI guard on the same hook.** The CLI
+  `user.promote` guard already hooks `add_user_metadata`/`update_user_metadata`.
+  Two guards on one filter must not double-fire, emit contradictory audit signals,
+  or race on registration order — the escalation guard must be a no-op whenever the
+  CLI guard already owns the block for that surface.
+- **Respect the operator's entry-point policy (do not override it).** The guard is
+  surface-agnostic, but a site that explicitly set CLI/Cron/REST/App-Password to
+  **Unrestricted** has opted those surfaces *out* of gating. The escalation guard
+  must **consult that policy and defer** on an Unrestricted surface, or it silently
+  contradicts a setting the operator already chose.
+- **Constant / WP-CLI bypass is checked FIRST**, before any session or caps read,
+  so deployment / migration / sole-admin recovery is never hard-blocked.
+- **Multisite key matching must be pattern-based.** `is_user_capabilities_meta_key()`
+  currently builds a fixed list from the *current* blog prefix; secondary-blog keys
+  are `{base_prefix}{blog_id}_capabilities` (e.g. `wp_2_capabilities`). Match via a
+  regex (`/^{base_prefix}(\d+_)?capabilities$/`). NOTE: this also changes the
+  **shipped CLI `user.promote` guard's** match surface → needs its own regression
+  test, not just a new-guard test.
+- **`grant_super_admin` idempotency.** The action can fire for an already-super
+  user; read `get_super_admins()` and treat already-present as *not newly granted*,
+  mirroring the single-site "newly grants" rule.
+- **Exception-free by construction.** The guard must use plain array reads /
+  `in_array` and **no** `try/catch( \Throwable )` — a swallowed exception fails
+  *open* (grant proceeds), violating `CLAUDE.md`; an unhandled throw in a meta
+  filter fails *closed* and bricks all role writes. Neither is acceptable.
 - **Default-OFF filter:** `wp_sudo_guard_escalation` (name TBD), **default
   `false`** (OFF) per the recorded decision — security-conscious sites opt in;
   SSO/provisioning sites are unaffected by default. See §8 for the path to a
@@ -349,8 +386,12 @@ human to send to the challenge, so the only available response is a **hard block
     policy) for deployment, migration, and first-admin bootstrapping;
   - **audit events on every block** (`wp_sudo_action_blocked`) so a silent
     short-circuit is diagnosable rather than a mystery.
-- **Exclude `user.create`** from the guard (orphan problem, §3); admin *creation*
-  is still caught as the subsequent administrator capabilities write.
+- **Creation path is guarded too** (revises the earlier "exclude creation"
+  caution). A blocked one-shot admin-create leaves at most a **roleless, powerless**
+  user row — never an admin. That row is **left in place** (no in-hook deletion —
+  see the §11 decision on why mid-request `wp_delete_user()` in a security hot path
+  is avoided); an optional future sweep may remove it. Promotions of existing users
+  retain their prior role (no orphan). Rationale and walkthrough in §10.
 
 ## 7. Required TDD scenarios (before any implementation)
 
@@ -371,6 +412,25 @@ human to send to the challenge, so the only available response is a **hard block
    request (`current_user` = 0) and via a *low-privilege* authenticated user
    (subscriber), filter ON → **blocked** in both, since neither can hold a sudo
    session. This exercises the effect-level/all-surfaces property from §1/§5.
+9. **Sole-admin self-edit with password change (regression for the §9 BLOCKER).**
+   An administrator (no active sudo) updates their own profile in a request that
+   *also* changes the password and re-asserts the `administrator` role; the
+   plugin's `profile_update`/`after_password_reset` hooks deactivate the session
+   mid-request → the re-assert is an **idempotent** re-grant (admin already in
+   current caps) → **allowed, no half-apply**. Proves the current-caps read is
+   evaluated against pre-mutation state.
+10. **Policy deference.** With CLI (or Cron/REST/App-Password) set to
+    **Unrestricted**, an admin grant on that surface with no sudo, filter ON →
+    **allowed** (the guard defers to the operator's explicit policy).
+11. **Constant bypass first.** With the bypass constant defined, an admin grant
+    with no sudo, filter ON → **allowed** (bypass is checked before session/caps).
+12. **Multisite secondary blog.** `add_user_to_blog( $blog2, $uid, 'administrator' )`
+    (key `wp_2_capabilities`), no sudo, filter ON → **blocked** (proves the
+    blog-prefixed key regex). Plus a **regression** asserting the existing CLI
+    `user.promote` guard still matches after the key-matching change.
+13. **Coexistence.** On a CLI request where the CLI guard already owns the block,
+    the escalation guard does **not** double-fire or emit a second/contradictory
+    `wp_sudo_action_blocked`.
 
 ## 8. Recommendation
 
@@ -399,10 +459,212 @@ mechanism.
   a defensible — arguably correct — default; it simply has to *earn* that default
   rather than ship with it.
 
-A formal Pre-Implementation Design Review (per `CLAUDE.md`) and the §7 TDD
-scenarios remain prerequisites to writing code; the design review should
-specifically weigh the short-circuit-vs-`wp_die` block mechanism (§6) and the
-residual mid-session bypass (§1).
+The Pre-Implementation Design Review (per `CLAUDE.md`) has now been **run** — its
+findings are incorporated in §9 and have already corrected §6 (block mechanism)
+and §7 (added scenarios 9–13). The §7 TDD scenarios remain prerequisites to
+writing code.
+
+## 9. Design review findings (incorporated)
+
+A pre-implementation design review of §1–§8 surfaced three **BLOCKERs** and
+several concerns. The design above has been updated to reflect them; this section
+records them so the rationale is not lost.
+
+1. **Block mechanism was unsound (fixed in §6).** Short-circuit-returning from
+   `add_user_metadata`/`update_user_metadata` does **not** cleanly prevent the
+   write — core treats it as success (in-memory caps/roles update and downstream
+   actions still fire → *half-applied* state), and a `false` return is
+   indistinguishable from a legitimate no-op. Resolution: **halt the request**
+   (`wp_die`/`exit`) before the write, consistent with the existing CLI guard on
+   the same hook. The original "short-circuit avoids half-apply" premise was
+   inverted.
+2. **Sole-admin self-edit can be blocked (fixed via §6 trigger + §7 scenario 9).**
+   The plugin's own `profile_update`/`after_password_reset` hooks deactivate the
+   sudo session *mid-request*, so a sole admin changing their own password while
+   re-asserting their role could lose the session and be blocked/half-applied.
+   Resolution: the "newly grants" rule must evaluate current caps **before** any
+   in-request mutation; an idempotent re-grant of `administrator` to a user who
+   already has it is **never** blocked, independent of session state.
+3. **Surface-agnostic guard silently overrode the operator's entry-point policy
+   (fixed in §6).** A site with CLI/Cron/REST set to **Unrestricted** would still
+   be blocked, contradicting an explicit operator choice. Resolution: the guard
+   **consults the existing policy and defers** on Unrestricted surfaces; the
+   constant bypass is checked first.
+
+Concerns also folded in (§6/§7): coexistence with the existing CLI guard on the
+same filter (no double-fire / contradictory audit); pattern-based multisite
+capability-key matching (`{base_prefix}{blog_id}_capabilities`), which also
+changes the shipped CLI guard's match surface and needs a regression test;
+`grant_super_admin` idempotency; exception-free construction (no `try/catch` —
+fail-open violates `CLAUDE.md`, fail-closed bricks role writes); and documenting
+the `user_has_cap` runtime-filter blind spot (§3) in the shipped FAQ, since it
+narrows the security claim to *meta-backed* role grants.
+
+**Status:** design corrected; not approved for code. The three BLOCKERs are
+resolved at the design level here, but each must be proven by its §7 TDD scenario
+before and during implementation.
+
+## 10. Plain-language summary
+
+### What attack does this block?
+
+**Privilege escalation through broken access control** — the most common serious
+WordPress plugin vulnerability class. A buggy or malicious plugin exposes an
+endpoint (a REST route, an AJAX action, a form handler) that **creates a new
+administrator, or promotes an existing user to administrator, without properly
+checking who is allowed to**. An unauthenticated visitor, or a logged-in
+low-privilege user (a subscriber, a customer), triggers it and walks away with
+full control of the site.
+
+This guard adds a second, independent lock: granting administrator (or
+super-admin) requires that whoever is doing it has **recently re-confirmed their
+identity** (an active WP Sudo session). The attacker in these exploits is
+unauthenticated or low-privilege, so they *cannot* hold that session — the grant
+is denied **even though the vulnerable plugin's own permission check failed**. It
+is protection that works on code you did not write and cannot audit.
+
+### How do we avoid leaving "orphaned" users in the database?
+
+The guard stops the role change at the exact moment it would be saved — and (per
+WordPress internals) that is *before* the administrator role is ever persisted.
+
+- **Promoting an existing user** (the common case): we prevent the new role from
+  saving; the user simply keeps the role they already had. Nothing is half-written.
+- **Creating a brand-new admin in one request:** WordPress inserts the user row
+  first, then assigns the role second. If we block the role step, the row can be
+  left with *no* role. That leftover is **powerless** — zero capabilities, not an
+  administrator, can do nothing. We **leave it in place** rather than delete a user
+  mid-request: doing `wp_delete_user()` inside the block, on a possibly-unauthenticated
+  request, would load admin files, branch on multisite, and fire deletion/post-
+  reassignment hooks during an attack — risks that outweigh tidying a harmless row
+  (the §11 decision). An optional future sweep may clean these rows.
+
+The guarantee: **the worst possible leftover is an empty, powerless record — never
+a privileged one, and never a half-applied admin.**
+
+### How do we avoid illicit admin capabilities being written to the database?
+
+Administrator power becomes "real" only when it is written to the `wp_usermeta`
+capabilities row. The guard intercepts **that write** and halts the request
+*before* it lands, so the illicit capability is never persisted — the next request
+reads a clean database. WordPress had updated its in-memory copy, but that copy is
+discarded when the request ends.
+
+*Honest limit:* if a plugin grants admin powers a different way — computing them
+per-request via the `user_has_cap` filter, or writing raw SQL straight to the
+database — that bypasses the hook we watch, and this guard cannot see it. Those are
+uncommon for real "rogue admin" *persistence* (which needs the stored capability),
+and chasing them would cause heavy false positives, so we document the boundary
+rather than over-reach.
+
+### How do we make sure a legitimate admin is never locked out of changing roles?
+
+Three layers, and a legitimate admin trips none of them:
+
+1. **Re-saving your own role does nothing.** WordPress itself skips the database
+   write entirely when you assign a role someone already has, so an admin editing
+   their own profile or re-asserting their own admin role never reaches the guard.
+2. **Only *new* admin grants count.** The guard fires only when administrator is
+   being *added* to someone who does not currently have it. Demotions, role swaps,
+   and any edit to a user who is already an admin pass straight through.
+3. **A re-confirmed admin is always allowed.** With an active sudo session every
+   grant proceeds. Plus two escape hatches checked first: an **allowlist** for
+   trusted automation (SSO, directory sync, importers) and a **bypass constant**
+   for deployment, migrations, WP-CLI, and sole-admin recovery.
+
+So the only thing ever stopped is a *brand-new administrator grant by someone who
+has not recently proven who they are* — exactly the attack, never normal admin
+work. (The earlier worry that an admin changing their own password mid-request
+could lock themselves out is fully resolved by layer 1: re-asserting your existing
+admin role is a no-op WordPress skips before the guard can see it.)
+
+### The feature and its benefit (marketing framing)
+
+**Feature — Admin-Escalation Shield.** WP Sudo refuses to grant administrator or
+super-admin access unless the person doing it has just re-confirmed their identity.
+
+**Benefit.** It neutralizes the #1 class of serious WordPress plugin
+vulnerabilities — privilege escalation through broken access control — **even when
+the flaw is in someone else's plugin**. One vulnerable plugin can no longer hand
+your whole site to an attacker. In plain terms: **if any plugin tries to quietly
+hand out admin access to someone who hasn't proven who they are, WP Sudo slams the
+door.** A safety net for code you can't audit — off by default, opt-in, with
+escape hatches for the automation that legitimately provisions admins.
+
+## 11. Build scope (code-grounded, after mapping `class-gate.php`)
+
+Mapping the live Gate refined the scope — the build is narrower than "guard
+creation and deletes," because deletion is already covered:
+
+- **Deletion is already guarded** on every real surface. `arm_effect_guards()`
+  hooks `delete_user`→`user.delete` (interactive `admin_init` + REST backstops),
+  and `register_function_hooks()` covers CLI/cron/XML-RPC — all **role-agnostic**
+  (any user deletion already requires sudo). **We do not change what deletion
+  blocks.** We only **add severity**: when the deleted target is an
+  administrator/super-admin, also fire the high-severity escalation event (below).
+- **The genuine gap is admin grant + admin creation on the *interactive* and
+  *REST* surfaces.** `user.create` and `user.promote` are deliberately **excluded**
+  from `arm_effect_guards()` (documented in the `register_interactive_backstop`
+  docblock) because hooking them unconditionally fires on every benign,
+  high-frequency role assignment. Only CLI/cron/XML-RPC guard them today. The fix
+  is the analysis thesis: **re-introduce them on interactive + REST, but
+  role-aware** — block only when the write **newly grants `administrator`** (or
+  super-admin), so the benign low-privilege assignments still pass.
+- **Scope decision: admin-targets only** (chosen). Create/grant guards fire only
+  for `administrator`/super-admin; all lower roles and normal signups are
+  untouched. Deletion stays role-agnostic (already shipped, more protective than
+  admin-only — we do not weaken it).
+
+### Reuse (the design-review blockers are already solved in-tree)
+
+- **Block mechanism:** reuse `Gate::die_sudo_required()` (`wp_die` 403; cron path
+  `exit`) — exactly the "halt before the write" mechanism §6/§9 prescribes. No
+  short-circuit.
+- **Session + policy:** reuse the existing backstop closures — `Sudo_Session::is_active()/is_within_grace()`,
+  and the REST backstop's `get_app_password_policy()` consultation (so an
+  Unrestricted headless surface defers, per §6).
+- **Hook point:** the role-aware closure lives on `add_user_metadata` /
+  `update_user_metadata` for the capabilities key (the same hook
+  `register_function_hooks` already uses); admin *creation* surfaces as the
+  post-insert capabilities write, so create + grant share one closure. Super-admin
+  uses `grant_super_admin`. Multisite key matching must move to the regex form
+  (§6) — a change that also touches the existing CLI guard's match surface
+  (regression test required).
+
+### Alerting (decided)
+
+- **Distinct high-severity event** `wp_sudo_escalation_blocked` (separate from the
+  routine `wp_sudo_action_blocked`), fired only on the dangerous case — an admin
+  create/grant/delete blocked on a non-enumerated path with no session. `Event_Recorder`
+  records it high-severity; the activity dashboard surfaces it prominently.
+  External tools (SIEM/Slack/security plugins) hook this one event to alert.
+- **Notification default:** event + dashboard only. A built-in admin email is a
+  later **opt-in** toggle (default off) — the plugin ships no email today.
+- **Adaptive response — recommend, do NOT auto-activate.** After a threshold of
+  high-severity blocks, show a dismissible admin notice (and, with opt-in email, a
+  link) recommending the Hardened policy preset, one-click apply. **Do not
+  auto-flip global presets:** an attacker who can trip the signal could force the
+  site into a restrictive posture and break legitimate REST/CLI/cron integrations
+  (defense weaponization / self-DoS); it also changes surfaces unrelated to the
+  blocked attack. If any automatic response is added later, prefer a **localized,
+  attacker-scoped throttle** (extend the existing rate-limit lockout to repeated
+  escalation attempts), never a site-wide policy change, and only as explicit
+  opt-in.
+
+### Orphan-cleanup decision (Option A — document, do not delete in-hook)
+
+A blocked one-shot admin *creation* can leave a **roleless, powerless** user row
+(the row is inserted before the role is applied; the block halts before the
+administrator role persists). Decision: **do not delete that row in-hook.** Calling
+`wp_delete_user()` from inside the capabilities meta filter — on a
+possibly-unauthenticated request — would load `wp-admin/includes`, branch on
+multisite (`wpmu_delete_user`), and fire deletion / post-reassignment hooks *during
+an attack request*; an attacker could also drive repeated create-then-block loops
+to cause deletions. Those risks outweigh tidying a row that is, by construction,
+**harmless** (zero capabilities, cannot act). The row is left in place and
+documented; an **optional, opt-in future sweep** of never-completed roleless users
+is the safe place to reclaim them. Rejected: in-hook deletion (risk above) and a
+mandatory background sweep (complexity for a harmless artifact).
 
 ## Verification sources
 

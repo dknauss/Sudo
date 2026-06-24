@@ -178,6 +178,10 @@ class EventRecorderTest extends TestCase {
 			->once()
 			->with( [ Event_Recorder::class, 'on_action_blocked' ], 10, 3 );
 
+		Actions\expectAdded( 'wp_sudo_escalation_blocked' )
+			->once()
+			->with( [ Event_Recorder::class, 'on_escalation_blocked' ], 10, 3 );
+
 		Actions\expectAdded( 'wp_sudo_action_allowed' )
 			->once()
 			->with( [ Event_Recorder::class, 'on_action_allowed' ], 10, 3 );
@@ -394,6 +398,30 @@ class EventRecorderTest extends TestCase {
 		$this->assertSame( 'action_blocked', $data['event'] );
 		$this->assertSame( 'users.delete', $data['rule_id'] );
 		$this->assertSame( 'cli', $data['surface'] );
+
+		$this->restoreWpdb();
+	}
+
+	/**
+	 * Test on_escalation_blocked() records a distinct high-severity event.
+	 *
+	 * @return void
+	 */
+	public function testOnEscalationBlockedInsertsHighSeverityEvent(): void {
+		$this->setUpFakeWpdb();
+
+		Event_Recorder::on_escalation_blocked( 7, 'user.promote', 'admin' );
+
+		$this->assertCount( 1, $this->fake_wpdb->inserts );
+
+		$data = $this->fake_wpdb->inserts[0]['data'];
+		$this->assertSame( 7, $data['user_id'] );
+		$this->assertSame( 'escalation_blocked', $data['event'] );
+		$this->assertSame( 'user.promote', $data['rule_id'] );
+		$this->assertSame( 'admin', $data['surface'] );
+
+		$context = is_string( $data['context'] ) ? json_decode( $data['context'], true ) : $data['context'];
+		$this->assertSame( 'high', $context['severity'] );
 
 		$this->restoreWpdb();
 	}
