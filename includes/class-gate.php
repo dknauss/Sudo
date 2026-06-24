@@ -157,6 +157,13 @@ class Gate {
 		// requests (rest_api_init fires before route dispatch).
 		add_action( 'rest_api_init', array( $this, 'register_rest_backstop' ), 0, 0 );
 
+		// Role-aware admin-escalation guard (opt-in via wp_sudo_guard_escalation,
+		// default OFF). Effect-level capabilities-meta guard that blocks a NEW
+		// administrator grant when no sudo session is active, across surfaces
+		// (CLI/Cron/XML-RPC defer to the non-interactive policy layer). See
+		// docs/admin-escalation-guard-analysis.md.
+		$this->arm_escalation_guard();
+
 		// WPGraphQL interception — hooks into WPGraphQL's own lifecycle.
 		// Fires after auth validation, before body reading, regardless of endpoint name.
 		/**
@@ -892,6 +899,138 @@ class Gate {
 			},
 			0
 		);
+	}
+
+	/**
+	 * Arm the role-aware admin-escalation guard (opt-in, default OFF).
+	 *
+	 * Closes the gap left by the interactive/REST effect backstops, which
+	 * deliberately exclude user.create/user.promote because hooking them
+	 * unconditionally fires on every benign role assignment. This guard hooks the
+	 * capabilities meta write but blocks ONLY when the write **newly grants
+	 * administrator** to a user who does not already hold it (see
+	 * newly_grants_administrator()), so low-privilege assignments, demotions, and
+	 * idempotent self-edits pass untouched.
+	 *
+	 * Surface coverage: the metadata filters fire on every surface, but
+	 * CLI/Cron/XML-RPC are already governed by the non-interactive policy layer
+	 * (register_function_hooks); this guard defers there to avoid double-firing.
+	 *
+	 * Block mechanism is die_sudo_required() (wp_die 403 / JSON), i.e. the request
+	 * is halted before the capabilities write persists — never a short-circuit
+	 * return. See docs/admin-escalation-guard-analysis.md §6/§9.
+	 *
+	 * @since 4.1.0
+	 *
+	 * @return void
+	 */
+	public function arm_escalation_guard(): void {
+		$guard = function ( $check, $user_id, $meta_key, $meta_value, $prev_value ) {
+			unset( $prev_value );
+
+			// Opt-in; default OFF. Security-conscious sites enable it; SSO and
+			// provisioning sites are unaffected unless they opt in.
+			if ( ! apply_filters( 'wp_sudo_guard_escalation', false ) ) {
+				return $check;
+			}
+
+			// Recovery / deployment / migration bypass — checked FIRST, before any
+			// session or capability read, so a sole-admin recovery path is never
+			// hard-blocked.
+			if ( defined( 'WP_SUDO_ALLOW_ESCALATION' ) && WP_SUDO_ALLOW_ESCALATION ) {
+				return $check;
+			}
+
+			if ( ! $this->is_user_capabilities_meta_key( (string) $meta_key ) ) {
+				return $check;
+			}
+
+			// CLI/Cron/XML-RPC are owned by register_function_hooks() (policy
+			// layer); defer there so the two guards never double-fire.
+			$surface = $this->detect_surface();
+			if ( in_array( $surface, array( 'cli', 'cron', 'xmlrpc' ), true ) ) {
+				return $check;
+			}
+
+			$target_id    = (int) $user_id;
+			$current_caps = get_user_meta( $target_id, (string) $meta_key, true );
+
+			if ( ! $this->newly_grants_administrator( $meta_value, is_array( $current_caps ) ? $current_caps : array() ) ) {
+				return $check;
+			}
+
+			/**
+			 * Allow a trusted provisioner to opt a specific administrator grant
+			 * out of the escalation guard (e.g. an allowlisted SSO/sync flow).
+			 *
+			 * @since 4.1.0
+			 *
+			 * @param bool  $allow      Whether to allow the grant. Default false.
+			 * @param int   $target_id  Target user being granted administrator.
+			 * @param mixed $meta_value Incoming capabilities value.
+			 */
+			if ( apply_filters( 'wp_sudo_allow_escalation', false, $target_id, $meta_value ) ) {
+				return $check;
+			}
+
+			// A re-confirmed actor (active or in-grace sudo session) may grant
+			// administrator. An unauthenticated (0) or low-privilege actor cannot
+			// hold a session, so the grant is blocked.
+			$actor = (int) get_current_user_id();
+			if ( $actor && ( Sudo_Session::is_active( $actor ) || Sudo_Session::is_within_grace( $actor ) ) ) {
+				return $check;
+			}
+
+			/**
+			 * Fires when an administrator grant is blocked because no sudo session
+			 * is active — a high-severity signal of a likely privilege-escalation
+			 * attempt. Distinct from wp_sudo_action_blocked so external alerting can
+			 * subscribe to only this case.
+			 *
+			 * @since 4.1.0
+			 *
+			 * @param int    $target_id Target user being granted administrator.
+			 * @param string $rule_id   Always 'user.promote'.
+			 * @param string $surface   Detected request surface.
+			 */
+			do_action( 'wp_sudo_escalation_blocked', $target_id, 'user.promote', $surface );
+
+			$this->die_sudo_required( __( 'Grant administrator', 'wp-sudo' ) );
+
+			return $check;
+		};
+
+		add_filter( 'add_user_metadata', $guard, 0, 5 );
+		add_filter( 'update_user_metadata', $guard, 0, 5 );
+	}
+
+	/**
+	 * Whether a capabilities meta value newly grants the administrator role.
+	 *
+	 * Returns true only when the incoming capabilities map grants `administrator`
+	 * AND the user's currently persisted capabilities do not already include it.
+	 * Re-asserting an administrator a user already holds (an idempotent self-edit)
+	 * and assigning any lower-privilege role both return false, so the escalation
+	 * guard never fires on benign, high-frequency role assignments — this is what
+	 * keeps WooCommerce/membership/LMS provisioning and sole-admin self-edits
+	 * unaffected. See docs/admin-escalation-guard-analysis.md §6.
+	 *
+	 * @since 4.1.0
+	 *
+	 * @param mixed                $new_caps     Incoming capabilities value (role => bool map).
+	 * @param array<string, mixed> $current_caps The user's currently persisted capabilities map.
+	 * @return bool True when administrator is present in the new value but absent
+	 *              from the current value.
+	 */
+	private function newly_grants_administrator( $new_caps, array $current_caps ): bool {
+		if ( ! is_array( $new_caps ) ) {
+			return false;
+		}
+
+		$now_admin = ! empty( $new_caps['administrator'] );
+		$was_admin = ! empty( $current_caps['administrator'] );
+
+		return $now_admin && ! $was_admin;
 	}
 
 	/**

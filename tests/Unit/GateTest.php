@@ -4111,4 +4111,231 @@ class GateTest extends TestCase {
 
 		Action_Registry::reset_cache();
 	}
+
+	// ── Role-aware escalation detection (admin-escalation guard) ──────────
+
+	/**
+	 * Invoke a private Gate method via reflection (PHP 8.0/8.5-safe).
+	 *
+	 * @param string $method Method name.
+	 * @param mixed  ...$args Arguments.
+	 * @return mixed
+	 */
+	private function invoke_gate( string $method, ...$args ) {
+		$ref = new \ReflectionMethod( Gate::class, $method );
+		@$ref->setAccessible( true ); // phpcs:ignore -- 8.5 no-op, 8.0 required.
+		return $ref->invoke( $this->gate, ...$args );
+	}
+
+	/**
+	 * Adding administrator to a user who lacks it is a new grant.
+	 */
+	public function test_newly_grants_administrator_true_when_admin_added(): void {
+		$this->assertTrue(
+			$this->invoke_gate( 'newly_grants_administrator', array( 'administrator' => true ), array() )
+		);
+	}
+
+	/**
+	 * Re-asserting administrator a user already holds is idempotent, not a new
+	 * grant — the sole-admin self-edit safety property.
+	 */
+	public function test_newly_grants_administrator_false_when_already_admin(): void {
+		$this->assertFalse(
+			$this->invoke_gate(
+				'newly_grants_administrator',
+				array( 'administrator' => true ),
+				array( 'administrator' => true )
+			)
+		);
+	}
+
+	/**
+	 * Assigning a low-privilege role is never an admin grant (no over-block of
+	 * WooCommerce/membership/LMS flows).
+	 */
+	public function test_newly_grants_administrator_false_for_low_privilege_role(): void {
+		$this->assertFalse(
+			$this->invoke_gate( 'newly_grants_administrator', array( 'editor' => true ), array() )
+		);
+	}
+
+	/**
+	 * Administrator added alongside other roles is still a new grant.
+	 */
+	public function test_newly_grants_administrator_true_when_admin_added_among_roles(): void {
+		$this->assertTrue(
+			$this->invoke_gate(
+				'newly_grants_administrator',
+				array(
+					'editor'        => true,
+					'administrator' => true,
+				),
+				array( 'editor' => true )
+			)
+		);
+	}
+
+	/**
+	 * A demotion away from administrator is not a grant.
+	 */
+	public function test_newly_grants_administrator_false_on_demotion(): void {
+		$this->assertFalse(
+			$this->invoke_gate(
+				'newly_grants_administrator',
+				array( 'subscriber' => true ),
+				array( 'administrator' => true )
+			)
+		);
+	}
+
+	/**
+	 * A non-array capabilities value is never a grant (defensive).
+	 */
+	public function test_newly_grants_administrator_false_for_non_array(): void {
+		$this->assertFalse(
+			$this->invoke_gate( 'newly_grants_administrator', 'not-an-array', array() )
+		);
+	}
+
+	// ── Escalation guard wiring (arm_escalation_guard) ───────────────────
+
+	/**
+	 * Stub the WordPress globals/functions the escalation guard closure reaches,
+	 * with the guard filter ON and an 'admin' surface by default.
+	 *
+	 * @param bool $guard_on Whether wp_sudo_guard_escalation returns true.
+	 * @return void
+	 */
+	private function prime_escalation_env( bool $guard_on = true ): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'get_current_user_id' )->justReturn( 0 );
+		Functions\when( 'wp_doing_ajax' )->justReturn( false );
+		Functions\when( 'wp_doing_cron' )->justReturn( false );
+		Functions\when( 'is_admin' )->justReturn( true );
+		Functions\when( 'apply_filters' )->alias(
+			static function ( $hook, $value = null ) use ( $guard_on ) {
+				if ( 'wp_sudo_guard_escalation' === $hook ) {
+					return $guard_on;
+				}
+				return $value;
+			}
+		);
+		$GLOBALS['wpdb'] = new class() {
+			public string $prefix      = 'wp_';
+			public string $base_prefix = 'wp_';
+			public function get_blog_prefix(): string {
+				return 'wp_';
+			}
+		};
+	}
+
+	/**
+	 * Capture the closure arm_escalation_guard() registers on update_user_metadata.
+	 *
+	 * @return callable
+	 */
+	private function capture_escalation_guard(): callable {
+		$callback = null;
+		Filters\expectAdded( 'update_user_metadata' )
+			->once()
+			->with(
+				\Mockery::on(
+					static function ( $candidate ) use ( &$callback ): bool {
+						$callback = $candidate;
+						return is_callable( $candidate );
+					}
+				),
+				0,
+				5
+			);
+		$this->gate->arm_escalation_guard();
+		$this->assertIsCallable( $callback );
+		return $callback;
+	}
+
+	/**
+	 * A new administrator grant with no sudo session (unauthenticated actor) is
+	 * blocked: the high-severity event fires and the request is halted via wp_die.
+	 */
+	public function test_escalation_guard_blocks_new_admin_grant_without_session(): void {
+		$this->prime_escalation_env( true );
+		Functions\when( 'get_user_meta' )->justReturn( array() );
+
+		Actions\expectDone( 'wp_sudo_escalation_blocked' )
+			->once()
+			->with( 7, 'user.promote', 'admin' );
+		Functions\expect( 'wp_die' )
+			->once()
+			->with( \Mockery::type( 'string' ), '', array( 'response' => 403 ) );
+
+		$guard  = $this->capture_escalation_guard();
+		$result = $guard( null, 7, 'wp_capabilities', array( 'administrator' => true ), '' );
+
+		$this->assertNull( $result );
+	}
+
+	/**
+	 * With the guard filter OFF (default), the closure is inert regardless of role.
+	 */
+	public function test_escalation_guard_inert_when_filter_off(): void {
+		$this->prime_escalation_env( false );
+		Functions\when( 'get_user_meta' )->justReturn( array() );
+
+		Actions\expectDone( 'wp_sudo_escalation_blocked' )->never();
+		Functions\expect( 'wp_die' )->never();
+
+		$guard  = $this->capture_escalation_guard();
+		$result = $guard( null, 7, 'wp_capabilities', array( 'administrator' => true ), '' );
+
+		$this->assertNull( $result );
+	}
+
+	/**
+	 * Assigning a low-privilege role never trips the guard (no over-block of
+	 * WooCommerce/membership signups).
+	 */
+	public function test_escalation_guard_allows_low_privilege_role(): void {
+		$this->prime_escalation_env( true );
+		Functions\when( 'get_user_meta' )->justReturn( array() );
+
+		Actions\expectDone( 'wp_sudo_escalation_blocked' )->never();
+		Functions\expect( 'wp_die' )->never();
+
+		$guard = $this->capture_escalation_guard();
+		$guard( null, 7, 'wp_capabilities', array( 'editor' => true ), '' );
+	}
+
+	/**
+	 * Re-asserting administrator on a user who already has it is idempotent and
+	 * never blocked — the sole-admin self-edit safety property, independent of
+	 * session state.
+	 */
+	public function test_escalation_guard_allows_idempotent_admin_regrant(): void {
+		$this->prime_escalation_env( true );
+		Functions\when( 'get_user_meta' )->justReturn( array( 'administrator' => true ) );
+
+		Actions\expectDone( 'wp_sudo_escalation_blocked' )->never();
+		Functions\expect( 'wp_die' )->never();
+
+		$guard = $this->capture_escalation_guard();
+		$guard( null, 7, 'wp_capabilities', array( 'administrator' => true ), '' );
+	}
+
+	/**
+	 * On CLI/Cron/XML-RPC the guard defers to the non-interactive policy layer
+	 * (register_function_hooks) and does not fire, avoiding a double block.
+	 */
+	public function test_escalation_guard_defers_on_non_interactive_surface(): void {
+		$this->prime_escalation_env( true );
+		Functions\when( 'wp_doing_cron' )->justReturn( true ); // surface = 'cron'.
+		Functions\when( 'get_user_meta' )->justReturn( array() );
+
+		Actions\expectDone( 'wp_sudo_escalation_blocked' )->never();
+		Functions\expect( 'wp_die' )->never();
+
+		$guard = $this->capture_escalation_guard();
+		$guard( null, 7, 'wp_capabilities', array( 'administrator' => true ), '' );
+	}
 }
