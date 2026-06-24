@@ -197,7 +197,7 @@ The operator tooling tranche shipped in v2.12.0.
 - ~~Action Registry schema validation~~ — `normalize_filtered_rules()` validates and normalizes `wp_sudo_gated_actions` filter output; malformed rules dropped fail-closed.
 - ~~MU loader resilience~~ — basename/path resolution uses explicit fallback chain (`WP_SUDO_PLUGIN_BASENAME` → derived → canonical); diagnostic action on unresolved paths.
 - ~~WPGraphQL persisted-query strategy~~ — `wp_sudo_wpgraphql_classification` filter enables external mutation classification for persisted-query setups; `str_contains` heuristic preserved as fallback.
-- ~~WSAL sensor bridge~~ — `bridges/wp-sudo-wsal-sensor.php` now maps all 11 audit hooks to structured WSAL events (IDs 1900001–1900011); inert when WSAL absent.
+- ~~WSAL sensor bridge~~ — `bridges/wp-sudo-wsal-sensor.php` maps 11 audit hooks to structured WSAL events (IDs 1900001–1900011); inert when WSAL absent. (The audit-hook total has since grown — see `docs/current-metrics.md`; newer hooks like `wp_sudo_escalation_blocked` are not yet bridged.)
 
 ### ✓ Completed in v2.10.0
 
@@ -549,7 +549,7 @@ not context retrieval.
 With the WordPress 7.0 compatibility release and v3.4.0 hardening work closed,
 the recommended implementation order is:
 
-1. **Deprecate `compatibility` governance mode** (break-glass containment now ✅ shipped) — Two paired governance security-debt items. (a) *Still open:* fire `_doing_it_wrong()` + persistent admin notice when `wp_sudo_governance_mode = 'compatibility'` is active; update FAQ and developer reference; queue removal for the next major release. (b) ✅ *Shipped in v3.4.0:* the break-glass path that replaces it is hardened — the grant is role-gated to administrators, a non-dismissible notice renders, and the `wp_sudo_recovery_mode_active` audit hook fires (stored as a sampled `recovery_mode` event), so it is explicit, auditable, and bounded (see §12.1 Phase R3). `WP_SUDO_RECOVERY_MODE` is the only supported break-glass path going forward, and it is now sound; compatibility mode can be removed once (a) lands. **Effort:** Low (deprecation remaining)
+1. **Deprecate `compatibility` governance mode** (✅ resolved) — Two paired governance security-debt items. (a) ✅ *Resolved in v4.0.0:* rather than a deprecation cycle, the `compatibility` mode and the `wp_sudo_governance_mode` option were **removed outright** in 4.0.0 — governance is always strict, and the inert option is auto-removed with a one-time dismissible notice and a `wp_sudo_inert_governance_mode_detected` audit event. (b) ✅ *Shipped in v3.4.0:* the break-glass path that replaces it is hardened — the grant is role-gated to administrators, a non-dismissible notice renders, and the `wp_sudo_recovery_mode_active` audit hook fires (stored as a sampled `recovery_mode` event), so it is explicit, auditable, and bounded (see §12.1 Phase R3). `WP_SUDO_RECOVERY_MODE` is the only supported break-glass path going forward, and it is now sound; compatibility mode can be removed once (a) lands. **Effort:** Low (deprecation remaining)
 2. **Monitor and tune E2E CI acceleration without reducing release assurance**
    - Explicit CI groups now split the former long challenge shard across behavior-focused jobs
    - Keep the full Playwright suite available for release-grade confidence, but shorten normal feedback loops
@@ -1064,8 +1064,8 @@ SBOM, accessibility roadmap) are documented in the [CHANGELOG](../CHANGELOG.md).
 
 ### ✓ Shipped
 
-**~~WP Activity Log (WSAL) Sensor Extension~~** — shipped v2.11.0 as `bridges/wp-sudo-wsal-sensor.php`. It now maps all 11 audit hooks to WSAL events (IDs 1900001–1900011). Inert when WSAL absent.
-**~~Stream bridge~~** — implemented on `main` for v2.12.0 as `bridges/wp-sudo-stream-bridge.php`. Optional mu-plugin mapping for all 11 audit hooks.
+**~~WP Activity Log (WSAL) Sensor Extension~~** — shipped v2.11.0 as `bridges/wp-sudo-wsal-sensor.php`. It maps 11 audit hooks to WSAL events (IDs 1900001–1900011); the audit-hook total has since grown (see `docs/current-metrics.md`), so newer hooks such as the 4.1.0 `wp_sudo_escalation_blocked` are not yet mapped (tracked under Escalation guard follow-ups). Inert when WSAL absent.
+**~~Stream bridge~~** — implemented on `main` for v2.12.0 as `bridges/wp-sudo-stream-bridge.php`. Optional mu-plugin mapping for those 11 audit hooks (same coverage caveat as the WSAL bridge).
 **~~WP-CLI `wp sudo` commands~~** — implemented on `main` for v2.12.0 (`status`, `revoke --user`, `revoke --all`).
 **~~Public `wp_sudo_check()` / `wp_sudo_require()` API~~** — implemented on `main` for v2.12.0 for third-party action gating integrations.
 **~~Multi-Dimensional Rate Limiting (IP + User)~~** — shipped v2.13.0. Per-IP tracking via transients alongside per-user tracking, combined lockout policy, and the triggering IP address added as the third `wp_sudo_lockout` hook argument.
@@ -1083,8 +1083,34 @@ carries real risks (admin-file loading, multisite `wpmu_delete_user`, deletion /
 post-reassignment hooks firing during an attack). Backlog: design an **optional,
 opt-in sweep** (scheduled or `shutdown`-time) that reclaims never-completed roleless
 users left by a blocked escalation — scoped to rows provably created-and-left-roleless
-in a blocked request, reversible, and off by default. Only relevant once the guard
-ships and is enabled.
+in a blocked request, reversible, and off by default. The guard shipped in 4.1.0
+(opt-in, default OFF), so this sweep is relevant whenever the guard is enabled.
+
+**Escalation-guard blind spots (future mitigation — tracked, not yet scoped).**
+The 4.1.0 admin-escalation guard hooks the `{prefix}capabilities` meta write and
+`grant_super_admin`, so by construction it does **not** see three escalation
+shapes. Tracked here so they are not forgotten:
+
+1. **Runtime capability grants via `user_has_cap` / `map_meta_cap` filters.** A
+   plugin can confer administrator-equivalent capabilities per-request without ever
+   writing role/capabilities meta. A meta-write guard cannot observe this; a
+   capability-based check would catch custom admin-equivalent roles but carries a
+   high false-positive cost (it must distinguish legitimate per-request grants).
+   Needs a design before any attempt.
+2. **Direct `$wpdb` writes to the usermeta table.** Raw SQL that sets the
+   capabilities row bypasses the metadata filters entirely. Anything with direct DB
+   access has broader reach already, so this is low-priority; a periodic
+   capabilities-integrity audit (compare stored caps against a known-good baseline)
+   is the only plausible mitigation and is out of scope for now.
+3. **In-session residual window.** An escalation that fires *during* a legitimate
+   admin's own active sudo window (e.g. CSRF or stored XSS landing mid-session) is
+   allowed, because the actor holds a valid session. Mitigations would be
+   orthogonal (per-action re-prompt for the highest-risk grants, CSRF hardening) and
+   trade UX for coverage; tracked, not scheduled.
+
+Bridge coverage is also incomplete: the WSAL/Stream bridges do not yet map the
+4.1.0 `wp_sudo_escalation_blocked` event — adding it would let SIEM/audit tools
+alert on escalation blocks directly. See the bridge-coverage backlog below.
 
 ### Open — High Priority Security Bridge Coverage
 

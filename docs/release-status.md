@@ -1,6 +1,6 @@
 # Release Status (Canonical Current State)
 
-Last verified: 2026-06-23
+Last verified: 2026-06-24
 
 This file is the canonical source for **current release state** in this repository:
 
@@ -31,82 +31,54 @@ This file is the canonical source for **current release state** in this reposito
 
 ## Latest release contents
 
-`3.4.0` is a hardening release focused on recovery-mode containment, CI reliability, and documentation accuracy:
+`4.0.0` (tagged 2026-06-21) is a breaking, pre-public hardening release:
 
-- `WP_SUDO_RECOVERY_MODE` is role-gated to existing administrators/super administrators, visible on the Sudo settings screen while active, and auditable through the new `wp_sudo_recovery_mode_active` hook.
-- Psalm analysis is repaired so the type-coverage gate fails loudly if it stops reporting coverage; `uninstall.php` is excluded from Psalm analysis because its top-level uninstall guard exits by design.
-- CI workflows now declare least-privilege permissions and documentation-only pull requests skip heavy jobs without deadlocking required checks.
-- The documentation audit corrected stale/confabulated technical details and points drift-prone counts at `docs/current-metrics.md`.
-- Playground demo coverage expanded with recovery-mode and user-switching scenarios.
+- **Breaking:** the `sudo_can()` alias was removed (use `wp_sudo_can()`); the `compatibility` governance mode was removed (governance is always strict; the inert `wp_sudo_governance_mode` option is auto-removed); the minimum platform floor was raised to WordPress 6.4 / PHP 8.2.
+- **Connectors registry-aware matcher (WP 7.0):** `connectors.update_credentials` gates connector API-key writes to `POST /wp/v2/settings` via the WordPress 7.0 Connectors registry with a regex fallback, closing a false-negative on Akismet's `wordpress_api_key`.
+- **WordPress 7.0 upgrade-path fatal fixed**, Plugin Check CI added, E2E groups rebalanced, and WordPress.org readiness completed (listing name "Sudo – Admin Action Gating", SECURITY.md, refreshed screenshots, manual environment matrix).
 
-Canonical source for post-tag drift after `3.4.0`: `git log v3.4.0..main --oneline`
+Canonical source for post-tag drift after `4.0.0`: `git log v4.0.0..main --oneline`
 
 ## Unreleased `main` work
 
-Canonical source for `main`: `git log v3.4.0..main --oneline`. The full v4.0.0
-delta is now **merged to `main`** — PR [#86](https://github.com/dknauss/Sudo/pull/86)
-merged 2026-06-20. Phases 11, 12, 13, and 13.1 have all landed. Phase 14
-(WordPress.org readiness) is in progress on branch `docs/wordpress-org-readiness`;
-Phase 15 (manual-testing environment matrix) is pending. The `v4.0.0` tag will be
-cut after Phases 14–15 land.
+Canonical source for `main`: `git log v4.0.0..main --oneline`. The unreleased
+**4.1.0** line is security-hardening focused:
 
-**Breaking changes (v4.0.0 — not yet tagged):**
+- **Gate-completeness fixes — coordinated disclosure ([#102](https://github.com/dknauss/Sudo/pull/102)).**
+  An interactive effect-level backstop on `admin_init` hard-blocks the unambiguous
+  destructive core effects (`delete_user`, `delete_plugin`, `delete_theme`,
+  `activate_plugin`, `upgrader_pre_install`, `export_wp`) reached through a
+  non-enumerated handler, and the sudo proof is now bound to the WordPress login
+  session that created it (F1/F2; affected versions ≤ 4.0.0).
+- **REST effect-level backstop ([#104](https://github.com/dknauss/Sudo/pull/104)).**
+  `register_rest_backstop()` extends the effect-level block to custom REST routes,
+  mirroring `intercept_rest()`'s App-Password policy / auth classification.
+- **Login-session-binding integration tests + architectural-metrics enforcement
+  ([#105](https://github.com/dknauss/Sudo/pull/105)).**
+- **Bool REST auth classifier + unified `die_sudo_required()` helper
+  ([#107](https://github.com/dknauss/Sudo/pull/107), behavior-preserving refactor).**
+- **Role-aware admin-escalation guard** — analysis
+  ([#109](https://github.com/dknauss/Sudo/pull/109)), implementation
+  ([#111](https://github.com/dknauss/Sudo/pull/111)). Opt-in via the
+  `wp_sudo_guard_escalation` filter (**default OFF**): blocks a *newly granted*
+  administrator (single-site) / super-admin (multisite) without an active sudo
+  session by hooking the `{prefix}capabilities` meta write and `grant_super_admin`;
+  defers on CLI/Cron/XML-RPC and on Unrestricted REST Application-Password requests;
+  allowlist filter `wp_sudo_allow_escalation` + `WP_SUDO_ALLOW_ESCALATION` constant;
+  high-severity `wp_sudo_escalation_blocked` event. **Known limits:** administrator
+  capabilities conferred at runtime via `user_has_cap`/`map_meta_cap` or written
+  directly with `$wpdb` are not caught, and the residual window is an escalation
+  during a legitimate admin's own active sudo session.
+- **Changelog ([#112](https://github.com/dknauss/Sudo/pull/112))** documents the
+  escalation guard under the 4.1.0 line.
 
-- **`sudo_can()` removed.** The deprecated unprefixed alias is gone; calling it is a
-  fatal undefined-function error. Use `wp_sudo_can()` (identical signature).
-- **`compatibility` governance mode removed.** Governance is always *strict*
-  (capability checks against the dedicated `manage_wp_sudo` family). A stale
-  `wp_sudo_governance_mode` option is inert and is now **auto-removed** (Phase 13):
-  `upgrade_4_0_0()` deletes it on the 3.x → 4.0.0 boundary from both option stores,
-  and an `admin_init` self-heal (`cleanup_inert_governance_mode_option()`) clears it
-  if it reappears. The notice is now a one-time, dismissible "fixed" confirmation
-  (no `_doing_it_wrong()`; a `wp_sudo_inert_governance_mode_detected` audit action
-  fires instead). `WP_SUDO_RECOVERY_MODE` remains the sole break-glass path.
-- **Minimum platform floor raised:** WordPress `6.2 → 6.4`, PHP `8.0 → 8.2`
-  (`composer.json` requires `php >=8.2`; CI drops the 8.0/8.1 lanes and the
-  `php80-tests` infrastructure).
+All five version-sync points (three `WP_SUDO_VERSION` constants + plugin header +
+`readme.txt` stable tag) read `4.1.0`.
 
-**New gating coverage:**
-
-- **Connectors registry-aware matcher (WP 7.0).** `connectors.update_credentials`
-  now matches connector API-key writes to `POST /wp/v2/settings` with a two-tier
-  matcher: tier 1 reads the WordPress 7.0 Connectors registry (`wp_get_connectors()`,
-  `function_exists()`-guarded) and gates every setting belonging to an `api_key`
-  connector; tier 2 retains the `^connectors_[a-z0-9_]+_api_key$` regex as a union
-  fallback. Closes a false-negative where Akismet's `wordpress_api_key` was ungated
-  on WP 7.0. Verified against WordPress 7.0 GA.
-
-**Reliability:**
-
-- **WordPress 7.0 upgrade-path fatal fixed.** `Upgrader::maybe_upgrade()` primes
-  `wp_roles()` before the capability-query migration, which otherwise fataled
-  (`for_site() on null`) under WP-CLI/cron at `plugins_loaded` on WP 7.0.
-
-**CI / tooling:**
-
-- **Plugin Check CI** builds a clean production dist, runs the official Plugin Check
-  plugin through `wp-env`, and fails on reported PCP errors.
-- **E2E CI balancing** replaces opaque Playwright sharding with explicit
-  challenge/admin, 2FA/UI, lockout/surface, and replay/multisite groups.
-
-**Docs / assets:**
-
-- v4.0.0 migration notes (CHANGELOG breaking-changes block, `readme.txt` Upgrade
-  Notice, developer-reference "Migrating to 4.0") — including the rationale for why
-  `compatibility` mode was added (3.2.0 transitional bridge) and removed.
-- README / WordPress.org screenshot assets refreshed (settings, Access, Rule Tester,
-  dashboard activity, recovery-mode screens); README copy clarified re: the sudo
-  window. Historical planning docs moved under `docs/archive/`.
-
-> **Note:** the v4.0.0 narrative above is historical — `v4.0.0` was tagged
-> 2026-06-21. `main` has since advanced to the unreleased `4.1.0` line (see
-> "Current `main` release target").
-
-**Pre-tag checklist reminder:** `WP_SUDO_VERSION` (three code constants + plugin
-header) and `readme.txt` stable tag are at `4.1.0` on `main` (the unreleased
-4.1.0 line). Before tagging `v4.1.0`, confirm those five are still in sync,
-re-verify external claims, and update this file's "Latest tagged release" once
-the tag is cut.
+**Pre-tag checklist reminder:** before tagging `v4.1.0`, confirm those five are
+still in sync, re-verify external claims added since `v4.0.0`, ensure the
+CHANGELOG/`readme.txt` 4.1.0 entries are dated, and update this file's "Latest
+tagged release" once the tag is cut.
 
 ## WordPress release posture
 

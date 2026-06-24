@@ -147,19 +147,30 @@ The fix followed the project's pre-implementation design review (which produced
 the scope decision above), TDD (`tests/Unit/ActionGatingCompletenessTest.php`),
 and the pre-commit reviewer workflow.
 
-### Residual / deferred gaps (tracked, not yet closed)
+### Residual / deferred gaps
 
 The design review deliberately deferred these to separate increments to keep the
-fix minimal and avoid over-blocking:
+initial fix minimal and avoid over-blocking. **Both have since been substantially
+closed** (4.1.0); the genuinely-remaining residue is noted under each.
 
-1. **Custom REST routes** — the backstop arms on `admin_init` only. A custom
-   REST route that calls a destructive effect is not yet backstopped, because a
-   REST backstop must mirror `intercept_rest()`'s app-password policy/auth
-   classification or it would regress Unrestricted headless users.
-2. **`user.create` / `user.promote` via non-enumerated handlers** — excluded
-   from the admin backstop because their hooks (`wp_pre_insert_user_data`,
-   `*_capabilities` metadata writes) fire on benign, high-frequency paths; they
-   need the same incidental-write analysis before they can be safely guarded.
+1. **Custom REST routes — CLOSED in 4.1.0 (PR #104).** The REST effect-level
+   backstop (`register_rest_backstop()`) now mirrors `intercept_rest()`'s
+   app-password policy/auth classification and hard-blocks the same destructive
+   effects (`delete_user`, `delete_plugin`, `delete_theme`, `activate_plugin`,
+   `upgrader_pre_install`, `export_wp`) reached through a custom REST route while
+   no sudo window is active, deferring on Unrestricted headless requests. Residue:
+   non-destructive custom mutations remain the plugin's own responsibility.
+2. **`user.create` / `user.promote` via non-enumerated handlers — escalation-to-admin
+   CLOSED in 4.1.0 (PR #111).** The role-aware admin-escalation guard
+   (`arm_escalation_guard()`, opt-in via `wp_sudo_guard_escalation`, default OFF)
+   hooks the `{prefix}capabilities` meta write and `grant_super_admin` and blocks a
+   *newly granted* administrator/super-admin on any surface — including these
+   non-enumerated handlers — when no sudo session is active. See
+   [admin-escalation-guard-analysis.md](admin-escalation-guard-analysis.md). Residue
+   (intentional / out of scope): low-privilege role assignments and non-admin user
+   creation stay ungated (they fire on benign, high-frequency paths), and the guard
+   does not see administrator capabilities conferred via the runtime
+   `user_has_cap`/`map_meta_cap` filters or written directly with `$wpdb`.
 
 ---
 
@@ -182,8 +193,11 @@ fix minimal and avoid over-blocking:
    assertions so a future refactor cannot silently drop one (4.1.0 adds the
    binding tests; the logout/`destroy_all` integration assertions are the natural
    next addition).
-4. **Close the deferred gaps deliberately.** Track the two residual items above
-   to completion rather than letting "deferred" become "forgotten."
+4. **Close the deferred gaps deliberately.** Both residual items above were closed
+   in 4.1.0 (REST backstop #104; opt-in admin-escalation guard #111) rather than
+   left to drift. The remaining deliberate non-goals — low-privilege role/user
+   creation, and admin grants via runtime `user_has_cap`/`map_meta_cap` or direct
+   `$wpdb` writes — are documented as known limits, not silently dropped.
 5. **Prefer the effect boundary over enumeration where UX allows.** Enumeration
    is necessary for the challenge + stash/replay experience, but it is a
    coverage liability. The effect-level backstop pattern (block at the WordPress

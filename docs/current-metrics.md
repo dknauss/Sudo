@@ -66,7 +66,7 @@ Source: `.github/workflows/phpunit.yml`, `.github/workflows/e2e.yml`, `.github/w
 
 ## Verification Notes
 
-- `composer test:unit` passed on 2026-06-23 (`834 tests`, `2399 assertions`).
+- `composer test:unit` passed on 2026-06-24 (`878 tests`, `2539 assertions`).
 - `composer lint` passed on 2026-06-20.
 - `composer analyse` passed on 2026-06-20 (PHPStan L6 `[OK] No errors`; Psalm `No errors found!`, 95.8% type coverage, baseline current).
 - `composer verify:metrics` passed on 2026-06-20 (after this update).

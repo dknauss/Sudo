@@ -500,6 +500,16 @@ do_action( 'wp_sudo_action_allowed', int $user_id, string $rule_id, string $surf
 do_action( 'wp_sudo_action_passed', int $user_id, string $rule_id, string $surface ); // Active session (v3.0.0).
 do_action( 'wp_sudo_action_replayed', int $user_id, string $rule_id );
 
+// Admin-escalation guard (v4.1.0, opt-in via the wp_sudo_guard_escalation filter,
+// default OFF). High-severity, distinct from wp_sudo_action_blocked so external
+// alerting can subscribe to escalation specifically. Fires when a NEWLY granted
+// administrator/super-admin (or the deletion of an administrator target) is
+// blocked because no active/grace sudo session exists. $target_id is the user
+// being granted/deleted (not the actor). $rule_id is one of 'user.promote',
+// 'user.super_admin', or 'user.delete'. The bundled Event_Recorder stores this as
+// an `escalation_blocked` event with context severity=high.
+do_action( 'wp_sudo_escalation_blocked', int $target_id, string $rule_id, string $surface );
+
 // Rule diagnostics.
 // Fires when a custom rule's REST-route regex fails to compile. $fail_closed is
 // true when the malformed pattern caused the request to be gated anyway (v3.1.4).
@@ -600,6 +610,10 @@ for the full design. Not scheduled; optional Phase 5 of the v3.1–v3.3 plan.
 | `wp_sudo_cookie_secure` | Whether session/2FA cookies set the `Secure` flag (default `is_ssl() \|\| force_ssl_admin()`). Returning `false` on production HTTPS exposes the cookie over plain HTTP — change only for known reverse-proxy/TLS-termination setups. |
 | `wp_sudo_wpgraphql_classification` | Classify WPGraphQL body as `mutation` or `query` (persisted-query support). |
 | `wp_sudo_wpgraphql_bypass` | Bypass WPGraphQL Limited-mode gating for specific requests. |
+| `wp_sudo_guard_escalation` | Master on/off switch for the admin-escalation guard (`apply_filters( 'wp_sudo_guard_escalation', false )`). **Default `false` (guard OFF).** Return `true` to block a *newly granted* `administrator` (single-site) / super-admin (multisite) — and to alarm on administrator deletion — when no active or grace sudo session exists. Effect-level (capabilities-meta write + `grant_super_admin`), so it applies on every surface; defers on CLI/Cron/XML-RPC and on Unrestricted REST Application-Password requests. Since 4.1.0. |
+| `wp_sudo_allow_escalation` | Allowlist a specific administrator/super-admin grant past the escalation guard (`apply_filters( 'wp_sudo_allow_escalation', false, int $target_id, mixed $context )`). Default `false`. Return `true` to let a trusted provisioner (SSO/SAML/OIDC, directory sync) through. `$context` varies by path: the incoming capabilities array on the single-site promote path, the string `'super-admin'` on the multisite path, or `'delete'` on the admin-deletion path. Since 4.1.0. |
+
+**Constant (not a filter):** `WP_SUDO_ALLOW_ESCALATION` — define `true` in `wp-config.php` to bypass the admin-escalation guard entirely. It is checked **first**, before any session or capability read, so deployment, migration, and sole-admin recovery flows are never hard-blocked by the guard. Since 4.1.0.
 
 **Action (not a filter):** `wp_sudo_render_two_factor_fields` — `do_action( 'wp_sudo_render_two_factor_fields', WP_User $user )` echoes 2FA input fields on the challenge form for third-party 2FA plugins. See [two-factor-integration.md](two-factor-integration.md).
 

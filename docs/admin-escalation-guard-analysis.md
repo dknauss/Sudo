@@ -1,16 +1,20 @@
 # User Privilege-Escalation Guard — Implications Analysis
 
-> **Status: analysis / decision input.** Began as the deferred "Item 2"
-> (admin-surface escalation guard) from the gate-completeness work
-> (PRs #102/#104). Not implemented. **Scope has since evolved:** the analysis now
-> recommends an **effect-level** guard (hooked on the capabilities-meta write and
-> `grant_super_admin`) that covers *all* surfaces uniformly, rather than an
-> admin-`init`-only guard — because the exploit paths this defends against live on
-> REST/AJAX/unauthenticated surfaces, not the interactive admin (§1, §5). If
-> implemented, the guard ships **behind a filter defaulting OFF** (a recorded
-> decision), with a documented path to default-ON once escape hatches are proven
-> (§8). This document exists so the over-block surface is understood before any
-> code lands.
+> **Status: IMPLEMENTED — shipped in 4.1.0 (PR #111), opt-in / default OFF.**
+> Began as the deferred "Item 2" (admin-surface escalation guard) from the
+> gate-completeness work (PRs #102/#104). It is now the **effect-level** guard in
+> `includes/class-gate.php` (`arm_escalation_guard()`), hooked on the
+> capabilities-meta write (`add_user_metadata`/`update_user_metadata`) and
+> `grant_super_admin`, covering *all* surfaces uniformly — because the exploit
+> paths it defends against live on REST/AJAX/unauthenticated surfaces, not the
+> interactive admin (§1, §5). It ships **behind the `wp_sudo_guard_escalation`
+> filter, default `false` (OFF)**, with an allowlist filter
+> (`wp_sudo_allow_escalation`), the `WP_SUDO_ALLOW_ESCALATION` constant bypass, and
+> the high-severity `wp_sudo_escalation_blocked` action; the documented path to a
+> future default-ON is in §8. This document is the design rationale and over-block
+> analysis; the §7 scenarios were realized as tests in `tests/Unit/GateTest.php`.
+> Sections written in the future tense ("if implemented", "if approved") below
+> describe decisions that have since shipped as described.
 
 ## 1. The gap
 
@@ -321,7 +325,7 @@ human to send to the challenge, so the only available response is a **hard block
 (halt the request before the write — §6/§9, not a short-circuit return), not a
 reauth prompt (§6, §8).
 
-## 6. Implementation shape (if approved)
+## 6. Implementation shape (as shipped in 4.1.0)
 
 - **Hooks (effect-level, surface-agnostic):** reuse the `add_user_metadata` /
   `update_user_metadata` filter on the `{prefix}capabilities` key; additionally
@@ -500,9 +504,9 @@ fail-open violates `CLAUDE.md`, fail-closed bricks role writes); and documenting
 the `user_has_cap` runtime-filter blind spot (§3) in the shipped FAQ, since it
 narrows the security claim to *meta-backed* role grants.
 
-**Status:** design corrected; not approved for code. The three BLOCKERs are
-resolved at the design level here, but each must be proven by its §7 TDD scenario
-before and during implementation.
+**Status:** design corrected, approved, and **implemented in 4.1.0 (PR #111)**.
+The three BLOCKERs were resolved at the design level here and each was proven by
+its §7 TDD scenario in `tests/Unit/GateTest.php` during implementation.
 
 ## 10. Plain-language summary
 

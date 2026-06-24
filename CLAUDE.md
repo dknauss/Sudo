@@ -126,7 +126,6 @@ No build step. No production dependencies — only dev dependencies (PHPUnit 9.6
 - `docs/ROADMAP.md` — unified roadmap: integration tests, WP 7.0 prep, collaboration analysis, TDD strategy, core design features, feature backlog, accessibility appendix.
 - `docs/release-status.md` — canonical current release status: stable tag, unreleased `main` work, and WordPress forward-lane posture.
 - `docs/wporg-submission-checklist.md` — WordPress.org submission process: validation gates, asset specs, SVN trunk/tags layout, and the version-sync gate.
-- `docs/documentation-remediation-checklist.md` — audit-driven cleanup checklist for doc drift and archival labeling.
 
 ## Verification Requirements
 
@@ -273,7 +272,7 @@ Specifically, do **not** write:
 ### Core Classes (all in `includes/`, namespace `WP_Sudo`)
 
 - **Plugin** — Orchestrator. Creates and owns the component instances. Handles activation/deactivation hooks. Strips `unfiltered_html` from editors on activation and restores it on deactivation. Expires sudo session on password change (`after_password_reset`, `profile_update`).
-- **Gate** — Multi-surface interceptor. Matches incoming requests against the Action Registry and gates them via reauthentication (admin UI), error response (AJAX/REST), or policy (CLI/Cron/XML-RPC/App Passwords).
+- **Gate** — Multi-surface interceptor. Matches incoming requests against the Action Registry and gates them via reauthentication (admin UI), error response (AJAX/REST), or policy (CLI/Cron/XML-RPC/App Passwords). Beyond request-pattern matching it also arms **effect-level backstops** — interactive (`admin_init`) and REST (`register_rest_backstop`) — that hard-block unambiguous destructive effects reached through non-enumerated handlers (4.1.0), plus an opt-in, **default-OFF admin-escalation guard** (`arm_escalation_guard`, filter `wp_sudo_guard_escalation`) that blocks a newly-granted administrator/super-admin without an active sudo session by hooking the `{prefix}capabilities` meta write and `grant_super_admin`.
 - **Action_Registry** — Defines all built-in gated rules and rule categories. Extensible via `wp_sudo_gated_actions` filter. See `docs/current-metrics.md` for the current single-site/multisite totals.
 - **Challenge** — Interstitial reauthentication page. Handles password authentication, 2FA integration, request stash/replay.
 - **Sudo_Session** — Session management. Cryptographic token (user meta + httponly cookie), rate limiting (5 attempts → 5-min lockout), session binding. Two-tier expiry: `is_active()` for true session state; `is_within_grace()` for the 120 s grace window after expiry (token-verified). Cleanup deferred until grace window closes.
