@@ -93,10 +93,14 @@ over-block.
   *after* the user row exists → a roleless user row. → Because the block halts
   **before** the administrator role persists, no admin capability is ever written;
   the only residual on the *creation* path is a brand-new user left **roleless and
-  powerless** (never an admin). The guard deletes that just-created roleless row
-  in-hook (the user ID is known), or a scheduled sweep removes it. **Promotions of
-  existing users have no orphan risk** — the prior role is simply retained. See §10
-  for the plain-language resolution.
+  powerless** (never an admin). That row is **left in place** — a no-privilege
+  record — rather than deleted mid-request: calling `wp_delete_user()` inside the
+  capabilities meta filter, on a possibly-unauthenticated request, carries its own
+  risks (admin-file loading, multisite `wpmu_delete_user`, post-reassignment and
+  deletion hooks firing during an attack request, and attacker-driven
+  create-then-block deletion loops). See the §11 decision. An optional future sweep
+  may remove such rows. **Promotions of existing users have no orphan risk** — the
+  prior role is simply retained. See §10 for the plain-language resolution.
 - **Multisite super-admin is NOT in capabilities meta.** `grant_super_admin()` /
   `revoke_super_admin()` store status in the network `site_admins` site option
   (`update_site_option( 'site_admins', … )`) and fire the `grant_super_admin`
@@ -384,9 +388,10 @@ reauth prompt (§6, §8).
     short-circuit is diagnosable rather than a mystery.
 - **Creation path is guarded too** (revises the earlier "exclude creation"
   caution). A blocked one-shot admin-create leaves at most a **roleless, powerless**
-  user row — never an admin — which the hook deletes in place (user ID is known) or
-  a scheduled sweep removes. Promotions of existing users retain their prior role
-  (no orphan). Rationale and plain-language walkthrough in §10.
+  user row — never an admin. That row is **left in place** (no in-hook deletion —
+  see the §11 decision on why mid-request `wp_delete_user()` in a security hot path
+  is avoided); an optional future sweep may remove it. Promotions of existing users
+  retain their prior role (no orphan). Rationale and walkthrough in §10.
 
 ## 7. Required TDD scenarios (before any implementation)
 
@@ -528,9 +533,11 @@ WordPress internals) that is *before* the administrator role is ever persisted.
 - **Creating a brand-new admin in one request:** WordPress inserts the user row
   first, then assigns the role second. If we block the role step, the row can be
   left with *no* role. That leftover is **powerless** — zero capabilities, not an
-  administrator, can do nothing. Because the guard knows the user ID at block time,
-  the implementation **deletes that just-created roleless row** in the same step
-  (or a scheduled sweep removes it).
+  administrator, can do nothing. We **leave it in place** rather than delete a user
+  mid-request: doing `wp_delete_user()` inside the block, on a possibly-unauthenticated
+  request, would load admin files, branch on multisite, and fire deletion/post-
+  reassignment hooks during an attack — risks that outweigh tidying a harmless row
+  (the §11 decision). An optional future sweep may clean these rows.
 
 The guarantee: **the worst possible leftover is an empty, powerless record — never
 a privileged one, and never a half-applied admin.**
@@ -643,6 +650,21 @@ creation and deletes," because deletion is already covered:
   attacker-scoped throttle** (extend the existing rate-limit lockout to repeated
   escalation attempts), never a site-wide policy change, and only as explicit
   opt-in.
+
+### Orphan-cleanup decision (Option A — document, do not delete in-hook)
+
+A blocked one-shot admin *creation* can leave a **roleless, powerless** user row
+(the row is inserted before the role is applied; the block halts before the
+administrator role persists). Decision: **do not delete that row in-hook.** Calling
+`wp_delete_user()` from inside the capabilities meta filter — on a
+possibly-unauthenticated request — would load `wp-admin/includes`, branch on
+multisite (`wpmu_delete_user`), and fire deletion / post-reassignment hooks *during
+an attack request*; an attacker could also drive repeated create-then-block loops
+to cause deletions. Those risks outweigh tidying a row that is, by construction,
+**harmless** (zero capabilities, cannot act). The row is left in place and
+documented; an **optional, opt-in future sweep** of never-completed roleless users
+is the safe place to reclaim them. Rejected: in-hook deletion (risk above) and a
+mandatory background sweep (complexity for a harmless artifact).
 
 ## Verification sources
 
