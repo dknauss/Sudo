@@ -1002,6 +1002,51 @@ class Gate {
 
 		add_filter( 'add_user_metadata', $guard, 0, 5 );
 		add_filter( 'update_user_metadata', $guard, 0, 5 );
+
+		// Multisite super-admin grants are NOT stored in the capabilities meta;
+		// grant_super_admin() writes the network `site_admins` option. Guard that
+		// action separately, with the same opt-in/bypass/defer/allowlist/session
+		// rules. The action fires BEFORE the grant completes, so is_super_admin()
+		// still reflects the prior state — an already-super target is an idempotent
+		// re-grant and passes untouched.
+		$super_guard = function ( $user_id ) {
+			if ( ! apply_filters( 'wp_sudo_guard_escalation', false ) ) {
+				return;
+			}
+
+			if ( defined( 'WP_SUDO_ALLOW_ESCALATION' ) && WP_SUDO_ALLOW_ESCALATION ) {
+				return;
+			}
+
+			$surface = $this->detect_surface();
+			if ( in_array( $surface, array( 'cli', 'cron', 'xmlrpc' ), true ) ) {
+				return;
+			}
+
+			$target_id = (int) $user_id;
+
+			// Idempotent re-grant: already a super admin → not a new grant.
+			if ( is_super_admin( $target_id ) ) {
+				return;
+			}
+
+			/** This filter is documented above in arm_escalation_guard(). */
+			if ( apply_filters( 'wp_sudo_allow_escalation', false, $target_id, 'super-admin' ) ) {
+				return;
+			}
+
+			$actor = (int) get_current_user_id();
+			if ( $actor && ( Sudo_Session::is_active( $actor ) || Sudo_Session::is_within_grace( $actor ) ) ) {
+				return;
+			}
+
+			/** This action is documented above in arm_escalation_guard(). */
+			do_action( 'wp_sudo_escalation_blocked', $target_id, 'user.super_admin', $surface );
+
+			$this->die_sudo_required( __( 'Grant super admin', 'wp-sudo' ) );
+		};
+
+		add_action( 'grant_super_admin', $super_guard, 0 );
 	}
 
 	/**
@@ -1036,9 +1081,14 @@ class Gate {
 	/**
 	 * Determine whether a user meta key stores WordPress role capabilities.
 	 *
-	 * WordPress stores user roles in a site-scoped capabilities meta key such
-	 * as `wp_capabilities` or `wp_2_capabilities`. Matching exact keys avoids
-	 * treating unrelated plugin metadata as a role mutation.
+	 * WordPress stores user roles in a site-scoped capabilities meta key:
+	 * `{base_prefix}capabilities` on the main/single site and
+	 * `{base_prefix}{blog_id}_capabilities` on secondary multisite blogs (e.g.
+	 * `wp_capabilities`, `wp_2_capabilities`). A regex anchored on the base prefix
+	 * matches every blog's key while rejecting unrelated metadata that merely
+	 * contains "capabilities" (e.g. `wp_capabilities_backup`). This shared matcher
+	 * governs both the non-interactive `user.promote` guard and the role-aware
+	 * escalation guard, so it must cover all blogs on multisite.
 	 *
 	 * @param string $meta_key User meta key.
 	 * @return bool True when the key stores role capabilities.
@@ -1046,21 +1096,14 @@ class Gate {
 	private function is_user_capabilities_meta_key( string $meta_key ): bool {
 		global $wpdb;
 
-		$keys = array( 'wp_capabilities' );
+		$base = isset( $wpdb->base_prefix ) ? (string) $wpdb->base_prefix : 'wp_';
 
-		$keys[] = (string) $wpdb->get_blog_prefix() . 'capabilities';
-
-		if ( isset( $wpdb->prefix ) ) {
-			$keys[] = (string) $wpdb->prefix . 'capabilities';
+		if ( 1 === preg_match( '/^' . preg_quote( $base, '/' ) . '(?:\d+_)?capabilities$/', $meta_key ) ) {
+			return true;
 		}
 
-		if ( isset( $wpdb->base_prefix ) ) {
-			$keys[] = (string) $wpdb->base_prefix . 'capabilities';
-		}
-
-		$keys = array_values( array_unique( $keys ) );
-
-		return in_array( $meta_key, $keys, true );
+		// The literal default key, in case base_prefix differs from 'wp_'.
+		return 'wp_capabilities' === $meta_key;
 	}
 
 	/**

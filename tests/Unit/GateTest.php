@@ -4338,4 +4338,130 @@ class GateTest extends TestCase {
 		$guard = $this->capture_escalation_guard();
 		$guard( null, 7, 'wp_capabilities', array( 'administrator' => true ), '' );
 	}
+
+	// ── Slice 2: multisite caps-key regex, allowlist, super-admin path ────
+
+	/**
+	 * The capabilities-key matcher must recognise secondary-blog keys
+	 * (`{base_prefix}{blog_id}_capabilities`) on multisite, not just the main
+	 * `{base_prefix}capabilities` — design-review coverage requirement.
+	 */
+	public function test_is_user_capabilities_meta_key_matches_secondary_blog(): void {
+		$GLOBALS['wpdb'] = new class() {
+			public string $prefix      = 'wp_';
+			public string $base_prefix = 'wp_';
+			public function get_blog_prefix(): string {
+				return 'wp_';
+			}
+		};
+		$this->assertTrue( $this->invoke_gate( 'is_user_capabilities_meta_key', 'wp_2_capabilities' ) );
+		$this->assertTrue( $this->invoke_gate( 'is_user_capabilities_meta_key', 'wp_capabilities' ) );
+	}
+
+	/**
+	 * Unrelated keys that merely contain "capabilities" must not match.
+	 */
+	public function test_is_user_capabilities_meta_key_rejects_unrelated_key(): void {
+		$GLOBALS['wpdb'] = new class() {
+			public string $prefix      = 'wp_';
+			public string $base_prefix = 'wp_';
+			public function get_blog_prefix(): string {
+				return 'wp_';
+			}
+		};
+		$this->assertFalse( $this->invoke_gate( 'is_user_capabilities_meta_key', 'wp_capabilities_backup' ) );
+		$this->assertFalse( $this->invoke_gate( 'is_user_capabilities_meta_key', 'wp_usermeta' ) );
+	}
+
+	/**
+	 * An allowlisted grant (wp_sudo_allow_escalation === true) passes untouched —
+	 * the trusted-provisioner escape hatch.
+	 */
+	public function test_escalation_guard_allows_when_allowlisted(): void {
+		$this->prime_escalation_env( true );
+		Functions\when( 'get_user_meta' )->justReturn( array() );
+		Functions\when( 'apply_filters' )->alias(
+			static function ( $hook, $value = null ) {
+				if ( 'wp_sudo_guard_escalation' === $hook ) {
+					return true;
+				}
+				if ( 'wp_sudo_allow_escalation' === $hook ) {
+					return true;
+				}
+				return $value;
+			}
+		);
+
+		Actions\expectDone( 'wp_sudo_escalation_blocked' )->never();
+		Functions\expect( 'wp_die' )->never();
+
+		$guard = $this->capture_escalation_guard();
+		$guard( null, 7, 'wp_capabilities', array( 'administrator' => true ), '' );
+	}
+
+	/**
+	 * Capture the closure arm_escalation_guard() registers on grant_super_admin.
+	 *
+	 * @return callable
+	 */
+	private function capture_super_admin_guard(): callable {
+		$callback = null;
+		Actions\expectAdded( 'grant_super_admin' )
+			->once()
+			->whenHappen(
+				static function ( $cb ) use ( &$callback ) {
+					$callback = $cb;
+				}
+			);
+		$this->gate->arm_escalation_guard();
+		$this->assertIsCallable( $callback );
+		return $callback;
+	}
+
+	/**
+	 * Granting super admin to a user who is not already one, with no session,
+	 * blocks and fires the high-severity event (multisite escalation).
+	 */
+	public function test_super_admin_guard_blocks_new_grant_without_session(): void {
+		$this->prime_escalation_env( true );
+		Functions\when( 'is_super_admin' )->justReturn( false );
+
+		Actions\expectDone( 'wp_sudo_escalation_blocked' )
+			->once()
+			->with( 7, 'user.super_admin', 'admin' );
+		Functions\expect( 'wp_die' )
+			->once()
+			->with( \Mockery::type( 'string' ), '', array( 'response' => 403 ) );
+
+		$guard = $this->capture_super_admin_guard();
+		$guard( 7 );
+	}
+
+	/**
+	 * Re-granting super admin to an existing super admin is idempotent — allowed.
+	 */
+	public function test_super_admin_guard_allows_existing_super_admin(): void {
+		$this->prime_escalation_env( true );
+		Functions\when( 'is_super_admin' )->justReturn( true );
+
+		Actions\expectDone( 'wp_sudo_escalation_blocked' )->never();
+		Functions\expect( 'wp_die' )->never();
+
+		$guard = $this->capture_super_admin_guard();
+		$guard( 7 );
+	}
+
+	/**
+	 * With the guard filter OFF, the super-admin closure is inert.
+	 */
+	public function test_super_admin_guard_inert_when_filter_off(): void {
+		$this->prime_escalation_env( false );
+		Functions\when( 'is_super_admin' )->justReturn( false );
+
+		Actions\expectDone( 'wp_sudo_escalation_blocked' )->never();
+		Functions\expect( 'wp_die' )->never();
+
+		$guard = $this->capture_super_admin_guard();
+		$guard( 7 );
+	}
 }
