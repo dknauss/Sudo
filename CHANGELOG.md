@@ -32,6 +32,40 @@
     deactivated on `wp_logout`, and the login-session token is captured from
     `set_logged_in_cookie` so sessions granted during the login request bind
     correctly.
+- **Security (admin-escalation guard, opt-in — default OFF):** A new role-aware
+  guard refuses to grant **administrator** (single-site) or **super-admin**
+  (multisite) unless the acting user holds an active (or in-grace) sudo session.
+  It mitigates privilege-escalation through broken access control — including in
+  third-party code — because in the common exploit shapes the attacker is
+  unauthenticated or low-privilege and structurally cannot hold a sudo session,
+  so the grant is blocked even when the vulnerable plugin's own permission check
+  fails. Enable with `add_filter( 'wp_sudo_guard_escalation', '__return_true' )`.
+  - **Effect-level and surface-agnostic.** Hooks the `{prefix}capabilities`
+    user-meta write (`add_user_metadata`/`update_user_metadata`) and
+    `grant_super_admin`, so it covers admin, REST, AJAX, and unauthenticated
+    front-end writes with one mechanism. It fires **only** when a write *newly
+    grants* administrator/super-admin to a user who does not already hold it —
+    low-privilege role assignments, demotions, lateral changes, and idempotent
+    self-edits pass untouched (evaluated against pre-mutation capabilities, so a
+    sole admin re-asserting their own role is never blocked). On block it halts
+    the request before the write persists (HTTP 403 / cron `exit`), never a
+    short-circuit return.
+  - **Respects operator policy.** Defers on CLI/Cron/XML-RPC (already governed by
+    the non-interactive policy layer) and on a genuine **Unrestricted REST
+    Application-Password** surface (audit-only), so it never contradicts an
+    explicit entry-point setting.
+  - **Escape hatches.** An allowlist filter (`wp_sudo_allow_escalation`) exempts
+    a trusted provisioner (SSO/SAML/OIDC, directory sync), and the
+    `WP_SUDO_ALLOW_ESCALATION` constant (checked first) covers deployment,
+    migration, and sole-admin recovery.
+  - **High-severity alarm.** A blocked escalation fires the distinct
+    `wp_sudo_escalation_blocked` action and is recorded high-severity by the
+    activity log, separate from routine policy denials, so external alerting can
+    subscribe to just this case.
+  - **Known limits (documented).** Runtime `user_has_cap`/`map_meta_cap` grants
+    and raw `$wpdb` writes to the usermeta table bypass the meta hooks and are
+    out of scope; the residual window is an escalation firing during a
+    legitimate admin's own active sudo session.
 
 ## 4.0.0 - 2026-06-21
 
