@@ -15,7 +15,7 @@ Require password confirmation before high-risk changes go through on your WordPr
 [![CodeQL](https://github.com/dknauss/Sudo/actions/workflows/codeql.yml/badge.svg)](https://github.com/dknauss/Sudo/actions/workflows/codeql.yml)
 [![Codecov](https://codecov.io/gh/dknauss/Sudo/graph/badge.svg?branch=main)](https://codecov.io/gh/dknauss/Sudo)
 [![Type Coverage](https://shepherd.dev/github/dknauss/Sudo/coverage.svg)](https://shepherd.dev/github/dknauss/Sudo)
-[![Try latest release in Playground](https://img.shields.io/badge/Try%20release-Playground-3858e9?logo=wordpress&logoColor=white)](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fv3.4.0%2Fblueprint.json)
+[![Try latest release in Playground](https://img.shields.io/badge/Try%20release-Playground-3858e9?logo=wordpress&logoColor=white)](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fv4.0.0%2Fblueprint.json)
 [![Try main in Playground](https://img.shields.io/badge/Try%20main-Playground-23282d?logo=wordpress&logoColor=white)](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint-main.json)
 
 Playground demo credentials are `admin` / `password`. When Sudo asks for reauthentication, enter the same password: `password`.
@@ -71,6 +71,7 @@ Playground demo credentials are `admin` / `password`. When Sudo asks for reauthe
 - **Two-factor support** — integrates with the [Two Factor plugin](https://wordpress.org/plugins/two-factor/) so the challenge includes your second factor when active
 - **Short sudo window** — one confirmation covers 1–15 minutes of related work (your choice) so admins can work without interruption following one reauthentication challenge before being challenged again
 - **Per-surface policies** — configure WP-CLI, Cron, XML-RPC, REST App Passwords, and WPGraphQL independently as Disabled, Limited, or Unrestricted
+- **Privilege-escalation guard (opt-in)** — optionally refuse to grant a *new* administrator or super-admin unless the actor has an active sudo session, blocking the most common privilege-escalation shape even through another plugin's broken endpoint (off by default; see the FAQ)
 - **Governance controls** — manage which users and roles can administer Sudo settings via a dedicated Access tab
 - **Activity visibility** — audit hooks fire on every gated event; works with WP Activity Log, Stream, and similar plugins
 - **Multisite support** — network-aware; super admins governed separately from per-site admins
@@ -147,7 +148,7 @@ In a lost, last administrator scenario where no one has access to Sudo's setting
 
 ## For developers and integrators
 
-Sudo exposes a small, stable API. Custom gated rules are plain associative arrays registered via the `wp_sudo_gated_actions` filter, with per-surface matchers for admin, AJAX, REST, and CLI. The `wp_sudo_can()` helper centralizes all governance checks — super-admin short-circuit, recovery-mode bypass, and strict/compatibility mode — so integrations don't touch capability internals directly. Audit hooks fire on every session event, capability grant or revoke, tamper detection, and policy change; bridge classes for WP Activity Log and Stream are bundled. The `wp_sudo_grant_session_on_login` filter lets SSO and kiosk integrations suppress the automatic browser-login session grant. All of this is covered by a dual-layer test suite (unit tests + a full integration matrix) and PHPStan level 6.
+Sudo exposes a small, stable API. Custom gated rules are plain associative arrays registered via the `wp_sudo_gated_actions` filter, with per-surface matchers for admin, AJAX, REST, and CLI. The `wp_sudo_can()` helper centralizes all governance checks — super-admin short-circuit and recovery-mode bypass, with always-strict capability checks (the `compatibility` mode was removed in 4.0.0) — so integrations don't touch capability internals directly. Audit hooks fire on every session event, capability grant or revoke, tamper detection, and policy change; bridge classes for WP Activity Log and Stream are bundled. The `wp_sudo_grant_session_on_login` filter lets SSO and kiosk integrations suppress the automatic browser-login session grant. All of this is covered by a dual-layer test suite (unit tests + a full integration matrix) and PHPStan level 6.
 
 ## Requirements
 

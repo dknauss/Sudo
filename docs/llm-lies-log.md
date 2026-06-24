@@ -407,6 +407,50 @@ Repos:   wp-sudo, wordpress-2fa-ecosystem
             hardened from .wrap to .nav-tab-active (a Sudo-settings-specific anchor) so a
             wrong page can no longer satisfy the wait and capture silently.
 
+26. STALE CLAIMS vs CODE — pre-release v4.1.0 doc-alignment sweep
+    Files:  docs/security-model.md, docs/FAQ.md, docs/security-report-2026-06-gate-completeness.md,
+            docs/admin-escalation-guard-analysis.md, docs/current-metrics.md (+ release-status.md,
+            ROADMAP.md, readme.md/txt, CLAUDE.md/AGENTS.md).
+    Claim → Reality (each contradicted the shipped 4.1.0 code; all fixed in this pass):
+      (a) security-model.md: "the role-change interception matches only the current
+          context's key names" → FALSE since 4.1.0. is_user_capabilities_meta_key()
+          (includes/class-gate.php) now matches blog-prefixed keys (wp_<id>_capabilities)
+          via regex, so cross-blog capability writes through the meta hooks ARE seen.
+      (b) FAQ.md "Can WP Sudo stop a privilege escalation attack?": "No, if the exploit
+          runs through the plugin's own path" → now incomplete; the opt-in escalation
+          guard (wp_sudo_guard_escalation) blocks a newly-granted administrator/super-admin
+          on any path because it hooks the effect, not the surface.
+      (c) security-report-2026-06-gate-completeness.md: listed "deferred Item 2
+          (user.create/user.promote)" and "custom REST routes" as open gaps → both
+          shipped (escalation guard #111; REST backstop #104).
+      (d) admin-escalation-guard-analysis.md: status header "Not implemented" → shipped
+          in 4.1.0 (#111).
+      (e) current-metrics.md Verification Notes: "834 tests, 2399 assertions" → 878/2539.
+      (f) FAQ.md / readme.md: lingering "compatibility governance mode" claims → removed
+          in 4.0.0 (governance is always strict).
+    Source:  includes/class-gate.php (arm_escalation_guard, is_user_capabilities_meta_key,
+            register_rest_backstop); tests/Unit/GateTest.php; verified 2026-06-24.
+    Notes:  Root cause is the same family as the recurring stale-count entries — docs not
+            re-checked against code after a feature shipped. Mitigation reinforced: the
+            "what it does / does not protect against" wording in security-model.md and FAQ.md
+            now states the guard's default-OFF posture and its blind spots
+            (runtime user_has_cap/map_meta_cap grants, raw $wpdb writes, in-session residual)
+            explicitly, with code as the source of truth.
+
+27. PRE-RELEASE EXTERNAL-CLAIMS AUDIT (v4.1.0) — no new fabrications found
+    Scope:  Third-party claims added/modified since v4.0.0 live in
+            docs/admin-escalation-guard-analysis.md (§4 SSO/membership/import plugin
+            enumeration; §1 threat figures).
+    Result: Spot-re-verified the load-bearing claim — WooCommerce wc_create_new_customer()
+            assigns role 'customer', never 'administrator' (confirmed 2026-06-24 against
+            woocommerce/trunk includes/wc-user-functions.php). The doc's already-flagged
+            UNVERIFIED items (MemberPress closed-source; miniOrange current trunk; WP All
+            Import user add-on) remain explicitly caveated in-doc — not new fabrications.
+    Caveat: This environment's egress blocks *.wordpress.org (SVN/API), so wordpress.org-only
+            claims were not re-fetched; the in-doc caveat already records this. Re-verify
+            from an unrestricted environment before quoting version-specific figures in
+            shipping copy.
+
 ROOT CAUSE
 ----------
 All errors have stemmed from patterns that boil down to *not checking the 

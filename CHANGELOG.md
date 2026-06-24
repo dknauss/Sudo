@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.1.0 - unreleased
+## 4.1.0 - 2026-06-24
 
 - **Security (gate completeness):** Two coordinated-disclosure findings in the
   action-gating model are closed. Affected versions: ≤ 4.0.0 (both predate 4.0.0

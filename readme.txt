@@ -19,7 +19,7 @@ This is not role-based escalation. Every logged-in user is treated the same: att
 
 = Playground demo =
 
-* [Try the latest release in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fv3.4.0%2Fblueprint.json)
+* [Try the latest release in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fv4.0.0%2Fblueprint.json)
 * [Try current main in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint-main.json)
 
 Playground demo credentials are `admin` / `password`. When WP Sudo asks for reauthentication, enter the same password: `password`.
@@ -166,7 +166,7 @@ Testing: the suite is split into two tiers. Unit tests use Brain\Monkey to mock 
 
 CI: GitHub Actions runs PHPStan level 6 and PHPCS on every push and PR, unit tests across PHP 8.2-8.4, integration lanes across WordPress 6.4/6.7/7.0, and scheduled compatibility sweeps for supported WordPress minors.
 
-Extensibility: the action registry is filterable via wp_sudo_gated_actions. Audit hooks cover session lifecycle, gated actions, policy decisions, preset application, and lockouts. See the GitHub repository for hook reference, CONTRIBUTING.md, and the full developer documentation.
+Extensibility: the action registry is filterable via wp_sudo_gated_actions. Audit hooks cover session lifecycle, gated actions, policy decisions, preset application, lockouts, tamper detection, and the high-severity admin-escalation block. See the GitHub repository for hook reference, CONTRIBUTING.md, and the full developer documentation.
 
 == Screenshots ==
 
