@@ -959,6 +959,17 @@ class Gate {
 				return $check;
 			}
 
+			// An operator who set REST App Password = Unrestricted has explicitly
+			// opted that headless surface out of gating; defer (audit-only) rather
+			// than contradict the setting. Placed after the newly-grants check so
+			// the allowed audit fires only on genuine administrator escalations.
+			// See docs/admin-escalation-guard-analysis.md §6/§11.
+			if ( $this->escalation_deferred_by_app_password_policy() ) {
+				/** This action is documented in includes/class-gate.php */
+				do_action( 'wp_sudo_action_allowed', (int) get_current_user_id(), 'user.promote', 'rest_app_password' );
+				return $check;
+			}
+
 			/**
 			 * Allow a trusted provisioner to opt a specific administrator grant
 			 * out of the escalation guard (e.g. an allowlisted SSO/sync flow).
@@ -1030,6 +1041,14 @@ class Gate {
 				return;
 			}
 
+			// Defer on an Unrestricted REST App-Password surface (audit-only), as
+			// the single-site promote path does. See arm_escalation_guard() above.
+			if ( $this->escalation_deferred_by_app_password_policy() ) {
+				/** This action is documented in includes/class-gate.php */
+				do_action( 'wp_sudo_action_allowed', (int) get_current_user_id(), 'user.super_admin', 'rest_app_password' );
+				return;
+			}
+
 			/** This filter is documented above in arm_escalation_guard(). */
 			if ( apply_filters( 'wp_sudo_allow_escalation', false, $target_id, 'super-admin' ) ) {
 				return;
@@ -1049,11 +1068,14 @@ class Gate {
 		add_action( 'grant_super_admin', $super_guard, 0 );
 
 		// Deleting an administrator/super-admin with no active session is a
-		// high-severity signal. Deletion is ALREADY blocked for every user by the
-		// effect backstops (arm_effect_guards); this guard does not change that —
-		// it only ADDS the distinct escalation event for administrator targets, and
-		// runs at priority -1 so the alarm is recorded before the backstop halts the
-		// request. It never dies itself.
+		// high-severity signal. Deletion is blocked for every user by the effect
+		// backstops (arm_effect_guards) on every gated surface EXCEPT one the
+		// operator set to Unrestricted; this guard does not change that — it only
+		// ADDS the distinct escalation event for administrator targets, and runs at
+		// priority -1 so the alarm is recorded before the backstop halts the
+		// request. On an Unrestricted REST App-Password surface the backstop lets
+		// the deletion through, so this guard defers there too (no false alarm). It
+		// never dies itself.
 		$delete_guard = function ( $user_id = 0 ) {
 			if ( ! apply_filters( 'wp_sudo_guard_escalation', false ) ) {
 				return;
@@ -1070,6 +1092,15 @@ class Gate {
 
 			$target_id = (int) $user_id;
 			if ( ! $this->target_is_administrator( $target_id ) ) {
+				return;
+			}
+
+			// On an Unrestricted REST App-Password surface the effect backstop lets
+			// the deletion through, so firing the high-severity escalation_blocked
+			// event would be a false alarm; defer (audit-only) to stay consistent.
+			if ( $this->escalation_deferred_by_app_password_policy() ) {
+				/** This action is documented in includes/class-gate.php */
+				do_action( 'wp_sudo_action_allowed', (int) get_current_user_id(), 'user.delete', 'rest_app_password' );
 				return;
 			}
 
@@ -1169,6 +1200,40 @@ class Gate {
 
 		// The literal default key, in case base_prefix differs from 'wp_'.
 		return 'wp_capabilities' === $meta_key;
+	}
+
+	/**
+	 * Whether the escalation guard should defer because the request is a genuine
+	 * Application-Password REST request whose effective App Password policy is
+	 * Unrestricted — the one surface the operator has explicitly opted out of
+	 * gating (analysis §6/§11, design-review BLOCKER #3).
+	 *
+	 * Keying off rest_get_authenticated_app_password() — not detect_surface() or
+	 * the policy value alone — is deliberate and load-bearing:
+	 * get_app_password_policy() falls back to the GLOBAL rest_app_password_policy
+	 * setting even when no Application Password is present, so reading the policy
+	 * unconditionally would wrongly defer a cookie-authenticated browser REST
+	 * request whenever that global happens to be Unrestricted — a fail-open. The
+	 * truthiness gate closes that: on admin/ajax/cron/cli/unknown (and bearer or
+	 * cookie REST) the function returns empty, so this returns false and the guard
+	 * still blocks.
+	 *
+	 * This is intentionally STRICTER than register_rest_backstop()'s headless
+	 * branch, which also passes generic bearer credentials through on Unrestricted:
+	 * here only a genuine Application Password defers; any other headless
+	 * credential is blocked, because minting an administrator is higher-stakes than
+	 * the file/record effects the backstop governs.
+	 *
+	 * @since 4.1.0
+	 *
+	 * @return bool True only for an Unrestricted Application-Password REST request.
+	 */
+	private function escalation_deferred_by_app_password_policy(): bool {
+		if ( ! rest_get_authenticated_app_password() ) {
+			return false;
+		}
+
+		return self::POLICY_UNRESTRICTED === $this->get_app_password_policy();
 	}
 
 	/**

@@ -4211,6 +4211,10 @@ class GateTest extends TestCase {
 		Functions\when( '__' )->returnArg();
 		Functions\when( 'esc_html' )->returnArg();
 		Functions\when( 'get_current_user_id' )->justReturn( 0 );
+		// Default: not an Application-Password request, so the app-password defer
+		// helper returns false and the guard behaves as on any cookie surface.
+		// App-password defer tests override this.
+		Functions\when( 'rest_get_authenticated_app_password' )->justReturn( null );
 		Functions\when( 'wp_doing_ajax' )->justReturn( false );
 		Functions\when( 'wp_doing_cron' )->justReturn( false );
 		Functions\when( 'is_admin' )->justReturn( true );
@@ -4613,5 +4617,175 @@ class GateTest extends TestCase {
 
 		$guard = $this->capture_delete_escalation_guard();
 		$guard( 9 );
+	}
+
+	// ── Slice 6: App-Password entry-point policy deference ────────────────
+	// The guard must honour an operator who set REST App Password = Unrestricted
+	// (analysis §6/§11, design-review BLOCKER #3, TDD scenario 10): on that
+	// surface an admin grant/delete defers (audit-only) instead of over-blocking
+	// or firing a false high-severity alarm. Deference is keyed on a genuine
+	// Application Password, NOT the global policy fallback, so a cookie-auth REST
+	// request still blocks even when the global policy is Unrestricted.
+
+	/**
+	 * Stub a genuine Application-Password request whose effective policy is the
+	 * given value (set on the global rest_app_password_policy, no per-password
+	 * override).
+	 *
+	 * @param string $policy Policy value: 'unrestricted', 'limited', 'disabled'.
+	 * @return void
+	 */
+	private function prime_app_password_policy( string $policy ): void {
+		Functions\when( 'rest_get_authenticated_app_password' )->justReturn( 'app-pass-uuid' );
+		Functions\when( 'get_option' )->justReturn( array( 'rest_app_password_policy' => $policy ) );
+	}
+
+	/**
+	 * A new administrator grant over an Unrestricted Application-Password REST
+	 * request defers: no high-severity alarm, no wp_die, and an allowed audit on
+	 * the rest_app_password surface (mirroring register_rest_backstop).
+	 */
+	public function test_escalation_guard_defers_promote_on_unrestricted_app_password(): void {
+		$this->prime_escalation_env( true );
+		Functions\when( 'get_user_meta' )->justReturn( array() ); // no current admin → newly grants.
+		Functions\when( 'get_current_user_id' )->justReturn( 9 ); // app-password actor, no session.
+		$this->prime_app_password_policy( 'unrestricted' );
+
+		Actions\expectDone( 'wp_sudo_escalation_blocked' )->never();
+		Actions\expectDone( 'wp_sudo_action_allowed' )
+			->once()
+			->with( 9, 'user.promote', 'rest_app_password' );
+		Functions\expect( 'wp_die' )->never();
+
+		$guard  = $this->capture_escalation_guard();
+		$result = $guard( null, 7, 'wp_capabilities', array( 'administrator' => true ), '' );
+
+		$this->assertNull( $result );
+	}
+
+	/**
+	 * Regression guard against a fail-open: a cookie-authenticated REST request
+	 * (NO application password) must still be BLOCKED even when the GLOBAL
+	 * rest_app_password_policy is Unrestricted. The deference keys off
+	 * rest_get_authenticated_app_password(), not the policy fallback.
+	 */
+	public function test_escalation_guard_blocks_non_app_password_despite_global_unrestricted(): void {
+		$this->prime_escalation_env( true );
+		Functions\when( 'get_user_meta' )->justReturn( array() );
+		Functions\when( 'get_current_user_id' )->justReturn( 9 ); // logged-in, no sudo session.
+		// Global policy is Unrestricted, but the request is NOT app-password authed.
+		Functions\when( 'rest_get_authenticated_app_password' )->justReturn( null );
+		Functions\when( 'get_option' )->justReturn( array( 'rest_app_password_policy' => 'unrestricted' ) );
+
+		Actions\expectDone( 'wp_sudo_escalation_blocked' )
+			->once()
+			->with( 7, 'user.promote', 'admin' );
+		Functions\expect( 'wp_die' )->once();
+
+		$guard = $this->capture_escalation_guard();
+		$guard( null, 7, 'wp_capabilities', array( 'administrator' => true ), '' );
+	}
+
+	/**
+	 * Limited App-Password policy still blocks the admin grant — deference is
+	 * Unrestricted-only, not "any app-password request".
+	 */
+	public function test_escalation_guard_blocks_promote_on_limited_app_password(): void {
+		$this->prime_escalation_env( true );
+		Functions\when( 'get_user_meta' )->justReturn( array() );
+		Functions\when( 'get_current_user_id' )->justReturn( 9 );
+		$this->prime_app_password_policy( 'limited' );
+
+		// Surface label is the stub env's detect_surface() result ('admin'); the
+		// point of this test is that a Limited app-password policy still BLOCKS.
+		Actions\expectDone( 'wp_sudo_escalation_blocked' )
+			->once()
+			->with( 7, 'user.promote', 'admin' );
+		Functions\expect( 'wp_die' )->once();
+
+		$guard = $this->capture_escalation_guard();
+		$guard( null, 7, 'wp_capabilities', array( 'administrator' => true ), '' );
+	}
+
+	/**
+	 * A super-admin grant over an Unrestricted Application-Password request
+	 * defers (audit-only), like the single-site promote path.
+	 */
+	public function test_super_admin_guard_defers_on_unrestricted_app_password(): void {
+		$this->prime_escalation_env( true );
+		Functions\when( 'is_super_admin' )->justReturn( false ); // not idempotent.
+		Functions\when( 'get_current_user_id' )->justReturn( 9 );
+		$this->prime_app_password_policy( 'unrestricted' );
+
+		Actions\expectDone( 'wp_sudo_escalation_blocked' )->never();
+		Actions\expectDone( 'wp_sudo_action_allowed' )
+			->once()
+			->with( 9, 'user.super_admin', 'rest_app_password' );
+		Functions\expect( 'wp_die' )->never();
+
+		$guard = $this->capture_super_admin_guard();
+		$guard( 7 );
+	}
+
+	/**
+	 * The delete alarm defers on an Unrestricted Application-Password request:
+	 * the backstop lets the deletion through there, so firing the high-severity
+	 * escalation_blocked event would be a false alarm. An allowed audit fires
+	 * instead.
+	 */
+	public function test_delete_guard_defers_on_unrestricted_app_password(): void {
+		$this->prime_escalation_env( true );
+		Functions\when( 'is_super_admin' )->justReturn( false );
+		Functions\when( 'get_userdata' )->justReturn( new \WP_User( 9, array( 'administrator' ) ) );
+		Functions\when( 'get_current_user_id' )->justReturn( 9 );
+		$this->prime_app_password_policy( 'unrestricted' );
+
+		Actions\expectDone( 'wp_sudo_escalation_blocked' )->never();
+		Actions\expectDone( 'wp_sudo_action_allowed' )
+			->once()
+			->with( 9, 'user.delete', 'rest_app_password' );
+
+		$guard = $this->capture_delete_escalation_guard();
+		$guard( 9 );
+	}
+
+	/**
+	 * The defer helper returns false when the request carries no Application
+	 * Password (e.g. admin/ajax/cookie surfaces), so the guard still blocks.
+	 */
+	public function test_app_password_defer_helper_false_without_app_password(): void {
+		$this->prime_escalation_env( true );
+		Functions\when( 'rest_get_authenticated_app_password' )->justReturn( null );
+		Functions\when( 'get_option' )->justReturn( array( 'rest_app_password_policy' => 'unrestricted' ) );
+
+		$this->assertFalse(
+			$this->invoke_gate( 'escalation_deferred_by_app_password_policy' )
+		);
+	}
+
+	/**
+	 * The defer helper returns true for a genuine Application-Password request
+	 * whose effective policy is Unrestricted.
+	 */
+	public function test_app_password_defer_helper_true_when_unrestricted(): void {
+		$this->prime_escalation_env( true );
+		$this->prime_app_password_policy( 'unrestricted' );
+
+		$this->assertTrue(
+			$this->invoke_gate( 'escalation_deferred_by_app_password_policy' )
+		);
+	}
+
+	/**
+	 * The defer helper returns false for an Application-Password request whose
+	 * effective policy is Limited.
+	 */
+	public function test_app_password_defer_helper_false_when_limited(): void {
+		$this->prime_escalation_env( true );
+		$this->prime_app_password_policy( 'limited' );
+
+		$this->assertFalse(
+			$this->invoke_gate( 'escalation_deferred_by_app_password_policy' )
+		);
 	}
 }
