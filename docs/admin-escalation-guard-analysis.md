@@ -584,6 +584,66 @@ hand out admin access to someone who hasn't proven who they are, WP Sudo slams t
 door.** A safety net for code you can't audit — off by default, opt-in, with
 escape hatches for the automation that legitimately provisions admins.
 
+## 11. Build scope (code-grounded, after mapping `class-gate.php`)
+
+Mapping the live Gate refined the scope — the build is narrower than "guard
+creation and deletes," because deletion is already covered:
+
+- **Deletion is already guarded** on every real surface. `arm_effect_guards()`
+  hooks `delete_user`→`user.delete` (interactive `admin_init` + REST backstops),
+  and `register_function_hooks()` covers CLI/cron/XML-RPC — all **role-agnostic**
+  (any user deletion already requires sudo). **We do not change what deletion
+  blocks.** We only **add severity**: when the deleted target is an
+  administrator/super-admin, also fire the high-severity escalation event (below).
+- **The genuine gap is admin grant + admin creation on the *interactive* and
+  *REST* surfaces.** `user.create` and `user.promote` are deliberately **excluded**
+  from `arm_effect_guards()` (documented in the `register_interactive_backstop`
+  docblock) because hooking them unconditionally fires on every benign,
+  high-frequency role assignment. Only CLI/cron/XML-RPC guard them today. The fix
+  is the analysis thesis: **re-introduce them on interactive + REST, but
+  role-aware** — block only when the write **newly grants `administrator`** (or
+  super-admin), so the benign low-privilege assignments still pass.
+- **Scope decision: admin-targets only** (chosen). Create/grant guards fire only
+  for `administrator`/super-admin; all lower roles and normal signups are
+  untouched. Deletion stays role-agnostic (already shipped, more protective than
+  admin-only — we do not weaken it).
+
+### Reuse (the design-review blockers are already solved in-tree)
+
+- **Block mechanism:** reuse `Gate::die_sudo_required()` (`wp_die` 403; cron path
+  `exit`) — exactly the "halt before the write" mechanism §6/§9 prescribes. No
+  short-circuit.
+- **Session + policy:** reuse the existing backstop closures — `Sudo_Session::is_active()/is_within_grace()`,
+  and the REST backstop's `get_app_password_policy()` consultation (so an
+  Unrestricted headless surface defers, per §6).
+- **Hook point:** the role-aware closure lives on `add_user_metadata` /
+  `update_user_metadata` for the capabilities key (the same hook
+  `register_function_hooks` already uses); admin *creation* surfaces as the
+  post-insert capabilities write, so create + grant share one closure. Super-admin
+  uses `grant_super_admin`. Multisite key matching must move to the regex form
+  (§6) — a change that also touches the existing CLI guard's match surface
+  (regression test required).
+
+### Alerting (decided)
+
+- **Distinct high-severity event** `wp_sudo_escalation_blocked` (separate from the
+  routine `wp_sudo_action_blocked`), fired only on the dangerous case — an admin
+  create/grant/delete blocked on a non-enumerated path with no session. `Event_Recorder`
+  records it high-severity; the activity dashboard surfaces it prominently.
+  External tools (SIEM/Slack/security plugins) hook this one event to alert.
+- **Notification default:** event + dashboard only. A built-in admin email is a
+  later **opt-in** toggle (default off) — the plugin ships no email today.
+- **Adaptive response — recommend, do NOT auto-activate.** After a threshold of
+  high-severity blocks, show a dismissible admin notice (and, with opt-in email, a
+  link) recommending the Hardened policy preset, one-click apply. **Do not
+  auto-flip global presets:** an attacker who can trip the signal could force the
+  site into a restrictive posture and break legitimate REST/CLI/cron integrations
+  (defense weaponization / self-DoS); it also changes surfaces unrelated to the
+  blocked attack. If any automatic response is added later, prefer a **localized,
+  attacker-scoped throttle** (extend the existing rate-limit lockout to repeated
+  escalation attempts), never a site-wide policy change, and only as explicit
+  opt-in.
+
 ## Verification sources
 
 - WooCommerce `wc_create_new_customer()` role: `woocommerce/trunk` →
