@@ -6,6 +6,17 @@
 *Draft: April 20, 2026. Status: design backlog. Related historical plan:
 [`archive/execution-plan-v3.1-v3.3.md`](archive/execution-plan-v3.1-v3.3.md).*
 
+> **Revised for code accuracy (post-4.1.0 design review).** Earlier drafts named
+> a `Event_Recorder::record()` choke point and a `Dashboard_Widget::render_events_panel()`
+> method that do not exist, guessed the bridge-detector class names, and asserted
+> per-site settings that contradict the network-wide `wp_sudo_settings` storage.
+> Those are corrected below against the live code (`includes/class-event-recorder.php`,
+> `includes/class-dashboard-widget.php`, `includes/class-admin.php`,
+> `bridges/wp-sudo-stream-bridge.php`, `bridges/wp-sudo-wsal-sensor.php`). The choke
+> point is the private `Event_Recorder::enqueue()`; persisting the four external-audit
+> meta-events while suppressing routine events requires an explicit allowlist at that
+> choke point (see Runtime behavior).
+
 ## Problem
 
 Operators who use **Stream** or **WP Activity Log (WSAL)** as their canonical
@@ -52,8 +63,9 @@ A single operator setting, `wp_sudo_external_audit`, with three values:
 | `wsal`   | Suppressed         | Bridge status tile, link to WSAL  | Yes              | Yes                    |
 
 **Key invariant:** audit hooks keep firing regardless of the setting. Only
-the `Event_Recorder::record()` path to `wpsudo_events` is conditional. This
-guarantees that:
+the `Event_Recorder::enqueue()` path to `wpsudo_events` is conditional (the
+private choke point through which both the buffered and direct write paths
+funnel). This guarantees that:
 
 - External bridges continue to receive events.
 - Third-party integrations on `wp_sudo_*` hooks are unaffected.
@@ -71,14 +83,20 @@ in order:
    `options.wp_sudo_access` gated rule, so the mutation itself requires an
    active sudo session. Changing audit destination is privilege-sensitive.
 3. **Bridge preflight.** The chosen bridge must be **loaded and active** at
-   save time:
-   - `stream` → `class_exists( 'WP_Stream\Connectors' )` (or the equivalent
-     published API at implementation time) **and** the Sudo Stream connector
-     is registered.
-   - `wsal` → `class_exists( 'WpSecurityAuditLog' )` **and** the Sudo
-     sensor is loaded.
-   If preflight fails, the save is rejected with an admin notice and the
-   setting stays at `off`. The rejection reason is logged via
+   save time. Reuse the bridges' own availability helpers rather than
+   re-implementing detection (verified against the bridge files):
+   - `stream` → `wp_sudo_stream_bridge_available()`
+     (`bridges/wp-sudo-stream-bridge.php`, which checks
+     `function_exists( 'wp_stream_get_instance' )`).
+   - `wsal` → `wp_sudo_wsal_bridge_available()`
+     (`bridges/wp-sudo-wsal-sensor.php`, which checks
+     `class_exists( '\WSAL\Controllers\Alert_Manager' )` or
+     `function_exists( 'wsal_log_event' )`).
+   These helpers are the source of truth for "is the bridge live"; the
+   upstream Stream/WSAL symbol names they wrap MUST be re-verified against the
+   shipped bridge files before implementation (per `CLAUDE.md`). If preflight
+   fails, the save is rejected with an admin notice and the setting stays at
+   `off`. The rejection reason is logged via
    `wp_sudo_external_audit_preflight_failed` (see hooks below).
 4. **Confirmation.** The Settings UI requires a confirmation checkbox ("I
    understand that WP Sudo's internal event log will stop recording; events
@@ -91,9 +109,14 @@ logging is always safe.
 
 ### Event_Recorder short-circuit
 
+The choke point is the private `enqueue()` (the single method through which
+every `on_*` callback funnels, whether it buffers into `$pending` or writes
+directly via `Event_Store::insert()`). Short-circuiting here — **before** the
+buffer append — means suppressed events never accumulate in memory:
+
 ```php
-public static function record( array $event ): void {
-    if ( self::is_external_audit_active() ) {
+private static function enqueue( array $row ): void {
+    if ( self::is_external_audit_active() && ! self::always_persist( $row['event'] ) ) {
         /**
          * Fires when an event would have been written to wpsudo_events
          * but external audit mode routed it to a bridge instead.
@@ -101,12 +124,27 @@ public static function record( array $event ): void {
          * @param array  $event   The event that was not persisted locally.
          * @param string $target  'stream' or 'wsal'.
          */
-        do_action( 'wp_sudo_event_externally_routed', $event, self::external_audit_target() );
+        do_action( 'wp_sudo_event_externally_routed', $row, self::external_audit_target() );
         return;
     }
-    // ... existing buffer + shutdown flush path.
+    // ... existing buffer ($pending) + shutdown bulk_insert() path.
 }
 ```
+
+Two implementation requirements:
+
+- **`always_persist()` allowlist.** The four external-audit *meta* events
+  (below) describe the audit configuration itself and MUST be written locally
+  even under external mode, so they bypass the suppression. This is the only
+  per-event exemption; routine events (`action_gated`, `action_blocked`, …) are
+  suppressed uniformly. (Resolves the earlier spec's hand-waved "governance
+  hooks always persist" — it is an explicit allowlist at the choke point, not
+  an implicit second path.)
+- **Evaluate the detector at event time, not at `admin_init`.**
+  `is_external_audit_active()` must run a cheap `wp_sudo_*_bridge_available()`
+  check at `enqueue()` time. Caching it from `admin_init` would reopen a gap on
+  non-admin surfaces (REST, cron, CLI) where `admin_init` never fires — the
+  fail-closed resume-to-internal behavior must hold there too.
 
 `is_external_audit_active()` returns `false` if the bridge has since been
 deactivated (see integrity warning below) — this is a fail-closed guard, not
@@ -114,20 +152,23 @@ the primary check.
 
 ### Dashboard widget
 
-The widget's `render_events_panel()` method branches on the setting:
+The widget's `render_recent_events()` method branches on the setting:
 
 - `off`: renders the existing Recent Events table (current 3.0.0 behavior).
 - `stream`/`wsal`: renders a compact status tile:
 
-  > **Audit routed to Stream** ✓
+  > **Audit routed to Stream**
   >
-  > Recent WP Sudo events are recorded in Stream.
+  > WP Sudo is forwarding events to Stream and not storing them locally.
   > Open Stream in wp-admin: `/wp-admin/admin.php?page=wp_stream`
-  > *Last event received: 3 minutes ago.*
+  > *WP Sudo last dispatched an event to Stream 3 minutes ago.*
 
-  "Last event received" uses a 60-second transient updated on each
-  `wp_sudo_event_externally_routed` dispatch, so the widget confirms the
-  bridge is actually getting events — not just that the setting is on.
+  **Honesty constraint:** the liveness line uses a 60-second transient updated
+  on each `wp_sudo_event_externally_routed` **dispatch** — i.e. when WP Sudo
+  *hands off* the event. It proves WP Sudo fired, **not** that Stream/WSAL
+  persisted it (WP Sudo has no way to confirm bridge-side storage). The copy
+  must therefore say "WP Sudo last dispatched…", never "✓ recorded in Stream"
+  or "events are recorded in Stream" as a confirmed fact.
 
 Active Sessions panel, Policy Summary panel, and filters are unchanged.
 
@@ -167,8 +208,9 @@ New hooks added in Phase 5:
 
 All four are recorded in `wpsudo_events` itself even while external audit is
 active (they describe the audit configuration, not routine events, and must
-not be lost during a destination transition). They are also forwarded to
-the active bridge.
+not be lost during a destination transition) — this is the `always_persist()`
+allowlist at the `enqueue()` choke point (see Runtime behavior), not an
+implicit second write path. They are also forwarded to the active bridge.
 
 A new event type `governance.external_audit_toggled` is emitted on each
 transition so the destination system (Stream/WSAL) captures the configuration
@@ -183,8 +225,9 @@ In Settings → Sudo, under a new **Audit destination** section:
   corresponding plugin is not loaded.
 - Confirmation checkbox appears when selecting Stream or WSAL.
 - Save triggers the preflight flow described above.
-- A status line below the radio group shows: "Last event received by
-  {target}: Xs ago" when mode is active.
+- A status line below the radio group shows: "WP Sudo last dispatched an event
+  to {target}: Xs ago" when mode is active (dispatch, not confirmed bridge
+  persistence — see the Dashboard widget honesty constraint).
 
 ## Uninstall and upgrade behavior
 
@@ -200,10 +243,10 @@ In Settings → Sudo, under a new **Audit destination** section:
 
 Unit coverage:
 
-- `Event_Recorder::record()` short-circuits when mode is active and a bridge
+- `Event_Recorder::enqueue()` short-circuits when mode is active and a bridge
   is available.
-- Short-circuit does **not** apply to governance-transition hooks (those are
-  always persisted locally).
+- Short-circuit does **not** apply to the four external-audit meta-events
+  (the `always_persist()` allowlist) — those are always persisted locally.
 - Preflight rejects `stream`/`wsal` when the bridge plugin is missing.
 - Fail-closed behavior when bridge is deactivated at runtime.
 
@@ -212,7 +255,13 @@ Integration coverage:
 - Full round-trip: enable mode → emit event → verify no row in
   `wpsudo_events` → verify bridge captured event → disable mode → emit event
   → verify row appears.
-- Multisite: setting is per-site (each site configures independently).
+- Multisite: the `wp_sudo_external_audit` setting lives in `wp_sudo_settings`,
+  which is **network-wide** on multisite (`Admin::get()` reads `get_site_option()`;
+  `uninstall.php` deletes via `delete_site_option`). So the audit destination is
+  set once for the network, while **events remain per-site** (`Event_Store` rows
+  carry `site_id` and queries filter on the current site). Each site's
+  `Event_Recorder` consults the same network-wide setting. (A per-site override
+  would require splitting this key out of `wp_sudo_settings` — out of scope here.)
 - Upgrade path from 3.0.x/3.1.x retains `off` and existing events.
 
 Playwright coverage:
