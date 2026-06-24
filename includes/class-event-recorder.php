@@ -18,6 +18,7 @@ namespace WP_Sudo;
  * - wp_sudo_lockout (security: rate limit triggered)
  * - wp_sudo_action_gated (flow: user redirected to reauthentication)
  * - wp_sudo_action_blocked (policy: non-interactive request denied)
+ * - wp_sudo_escalation_blocked (security: high-severity admin-escalation alarm)
  * - wp_sudo_action_allowed (policy: non-interactive request permitted)
  * - wp_sudo_action_passed (feature: gated action succeeds during active session)
  * - wp_sudo_action_replayed (flow: stashed request replayed after reauth)
@@ -35,6 +36,7 @@ class Event_Recorder {
 		'wp_sudo_lockout'              => 3, // user_id, attempts, ip.
 		'wp_sudo_action_gated'         => 3, // user_id, rule_id, surface.
 		'wp_sudo_action_blocked'       => 3, // user_id, rule_id, surface.
+		'wp_sudo_escalation_blocked'   => 3, // user_id, rule_id, surface (high-severity admin-escalation alarm).
 		'wp_sudo_action_allowed'       => 3, // user_id, rule_id, surface.
 		'wp_sudo_action_passed'        => 3, // user_id, rule_id, surface.
 		'wp_sudo_action_replayed'      => 2, // user_id, rule_id.
@@ -232,6 +234,35 @@ class Event_Recorder {
 				'event'   => 'action_blocked',
 				'rule_id' => $rule_id,
 				'surface' => $surface,
+			)
+		);
+	}
+
+	/**
+	 * Handle wp_sudo_escalation_blocked event.
+	 *
+	 * Fired by the admin-escalation guard when a NEW administrator/super-admin
+	 * grant, admin creation, or admin deletion is blocked (or alarmed) because no
+	 * sudo session is active — a high-severity signal of a likely
+	 * privilege-escalation attempt. Recorded as a distinct `escalation_blocked`
+	 * event (with a high-severity context marker) so the activity dashboard and
+	 * external alerting can surface it apart from routine policy denials.
+	 *
+	 * @since 4.1.0
+	 *
+	 * @param int    $user_id Target user being granted/deleted.
+	 * @param string $rule_id One of user.promote, user.super_admin, user.delete.
+	 * @param string $surface Detected request surface.
+	 * @return void
+	 */
+	public static function on_escalation_blocked( int $user_id, string $rule_id, string $surface ): void {
+		self::enqueue(
+			array(
+				'user_id' => $user_id,
+				'event'   => 'escalation_blocked',
+				'rule_id' => $rule_id,
+				'surface' => $surface,
+				'context' => array( 'severity' => 'high' ),
 			)
 		);
 	}
