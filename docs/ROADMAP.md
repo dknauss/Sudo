@@ -1070,6 +1070,22 @@ SBOM, accessibility roadmap) are documented in the [CHANGELOG](../CHANGELOG.md).
 **~~Public `wp_sudo_check()` / `wp_sudo_require()` API~~** — implemented on `main` for v2.12.0 for third-party action gating integrations.
 **~~Multi-Dimensional Rate Limiting (IP + User)~~** — shipped v2.13.0. Per-IP tracking via transients alongside per-user tracking, combined lockout policy, and the triggering IP address added as the third `wp_sudo_lockout` hook argument.
 
+### Open — Escalation guard follow-ups
+
+**Orphaned-user sweep (optional, opt-in)** — When the admin-escalation guard
+(`wp_sudo_guard_escalation`, opt-in / default OFF) blocks a one-shot administrator
+*creation*, the user row is inserted before the role is applied, so the blocked
+request can leave a **roleless, powerless** user record (never an admin). Per the
+escalation-guard analysis §11 "Orphan-cleanup decision (Option A)"
+(`admin-escalation-guard-analysis.md`), we deliberately do **not** delete that row
+in-hook — mid-request `wp_delete_user()` on a possibly-unauthenticated request
+carries real risks (admin-file loading, multisite `wpmu_delete_user`, deletion /
+post-reassignment hooks firing during an attack). Backlog: design an **optional,
+opt-in sweep** (scheduled or `shutdown`-time) that reclaims never-completed roleless
+users left by a blocked escalation — scoped to rows provably created-and-left-roleless
+in a blocked request, reversible, and off by default. Only relevant once the guard
+ships and is enabled.
+
 ### Open — High Priority Security Bridge Coverage
 
 **Two Factor lifecycle bridge**
