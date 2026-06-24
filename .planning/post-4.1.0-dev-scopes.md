@@ -39,27 +39,31 @@ advertises.
 2. **Integration tests** (extend `tests/Integration/ConnectorsMatcherTest.php`):
    non-`api_key` method must NOT gate; PUT **and** PATCH (not just POST); mixed
    benign+secret payload gates; `api_key`-with-missing-`setting_name` falls through to
-   Tier 2 without error; **the stale-cache cross-blog case (mandatory, see finding).**
+   Tier 2 without error; non-`api_key` method does NOT gate; multisite write gates.
 3. **Manual release verification:** cookie-auth AND Application-Password writes to
    `/wp/v2/settings` with connector fields → `tests/MANUAL-TESTING.md`.
 4. **Doc split** (separate commit/PR): `docs/connectors-api-reference.md` → lean core
    ref + security companion.
 5. **Fix stale ROADMAP §74/§347** — mark shipped, point to code.
 
-### 🔴 Design-review finding (new): cache has no runtime invalidation
-`$connector_setting_names_cache` is populated once per request; `reset_cache()` has
-**zero runtime callers**. Under `switch_to_blog()` mid-request — or a connector
-registered after the first match — the matcher serves a stale connector set, a **false
-negative** for any non-regex `setting_name` (Tier 2 regex only backstops
-`connectors_*_api_key`-shaped names). The existing integration tests manually call
-`reset_cache()` before each assertion, which **masks** this gap.
+### Cache scope (evaluated → non-issue; corrects an earlier overstated finding)
+An earlier pass flagged the per-request `$connector_setting_names_cache` (no runtime
+invalidation; `reset_cache()` has zero runtime callers) as a `switch_to_blog()`
+cross-blog false-negative. **A follow-up design review found that is not reachable**
+and the proposed blog-keying fix is **not warranted**: the WP Connectors registry is
+an `init`-populated in-process **singleton** (`WP_Connector_Registry`; settings at
+`init` priority 20), and `switch_to_blog()` does **not** re-run `init`/registration —
+so `wp_get_connectors()` returns the same `method`/`setting_name` mapping regardless of
+the current blog. Only the stored *credential value* is per-site, not the mapping the
+cache holds. The single per-request cache is therefore correct on multisite; blog-keying
+would add complexity + unbounded growth under `switch_to_blog` loops and is untestable
+(core never produces a per-blog-varying registry).
 
-**Required disposition** (pick one, in scope):
-- **(a)** Wire `reset_cache()` to the `switch_blog` action (one-line fix), OR
-- **(b)** Document accepted residual risk, naming Tier 2 as the stated mitigation.
-
-The new cross-blog test must run **without** a manual `reset_cache()` so it exercises
-production behavior.
+**Disposition: document the accepted residual, no code change.** The sole Tier-1
+residual is **late registration** (a connector registered *after* the matcher's first
+call in a request), already backstopped by the Tier-2 regex and accepted as a
+documented limitation (see `.planning/connectors-matcher-strategy.md` and
+`docs/connectors-api-reference.md`).
 
 ### MUST DO / MUST NOT
 - MUST keep the fail-toward-gating union; gate every core `api_key` setting incl.

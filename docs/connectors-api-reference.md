@@ -116,6 +116,19 @@ then reads and writes the database value through `get_option()` /
 `update_option()` on the standard `/wp/v2/settings` endpoint rather than using
 network options.
 
+> **Registry is blog-invariant within a request (matters for caching consumers).**
+> The connector **registry** (`WP_Connector_Registry`, a singleton) is populated
+> **once per request at `init`** (settings at priority 20; `wp_connectors_init`
+> fires during `init`) and is **not** rebuilt or re-filtered by `switch_to_blog()`.
+> So `wp_get_connectors()` returns the same `method`/`setting_name` mapping
+> regardless of the current blog — only the stored *credential value* is per-site
+> (above), not the mapping. A consumer that caches the `api_key` `setting_name`
+> set per request (such as WP Sudo's `connectors.update_credentials` matcher) is
+> therefore correct on multisite with a single per-request cache; per-blog keying
+> is unnecessary. The one residual is **late registration** — a connector
+> registered *after* the cache is first populated in a request — which a
+> regex/name-convention fallback should backstop.
+
 That said, the **effective** connector key may still be shared across the whole
 install/network when core resolves it from:
 
