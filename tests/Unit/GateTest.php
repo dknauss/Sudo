@@ -4464,4 +4464,71 @@ class GateTest extends TestCase {
 		$guard = $this->capture_super_admin_guard();
 		$guard( 7 );
 	}
+
+	// ── Slice 3: high-severity event when an administrator is deleted ─────
+
+	/**
+	 * Capture the closure arm_escalation_guard() registers on delete_user.
+	 *
+	 * @return callable
+	 */
+	private function capture_delete_escalation_guard(): callable {
+		$callback = null;
+		Actions\expectAdded( 'delete_user' )
+			->once()
+			->whenHappen(
+				static function ( $cb ) use ( &$callback ) {
+					$callback = $cb;
+				}
+			);
+		$this->gate->arm_escalation_guard();
+		$this->assertIsCallable( $callback );
+		return $callback;
+	}
+
+	/**
+	 * Deleting an administrator with no active session fires the distinct
+	 * high-severity escalation event (the alarm signal). Deletion itself is
+	 * already blocked by the effect backstops; this only ADDS the alarm.
+	 */
+	public function test_delete_guard_fires_event_for_admin_target(): void {
+		$this->prime_escalation_env( true );
+		Functions\when( 'is_super_admin' )->justReturn( false );
+		Functions\when( 'get_userdata' )->justReturn( new \WP_User( 9, array( 'administrator' ) ) );
+
+		Actions\expectDone( 'wp_sudo_escalation_blocked' )
+			->once()
+			->with( 9, 'user.delete', 'admin' );
+
+		$guard = $this->capture_delete_escalation_guard();
+		$guard( 9 );
+	}
+
+	/**
+	 * Deleting a non-administrator does not raise the high-severity alarm.
+	 */
+	public function test_delete_guard_silent_for_non_admin_target(): void {
+		$this->prime_escalation_env( true );
+		Functions\when( 'is_super_admin' )->justReturn( false );
+		Functions\when( 'get_userdata' )->justReturn( new \WP_User( 9, array( 'editor' ) ) );
+
+		Actions\expectDone( 'wp_sudo_escalation_blocked' )->never();
+
+		$guard = $this->capture_delete_escalation_guard();
+		$guard( 9 );
+	}
+
+	/**
+	 * With the guard filter OFF, deleting an administrator raises no alarm.
+	 */
+	public function test_delete_guard_inert_when_filter_off(): void {
+		$this->prime_escalation_env( false );
+		Functions\when( 'is_super_admin' )->justReturn( false );
+		Functions\when( 'get_userdata' )->justReturn( new \WP_User( 9, array( 'administrator' ) ) );
+
+		Actions\expectDone( 'wp_sudo_escalation_blocked' )->never();
+
+		$guard = $this->capture_delete_escalation_guard();
+		$guard( 9 );
+	}
 }

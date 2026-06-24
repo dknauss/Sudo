@@ -1047,6 +1047,47 @@ class Gate {
 		};
 
 		add_action( 'grant_super_admin', $super_guard, 0 );
+
+		// Deleting an administrator/super-admin with no active session is a
+		// high-severity signal. Deletion is ALREADY blocked for every user by the
+		// effect backstops (arm_effect_guards); this guard does not change that —
+		// it only ADDS the distinct escalation event for administrator targets, and
+		// runs at priority -1 so the alarm is recorded before the backstop halts the
+		// request. It never dies itself.
+		$delete_guard = function ( $user_id = 0 ) {
+			if ( ! apply_filters( 'wp_sudo_guard_escalation', false ) ) {
+				return;
+			}
+
+			if ( defined( 'WP_SUDO_ALLOW_ESCALATION' ) && WP_SUDO_ALLOW_ESCALATION ) {
+				return;
+			}
+
+			$surface = $this->detect_surface();
+			if ( in_array( $surface, array( 'cli', 'cron', 'xmlrpc' ), true ) ) {
+				return;
+			}
+
+			$target_id = (int) $user_id;
+			if ( ! $this->target_is_administrator( $target_id ) ) {
+				return;
+			}
+
+			/** This filter is documented above in arm_escalation_guard(). */
+			if ( apply_filters( 'wp_sudo_allow_escalation', false, $target_id, 'delete' ) ) {
+				return;
+			}
+
+			$actor = (int) get_current_user_id();
+			if ( $actor && ( Sudo_Session::is_active( $actor ) || Sudo_Session::is_within_grace( $actor ) ) ) {
+				return;
+			}
+
+			/** This action is documented above in arm_escalation_guard(). */
+			do_action( 'wp_sudo_escalation_blocked', $target_id, 'user.delete', $surface );
+		};
+
+		add_action( 'delete_user', $delete_guard, -1 );
 	}
 
 	/**
@@ -1076,6 +1117,30 @@ class Gate {
 		$was_admin = ! empty( $current_caps['administrator'] );
 
 		return $now_admin && ! $was_admin;
+	}
+
+	/**
+	 * Whether a user is an administrator or super-admin (a high-value deletion
+	 * target). Used by the escalation guard to raise the high-severity alarm only
+	 * when an admin is being deleted, not on routine user churn.
+	 *
+	 * @since 4.1.0
+	 *
+	 * @param int $user_id Target user ID.
+	 * @return bool True when the user is a super-admin or holds the administrator role.
+	 */
+	private function target_is_administrator( int $user_id ): bool {
+		if ( $user_id <= 0 ) {
+			return false;
+		}
+
+		if ( is_super_admin( $user_id ) ) {
+			return true;
+		}
+
+		$user = get_userdata( $user_id );
+
+		return $user instanceof \WP_User && in_array( 'administrator', (array) $user->roles, true );
 	}
 
 	/**
