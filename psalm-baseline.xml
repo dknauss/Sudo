@@ -250,6 +250,11 @@
       <code><![CDATA[add_action(
 		$hook,
 		static function ( ...$args ) use ( $hook, $meta ): void {
+			$throttle = (int) ( $meta['throttle'] ?? 0 );
+			if ( ! wp_sudo_wsal_bridge_should_emit( $hook, $args, $throttle ) ) {
+				return;
+			}
+
 			$payload = wp_sudo_wsal_bridge_event_payload( $hook, $args );
 			wp_sudo_wsal_bridge_emit( (int) $meta['event_id'], $payload );
 		},

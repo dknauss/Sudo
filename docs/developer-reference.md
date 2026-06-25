@@ -558,6 +558,19 @@ Event mapping:
 | `wp_sudo_action_replayed` | `1900009` |
 | `wp_sudo_capability_tampered` | `1900010` |
 | `wp_sudo_policy_preset_applied` | `1900011` |
+| `wp_sudo_escalation_blocked` | `1900012` |
+| `wp_sudo_session_revoked` | `1900013` |
+| `wp_sudo_recovery_mode_active` | `1900014` |
+| `wp_sudo_capability_granted` | `1900015` |
+| `wp_sudo_capability_revoked` | `1900016` |
+| `wp_sudo_gated_actions_missing_builtin_rules` | `1900017` |
+| `wp_sudo_rule_regex_error` | `1900018` |
+
+`wp_sudo_recovery_mode_active` fires on every recovery-mode page load by
+design; the bridge throttles it to one event per user per hour (mirroring
+the bundled Event_Recorder's sampling) to avoid flooding a table-backed
+activity log. The diagnostic-only `wp_sudo_inert_governance_mode_detected`
+hook is intentionally not mapped.
 
 The bridge is inert when WSAL APIs are unavailable.
 
