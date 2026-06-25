@@ -139,6 +139,35 @@ class TestCase extends \WP_UnitTestCase {
 	}
 
 	/**
+	 * Trigger the plugin's network-wide activation hook explicitly (multisite).
+	 *
+	 * The activation closure in wp-sudo.php only routes to activate_network()
+	 * when invoked as do_action( 'activate_...', true ) AND is_multisite() is
+	 * true. The no-arg activate_plugin() helper therefore always runs the
+	 * single-site activate() path even under multisite; tests that exercise the
+	 * network-activation branch must use this helper instead.
+	 *
+	 * @return void
+	 */
+	protected function network_activate_plugin(): void {
+		do_action( 'activate_' . WP_SUDO_PLUGIN_BASENAME, true );
+	}
+
+	/**
+	 * Trigger the plugin's deactivation hook explicitly.
+	 *
+	 * Mirrors activate_plugin(): the deactivation callback is registered under
+	 * the dynamic "deactivate_{plugin_basename}" action and is not fired by the
+	 * muplugins_loaded bootstrap. Uses the actual registered basename for the
+	 * same path-derivation reason documented on activate_plugin().
+	 *
+	 * @return void
+	 */
+	protected function deactivate_plugin(): void {
+		do_action( 'deactivate_' . WP_SUDO_PLUGIN_BASENAME );
+	}
+
+	/**
 	 * Update an option using the same API as the production code.
 	 *
 	 * On multisite, wp-sudo stores settings and version options with
