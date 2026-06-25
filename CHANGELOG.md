@@ -66,6 +66,17 @@
     and raw `$wpdb` writes to the usermeta table bypass the meta hooks and are
     out of scope; the residual window is an escalation firing during a
     legitimate admin's own active sudo session.
+- **Observability (WSAL bridge expansion).** The optional WSAL sensor bridge
+  (`bridges/wp-sudo-wsal-sensor.php`, now `@version 1.1.0`) maps seven
+  additional security/governance audit hooks into WP Activity Log events
+  (IDs `1900012`–`1900018`): `wp_sudo_escalation_blocked`,
+  `wp_sudo_session_revoked`, `wp_sudo_recovery_mode_active` (throttled to one
+  event per user per hour to avoid flooding a table-backed log),
+  `wp_sudo_capability_granted`, `wp_sudo_capability_revoked`,
+  `wp_sudo_gated_actions_missing_builtin_rules`, and `wp_sudo_rule_regex_error`
+  (carrying the fail-open/fail-closed disposition). Existing event IDs are
+  unchanged; the diagnostic-only `wp_sudo_inert_governance_mode_detected` hook
+  is intentionally not mapped.
 
 ## 4.0.0 - 2026-06-21
 

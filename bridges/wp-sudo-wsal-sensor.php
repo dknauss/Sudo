@@ -6,7 +6,7 @@
  * Drop this file into wp-content/mu-plugins/ to activate.
  *
  * @package WP_Sudo_Bridges
- * @version 1.0.0
+ * @version 1.1.0
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -83,6 +83,41 @@ if ( ! function_exists( 'wp_sudo_wsal_bridge_event_payload' ) ) {
 				$payload['current']    = is_array( $args[3] ?? null ) ? $args[3] : array();
 				$payload['is_network'] = (bool) ( $args[4] ?? false );
 				break;
+
+			case 'wp_sudo_escalation_blocked':
+				$payload['user_id'] = (int) ( $args[0] ?? 0 );
+				$payload['rule_id'] = (string) ( $args[1] ?? '' );
+				$payload['surface'] = (string) ( $args[2] ?? '' );
+				break;
+
+			case 'wp_sudo_session_revoked':
+				$payload['user_id']    = (int) ( $args[0] ?? 0 );
+				$payload['revoker_id'] = (int) ( $args[1] ?? 0 );
+				$payload['reason']     = (string) ( $args[2] ?? '' );
+				$payload['blog_id']    = (int) ( $args[3] ?? 0 );
+				break;
+
+			case 'wp_sudo_recovery_mode_active':
+				$payload['user_id'] = (int) ( $args[0] ?? 0 );
+				break;
+
+			case 'wp_sudo_capability_granted':
+			case 'wp_sudo_capability_revoked':
+				$payload['user_id']    = (int) ( $args[0] ?? 0 );
+				$payload['capability'] = (string) ( $args[1] ?? '' );
+				$payload['actor_id']   = (int) ( $args[2] ?? 0 );
+				$payload['blog_id']    = (int) ( $args[3] ?? 0 );
+				break;
+
+			case 'wp_sudo_gated_actions_missing_builtin_rules':
+				$payload['missing'] = array_values( array_map( 'strval', (array) ( $args[0] ?? array() ) ) );
+				break;
+
+			case 'wp_sudo_rule_regex_error':
+				$payload['pattern']     = (string) ( $args[0] ?? '' );
+				$payload['subject']     = (string) ( $args[1] ?? '' );
+				$payload['fail_closed'] = (bool) ( $args[2] ?? false );
+				break;
 		}
 
 		return $payload;
@@ -116,6 +151,39 @@ if ( ! function_exists( 'wp_sudo_wsal_bridge_emit' ) ) {
 	}
 }
 
+if ( ! function_exists( 'wp_sudo_wsal_bridge_should_emit' ) ) {
+	/**
+	 * Decide whether a throttled event should emit on this fire.
+	 *
+	 * Some WP Sudo hooks (notably wp_sudo_recovery_mode_active) fire on every
+	 * matching request by design, so SIEM/stream listeners can observe the
+	 * complete usage pattern. A table-backed activity log would flood, so —
+	 * mirroring the bundled Event_Recorder's one-row-per-user-per-hour
+	 * sampling — the bridge throttles such events per user.
+	 *
+	 * @param string               $hook     Hook name.
+	 * @param array<int, mixed>    $args     Hook arguments (arg 0 is the user ID).
+	 * @param int                  $throttle Throttle window in seconds.
+	 * @return bool True if the event should emit; false to skip this fire.
+	 */
+	function wp_sudo_wsal_bridge_should_emit( string $hook, array $args, int $throttle ): bool {
+		if ( $throttle <= 0 ) {
+			return true;
+		}
+
+		$user_id = (int) ( $args[0] ?? 0 );
+		$key     = '_wp_sudo_wsal_throttle_' . $hook . '_' . $user_id;
+
+		if ( get_transient( $key ) ) {
+			return false;
+		}
+
+		set_transient( $key, 1, $throttle );
+
+		return true;
+	}
+}
+
 if ( ! wp_sudo_wsal_bridge_available() ) {
 	return;
 }
@@ -125,7 +193,7 @@ if ( ! wp_sudo_wsal_bridge_available() ) {
  *
  * IDs use a high custom range to avoid conflicts with built-in WSAL IDs.
  *
- * @var array<string, array{event_id: int, accepted_args: int}>
+ * @var array<string, array{event_id: int, accepted_args: int, throttle?: int}>
  */
 $wp_sudo_wsal_event_map = array(
 	'wp_sudo_activated'           => array( 'event_id' => 1900001, 'accepted_args' => 3 ),
@@ -139,12 +207,28 @@ $wp_sudo_wsal_event_map = array(
 	'wp_sudo_action_replayed'     => array( 'event_id' => 1900009, 'accepted_args' => 2 ),
 	'wp_sudo_capability_tampered' => array( 'event_id' => 1900010, 'accepted_args' => 2 ),
 	'wp_sudo_policy_preset_applied' => array( 'event_id' => 1900011, 'accepted_args' => 5 ),
+	// v1.1.0 security/governance events. Recovery-mode usage is throttled
+	// per user (see wp_sudo_wsal_bridge_should_emit) to avoid flooding a
+	// table-backed log; the diagnostic-only wp_sudo_inert_governance_mode_detected
+	// hook is intentionally not mapped.
+	'wp_sudo_escalation_blocked'  => array( 'event_id' => 1900012, 'accepted_args' => 3 ),
+	'wp_sudo_session_revoked'     => array( 'event_id' => 1900013, 'accepted_args' => 4 ),
+	'wp_sudo_recovery_mode_active' => array( 'event_id' => 1900014, 'accepted_args' => 1, 'throttle' => HOUR_IN_SECONDS ),
+	'wp_sudo_capability_granted'  => array( 'event_id' => 1900015, 'accepted_args' => 4 ),
+	'wp_sudo_capability_revoked'  => array( 'event_id' => 1900016, 'accepted_args' => 4 ),
+	'wp_sudo_gated_actions_missing_builtin_rules' => array( 'event_id' => 1900017, 'accepted_args' => 1 ),
+	'wp_sudo_rule_regex_error'    => array( 'event_id' => 1900018, 'accepted_args' => 3 ),
 );
 
 foreach ( $wp_sudo_wsal_event_map as $hook => $meta ) {
 	add_action(
 		$hook,
 		static function ( ...$args ) use ( $hook, $meta ): void {
+			$throttle = (int) ( $meta['throttle'] ?? 0 );
+			if ( ! wp_sudo_wsal_bridge_should_emit( $hook, $args, $throttle ) ) {
+				return;
+			}
+
 			$payload = wp_sudo_wsal_bridge_event_payload( $hook, $args );
 			wp_sudo_wsal_bridge_emit( (int) $meta['event_id'], $payload );
 		},
