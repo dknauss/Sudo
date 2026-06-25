@@ -284,4 +284,76 @@ class SudoSessionTest extends TestCase {
 			'Logout clears the sudo token meta.'
 		);
 	}
+
+	/**
+	 * INTG-F2: destroying ALL of a user's login sessions (an admin "log out
+	 * everywhere" / forced session revocation) ends the sudo window on the next
+	 * request — even though destroy_all() fires no wp_logout and changes no
+	 * password, so WP Sudo's own token/bind meta is never signalled to clear.
+	 *
+	 * This covers a mechanism distinct from the two tests above:
+	 *  - test_binding_rejects_when_login_session_token_changes keeps the user
+	 *    logged in under a *different* session (bind-mismatch branch).
+	 *  - test_logout_deactivates_bound_session clears WP Sudo meta directly via the
+	 *    wp_logout handler.
+	 * Here the sudo token meta and bind survive untouched; the proof stops
+	 * verifying solely because the destroyed session invalidates the auth cookie,
+	 * so the NEXT request is unauthenticated and verify_token()'s current-user
+	 * guard fails closed. It proves WP Sudo rides on core auth rather than holding
+	 * an independent grant that outlives the login it was minted under.
+	 *
+	 * Note: the effect is a next-request, core-auth-cookie invalidation, not a
+	 * same-request change to WP Sudo's bind — verify_token() resolves the bind from
+	 * the cookie's token string (wp_get_session_token()), which does not consult the
+	 * emptied session store mid-request. Asserting is_active() === false on the
+	 * SAME request would encode a false invariant; the test models the next request.
+	 */
+	public function test_destroy_all_sessions_ends_sudo_on_next_request(): void {
+		$user = $this->make_admin();
+		wp_set_current_user( $user->ID );
+
+		$expiration                  = time() + DAY_IN_SECONDS;
+		$manager                     = \WP_Session_Tokens::get_instance( $user->ID );
+		$token                       = $manager->create( $expiration );
+		$_COOKIE[ LOGGED_IN_COOKIE ] = wp_generate_auth_cookie( $user->ID, $expiration, 'logged_in', $token );
+
+		Sudo_Session::activate( $user->ID );
+		Sudo_Session::reset_cache();
+		$this->assertTrue( Sudo_Session::is_active( $user->ID ), 'Active before destroy_all().' );
+
+		// Precondition: the login cookie authenticates while its token is in the store.
+		$this->assertSame(
+			$user->ID,
+			wp_validate_auth_cookie( $_COOKIE[ LOGGED_IN_COOKIE ], 'logged_in' ),
+			'Precondition: the login cookie authenticates the user.'
+		);
+
+		// Destroy every login session for this user. This neither fires wp_logout
+		// nor changes the password, so WP Sudo's token/bind meta is left intact.
+		$manager->destroy_all();
+
+		// The auth cookie no longer validates — its token is gone from the store.
+		$this->assertFalse(
+			wp_validate_auth_cookie( $_COOKIE[ LOGGED_IN_COOKIE ], 'logged_in' ),
+			'destroy_all() invalidates the login cookie.'
+		);
+
+		// WP Sudo's own state was NOT proactively cleared: the next-request auth
+		// failure is the only thing standing between a stale proof and replay.
+		$this->assertNotEmpty(
+			get_user_meta( $user->ID, Sudo_Session::TOKEN_META_KEY, true ),
+			'destroy_all() does not clear WP Sudo token meta (no wp_logout / password change).'
+		);
+
+		// Model the next request: the invalid cookie means WordPress resolves no
+		// authenticated user. A logged-out request must see no active sudo session,
+		// because verify_token() requires the proof's user to be the current user.
+		wp_set_current_user( 0 );
+		Sudo_Session::reset_cache();
+
+		$this->assertFalse(
+			Sudo_Session::is_active( $user->ID ),
+			'After destroy_all(), the next (logged-out) request has no active sudo session.'
+		);
+	}
 }
