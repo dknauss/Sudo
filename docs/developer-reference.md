@@ -610,6 +610,16 @@ for the full design. Not scheduled; optional Phase 5 of the v3.1–v3.3 plan.
 
 ## Filters
 
+> **API-only, by design.** None of the filters below has a Settings → Sudo
+> control. The Settings page deliberately exposes only the everyday knobs
+> (session duration, quick policy presets, and the entry-point policies for
+> REST App Passwords / CLI / Cron / XML-RPC / WPGraphQL). Advanced and
+> security-sensitive behaviour is configured in code — a filter or a constant
+> (see [Constants (no Settings UI)](#constants-no-settings-ui) below) — so the
+> UI stays uncluttered and the dangerous switches are not a click away. This is
+> the project's standing pattern: when a knob is rarely needed or carries a
+> footgun, it lives in the API, not the UI.
+
 | Filter | Description |
 |---|---|
 | `wp_sudo_gated_actions` | Add, modify, or intentionally remove gated action rules. Site Health warns when built-in rule IDs are missing after filtering. |
@@ -626,7 +636,27 @@ for the full design. Not scheduled; optional Phase 5 of the v3.1–v3.3 plan.
 | `wp_sudo_guard_escalation` | Master on/off switch for the admin-escalation guard (`apply_filters( 'wp_sudo_guard_escalation', false )`). **Default `false` (guard OFF).** Return `true` to block a *newly granted* `administrator` (single-site) / super-admin (multisite) — and to alarm on administrator deletion — when no active or grace sudo session exists. Effect-level (capabilities-meta write + `grant_super_admin`), so it applies on every surface; defers on CLI/Cron/XML-RPC and on Unrestricted REST Application-Password requests. Since 4.1.0. |
 | `wp_sudo_allow_escalation` | Allowlist a specific administrator/super-admin grant past the escalation guard (`apply_filters( 'wp_sudo_allow_escalation', false, int $target_id, mixed $context )`). Default `false`. Return `true` to let a trusted provisioner (SSO/SAML/OIDC, directory sync) through. `$context` varies by path: the incoming capabilities array on the single-site promote path, the string `'super-admin'` on the multisite path, or `'delete'` on the admin-deletion path. Since 4.1.0. |
 
-**Constant (not a filter):** `WP_SUDO_ALLOW_ESCALATION` — define `true` in `wp-config.php` to bypass the admin-escalation guard entirely. It is checked **first**, before any session or capability read, so deployment, migration, and sole-admin recovery flows are never hard-blocked by the guard. Since 4.1.0.
+### Constants (no Settings UI)
+
+Defined in `wp-config.php` (or earlier than plugin load). Like the filters
+above, none has a Settings → Sudo control — these are deliberately code-only
+break-glass / environment switches.
+
+| Constant | Effect | Since |
+|---|---|---|
+| `WP_SUDO_ALLOW_ESCALATION` | Define `true` to bypass the admin-escalation guard entirely. Checked **first**, before any session or capability read, so deployment, migration, and sole-admin recovery flows are never hard-blocked by the guard. Constant form of the `wp_sudo_allow_escalation` filter. | 4.1.0 |
+| `WP_SUDO_RECOVERY_MODE` | Break-glass recovery. While defined, any user holding `manage_options` (`manage_network_options` on multisite) regains full Sudo governance access regardless of role — the escape hatch for a misconfigured/last-manager lockout. Weakens the governance model while set; remove as soon as normal access is restored. See [`wp_sudo_is_recovery_mode()`](#wp_sudo_is_recovery_mode-bool). | 3.4.0 |
+| `WP_SUDO_DISABLE_PASSED_EVENT_LOGGING` | Define `true` to stop recording `action_passed` dashboard events (reduced audit visibility for actions performed during an active sudo session). Checked **before** the `wp_sudo_log_passed_events_enabled` filter, which can still override per-request. | 3.0.0 |
+
+Internal/structural constants (`WP_SUDO_VERSION`, `WP_SUDO_PLUGIN_DIR`,
+`WP_SUDO_PLUGIN_URL`, `WP_SUDO_PLUGIN_BASENAME`, `WP_SUDO_MU_LOADED`) are set by
+the bootstrap/MU loader, not operator knobs — do not define them by hand.
+
+> **Planned (not yet implemented):** if gating of editor *site-design* writes
+> (`/wp/v2/global-styles`, `/wp/v2/font-families`) is added, it will follow this
+> same pattern — a **default-OFF filter opt-in**, not a Settings field — so the
+> gray-area routes stay out of the UI unless an operator explicitly enables
+> them. See `.planning/post-4.1.0-dev-scopes.md` (route inventory).
 
 **Action (not a filter):** `wp_sudo_render_two_factor_fields` — `do_action( 'wp_sudo_render_two_factor_fields', WP_User $user )` echoes 2FA input fields on the challenge form for third-party 2FA plugins. See [two-factor-integration.md](two-factor-integration.md).
 
