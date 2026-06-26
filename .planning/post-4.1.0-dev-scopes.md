@@ -157,12 +157,46 @@ Phase 1 is **not** "replace a generic 403" — it is an **additive one-field cha
   coverage for the new key + a regression that the headless `sudo_disabled`/`sudo_blocked`
   branches are unchanged.
 - **Gate before Phases 2–5:** enumerate the gated REST routes **actually reachable from
-  the editor `apiFetch` today** (likely thin). If thin, the JS machinery is premature
-  (Simplicity-First).
+  the editor `apiFetch` today**. **RESOLVED — see "Route inventory" below.** The set is
+  thin, so no new gating rules are required; Phase 2+ is a pure UX layer.
 - **Phase 2+:** extract challenge rendering from `class-challenge.php` (without
   regressing the classic flow); `apiFetch` middleware catching `sudo_required` →
   in-editor snackbar (MVP) then modal → re-dispatch; 2FA in-editor (deferred — see
   below); Playwright E2E.
+
+### Route inventory — RESOLVED (grounded against live Gutenberg/WP source)
+Verified 2026-06-25 against `@wordpress/core-data`'s entity registry
+(`packages/core-data/src/entities.js`, the `baseURL`s `saveEntityRecord`/
+`deleteEntityRecord` resolve to) and WordPress core `post.php` `rest_base` values.
+The editor does **not** call literal route strings — it writes through entities — so
+the entity registry *is* the comprehensive write surface.
+
+**Editor-writable routes split by WP Sudo's threat model:**
+- **Already gated, reachable in-editor:** `/wp/v2/plugins` (block-directory
+  install/activate is the realistic in-editor hit), `/wp/v2/users`, `/wp/v2/settings`,
+  application-passwords. These are the routes Phase 2's UX actually serves.
+- **Content/design — deliberately NOT gated** (gating them would violate the documented
+  "don't gate content saves" principle): `/wp/v2/templates`, `/template-parts`,
+  `/global-styles`, `/navigation`, `/menus`, `/menu-items`, `/widgets`, `/sidebars`,
+  `/blocks` (reusable), `/font-families`, `/font-faces`, `/media`, `/comments`,
+  `/posts`, `/pages`.
+
+**Conclusion:** this **refutes** the earlier extrapolated inventory's "add 4–5 new rules
+for templates/global-styles/blocks/menus/widgets" framing — those are content/design ops
+outside the gating model, and adding them would be scope creep. **Phase 2 needs zero new
+gating rules**; its work is exactly the UX (challenge_url + snackbar) for the
+already-gated routes the editor can hit (chiefly block-directory plugin activate/install).
+The "likely thin" intuition is confirmed.
+
+**Gray-area routes (operator opt-in, NOT default):** `global-styles` (can inject
+site-wide CSS) and `font-families`/`font-faces` (upload binary font files) sit just
+outside the model. If an operator wants them gated, expose it the way the 4.1.0
+**admin-escalation guard** already does — a **default-OFF, filter-gated opt-in**
+(`apply_filters( 'wp_sudo_guard_escalation', false )`, no Settings UI) — rather than a
+new Settings field. This keeps the Settings page uncluttered: zero new checkboxes, the
+capability lives in `wp_sudo_gated_actions` / a dedicated filter + constant, documented
+in `developer-reference.md`. Only if broad demand later emerges should a **single**
+grouped "Advanced → gate site-design operations" control be considered (YAGNI until then).
 
 ### 🔴 Load-bearing security boundary
 **Client re-dispatch ≠ `Request_Stash` replay.** It is safe **only** because REST
