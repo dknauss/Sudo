@@ -217,14 +217,30 @@ implementation.
   server emits a context-correct URL; don't naively reuse admin-path logic.
 - The grace window (120 s) already covers "don't re-challenge"; retry should re-fire
   and let the gate re-evaluate, not gate the UI on a stale flag.
-- The **`@wordpress/scripts` build step** is the largest risk: the plugin has **zero
-  production dependencies and no build step** today; it adds SBOM, lint, and CI
-  surface. Gate it behind an **explicit decision** after Phase 1 + the route inventory.
+- **`@wordpress/scripts` build step — DECISION: not needed for Phase 2 (build-free).**
+  An earlier pass framed the build step as the largest risk / a near-inevitable Phase-2
+  gate. Grounding it against the repo corrects that: the plugin ships **zero production
+  npm dependencies** and **no build step** today — all 6 `admin/js/*.js` files are
+  hand-written vanilla JS enqueued directly (Node tooling is dev-only: Playwright +
+  `@wordpress/env`). The Phase 2 MVP does **not** require a build:
+  - `apiFetch` middleware → `wp.apiFetch.use( … )` (global), no JSX.
+  - Snackbar → `wp.data.dispatch( 'core/notices' ).createNotice( … )` — you *dispatch
+    to* the notices store, you don't author a React component.
+  Both reach core globals via a hand-written file declaring script deps on
+  `wp-api-fetch`, `wp-data`, `wp-notices` — the **same pattern as the existing
+  `admin/js/` files**. A build step is therefore **declined for now**. Reconsider it
+  **only at Phase 3** if the modal proves unmaintainable as hand-written
+  `wp.element.createElement` (try `wp.components.Modal` via `createElement` first).
+  Adding `@wordpress/scripts` would introduce an npm prod-dep tree, SBOM/`npm audit`
+  surface, a `build/` artifact in the dist, and version-pinning maintenance — a real
+  cost that a snackbar does not earn (Simplicity-First).
 
 ### Recommendation
-Ship **Phase 1 alone** (server `challenge_url` + tests). Do **not** commit to phases
-2–5 until (a) the route inventory justifies the JS, (b) the client-re-dispatch boundary
-above is documented in the design, and (c) the build-step decision is taken explicitly.
+Ship **Phase 1 alone** (server `challenge_url` + tests). Phases 2–3 are **build-free
+vanilla JS** (decision above). Do **not** commit to phases 2–5 until (a) the
+client-re-dispatch boundary above is documented in the design — the route inventory is
+now resolved (see "Route inventory — RESOLVED": Phase 2 needs zero new gating rules),
+and the build-step question is settled (build-free).
 
 ---
 
