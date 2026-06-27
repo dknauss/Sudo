@@ -61,6 +61,70 @@ class RestGatingTest extends TestCase {
 	}
 
 	/**
+	 * SURF-02: Cookie-auth REST soft blocks include a challenge URL so editor
+	 * clients can send the user to reauthenticate without using Request_Stash
+	 * replay.
+	 */
+	public function test_cookie_auth_gated_route_includes_challenge_url(): void {
+		$user = $this->make_admin();
+		wp_set_current_user( $user->ID );
+
+		$_SERVER['HTTP_REFERER'] = admin_url( 'site-editor.php' );
+
+		$request = new \WP_REST_Request( 'DELETE', '/wp/v2/plugins/hello' );
+		$request->set_header( 'X-WP-Nonce', wp_create_nonce( 'wp_rest' ) );
+
+		$result = $this->gate->intercept_rest( null, array(), $request );
+
+		$this->assertWPError( $result );
+
+		$error_data = $result->get_error_data();
+
+		$this->assertIsArray( $error_data );
+		$this->assertArrayHasKey( 'challenge_url', $error_data );
+
+		$challenge_url = (string) $error_data['challenge_url'];
+		$this->assertStringStartsWith( admin_url( 'admin.php' ), $challenge_url );
+		$this->assertStringContainsString( 'page=wp-sudo-challenge', $challenge_url );
+		$this->assertStringContainsString( 'return_url=' . admin_url( 'site-editor.php' ), $challenge_url );
+		$this->assertStringNotContainsString( 'stash_key=', $challenge_url );
+	}
+
+	/**
+	 * SURF-02: Cookie-auth REST soft blocks infer network-admin challenge routing
+	 * from a validated network-admin referrer because REST itself has no screen
+	 * context.
+	 */
+	public function test_cookie_auth_gated_route_uses_network_challenge_url_for_network_referrer(): void {
+		if ( ! is_multisite() ) {
+			$this->markTestSkipped( 'Network-admin challenge routing requires multisite.' );
+		}
+
+		$user = $this->make_admin();
+		wp_set_current_user( $user->ID );
+
+		$_SERVER['HTTP_REFERER'] = network_admin_url( 'plugins.php' );
+
+		$request = new \WP_REST_Request( 'DELETE', '/wp/v2/plugins/hello' );
+		$request->set_header( 'X-WP-Nonce', wp_create_nonce( 'wp_rest' ) );
+
+		$result = $this->gate->intercept_rest( null, array(), $request );
+
+		$this->assertWPError( $result );
+
+		$error_data = $result->get_error_data();
+
+		$this->assertIsArray( $error_data );
+		$this->assertArrayHasKey( 'challenge_url', $error_data );
+
+		$challenge_url = (string) $error_data['challenge_url'];
+		$this->assertStringStartsWith( network_admin_url( 'admin.php' ), $challenge_url );
+		$this->assertStringContainsString( 'page=wp-sudo-challenge', $challenge_url );
+		$this->assertStringContainsString( 'return_url=' . network_admin_url( 'plugins.php' ), $challenge_url );
+		$this->assertStringNotContainsString( 'stash_key=', $challenge_url );
+	}
+
+	/**
 	 * SURF-02 + SURF-04: Cookie-auth gated route fires wp_sudo_action_gated
 	 * with correct arguments (user_id, rule_id='plugin.delete', surface='rest').
 	 */
@@ -196,6 +260,7 @@ class RestGatingTest extends TestCase {
 		$this->assertSame( $user->ID, $blocked_args[0] ?? null );
 		$this->assertSame( 'plugin.delete', $blocked_args[1] ?? null );
 		$this->assertSame( 'rest_app_password', $blocked_args[2] ?? null );
+		$this->assertArrayNotHasKey( 'challenge_url', $result->get_error_data() );
 	}
 
 	/**
@@ -279,6 +344,7 @@ class RestGatingTest extends TestCase {
 		$this->assertSame( 'sudo_disabled', $result->get_error_code() );
 		$this->assertSame( 403, $result->get_error_data()['status'] );
 		$this->assertFalse( $hook_fired, 'wp_sudo_action_blocked should NOT fire for disabled policy.' );
+		$this->assertArrayNotHasKey( 'challenge_url', $result->get_error_data() );
 	}
 
 	/**

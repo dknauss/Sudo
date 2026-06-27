@@ -2542,10 +2542,49 @@ class Gate {
 				$shortcut
 			),
 			array(
-				'status'  => 403,
-				'rule_id' => $matched_rule['id'],
+				'status'        => 403,
+				'rule_id'       => $matched_rule['id'],
+				'challenge_url' => $this->build_session_challenge_url(),
 			)
 		);
+	}
+
+	/**
+	 * Build a session-only challenge URL for soft-blocked browser requests.
+	 *
+	 * REST requests do not create a Request_Stash entry. Editor clients must
+	 * re-dispatch their own in-memory REST request after the challenge grants a
+	 * sudo session; routing REST through stash/replay would cross the admin form
+	 * replay boundary and risk replaying stale client state.
+	 *
+	 * REST does not reliably run in an admin or network-admin screen context, so
+	 * infer network-admin routing from the validated referrer when available.
+	 *
+	 * @return string Challenge URL.
+	 */
+	private function build_session_challenge_url(): string {
+		$return_url = wp_get_referer();
+		if ( false === $return_url ) {
+			$return_url = '';
+		}
+
+		$network_admin_base = network_admin_url( 'admin.php' );
+		$admin_base         = admin_url( 'admin.php' );
+		$base_url           = $admin_base;
+
+		if ( is_multisite() && $return_url ) {
+			$network_admin_prefix = trailingslashit( dirname( $network_admin_base ) );
+			if ( 0 === strpos( $return_url, $network_admin_prefix ) ) {
+				$base_url = $network_admin_base;
+			}
+		}
+
+		$query_args = array( 'page' => 'wp-sudo-challenge' );
+		if ( $return_url ) {
+			$query_args['return_url'] = $return_url;
+		}
+
+		return add_query_arg( $query_args, $base_url );
 	}
 
 	/**

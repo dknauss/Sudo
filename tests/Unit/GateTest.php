@@ -90,6 +90,27 @@ class GateTest extends TestCase {
 		parent::tearDown();
 	}
 
+	/**
+	 * Mock URL helpers used when cookie-auth REST soft blocks build a challenge URL.
+	 *
+	 * @return void
+	 */
+	private function mock_rest_challenge_url_helpers(): void {
+		Functions\when( 'wp_get_referer' )->justReturn( false );
+		Functions\when( 'is_multisite' )->justReturn( false );
+		Functions\when( 'network_admin_url' )->alias(
+			static fn( string $path = '' ): string => 'https://example.com/wp-admin/network/' . $path
+		);
+		Functions\when( 'admin_url' )->alias(
+			static fn( string $path = '' ): string => 'https://example.com/wp-admin/' . $path
+		);
+		Functions\when( 'add_query_arg' )->alias(
+			static function ( array $args, string $url ): string {
+				return $url . '?' . http_build_query( $args );
+			}
+		);
+	}
+
 	// ── Surface detection ─────────────────────────────────────────────
 
 	/**
@@ -1218,6 +1239,7 @@ class GateTest extends TestCase {
 		Functions\when( 'is_wp_error' )->justReturn( false );
 		Functions\when( 'get_user_meta' )->justReturn( 0 );
 		Functions\when( 'set_transient' )->justReturn( true );
+		$this->mock_rest_challenge_url_helpers();
 
 		// Cookie-auth: nonce present and valid.
 		Functions\when( 'wp_verify_nonce' )->justReturn( true );
@@ -1235,6 +1257,10 @@ class GateTest extends TestCase {
 
 		$this->assertInstanceOf( \WP_Error::class, $result );
 		$this->assertSame( 'sudo_required', $result->get_error_code() );
+		$this->assertSame(
+			'https://example.com/wp-admin/admin.php?page=wp-sudo-challenge',
+			$result->get_error_data()['challenge_url']
+		);
 	}
 
 	/**
@@ -1268,6 +1294,7 @@ class GateTest extends TestCase {
 
 		// Sudo_Session::is_active() returns false.
 		Functions\when( 'get_user_meta' )->justReturn( 0 );
+		$this->mock_rest_challenge_url_helpers();
 
 		// Simulate cookie-auth: X-WP-Nonce header present and valid.
 		Functions\when( 'wp_verify_nonce' )->justReturn( true );
@@ -1341,6 +1368,7 @@ class GateTest extends TestCase {
 		Functions\when( 'is_wp_error' )->justReturn( false );
 		Functions\when( 'get_user_meta' )->justReturn( 0 );
 		Functions\when( 'set_transient' )->justReturn( true );
+		$this->mock_rest_challenge_url_helpers();
 
 		// Cookie-auth: nonce present and valid.
 		Functions\when( 'wp_verify_nonce' )->justReturn( true );
@@ -1375,6 +1403,7 @@ class GateTest extends TestCase {
 		Functions\when( 'set_transient' )->justReturn( true );
 		Functions\when( 'sanitize_text_field' )->returnArg();
 		Functions\when( 'wp_unslash' )->returnArg();
+		$this->mock_rest_challenge_url_helpers();
 
 		// Cookie-auth via request param, not header.
 		Functions\when( 'wp_verify_nonce' )->justReturn( true );
