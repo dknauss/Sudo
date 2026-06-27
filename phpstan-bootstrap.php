@@ -39,6 +39,13 @@ if ( ! defined( 'WP_SUDO_MU_LOADED' ) ) {
 	define( 'WP_SUDO_MU_LOADED', false );
 }
 
+// WordPress 7.0 Connectors API (runtime-only on WP 7.0+).
+if ( ! function_exists( 'wp_get_connectors' ) ) {
+	function wp_get_connectors(): array {
+		return array();
+	}
+}
+
 // WP-CLI class (runtime-only in CLI context).
 if ( ! class_exists( 'WP_CLI' ) ) {
 	class WP_CLI {

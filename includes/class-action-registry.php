@@ -1078,10 +1078,12 @@ class Action_Registry {
 	 */
 	private static function is_connector_api_key_setting_name( string $key ): bool {
 		// Tier 1: WP 7.0 Connectors registry (when available).
-		if ( function_exists( 'wp_get_connectors' ) ) {
+		$wp_get_connectors = 'wp_get_connectors';
+		if ( function_exists( $wp_get_connectors ) ) {
 			if ( null === self::$connector_setting_names_cache ) {
-				$names = array();
-				foreach ( wp_get_connectors() as $connector ) {
+				$names      = array();
+				$connectors = $wp_get_connectors();
+				foreach ( $connectors as $connector ) {
 					if (
 						isset( $connector['authentication']['method'], $connector['authentication']['setting_name'] ) &&
 						'api_key' === $connector['authentication']['method']

@@ -1,0 +1,65 @@
+# VCS / local environment
+.git/**
+.github/**
+.githooks/**
+.DS_Store
+*.code-workspace
+.vscode/**
+.mcp.json
+.nvmrc
+.reviewer-config.sh
+reviewer-approved
+
+# Agent/planning/private workspace files
+.claude/**
+.planning/**
+.codex/**
+.agents/**
+
+# Dependencies and caches
+vendor/**
+node_modules/**
+.composer_cache/**
+.sbom/**
+.tmp/**
+test-results/**
+coverage/**
+coverage.xml
+.phpunit.result.cache
+
+# Tests and development tooling
+tests/**
+bin/**
+phpunit.xml.dist
+phpunit-integration.xml.dist
+phpstan.neon
+phpstan-bootstrap.php
+psalm.xml.dist
+psalm-baseline.xml
+phpcs.xml.dist
+patchwork.json
+codecov.yml
+tsconfig.json
+package.json
+package-lock.json
+composer.json
+composer.lock
+.wp-env.json
+.wp-env.e2e.json
+
+# Repository-only docs and contributor files
+AGENTS.md
+CLAUDE.md
+CONTRIBUTING.md
+readme.md
+
+# WordPress.org assets live outside the plugin ZIP.
+.wordpress-org/**
+
+# Playground/source-only artifacts.
+blueprint-main.json
+blueprint-recovery-mode.json
+blueprint-user-switching.json
+
+# Empty-directory placeholders are not distributed.
+languages/.gitkeep
