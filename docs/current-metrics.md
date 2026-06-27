@@ -2,7 +2,7 @@
 
 This file is the single source of truth for current repository counts.
 
-Last verified: 2026-06-24
+Last verified: 2026-06-27
 Verification environment: local workspace, PHP 8.x
 
 ## Test Metrics
@@ -10,8 +10,8 @@ Verification environment: local workspace, PHP 8.x
 | Metric | Value | Verification |
 |---|---:|---|
 | Unit tests | 888 tests | `composer test:unit` |
-| Unit assertions | 2605 assertions | `composer test:unit` |
-| Integration tests in suite | 206 test methods | `rg -c "function test" tests/Integration/*.php | awk -F: '{sum+=$2} END{print sum}'` |
+| Unit assertions | 2606 assertions | `composer test:unit` |
+| Integration tests in suite | 208 test methods | `rg -c "function test" tests/Integration/*.php | awk -F: '{sum+=$2} END{print sum}'` |
 | Unit test files | 28 | `ls tests/Unit/*.php | wc -l` |
 | Integration test files | 28 | `ls tests/Integration/*.php | wc -l` |
 
@@ -19,11 +19,11 @@ Verification environment: local workspace, PHP 8.x
 
 | Metric | Value | Verification |
 |---|---:|---|
-| Production PHP lines (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 15,993 | `find ./includes ./wp-sudo.php ./uninstall.php ./mu-plugin ./bridges -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
-| Tests PHP lines (`tests/`) | 32,349 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
-| Production + tests PHP lines | 48,342 | sum of the two rows above |
-| Test-to-production ratio | 2.02:1 | `32349 / 15993` |
-| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`) | 48,605 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Production PHP lines (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 16,032 | `find ./includes ./wp-sudo.php ./uninstall.php ./mu-plugin ./bridges -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Tests PHP lines (`tests/`) | 32,444 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Production + tests PHP lines | 48,476 | sum of the two rows above |
+| Test-to-production ratio | 2.02:1 | `32444 / 16032` |
+| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`) | 48,739 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
 
 ## Architectural Facts
 
@@ -66,12 +66,12 @@ Source: `.github/workflows/phpunit.yml`, `.github/workflows/e2e.yml`, `.github/w
 
 ## Verification Notes
 
-- `composer test:unit` passed on 2026-06-25 (`888 tests`, `2605 assertions`).
-- `composer lint` passed on 2026-06-20.
-- `composer analyse` passed on 2026-06-20 (PHPStan L6 `[OK] No errors`; Psalm `No errors found!`, 95.8% type coverage, baseline current).
-- `composer verify:metrics` passed on 2026-06-20 (after this update).
+- `composer test:unit` passed on 2026-06-27 (`888 tests`, `2606 assertions`).
+- `composer lint` passed on 2026-06-27.
+- Static analysis passed on 2026-06-27 (PHPStan L6 `[OK] No errors`; Psalm `No errors found!`, 95.9947% type coverage, baseline current).
+- `composer verify:metrics` passed on 2026-06-27 (after this update).
 - Plugin Check CI passed on 2026-06-14 against a clean production dist; warning triage remains a follow-up.
-- `composer test:integration` passed locally on 2026-06-20: single-site `199 tests`, `669 assertions`, `11 skipped`, `0 failures`. The latest multisite real-DB verification remains the 2026-06-17 Phase 13 PR #86 run: `198 tests`, `676 assertions`, `4 skipped`, `0 failures`.
+- `composer test:integration` passed locally on 2026-06-27: single-site `213 tests`, `728 assertions`, `14 skipped`, `0 failures`; multisite (`WP_MULTISITE=1 composer test:integration`) `213 tests`, `725 assertions`, `8 skipped`, `0 failures`.
 
 ## Update Procedure
 

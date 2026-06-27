@@ -1,5 +1,28 @@
 # Changelog
 
+## 4.2.0 - 2026-06-27
+
+- **Two Factor bridge hardening:** the optional Two Factor bridge now gates REST
+  factor-management operations behind WP Sudo, extending sudo coverage to a
+  sensitive 2FA account-control surface.
+- **Observability (WSAL bridge expansion):** the optional WP Activity Log sensor
+  bridge maps the additional security/governance audit hooks added in the 4.1.x
+  line into WSAL events for escalation blocks, session revocation, recovery-mode
+  use, governance-capability changes, missing built-in rules, and regex-rule
+  failures.
+- **Gutenberg REST UX groundwork:** cookie-authenticated REST `sudo_required`
+  responses now include a `challenge_url` so block-editor clients can direct the
+  user to reauthenticate without using server-side Request_Stash replay.
+  Headless REST policy responses (`sudo_disabled` / `sudo_blocked`) are
+  unchanged.
+- **Test hardening:** added integration coverage for activation/deactivation
+  lifecycle behavior, `WP_Session_Tokens::destroy_all()` login-session-binding
+  invariants, and live admin-escalation guard hooks.
+- **Planning and reference docs:** documented the Gutenberg route inventory, the
+  build-free vanilla-JS decision for Phase 2 editor UX work, API-only
+  configuration surfaces, and the accepted blog-invariant Connectors matcher
+  cache behavior.
+
 ## 4.1.0 - 2026-06-24
 
 - **Security (gate completeness):** Two coordinated-disclosure findings in the
@@ -66,18 +89,6 @@
     and raw `$wpdb` writes to the usermeta table bypass the meta hooks and are
     out of scope; the residual window is an escalation firing during a
     legitimate admin's own active sudo session.
-- **Observability (WSAL bridge expansion).** The optional WSAL sensor bridge
-  (`bridges/wp-sudo-wsal-sensor.php`, now `@version 1.1.0`) maps seven
-  additional security/governance audit hooks into WP Activity Log events
-  (IDs `1900012`–`1900018`): `wp_sudo_escalation_blocked`,
-  `wp_sudo_session_revoked`, `wp_sudo_recovery_mode_active` (throttled to one
-  event per user per hour to avoid flooding a table-backed log),
-  `wp_sudo_capability_granted`, `wp_sudo_capability_revoked`,
-  `wp_sudo_gated_actions_missing_builtin_rules`, and `wp_sudo_rule_regex_error`
-  (carrying the fail-open/fail-closed disposition). Existing event IDs are
-  unchanged; the diagnostic-only `wp_sudo_inert_governance_mode_detected` hook
-  is intentionally not mapped.
-
 ## 4.0.0 - 2026-06-21
 
 - **Breaking changes (4.0.0):**

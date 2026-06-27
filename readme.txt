@@ -5,7 +5,7 @@ Tags:              reauthentication, access control, admin protection, multisite
 Requires at least: 6.4
 Tested up to:      7.0
 Requires PHP:      8.2
-Stable tag:        4.1.0
+Stable tag:        4.2.0
 License:           GPL-2.0-or-later
 License URI:       https://spdx.org/licenses/GPL-2.0-or-later.html
 
@@ -182,12 +182,17 @@ Extensibility: the action registry is filterable via wp_sudo_gated_actions. Audi
 
 == Changelog ==
 
+= 4.2.0 =
+* **Two Factor bridge hardening** — REST factor-management operations in the optional Two Factor bridge are now gated behind WP Sudo.
+* **WSAL bridge expansion** — the optional WP Activity Log sensor bridge maps additional security/governance audit hooks into WSAL events for escalation blocks, session revocation, recovery-mode use, governance-capability changes, missing built-in rules, and regex-rule failures.
+* **Gutenberg REST UX groundwork** — cookie-authenticated REST `sudo_required` responses now include a `challenge_url` for editor clients. Headless REST policy responses remain unchanged.
+* **Test hardening** — added integration coverage for activation/deactivation lifecycle behavior, `destroy_all()` login-session-binding invariants, and live admin-escalation guard hooks.
+
 = 4.1.0 =
 **Security — gate completeness (coordinated disclosure). Affected versions: ≤ 4.0.0.**
 * **Interactive effect-level backstop** — a session-aware guard on `admin_init` now hard-blocks the destructive core effects (`delete_user`, `delete_plugin`, `delete_theme`, `activate_plugin`, `upgrader_pre_install`, `export_wp`) when no sudo window is active, closing a gap where those actions could run through a non-enumerated handler such as a third-party `admin-post.php` route. Scoped to those effect hooks by design; option writes and role/user-create paths are excluded to avoid blocking legitimate workflows.
 * **Login-session binding** — the sudo proof is now bound to the WordPress login session that created it (new `_wp_sudo_session_bind` user meta). A captured `wp_sudo_token` cookie can no longer be replayed from another session; the window ends on logout and a bound proof stops verifying once its login session is no longer valid (e.g. after `destroy_all()`). No migration required; cookie-less surfaces and pre-4.1.0 sessions are unaffected.
 * **Admin-escalation guard (opt-in, default OFF)** — a new role-aware guard refuses to grant administrator (single-site) or super-admin (multisite) unless the acting user holds an active sudo session. Because the attacker in the common privilege-escalation exploits is unauthenticated or low-privilege and cannot hold a session, the grant is blocked even when a third-party plugin's own permission check fails. Effect-level and surface-agnostic (the capabilities meta write + `grant_super_admin`), fires only on a *newly granted* admin/super-admin, halts before the write, and emits a distinct high-severity `wp_sudo_escalation_blocked` event. Enable via the `wp_sudo_guard_escalation` filter; defers on CLI/Cron/XML-RPC and Unrestricted Application-Password surfaces, with a `wp_sudo_allow_escalation` allowlist and `WP_SUDO_ALLOW_ESCALATION` constant for trusted provisioners and recovery.
-* **WSAL sensor bridge expansion (optional)** — the optional `bridges/wp-sudo-wsal-sensor.php` (now v1.1.0) maps seven additional security/governance audit hooks into WP Activity Log events (IDs `1900012`–`1900018`): escalation blocked, session revoked, recovery-mode usage (throttled to one event per user per hour), capability granted/revoked, missing built-in rules, and regex-rule errors (with fail-open/closed disposition). Existing event IDs are unchanged.
 
 = 4.0.0 =
 **Breaking release — review before upgrading.**
