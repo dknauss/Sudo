@@ -13,12 +13,12 @@ This file is the canonical source for **current release state** in this reposito
 
 ## Latest GitHub/tagged release
 
-- **Latest tagged release:** `4.1.0`
-- **Latest git tag observed before this release-prep commit:** `v4.1.0` (annotated, cut 2026-06-24).
+- **Latest tagged release:** `4.2.0`
+- **Latest git tag observed:** `v4.2.0` (annotated, cut 2026-06-27 at commit `e1f9fe2`).
 
-## Current `main` release target
+## Current `main` release state
 
-- **Current `main` release target:** `4.2.0` — release line prepared from the post-`v4.1.0` fixes and feature hardening; `v4.2.0` is the intended tag for this release-prep commit after validation passes.
+- **Current `main` version:** `4.2.0` — tagged as `v4.2.0` after the post-`v4.1.0` fixes and feature hardening.
 - **Runtime version constant:** `4.2.0` on `main`. `WP_SUDO_VERSION` is set in `wp-sudo.php` (header + constant), `tests/bootstrap.php`, and `phpstan-bootstrap.php`; `readme.txt` Stable tag is `4.2.0`. All five version-sync points are in sync.
 - **Current package metadata (on `main`):** `readme.txt` Stable tag `4.2.0` == header Version (no `stable_tag_mismatch`); `Requires at least 6.4`, `Requires PHP 8.2`, `Tested up to 7.0`. WordPress.org listing name: **"Sudo – Admin Action Gating"** (UI brand "Sudo"; slug/text-domain stay `wp-sudo` — lock the slug at submission).
 - **Last archived release checklist:** `docs/archive/release-3.0.0-checklist.md`
@@ -28,9 +28,9 @@ This file is the canonical source for **current release state** in this reposito
 - **WordPress.org plugin repository:** not published.
 - **`readme.txt` stable tag:** package/release metadata for generated plugin zips and future WordPress.org publication; it does not indicate that this plugin is currently live in the WordPress.org repository.
 
-## Release-candidate contents
+## Latest release contents
 
-`4.2.0` is the current release candidate for a post-4.1.0 hardening and integration release:
+`4.2.0` is a post-4.1.0 hardening and integration release:
 
 - **Two Factor bridge hardening:** REST factor-management operations in the optional Two Factor bridge are gated behind WP Sudo.
 - **WSAL bridge expansion:** the optional WP Activity Log sensor bridge maps the newer security/governance audit hooks into WSAL events, including escalation blocks, session revocation, recovery-mode use, governance-capability changes, missing built-in rules, and regex-rule failures.
@@ -38,13 +38,13 @@ This file is the canonical source for **current release state** in this reposito
 - **Test hardening:** integration coverage was added for activation/deactivation lifecycle behavior, `WP_Session_Tokens::destroy_all()` login-session-binding invariants, and live admin-escalation guard hooks.
 - **Planning/reference updates:** the Gutenberg route inventory, build-free Phase 2 decision, API-only config surfaces, and accepted blog-invariant Connectors matcher cache behavior are documented.
 
-`4.1.0` (tagged 2026-06-24) remains the latest tagged release until `v4.2.0` is cut.
+`4.1.0` (tagged 2026-06-24) remains the security-hardening release that closed the coordinated-disclosure gate-completeness findings and introduced the opt-in admin-escalation guard.
 
-Canonical source for pre-tag drift after `v4.1.0`: `git log v4.1.0..main --oneline`. After `v4.2.0` is cut, use `git log v4.2.0..main --oneline`.
+Canonical source for post-tag drift after `v4.2.0`: `git log v4.2.0..main --oneline`.
 
 ## Unreleased `main` work
 
-No unreleased work is expected immediately after tagging `v4.2.0`. Until the tag exists, canonical release-candidate drift is `git log v4.1.0..main --oneline`; after the tag, use `git log v4.2.0..main --oneline`.
+No unreleased work is expected immediately after tagging `v4.2.0`. Canonical source for drift after the tag: `git log v4.2.0..main --oneline`.
 
 **Pre-tag checklist reminder:** before tagging a future release, confirm the five version-sync points are still in sync, re-verify external claims added since the previous tag, ensure the CHANGELOG/`readme.txt` release entries are dated/current, and update this file's "Latest tagged release" once the tag is cut.
 
