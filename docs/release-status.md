@@ -57,7 +57,7 @@ Canonical source for post-tag drift after `v4.2.2`: `git log v4.2.2..main --onel
 
 ## Unreleased `main` work
 
-No unreleased work is expected immediately after tagging `v4.2.2`. Canonical source for drift after the tag: `git log v4.2.2..main --oneline`.
+Unreleased work after `v4.2.2` currently includes localization packaging readiness: WP-CLI-backed Composer commands for POT generation/freshness verification, a committed `languages/wp-sudo.pot`, targeted translator-comment cleanup, and release documentation updates. Canonical source for drift after the tag: `git log v4.2.2..main --oneline`.
 
 **Pre-tag checklist reminder:** before tagging a future release, confirm the five version-sync points are still in sync, re-verify external claims added since the previous tag, ensure the CHANGELOG/`readme.txt` release entries are dated/current, and update this file's "Latest tagged release" once the tag is cut.
 

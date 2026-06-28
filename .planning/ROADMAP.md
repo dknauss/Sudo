@@ -8,7 +8,7 @@
 # Active Roadmap: Milestone v4.3.0 — Post-.org Readiness Hardening
 
 **Milestone:** v4.3.0
-**Status:** Planned — ready for phase discussion/planning
+**Status:** In progress — Phase 16 complete; phases 17-19 remain planned
 **Previous milestone last phase:** 15 (Manual Testing Environment Checklist, v4.2.x)
 **Phase numbering continues from:** 16
 
@@ -16,7 +16,7 @@
 
 ## Phases
 
-- [ ] **Phase 16: Localization and Translation Packaging Readiness** — POT generation, translator comments, JS/CLI strings, and an i18n check.
+- [x] **Phase 16: Localization and Translation Packaging Readiness** — POT generation, translator comments, JS/CLI strings, and an i18n check (completed 2026-06-28).
 - [ ] **Phase 17: Release-only Environment Assurance** — run/record the manual environment matrix and clarify tag-vs-.org checks.
 - [ ] **Phase 18: E2E Runtime Review and Tuning Decision** — review explicit group runtimes and either scope a targeted tuning action or document no-change.
 - [ ] **Phase 19: 2FA Bridge Planning and Compatibility Matrix** — convert upstream Two Factor lifecycle bridge scope into an implementation plan and keep Patchstack as a second-tier compatibility target.
@@ -36,7 +36,7 @@
 2. Ambiguous Sudo-specific strings have translator comments where needed.
 3. The check fits the existing dev-tooling stance and adds no production dependency.
 
-**Plans:** Pending — start with `$gsd-discuss-phase 16`.
+**Plans:** Implemented directly from captured context and approved plan; completed 2026-06-28.
 
 ### Phase 17: Release-only Environment Assurance
 
@@ -87,7 +87,7 @@
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 16. Localization and Translation Packaging Readiness | v4.3.0 | 0/? | Not started | - |
+| 16. Localization and Translation Packaging Readiness | v4.3.0 | direct | Complete | 2026-06-28 |
 | 17. Release-only Environment Assurance | v4.3.0 | 0/? | Not started | - |
 | 18. E2E Runtime Review and Tuning Decision | v4.3.0 | 0/? | Not started | - |
 | 19. 2FA Bridge Planning and Compatibility Matrix | v4.3.0 | 0/? | Not started | - |

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Localization packaging readiness:** added WP-CLI-backed Composer commands to regenerate and verify `languages/wp-sudo.pot`, committed the release-grade POT template, documented the workflow, and normalized a duplicate translator comment.
+
 ## 4.2.2 - 2026-06-28
 
 - **Access tab polish:** the Grant Capability form now includes an explicit search field for administrator users, filtering the existing native select by display name/login while preserving exact numeric user ID option values and the unchanged AJAX grant payload.

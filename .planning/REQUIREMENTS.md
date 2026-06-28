@@ -11,9 +11,9 @@
 
 ### Localization and Translation Packaging
 
-- [ ] **L10N-01**: Maintainers can regenerate a current POT file for all PHP, JS, and CLI-facing strings that ship with the plugin.
-- [ ] **L10N-02**: Translator comments exist for ambiguous or placeholder-heavy strings introduced by Sudo-specific UI, governance, and challenge flows.
-- [ ] **L10N-03**: CI or a documented local command can check that translation sources are current enough for release packaging without adding production dependencies.
+- [x] **L10N-01**: Maintainers can regenerate a current POT file for all PHP, JS, and CLI-facing strings that ship with the plugin.
+- [x] **L10N-02**: Translator comments exist for ambiguous or placeholder-heavy strings introduced by Sudo-specific UI, governance, and challenge flows.
+- [x] **L10N-03**: CI or a documented local command can check that translation sources are current enough for release packaging without adding production dependencies.
 
 ### Release-only Environment Assurance
 
@@ -53,9 +53,9 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| L10N-01 | Phase 16 | Pending |
-| L10N-02 | Phase 16 | Pending |
-| L10N-03 | Phase 16 | Pending |
+| L10N-01 | Phase 16 | Complete |
+| L10N-02 | Phase 16 | Complete |
+| L10N-03 | Phase 16 | Complete |
 | REL-01 | Phase 17 | Pending |
 | REL-02 | Phase 17 | Pending |
 | REL-03 | Phase 17 | Pending |
@@ -73,4 +73,4 @@
 
 ---
 *Requirements defined: 2026-06-28*
-*Last updated: 2026-06-28 — initial v4.3.0 requirements and phase traceability.*
+*Last updated: 2026-06-28 — Phase 16 localization packaging readiness completed.*
