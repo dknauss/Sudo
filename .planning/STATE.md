@@ -70,6 +70,10 @@ Phase execution order:
 - Phase 13.1 inserted after Phase 13 (2026-06-19): Access-tab UX polish (user picker + plain-English capability labels) + CI test-speed (matrix trim, WP-test-lib cache, E2E shard rebalance). GSD-routes the PR #88 follow-up (merged `6abd333`) and spawned task `task_671a7d54` into one reviewable cleanup phase ahead of Phase 14 (WordPress.org Readiness).
 - External contributions merged to main 2026-06-21 (Nathan / `nathanpixodeo`, all reviewed + approved): **#96** `fix: rename recovery dashboard label` Recovery→Break-glass (closes #68; locally validated 813 tests + lint + PHPStan/Psalm green as CI substitute), **#97** `docs: clarify break-glass recovery terminology` (advances the Core-Trac terminology-alignment roadmap item), **#98** `docs: add manual environment matrix` (**substantially delivers Phase 15 / ENV-01…03**). Admin-merged because fork CI can't be triggered for a first-time contributor without maintainer approval; #96 validated locally instead. These external PRs overlapped planned GSD work and are now reflected in the completed Phase 14/15 record.
 
+### Pending Todos
+
+- `2026-06-28-add-patchstack-2fa-compatibility-target.md` — Track Patchstack Security as a second-tier 2FA bridge/manual compatibility target behind the upstream Two Factor lifecycle bridge.
+
 ## Key Decisions (Phase 13.1-01, 2026-06-28)
 
 - Access picker is convenience UI only; backend grant/revoke authorization contract remains unchanged.
