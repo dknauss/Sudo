@@ -15,4 +15,4 @@ REVIEWER_APPROVAL_TIMEOUT=1800
 REVIEWER_APPROVAL_FILE="reviewer-approved"
 
 REVIEWER_TEXT_ONLY_PATTERN='\.(md|txt|rst)$'
-REVIEWER_EXCLUDED_FILES='^package-lock\.json$|^yarn\.lock$|^pnpm-lock\.yaml$|^composer\.lock$|^Gemfile\.lock$'
+REVIEWER_EXCLUDED_FILES='^package-lock\.json$|^yarn\.lock$|^pnpm-lock\.yaml$|^composer\.lock$|^Gemfile\.lock$|^languages/wp-sudo\.pot$'
