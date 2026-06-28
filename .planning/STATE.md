@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-06-28T05:54:03.245Z"
-last_activity: "2026-06-28 — Executed GSD Phase 13.1 Plan 01: Access tab grant picker and plain-English capability labels implemented and verified; created summary/tracking, validated unit tests/PHPStan/lint/static E2E selector check, and marked ACC-01…03 complete. Plan 02 (CI speed) remains open."
+last_updated: "2026-06-28T06:00:48.763Z"
+last_activity: "2026-06-28 — Executed GSD Phase 13.1 Plan 02: CI-speed matrix/cache/shard requirements verified, missing dropped-lane documentation and E2E count corrected, summary/tracking updated, and CIS-01…03 marked complete."
 progress:
   total_phases: 9
-  completed_phases: 7
+  completed_phases: 8
   total_plans: 22
-  completed_plans: 21
+  completed_plans: 22
 ---
 
 ## Current Position
@@ -18,8 +18,8 @@ Phase: v4.0.0 milestone — **RELEASED**. No active phase; next gate is WordPres
 Branch: main @ c8e692e — clean tree, pushed, version-synced at 4.0.0. Zero open PRs.
 Done & merged to main: Phase 11 (Connectors matcher, #86), Phase 12 (breaking changes/floor bump, #86), Phase 13 (migration safety, #86/#89), Phase 13.1 (Access-tab UX + CI speed, #88/#95), Phase 14 (WordPress.org Readiness, ORG-01…07, #99), Phase 15 (ENV-01…03). Plus external #96/#97/#98 and #100 (readme.md rebrand to "Sudo" + full 9-shot gallery).
 Open threads: **v4.0.0 RELEASED 2026-06-21** — annotated tag `v4.0.0` (→ `a4c1e67`) pushed; GitHub Release published as Latest; CHANGELOG.md + readme.txt changelog complete (4.0.0 entry + 3.2–3.4 backfill); `docs/release-status.md` "Latest tagged release: 4.0.0". **NOT yet on WordPress.org.** Remaining = the .org submission (see `docs/wporg-submission-checklist.md`): lock slug to `wp-sudo`, run readme validator + Plugin Check on the build, complete the manual env-matrix + Connectors checks, then SVN trunk/tags upload.
-Resume file: Completed 13.1-01-PLAN.md
-Last activity: 2026-06-28 — Executed GSD Phase 13.1 Plan 01 (Access tab user picker + capability labels); summary created, ACC-01…03 marked complete, Plan 02 remains open.
+Resume file: Completed 13.1-02-PLAN.md
+Last activity: 2026-06-28 — Executed GSD Phase 13.1 Plan 02 (CI-speed matrix/cache/shard verification); summary created, CIS-01…03 marked complete, Phase 13.1 now fully tracked.
 
 ## Project Reference
 
@@ -51,6 +51,7 @@ Phase execution order:
 - Phases: 5 (phases 11-15)
 - Requirements mapped: 30/30
 - Phase 13.1 Plan 01: 8 min, 3 tasks, 4 files (completed 2026-06-28)
+- Phase 13.1 Plan 02: 4 min, 3 tasks, 2 files (completed 2026-06-28)
 
 ## Accumulated Context
 
@@ -74,6 +75,11 @@ Phase execution order:
 - Access picker is convenience UI only; backend grant/revoke authorization contract remains unchanged.
 - Broader picker eligibility for custom roles or direct-cap users is deferred beyond Plan 01.
 - Capability option values remain exact slugs while operator-facing labels use a slug-keyed map.
+
+## Key Decisions (Phase 13.1-02, 2026-06-28)
+
+- Existing CI-speed implementation already present on main was verified and documented rather than duplicated or reshuffled.
+- Four E2E groups remain the right shape because wp-env startup is a fixed ~60s/job floor; group 2 was rebalanced within the existing matrix.
 
 ## Key Decisions (Phase 13-03, 2026-06-17)
 

@@ -18,7 +18,7 @@
 - [x] **Phase 11: Connectors Registry-Aware Matcher** - Close the `wordpress_api_key` gating gap with a two-tier registry-first, regex-fallback matcher (completed 2026-06-16)
 - [x] **Phase 12: Breaking Changes and Floor Bump** - Remove deprecated APIs (`sudo_can()`, `compatibility` mode), raise WP to 6.4 and PHP to 8.2, drop shims (completed 2026-06-16)
 - [x] **Phase 13: Migration Safety and Governance Audit** - Verify 3.0-3.4 upgrade paths are clean, audit capabilities, confirm lockout-safe first-run
-- [ ] **Phase 13.1: Access-tab UX polish and CI test-speed** (INSERTED) - User-picker + plain-English capability labels on the Access tab; trim/cache/rebalance CI test fan-out
+- [x] **Phase 13.1: Access-tab UX polish and CI test-speed** (INSERTED) - User-picker + plain-English capability labels on the Access tab; trim/cache/rebalance CI test fan-out (completed 2026-06-28)
 - [ ] **Phase 14: WordPress.org Readiness** - readme validator pass, screenshots/assets, brand consistency, SECURITY.md, submission checklist
 - [ ] **Phase 15: Manual Testing Environment Checklist** - Extend MANUAL-TESTING.md with environment matrix, Connectors verification steps
 
@@ -108,11 +108,11 @@ Plans:
 
 **Operational note (not a requirement):** Studio `wp-config.php` still has `WP_SUDO_RECOVERY_MODE` ON for testing (backup at `wp-config.php.wpsudo-bak`). Restore the backup once Access-tab UAT for this phase is complete. Local-env only; nothing to ship.
 
-**Plans**: 1/2 plans executed
+**Plans**: 2/2 plans executed
 
 Plans:
 - [x] 13.1-01-PLAN.md — Access-tab user picker + plain-English capability labels (ACC-01, ACC-02, ACC-03)
-- [ ] 13.1-02-PLAN.md — CI test-speed matrix/cache/shard updates (CIS-01, CIS-02, CIS-03)
+- [x] 13.1-02-PLAN.md — CI test-speed matrix/cache/shard updates (CIS-01, CIS-02, CIS-03)
 
 ### Phase 14: WordPress.org Readiness
 
@@ -161,7 +161,7 @@ Note: Phases 13, 14, and 15 all depend on Phase 12 completing. Phases 13 and 14 
 | 11. Connectors Registry-Aware Matcher | 1/1 | Complete    | 2026-06-16 | - |
 | 12. Breaking Changes and Floor Bump | 3/3 | Complete    | 2026-06-16 | - |
 | 13. Migration Safety and Governance Audit | 3/3 | Complete    | 2026-06-20 | - |
-| 13.1. Access-tab UX polish and CI test-speed | v4.0.0 | 1/2 | In Progress | - |
+| 13.1. Access-tab UX polish and CI test-speed | 2/2 | Complete   | 2026-06-28 | - |
 | 14. WordPress.org Readiness | v4.0.0 | 0/TBD | Not started | - |
 | 15. Manual Testing Environment Checklist | v4.0.0 | 0/TBD | Not started | - |
 
