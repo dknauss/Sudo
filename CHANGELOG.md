@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.2.2 - 2026-06-28
+
+- **Access tab polish:** the Grant Capability form now includes an explicit search field for administrator users, filtering the existing native select by display name/login while preserving exact numeric user ID option values and the unchanged AJAX grant payload.
+- **Verification-gap closure:** refreshed canonical metrics, re-verified Phase 13.1, and updated the Access tab listing screenshot so public docs show the searchable picker.
+- **Release planning hygiene:** refreshed planning/release docs to show that WordPress.org submission is intentionally delayed/on hold, while the repository remains submission-ready at any time.
+
 ## 4.2.1 - 2026-06-28
 
 - **WordPress.org package readiness:** cleaned Pressship/Plugin Check input-handling findings by unslashing request values at the flagged sites and shortening the 4.0.0 upgrade notice to fit directory limits.

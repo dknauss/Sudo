@@ -13,14 +13,14 @@ This file is the canonical source for **current release state** in this reposito
 
 ## Latest GitHub/tagged release
 
-- **Latest tagged release:** `4.2.1`
-- **Latest git tag observed:** `v4.2.1` (annotated, cut 2026-06-28 at commit `14fb3a3`).
+- **Latest tagged release:** `4.2.2`
+- **Latest git tag observed:** `v4.2.2` (annotated, cut 2026-06-28).
 
 ## Current `main` release state
 
-- **Current `main` version:** `4.2.1` — tagged as `v4.2.1` after the WordPress.org package-readiness cleanup.
-- **Runtime version constant:** `4.2.1` on `main`. `WP_SUDO_VERSION` is set in `wp-sudo.php` (header + constant), `tests/bootstrap.php`, and `phpstan-bootstrap.php`; `readme.txt` Stable tag is `4.2.1`. All five version-sync points are in sync.
-- **Current package metadata (on `main`):** `readme.txt` Stable tag `4.2.1` == header Version (no `stable_tag_mismatch`); `Requires at least 6.4`, `Requires PHP 8.2`, `Tested up to 7.0`. WordPress.org listing name: **"Sudo – Admin Action Gating"** (UI brand "Sudo"; slug/text-domain stay `wp-sudo` — lock the slug at submission).
+- **Current `main` version:** `4.2.2` — tagged as `v4.2.2` after the Access-tab gap closure and release-planning refresh.
+- **Runtime version constant:** `4.2.2` on `main`. `WP_SUDO_VERSION` is set in `wp-sudo.php` (header + constant), `tests/bootstrap.php`, and `phpstan-bootstrap.php`; `readme.txt` Stable tag is `4.2.2`. All five version-sync points are in sync.
+- **Current package metadata (on `main`):** `readme.txt` Stable tag `4.2.2` == header Version (no `stable_tag_mismatch`); `Requires at least 6.4`, `Requires PHP 8.2`, `Tested up to 7.0`. WordPress.org listing name: **"Sudo – Admin Action Gating"** (UI brand "Sudo"; slug/text-domain stay `wp-sudo` — lock the slug at submission).
 - **Last archived release checklist:** `docs/archive/release-3.0.0-checklist.md`
 
 ## WordPress.org publication status
@@ -31,7 +31,13 @@ This file is the canonical source for **current release state** in this reposito
 
 ## Latest release contents
 
-`4.2.1` is a WordPress.org package-readiness release:
+`4.2.2` is a release-readiness refresh after Phase 13.1 gap closure:
+
+- **Access tab polish:** Grant Capability now has a searchable administrator picker with tests while preserving the numeric `user_id` grant contract.
+- **Canonical metrics and screenshot refresh:** `docs/current-metrics.md` verifies cleanly and `.wordpress-org/screenshot-6.png` shows the searchable picker.
+- **Planning status refresh:** release/planning docs now state that WordPress.org submission is intentionally delayed/on hold while the repo remains submission-ready.
+
+`4.2.1` was a WordPress.org package-readiness release:
 
 - **Plugin Check input cleanup:** request values are unslashed at the flagged sites before sanitization, and the 4.0.0 upgrade notice fits directory limits.
 - **Submission warning triage:** Pressship verifies with one documented slug warning for the intended `wp-sudo` slug; bridge/core-hook/prepared-SQL false positives are documented or scoped in code.
@@ -47,11 +53,11 @@ This file is the canonical source for **current release state** in this reposito
 
 `4.1.0` (tagged 2026-06-24) remains the security-hardening release that closed the coordinated-disclosure gate-completeness findings and introduced the opt-in admin-escalation guard.
 
-Canonical source for post-tag drift after `v4.2.1`: `git log v4.2.1..main --oneline`.
+Canonical source for post-tag drift after `v4.2.2`: `git log v4.2.2..main --oneline`.
 
 ## Unreleased `main` work
 
-No unreleased work is expected immediately after tagging `v4.2.1`. Canonical source for drift after the tag: `git log v4.2.1..main --oneline`.
+No unreleased work is expected immediately after tagging `v4.2.2`. Canonical source for drift after the tag: `git log v4.2.2..main --oneline`.
 
 **Pre-tag checklist reminder:** before tagging a future release, confirm the five version-sync points are still in sync, re-verify external claims added since the previous tag, ensure the CHANGELOG/`readme.txt` release entries are dated/current, and update this file's "Latest tagged release" once the tag is cut.
 

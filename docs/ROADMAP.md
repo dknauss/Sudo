@@ -222,7 +222,7 @@ This is a living document covering accumulated input and thinking about the stra
 challenges and priorities for WP Sudo. 
 
 Current project state (as of June 14, 2026):
-- **Current release state is canonical in `docs/release-status.md`** — as of the June 28, 2026 docs refresh, the latest tagged release is 4.2.1 and the plugin is not currently published to the WordPress.org plugin repository. Publication is intentionally delayed/on hold, but the repository should remain submission-ready; `readme.txt` Stable tag is package/future-publication metadata until WordPress.org publication.
+- **Current release state is canonical in `docs/release-status.md`** — as of the June 28, 2026 docs refresh, the latest tagged release is 4.2.2 and the plugin is not currently published to the WordPress.org plugin repository. Publication is intentionally delayed/on hold, but the repository should remain submission-ready; `readme.txt` Stable tag is package/future-publication metadata until WordPress.org publication.
 - Current test and size counts are centralized in [`docs/current-metrics.md`](current-metrics.md).
 - CI pipeline: unit tests on PHP 8.0–8.4; integration tests on PHP 8.0/8.1/8.3; WordPress 6.2, 6.7, and 7.0 GA; single-site + multisite; MySQL 8.0 plus one MariaDB lane; PCOV coverage job; 61 Playwright E2E tests
 - WordPress 7.0 GA shipped on May 20, 2026, and the forward lane is now pinned to the final 7.0 release. See `docs/release-status.md`.

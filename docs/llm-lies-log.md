@@ -451,6 +451,17 @@ Repos:   wp-sudo, wordpress-2fa-ecosystem
             from an unrestricted environment before quoting version-specific figures in
             shipping copy.
 
+28. PRE-RELEASE EXTERNAL-CLAIMS AUDIT (v4.2.2) — no new fabrications found
+    Scope:  Changes since v4.2.1 primarily cover the Access-tab picker, release-planning
+            status, canonical metrics, and WordPress.org submission-readiness posture.
+            No new third-party code identifiers, plugin API method names, install counts,
+            or external vulnerability statistics were introduced in shipping copy.
+    Result: Re-checked current WordPress release posture on 2026-06-28 against official
+            WordPress sources before keeping `Tested up to: 7.0`: WordPress 7.0 landed
+            May 20, 2026; WordPress 7.0.1 is scheduled for July 2026 and is not yet the
+            stable package line. No external-claim corrections were needed.
+    Sources: WordPress.org release archive (`https://wordpress.org/download/releases/`) and Make/Core WordPress 7.0.1 Release Schedule (`https://make.wordpress.org/core/2026/06/18/wordpress-7-0-1-release-schedule/`).
+
 ROOT CAUSE
 ----------
 All errors have stemmed from patterns that boil down to *not checking the 

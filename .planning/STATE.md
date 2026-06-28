@@ -4,7 +4,7 @@ milestone: v4.0
 milestone_name: milestone
 status: complete
 last_updated: "2026-06-28T17:00:00Z"
-last_activity: "2026-06-28 — Refreshed stale planning docs after 4.2.1 release-state drift; WordPress.org submission delayed but readiness maintained."
+last_activity: "2026-06-28 — Refreshed stale planning docs after 4.2.2 release-state drift; WordPress.org submission delayed but readiness maintained."
 progress:
   total_phases: 9
   completed_phases: 9
@@ -15,11 +15,11 @@ progress:
 ## Current Position
 
 Phase: v4.0.0 milestone — **RELEASED**. No active phase; WordPress.org submission is intentionally delayed/on hold, but the repo should remain submission-ready at any time.
-Branch: main — clean tree before this docs refresh; version-synced at 4.2.1. Zero open PRs expected.
+Branch: main — clean tree before this docs refresh; version-synced at 4.2.2. Zero open PRs expected.
 Done & merged to main: Phase 11 (Connectors matcher, #86), Phase 12 (breaking changes/floor bump, #86), Phase 13 (migration safety, #86/#89), Phase 13.1 (Access-tab UX + CI speed, #88/#95), Phase 14 (WordPress.org Readiness, ORG-01…07, #99), Phase 15 (ENV-01…03). Plus external #96/#97/#98 and #100 (readme.md rebrand to "Sudo" + full 9-shot gallery).
-Open threads: **4.2.1 RELEASED 2026-06-28** — latest canonical release state is `docs/release-status.md`: tag `v4.2.1` at `14fb3a3`, runtime/readme stable tag synced at 4.2.1, and the plugin is **not yet on WordPress.org**. Submission-readiness checklist remains `docs/wporg-submission-checklist.md`: keep slug decision (`wp-sudo`), readme validator + Plugin Check, manual env-matrix + Connectors checks, and SVN trunk/tags upload procedure ready for when publication is approved.
+Open threads: **4.2.2 RELEASED 2026-06-28** — latest canonical release state is `docs/release-status.md`: tag `v4.2.2`, runtime/readme stable tag synced at 4.2.2, and the plugin is **not yet on WordPress.org**. Submission-readiness checklist remains `docs/wporg-submission-checklist.md`: keep slug decision (`wp-sudo`), readme validator + Plugin Check, manual env-matrix + Connectors checks, and SVN trunk/tags upload procedure ready for when publication is approved.
 Resume file: Completed 13.1-03-PLAN.md
-Last activity: 2026-06-28 — Planning docs refreshed to show v4.0.0 milestone complete, latest release 4.2.1, and WordPress.org submission delayed/on hold while readiness is maintained.
+Last activity: 2026-06-28 — Planning docs refreshed to show v4.0.0 milestone complete, latest release 4.2.2, and WordPress.org submission delayed/on hold while readiness is maintained.
 
 ## Project Reference
 
@@ -31,7 +31,7 @@ Canonical current facts:
 - `CHANGELOG.md` — shipped release contents.
 
 **Core value:** Every destructive admin action requires proof the person at the keyboard is still the authenticated user.
-**Current focus:** Latest tagged release is **4.2.1** (see `docs/release-status.md`). The v4.0.0 milestone phases are complete and merged. WordPress.org submission (`docs/wporg-submission-checklist.md`) is delayed/on hold, but readiness should be maintained.
+**Current focus:** Latest tagged release is **4.2.2** (see `docs/release-status.md`). The v4.0.0 milestone phases are complete and merged. WordPress.org submission (`docs/wporg-submission-checklist.md`) is delayed/on hold, but readiness should be maintained.
 
 ## Active Priorities (v4.0.0 milestone)
 
@@ -43,7 +43,7 @@ Phase execution order:
 4. ✅ **Phase 14 — WordPress.org Readiness** (ORG-01 through ORG-07): merged to main (#99). Listing name "Sudo – Admin Action Gating", SECURITY.md + submission checklist, brand strings, 9 listing screenshots.
 5. ✅ **Phase 15 — Manual Testing Environment Checklist** (ENV-01 through ENV-03): complete — env matrix via #98; ENV-03 Connectors-credential manual check added.
 
-**Latest release: 4.2.1 (2026-06-28)** — `docs/release-status.md` is canonical for release/package metadata. WordPress.org submission is delayed/on hold; keep `docs/wporg-submission-checklist.md` ready to execute at any time.
+**Latest release: 4.2.2 (2026-06-28)** — `docs/release-status.md` is canonical for release/package metadata. WordPress.org submission is delayed/on hold; keep `docs/wporg-submission-checklist.md` ready to execute at any time.
 
 ## Performance Metrics
 
