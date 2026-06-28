@@ -850,7 +850,7 @@ class Admin {
 		 *
 		 * @param bool $enabled Default true unless disabled by constant.
 		 */
-		return (bool) apply_filters( self::PASSED_EVENT_LOGGING_FILTER, $enabled );
+		return (bool) apply_filters( 'wp_sudo_log_passed_events_enabled', $enabled );
 	}
 
 	/**

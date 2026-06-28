@@ -184,60 +184,6 @@
 	10,
 	2
 )]]></code>
-      <code><![CDATA[add_filter(
-	'wp_sudo_validate_two_factor',
-	static function ( bool $valid, \WP_User $user ): bool {
-		// Don't override if another plugin already validated.
-		if ( $valid ) {
-			return true;
-		}
-
-		if ( ! class_exists( '\WP2FA\Admin\Helpers\User_Helper' ) ) {
-			return $valid;
-		}
-
-		$method = \WP2FA\Admin\Helpers\User_Helper::get_enabled_method_for_user( $user );
-
-		if ( empty( $method ) ) {
-			return $valid;
-		}
-
-		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- WP Sudo handles nonce verification.
-		$code = isset( $_POST['wp2fa_authcode'] )
-			? sanitize_text_field( wp_unslash( $_POST['wp2fa_authcode'] ) )
-			: '';
-
-		// phpcs:ignore WordPress.Security.NonceVerification.Missing
-		$backup_code = isset( $_POST['wp2fa_backup_code'] )
-			? sanitize_text_field( wp_unslash( $_POST['wp2fa_backup_code'] ) )
-			: '';
-
-		// Try primary method.
-		if ( ! empty( $code ) ) {
-			if ( 'totp' === $method && class_exists( '\WP2FA\Authenticator\Authentication' ) && class_exists( '\WP2FA\Methods\TOTP' ) ) {
-				$key = \WP2FA\Methods\TOTP::get_totp_key( $user );
-				if ( $key && \WP2FA\Authenticator\Authentication::is_valid_authcode( $key, $code ) ) {
-					return true;
-				}
-			} elseif ( 'email' === $method && class_exists( '\WP2FA\Authenticator\Authentication' ) ) {
-				if ( \WP2FA\Authenticator\Authentication::validate_token( $user, $code ) ) {
-					return true;
-				}
-			}
-		}
-
-		// Try backup code fallback.
-		if ( ! empty( $backup_code ) && class_exists( '\WP2FA\Methods\Backup_Codes' ) ) {
-			if ( \WP2FA\Methods\Backup_Codes::validate_code( $user, $backup_code ) ) {
-				return true;
-			}
-		}
-
-		return false;
-	},
-	10,
-	2
-)]]></code>
     </HookNotFound>
     <UndefinedClass>
       <code><![CDATA[\WP2FA\Admin\Helpers\User_Helper]]></code>
@@ -246,22 +192,6 @@
     </UndefinedClass>
   </file>
   <file src="bridges/wp-sudo-wsal-sensor.php">
-    <HookNotFound>
-      <code><![CDATA[add_action(
-		$hook,
-		static function ( ...$args ) use ( $hook, $meta ): void {
-			$throttle = (int) ( $meta['throttle'] ?? 0 );
-			if ( ! wp_sudo_wsal_bridge_should_emit( $hook, $args, $throttle ) ) {
-				return;
-			}
-
-			$payload = wp_sudo_wsal_bridge_event_payload( $hook, $args );
-			wp_sudo_wsal_bridge_emit( (int) $meta['event_id'], $payload );
-		},
-		10,
-		(int) $meta['accepted_args']
-	)]]></code>
-    </HookNotFound>
     <UndefinedClass>
       <code><![CDATA[\WSAL\Controllers\Alert_Manager]]></code>
     </UndefinedClass>

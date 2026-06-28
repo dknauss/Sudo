@@ -2,7 +2,7 @@
 
 This file is the single source of truth for current repository counts.
 
-Last verified: 2026-06-27
+Last verified: 2026-06-28
 Verification environment: local workspace, PHP 8.x
 
 ## Test Metrics
@@ -19,11 +19,11 @@ Verification environment: local workspace, PHP 8.x
 
 | Metric | Value | Verification |
 |---|---:|---|
-| Production PHP lines (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 16,034 | `find ./includes ./wp-sudo.php ./uninstall.php ./mu-plugin ./bridges -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Production PHP lines (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 15,953 | `find ./includes ./wp-sudo.php ./uninstall.php ./mu-plugin ./bridges -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
 | Tests PHP lines (`tests/`) | 32,444 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
-| Production + tests PHP lines | 48,478 | sum of the two rows above |
-| Test-to-production ratio | 2.02:1 | `32444 / 16034` |
-| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`) | 48,750 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Production + tests PHP lines | 48,397 | sum of the two rows above |
+| Test-to-production ratio | 2.03:1 | `32444 / 15953` |
+| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`) | 48,669 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
 
 ## Architectural Facts
 
@@ -68,7 +68,7 @@ Source: `.github/workflows/phpunit.yml`, `.github/workflows/e2e.yml`, `.github/w
 
 - `composer test:unit` passed on 2026-06-27 (`888 tests`, `2606 assertions`).
 - `composer lint` passed on 2026-06-27.
-- Static analysis passed on 2026-06-27 (PHPStan L6 `[OK] No errors`; Psalm `No errors found!`, 95.9947% type coverage, baseline current).
+- Static analysis passed on 2026-06-27 (PHPStan L6 `[OK] No errors`; Psalm `No errors found!`, 95.9802% type coverage, baseline current).
 - `composer verify:metrics` passed on 2026-06-27 (after this update).
 - Plugin Check CI passed on 2026-06-14 against a clean production dist; warning triage remains a follow-up.
 - `composer test:integration` passed locally on 2026-06-27: single-site `213 tests`, `728 assertions`, `14 skipped`, `0 failures`; multisite (`WP_MULTISITE=1 composer test:integration`) `213 tests`, `725 assertions`, `8 skipped`, `0 failures`.

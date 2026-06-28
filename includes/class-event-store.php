@@ -274,11 +274,8 @@ KEY site_event_created_at (site_id, event, created_at)
 			' (site_id, user_id, event, rule_id, surface, ip, context, created_at) VALUES ' .
 			implode( ', ', $placeholders );
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- table_name() is safe, placeholders controlled internally.
-		$prepared = $wpdb->prepare( $query, ...$args );
-
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- $prepared is output of prepare().
-		$wpdb->query( $prepared );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- table_name() is safe; query placeholders and args are controlled internally.
+		$wpdb->query( $wpdb->prepare( $query, ...$args ) );
 
 		return isset( $wpdb->rows_affected ) ? (int) $wpdb->rows_affected : 0;
 	}
@@ -320,17 +317,19 @@ KEY site_event_created_at (site_id, event, created_at)
 
 		$threshold = gmdate( 'Y-m-d H:i:s', time() - max( 0, $seconds ) );
 		$query     = 'SELECT COUNT(*) FROM ' . self::table_name() . ' WHERE site_id = %d AND event = %s AND created_at >= %s';
-		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared -- $query uses placeholders, table_name() is safe.
-		$prepared = $wpdb->prepare(
-			$query,
-			self::current_site_id(),
-			self::sanitize_event_name( $event ),
-			$threshold
+		// phpcs:disable WordPress.DB.PreparedSQL.NotPrepared -- table_name() is safe; query placeholders and args are controlled internally.
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, PluginCheck.Security.DirectDB.UnescapedDBParameter
+		$count = $wpdb->get_var(
+			$wpdb->prepare(
+				$query,
+				self::current_site_id(),
+				self::sanitize_event_name( $event ),
+				$threshold
+			)
 		);
 		// phpcs:enable WordPress.DB.PreparedSQL.NotPrepared
 
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- $prepared is output of prepare().
-		return (int) $wpdb->get_var( $prepared );
+		return (int) $count;
 	}
 
 	/**
@@ -483,10 +482,8 @@ KEY site_event_created_at (site_id, event, created_at)
 		$query .= ' ORDER BY created_at DESC, id DESC LIMIT %d';
 		$args[] = max( 1, $limit );
 
-		// phpcs:ignore WordPress.DB.PreparedSQL.NotPrepared -- $query uses placeholders, table_name() and $select are controlled internally.
-		$prepared = $wpdb->prepare( $query, ...$args );
-		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- $prepared is output of prepare().
-		$rows = $wpdb->get_results( $prepared );
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared, PluginCheck.Security.DirectDB.UnescapedDBParameter -- table_name() and $select are safe; query placeholders and args are controlled internally.
+		$rows = $wpdb->get_results( $wpdb->prepare( $query, ...$args ) );
 
 		if ( ! is_array( $rows ) ) {
 			return array();

@@ -220,19 +220,20 @@ $wp_sudo_wsal_event_map = array(
 	'wp_sudo_rule_regex_error'    => array( 'event_id' => 1900018, 'accepted_args' => 3 ),
 );
 
-foreach ( $wp_sudo_wsal_event_map as $hook => $meta ) {
+foreach ( $wp_sudo_wsal_event_map as $wp_sudo_hook => $wp_sudo_meta ) {
+	/** @psalm-suppress HookNotFound WP Sudo audit hook names are declared by the event map above. */
 	add_action(
-		$hook,
-		static function ( ...$args ) use ( $hook, $meta ): void {
-			$throttle = (int) ( $meta['throttle'] ?? 0 );
-			if ( ! wp_sudo_wsal_bridge_should_emit( $hook, $args, $throttle ) ) {
+		$wp_sudo_hook,
+		static function ( ...$args ) use ( $wp_sudo_hook, $wp_sudo_meta ): void {
+			$throttle = (int) ( $wp_sudo_meta['throttle'] ?? 0 );
+			if ( ! wp_sudo_wsal_bridge_should_emit( $wp_sudo_hook, $args, $throttle ) ) {
 				return;
 			}
 
-			$payload = wp_sudo_wsal_bridge_event_payload( $hook, $args );
-			wp_sudo_wsal_bridge_emit( (int) $meta['event_id'], $payload );
+			$payload = wp_sudo_wsal_bridge_event_payload( $wp_sudo_hook, $args );
+			wp_sudo_wsal_bridge_emit( (int) $wp_sudo_meta['event_id'], $payload );
 		},
 		10,
-		(int) $meta['accepted_args']
+		(int) $wp_sudo_meta['accepted_args']
 	);
 }

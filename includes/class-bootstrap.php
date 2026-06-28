@@ -63,6 +63,7 @@ class Bootstrap {
 		/**
 		 * Mirror WordPress' `plugins_url` filter while using the recovered public basename.
 		 */
+		// phpcs:ignore WordPress.NamingConventions.PrefixAllGlobals.NonPrefixedHooknameFound -- Mirrors WordPress core's plugins_url filter.
 		$url = apply_filters( 'plugins_url', $url, '', $plugin_basename );
 
 		return trailingslashit( $url );

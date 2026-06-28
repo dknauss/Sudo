@@ -142,6 +142,8 @@ add_action(
  *
  * WP Sudo has already verified the nonce. We just need to read $_POST
  * and call the appropriate WP 2FA validation method.
+ *
+ * @psalm-suppress HookNotFound WP Sudo defines this integration hook when the bridge is loaded with the plugin.
  */
 add_filter(
 	'wp_sudo_validate_two_factor',
@@ -161,15 +163,15 @@ add_filter(
 			return $valid;
 		}
 
-		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- WP Sudo handles nonce verification.
+		// phpcs:disable WordPress.Security.NonceVerification.Missing -- WP Sudo verifies the challenge nonce before invoking this validation filter.
 		$code = isset( $_POST['wp2fa_authcode'] )
 			? sanitize_text_field( wp_unslash( $_POST['wp2fa_authcode'] ) )
 			: '';
 
-		// phpcs:ignore WordPress.Security.NonceVerification.Missing
 		$backup_code = isset( $_POST['wp2fa_backup_code'] )
 			? sanitize_text_field( wp_unslash( $_POST['wp2fa_backup_code'] ) )
 			: '';
+		// phpcs:enable WordPress.Security.NonceVerification.Missing
 
 		// Try primary method.
 		if ( ! empty( $code ) ) {

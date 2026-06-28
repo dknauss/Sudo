@@ -87,6 +87,9 @@ WordPress.org hosts plugins in Subversion, not Git. Standard layout:
   slug from the Plugin Name at submission, which would yield `sudo-admin-action-gating`.
   **Lock the slug to `wp-sudo`** (matching the text-domain) at submission — request it
   explicitly if needed — or translate.wordpress.org translations will break.
+  Pressship/Plugin Check currently reports the expected `trademarked_term` warning because
+  the intended slug contains `wp`; treat this as a documented submission decision unless
+  the maintainer chooses to rename the slug before first WordPress.org publication.
 - GitHub repo: **`dknauss/Sudo`**.
 - The intentional divergence between product name, Plugin Name header, slug, and repo
   is documented in [`docs/developer-reference.md`](developer-reference.md) (Plan 14-02).

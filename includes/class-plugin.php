@@ -65,7 +65,8 @@ class Plugin {
 	 * @return void
 	 */
 	public function init(): void {
-		// Load translations.
+		// Load bundled translations for non-WordPress.org installs.
+		// phpcs:ignore PluginCheck.CodeAnalysis.DiscouragedFunctions.load_plugin_textdomainFound -- GitHub/manual installs still need the bundled language path.
 		load_plugin_textdomain( 'wp-sudo', false, dirname( WP_SUDO_PLUGIN_BASENAME ) . '/languages' );
 
 		// Run any pending upgrade routines (must run before other components).

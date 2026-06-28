@@ -152,7 +152,7 @@ function wp_sudo_cleanup_user_meta(): void {
 
 if ( is_multisite() ) {
 	// Get every site in the network.
-	$site_ids = get_sites(
+	$wp_sudo_site_ids = get_sites(
 		array(
 			'fields'     => 'ids',
 			'number'     => 0,
@@ -161,8 +161,8 @@ if ( is_multisite() ) {
 	);
 
 	// Clean per-site data (role, options) on every site.
-	foreach ( $site_ids as $site_id ) {
-		switch_to_blog( $site_id ); // phpcs:ignore WordPressVIPMinimum.Functions.RestrictedFunctions.switch_to_blog_switch_to_blog
+	foreach ( $wp_sudo_site_ids as $wp_sudo_site_id ) {
+		switch_to_blog( $wp_sudo_site_id ); // phpcs:ignore WordPressVIPMinimum.Functions.RestrictedFunctions.switch_to_blog_switch_to_blog
 		wp_sudo_cleanup_site();
 		restore_current_blog();
 	}
