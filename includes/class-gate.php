@@ -454,10 +454,10 @@ class Gate {
 			$nonce = (string) $request->get_header( 'X-WP-Nonce' );
 		}
 		if ( '' === $nonce ) {
-			$nonce = self::sanitize_input_string( $_SERVER['HTTP_X_WP_NONCE'] ?? '' ); // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Read-only classification; sanitized in helper.
+			$nonce = isset( $_SERVER['HTTP_X_WP_NONCE'] ) && is_string( $_SERVER['HTTP_X_WP_NONCE'] ) ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_X_WP_NONCE'] ) ) : ''; // phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Read-only classification; sanitized in helper.
 		}
 		if ( '' === $nonce ) {
-			$nonce = self::sanitize_input_string( $_REQUEST['_wpnonce'] ?? '' ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Read-only classification; sanitized in helper.
+			$nonce = isset( $_REQUEST['_wpnonce'] ) && is_string( $_REQUEST['_wpnonce'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['_wpnonce'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Read-only classification; sanitized in helper.
 		}
 
 		return '' !== $nonce
@@ -1521,7 +1521,7 @@ class Gate {
 			$request_method = '';
 
 		if ( 'admin' === $surface || 'ajax' === $surface ) {
-			$request_action = self::sanitize_input_string( $_REQUEST['action'] ?? '' ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Gate routing only; sanitized in helper.
+			$request_action = isset( $_REQUEST['action'] ) && is_string( $_REQUEST['action'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['action'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Gate routing only; sanitized in helper.
 		}
 
 		// WordPress core's multisite sites.php uses a two-step confirmation
@@ -1530,7 +1530,7 @@ class Gate {
 		// is in action2, so we extract it as a fallback for matching.
 		$request_action2 = '';
 		if ( 'admin' === $surface && 'confirm' === $request_action ) {
-			$request_action2 = self::sanitize_input_string( $_REQUEST['action2'] ?? '' ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Gate routing only; sanitized in helper.
+			$request_action2 = isset( $_REQUEST['action2'] ) && is_string( $_REQUEST['action2'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['action2'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Gate routing only; sanitized in helper.
 		}
 
 		if ( 'admin' === $surface ) {
@@ -2687,10 +2687,10 @@ class Gate {
 		// Pass through slug/plugin so wp.updates can locate the DOM element.
 		// phpcs:disable WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Read-only; nonce checked by wp.updates before dispatch. Values sanitized in helper methods below.
 		if ( ! empty( $_POST['slug'] ) ) {
-			$data['slug'] = self::sanitize_input_key( $_POST['slug'] );
+			$data['slug'] = is_string( $_POST['slug'] ) ? sanitize_key( wp_unslash( $_POST['slug'] ) ) : '';
 		}
 		if ( ! empty( $_POST['plugin'] ) ) {
-			$data['plugin'] = self::sanitize_input_string( $_POST['plugin'] );
+			$data['plugin'] = is_string( $_POST['plugin'] ) ? sanitize_text_field( wp_unslash( $_POST['plugin'] ) ) : '';
 		}
 		// phpcs:enable WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 
@@ -3026,19 +3026,6 @@ class Gate {
 		return sanitize_text_field( wp_unslash( $value ) );
 	}
 
-	/**
-	 * Sanitize a request value as a slug/key.
-	 *
-	 * @param mixed $value Raw request value.
-	 * @return string
-	 */
-	private static function sanitize_input_key( mixed $value ): string {
-		if ( ! is_string( $value ) ) {
-			return '';
-		}
-
-		return sanitize_key( wp_unslash( $value ) );
-	}
 
 	/**
 	 * Build the current admin URL from the incoming request host and URI.

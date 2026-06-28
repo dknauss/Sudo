@@ -201,7 +201,7 @@ class Plugin {
 		}
 
 		// Don't load on the challenge page — it has its own JS.
-		$page = self::sanitize_input_string( $_GET['page'] ?? '' ); // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Routing check only; sanitized in helper.
+		$page = isset( $_GET['page'] ) && is_string( $_GET['page'] ) ? sanitize_text_field( wp_unslash( $_GET['page'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Routing check only; sanitized in helper.
 		if ( 'wp-sudo-challenge' === $page ) {
 			return;
 		}
@@ -557,19 +557,6 @@ class Plugin {
 		return $this->gate;
 	}
 
-	/**
-	 * Sanitize a request value as a string.
-	 *
-	 * @param mixed $value Raw request value.
-	 * @return string
-	 */
-	private static function sanitize_input_string( mixed $value ): string {
-		if ( ! is_string( $value ) ) {
-			return '';
-		}
-
-		return sanitize_text_field( wp_unslash( $value ) );
-	}
 
 	/**
 	 * Build the current admin page URL from the request URI.

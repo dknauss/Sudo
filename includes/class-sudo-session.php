@@ -824,7 +824,7 @@ class Sudo_Session {
 		}
 
 		// phpcs:ignore WordPressVIPMinimum.Variables.ServerVariables.UserControlledHeaders,WordPressVIPMinimum.Variables.RestrictedVariables.cache_constraints___SERVER__REMOTE_ADDR__,WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
-		$remote_addr = $_SERVER['REMOTE_ADDR'];
+		$remote_addr = wp_unslash( $_SERVER['REMOTE_ADDR'] );
 		$ip          = is_string( $remote_addr ) ? trim( $remote_addr ) : '';
 
 		if ( '' === $ip || ! filter_var( $ip, FILTER_VALIDATE_IP ) ) {

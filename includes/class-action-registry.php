@@ -306,7 +306,7 @@ class Action_Registry {
 					'method'   => 'ANY',
 					'callback' => function (): bool {
 						// phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Gate routing only; sanitized in helper.
-						$action = self::sanitize_request_string( $_REQUEST['action'] ?? '' );
+						$action = isset( $_REQUEST['action'] ) && is_string( $_REQUEST['action'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['action'] ) ) : '';
 						if ( 'promote' === $action ) {
 							return true;
 						}
@@ -359,9 +359,9 @@ class Action_Registry {
 						// profile.php and user-edit.php both use action=update for ALL profile
 						// changes (bio, email, role, etc.) so the callback narrows to password changes.
 						// phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Gate routing: checking presence only, value not used as data.
-						$pass1 = isset( $_POST['pass1'] ) ? $_POST['pass1'] : '';
+						$pass1 = isset( $_POST['pass1'] ) ? wp_unslash( $_POST['pass1'] ) : '';
 						// phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
-						$pass2 = isset( $_POST['pass2'] ) ? $_POST['pass2'] : '';
+						$pass2 = isset( $_POST['pass2'] ) ? wp_unslash( $_POST['pass2'] ) : '';
 						return '' !== $pass1 || '' !== $pass2;
 					},
 				),
@@ -518,7 +518,7 @@ class Action_Registry {
 						'method'   => 'POST',
 						'callback' => function (): bool {
 							// phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce verified by WordPress before this callback runs; sanitized in helper.
-							$option_page = self::sanitize_request_string( $_POST['option_page'] ?? '' );
+							$option_page = isset( $_POST['option_page'] ) && is_string( $_POST['option_page'] ) ? sanitize_text_field( wp_unslash( $_POST['option_page'] ) ) : '';
 							return 'wp-sudo-settings' === $option_page;
 						},
 					),
@@ -537,7 +537,7 @@ class Action_Registry {
 					'method'   => 'POST',
 					'callback' => function (): bool {
 						// phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce verified by WordPress before this callback runs; sanitized in helper.
-						$option_page = self::sanitize_request_string( $_POST['option_page'] ?? '' );
+						$option_page = isset( $_POST['option_page'] ) && is_string( $_POST['option_page'] ) ? sanitize_text_field( wp_unslash( $_POST['option_page'] ) ) : '';
 						return 'wp-sudo-access' === $option_page;
 					},
 				),
@@ -1015,21 +1015,6 @@ class Action_Registry {
 		return true;
 	}
 
-	/**
-	 * Sanitize a request value as a string.
-	 *
-	 * Request superglobals may contain arrays; return an empty string in that case.
-	 *
-	 * @param mixed $value Raw request value.
-	 * @return string
-	 */
-	private static function sanitize_request_string( mixed $value ): string {
-		if ( ! is_string( $value ) ) {
-			return '';
-		}
-
-		return sanitize_text_field( wp_unslash( $value ) );
-	}
 
 	/**
 	 * Check whether REST settings params contain connector API key fields.

@@ -2824,9 +2824,9 @@ class Admin {
 		}
 
 		// phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce verified above via check_ajax_referer; sanitized in helper.
-		$uuid = self::sanitize_input_string( $_POST['uuid'] ?? '' );
+		$uuid = isset( $_POST['uuid'] ) && is_string( $_POST['uuid'] ) ? sanitize_text_field( wp_unslash( $_POST['uuid'] ) ) : '';
 		// phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Nonce verified above via check_ajax_referer; sanitized in helper.
-		$policy = self::sanitize_input_string( $_POST['policy'] ?? '' );
+		$policy = isset( $_POST['policy'] ) && is_string( $_POST['policy'] ) ? sanitize_text_field( wp_unslash( $_POST['policy'] ) ) : '';
 
 		if ( empty( $uuid ) ) {
 			wp_send_json_error( array( 'message' => __( 'Invalid application password UUID.', 'wp-sudo' ) ) );
@@ -2919,19 +2919,5 @@ class Admin {
 		}
 
 		self::reset_cache();
-	}
-
-	/**
-	 * Sanitize a request value as a string.
-	 *
-	 * @param mixed $value Raw request value.
-	 * @return string
-	 */
-	private static function sanitize_input_string( mixed $value ): string {
-		if ( ! is_string( $value ) ) {
-			return '';
-		}
-
-		return sanitize_text_field( wp_unslash( $value ) );
 	}
 }
