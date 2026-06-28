@@ -162,7 +162,7 @@ Note: Phases 13, 14, and 15 all depend on Phase 12 completing. Phases 13 and 14 
 | 11. Connectors Registry-Aware Matcher | 1/1 | Complete    | 2026-06-16 | - |
 | 12. Breaking Changes and Floor Bump | 3/3 | Complete    | 2026-06-16 | - |
 | 13. Migration Safety and Governance Audit | 3/3 | Complete    | 2026-06-20 | - |
-| 13.1. Access-tab UX polish and CI test-speed | 3/3 | Complete   | 2026-06-28 | - |
+| 13.1. Access-tab UX polish and CI test-speed | 3/3 | Complete    | 2026-06-28 | - |
 | 14. WordPress.org Readiness | v4.0.0 | 0/TBD | Not started | - |
 | 15. Manual Testing Environment Checklist | v4.0.0 | 0/TBD | Not started | - |
 
