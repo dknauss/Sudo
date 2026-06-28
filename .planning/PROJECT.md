@@ -11,23 +11,23 @@ WP Sudo is a WordPress plugin that provides action-gated reauthentication. Dange
 
 Every destructive WordPress admin action requires proof that the person at the keyboard is still the authenticated user — not a hijacked session, XSS payload, or unattended browser.
 
-## Current Milestone: v4.0.0 — Pre-Public Hardening Baseline
 
-**Goal:** Ship the first major version as a *focused pre-public hardening baseline* (not a feature release): simplify governance, verify WP 7.0 Connectors, remove legacy compatibility paths, set final platform requirements, and prepare docs/assets for eventual WordPress.org publication.
+## Current Milestone: v4.3.0 — Post-.org Readiness Hardening
 
-**Tracks (→ phases):**
-- **CONN** — Connectors GA parity verification + registry-aware matcher (regex fallback retained); closes the Akismet `wordpress_api_key` gating bug
-- **BRK** — Remove `compatibility` governance mode (bundled deprecation notice + removal) and the `sudo_can()` alias; raise minimums (WordPress → 6.4, PHP → 8.2) and drop now-unconditional shims
-- **MIG** — Post-removal migration safety, capability audit, and lockout-safe first-run governance (no orphaned 3.0–3.4 state)
-- **ORG** — WordPress.org readiness: readme validator, assets/screenshots, brand/slug consistency, SECURITY.md/disclosure, doc-accuracy reconciliation, submission checklist
-- **ENV** — Managed-host + minimum-supported-WordPress manual testing checklist
+**Goal:** Keep Sudo submission-ready while closing small release-readiness gaps and preparing the next security-bridge work without starting a large product redesign.
 
-**Decisions locked at kickoff (2026-06-13):**
-- Minimum-requirement bumps: **raise both** — WordPress → 6.4, PHP → 8.2 (verified against EOL/shim analysis in `research/v4.0/`).
-- Compatibility-mode removal: **bundled into 4.0.0** (deprecation notice + removal in one release; no interim 3.5.0), defensible because the plugin is not yet published to WordPress.org.
-- Strategic framing (Codex review): pre-public hardening baseline — clean foundation before larger product features (Gutenberg UX, full Activity screen, network-admin tools, session table) which stay deferred but visible.
+**Target features / tracks:**
+- **L10N** — Localization and translation packaging readiness: POT generation, translator comments, JS/CLI string coverage, and an i18n check.
+- **REL** — Release-only environment assurance: execute/record the manual matrix for the current package, including managed host/minimum-floor checks and `.org` checklist readiness.
+- **CI** — E2E runtime review: measure explicit GitHub Actions group runtime after the latest release and tune only if the data shows a real long pole.
+- **2FA** — 2FA bridge planning: scope the upstream WordPress/two-factor lifecycle bridge and keep Patchstack Security as a second-tier compatibility/manual-test target.
 
-**Source of truth:** `../docs/ROADMAP.md` "Next major (v4.0.0): planned breaking changes" + `.planning/connectors-matcher-strategy.md`. Requirements: `.planning/REQUIREMENTS.md`. Research: `.planning/research/v4.0/`.
+**Decisions locked at kickoff (2026-06-28):**
+- WordPress.org submission remains intentionally delayed/on hold, but the repository should remain ready to submit at any time.
+- Prefer small, low-risk hardening and planning phases before larger product work.
+- Do not implement Gutenberg editor reauthentication or a full Sudo Activity screen in this milestone; those remain future major-feature tracks.
+
+**Source of truth:** `../docs/ROADMAP.md`, `../docs/release-status.md`, and `.planning/REQUIREMENTS.md` for this milestone.
 
 ## Requirements
 
@@ -57,18 +57,15 @@ Every destructive WordPress admin action requires proof that the person at the k
 - Editor unfiltered_html restriction + tamper detection — v2.0+
 - Comprehensive automated test coverage (current counts in `../docs/current-metrics.md`)
 
+
 ### Active
 
-<!-- Current scope (v4.0.0 milestone). Building toward these. -->
+<!-- Current scope (v4.3.0 milestone). -->
 
-- [ ] Connectors GA parity verification + registry-aware matcher (regex fallback) — v4.0.0
-- [ ] Remove `compatibility` governance mode (deprecation notice + branch/option removal) — v4.0.0
-- [ ] Remove deprecated `sudo_can()` alias — v4.0.0
-- [ ] Raise minimum requirements (WordPress + PHP floor bump, shim cleanup) — v4.0.0
-- [ ] Refresh README/readme/.org screenshots for the current UI — v4.0.0
-- [ ] Managed-host + minimum-WP manual testing checklist — v4.0.0
-- [x] Playwright E2E test infrastructure and CI coverage — v2.14+
-- [x] WordPress 7.0 package compatibility metadata — v3.3.0+
+- [ ] Localization and translation packaging readiness — v4.3.0
+- [ ] Release-only environment assurance and WordPress.org checklist readiness — v4.3.0
+- [ ] E2E explicit-group runtime review and targeted tuning decision — v4.3.0
+- [ ] 2FA bridge planning for upstream Two Factor lifecycle operations and Patchstack compatibility — v4.3.0
 
 ### Out of Scope
 
@@ -121,4 +118,4 @@ Recommended next multisite browser sequence:
 | Local multisite browser verification stays outside hosted CI | GitHub-hosted `wp-env` is single-site; the multisite network-admin failure only surfaced on a symlinked Local install | Adopted — keep hosted CI single-site, add Local multisite regression + helper script + bootstrap hardening |
 
 ---
-*Last updated: 2026-06-13 — v4.0.0 milestone started (major release & breaking changes); historical v2.14 Playwright context retained where still useful.*
+*Last updated: 2026-06-28 — v4.3.0 milestone started (post-.org readiness hardening); historical v4.0/v2.14 context retained where still useful.*

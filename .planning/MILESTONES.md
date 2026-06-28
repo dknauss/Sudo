@@ -1,5 +1,31 @@
 # Milestones
 
+
+## v4.0.0 — Pre-Public Hardening Baseline (Archived)
+
+**Shipped:** v4.0.0–v4.2.2
+**Phases:** 6 (numbered 11–15, including inserted 13.1)
+**Last phase number:** 15
+
+### Phases
+
+| # | Phase | Version / Status |
+|---|-------|------------------|
+| 11 | Connectors Registry-Aware Matcher | v4.0.0 |
+| 12 | Breaking Changes and Floor Bump | v4.0.0 |
+| 13 | Migration Safety and Governance Audit | v4.0.0–v4.1.0 |
+| 13.1 | Access-tab UX Polish and CI Test-Speed | v4.2.2 |
+| 14 | WordPress.org Readiness | v4.2.x |
+| 15 | Manual Testing Environment Checklist | v4.2.x |
+
+### Key Outcomes
+
+- Registry-aware Connectors matcher with regex fallback.
+- Removed legacy compatibility governance paths and raised floors to WordPress 6.4 / PHP 8.2.
+- Hardened migration, recovery, and governance-capability behavior.
+- Refreshed Access-tab UX, screenshots, release metadata, and WordPress.org readiness docs.
+- Established manual environment matrix and kept WordPress.org submission delayed/on hold but ready.
+
 ## v2.13 — Security Hardening Sprint (Archived)
 
 **Shipped:** v2.10.2–v2.13.0

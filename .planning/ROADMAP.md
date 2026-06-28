@@ -1,10 +1,100 @@
 # GSD Roadmap Context
 
-> **Current routing note (2026-06-28):** Milestone v4.0.0 (Pre-Public Hardening Baseline) is complete and released. Phases 11-15 are retained below as the execution record. Canonical roadmap truth is `../docs/ROADMAP.md`; current release/package truth is `../docs/release-status.md`. WordPress.org submission is intentionally delayed, but the repo should remain submission-ready at any time.
+> **Current routing note (2026-06-28):** Milestone v4.3.0 (Post-.org Readiness Hardening) is active/planned. Milestone v4.0.0 phases 11-15 are retained below as the execution record. Canonical product roadmap truth is `../docs/ROADMAP.md`; current release/package truth is `../docs/release-status.md`. WordPress.org submission is intentionally delayed, but the repo should remain submission-ready at any time.
 
 ---
 
-# Active Roadmap: Milestone v4.0.0 â Pre-Public Hardening Baseline
+
+# Active Roadmap: Milestone v4.3.0 — Post-.org Readiness Hardening
+
+**Milestone:** v4.3.0
+**Status:** Planned — ready for phase discussion/planning
+**Previous milestone last phase:** 15 (Manual Testing Environment Checklist, v4.2.x)
+**Phase numbering continues from:** 16
+
+**Strategic framing:** v4.3.0 keeps Sudo submission-ready after the v4.2.2 release while closing small packaging/readiness gaps and preparing the next 2FA bridge work. It is intentionally not the Gutenberg UX milestone and not a WordPress.org upload/submission milestone.
+
+## Phases
+
+- [ ] **Phase 16: Localization and Translation Packaging Readiness** — POT generation, translator comments, JS/CLI strings, and an i18n check.
+- [ ] **Phase 17: Release-only Environment Assurance** — run/record the manual environment matrix and clarify tag-vs-.org checks.
+- [ ] **Phase 18: E2E Runtime Review and Tuning Decision** — review explicit group runtimes and either scope a targeted tuning action or document no-change.
+- [ ] **Phase 19: 2FA Bridge Planning and Compatibility Matrix** — convert upstream Two Factor lifecycle bridge scope into an implementation plan and keep Patchstack as a second-tier compatibility target.
+
+## Phase Details
+
+### Phase 16: Localization and Translation Packaging Readiness
+
+**Goal:** Release packaging has an explicit, repeatable localization check so public distribution does not ship stale translation sources or ambiguous strings.
+
+**Depends on:** Nothing.
+
+**Requirements:** L10N-01, L10N-02, L10N-03
+
+**Success Criteria:**
+1. A documented command regenerates/checks translation source coverage for PHP, JS, and CLI-facing strings.
+2. Ambiguous Sudo-specific strings have translator comments where needed.
+3. The check fits the existing dev-tooling stance and adds no production dependency.
+
+**Plans:** Pending — start with `$gsd-discuss-phase 16`.
+
+### Phase 17: Release-only Environment Assurance
+
+**Goal:** The release/manual environment matrix can be executed and recorded for the current package without implying WordPress.org submission is happening now.
+
+**Depends on:** Phase 16 optional; can run independently.
+
+**Requirements:** REL-01, REL-02, REL-03
+
+**Success Criteria:**
+1. The manual environment matrix has a recorded current-package run or an explicit deferral note with owner/timing.
+2. `docs/wporg-submission-checklist.md` remains ready but clearly delayed/on hold.
+3. Release docs distinguish pre-tag checks from `.org` upload/submission checks.
+
+**Plans:** Pending — start with `$gsd-discuss-phase 17`.
+
+### Phase 18: E2E Runtime Review and Tuning Decision
+
+**Goal:** CI tuning decisions are based on measured E2E group runtimes, not assumed slowness.
+
+**Depends on:** Recent GitHub Actions run data after v4.2.2.
+
+**Requirements:** CI-01, CI-02, CI-03
+
+**Success Criteria:**
+1. Recent explicit E2E group runtimes are collected and recorded.
+2. If there is a material long pole, exactly one low-risk tuning action is proposed.
+3. If there is no material long pole, the no-change decision is documented to avoid unnecessary CI complexity.
+
+**Plans:** Pending — start with `$gsd-discuss-phase 18`.
+
+### Phase 19: 2FA Bridge Planning and Compatibility Matrix
+
+**Goal:** The next 2FA security-bridge work is implementation-ready without overcommitting to unvalidated third-party bridge code.
+
+**Depends on:** Nothing, but benefits from the Patchstack compatibility todo and `docs/two-factor-ecosystem.md`.
+
+**Requirements:** 2FA-01, 2FA-02, 2FA-03
+
+**Success Criteria:**
+1. The upstream WordPress/two-factor lifecycle bridge has an implementation-ready plan for recovery codes, TOTP setup/delete, and profile provider changes.
+2. Patchstack Security is represented in the compatibility matrix as a second-tier/manual-test target with paid-fixture caveat.
+3. The plan distinguishes bridge code that should ship from documentation/manual-compatibility targets.
+
+**Plans:** Pending — start with `$gsd-discuss-phase 19`.
+
+## Progress
+
+| Phase | Milestone | Plans Complete | Status | Completed |
+|-------|-----------|----------------|--------|-----------|
+| 16. Localization and Translation Packaging Readiness | v4.3.0 | 0/? | Not started | - |
+| 17. Release-only Environment Assurance | v4.3.0 | 0/? | Not started | - |
+| 18. E2E Runtime Review and Tuning Decision | v4.3.0 | 0/? | Not started | - |
+| 19. 2FA Bridge Planning and Compatibility Matrix | v4.3.0 | 0/? | Not started | - |
+
+---
+
+# Historical Roadmap: Milestone v4.0.0 — Pre-Public Hardening Baseline
 
 **Milestone:** v4.0.0
 **Status:** Complete — released; WordPress.org submission is intentionally delayed, but readiness should be maintained

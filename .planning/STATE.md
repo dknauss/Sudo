@@ -1,25 +1,25 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.0
-milestone_name: milestone
-status: complete
-last_updated: "2026-06-28T17:00:00Z"
-last_activity: "2026-06-28 — Refreshed stale planning docs after 4.2.2 release-state drift; WordPress.org submission delayed but readiness maintained."
+milestone: v4.3.0
+milestone_name: Post-.org Readiness Hardening
+status: planned
+last_updated: "2026-06-28T19:10:00Z"
+last_activity: "2026-06-28 — Started v4.3.0 post-.org readiness hardening milestone after v4.2.2 release; Patchstack 2FA compatibility captured as todo and roadmap target."
 progress:
-  total_phases: 9
-  completed_phases: 9
-  total_plans: 23
-  completed_plans: 23
+  total_phases: 4
+  completed_phases: 0
+  total_plans: 0
+  completed_plans: 0
 ---
 
 ## Current Position
 
-Phase: v4.0.0 milestone — **RELEASED**. No active phase; WordPress.org submission is intentionally delayed/on hold, but the repo should remain submission-ready at any time.
-Branch: main — clean tree before this docs refresh; version-synced at 4.2.2. Zero open PRs expected.
-Done & merged to main: Phase 11 (Connectors matcher, #86), Phase 12 (breaking changes/floor bump, #86), Phase 13 (migration safety, #86/#89), Phase 13.1 (Access-tab UX + CI speed, #88/#95), Phase 14 (WordPress.org Readiness, ORG-01…07, #99), Phase 15 (ENV-01…03). Plus external #96/#97/#98 and #100 (readme.md rebrand to "Sudo" + full 9-shot gallery).
-Open threads: **4.2.2 RELEASED 2026-06-28** — latest canonical release state is `docs/release-status.md`: tag `v4.2.2`, runtime/readme stable tag synced at 4.2.2, and the plugin is **not yet on WordPress.org**. Submission-readiness checklist remains `docs/wporg-submission-checklist.md`: keep slug decision (`wp-sudo`), readme validator + Plugin Check, manual env-matrix + Connectors checks, and SVN trunk/tags upload procedure ready for when publication is approved.
-Resume file: Completed 13.1-03-PLAN.md
-Last activity: 2026-06-28 — Planning docs refreshed to show v4.0.0 milestone complete, latest release 4.2.2, and WordPress.org submission delayed/on hold while readiness is maintained.
+Phase: v4.3.0 milestone — **PLANNED**. Start with `$gsd-discuss-phase 16` for localization/translation packaging readiness, or jump to Phase 19 if 2FA bridge planning is the priority.
+Branch: main — post-v4.2.2 docs/todo/milestone planning work. Latest tagged release remains `v4.2.2`; the Patchstack docs commit and this milestone planning are post-release drift.
+Done & merged to main: v4.0.0 milestone phases 11-15 complete; v4.2.2 tagged/pushed; Patchstack 2FA compatibility documented and captured as a GSD todo.
+Open threads: WordPress.org submission remains intentionally delayed/on hold; keep `docs/wporg-submission-checklist.md` ready. New v4.3.0 work focuses on L10N, release-only environment assurance, E2E runtime review, and 2FA bridge planning.
+Resume file: —
+Last activity: 2026-06-28 — v4.3.0 milestone initialized with phases 16-19.
 
 ## Project Reference
 
@@ -31,25 +31,23 @@ Canonical current facts:
 - `CHANGELOG.md` — shipped release contents.
 
 **Core value:** Every destructive admin action requires proof the person at the keyboard is still the authenticated user.
-**Current focus:** Latest tagged release is **4.2.2** (see `docs/release-status.md`). The v4.0.0 milestone phases are complete and merged. WordPress.org submission (`docs/wporg-submission-checklist.md`) is delayed/on hold, but readiness should be maintained.
+**Current focus:** v4.3.0 post-.org readiness hardening is planned. Latest tagged release is **4.2.2** (see `docs/release-status.md`). WordPress.org submission (`docs/wporg-submission-checklist.md`) is delayed/on hold, but readiness should be maintained.
 
-## Active Priorities (v4.0.0 milestone)
+## Active Priorities (v4.3.0 milestone)
 
 Phase execution order:
-1. ✅ **Phase 11 — Connectors Registry-Aware Matcher** (CONN-01 through CONN-06): merged to main (#86).
-2. ✅ **Phase 12 — Breaking Changes and Floor Bump** (BRK-01 through BRK-07): merged to main (#86).
-3. ✅ **Phase 13 — Migration Safety and Governance Audit** (MIG-01 through MIG-07): merged to main (#86/#89).
-3a. ✅ **Phase 13.1 — Access-tab UX polish + CI test-speed**: merged to main (#88/#95).
-4. ✅ **Phase 14 — WordPress.org Readiness** (ORG-01 through ORG-07): merged to main (#99). Listing name "Sudo – Admin Action Gating", SECURITY.md + submission checklist, brand strings, 9 listing screenshots.
-5. ✅ **Phase 15 — Manual Testing Environment Checklist** (ENV-01 through ENV-03): complete — env matrix via #98; ENV-03 Connectors-credential manual check added.
+1. ⬜ **Phase 16 — Localization and Translation Packaging Readiness** (L10N-01 through L10N-03): not started.
+2. ⬜ **Phase 17 — Release-only Environment Assurance** (REL-01 through REL-03): not started.
+3. ⬜ **Phase 18 — E2E Runtime Review and Tuning Decision** (CI-01 through CI-03): not started.
+4. ⬜ **Phase 19 — 2FA Bridge Planning and Compatibility Matrix** (2FA-01 through 2FA-03): not started; includes upstream Two Factor lifecycle bridge planning and Patchstack as a second-tier/manual-test target.
 
 **Latest release: 4.2.2 (2026-06-28)** — `docs/release-status.md` is canonical for release/package metadata. WordPress.org submission is delayed/on hold; keep `docs/wporg-submission-checklist.md` ready to execute at any time.
 
 ## Performance Metrics
 
-- v1 requirements this milestone: 30
-- Phases: 5 (phases 11-15)
-- Requirements mapped: 30/30
+- v1 requirements this milestone: 12
+- Phases: 4 (phases 16-19)
+- Requirements mapped: 12/12
 - Phase 13.1 Plan 01: 8 min, 3 tasks, 4 files (completed 2026-06-28)
 - Phase 13.1 Plan 02: 4 min, 3 tasks, 2 files (completed 2026-06-28)
 
