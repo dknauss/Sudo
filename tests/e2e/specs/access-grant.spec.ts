@@ -56,7 +56,7 @@ test.describe( 'Access tab — grant capability', () => {
 		// tab and authorize grants — guarantee it regardless of activation state.
 		fixtureCli( 'user add-cap 1 manage_wp_sudo --quiet' );
 
-		// Dedicated editor target (idempotent — reuse if a previous run left it).
+		// Dedicated administrator target (idempotent — reuse if a previous run left it).
 		const existing = fixtureCli(
 			`user get e2e_grant_target --field=ID 2>/dev/null || echo ''`
 		);
@@ -65,7 +65,7 @@ test.describe( 'Access tab — grant capability', () => {
 			: parseInt(
 					fixtureCli(
 						'user create e2e_grant_target e2e_grant@example.com ' +
-							'--role=editor --user_pass=password --porcelain'
+							'--role=administrator --user_pass=password --porcelain'
 					),
 					10
 			  );
@@ -92,7 +92,7 @@ test.describe( 'Access tab — grant capability', () => {
 		expect( cookies.some( ( c ) => c.name.startsWith( 'wp_sudo' ) ) ).toBe( false );
 
 		await visitAdminPage( 'options-general.php', ACCESS_QUERY );
-		await page.fill( '#wp-sudo-grant-user', String( targetId ) );
+		await page.selectOption( '#wp-sudo-grant-user', String( targetId ) );
 		await page.selectOption( '#wp-sudo-grant-cap', 'manage_wp_sudo' );
 		await page.click( '#wp-sudo-grant-submit' );
 
@@ -112,7 +112,7 @@ test.describe( 'Access tab — grant capability', () => {
 		await activateSudoSession( page );
 
 		await visitAdminPage( 'options-general.php', ACCESS_QUERY );
-		await page.fill( '#wp-sudo-grant-user', String( targetId ) );
+		await page.selectOption( '#wp-sudo-grant-user', String( targetId ) );
 		await page.selectOption( '#wp-sudo-grant-cap', 'manage_wp_sudo' );
 		await page.click( '#wp-sudo-grant-submit' );
 
