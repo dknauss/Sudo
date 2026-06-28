@@ -41,7 +41,7 @@ the count in prose without a verification command.
 | Audit hooks | 19 | `python3 - <<'PY'\nimport pathlib, re\nhooks = set()\nfor path in pathlib.Path('includes').glob('class-*.php'):\n    hooks.update(re.findall(r\"do_action\\(\\s*'([^']+)'\", path.read_text()))\nhooks.discard('wp_sudo_render_two_factor_fields')\nprint(len(hooks))\nPY` | v4.1.0 (wp_sudo_escalation_blocked) |
 | Settings fields (base) | 6 | 1 numeric (duration) + 1 preset chooser + 4 policy dropdowns (REST, CLI, Cron, XML-RPC) | v3.0.0 |
 | Settings fields (with WPGraphQL) | 7 | +1 conditional WPGraphQL policy dropdown | v3.0.0 |
-| E2E tests | 63 | `npx playwright test --config tests/e2e/playwright.config.ts --list` | v4.0.0 |
+| E2E tests | 64 | `npx playwright test --config tests/e2e/playwright.config.ts --list` (verified 2026-06-28) | v4.0.0 |
 
 ### Files that reference these counts
 
@@ -70,6 +70,7 @@ Source: `.github/workflows/phpunit.yml`, `.github/workflows/e2e.yml`, `.github/w
 - `composer lint` passed on 2026-06-27.
 - Static analysis passed on 2026-06-27 (PHPStan L6 `[OK] No errors`; Psalm `No errors found!`, 95.9802% type coverage, baseline current).
 - `composer verify:metrics` passed on 2026-06-27 (after this update).
+- `npx playwright test --config tests/e2e/playwright.config.ts --list` reported `64 tests in 15 files` on 2026-06-28 after `access-grant.spec.ts` was wired into the E2E CI groups.
 - Plugin Check CI passed on 2026-06-14 against a clean production dist; warning triage remains a follow-up.
 - `composer test:integration` passed locally on 2026-06-27: single-site `213 tests`, `728 assertions`, `14 skipped`, `0 failures`; multisite (`WP_MULTISITE=1 composer test:integration`) `213 tests`, `725 assertions`, `8 skipped`, `0 failures`.
 
