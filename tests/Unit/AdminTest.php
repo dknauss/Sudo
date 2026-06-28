@@ -3028,16 +3028,26 @@ class AdminTest extends TestCase {
 		$output = ob_get_clean();
 
 		$this->assertStringContainsString( 'Access Control', $output );
-		$this->assertStringContainsString( '<select id="wp-sudo-grant-user"', $output );
+		$this->assertStringContainsString( 'id="wp-sudo-grant-user-search"', $output );
+		$this->assertStringContainsString( 'type="search"', $output );
+		$this->assertStringContainsString( 'aria-controls="wp-sudo-grant-user"', $output );
+		$this->assertStringContainsString( 'Search administrators by name or username', $output );
+		$this->assertStringContainsString( 'Search filters the administrator list by name or username.', $output );
+		$this->assertStringContainsString( '<select id="wp-sudo-grant-user" data-searchable="true"', $output );
 		$this->assertStringContainsString( '<option value="0">', $output );
 		$this->assertStringContainsString( '— Select a user —', $output );
-		$this->assertStringContainsString( '<option value="7">Ada Admin (ada)</option>', $output );
+		$this->assertStringContainsString( '<option value="7" data-search-text="ada admin ada">Ada Admin (ada)</option>', $output );
 		$this->assertStringNotContainsString( 'type="number" id="wp-sudo-grant-user"', $output );
 		$this->assertStringContainsString( '<option value="manage_wp_sudo"', $output );
 		$this->assertStringContainsString( 'Manage Sudo settings and policies (manage_wp_sudo)', $output );
 		$this->assertStringContainsString( 'value="view_wp_sudo_activity"', $output );
 		$this->assertStringContainsString( 'value="export_wp_sudo_activity"', $output );
 		$this->assertStringContainsString( 'value="revoke_wp_sudo_sessions"', $output );
+
+		$grant_js = file_get_contents( dirname( __DIR__, 2 ) . '/admin/js/wp-sudo-admin.js' );
+		$this->assertIsString( $grant_js );
+		$this->assertStringContainsString( 'wp-sudo-grant-user-search', $grant_js );
+		$this->assertMatchesRegularExpression( '/user_id:\s*userId/', $grant_js );
 
 		unset( $_GET['tab'] );
 	}

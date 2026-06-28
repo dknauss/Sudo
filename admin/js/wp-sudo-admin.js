@@ -350,6 +350,38 @@
 			} );
 	}
 
+	// Progressive enhancement for the native grant-user select.
+	var grantUserSearch = document.getElementById( 'wp-sudo-grant-user-search' );
+	var grantUserSelect = document.getElementById( 'wp-sudo-grant-user' );
+	if ( grantUserSearch && grantUserSelect ) {
+		grantUserSearch.addEventListener( 'input', function () {
+			var query   = grantUserSearch.value.toLowerCase().trim();
+			var matches = [];
+
+			Array.prototype.forEach.call( grantUserSelect.options, function ( option ) {
+				if ( '0' === option.value ) {
+					option.hidden = false;
+					return;
+				}
+
+				var searchText = ( option.getAttribute( 'data-search-text' ) || option.textContent || '' ).toLowerCase();
+				var isMatch    = ! query || -1 !== searchText.indexOf( query );
+				option.hidden  = ! isMatch;
+
+				if ( query && isMatch ) {
+					matches.push( option );
+				}
+			} );
+
+			grantUserSelect.value = 1 === matches.length ? matches[ 0 ].value : '0';
+		} );
+
+		grantUserSelect.addEventListener( 'change', function () {
+			var selected = grantUserSelect.options[ grantUserSelect.selectedIndex ];
+			grantUserSearch.value = selected && '0' !== selected.value ? selected.textContent : '';
+		} );
+	}
+
 	// Main "Grant Capability" form.
 	var grantBtn    = document.getElementById( 'wp-sudo-grant-submit' );
 	var grantResult = document.getElementById( 'wp-sudo-grant-result' );

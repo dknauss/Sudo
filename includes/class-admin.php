@@ -1439,10 +1439,13 @@ class Admin {
 					<label for="wp-sudo-grant-user"><?php esc_html_e( 'User', 'wp-sudo' ); ?></label>
 				</th>
 				<td>
-					<select id="wp-sudo-grant-user">
+					<input type="search" id="wp-sudo-grant-user-search" class="regular-text" autocomplete="off" aria-controls="wp-sudo-grant-user" placeholder="<?php esc_attr_e( 'Search administrators by name or username', 'wp-sudo' ); ?>" />
+					<p class="description"><?php esc_html_e( 'Search filters the administrator list by name or username.', 'wp-sudo' ); ?></p>
+					<select id="wp-sudo-grant-user" data-searchable="true">
 						<option value="0"><?php esc_html_e( '— Select a user —', 'wp-sudo' ); ?></option>
 						<?php foreach ( $grant_users as $grant_user ) : ?>
-							<option value="<?php echo (int) $grant_user->ID; ?>"><?php echo esc_html( $grant_user->display_name . ' (' . $grant_user->user_login . ')' ); ?></option>
+							<?php $search_text = strtolower( $grant_user->display_name . ' ' . $grant_user->user_login ); ?>
+							<option value="<?php echo (int) $grant_user->ID; ?>" data-search-text="<?php echo esc_attr( $search_text ); ?>"><?php echo esc_html( $grant_user->display_name . ' (' . $grant_user->user_login . ')' ); ?></option>
 						<?php endforeach; ?>
 					</select>
 				</td>
