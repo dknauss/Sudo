@@ -108,11 +108,12 @@ Plans:
 
 **Operational note (not a requirement):** Studio `wp-config.php` still has `WP_SUDO_RECOVERY_MODE` ON for testing (backup at `wp-config.php.wpsudo-bak`). Restore the backup once Access-tab UAT for this phase is complete. Local-env only; nothing to ship.
 
-**Plans**: 2/2 plans executed
+**Plans**: 3 plans (2 executed, 1 gap-closure planned)
 
 Plans:
 - [x] 13.1-01-PLAN.md — Access-tab user picker + plain-English capability labels (ACC-01, ACC-02, ACC-03)
 - [x] 13.1-02-PLAN.md — CI test-speed matrix/cache/shard updates (CIS-01, CIS-02, CIS-03)
+- [ ] 13.1-03-PLAN.md — Gap closure: explicit searchable Access picker + refreshed canonical metrics (ACC-01, CIS-01, CIS-02, CIS-03)
 
 ### Phase 14: WordPress.org Readiness
 
