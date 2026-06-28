@@ -2999,7 +2999,24 @@ class AdminTest extends TestCase {
 		Functions\when( 'esc_attr_e' )->alias( static function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
 		Functions\when( 'esc_attr' )->returnArg();
 		Functions\when( 'esc_url' )->returnArg();
-		Functions\when( 'get_users' )->justReturn( array() );
+
+		$grant_admin               = new \WP_User( 7, array( 'administrator' ) );
+		$grant_admin->display_name = 'Ada Admin';
+		$grant_admin->user_login   = 'ada';
+
+		Functions\when( 'get_users' )->alias( static function ( array $args = array() ) use ( $grant_admin ): array {
+			if ( array(
+				'role'    => 'administrator',
+				'orderby' => 'display_name',
+				'order'   => 'ASC',
+				'fields'  => 'all',
+				'number'  => -1,
+			) === $args ) {
+				return array( $grant_admin );
+			}
+
+			return array();
+		} );
 		Functions\when( 'wp_create_nonce' )->justReturn( 'test-nonce' );
 		Functions\when( 'admin_url' )->alias( static fn( $path = '' ) => 'https://example.com/wp-admin/' . ltrim( $path, '/' ) );
 		Functions\when( 'add_query_arg' )->alias( static function ( array $args, string $url ) { return $url . ( str_contains( $url, '?' ) ? '&' : '?' ) . http_build_query( $args ); } );
@@ -3011,6 +3028,16 @@ class AdminTest extends TestCase {
 		$output = ob_get_clean();
 
 		$this->assertStringContainsString( 'Access Control', $output );
+		$this->assertStringContainsString( '<select id="wp-sudo-grant-user"', $output );
+		$this->assertStringContainsString( '<option value="0">', $output );
+		$this->assertStringContainsString( '— Select a user —', $output );
+		$this->assertStringContainsString( '<option value="7">Ada Admin (ada)</option>', $output );
+		$this->assertStringNotContainsString( 'type="number" id="wp-sudo-grant-user"', $output );
+		$this->assertStringContainsString( '<option value="manage_wp_sudo"', $output );
+		$this->assertStringContainsString( 'Manage Sudo settings and policies (manage_wp_sudo)', $output );
+		$this->assertStringContainsString( 'value="view_wp_sudo_activity"', $output );
+		$this->assertStringContainsString( 'value="export_wp_sudo_activity"', $output );
+		$this->assertStringContainsString( 'value="revoke_wp_sudo_sessions"', $output );
 
 		unset( $_GET['tab'] );
 	}
