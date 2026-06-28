@@ -162,10 +162,17 @@ jobs:
       matrix:
         # Phase 13.1 CI-speed trim: keep all five single-site lanes, one
         # multisite representative (PHP 8.3 / WP 7.0), and the MariaDB lane.
-        # Dropped redundant multisite lanes: PHP 8.2 / WP 6.7, PHP 8.3 / WP
-        # 6.7, and PHP 8.2 / WP 7.0. Multisite-specific tests still run in
-        # the retained latest-combo multisite lane; broader single-site
-        # PHP/WP coverage remains in the five non-multisite lanes.
+        # Dropped redundant multisite lanes:
+        # - PHP 8.2 / WP 6.7 / MS true — multisite behavior is represented by
+        #   the retained latest-combo MS lane; PHP 8.2 and WP 6.7 remain covered
+        #   by single-site lanes.
+        # - PHP 8.3 / WP 6.7 / MS true — PHP 8.3 and WP 6.7 remain covered by
+        #   single-site lanes; multisite coverage remains in PHP 8.3 / WP 7.0.
+        # - PHP 8.2 / WP 7.0 / MS true — WP 7.0 remains covered by single-site
+        #   lanes; multisite coverage remains in PHP 8.3 / WP 7.0.
+        # Multisite-specific tests still run in the retained latest-combo
+        # multisite lane; broader single-site PHP/WP coverage remains in the
+        # five non-multisite lanes.
         include:
           - php: '8.2'
             wp: '6.4'
