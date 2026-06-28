@@ -55,9 +55,9 @@ Post-removal verification track. Confirms the governance simplification did not 
 
 Polishes the Access-tab grant UI shipped in PR #88 and reduces CI fan-out/setup cost (`task_671a7d54`). Presentation and tooling only — no change to server-side authorization, gating, or test assertions' intent.
 
-- [ ] **ACC-01**: The Grant Capability form replaces the numeric user-ID `<input type="number">` with a searchable user picker populated from real WordPress users, default-scoped to administrator-role users; wider eligibility is left as a documented open question. Client-side validation rejects empty/invalid selections; the server handler's `(int) $_POST['user_id']` path is unchanged.
-- [ ] **ACC-02**: The capability `<select>` presents plain-English labels (`docs/ROADMAP.md` mapping) with the raw slug demoted to secondary text/tooltip. Option `value` attributes stay the exact capability slugs so the AJAX contract and `GOVERNANCE_CAPS` validation are unaffected.
-- [ ] **ACC-03**: Server-side authorization (nonce + `wp_sudo_can` + `GOVERNANCE_CAPS`) is untouched (presentation-only change); the #88 E2E grant-flow regression spec is updated to the new markup and stays green; a11y (`wp.a11y.speak`, `<label>` associations) preserved.
+- [x] **ACC-01**: The Grant Capability form replaces the numeric user-ID `<input type="number">` with a searchable user picker populated from real WordPress users, default-scoped to administrator-role users; wider eligibility is left as a documented open question. Client-side validation rejects empty/invalid selections; the server handler's `(int) $_POST['user_id']` path is unchanged.
+- [x] **ACC-02**: The capability `<select>` presents plain-English labels (`docs/ROADMAP.md` mapping) with the raw slug demoted to secondary text/tooltip. Option `value` attributes stay the exact capability slugs so the AJAX contract and `GOVERNANCE_CAPS` validation are unaffected.
+- [x] **ACC-03**: Server-side authorization (nonce + `wp_sudo_can` + `GOVERNANCE_CAPS`) is untouched (presentation-only change); the #88 E2E grant-flow regression spec is updated to the new markup and stays green; a11y (`wp.a11y.speak`, `<label>` associations) preserved.
 - [ ] **CIS-01**: The PHPUnit integration matrix is trimmed from the current 10 lanes (5 MS=false + 4 MS=true + 1 MariaDB LTS, verified against `phpunit.yml`) to a documented representative subset (MS=false lanes retained, MS=true reduced to one representative combo, MariaDB LTS retained — ~7 lanes); dropped coverage is explicitly recorded.
 - [ ] **CIS-02**: The WordPress test library produced by `bin/install-wp-tests.sh` is cached across integration lanes so each lane skips the download/install on a cache hit.
 - [ ] **CIS-03**: The E2E Playwright shards are rebalanced (or re-sharded) to lower the critical-path shard time; the realized improvement and the fixed wp-env spin-up floor are noted.
@@ -144,9 +144,9 @@ Populated during roadmap creation (2026-06-13). Each requirement maps to exactly
 | MIG-05 | Phase 13 | Complete |
 | MIG-06 | Phase 13 | Complete |
 | MIG-07 | Phase 13 | Complete |
-| ACC-01 | Phase 13.1 | Pending |
-| ACC-02 | Phase 13.1 | Pending |
-| ACC-03 | Phase 13.1 | Pending |
+| ACC-01 | Phase 13.1 | Complete |
+| ACC-02 | Phase 13.1 | Complete |
+| ACC-03 | Phase 13.1 | Complete |
 | CIS-01 | Phase 13.1 | Pending |
 | CIS-02 | Phase 13.1 | Pending |
 | CIS-03 | Phase 13.1 | Pending |

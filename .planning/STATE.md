@@ -3,13 +3,13 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: milestone
 status: executing
-last_updated: "2026-06-21"
-last_activity: "2026-06-21 — Confirmed PR #86 merged to main (2026-06-20 01:42 UTC, commit a91672f); Phases 11/12/13/13.1 are all on main and main now reads version 4.0.0 (untagged). No open PRs. Phase 14 (WordPress.org Readiness) is the active in-flight phase on branch docs/wordpress-org-readiness. Housekeeping: pruned dead local branches gsd/phase-13-migration-safety-audit, gsd/plan-13.1-and-14, backup/main-before-sync-20260620-094426; refreshed this file and docs/release-status.md to clear the stale 'pending merge' / 'main reads 3.4.0' drift."
+last_updated: "2026-06-28T05:54:03.245Z"
+last_activity: "2026-06-28 — Executed GSD Phase 13.1 Plan 01: Access tab grant picker and plain-English capability labels implemented and verified; created summary/tracking, validated unit tests/PHPStan/lint/static E2E selector check, and marked ACC-01…03 complete. Plan 02 (CI speed) remains open."
 progress:
-  total_phases: 8
-  completed_phases: 6
-  total_plans: 16
-  completed_plans: 16
+  total_phases: 9
+  completed_phases: 7
+  total_plans: 22
+  completed_plans: 21
 ---
 
 ## Current Position
@@ -18,8 +18,8 @@ Phase: v4.0.0 milestone — **RELEASED**. No active phase; next gate is WordPres
 Branch: main @ c8e692e — clean tree, pushed, version-synced at 4.0.0. Zero open PRs.
 Done & merged to main: Phase 11 (Connectors matcher, #86), Phase 12 (breaking changes/floor bump, #86), Phase 13 (migration safety, #86/#89), Phase 13.1 (Access-tab UX + CI speed, #88/#95), Phase 14 (WordPress.org Readiness, ORG-01…07, #99), Phase 15 (ENV-01…03). Plus external #96/#97/#98 and #100 (readme.md rebrand to "Sudo" + full 9-shot gallery).
 Open threads: **v4.0.0 RELEASED 2026-06-21** — annotated tag `v4.0.0` (→ `a4c1e67`) pushed; GitHub Release published as Latest; CHANGELOG.md + readme.txt changelog complete (4.0.0 entry + 3.2–3.4 backfill); `docs/release-status.md` "Latest tagged release: 4.0.0". **NOT yet on WordPress.org.** Remaining = the .org submission (see `docs/wporg-submission-checklist.md`): lock slug to `wp-sudo`, run readme validator + Plugin Check on the build, complete the manual env-matrix + Connectors checks, then SVN trunk/tags upload.
-Resume file: None
-Last activity: 2026-06-21 — Tagged + released v4.0.0; backfilled changelogs (3.2–3.4); merged PR #100 (readme.md "Sudo" rebrand + 9-shot gallery). Plugin synced/active on the Dirtbag Studio site with seeded events; Two Factor installed (inactive).
+Resume file: Completed 13.1-01-PLAN.md
+Last activity: 2026-06-28 — Executed GSD Phase 13.1 Plan 01 (Access tab user picker + capability labels); summary created, ACC-01…03 marked complete, Plan 02 remains open.
 
 ## Project Reference
 
@@ -50,6 +50,7 @@ Phase execution order:
 - v1 requirements this milestone: 30
 - Phases: 5 (phases 11-15)
 - Requirements mapped: 30/30
+- Phase 13.1 Plan 01: 8 min, 3 tasks, 4 files (completed 2026-06-28)
 
 ## Accumulated Context
 
@@ -67,6 +68,12 @@ Phase execution order:
 
 - Phase 13.1 inserted after Phase 13 (2026-06-19): Access-tab UX polish (user picker + plain-English capability labels) + CI test-speed (matrix trim, WP-test-lib cache, E2E shard rebalance). GSD-routes the PR #88 follow-up (merged `6abd333`) and spawned task `task_671a7d54` into one reviewable cleanup phase ahead of Phase 14 (WordPress.org Readiness).
 - External contributions merged to main 2026-06-21 (Nathan / `nathanpixodeo`, all reviewed + approved): **#96** `fix: rename recovery dashboard label` Recovery→Break-glass (closes #68; locally validated 813 tests + lint + PHPStan/Psalm green as CI substitute), **#97** `docs: clarify break-glass recovery terminology` (advances the Core-Trac terminology-alignment roadmap item), **#98** `docs: add manual environment matrix` (**substantially delivers Phase 15 / ENV-01…03**). Admin-merged because fork CI can't be triggered for a first-time contributor without maintainer approval; #96 validated locally instead. These external PRs overlap planned GSD work — reconcile when closing Phase 14/15.
+
+## Key Decisions (Phase 13.1-01, 2026-06-28)
+
+- Access picker is convenience UI only; backend grant/revoke authorization contract remains unchanged.
+- Broader picker eligibility for custom roles or direct-cap users is deferred beyond Plan 01.
+- Capability option values remain exact slugs while operator-facing labels use a slug-keyed map.
 
 ## Key Decisions (Phase 13-03, 2026-06-17)
 
