@@ -589,7 +589,7 @@ Use this default order after the v3.4.0 release unless a real user need override
 - **Do next:** E2E explicit-group runtime monitoring, Plugin Check warning triage, and the next screenshot refresh when UI work changes public screens
 - **Small release-readiness hardening:** localization/translation packaging (POT generation, JS/CLI strings, translator comments, and an i18n check) before the next public packaging push
 - **Most important major feature track:** Gutenberg Block Editor reauthentication UX design, then implementation
-- **Plan next:** The Two Factor lifecycle bridge (gate recovery-code generation, TOTP setup/delete, and profile-form provider changes), the modest Sudo Activity screen MVP, audit-visibility warnings, multisite operator controls, and governance polish
+- **Plan next:** The Two Factor lifecycle bridge (gate recovery-code generation, TOTP setup/delete, and profile-form provider changes), Patchstack 2FA compatibility as a second-tier bridge/test target, the modest Sudo Activity screen MVP, audit-visibility warnings, multisite operator controls, and governance polish
 - **Do later if demand exists:** Network Policy Hierarchy for Multisite, Cross-Site Session Revocation, network-enforced Passed-event logging policy (super admins can require immutable Passed-event audit visibility across subsites), Security Administrator governance mode (dedicated `manage_wp_sudo` capability, settings/widget visibility scoped to that capability, optional strict-mode assignee workflow, and documented recovery path for misconfiguration)
 - **Keep as design backlog:** third-party bridge discovery mode, client-side modal challenge, per-session sudo isolation, REST sudo grant endpoint, SSO/SAML/OIDC framework
 
@@ -1159,6 +1159,38 @@ Implementation notes:
 *Impact:* High for session-compromise defense. This closes a concrete bridge gap
 where factor-management actions can create credentials used to pass later sudo
 2FA checks.
+
+**Patchstack 2FA compatibility target**
+
+Patchstack Security includes its own paid-feature TOTP flow rather than using the
+upstream `WordPress/two-factor` provider API. Verified against WordPress.org SVN
+trunk revision 3589135 on 2026-06-28: the login integration is enabled by the
+`patchstack_login_2fa` option, stores per-user state in `webarx_2fa_enabled`,
+`webarx_2fa_secretkey`, and `webarx_2fa_secretkey_nonce`, collects the login code
+from `patchstack_2fa`, and validates with `TokenAuth6238::verify()` in
+[`includes/login.php`](https://plugins.svn.wordpress.org/patchstack/trunk/includes/login.php).
+The constructor returns early for free-license mode (`patchstack_license_free`),
+so end-to-end compatibility testing probably needs a paid Patchstack-enabled
+environment.
+
+Recommended scope:
+
+- Track Patchstack as a **second-tier 2FA compatibility target**, behind the
+  upstream Two Factor lifecycle bridge.
+- Start with documentation/manual compatibility testing: confirm WP Sudo's
+  challenge can delegate to a Patchstack bridge for TOTP validation without
+  reading/storing the secret directly.
+- If demand justifies a bridge, detect enrollment via `webarx_2fa_enabled` and
+  validate through Patchstack's own TOTP verifier instead of duplicating secret
+  handling.
+- Treat Patchstack profile 2FA enable/disable as a factor-lifecycle action that
+  should be considered for gating in the same design pass as other 2FA lifecycle
+  bridges.
+
+*Impact:* Medium. This broadens compatibility coverage for a security-plugin
+audience, but is less urgent than the upstream Two Factor lifecycle bridge because
+it may require a paid testing fixture and does not appear to expose recovery-code
+creation in the free SVN code path.
 
 ### Open — Medium Effort
 
