@@ -94,6 +94,30 @@ class Admin {
 	);
 
 	/**
+	 * Human-readable labels for governance capabilities.
+	 *
+	 * Keys must remain the exact capability slugs used in GOVERNANCE_CAPS.
+	 *
+	 * @var array<string, string>
+	 */
+	private const CAP_LABELS = array(
+		'manage_wp_sudo'          => 'Manage Sudo settings and policies',
+		'view_wp_sudo_activity'   => 'View sudo activity and sessions',
+		'export_wp_sudo_activity' => 'Export sudo activity data',
+		'revoke_wp_sudo_sessions' => "Revoke other users' active sessions",
+	);
+
+	/**
+	 * Get the operator-facing label for a governance capability.
+	 *
+	 * @param string $cap Capability slug.
+	 * @return string Human-readable label, or the slug when no label exists.
+	 */
+	private static function get_cap_label( string $cap ): string {
+		return self::CAP_LABELS[ $cap ] ?? $cap;
+	}
+
+	/**
 	 * Nonce action for the Request / Rule Tester form.
 	 *
 	 * @var string
@@ -1002,7 +1026,7 @@ class Admin {
 				),
 				'access'              => array(
 					'success'        => __( 'Done.', 'wp-sudo' ),
-					'invalidUser'    => __( 'Enter a valid user ID.', 'wp-sudo' ),
+					'invalidUser'    => __( 'Select a user.', 'wp-sudo' ),
 					'sessionRevoked' => __( 'Session revoked', 'wp-sudo' ),
 				),
 			)
@@ -1347,8 +1371,17 @@ class Admin {
 	 * @return void
 	 */
 	public function render_access_tab(): void {
-		$holders = $this->get_sudo_cap_holders();
-		$nonce   = wp_create_nonce( 'wp_sudo_access' );
+		$holders     = $this->get_sudo_cap_holders();
+		$grant_users = get_users(
+			array(
+				'role'    => 'administrator',
+				'orderby' => 'display_name',
+				'order'   => 'ASC',
+				'fields'  => 'all',
+				'number'  => -1,
+			)
+		);
+		$nonce       = wp_create_nonce( 'wp_sudo_access' );
 		?>
 		<h2><?php esc_html_e( 'Access Control', 'wp-sudo' ); ?></h2>
 		<p class="description">
@@ -1398,16 +1431,20 @@ class Admin {
 
 		<h3><?php esc_html_e( 'Grant Capability', 'wp-sudo' ); ?></h3>
 		<p class="description">
-			<?php esc_html_e( 'Grant a Sudo capability to a WordPress user. Enter the user ID and select a capability.', 'wp-sudo' ); ?>
+			<?php esc_html_e( 'Grant a Sudo capability to an administrator. Select a user and capability.', 'wp-sudo' ); ?>
 		</p>
 		<table class="form-table" role="presentation">
 			<tr>
 				<th scope="row">
-					<label for="wp-sudo-grant-user"><?php esc_html_e( 'User ID', 'wp-sudo' ); ?></label>
+					<label for="wp-sudo-grant-user"><?php esc_html_e( 'User', 'wp-sudo' ); ?></label>
 				</th>
 				<td>
-					<input type="number" id="wp-sudo-grant-user" class="small-text" min="1" step="1"
-						placeholder="<?php esc_attr_e( 'User ID', 'wp-sudo' ); ?>">
+					<select id="wp-sudo-grant-user">
+						<option value="0"><?php esc_html_e( '— Select a user —', 'wp-sudo' ); ?></option>
+						<?php foreach ( $grant_users as $grant_user ) : ?>
+							<option value="<?php echo (int) $grant_user->ID; ?>"><?php echo esc_html( $grant_user->display_name . ' (' . $grant_user->user_login . ')' ); ?></option>
+						<?php endforeach; ?>
+					</select>
 				</td>
 			</tr>
 			<tr>
@@ -1417,7 +1454,9 @@ class Admin {
 				<td>
 					<select id="wp-sudo-grant-cap">
 						<?php foreach ( self::GOVERNANCE_CAPS as $cap ) : ?>
-							<option value="<?php echo esc_attr( $cap ); ?>"><?php echo esc_html( $cap ); ?></option>
+							<option value="<?php echo esc_attr( $cap ); ?>" title="<?php echo esc_attr( $cap ); ?>">
+								<?php echo esc_html( self::get_cap_label( $cap ) . ' (' . $cap . ')' ); ?>
+							</option>
 						<?php endforeach; ?>
 					</select>
 				</td>
