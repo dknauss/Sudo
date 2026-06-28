@@ -60,7 +60,7 @@ value across these known consumers:
 Source: `.github/workflows/phpunit.yml`, `.github/workflows/e2e.yml`, `.github/workflows/e2e-nginx.yml`, `.github/workflows/e2e-sqlite.yml`, `.github/workflows/compat-wordpress-minors.yml`
 
 - Unit test matrix: PHP 8.2, 8.3, 8.4
-- Integration matrix: 7 lanes — PHP 8.2/8.3 across WordPress 6.4, 6.7, and 7.0; five single-site MySQL 8.0 lanes, one multisite MySQL 8.0 representative lane (PHP 8.3 / WP 7.0), and one MariaDB LTS lane
+- Integration matrix: trimmed from 10 to 7 lanes — PHP 8.2/8.3 across WordPress 6.4, 6.7, and 7.0; five single-site MySQL 8.0 lanes, one multisite MySQL 8.0 representative lane (PHP 8.3 / WP 7.0), and one MariaDB LTS lane
 - Scheduled compat sweep: PHP 8.2 on WordPress 6.4, 6.5, and 6.6, plus MariaDB LTS overlap lanes on WordPress 6.4 and 6.5
 - Browser stack smoke workflows: Apache + MariaDB (`wp-env`), nginx + php-fpm + MariaDB, and Playground SQLite
 
