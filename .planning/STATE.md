@@ -4,7 +4,7 @@ milestone: v4.0
 milestone_name: milestone
 status: executing
 last_updated: "2026-06-28T06:00:48.763Z"
-last_activity: "2026-06-28 — Executed GSD Phase 13.1 Plan 02: CI-speed matrix/cache/shard requirements verified, missing dropped-lane documentation and E2E count corrected, summary/tracking updated, and CIS-01…03 marked complete."
+last_activity: "2026-06-28 — Executed GSD Phase 13.1 Plan 03: searchable Access picker gap closed, canonical metrics verified, screenshot-6 refreshed/visually verified, and ACC/CIS gaps marked complete."
 progress:
   total_phases: 9
   completed_phases: 8
@@ -18,8 +18,8 @@ Phase: v4.0.0 milestone — **RELEASED**. No active phase; next gate is WordPres
 Branch: main @ c8e692e — clean tree, pushed, version-synced at 4.0.0. Zero open PRs.
 Done & merged to main: Phase 11 (Connectors matcher, #86), Phase 12 (breaking changes/floor bump, #86), Phase 13 (migration safety, #86/#89), Phase 13.1 (Access-tab UX + CI speed, #88/#95), Phase 14 (WordPress.org Readiness, ORG-01…07, #99), Phase 15 (ENV-01…03). Plus external #96/#97/#98 and #100 (readme.md rebrand to "Sudo" + full 9-shot gallery).
 Open threads: **v4.0.0 RELEASED 2026-06-21** — annotated tag `v4.0.0` (→ `a4c1e67`) pushed; GitHub Release published as Latest; CHANGELOG.md + readme.txt changelog complete (4.0.0 entry + 3.2–3.4 backfill); `docs/release-status.md` "Latest tagged release: 4.0.0". **NOT yet on WordPress.org.** Remaining = the .org submission (see `docs/wporg-submission-checklist.md`): lock slug to `wp-sudo`, run readme validator + Plugin Check on the build, complete the manual env-matrix + Connectors checks, then SVN trunk/tags upload.
-Resume file: Completed 13.1-02-PLAN.md
-Last activity: 2026-06-28 — Executed GSD Phase 13.1 Plan 02 (CI-speed matrix/cache/shard verification); summary created, CIS-01…03 marked complete, Phase 13.1 now fully tracked.
+Resume file: Completed 13.1-03-PLAN.md
+Last activity: 2026-06-28 — Executed GSD Phase 13.1 Plan 03 (gap closure); summary created, searchable picker and metrics/screenshot verification completed, Phase 13.1 gaps ready for verifier rerun.
 
 ## Project Reference
 
@@ -144,3 +144,10 @@ The details below are retained because they contain useful test-environment deci
 - page.emulateMedia({ reducedMotion: 'no-preference' }) must be called BEFORE the keyboard event for animation tests — wp-sudo-admin-bar.js reads matchMedia at keydown invocation time.
 - Admin bar deactivation is a full-page navigation (302 redirect), NOT AJAX. Use Promise.all([waitForURL, click]) not waitForResponse(). PHP handle_deactivate() calls wp_safe_redirect() + exit.
 - maxDiffPixels: N on toHaveScreenshot() tolerates mask boundary drift for dynamic-width elements. Use this (not higher threshold) when a small absolute pixel count varies due to JS-changed element width.
+
+
+## Key Decisions (Phase 13.1-03, 2026-06-28)
+
+- Searchable grant-user picker remains progressive enhancement over the native administrator select; selected numeric user ID remains the submitted contract.
+- Access tab screenshot refresh used the project Playwright capture workflow against a dev-only wp-env config because another wp-env stack occupied the test port.
+- Only `.wordpress-org/screenshot-6.png` was retained from the capture run; unrelated screenshot churn was reverted to keep Task 3 atomic.
