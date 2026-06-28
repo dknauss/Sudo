@@ -2,7 +2,7 @@
 
 A repeatable checklist for preparing and submitting **Sudo** to the WordPress.org
 plugin directory. This document **describes the process — it does not perform the
-submission.** Run it before each public release that targets WordPress.org.
+submission.** Submission is intentionally delayed/on hold, but this checklist should stay ready to execute at any time. Run it before each public release that targets WordPress.org.
 
 > Canonical release-state source: [`docs/release-status.md`](release-status.md).
 > Canonical counts source: [`docs/current-metrics.md`](current-metrics.md).
@@ -96,13 +96,12 @@ WordPress.org hosts plugins in Subversion, not Git. Standard layout:
 
 ## 5. Final "do not submit until" gate
 
-Do **not** initiate the WordPress.org submission until **all** of the following hold:
+Do **not** initiate the WordPress.org submission until publication is explicitly approved and **all** of the following hold:
 
 - [ ] `docs/release-status.md` shows the intended version as the latest tagged release
   (i.e. the Git `vX.Y.Z` tag is cut, not just the runtime constant bumped).
 - [ ] Sections 1–4 above are fully checked.
-- [ ] The maintainer has explicitly decided to publish (publication is a one-way,
-  outward-facing action: the slug is permanent and the listing is public).
+- [ ] The maintainer has explicitly decided to publish now (publication is delayed/on hold until then; once submitted, the slug is permanent and the listing is public).
 
 ---
 

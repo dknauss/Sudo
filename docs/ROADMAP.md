@@ -1,13 +1,13 @@
 # Roadmap: Past and Future Planning — Integration Tests, WP 7.0 Prep, Collaboration, TDD, and Core Design
 
-*Updated June 14, 2026*
+*Updated June 28, 2026*
 
 ## Table of Contents
 
 - **[Planned Development Timeline](#planned-development-timeline)** — Immediate, short-term, medium-term, and later work phases
 - **[Context](#context)** — current state, CI matrix, and WP 7.0 status (counts in `docs/current-metrics.md`)
 - **[1. Integration Tests](#1-integration-tests--scope-and-value)** — Current integration coverage, coverage analysis, remaining gaps
-- **[2. WordPress 7.0 Prep](#2-wordpress-70-prep)** — WP 7.0 GA shipped May 20, 2026; Connectors parity check and registry-aware matcher remain open
+- **[2. WordPress 7.0 Prep](#2-wordpress-70-prep)** — WP 7.0 GA shipped May 20, 2026; package metadata and Connectors gating work have shipped; see `docs/release-status.md` for current release state
 - **[3. Collaboration & Sudo](#3-collaboration-and-sudo--multi-user-editing-scenarios)** — Multi-user editing, conflict resolution
 - **[4. Context Collapse & TDD](#4-context-collapse-and-tdd)** — LLM confabulation defense, test-driven development
 - **[Recommended Next Steps](#recommended-next-steps-priority-order)** — Immediate, short-term, medium-term priorities
@@ -47,7 +47,7 @@ design hardening opportunities. Two are shipped; two remain open:
   form ends in no listed suffix — e.g. `clientSecret`, `refreshToken`, `authorization` — are
   still not redacted, because the list omits bare `secret`/`token` to avoid false positives
   (e.g. matching `page` → `password`). Broadening to conservative pattern-based redaction plus
-  custom-rule non-replay metadata is intentionally OUT OF SCOPE for v4.0.0 (REQUIREMENTS);
+  custom-rule non-replay metadata was intentionally OUT OF SCOPE for v4.0.0 (REQUIREMENTS);
   tracked here as a future option, not an open gap.
 - ~~**Governance evolution**~~ ✅ Shipped in v3.2.0 — Dedicated `manage_wp_sudo`,
   `view_wp_sudo_activity`, `export_wp_sudo_activity`, and `revoke_wp_sudo_sessions`
@@ -71,16 +71,13 @@ and acceptance criteria.
 
 - **Two Factor lifecycle bridge** — Gate upstream Two Factor recovery-code generation, TOTP setup/deletion, and profile-form provider changes behind WP Sudo. This is a concrete factor-lifecycle gap: WP Sudo can require password + 2FA for sudo, but currently does not gate creation or replacement of the recovery codes that can satisfy that 2FA step later. See §11 Feature Backlog for verified source notes and implementation scope.
 
-### Open: Post-WP 7.0 Connectors Work
+### Completed: Post-WP 7.0 Connectors Work
 
-~~**Update "Tested up to"**~~ ✅ Done in v3.3.0. WP 7.0 GA shipped May 20, 2026.
+~~**Update "Tested up to"**~~ ✅ Done; `readme.txt` advertises WordPress 7.0. WP 7.0 GA shipped May 20, 2026.
 
-Remaining Connectors tasks:
+~~**Connectors matcher and release verification path**~~ ✅ Done across the v4.x release line: the registry-aware matcher shipped, the package metadata now targets WP 7.0, and manual Connectors credential-gating checks live in [tests/MANUAL-TESTING.md](../tests/MANUAL-TESTING.md). Current release/package truth is [`docs/release-status.md`](release-status.md); do not duplicate volatile tag or version facts here.
 
-- **Verify Connectors GA parity** — the built-in `connectors.update_credentials` REST rule is already shipped on `main`, challenging `/wp/v2/settings` writes when request params contain `connectors_*_api_key`. Confirm the released Connectors implementation still matches the documented route, setting-name pattern, and masking/validation behavior.
-- **Revisit and split the Connectors reference doc** — once GA parity is confirmed, refactor [`docs/connectors-api-reference.md`](connectors-api-reference.md) into a leaner core/reference document plus a separate security-analysis companion so the reference stops mixing API details with the longer exploit memo.
-- **Upgrade Connectors matcher to registry-aware** — after GA parity is confirmed, replace the regex-only matcher (`is_connector_api_key_setting_name()`) with a two-tier check: (1) registry lookup via `wp_get_connectors()` matching `authentication.setting_name`, (2) regex fallback for pre-7.0 sites and timing edge cases. Add integration tests against the live API. See [`.planning/connectors-matcher-strategy.md`](../.planning/connectors-matcher-strategy.md) for the full rationale and implementation sketch.
-- **Manual release verification for Connectors gating** — run the new manual checks for cookie-auth and Application Password writes to `/wp/v2/settings` with connector credential fields and record the results in [tests/MANUAL-TESTING.md](../tests/MANUAL-TESTING.md) before the next public release.
+Remaining Connectors-adjacent backlog should be tracked as future feature work, not as WP 7.0 prep debt.
 
 ### Short-term: Testing Infrastructure
 
@@ -114,29 +111,16 @@ Remaining Connectors tasks:
 - **Deprecate and remove `compatibility` governance mode** — The `wp_sudo_governance_mode = 'compatibility'` DB option is a permanent security regression path: it lets any `manage_options` holder administer Sudo settings, undoing the governance model. `WP_SUDO_RECOVERY_MODE` (requires filesystem access) is the intended break-glass — now hardened (role-gated, with notice + audit event; see below). Plan: fire `_doing_it_wrong()` + persistent admin notice when compatibility mode is active in the next minor release; remove the option and the fallback branch in the next major.
 - ~~**Contain `WP_SUDO_RECOVERY_MODE` break-glass**~~ ✅ Shipped in v3.4.0 (June 13, 2026) — The grant in both `wp_sudo_can()` and `wp_sudo_map_governance_meta_cap()` is role-gated to `manage_options` / `manage_network_options`; a permanent non-dismissible notice renders on the Sudo settings screen; and a new `wp_sudo_recovery_mode_active` audit hook fires (stored as a sampled `recovery_mode` event). Remaining: a scoped single-user recovery form (`define('WP_SUDO_RECOVERY_MODE', <user_id_or_login>)`). See §12.1 Phase R3.
 
-### Next major (v4.0.0): planned breaking changes
+### Completed: v4.0.0 breaking changes
 
-A milestone to give the in-flight deprecations a destination and a defined
-deprecate → remove window (today "next major" is undefined).
+The v4.0.0 major has shipped. The `sudo_can()` deprecated alias and `compatibility`
+governance mode were removed, minimum requirements were raised to WordPress 6.4 and PHP 8.2,
+and integrator/release notes were published. Current release facts have advanced beyond
+v4.0.0; use [`docs/release-status.md`](release-status.md) for the latest tag, runtime
+version, and package metadata.
 
-**Confirmed removals to bundle into 4.0.0:**
-- **`sudo_can()` deprecated alias** — already `@deprecated 3.3.0`, "scheduled for
-  removal in 4.0.0" (`includes/functions-governance.php`). Remove the alias.
-- **`compatibility` governance mode** — deprecate in 3.5.0 (fire `_doing_it_wrong()`
-  + admin notice; see the compatibility-mode item above), then in 4.0.0 remove both
-  `'compatibility'` branches in `wp_sudo_can()` / `wp_sudo_map_governance_meta_cap()`
-  and the option-read paths (uninstall already deletes the option).
-
-**Window:** deprecate compatibility mode in **3.5.0** → remove in **4.0.0**;
-`sudo_can()` already deprecated since 3.3.0 → remove in **4.0.0**.
-
-**Planning tasks (lightweight now; execute at 4.0.0 prep):** fresh `@deprecated`/grep
-sweep; integrator migration notes; update the CLAUDE.md version-sync checklist if the
-file set changes.
-
-**Open decisions for the major:** whether to bundle any minimum-requirement bumps
-(WordPress 6.2 → ?, PHP 8.0 → ?) — a major is the cheap moment to raise them — and the
-target date.
+Future major-release planning should start as a new milestone rather than editing this
+completed v4.0.0 plan in place.
 
 ### UI Documentation Rule
 
@@ -238,7 +222,7 @@ This is a living document covering accumulated input and thinking about the stra
 challenges and priorities for WP Sudo. 
 
 Current project state (as of June 14, 2026):
-- **v3.4.0 is the latest tagged release** — governance capabilities, WPGraphQL classifier hardening, REST/plugin-rule hardening, request-stash minimization, lockout/2FA hardening, uninstall defense-in-depth, login-sudo opt-out filter, governance backfill upgrader fix, recovery-mode containment, CI hardening, documentation-audit fixes, and `Tested up to: 7.0` have shipped. The plugin is not currently published to the WordPress.org plugin repository; `readme.txt` stable tag is package/future-publication metadata.
+- **Current release state is canonical in `docs/release-status.md`** — as of the June 28, 2026 docs refresh, the latest tagged release is 4.2.1 and the plugin is not currently published to the WordPress.org plugin repository. Publication is intentionally delayed/on hold, but the repository should remain submission-ready; `readme.txt` Stable tag is package/future-publication metadata until WordPress.org publication.
 - Current test and size counts are centralized in [`docs/current-metrics.md`](current-metrics.md).
 - CI pipeline: unit tests on PHP 8.0–8.4; integration tests on PHP 8.0/8.1/8.3; WordPress 6.2, 6.7, and 7.0 GA; single-site + multisite; MySQL 8.0 plus one MariaDB lane; PCOV coverage job; 61 Playwright E2E tests
 - WordPress 7.0 GA shipped on May 20, 2026, and the forward lane is now pinned to the final 7.0 release. See `docs/release-status.md`.
@@ -1661,7 +1645,7 @@ tracks the hardening plan to make Sudo governance explicit and least-privilege.
 
 ### Framing
 
-The plugin has not yet shipped to the WordPress.org directory. There is no
+As of `docs/release-status.md`, the plugin has not yet shipped to the WordPress.org directory; submission is intentionally delayed/on hold while readiness is maintained. There is no
 existing install base to protect from a capability-model transition, so the
 rollout is compressed from the original three-phase compatibility-first plan:
 strict-capability mode ships as the default in v3.1. Compatibility mode exists

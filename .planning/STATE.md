@@ -3,23 +3,23 @@ gsd_state_version: 1.0
 milestone: v4.0
 milestone_name: milestone
 status: complete
-last_updated: "2026-06-28T16:16:18.939Z"
-last_activity: "2026-06-28 — Completed and verified GSD Phase 13.1 Plan 03 gap closure; searchable picker, metrics, and screenshot gaps resolved."
+last_updated: "2026-06-28T17:00:00Z"
+last_activity: "2026-06-28 — Refreshed stale planning docs after 4.2.1 release-state drift; WordPress.org submission delayed but readiness maintained."
 progress:
   total_phases: 9
-  completed_phases: 8
+  completed_phases: 9
   total_plans: 23
   completed_plans: 23
 ---
 
 ## Current Position
 
-Phase: v4.0.0 milestone — **RELEASED**. No active phase; next gate is WordPress.org submission (not started).
-Branch: main @ c8e692e — clean tree, pushed, version-synced at 4.0.0. Zero open PRs.
+Phase: v4.0.0 milestone — **RELEASED**. No active phase; WordPress.org submission is intentionally delayed/on hold, but the repo should remain submission-ready at any time.
+Branch: main — clean tree before this docs refresh; version-synced at 4.2.1. Zero open PRs expected.
 Done & merged to main: Phase 11 (Connectors matcher, #86), Phase 12 (breaking changes/floor bump, #86), Phase 13 (migration safety, #86/#89), Phase 13.1 (Access-tab UX + CI speed, #88/#95), Phase 14 (WordPress.org Readiness, ORG-01…07, #99), Phase 15 (ENV-01…03). Plus external #96/#97/#98 and #100 (readme.md rebrand to "Sudo" + full 9-shot gallery).
-Open threads: **v4.0.0 RELEASED 2026-06-21** — annotated tag `v4.0.0` (→ `a4c1e67`) pushed; GitHub Release published as Latest; CHANGELOG.md + readme.txt changelog complete (4.0.0 entry + 3.2–3.4 backfill); `docs/release-status.md` "Latest tagged release: 4.0.0". **NOT yet on WordPress.org.** Remaining = the .org submission (see `docs/wporg-submission-checklist.md`): lock slug to `wp-sudo`, run readme validator + Plugin Check on the build, complete the manual env-matrix + Connectors checks, then SVN trunk/tags upload.
+Open threads: **4.2.1 RELEASED 2026-06-28** — latest canonical release state is `docs/release-status.md`: tag `v4.2.1` at `14fb3a3`, runtime/readme stable tag synced at 4.2.1, and the plugin is **not yet on WordPress.org**. Submission-readiness checklist remains `docs/wporg-submission-checklist.md`: keep slug decision (`wp-sudo`), readme validator + Plugin Check, manual env-matrix + Connectors checks, and SVN trunk/tags upload procedure ready for when publication is approved.
 Resume file: Completed 13.1-03-PLAN.md
-Last activity: 2026-06-28 — Executed GSD Phase 13.1 Plan 03 (gap closure); summary created, searchable picker and metrics/screenshot verification completed, Phase 13.1 gaps ready for verifier rerun.
+Last activity: 2026-06-28 — Planning docs refreshed to show v4.0.0 milestone complete, latest release 4.2.1, and WordPress.org submission delayed/on hold while readiness is maintained.
 
 ## Project Reference
 
@@ -31,7 +31,7 @@ Canonical current facts:
 - `CHANGELOG.md` — shipped release contents.
 
 **Core value:** Every destructive admin action requires proof the person at the keyboard is still the authenticated user.
-**Current focus:** Milestone v4.0.0 — **RELEASED** (tag `v4.0.0` + GitHub Release, 2026-06-21; main reads 4.0.0). All phases merged. Next: WordPress.org submission (`docs/wporg-submission-checklist.md`) — not yet started.
+**Current focus:** Latest tagged release is **4.2.1** (see `docs/release-status.md`). The v4.0.0 milestone phases are complete and merged. WordPress.org submission (`docs/wporg-submission-checklist.md`) is delayed/on hold, but readiness should be maintained.
 
 ## Active Priorities (v4.0.0 milestone)
 
@@ -43,7 +43,7 @@ Phase execution order:
 4. ✅ **Phase 14 — WordPress.org Readiness** (ORG-01 through ORG-07): merged to main (#99). Listing name "Sudo – Admin Action Gating", SECURITY.md + submission checklist, brand strings, 9 listing screenshots.
 5. ✅ **Phase 15 — Manual Testing Environment Checklist** (ENV-01 through ENV-03): complete — env matrix via #98; ENV-03 Connectors-credential manual check added.
 
-**v4.0.0 RELEASED 2026-06-21** — annotated tag `v4.0.0` (→ `a4c1e67`) + GitHub Release (Latest); WP_SUDO_VERSION sync + readme Stable tag verified; CHANGELOG.md/readme.txt changelog complete; `docs/release-status.md` updated. Next gate: WordPress.org submission (`docs/wporg-submission-checklist.md`).
+**Latest release: 4.2.1 (2026-06-28)** — `docs/release-status.md` is canonical for release/package metadata. WordPress.org submission is delayed/on hold; keep `docs/wporg-submission-checklist.md` ready to execute at any time.
 
 ## Performance Metrics
 
@@ -68,7 +68,7 @@ Phase execution order:
 ### Roadmap Evolution
 
 - Phase 13.1 inserted after Phase 13 (2026-06-19): Access-tab UX polish (user picker + plain-English capability labels) + CI test-speed (matrix trim, WP-test-lib cache, E2E shard rebalance). GSD-routes the PR #88 follow-up (merged `6abd333`) and spawned task `task_671a7d54` into one reviewable cleanup phase ahead of Phase 14 (WordPress.org Readiness).
-- External contributions merged to main 2026-06-21 (Nathan / `nathanpixodeo`, all reviewed + approved): **#96** `fix: rename recovery dashboard label` Recovery→Break-glass (closes #68; locally validated 813 tests + lint + PHPStan/Psalm green as CI substitute), **#97** `docs: clarify break-glass recovery terminology` (advances the Core-Trac terminology-alignment roadmap item), **#98** `docs: add manual environment matrix` (**substantially delivers Phase 15 / ENV-01…03**). Admin-merged because fork CI can't be triggered for a first-time contributor without maintainer approval; #96 validated locally instead. These external PRs overlap planned GSD work — reconcile when closing Phase 14/15.
+- External contributions merged to main 2026-06-21 (Nathan / `nathanpixodeo`, all reviewed + approved): **#96** `fix: rename recovery dashboard label` Recovery→Break-glass (closes #68; locally validated 813 tests + lint + PHPStan/Psalm green as CI substitute), **#97** `docs: clarify break-glass recovery terminology` (advances the Core-Trac terminology-alignment roadmap item), **#98** `docs: add manual environment matrix` (**substantially delivers Phase 15 / ENV-01…03**). Admin-merged because fork CI can't be triggered for a first-time contributor without maintainer approval; #96 validated locally instead. These external PRs overlapped planned GSD work and are now reflected in the completed Phase 14/15 record.
 
 ## Key Decisions (Phase 13.1-01, 2026-06-28)
 

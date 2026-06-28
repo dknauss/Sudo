@@ -25,7 +25,8 @@ This file is the canonical source for **current release state** in this reposito
 
 ## WordPress.org publication status
 
-- **WordPress.org plugin repository:** not published.
+- **WordPress.org plugin repository:** not published. Submission is intentionally delayed/on hold, but the repository should remain submission-ready at any time.
+- **Readiness source:** `docs/wporg-submission-checklist.md` is the operational checklist to keep ready for publication approval.
 - **`readme.txt` stable tag:** package/release metadata for generated plugin zips and future WordPress.org publication; it does not indicate that this plugin is currently live in the WordPress.org repository.
 
 ## Latest release contents

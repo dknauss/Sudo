@@ -1,13 +1,13 @@
 # GSD Roadmap Context
 
-> **Current routing note (2026-06-13):** Milestone v4.0.0 (Pre-Public Hardening Baseline) is the active milestone. Phases 11-15 are defined below. The Playwright E2E milestone (phases 6-8) is complete and retained below for historical execution detail. Canonical roadmap truth is `../docs/ROADMAP.md`; current release/package truth is `../docs/release-status.md`.
+> **Current routing note (2026-06-28):** Milestone v4.0.0 (Pre-Public Hardening Baseline) is complete and released. Phases 11-15 are retained below as the execution record. Canonical roadmap truth is `../docs/ROADMAP.md`; current release/package truth is `../docs/release-status.md`. WordPress.org submission is intentionally delayed, but the repo should remain submission-ready at any time.
 
 ---
 
 # Active Roadmap: Milestone v4.0.0 â Pre-Public Hardening Baseline
 
 **Milestone:** v4.0.0
-**Status:** In progress â requirements defined, roadmap created 2026-06-13, execution not yet started
+**Status:** Complete — released; WordPress.org submission is intentionally delayed, but readiness should be maintained
 **Previous milestone last phase:** 10 (Settings UI Revision, v3.4.0)
 **Phase numbering continues from:** 11
 
@@ -19,8 +19,8 @@
 - [x] **Phase 12: Breaking Changes and Floor Bump** - Remove deprecated APIs (`sudo_can()`, `compatibility` mode), raise WP to 6.4 and PHP to 8.2, drop shims (completed 2026-06-16)
 - [x] **Phase 13: Migration Safety and Governance Audit** - Verify 3.0-3.4 upgrade paths are clean, audit capabilities, confirm lockout-safe first-run
 - [x] **Phase 13.1: Access-tab UX polish and CI test-speed** (INSERTED) - User-picker + plain-English capability labels on the Access tab; trim/cache/rebalance CI test fan-out (completed 2026-06-28)
-- [ ] **Phase 14: WordPress.org Readiness** - readme validator pass, screenshots/assets, brand consistency, SECURITY.md, submission checklist
-- [ ] **Phase 15: Manual Testing Environment Checklist** - Extend MANUAL-TESTING.md with environment matrix, Connectors verification steps
+- [x] **Phase 14: WordPress.org Readiness** - readme validator pass, screenshots/assets, brand consistency, SECURITY.md, submission checklist (completed 2026-06-21)
+- [x] **Phase 15: Manual Testing Environment Checklist** - Extend MANUAL-TESTING.md with environment matrix, Connectors verification steps (substantially completed via #98; ENV-03 added)
 
 ## Phase Details
 
@@ -130,11 +130,11 @@ Plans:
   4. `SECURITY.md` states the vulnerability reporting channel, supported-versions policy, and whether GitHub issues are acceptable for initial security contact
   5. The request-stash redaction status in `docs/ROADMAP.md` correctly reflects what shipped (suffix-based redaction, not pattern-based build), verified against the redaction code in `class-request-stash.php`
 
-**Plans**: 4 plans
-  - 14-01 (wave 1, ORG-01/05): readme validator + plugin-header/license/stable-tag compliance
-  - 14-02 (wave 2, depends 01, ORG-03): brand/identity consistency — UI strings → "Sudo", document name/slug/repo divergence
-  - 14-03 (wave 1, ORG-04/06/07): SECURITY.md, request-stash redaction doc reconciliation, WordPress.org submission checklist
-  - 14-04 (wave 3, depends 01, ORG-02): **manual/browser** screenshot capture — gated on Phase 13.1 EXECUTION + browser handoff (autonomous:false)
+**Plans**: 4/4 plans complete
+  - [x] 14-01 (wave 1, ORG-01/05): readme validator + plugin-header/license/stable-tag compliance
+  - [x] 14-02 (wave 2, depends 01, ORG-03): brand/identity consistency — UI strings → "Sudo", document name/slug/repo divergence
+  - [x] 14-03 (wave 1, ORG-04/06/07): SECURITY.md, request-stash redaction doc reconciliation, WordPress.org submission checklist
+  - [x] 14-04 (wave 3, depends 01, ORG-02): **manual/browser** screenshot capture — gated on Phase 13.1 EXECUTION + browser handoff (autonomous:false)
 
 ### Phase 15: Manual Testing Environment Checklist
 
@@ -149,7 +149,7 @@ Plans:
   2. The checklist requires verification on at least one Apache environment, one managed WordPress host (Pressable, WP Engine, or Cloudways), and the minimum-supported WordPress version (6.4)
   3. The checklist includes a "Connectors Credential Gating" section with explicit steps for verifying cookie-auth and Application Password `POST /wp/v2/settings` requests writing `wordpress_api_key` and at least one `connectors_*_api_key` field are intercepted by the gate
 
-**Plans**: TBD
+**Plans**: Delivered through `tests/MANUAL-TESTING.md` updates and external PR #98; no separate GSD phase directory was created.
 
 ## Progress
 
@@ -163,8 +163,8 @@ Note: Phases 13, 14, and 15 all depend on Phase 12 completing. Phases 13 and 14 
 | 12. Breaking Changes and Floor Bump | 3/3 | Complete    | 2026-06-16 | - |
 | 13. Migration Safety and Governance Audit | 3/3 | Complete    | 2026-06-20 | - |
 | 13.1. Access-tab UX polish and CI test-speed | 3/3 | Complete    | 2026-06-28 | - |
-| 14. WordPress.org Readiness | v4.0.0 | 0/TBD | Not started | - |
-| 15. Manual Testing Environment Checklist | v4.0.0 | 0/TBD | Not started | - |
+| 14. WordPress.org Readiness | v4.0.0 | 4/4 | Complete | 2026-06-21 | - |
+| 15. Manual Testing Environment Checklist | v4.0.0 | delivered via #98 | Complete | 2026-06-21 | - |
 
 ---
 
