@@ -5,7 +5,7 @@ Tags:              reauthentication, access control, admin protection, multisite
 Requires at least: 6.4
 Tested up to:      7.0
 Requires PHP:      8.2
-Stable tag:        4.2.0
+Stable tag:        4.2.1
 License:           GPL-2.0-or-later
 License URI:       https://spdx.org/licenses/GPL-2.0-or-later.html
 
@@ -19,7 +19,7 @@ This is not role-based escalation. Every logged-in user is treated the same: att
 
 = Playground demo =
 
-* [Try the latest release in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fv4.2.0%2Fblueprint.json)
+* [Try the latest release in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fv4.2.1%2Fblueprint.json)
 * [Try current main in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint-main.json)
 
 Playground demo credentials are `admin` / `password`. When WP Sudo asks for reauthentication, enter the same password: `password`.
@@ -181,6 +181,10 @@ Extensibility: the action registry is filterable via wp_sudo_gated_actions. Audi
 9. Break-glass recovery notice — visible warning while WP_SUDO_RECOVERY_MODE is active.
 
 == Changelog ==
+
+= 4.2.1 =
+* **WordPress.org package readiness** — cleaned Plugin Check input-handling findings and shortened the 4.0.0 upgrade notice to fit directory limits.
+* **Submission warning triage** — Pressship now verifies with one documented slug warning for the intended `wp-sudo` slug.
 
 = 4.2.0 =
 * **Two Factor bridge hardening** — REST factor-management operations in the optional Two Factor bridge are now gated behind WP Sudo.

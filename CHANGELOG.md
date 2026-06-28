@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.2.1 - 2026-06-28
+
+- **WordPress.org package readiness:** cleaned Pressship/Plugin Check input-handling findings by unslashing request values at the flagged sites and shortening the 4.0.0 upgrade notice to fit directory limits.
+- **Submission warning triage:** reduced package validation to one documented slug warning (`wp-sudo` contains `wp`), added targeted notes/suppressions for intentional bridge, core-hook, and prepared-SQL false positives, and documented the slug decision in the WordPress.org submission checklist.
+- **Release hygiene:** refreshed package metrics and Psalm baseline entries after the cleanup.
+
 ## 4.2.0 - 2026-06-27
 
 - **Two Factor bridge hardening:** the optional Two Factor bridge now gates REST
