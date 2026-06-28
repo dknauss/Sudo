@@ -46,6 +46,8 @@
         "test:integration": "bash bin/run-integration-tests.sh phpunit-integration.xml.dist",
         "test:coverage": "phpunit --configuration phpunit.xml.dist --coverage-clover coverage.xml --coverage-text",
         "verify:metrics": "bash bin/verify-metrics.sh",
+        "verify:i18n": "bash bin/verify-i18n.sh",
+        "i18n:make-pot": "bash bin/make-pot.sh",
         "analyse": [
             "@analyse:phpstan",
             "@analyse:psalm"

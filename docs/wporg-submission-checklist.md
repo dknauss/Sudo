@@ -30,6 +30,10 @@ submission.** Submission is intentionally delayed/on hold, but this checklist sh
   5. `readme.txt` — `Stable tag:` (must equal the header `Version`)
 - [ ] **Test/analyse/lint green** — `composer test`, `composer analyse` (PHPStan
   level 6), and `composer lint` all pass.
+- [ ] **Translation template current** — `composer verify:i18n` passes. If it fails,
+  run `composer i18n:make-pot`, review `languages/wp-sudo.pot`, and commit the
+  updated template. This is a release/.org readiness gate; it is not currently a
+  required pre-commit or GitHub status check.
 - [ ] **Pre-release audit** — re-verify every external claim added/modified since
   the last tag against live sources; append findings to `docs/llm-lies-log.md`
   (per `CLAUDE.md` → *Pre-release audit*).

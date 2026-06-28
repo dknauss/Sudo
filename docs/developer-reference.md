@@ -12,6 +12,22 @@ Sudo intentionally uses a few different names in different contexts:
 
 When adding or reviewing code, normalize display text toward **Sudo** but leave technical identifiers alone unless a migration explicitly owns that change.
 
+
+## Localization and Translation Template
+
+The plugin text domain is `wp-sudo`, matching the intended WordPress.org slug, even though the product/UI name is **Sudo**. Do not rename the text domain to match the product name.
+
+Maintainer commands:
+
+```bash
+composer i18n:make-pot   # Regenerate languages/wp-sudo.pot
+composer verify:i18n     # Check that languages/wp-sudo.pot is current
+```
+
+`composer verify:i18n` is a release-readiness gate: it generates a temporary POT file with WP-CLI's `wp i18n make-pot` and fails if it differs from the committed `languages/wp-sudo.pot`. When adding or changing translatable strings, run `composer i18n:make-pot` intentionally and review the POT diff before committing.
+
+The repository commits only `languages/wp-sudo.pot` plus safety placeholder files. Do not commit generated `.po` or `.mo` files unless the project starts maintaining reviewed translations directly.
+
 ## Gated Action Rule Structure
 
 Use the `wp_sudo_gated_actions` filter to add custom rules. Each rule defines matching criteria for admin UI (`pagenow`, actions, HTTP method), AJAX (action names), and REST (route patterns, HTTP methods). Custom rules appear in the Gated Actions table on the settings page.

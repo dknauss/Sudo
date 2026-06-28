@@ -2650,7 +2650,7 @@ class Gate {
 		$shortcut = $is_mac ? 'Cmd+Shift+S' : 'Ctrl+Shift+S';
 
 		$message = sprintf(
-			/* translators: 1: action label, 2: keyboard shortcut */
+			/* translators: 1: action label (e.g. "Delete plugin"), 2: keyboard shortcut */
 			__( 'This action (%1$s) requires reauthentication. Press %2$s to start a sudo session, then try again.', 'wp-sudo' ),
 			$matched_rule['label'] ?? $matched_rule['id'],
 			$shortcut
