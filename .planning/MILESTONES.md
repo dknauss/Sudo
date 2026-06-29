@@ -1,5 +1,36 @@
 # Milestones
 
+## v4.3.0 — Post-.org Readiness Hardening (Archived: 2026-06-29)
+
+**Delivered:** Release-readiness hardening and 2FA bridge planning after the v4.2.2 package release, while keeping WordPress.org submission intentionally delayed/on hold.
+
+**Release note:** This is a GSD milestone archive, not a plugin release tag. Product version metadata remains `4.2.2`; no `v4.3.0` git tag was created.
+
+**Phases completed:** 16–19 (4 phases; 4 documented plans plus direct Phase 16 implementation)
+
+### Phases
+
+| # | Phase | Outcome |
+|---|-------|---------|
+| 16 | Localization and Translation Packaging Readiness | POT generation/check workflow, committed translation source, translator comments, and release docs completed |
+| 17 | Release-only Environment Assurance | Release environment log, manual matrix evidence links, and pre-tag vs WordPress.org-only gate split completed |
+| 18 | E2E Runtime Review and Tuning Decision | GitHub Actions E2E runtime evidence recorded; one no-coverage-loss shard-rebalance follow-up identified |
+| 19 | 2FA Bridge Planning and Compatibility Matrix | Upstream Two Factor lifecycle bridge plan and Patchstack fixture-blocked manual-test target matrix completed |
+
+### Key Outcomes
+
+- Added release-ready localization tooling and `languages/wp-sudo.pot` checks without production dependencies.
+- Preserved WordPress.org readiness while explicitly keeping publication delayed/on hold.
+- Based CI tuning on measured E2E runtime evidence and deferred exactly one narrow shard-rebalance follow-up.
+- Refreshed upstream WordPress/two-factor lifecycle evidence and documented a TDD-first profile-provider guard plan.
+- Added Patchstack Security to the 2FA compatibility matrix as fixture-blocked/manual-test only, with no unsupported bridge-code claim.
+
+### Deferred Follow-up
+
+- Rebalance a small test slice out of `E2E Tests 1/4 (challenge-basic-admin)` after refreshing Actions data.
+- Acquire a paid Patchstack-enabled fixture before making runtime compatibility claims or considering bridge code.
+
+---
 
 ## v4.0.0 — Pre-Public Hardening Baseline (Archived)
 

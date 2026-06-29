@@ -2,9 +2,9 @@
 gsd_state_version: 1.0
 milestone: v4.3.0
 milestone_name: Post-.org Readiness Hardening
-status: complete
+status: archived
 last_updated: "2026-06-29T18:06:16Z"
-last_activity: "2026-06-29 — Phase 19 complete; upstream Two Factor bridge plan, Patchstack matrix, and 2FA requirements finalized."
+last_activity: "2026-06-29 — v4.3.0 GSD milestone archived; ready for next milestone planning."
 progress:
   total_phases: 4
   completed_phases: 4
@@ -14,12 +14,12 @@ progress:
 
 ## Current Position
 
-Phase: v4.3.0 milestone — **IN PROGRESS**. Phase 19 2FA Bridge Planning and Compatibility Matrix is complete: Plan 01 finalized upstream Two Factor lifecycle bridge planning and Plan 02 finalized Patchstack compatibility matrix scope.
-Branch: main — post-v4.2.2 Phase 16/17 readiness work plus Phase 18 E2E runtime evidence. Latest tagged release remains `v4.2.2`; localization packaging and release-environment assurance are unreleased drift.
+Phase: Between milestones — v4.3.0 GSD milestone is complete and archived. Next step is `$gsd-new-milestone` when ready to define the next planning cycle.
+Branch: main — v4.3.0 planning archive created after PR #127 merged. Latest tagged plugin release remains `v4.2.2`; product version metadata was not bumped.
 Done & merged to main: v4.0.0 milestone phases 11-15 complete; Phase 16 localization packaging readiness complete; Phase 17 release environment log/gate split complete; Phase 18 runtime review complete; Phase 19 2FA bridge planning and compatibility matrix complete; v4.2.2 tagged/pushed.
-Open threads: WordPress.org submission remains intentionally delayed/on hold; keep `docs/wporg-submission-checklist.md` ready. Remaining follow-up is the Phase 18 no-coverage-loss E2E shard-rebalance when scheduled; Patchstack runtime support remains fixture-blocked/manual-test only.
-Resume file: `.planning/phases/19-2fa-bridge-planning-and-compatibility-matrix/19-01-SUMMARY.md` and `19-02-SUMMARY.md` — Phase 19 complete.
-Last activity: 2026-06-29 — Phase 19 complete; upstream Two Factor bridge plan, Patchstack matrix, and 2FA requirements finalized.
+Open threads: WordPress.org submission remains intentionally delayed/on hold; keep `docs/wporg-submission-checklist.md` ready. Candidate next work: Phase 18 no-coverage-loss E2E shard-rebalance, Patchstack paid-fixture/manual runtime testing, or a new product milestone from `docs/ROADMAP.md`.
+Resume file: `.planning/MILESTONES.md` and `.planning/milestones/v4.3.0-ROADMAP.md` — v4.3.0 archived; start fresh with `$gsd-new-milestone`.
+Last activity: 2026-06-29 — v4.3.0 GSD milestone archived after PR #127 merge; no v4.3.0 release tag created.
 
 ## Project Reference
 
@@ -31,9 +31,9 @@ Canonical current facts:
 - `CHANGELOG.md` — shipped release contents.
 
 **Core value:** Every destructive admin action requires proof the person at the keyboard is still the authenticated user.
-**Current focus:** v4.3.0 post-.org readiness hardening phases are complete; the remaining tracked follow-up is the Phase 18 E2E shard-rebalance item when scheduled. Latest tagged release is **4.2.2** (see `docs/release-status.md`). WordPress.org submission (`docs/wporg-submission-checklist.md`) is delayed/on hold, but readiness should be maintained.
+**Current focus:** Between milestones. Next likely candidates are the Phase 18 E2E shard-rebalance follow-up, Patchstack paid-fixture/manual runtime testing, or a new product milestone selected with `$gsd-new-milestone`. Latest tagged release is **4.2.2** (see `docs/release-status.md`). WordPress.org submission (`docs/wporg-submission-checklist.md`) is delayed/on hold, but readiness should be maintained.
 
-## Active Priorities (v4.3.0 milestone)
+## Archived Priorities (v4.3.0 milestone)
 
 Phase execution order:
 1. ✅ **Phase 16 — Localization and Translation Packaging Readiness** (L10N-01 through L10N-03): complete — Composer i18n commands, committed POT, translator-comment cleanup, and release docs.

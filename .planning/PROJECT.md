@@ -12,22 +12,18 @@ WP Sudo is a WordPress plugin that provides action-gated reauthentication. Dange
 Every destructive WordPress admin action requires proof that the person at the keyboard is still the authenticated user — not a hijacked session, XSS payload, or unattended browser.
 
 
-## Current Milestone: v4.3.0 — Post-.org Readiness Hardening
+## Current State
 
-**Goal:** Keep Sudo submission-ready while closing small release-readiness gaps and preparing the next security-bridge work without starting a large product redesign.
+Milestone v4.3.0 — Post-.org Readiness Hardening is complete and archived. The repository remains submission-ready, but WordPress.org publication is intentionally delayed/on hold. Product release metadata remains at `4.2.2`; no `v4.3.0` release tag was created during milestone archival.
 
-**Target features / tracks:**
-- **L10N** — Localization and translation packaging readiness: POT generation, translator comments, JS/CLI string coverage, and an i18n check.
-- **REL** — Release-only environment assurance: execute/record the manual matrix for the current package, including managed host/minimum-floor checks and `.org` checklist readiness.
-- **CI** — E2E runtime review: measure explicit GitHub Actions group runtime after the latest release and tune only if the data shows a real long pole.
-- **2FA** — 2FA bridge planning: scope the upstream WordPress/two-factor lifecycle bridge and keep Patchstack Security as a second-tier compatibility/manual-test target.
+**Validated in v4.3.0:** localization packaging readiness, release-only environment assurance, measured E2E runtime review, and 2FA bridge planning/compatibility scoping.
 
-**Decisions locked at kickoff (2026-06-28):**
-- WordPress.org submission remains intentionally delayed/on hold, but the repository should remain ready to submit at any time.
-- Prefer small, low-risk hardening and planning phases before larger product work.
-- Do not implement Gutenberg editor reauthentication or a full Sudo Activity screen in this milestone; those remain future major-feature tracks.
+**Next milestone candidates:**
+- No-coverage-loss E2E shard rebalance from Phase 18 evidence.
+- Patchstack paid-fixture/manual runtime compatibility testing.
+- Larger product tracks from `../docs/ROADMAP.md`, such as Gutenberg reauthentication UX, Sudo Activity, and multisite policy hierarchy.
 
-**Source of truth:** `../docs/ROADMAP.md`, `../docs/release-status.md`, and `.planning/REQUIREMENTS.md` for this milestone.
+**Source of truth:** `../docs/ROADMAP.md`, `../docs/release-status.md`, `.planning/MILESTONES.md`, and archived v4.3.0 planning files under `.planning/milestones/`.
 
 ## Requirements
 
@@ -56,16 +52,17 @@ Every destructive WordPress admin action requires proof that the person at the k
 - Lockdown policy presets for remote/non-interactive surfaces — v3.0.0
 - Editor unfiltered_html restriction + tamper detection — v2.0+
 - Comprehensive automated test coverage (current counts in `../docs/current-metrics.md`)
+- Localization and translation packaging readiness — v4.3.0
+- Release-only environment assurance and WordPress.org checklist readiness — v4.3.0
+- E2E explicit-group runtime review and targeted tuning decision — v4.3.0
+- 2FA bridge planning for upstream Two Factor lifecycle operations and Patchstack compatibility — v4.3.0
 
 
 ### Active
 
-<!-- Current scope (v4.3.0 milestone). -->
+<!-- Next milestone requirements will be defined by `$gsd-new-milestone`. -->
 
-- [ ] Localization and translation packaging readiness — v4.3.0
-- [ ] Release-only environment assurance and WordPress.org checklist readiness — v4.3.0
-- [ ] E2E explicit-group runtime review and targeted tuning decision — v4.3.0
-- [ ] 2FA bridge planning for upstream Two Factor lifecycle operations and Patchstack compatibility — v4.3.0
+- [ ] Select and define the next milestone scope.
 
 ### Out of Scope
 
@@ -118,4 +115,4 @@ Recommended next multisite browser sequence:
 | Local multisite browser verification stays outside hosted CI | GitHub-hosted `wp-env` is single-site; the multisite network-admin failure only surfaced on a symlinked Local install | Adopted — keep hosted CI single-site, add Local multisite regression + helper script + bootstrap hardening |
 
 ---
-*Last updated: 2026-06-28 — v4.3.0 milestone started (post-.org readiness hardening); historical v4.0/v2.14 context retained where still useful.*
+*Last updated: 2026-06-29 after v4.3.0 GSD milestone archival; product release metadata remains 4.2.2.*
