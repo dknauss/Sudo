@@ -69,7 +69,10 @@ Plans:
 2. If there is a material long pole, exactly one low-risk tuning action is proposed.
 3. If there is no material long pole, the no-change decision is documented to avoid unnecessary CI complexity.
 
-**Plans:** Pending — start with `$gsd-discuss-phase 18`.
+**Plans:** 1 plan
+
+Plans:
+- [ ] 18-01-PLAN.md — Refresh GitHub Actions E2E runtime evidence, create the durable runtime review, and document the CI tuning decision.
 
 ### Phase 19: 2FA Bridge Planning and Compatibility Matrix
 
