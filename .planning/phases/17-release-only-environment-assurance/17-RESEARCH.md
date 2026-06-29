@@ -1,7 +1,7 @@
 # Phase 17: Release-only Environment Assurance - Research
 
-**Researched:** 2026-06-29  
-**Domain:** Docs-only WordPress plugin release assurance, manual environment evidence, and WordPress.org readiness separation  
+**Researched:** 2026-06-29
+**Domain:** Docs-only WordPress plugin release assurance, manual environment evidence, and WordPress.org readiness separation
 **Confidence:** HIGH
 
 <user_constraints>
@@ -203,30 +203,30 @@ Confirm the current package version, latest tag, and WordPress support posture i
 
 ### Pitfall 1: Submission Readiness Sounds Like Submission Intent
 
-**What goes wrong:** Updating `docs/wporg-submission-checklist.md` can accidentally read as "submit now."  
-**Why it happens:** Pre-tag and `.org` upload tasks are currently close together in one checklist.  
-**How to avoid:** Add explicit "process only; delayed/on hold" language and group WordPress.org-only tasks separately from pre-tag/core release gates.  
+**What goes wrong:** Updating `docs/wporg-submission-checklist.md` can accidentally read as "submit now."
+**Why it happens:** Pre-tag and `.org` upload tasks are currently close together in one checklist.
+**How to avoid:** Add explicit "process only; delayed/on hold" language and group WordPress.org-only tasks separately from pre-tag/core release gates.
 **Warning signs:** Phrases like "before this release is submitted" without "if/when publication is approved."
 
 ### Pitfall 2: Deferral Without Accountability
 
-**What goes wrong:** A lane says "deferred" but gives no owner, timing, or blocking decision.  
-**Why it happens:** Manual matrix execution is intentionally not happening in this phase by default.  
-**How to avoid:** Require owner, timing, rationale, and "blocks next public tag/publication?" for every deferred lane.  
+**What goes wrong:** A lane says "deferred" but gives no owner, timing, or blocking decision.
+**Why it happens:** Manual matrix execution is intentionally not happening in this phase by default.
+**How to avoid:** Require owner, timing, rationale, and "blocks next public tag/publication?" for every deferred lane.
 **Warning signs:** "TBD", "later", "not run", or blank owner fields.
 
 ### Pitfall 3: Evidence Duplicates Procedure
 
-**What goes wrong:** The new log repeats the manual testing guide, creating two sources to maintain.  
-**Why it happens:** The log needs to mention smoke sections, but not their full steps.  
-**How to avoid:** Record section IDs/names and outcomes only; link to `tests/MANUAL-TESTING.md`.  
+**What goes wrong:** The new log repeats the manual testing guide, creating two sources to maintain.
+**Why it happens:** The log needs to mention smoke sections, but not their full steps.
+**How to avoid:** Record section IDs/names and outcomes only; link to `tests/MANUAL-TESTING.md`.
 **Warning signs:** Full step-by-step browser instructions appearing in `docs/release-environment-log.md`.
 
 ### Pitfall 4: Over-validating Docs-only Changes
 
-**What goes wrong:** Planner adds full unit/integration/E2E work to a docs-only phase.  
-**Why it happens:** Project default commit hygiene is strong, but Phase 17 changes no runtime behavior.  
-**How to avoid:** Use `git diff --check` plus targeted read-through; reserve full suites for code/runtime/generated-file changes.  
+**What goes wrong:** Planner adds full unit/integration/E2E work to a docs-only phase.
+**Why it happens:** Project default commit hygiene is strong, but Phase 17 changes no runtime behavior.
+**How to avoid:** Use `git diff --check` plus targeted read-through; reserve full suites for code/runtime/generated-file changes.
 **Warning signs:** Plan tasks requiring MySQL, Playwright, wp-env, or managed-host provisioning to complete docs updates.
 
 ## Code Examples
@@ -372,5 +372,5 @@ delayed/on hold until the final maintainer approval gate is checked.
 - Pitfalls: HIGH — pitfalls come directly from Phase 17 scope boundaries and project anti-confabulation policy.
 - External WordPress.org facts: MEDIUM-HIGH — verified against official WordPress.org/developer.wordpress.org docs, but directory policies can change before actual submission.
 
-**Research date:** 2026-06-29  
+**Research date:** 2026-06-29
 **Valid until:** 2026-07-29 for internal docs architecture; re-check official WordPress.org docs immediately before actual submission/upload.

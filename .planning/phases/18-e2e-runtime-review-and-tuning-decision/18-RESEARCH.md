@@ -1,7 +1,7 @@
 # Phase 18: E2E Runtime Review and Tuning Decision - Research
 
-**Researched:** 2026-06-29  
-**Domain:** GitHub Actions E2E runtime evidence collection and CI tuning decision documentation  
+**Researched:** 2026-06-29
+**Domain:** GitHub Actions E2E runtime evidence collection and CI tuning decision documentation
 **Confidence:** HIGH for repository/workflow facts and GitHub Actions access; MEDIUM for current long-pole conclusion because CI data is time-sensitive and should be refreshed during execution.
 
 <user_constraints>
@@ -263,37 +263,37 @@ If refreshed data no longer supports a material long pole, the same section shou
 
 ### Pitfall 1: Whole-Workflow Wall Time Hides Matrix Skew
 
-**What goes wrong:** A workflow may look acceptable overall while one matrix group dominates the critical path.  
-**Why it happens:** `updatedAt - createdAt` includes queue/setup/gate behavior and does not expose matrix imbalance.  
-**How to avoid:** Use job-level `startedAt`/`completedAt` for `E2E Tests N/4 (...)` jobs.  
+**What goes wrong:** A workflow may look acceptable overall while one matrix group dominates the critical path.
+**Why it happens:** `updatedAt - createdAt` includes queue/setup/gate behavior and does not expose matrix imbalance.
+**How to avoid:** Use job-level `startedAt`/`completedAt` for `E2E Tests N/4 (...)` jobs.
 **Warning signs:** The review table only lists workflow run durations, not group names.
 
 ### Pitfall 2: Gate Jobs Pollute Runtime Tables
 
-**What goes wrong:** The required `E2E Tests` and `E2E Nginx Smoke` gate jobs appear as 2-4s jobs and distort averages.  
-**Why it happens:** They are real jobs in the workflow but not E2E test groups.  
-**How to avoid:** Exclude `Detect code changes`, exact `E2E Tests`, and exact `E2E Nginx Smoke`; include `E2E Nginx Smoke (run)`.  
+**What goes wrong:** The required `E2E Tests` and `E2E Nginx Smoke` gate jobs appear as 2-4s jobs and distort averages.
+**Why it happens:** They are real jobs in the workflow but not E2E test groups.
+**How to avoid:** Exclude `Detect code changes`, exact `E2E Tests`, and exact `E2E Nginx Smoke`; include `E2E Nginx Smoke (run)`.
 **Warning signs:** The fastest "E2E group" is only a few seconds.
 
 ### Pitfall 3: Sparse Scheduled Workflows
 
-**What goes wrong:** Scheduled/manual workflows may have zero or one post-tag run, causing false precision.  
-**Why it happens:** `e2e-nginx-multisite.yml` and `e2e-sqlite.yml` run only on `workflow_dispatch` and weekly schedule; `e2e-visual.yml` is scheduled/manual and non-blocking.  
-**How to avoid:** Record the gap and exact rerun commands; do not block Phase 18 solely on missing post-tag data.  
+**What goes wrong:** Scheduled/manual workflows may have zero or one post-tag run, causing false precision.
+**Why it happens:** `e2e-nginx-multisite.yml` and `e2e-sqlite.yml` run only on `workflow_dispatch` and weekly schedule; `e2e-visual.yml` is scheduled/manual and non-blocking.
+**How to avoid:** Record the gap and exact rerun commands; do not block Phase 18 solely on missing post-tag data.
 **Warning signs:** A final decision claims "balanced" for a workflow with no observations.
 
 ### Pitfall 4: Failed Dependency Runs Are Not Comparable Green Performance
 
-**What goes wrong:** A dependency-bump PR failure is treated as normal runtime evidence.  
-**Why it happens:** Failed runs still have completed jobs and durations; Playwright failures may wait for retries/timeouts.  
-**How to avoid:** Separate failed/cancelled runs from successful-run performance. Use failed runs only as context for dependency risk.  
+**What goes wrong:** A dependency-bump PR failure is treated as normal runtime evidence.
+**Why it happens:** Failed runs still have completed jobs and durations; Playwright failures may wait for retries/timeouts.
+**How to avoid:** Separate failed/cancelled runs from successful-run performance. Use failed runs only as context for dependency risk.
 **Warning signs:** The long-pole table includes the `@playwright/test` 1.61.1 failure beside successful `main` pushes without caveat.
 
 ### Pitfall 5: Proposing Coverage Reduction
 
-**What goes wrong:** The "tuning" response drops E2E surfaces or moves coverage to manual release checks.  
-**Why it happens:** Runtime pressure tempts coverage trimming.  
-**How to avoid:** Locked context forbids trimming. If a long pole exists, propose rebalancing/caching/scheduling clarity only.  
+**What goes wrong:** The "tuning" response drops E2E surfaces or moves coverage to manual release checks.
+**Why it happens:** Runtime pressure tempts coverage trimming.
+**How to avoid:** Locked context forbids trimming. If a long pole exists, propose rebalancing/caching/scheduling clarity only.
 **Warning signs:** The proposed action removes a spec file, changes required checks, or makes release-grade E2E manual-only.
 
 ## Code Examples
@@ -435,5 +435,5 @@ Then record the resulting run IDs and job durations with the same `gh run view -
 - Runtime evidence snapshot: MEDIUM — live GitHub Actions data is temporally unstable and must be refreshed during execution.
 - Pitfalls: HIGH — derived from current workflow structure and observed run/job output.
 
-**Research date:** 2026-06-29  
+**Research date:** 2026-06-29
 **Valid until:** 2026-07-06 for runtime evidence; documentation architecture remains stable until workflows change.
