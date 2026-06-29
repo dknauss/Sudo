@@ -199,3 +199,54 @@ This plan does **not** implement the workflow change. It records the evidence-ba
 - **Evidence:** 9 successful post-cutoff baseline observations show `E2E Tests 1/4 (challenge-basic-admin)` averaging 372.2 seconds, about 34% slower than the next comparable baseline groups and repeatably on the critical path.
 - **Rationale:** A small rebalance within the current four groups can reduce the long pole without adding startup overhead, changing required checks, or sacrificing coverage.
 - **Owner/timing:** Maintainer / next CI-speed follow-up before the next release-grade tuning pass; re-run the refresh commands in this document immediately before editing `.github/workflows/e2e.yml`.
+
+## Phase 20 refresh — E2E shard rebalance implementation
+
+Collected: 2026-06-29T22:10:22Z
+Repository: `dknauss/Sudo`
+Workflow: `.github/workflows/e2e.yml` / `E2E Tests`
+Implementation branch: `ci/e2e-shard-rebalance`
+
+This refresh was collected immediately before editing `.github/workflows/e2e.yml`. It uses GitHub Actions job timestamps as the source of truth; local Playwright timing assumptions were not used.
+
+### Phase 20 refresh commands
+
+```bash
+gh run list -R dknauss/Sudo --workflow e2e.yml --limit 20 --json databaseId,displayTitle,event,headBranch,status,conclusion,createdAt,updatedAt,url
+RUN_ID=<run id from successful comparable run>
+gh run view "$RUN_ID" -R dknauss/Sudo --json databaseId,workflowName,displayTitle,event,headBranch,conclusion,createdAt,url,jobs
+```
+
+Successful completed workflow runs were expanded with `gh run view "$RUN_ID" -R dknauss/Sudo --json jobs`; comparable jobs are only `E2E Tests 1/4` through `4/4` from successful workflow runs. `Detect code changes` and the exact final gate job named `E2E Tests` remain excluded from runtime aggregation.
+
+### Phase 20 refreshed run inventory
+
+| Run ID | Created | Event | Branch/ref | 1/4 seconds | 2/4 seconds | 3/4 seconds | 4/4 seconds | URL |
+|---:|---|---|---|---:|---:|---:|---:|---|
+| 28405201903 | 2026-06-29T21:54:21Z | push | main | 411 | 258 | 345 | 292 | https://github.com/dknauss/Sudo/actions/runs/28405201903 |
+| 28404488595 | 2026-06-29T21:40:25Z | push | main | 458 | 279 | 353 | 312 | https://github.com/dknauss/Sudo/actions/runs/28404488595 |
+| 28403154219 | 2026-06-29T21:14:55Z | push | main | 400 | 278 | 354 | 305 | https://github.com/dknauss/Sudo/actions/runs/28403154219 |
+| 28403078588 | 2026-06-29T21:13:30Z | pull_request | dependabot/github_actions/actions/cache-6 | 418 | 304 | 317 | 305 | https://github.com/dknauss/Sudo/actions/runs/28403078588 |
+| 28396183980 | 2026-06-29T19:08:40Z | pull_request | dependabot/npm_and_yarn/playwright/test-1.61.1 | 400 | 261 | 328 | 302 | https://github.com/dknauss/Sudo/actions/runs/28396183980 |
+| 28393595457 | 2026-06-29T18:21:46Z | push | main | 416 | 236 | 293 | 286 | https://github.com/dknauss/Sudo/actions/runs/28393595457 |
+| 28384568687 | 2026-06-29T15:46:40Z | pull_request | dependabot/npm_and_yarn/wordpress/env-11.9.0 | 385 | 256 | 295 | 271 | https://github.com/dknauss/Sudo/actions/runs/28384568687 |
+| 28380853974 | 2026-06-29T14:49:49Z | pull_request | dependabot/github_actions/actions/cache-6 | 375 | 254 | 282 | 272 | https://github.com/dknauss/Sudo/actions/runs/28380853974 |
+
+### Phase 20 refreshed aggregates
+
+| Job/group | Observations | Min seconds | Max seconds | Average seconds | Median seconds |
+|---|---:|---:|---:|---:|---:|
+| E2E Tests 1/4 (challenge-basic-admin) | 8 | 375 | 458 | 407.9 | 405.5 |
+| E2E Tests 2/4 (challenge-2fa-ui) | 8 | 236 | 304 | 265.8 | 259.5 |
+| E2E Tests 3/4 (challenge-lockout-surfaces) | 8 | 282 | 354 | 320.9 | 322.5 |
+| E2E Tests 4/4 (challenge-replay-multisite) | 8 | 271 | 312 | 293.1 | 297.0 |
+
+### Phase 20 rebalance decision
+
+Current long pole: `E2E Tests 1/4 (challenge-basic-admin)` at 407.9 seconds average across 8 successful comparable observations.
+
+Destination group: `E2E Tests 2/4 (challenge-2fa-ui)`, the shortest suitable existing group at 265.8 seconds average. The selected low-risk slice is `tests/e2e/specs/admin-bar-timer.spec.ts` / `TIMR`, moved from group 1 to group 2.
+
+Rationale: Group 1 remains materially slower than the other baseline groups, while group 2 is consistently shortest in the refreshed data. Moving the timer spec preserves coverage, keeps the same required final `E2E Tests` gate, and stays within the existing four groups so the workflow does not add another fixed `wp-env` startup floor.
+
+Implementation: `.github/workflows/e2e.yml` now removes `admin-bar-timer.spec.ts` and `TIMR` from group 1 and adds `admin-bar-timer.spec.ts` to group 2's second command. No spec is skipped, deleted, or moved to manual-only validation.
