@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v4.3.0
 milestone_name: Post-.org Readiness Hardening
 status: in_progress
-last_updated: "2026-06-28T22:40:00Z"
-last_activity: "2026-06-28 — Completed Phase 16 localization packaging readiness: POT generation/check commands, committed POT, translator-comment cleanup, and docs."
+last_updated: "2026-06-29T13:20:28Z"
+last_activity: "2026-06-29 — Captured Phase 17 release-only environment assurance context; ready to plan."
 progress:
   total_phases: 4
   completed_phases: 1
@@ -14,12 +14,12 @@ progress:
 
 ## Current Position
 
-Phase: v4.3.0 milestone — **IN PROGRESS**. Phase 16 localization/translation packaging readiness is complete; next planned phase is Phase 17 release-only environment assurance, or Phase 19 if 2FA bridge planning is the priority.
-Branch: main — post-v4.2.2 Phase 16 implementation work. Latest tagged release remains `v4.2.2`; localization packaging readiness is unreleased drift.
+Phase: v4.3.0 milestone — **IN PROGRESS**. Phase 17 release-only environment assurance context is captured; next action is `$gsd-plan-phase 17`, or Phase 19 if 2FA bridge planning is the priority.
+Branch: main — post-v4.2.2 Phase 16/17 planning work. Latest tagged release remains `v4.2.2`; localization packaging readiness is unreleased drift.
 Done & merged to main: v4.0.0 milestone phases 11-15 complete; v4.2.2 tagged/pushed; Patchstack 2FA compatibility documented and captured as a GSD todo.
 Open threads: WordPress.org submission remains intentionally delayed/on hold; keep `docs/wporg-submission-checklist.md` ready. Remaining v4.3.0 work focuses on release-only environment assurance, E2E runtime review, and 2FA bridge planning.
-Resume file: .planning/phases/16-localization-and-translation-packaging-readiness/16-CONTEXT.md
-Last activity: 2026-06-28 — Phase 16 implemented and validated.
+Resume file: .planning/phases/17-release-only-environment-assurance/17-CONTEXT.md
+Last activity: 2026-06-29 — Phase 17 context captured; ready to plan release-only environment assurance.
 
 ## Project Reference
 
@@ -37,7 +37,7 @@ Canonical current facts:
 
 Phase execution order:
 1. ✅ **Phase 16 — Localization and Translation Packaging Readiness** (L10N-01 through L10N-03): complete — Composer i18n commands, committed POT, translator-comment cleanup, and release docs.
-2. ⬜ **Phase 17 — Release-only Environment Assurance** (REL-01 through REL-03): not started.
+2. ⏳ **Phase 17 — Release-only Environment Assurance** (REL-01 through REL-03): context captured; plan pending.
 3. ⬜ **Phase 18 — E2E Runtime Review and Tuning Decision** (CI-01 through CI-03): not started.
 4. ⬜ **Phase 19 — 2FA Bridge Planning and Compatibility Matrix** (2FA-01 through 2FA-03): not started; includes upstream Two Factor lifecycle bridge planning and Patchstack as a second-tier/manual-test target.
 
