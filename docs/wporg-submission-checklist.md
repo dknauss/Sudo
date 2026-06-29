@@ -2,24 +2,19 @@
 
 A repeatable checklist for preparing and submitting **Sudo** to the WordPress.org
 plugin directory. This document **describes the process — it does not perform the
-submission.** Submission is intentionally delayed/on hold, but this checklist should stay ready to execute at any time. Run it before each public release that targets WordPress.org.
+submission.** Submission is intentionally delayed/on hold, but this checklist should stay ready to execute at any time. Run the pre-tag/core release gates before any public release tag, and run the WordPress.org-only gates only when the maintainer explicitly approves publication.
 
 > Canonical release-state source: [`docs/release-status.md`](release-status.md).
 > Canonical counts source: [`docs/current-metrics.md`](current-metrics.md).
+> Release environment evidence source: [`docs/release-environment-log.md`](release-environment-log.md).
 > Do not hardcode volatile versions/counts here — verify against those files.
 
 ---
 
-## 1. Pre-submission validation (all must pass)
+## 1. Pre-tag/core release gates
 
-- [ ] **readme validator** — `readme.txt` passes the official WordPress.org readme
-  parser: <https://wordpress.org/plugins/developers/readme-validator/>. Short
-  description ≤ 150 characters; required headers present (`Contributors`,
-  `Tags`, `Requires at least`, `Tested up to`, `Requires PHP`, `Stable tag`,
-  `License`, `License URI`).
-- [ ] **Plugin Check (PCP) green** — run the official Plugin Check plugin against a
-  clean production build (the repo's `plugin-check` CI lane does this via `wp-env`).
-  No `stable_tag_mismatch`, no `plugin_name_mismatch`, no errors.
+These gates protect the GitHub/package release itself. They are required before a public tag or publication decision, whether or not WordPress.org upload/submission happens later.
+
 - [ ] **Version-sync gate** — `WP_SUDO_VERSION` must be identical in all four code
   locations, and the `readme.txt` Stable tag must match the plugin header `Version`
   (per `CLAUDE.md` → *Version sync checklist*):
@@ -28,21 +23,46 @@ submission.** Submission is intentionally delayed/on hold, but this checklist sh
   3. `phpstan-bootstrap.php` — `define( 'WP_SUDO_VERSION', … )` constant
   4. `tests/bootstrap.php` — `define( 'WP_SUDO_VERSION', … )` constant
   5. `readme.txt` — `Stable tag:` (must equal the header `Version`)
-- [ ] **Test/analyse/lint green** — `composer test`, `composer analyse` (PHPStan
-  level 6), and `composer lint` all pass.
+- [ ] **Unit tests green** — `composer test` passes.
+- [ ] **Static analysis green** — `composer analyse` (PHPStan level 6) passes.
+- [ ] **Coding standards green** — `composer lint` passes.
+- [ ] **Canonical metrics verified** — `composer verify:metrics` passes before any docs reference current repository counts.
 - [ ] **Translation template current** — `composer verify:i18n` passes. If it fails,
   run `composer i18n:make-pot`, review `languages/wp-sudo.pot`, and commit the
   updated template. This is a release/.org readiness gate; it is not currently a
   required pre-commit or GitHub status check.
-- [ ] **Pre-release audit** — re-verify every external claim added/modified since
-  the last tag against live sources; append findings to `docs/llm-lies-log.md`
-  (per `CLAUDE.md` → *Pre-release audit*).
-- [ ] **`Tested up to`** reflects the current latest stable WordPress release
-  (see `docs/release-status.md` → *Package metadata rule*).
-- [ ] **License agreement** — `License: GPLv2 or later` / `GPL-2.0-or-later` is
-  consistent across `readme.txt`, the `wp-sudo.php` header, and `composer.json`.
+- [ ] **Pre-release external-claim audit** — re-verify every external claim added or
+  modified since the last tag against live sources; append findings to
+  `docs/llm-lies-log.md` (per `CLAUDE.md` → *Pre-release audit*).
+- [ ] **Changelog/readme/release-status sanity** — `CHANGELOG.md`, `readme.txt`, and
+  [`docs/release-status.md`](release-status.md) agree on the intended version,
+  release posture, and whether work is tagged or still unreleased on `main`.
+- [ ] **Package metadata sanity** — `Tested up to` reflects the current latest stable
+  WordPress release (see `docs/release-status.md` → *Package metadata rule*), and
+  `License: GPLv2 or later` / `GPL-2.0-or-later` is consistent across
+  `readme.txt`, the `wp-sudo.php` header, and `composer.json`.
+- [ ] **Release environment matrix/log gate** — the manual matrix in
+  [`tests/MANUAL-TESTING.md`](../tests/MANUAL-TESTING.md) has current completed
+  evidence in [`docs/release-environment-log.md`](release-environment-log.md), or
+  every deferred lane has owner, timing, follow-up/waiver, and blocker posture.
 
-## 2. Asset requirements
+## 2. WordPress.org-only submission/upload gates
+
+These gates are required only when publication is explicitly approved. WordPress.org publication remains delayed/on hold until that approval exists; do not perform SVN upload, asset upload, or final submission as part of ordinary release-readiness work.
+
+### 2.1 Validation specific to the directory
+
+- [ ] **readme validator** — `readme.txt` passes the official WordPress.org readme
+  parser: <https://wordpress.org/plugins/developers/readme-validator/>. Short
+  description ≤ 150 characters; required headers present (`Contributors`,
+  `Tags`, `Requires at least`, `Tested up to`, `Requires PHP`, `Stable tag`,
+  `License`, `License URI`).
+- [ ] **Plugin Check (PCP) green against a clean production package** — run the
+  official Plugin Check plugin against the package/SVN candidate, not a dirty dev
+  tree. The repo's `plugin-check` CI lane does this via `wp-env`. No
+  `stable_tag_mismatch`, no `plugin_name_mismatch`, no errors.
+
+### 2.2 Listing asset requirements
 
 WordPress.org listing assets live in the repo under `.wordpress-org/` and are
 mirrored to the SVN `assets/` directory (they are **not** shipped in the plugin
@@ -55,10 +75,10 @@ zip). Sizes per the WordPress.org Plugin Handbook:
   the order of the captions under `== Screenshots ==` in `readme.txt`. Each
   screenshot must show **current** UI (see Plan 14-04 for the capture procedure
   and the "recovery mode OFF during capture" rule).
-- [ ] **Caption parity** — the `readme.txt` `== Screenshots ==` list length and order
-  exactly match the `.wordpress-org/screenshot-*.png` file set.
+- [ ] **Screenshot/caption parity** — the `readme.txt` `== Screenshots ==` list
+  length and order exactly match the `.wordpress-org/screenshot-*.png` file set.
 
-## 3. SVN repository layout
+### 2.3 SVN repository layout/upload
 
 WordPress.org hosts plugins in Subversion, not Git. Standard layout:
 
@@ -79,7 +99,7 @@ WordPress.org hosts plugins in Subversion, not Git. Standard layout:
   `composer.*`, `phpstan*`, `psalm*`, `phpunit*`, lint configs. Mirror the
   `.distignore` / build-dist rules used by the `plugin-check` CI lane.
 
-## 4. Brand / header note
+### 2.4 Slug-lock, brand, and header decision
 
 - Product name: **Sudo**.
 - WordPress.org **Plugin Name** header + readme title: **"Sudo – Admin Action Gating"**
@@ -98,16 +118,17 @@ WordPress.org hosts plugins in Subversion, not Git. Standard layout:
 - The intentional divergence between product name, Plugin Name header, slug, and repo
   is documented in [`docs/developer-reference.md`](developer-reference.md) (Plan 14-02).
 
-## 5. Final "do not submit until" gate
+### 2.5 Final publication approval
 
 Do **not** initiate the WordPress.org submission until publication is explicitly approved and **all** of the following hold:
 
 - [ ] `docs/release-status.md` shows the intended version as the latest tagged release
   (i.e. the Git `vX.Y.Z` tag is cut, not just the runtime constant bumped).
-- [ ] Sections 1–4 above are fully checked.
+- [ ] The pre-tag/core release gates and all WordPress.org-only submission/upload gates above are fully checked.
 - [ ] The maintainer has explicitly decided to publish now (publication is delayed/on hold until then; once submitted, the slug is permanent and the listing is public).
 
 ---
 
-*See also: [`docs/release-status.md`](release-status.md) (canonical release state)
+*See also: [`docs/release-status.md`](release-status.md) (canonical release state),
+[`docs/release-environment-log.md`](release-environment-log.md) (release environment evidence),
 and `CLAUDE.md` (version-sync + pre-release audit rules).*

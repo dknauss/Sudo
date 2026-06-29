@@ -22,7 +22,11 @@ wp-env, DDEV, etc.).
 ### Release Environment Matrix Checklist
 
 Before each release, run the core manual smoke set on at least one environment
-in each row below. Confirm the current supported WordPress floor in
+in each row below. This guide remains the executable procedure for manual
+smoke testing; durable per-version outcomes, deferrals, owners, timing, and
+waivers belong in the record of record:
+[`docs/release-environment-log.md`](../docs/release-environment-log.md).
+Confirm the current supported WordPress floor in
 [`docs/release-status.md`](../docs/release-status.md) instead of copying a
 version number into this checklist.
 

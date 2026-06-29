@@ -8,7 +8,7 @@
 # Active Roadmap: Milestone v4.3.0 — Post-.org Readiness Hardening
 
 **Milestone:** v4.3.0
-**Status:** In progress — Phase 16 complete; phases 17-19 remain planned
+**Status:** In progress — Phases 16-17 complete; phases 18-19 remain planned
 **Previous milestone last phase:** 15 (Manual Testing Environment Checklist, v4.2.x)
 **Phase numbering continues from:** 16
 
@@ -17,7 +17,7 @@
 ## Phases
 
 - [x] **Phase 16: Localization and Translation Packaging Readiness** — POT generation, translator comments, JS/CLI strings, and an i18n check (completed 2026-06-28).
-- [ ] **Phase 17: Release-only Environment Assurance** — run/record the manual environment matrix and clarify tag-vs-.org checks.
+- [x] **Phase 17: Release-only Environment Assurance** — Complete: release environment log and tag-vs-.org gates documented (completed 2026-06-29).
 - [ ] **Phase 18: E2E Runtime Review and Tuning Decision** — review explicit group runtimes and either scope a targeted tuning action or document no-change.
 - [ ] **Phase 19: 2FA Bridge Planning and Compatibility Matrix** — convert upstream Two Factor lifecycle bridge scope into an implementation plan and keep Patchstack as a second-tier compatibility target.
 
@@ -51,7 +51,10 @@
 2. `docs/wporg-submission-checklist.md` remains ready but clearly delayed/on hold.
 3. Release docs distinguish pre-tag checks from `.org` upload/submission checks.
 
-**Plans:** Pending — start with `$gsd-discuss-phase 17`.
+**Plans:** 1/1 plans complete
+
+Plans:
+- [x] 17-01-PLAN.md — Created release environment log, linked manual matrix evidence, split pre-tag versus WordPress.org-only gates, and finalized Phase 17 planning state.
 
 ### Phase 18: E2E Runtime Review and Tuning Decision
 
@@ -66,7 +69,10 @@
 2. If there is a material long pole, exactly one low-risk tuning action is proposed.
 3. If there is no material long pole, the no-change decision is documented to avoid unnecessary CI complexity.
 
-**Plans:** Pending — start with `$gsd-discuss-phase 18`.
+**Plans:** 1 plan
+
+Plans:
+- [ ] 18-01-PLAN.md — Refresh GitHub Actions E2E runtime evidence, create the durable runtime review, and document the CI tuning decision.
 
 ### Phase 19: 2FA Bridge Planning and Compatibility Matrix
 
@@ -88,7 +94,7 @@
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
 | 16. Localization and Translation Packaging Readiness | v4.3.0 | direct | Complete | 2026-06-28 |
-| 17. Release-only Environment Assurance | v4.3.0 | 0/? | Not started | - |
+| 17. Release-only Environment Assurance | v4.3.0 | 1/1 | Complete | 2026-06-29 |
 | 18. E2E Runtime Review and Tuning Decision | v4.3.0 | 0/? | Not started | - |
 | 19. 2FA Bridge Planning and Compatibility Matrix | v4.3.0 | 0/? | Not started | - |
 

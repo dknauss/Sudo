@@ -17,9 +17,9 @@
 
 ### Release-only Environment Assurance
 
-- [ ] **REL-01**: Maintainers can run and record the manual environment matrix for the current package, including the minimum WordPress floor and at least one managed-host lane.
-- [ ] **REL-02**: The WordPress.org submission checklist remains executable from the current tree, with delayed/on-hold publication status clearly preserved.
-- [ ] **REL-03**: Release-readiness docs identify which checks are required before tags versus only before `.org` submission/upload.
+- [x] **REL-01**: Maintainers can run and record the manual environment matrix for the current package, including the minimum WordPress floor and at least one managed-host lane.
+- [x] **REL-02**: The WordPress.org submission checklist remains executable from the current tree, with delayed/on-hold publication status clearly preserved.
+- [x] **REL-03**: Release-readiness docs identify which checks are required before tags versus only before `.org` submission/upload.
 
 ### E2E Runtime Review
 
@@ -56,9 +56,9 @@
 | L10N-01 | Phase 16 | Complete |
 | L10N-02 | Phase 16 | Complete |
 | L10N-03 | Phase 16 | Complete |
-| REL-01 | Phase 17 | Pending |
-| REL-02 | Phase 17 | Pending |
-| REL-03 | Phase 17 | Pending |
+| REL-01 | Phase 17 | Complete |
+| REL-02 | Phase 17 | Complete |
+| REL-03 | Phase 17 | Complete |
 | CI-01 | Phase 18 | Pending |
 | CI-02 | Phase 18 | Pending |
 | CI-03 | Phase 18 | Pending |
@@ -68,9 +68,10 @@
 
 **Coverage:**
 - v1 requirements: 12 total
+- Complete: 6/12
 - Mapped to phases: 12/12
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-06-28*
-*Last updated: 2026-06-28 — Phase 16 localization packaging readiness completed.*
+*Last updated: 2026-06-29 — Phase 17 release-only environment assurance completed.*

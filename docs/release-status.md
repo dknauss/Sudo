@@ -1,6 +1,6 @@
 # Release Status (Canonical Current State)
 
-Last verified: 2026-06-28
+Last verified: 2026-06-29
 
 This file is the canonical source for **current release state** in this repository:
 
@@ -27,6 +27,7 @@ This file is the canonical source for **current release state** in this reposito
 
 - **WordPress.org plugin repository:** not published. Submission is intentionally delayed/on hold, but the repository should remain submission-ready at any time.
 - **Readiness source:** `docs/wporg-submission-checklist.md` is the operational checklist to keep ready for publication approval.
+- **Release environment assurance source:** `docs/release-environment-log.md` records per-version manual environment outcomes and deferrals.
 - **`readme.txt` stable tag:** package/release metadata for generated plugin zips and future WordPress.org publication; it does not indicate that this plugin is currently live in the WordPress.org repository.
 
 ## Latest release contents
@@ -58,6 +59,12 @@ Canonical source for post-tag drift after `v4.2.2`: `git log v4.2.2..main --onel
 ## Unreleased `main` work
 
 Unreleased work after `v4.2.2` currently includes localization packaging readiness: WP-CLI-backed Composer commands for POT generation/freshness verification, a committed `languages/wp-sudo.pot`, targeted translator-comment cleanup, and release documentation updates. Canonical source for drift after the tag: `git log v4.2.2..main --oneline`.
+
+### Release environment assurance
+
+Phase 17 added [`docs/release-environment-log.md`](release-environment-log.md) as the record of record for release-grade manual environment matrix outcomes. The current `v4.2.2` package row is explicitly **Deferred**: Apache stack, managed WordPress host, and minimum-supported-WordPress lanes were not rerun in Phase 17 and each is owned by the Maintainer before the next public tag/publication decision, blocking unless explicitly waived.
+
+Release readiness now distinguishes **Pre-tag/core** gates from **WordPress.org-only** gates. Pre-tag/core gates cover version sync, Composer validation commands, external-claim audit, changelog/readme/release-status sanity, package metadata, and the release environment matrix/log gate. WordPress.org-only gates cover the readme validator, clean-package Plugin Check, SVN layout/upload, listing assets, screenshot/caption parity, slug-lock decision, and final publication approval. WordPress.org submission/upload remains delayed/on hold.
 
 **Pre-tag checklist reminder:** before tagging a future release, confirm the five version-sync points are still in sync, re-verify external claims added since the previous tag, ensure the CHANGELOG/`readme.txt` release entries are dated/current, and update this file's "Latest tagged release" once the tag is cut.
 
@@ -95,6 +102,7 @@ WordPress 7.0 is now the latest stable release for package compatibility metadat
 - `CHANGELOG.md`
 - `docs/current-metrics.md`
 - `tests/MANUAL-TESTING.md`
+- `docs/release-environment-log.md`
 
 ### External sources
 

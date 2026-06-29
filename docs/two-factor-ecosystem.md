@@ -157,7 +157,7 @@ Here is how the major WordPress 2FA plugins store and validate credentials, and 
 setup for end-to-end testing because the login/2FA hooks are disabled when the
 plugin is in free-license mode.
 
-Verified against WordPress.org SVN trunk revision 3589135 on 2026-06-28:
+Verified against current WordPress.org SVN trunk revision 3589135 at the time of this review:
 
 | Aspect | Detail |
 |--------|--------|
