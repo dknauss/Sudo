@@ -38,32 +38,34 @@ test.describe( 'WP Sudo smoke tests', () => {
             url.searchParams.get( 'page' ) === 'wp-sudo-settings';
 
         const applyPresetAndWait = async ( preset: string, expectedLabel: string ) => {
+            const successNotice = page.locator( '.wp-sudo-notice.notice-success' );
+
             // The preset field is a <select> dropdown. Selecting a new preset
             // and clicking Save applies it directly (no separate checkbox).
             await presetSelection.selectOption( preset );
+
+            const outcome = Promise.race( [
+                page.waitForURL( /page=wp-sudo-challenge/, { timeout: 15_000 } ).then( () => 'challenge' ),
+                expect( successNotice ).toContainText( `${ expectedLabel } preset applied.`, {
+                    timeout: 15_000,
+                } ).then( () => 'success' as const ),
+            ] );
 
             await page
                 .locator( '#submit' )
                 .evaluate( ( button ) => ( button as HTMLInputElement ).form?.requestSubmit() );
 
-            await Promise.race( [
-                page.waitForURL( isSettingsUrl, { timeout: 15_000 } ),
-                page.waitForURL( /page=wp-sudo-challenge/, { timeout: 15_000 } ),
-            ] );
-
-            if ( /page=wp-sudo-challenge/.test( page.url() ) ) {
+            if ( 'challenge' === ( await outcome ) ) {
                 await page.fill( '#wp-sudo-challenge-password', 'password' );
 
                 await page
                     .locator( '#wp-sudo-challenge-password-form' )
                     .evaluate( ( form ) => ( form as HTMLFormElement ).requestSubmit() );
                 await expect( page ).toHaveURL( isSettingsUrl, { timeout: 15_000 } );
+                await expect( successNotice ).toContainText( `${ expectedLabel } preset applied.`, {
+                    timeout: 15_000,
+                } );
             }
-
-            // The notice format is "{Label} preset applied. {details}"
-            await expect( page.locator( '.wp-sudo-notice.notice-success' ) ).toContainText(
-                `${ expectedLabel } preset applied.`
-            );
         };
 
         await visitAdminPage( 'options-general.php', 'page=wp-sudo-settings' );

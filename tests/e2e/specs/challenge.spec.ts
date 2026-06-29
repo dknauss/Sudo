@@ -137,6 +137,12 @@ async function getActivateUrl(
     return href;
 }
 
+async function submitTwoFactorChallenge( page: Page ): Promise<void> {
+    await page
+        .locator( '#wp-sudo-challenge-2fa-submit' )
+        .evaluate( ( button ) => ( button as HTMLButtonElement ).click() );
+}
+
 /**
  * Clear sudo session cookies from the browser context while preserving WP auth cookies.
  * This forces the gate to intercept the next gated request.
@@ -903,7 +909,7 @@ test.describe( 'Challenge flow', () => {
                         ! url.search.includes( 'wp-sudo-challenge' ),
                     { timeout: 15_000 }
                 ),
-                page.click( '#wp-sudo-challenge-2fa-submit' ),
+                submitTwoFactorChallenge( page ),
             ] );
 
             await expect(
@@ -1007,7 +1013,7 @@ test.describe( 'Challenge flow', () => {
                         ! url.search.includes( 'wp-sudo-challenge' ),
                     { timeout: 15_000 }
                 ),
-                page.click( '#wp-sudo-challenge-2fa-submit' ),
+                submitTwoFactorChallenge( page ),
             ] );
 
             expect(
@@ -1034,7 +1040,7 @@ test.describe( 'Challenge flow', () => {
 
             for ( let attempt = 1; attempt <= 3; attempt++ ) {
                 await page.fill( '#wp-sudo-e2e-two-factor-code', '000000' );
-                await page.click( '#wp-sudo-challenge-2fa-submit' );
+                await submitTwoFactorChallenge( page );
 
                 await expect(
                     page.locator( '#wp-sudo-challenge-2fa-error' ),
@@ -1048,7 +1054,7 @@ test.describe( 'Challenge flow', () => {
             }
 
             await page.fill( '#wp-sudo-e2e-two-factor-code', '000000' );
-            await page.click( '#wp-sudo-challenge-2fa-submit' );
+            await submitTwoFactorChallenge( page );
 
             await expect(
                 page.locator( '#wp-sudo-challenge-2fa-error' ),
@@ -1104,7 +1110,7 @@ test.describe( 'Challenge flow', () => {
 
             for ( let attempt = 1; attempt <= 3; attempt++ ) {
                 await page.fill( '#wp-sudo-e2e-two-factor-code', '000000' );
-                await page.click( '#wp-sudo-challenge-2fa-submit' );
+                await submitTwoFactorChallenge( page );
 
                 await expect(
                     page.locator( '#wp-sudo-challenge-2fa-error' ),
@@ -1113,7 +1119,7 @@ test.describe( 'Challenge flow', () => {
             }
 
             await page.fill( '#wp-sudo-e2e-two-factor-code', '000000' );
-            await page.click( '#wp-sudo-challenge-2fa-submit' );
+            await submitTwoFactorChallenge( page );
 
             await expect(
                 page.locator( '#wp-sudo-challenge-2fa-submit' ),
@@ -1126,7 +1132,7 @@ test.describe( 'Challenge flow', () => {
             ).toBeEnabled( { timeout: 10_000 } );
 
             await page.fill( '#wp-sudo-e2e-two-factor-code', '000000' );
-            await page.click( '#wp-sudo-challenge-2fa-submit' );
+            await submitTwoFactorChallenge( page );
 
             await expect(
                 page.locator( '#wp-sudo-challenge-2fa-error' ),
@@ -1339,7 +1345,7 @@ test.describe( 'Challenge flow', () => {
 
             for ( let attempt = 1; attempt <= 3; attempt++ ) {
                 await page.fill( '#wp-sudo-e2e-two-factor-code', '000000' );
-                await page.click( '#wp-sudo-challenge-2fa-submit' );
+                await submitTwoFactorChallenge( page );
 
                 await expect(
                     page.locator( '#wp-sudo-challenge-2fa-error' ),
@@ -1348,7 +1354,7 @@ test.describe( 'Challenge flow', () => {
             }
 
             await page.fill( '#wp-sudo-e2e-two-factor-code', '000000' );
-            await page.click( '#wp-sudo-challenge-2fa-submit' );
+            await submitTwoFactorChallenge( page );
 
             await expect(
                 page.locator( '#wp-sudo-challenge-2fa-submit' ),
@@ -1361,7 +1367,7 @@ test.describe( 'Challenge flow', () => {
             ).toBeEnabled( { timeout: 10_000 } );
 
             await page.fill( '#wp-sudo-e2e-two-factor-code', '000000' );
-            await page.click( '#wp-sudo-challenge-2fa-submit' );
+            await submitTwoFactorChallenge( page );
 
             await expect(
                 page.locator( '#wp-sudo-challenge-2fa-error' ),
@@ -1392,7 +1398,7 @@ test.describe( 'Challenge flow', () => {
                         ! url.search.includes( 'wp-sudo-challenge' ),
                     { timeout: 15_000 }
                 ),
-                page.click( '#wp-sudo-challenge-2fa-submit' ),
+                submitTwoFactorChallenge( page ),
             ] );
 
             await expect(
@@ -1437,7 +1443,7 @@ test.describe( 'Challenge flow', () => {
 
             for ( let attempt = 1; attempt <= 3; attempt++ ) {
                 await page.fill( '#wp-sudo-e2e-two-factor-code', '000000' );
-                await page.click( '#wp-sudo-challenge-2fa-submit' );
+                await submitTwoFactorChallenge( page );
 
                 await expect(
                     page.locator( '#wp-sudo-challenge-2fa-error' ),
@@ -1446,7 +1452,7 @@ test.describe( 'Challenge flow', () => {
             }
 
             await page.fill( '#wp-sudo-e2e-two-factor-code', '000000' );
-            await page.click( '#wp-sudo-challenge-2fa-submit' );
+            await submitTwoFactorChallenge( page );
 
             await expect(
                 page.locator( '#wp-sudo-challenge-2fa-submit' ),
@@ -1459,7 +1465,7 @@ test.describe( 'Challenge flow', () => {
             ).toBeEnabled( { timeout: 10_000 } );
 
             await page.fill( '#wp-sudo-e2e-two-factor-code', '000000' );
-            await page.click( '#wp-sudo-challenge-2fa-submit' );
+            await submitTwoFactorChallenge( page );
 
             await expect(
                 page.locator( '#wp-sudo-challenge-2fa-error' ),
@@ -1485,7 +1491,7 @@ test.describe( 'Challenge flow', () => {
 
             await Promise.all( [
                 page.waitForURL( /plugins\.php/, { timeout: 15_000 } ),
-                page.click( '#wp-sudo-challenge-2fa-submit' ),
+                submitTwoFactorChallenge( page ),
             ] );
 
             await expect(
@@ -1527,7 +1533,7 @@ test.describe( 'Challenge flow', () => {
 
             for ( let attempt = 1; attempt <= 3; attempt++ ) {
                 await page.fill( '#wp-sudo-e2e-two-factor-code', '000000' );
-                await page.click( '#wp-sudo-challenge-2fa-submit' );
+                await submitTwoFactorChallenge( page );
 
                 await expect(
                     page.locator( '#wp-sudo-challenge-2fa-error' ),
@@ -1536,7 +1542,7 @@ test.describe( 'Challenge flow', () => {
             }
 
             await page.fill( '#wp-sudo-e2e-two-factor-code', '000000' );
-            await page.click( '#wp-sudo-challenge-2fa-submit' );
+            await submitTwoFactorChallenge( page );
 
             await expect(
                 page.locator( '#wp-sudo-challenge-2fa-submit' ),
@@ -1549,7 +1555,7 @@ test.describe( 'Challenge flow', () => {
             ).toBeEnabled( { timeout: 10_000 } );
 
             await page.fill( '#wp-sudo-e2e-two-factor-code', '000000' );
-            await page.click( '#wp-sudo-challenge-2fa-submit' );
+            await submitTwoFactorChallenge( page );
 
             await expect(
                 page.locator( '#wp-sudo-challenge-2fa-error' ),
@@ -1583,7 +1589,7 @@ test.describe( 'Challenge flow', () => {
                 }
             } );
 
-            await page.click( '#wp-sudo-challenge-2fa-submit' );
+            await submitTwoFactorChallenge( page );
 
             expect(
                 page.url(),
@@ -1609,7 +1615,7 @@ test.describe( 'Challenge flow', () => {
 
             await Promise.all( [
                 page.waitForURL( /plugins\.php/, { timeout: 15_000 } ),
-                page.click( '#wp-sudo-challenge-2fa-submit' ),
+                submitTwoFactorChallenge( page ),
             ] );
 
             expect(
@@ -1673,7 +1679,7 @@ test.describe( 'Challenge flow', () => {
 
             for ( let attempt = 1; attempt <= 3; attempt++ ) {
                 await page.fill( '#wp-sudo-e2e-two-factor-code', '000000' );
-                await page.click( '#wp-sudo-challenge-2fa-submit' );
+                await submitTwoFactorChallenge( page );
 
                 await expect(
                     page.locator( '#wp-sudo-challenge-2fa-error' ),
@@ -1682,7 +1688,7 @@ test.describe( 'Challenge flow', () => {
             }
 
             await page.fill( '#wp-sudo-e2e-two-factor-code', '000000' );
-            await page.click( '#wp-sudo-challenge-2fa-submit' );
+            await submitTwoFactorChallenge( page );
 
             await expect(
                 page.locator( '#wp-sudo-challenge-2fa-submit' ),
@@ -1695,7 +1701,7 @@ test.describe( 'Challenge flow', () => {
             ).toBeEnabled( { timeout: 10_000 } );
 
             await page.fill( '#wp-sudo-e2e-two-factor-code', '000000' );
-            await page.click( '#wp-sudo-challenge-2fa-submit' );
+            await submitTwoFactorChallenge( page );
 
             await expect(
                 page.locator( '#wp-sudo-challenge-2fa-error' ),
@@ -1721,7 +1727,7 @@ test.describe( 'Challenge flow', () => {
 
             await Promise.all( [
                 page.waitForURL( /page=wp-sudo-settings/, { timeout: 15_000 } ),
-                page.click( '#wp-sudo-challenge-2fa-submit' ),
+                submitTwoFactorChallenge( page ),
             ] );
 
             await expect(
