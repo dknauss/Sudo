@@ -24,8 +24,9 @@
  * (sudo required), and an Application Password request follows the operator's
  * REST App Password policy. No custom blocking logic lives here.
  *
- * Verified against WordPress/two-factor (master): routes are
- * `two-factor/1.0/totp` (POST + DELETE) and
+ * Verified against WordPress/two-factor master commit
+ * fb2671b46d7fad4ceb1962297bf02762e9547309 (checked 2026-06-29):
+ * routes are `two-factor/1.0/totp` (POST + DELETE) and
  * `two-factor/1.0/generate-backup-codes` (POST); `user_id` is a request
  * parameter, not a path segment.
  *

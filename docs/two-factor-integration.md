@@ -350,33 +350,38 @@ The bridge uses the `wp_sudo_gated_actions` filter to add AJAX rules for the Web
 
 See `bridges/wp-sudo-webauthn-bridge.php` for the complete implementation, or the [Developer Reference](developer-reference.md#gating-third-party-plugin-actions) for a general guide to adding custom gated actions.
 
-#### Planned: Gating Two Factor Recovery Codes and TOTP Lifecycle
+#### Current: Gating Two Factor Recovery Codes and TOTP Lifecycle
 
-WP Sudo's built-in Two Factor integration validates second factors during the
-sudo challenge, but it does not currently gate all Two Factor factor-management
-actions. This matters because factor lifecycle changes can create credentials
-that satisfy future sudo challenges.
+WP Sudo's built-in Two Factor integration already validates second factors
+during the sudo challenge. Factor lifecycle changes are a separate concern:
+they can create, replace, or remove credentials that satisfy future sudo
+challenges, so they need their own gate instead of relying on challenge-time
+validation.
 
-Verified against WordPress/two-factor commit
-[`38cd183`](https://github.com/WordPress/two-factor/tree/38cd183d099ca3597d9bd0f6152a08e824f02a54)
-on April 29, 2026. Source files:
-[`providers/class-two-factor-backup-codes.php`](https://github.com/WordPress/two-factor/blob/38cd183d099ca3597d9bd0f6152a08e824f02a54/providers/class-two-factor-backup-codes.php),
-[`providers/class-two-factor-totp.php`](https://github.com/WordPress/two-factor/blob/38cd183d099ca3597d9bd0f6152a08e824f02a54/providers/class-two-factor-totp.php), and
-[`class-two-factor-core.php`](https://github.com/WordPress/two-factor/blob/38cd183d099ca3597d9bd0f6152a08e824f02a54/class-two-factor-core.php):
+The current starting point is the opt-in lifecycle bridge in
+[`bridges/wp-sudo-two-factor-lifecycle-bridge.php`](../bridges/wp-sudo-two-factor-lifecycle-bridge.php).
+Install that file as a mu-plugin to require an active WP Sudo session before
+the upstream Two Factor REST routes for recovery-code generation and TOTP
+create/delete run.
+
+Source refreshed against WordPress/two-factor master commit
+[`fb2671b46d7fad4ceb1962297bf02762e9547309`](https://github.com/WordPress/two-factor/commit/fb2671b46d7fad4ceb1962297bf02762e9547309),
+checked 2026-06-29. Source files:
+[`providers/class-two-factor-backup-codes.php`](https://github.com/WordPress/two-factor/blob/fb2671b46d7fad4ceb1962297bf02762e9547309/providers/class-two-factor-backup-codes.php),
+[`providers/class-two-factor-totp.php`](https://github.com/WordPress/two-factor/blob/fb2671b46d7fad4ceb1962297bf02762e9547309/providers/class-two-factor-totp.php), and
+[`class-two-factor-core.php`](https://github.com/WordPress/two-factor/blob/fb2671b46d7fad4ceb1962297bf02762e9547309/class-two-factor-core.php):
 
 - Recovery-code generation uses `POST /two-factor/1.0/generate-backup-codes`.
-  The callback stores hashed codes in `_two_factor_backup_codes` and returns the
-  new plaintext codes in the REST response.
-- TOTP setup/deletion uses `POST` and `DELETE` on `/two-factor/1.0/totp` and
+  The bridge gates this route with the `two_factor.backup_codes_generate` rule.
+  Upstream stores hashed codes in `_two_factor_backup_codes` and returns the new
+  plaintext codes in the REST response.
+- TOTP setup/deletion uses `POST` and `DELETE` on `/two-factor/1.0/totp`.
+  The bridge gates both methods with the `two_factor.totp_manage` rule. Upstream
   writes or deletes `_two_factor_totp_key`.
 - Profile form saves can change `_two_factor_enabled_providers` and
-  `_two_factor_provider` via `profile.php` / `user-edit.php` `action=update`.
-
-This should be handled by a Two Factor lifecycle bridge that gates:
-
-1. recovery-code generation;
-2. TOTP setup/reset/delete;
-3. profile-form Two Factor provider changes.
+  `_two_factor_provider` via the classic profile update flow. Those changes are
+  **not** gated by the REST bridge and remain planned guard work because a broad
+  profile-save gate would block unrelated profile edits.
 
 Threat model note: Two Factor's own revalidation window can still allow factor
 management when WP Sudo's shorter sudo session is inactive. If a session is
