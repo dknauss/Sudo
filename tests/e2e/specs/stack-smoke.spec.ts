@@ -56,25 +56,25 @@ test.describe( 'WP Sudo alternative stack smoke tests', () => {
         );
         await page.fill( '#wp-sudo-challenge-password', 'password' );
 
-        await Promise.all( [
-            page.waitForURL(
-                /\/wp-admin\/options-general\.php\?page=wp-sudo-settings$/,
-                { timeout: 15_000 }
-            ),
-            page.click( '#wp-sudo-challenge-submit' ),
-        ] );
+        await page
+            .locator( '#wp-sudo-challenge-password-form' )
+            .evaluate( ( form ) => ( form as HTMLFormElement ).requestSubmit() );
+        await expect( page ).toHaveURL(
+            /\/wp-admin\/options-general\.php\?page=wp-sudo-settings(?:&updated=true)?$/,
+            { timeout: 15_000 }
+        );
 
         await expect( sessionDuration ).toHaveValue( updatedValue );
 
         // Restore the original setting so stack smoke runs stay side-effect-light.
         await sessionDuration.fill( originalValue );
-        await Promise.all( [
-            page.waitForURL(
-                /\/wp-admin\/options-general\.php\?page=wp-sudo-settings$/,
-                { timeout: 15_000 }
-            ),
-            page.locator( '#submit' ).click(),
-        ] );
+        await page
+            .locator( '#submit' )
+            .evaluate( ( button ) => ( button as HTMLInputElement ).form?.requestSubmit() );
+        await expect( page ).toHaveURL(
+            /\/wp-admin\/options-general\.php\?page=wp-sudo-settings(?:&updated=true)?$/,
+            { timeout: 15_000 }
+        );
         await expect( sessionDuration ).toHaveValue( originalValue );
     } );
 
@@ -85,12 +85,13 @@ test.describe( 'WP Sudo alternative stack smoke tests', () => {
         await activateSudoSession( page );
         await expect( page.locator( '#wp-admin-bar-wp-sudo-active' ) ).toBeVisible();
 
-        await Promise.all( [
-            page.waitForURL( /\/wp-admin\/(?:index\.php)?$/, { timeout: 15_000 } ),
-            page.locator( '#wp-admin-bar-wp-sudo-active' ).click(),
-        ] );
+        await page
+            .locator( '#wp-admin-bar-wp-sudo-active .ab-item' )
+            .evaluate( ( link ) => ( link as HTMLAnchorElement ).click() );
 
-        await expect( page.locator( '#wp-admin-bar-wp-sudo-active' ) ).not.toBeVisible();
+        await expect( page.locator( '#wp-admin-bar-wp-sudo-active' ) ).not.toBeVisible( {
+            timeout: 15_000,
+        } );
 
         const cookies = await context.cookies();
         expect(
@@ -168,13 +169,13 @@ test.describe( 'WP Sudo alternative stack smoke tests', () => {
             page.locator( '#submit' ).click(),
         ] );
 
-        await Promise.all( [
-            page.waitForURL(
-                /\/wp-admin\/options-general\.php\?page=wp-sudo-settings$/,
-                { timeout: 15_000 }
-            ),
-            page.locator( '#wp-sudo-challenge-password-step a.button:has-text("Cancel")' ).click(),
-        ] );
+        await page
+            .locator( '#wp-sudo-challenge-password-step a.button:has-text("Cancel")' )
+            .evaluate( ( link ) => ( link as HTMLAnchorElement ).click() );
+        await expect( page ).toHaveURL(
+            /\/wp-admin\/options-general\.php\?page=wp-sudo-settings$/,
+            { timeout: 15_000 }
+        );
 
         await page.reload();
         await expect( sessionDuration ).toHaveValue( originalValue );

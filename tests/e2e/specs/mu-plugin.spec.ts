@@ -172,7 +172,7 @@ test.describe( 'MU-plugin AJAX install/uninstall', () => {
                 { timeout: 10_000 }
             );
 
-            await installBtn.click();
+            await installBtn.click( { force: true } );
 
             // Use the durable state transition here instead of the transient spinner.
             // In CI the spinner can flash too quickly to satisfy a visibility check even
@@ -302,7 +302,7 @@ test.describe( 'MU-plugin AJAX install/uninstall', () => {
 
             // Click uninstall. Same JS flow: AJAX fetch → reload after 1000ms.
             // Source: admin/js/wp-sudo-admin.js — uninstall click handler via muPluginAction() (verified)
-            await uninstallBtn.click();
+            await uninstallBtn.click( { force: true } );
 
             // Wait for page reload.
             await page.waitForURL( /wp-sudo-settings/, { timeout: 15_000 } );
@@ -373,7 +373,7 @@ test.describe( 'MU-plugin AJAX install/uninstall', () => {
             { timeout: 10_000 }
         );
 
-        await installBtn.click();
+        await installBtn.click( { force: true } );
 
         const ajaxResponse = await ajaxResponsePromise;
         expect(

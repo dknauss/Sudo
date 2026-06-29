@@ -20,7 +20,7 @@
     "screenshots": "WP_SUDO_CAPTURE=1 playwright test --config tests/e2e/playwright.config.ts --project=chromium tests/e2e/specs/capture-screenshots.spec.ts"
   },
   "devDependencies": {
-    "@playwright/test": "1.58.2",
+    "@playwright/test": "1.61.1",
     "@wordpress/env": "11.8.1"
   },
   "overrides": {
