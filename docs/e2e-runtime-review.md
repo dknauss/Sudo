@@ -250,3 +250,28 @@ Destination group: `E2E Tests 2/4 (challenge-2fa-ui)`, the shortest suitable exi
 Rationale: Group 1 remains materially slower than the other baseline groups, while group 2 is consistently shortest in the refreshed data. Moving the timer spec preserves coverage, keeps the same required final `E2E Tests` gate, and stays within the existing four groups so the workflow does not add another fixed `wp-env` startup floor.
 
 Implementation: `.github/workflows/e2e.yml` now removes `admin-bar-timer.spec.ts` and `TIMR` from group 1 and adds `admin-bar-timer.spec.ts` to group 2's second command. No spec is skipped, deleted, or moved to manual-only validation.
+
+## Phase 20 validation — E2E shard rebalance implementation
+
+Validated: 2026-06-29T22:21:21Z
+Implementation branch: `ci/e2e-shard-rebalance`
+Implementation PR: https://github.com/dknauss/Sudo/pull/129
+Implementation commit: `316bc604c4869fc84bba6416e1dfc0f417a1b7aa`
+GitHub Actions run: https://github.com/dknauss/Sudo/actions/runs/28406226487
+Workflow conclusion: `success`
+
+Validation command:
+
+```bash
+gh run view 28406226487 -R dknauss/Sudo --json databaseId,workflowName,displayTitle,event,headBranch,headSha,conclusion,url,jobs
+```
+
+| Job/group | Conclusion | Duration seconds | Job URL |
+|---|---|---:|---|
+| E2E Tests 1/4 (challenge-basic-admin) | success | 367 | https://github.com/dknauss/Sudo/actions/runs/28406226487/job/84169231188 |
+| E2E Tests 2/4 (challenge-2fa-ui) | success | 320 | https://github.com/dknauss/Sudo/actions/runs/28406226487/job/84169231171 |
+| E2E Tests 3/4 (challenge-lockout-surfaces) | success | 329 | https://github.com/dknauss/Sudo/actions/runs/28406226487/job/84169231183 |
+| E2E Tests 4/4 (challenge-replay-multisite) | success | 289 | https://github.com/dknauss/Sudo/actions/runs/28406226487/job/84169231174 |
+| E2E Tests final gate | success | 4 | https://github.com/dknauss/Sudo/actions/runs/28406226487/job/84170141517 |
+
+Keep/revert decision: **keep**. The implementation run passed all four shard jobs and the required final `E2E Tests` gate. Group 1 dropped from the refreshed 407.9-second average to 367 seconds in this validation run, while the moved timer slice kept group 2 within the observed historical group-1 long-pole range and did not create a new longer shard than group 1 in this run.
