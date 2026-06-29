@@ -68,7 +68,9 @@ test.describe( 'WP Sudo alternative stack smoke tests', () => {
 
         // Restore the original setting so stack smoke runs stay side-effect-light.
         await sessionDuration.fill( originalValue );
-        await page.locator( '#submit' ).click();
+        await page
+            .locator( '#submit' )
+            .evaluate( ( button ) => ( button as HTMLInputElement ).form?.requestSubmit() );
         await expect( page ).toHaveURL(
             /\/wp-admin\/options-general\.php\?page=wp-sudo-settings(?:&updated=true)?$/,
             { timeout: 15_000 }
