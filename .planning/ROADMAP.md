@@ -51,7 +51,7 @@
 2. `docs/wporg-submission-checklist.md` remains ready but clearly delayed/on hold.
 3. Release docs distinguish pre-tag checks from `.org` upload/submission checks.
 
-**Plans:** 1 plan — completed 2026-06-29
+**Plans:** 1/1 plans complete
 
 Plans:
 - [x] 17-01-PLAN.md — Created release environment log, linked manual matrix evidence, split pre-tag versus WordPress.org-only gates, and finalized Phase 17 planning state.

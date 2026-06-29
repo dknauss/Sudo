@@ -3,7 +3,7 @@ gsd_state_version: 1.0
 milestone: v4.3.0
 milestone_name: Post-.org Readiness Hardening
 status: in_progress
-last_updated: "2026-06-29T13:42:07Z"
+last_updated: "2026-06-29T13:46:03Z"
 last_activity: "2026-06-29 — Completed Phase 17 release-only environment assurance documentation; Phase 18 is next."
 progress:
   total_phases: 4
@@ -18,7 +18,7 @@ Phase: v4.3.0 milestone — **IN PROGRESS**. Phase 17 release-only environment a
 Branch: main — post-v4.2.2 Phase 16/17 readiness work. Latest tagged release remains `v4.2.2`; localization packaging and release-environment assurance are unreleased drift.
 Done & merged to main: v4.0.0 milestone phases 11-15 complete; Phase 16 localization packaging readiness complete; Phase 17 release environment log/gate split complete; v4.2.2 tagged/pushed; Patchstack 2FA compatibility documented and captured as a GSD todo.
 Open threads: WordPress.org submission remains intentionally delayed/on hold; keep `docs/wporg-submission-checklist.md` ready. Remaining v4.3.0 work focuses on E2E runtime review and 2FA bridge planning.
-Resume file: .planning/phases/18-e2e-runtime-review-and-tuning-decision/18-CONTEXT.md
+Resume file: .planning/ROADMAP.md
 Last activity: 2026-06-29 — Phase 17 complete; Phase 18 is the next planned phase.
 
 ## Project Reference
@@ -74,6 +74,12 @@ Phase execution order:
 ### Pending Todos
 
 - `2026-06-28-add-patchstack-2fa-compatibility-target.md` — Track Patchstack Security as a second-tier 2FA bridge/manual compatibility target behind the upstream Two Factor lifecycle bridge.
+
+## Key Decisions (Phase 17-01, 2026-06-29)
+
+- Release environment outcomes live in `docs/release-environment-log.md` while `tests/MANUAL-TESTING.md` remains the executable procedure.
+- `v4.2.2` manual environment lanes are explicitly Deferred and blocking unless waived before the next public tag/publication decision.
+- Pre-tag/core gates are separate from WordPress.org-only submission/upload gates; WordPress.org submission remains delayed/on hold.
 
 ## Key Decisions (Phase 13.1-01, 2026-06-28)
 
