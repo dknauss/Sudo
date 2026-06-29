@@ -698,9 +698,9 @@ test.describe( 'Challenge flow', () => {
         await page.click( '#wp-sudo-challenge-submit' );
 
         // Wait for error box to become visible.
-        // Source: admin/js/wp-sudo-challenge.js showError() — sets box.hidden = false (verified)
-        // Note: showError() uses requestAnimationFrame to set textContent, so we wait
-        // for visibility first, then check text content.
+        // Source: admin/js/wp-sudo-challenge.js showError() — unhides the box,
+        // then sets textContent asynchronously for live-region announcement.
+        // Wait for visibility first, then check text content.
         await expect(
             page.locator( '#wp-sudo-challenge-error' ),
             'Error box must become visible after wrong password'

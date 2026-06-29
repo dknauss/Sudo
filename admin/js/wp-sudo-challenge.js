@@ -510,13 +510,17 @@
 		if (!box) return;
 		// Unhide first so screen readers register the live region,
 		// then populate content in the next frame so AT announces it.
+		// Some headless/background browser runs may throttle animation frames,
+		// so also queue a zero-delay timer as a deterministic fallback.
 		box.hidden = false;
-		requestAnimationFrame(function () {
+		var setMessage = function () {
 			var p = box.querySelector('p');
 			if (p) {
 				p.textContent = message;
 			}
-		});
+		};
+		requestAnimationFrame(setMessage);
+		setTimeout(setMessage, 0);
 	}
 
 	function hideError(box) {
