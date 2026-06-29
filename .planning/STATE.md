@@ -3,8 +3,8 @@ gsd_state_version: 1.0
 milestone: v4.3.0
 milestone_name: Post-.org Readiness Hardening
 status: in_progress
-last_updated: "2026-06-29T13:48:55Z"
-last_activity: "2026-06-29 — Phase 17 complete; Phase 18 is the next planned phase."
+last_updated: "2026-06-29T14:10:49Z"
+last_activity: "2026-06-29 — Phase 18 context gathered; ready to plan E2E runtime review."
 progress:
   total_phases: 4
   completed_phases: 2
@@ -14,12 +14,12 @@ progress:
 
 ## Current Position
 
-Phase: v4.3.0 milestone — **IN PROGRESS**. Phase 17 release-only environment assurance is complete; next planned phase is Phase 18 E2E Runtime Review and Tuning Decision.
+Phase: v4.3.0 milestone — **IN PROGRESS**. Phase 18 E2E Runtime Review and Tuning Decision context is captured; next action is `$gsd-plan-phase 18`.
 Branch: main — post-v4.2.2 Phase 16/17 readiness work. Latest tagged release remains `v4.2.2`; localization packaging and release-environment assurance are unreleased drift.
 Done & merged to main: v4.0.0 milestone phases 11-15 complete; Phase 16 localization packaging readiness complete; Phase 17 release environment log/gate split complete; v4.2.2 tagged/pushed; Patchstack 2FA compatibility documented and captured as a GSD todo.
-Open threads: WordPress.org submission remains intentionally delayed/on hold; keep `docs/wporg-submission-checklist.md` ready. Remaining v4.3.0 work focuses on E2E runtime review and 2FA bridge planning.
-Resume file: .planning/ROADMAP.md
-Last activity: 2026-06-29 — Phase 17 complete; Phase 18 is the next planned phase.
+Open threads: WordPress.org submission remains intentionally delayed/on hold; keep `docs/wporg-submission-checklist.md` ready. Remaining v4.3.0 work focuses on planning/executing Phase 18 E2E runtime review and Phase 19 2FA bridge planning.
+Resume file: .planning/phases/18-e2e-runtime-review-and-tuning-decision/18-CONTEXT.md
+Last activity: 2026-06-29 — Phase 18 context gathered; ready to plan E2E runtime review.
 
 ## Project Reference
 
@@ -38,7 +38,7 @@ Canonical current facts:
 Phase execution order:
 1. ✅ **Phase 16 — Localization and Translation Packaging Readiness** (L10N-01 through L10N-03): complete — Composer i18n commands, committed POT, translator-comment cleanup, and release docs.
 2. ✅ **Phase 17 — Release-only Environment Assurance** (REL-01 through REL-03): complete — durable release environment log, v4.2.2 deferrals, and pre-tag/.org gate split documented.
-3. ⏳ **Phase 18 — E2E Runtime Review and Tuning Decision** (CI-01 through CI-03): next planned phase.
+3. ⏳ **Phase 18 — E2E Runtime Review and Tuning Decision** (CI-01 through CI-03): context captured; plan pending.
 4. ⬜ **Phase 19 — 2FA Bridge Planning and Compatibility Matrix** (2FA-01 through 2FA-03): not started; includes upstream Two Factor lifecycle bridge planning and Patchstack as a second-tier/manual-test target.
 
 **Latest release: 4.2.2 (2026-06-28)** — `docs/release-status.md` is canonical for release/package metadata. WordPress.org submission is delayed/on hold; keep `docs/wporg-submission-checklist.md` ready to execute at any time.
