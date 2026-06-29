@@ -51,7 +51,10 @@
 2. `docs/wporg-submission-checklist.md` remains ready but clearly delayed/on hold.
 3. Release docs distinguish pre-tag checks from `.org` upload/submission checks.
 
-**Plans:** Pending — start with `$gsd-discuss-phase 17`.
+**Plans:** 1 plan
+
+Plans:
+- [ ] 17-01-PLAN.md — Create release environment log, link manual matrix evidence, split pre-tag versus WordPress.org-only gates, and finalize Phase 17 planning state.
 
 ### Phase 18: E2E Runtime Review and Tuning Decision
 
