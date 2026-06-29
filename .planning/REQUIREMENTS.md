@@ -23,15 +23,15 @@
 
 ### E2E Runtime Review
 
-- [ ] **CI-01**: The explicit E2E group runtimes from recent GitHub Actions runs are reviewed and recorded before any further CI tuning.
-- [ ] **CI-02**: If a new E2E long pole exists, the next tuning action is scoped narrowly and preserves release-grade full-suite coverage.
-- [ ] **CI-03**: If no material long pole exists, the decision to avoid additional CI complexity is documented.
+- [x] **CI-01**: The explicit E2E group runtimes from recent GitHub Actions runs are reviewed and recorded before any further CI tuning.
+- [x] **CI-02**: If a new E2E long pole exists, the next tuning action is scoped narrowly and preserves release-grade full-suite coverage.
+- [x] **CI-03**: If no material long pole exists, the decision to avoid additional CI complexity is documented.
 
 ### 2FA Bridge Planning and Compatibility
 
-- [ ] **2FA-01**: The upstream WordPress/two-factor lifecycle bridge scope is converted into an implementation-ready plan covering recovery-code generation, TOTP setup/delete, and profile provider changes.
-- [ ] **2FA-02**: Patchstack Security remains tracked as a second-tier 2FA compatibility/manual-test target, including the paid-fixture caveat and verified SVN source details.
-- [ ] **2FA-03**: The 2FA bridge plan distinguishes compatibility testing, documentation-only targets, and bridge code that should actually ship.
+- [x] **2FA-01**: The upstream WordPress/two-factor lifecycle bridge scope is converted into an implementation-ready plan covering recovery-code generation, TOTP setup/delete, and profile provider changes.
+- [x] **2FA-02**: Patchstack Security remains tracked as a second-tier 2FA compatibility/manual-test target, including the paid-fixture caveat and verified SVN source details.
+- [x] **2FA-03**: The 2FA bridge plan distinguishes compatibility testing, documentation-only targets, and bridge code that should actually ship.
 
 ## Future Requirements
 
@@ -59,19 +59,19 @@
 | REL-01 | Phase 17 | Complete |
 | REL-02 | Phase 17 | Complete |
 | REL-03 | Phase 17 | Complete |
-| CI-01 | Phase 18 | Pending |
-| CI-02 | Phase 18 | Pending |
-| CI-03 | Phase 18 | Pending |
-| 2FA-01 | Phase 19 | Pending |
-| 2FA-02 | Phase 19 | Pending |
-| 2FA-03 | Phase 19 | Pending |
+| CI-01 | Phase 18 | Complete |
+| CI-02 | Phase 18 | Complete |
+| CI-03 | Phase 18 | Complete |
+| 2FA-01 | Phase 19 | Complete |
+| 2FA-02 | Phase 19 | Complete |
+| 2FA-03 | Phase 19 | Complete |
 
 **Coverage:**
 - v1 requirements: 12 total
-- Complete: 6/12
+- Complete: 12/12
 - Mapped to phases: 12/12
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-06-28*
-*Last updated: 2026-06-29 — Phase 17 release-only environment assurance completed.*
+*Last updated: 2026-06-29 — Phase 19 completed; 2FA-01 through 2FA-03 marked complete for upstream Two Factor and Patchstack compatibility planning.*

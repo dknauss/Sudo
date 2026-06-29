@@ -8,6 +8,7 @@ For the general architecture overview and hook reference, see [two-factor-integr
 
 - [How WP Sudo Handles 2FA](#how-wp-sudo-handles-2fa)
 - [What Your Plugin Needs to Provide](#what-your-plugin-needs-to-provide)
+- [Compatibility Matrix: Ship Code vs Manual Targets](#compatibility-matrix-ship-code-vs-manual-targets)
 - [The Three Required Hooks](#the-three-required-hooks)
 - [Ecosystem Survey: How Major Plugins Store and Validate 2FA](#ecosystem-survey)
 - [Working Bridge Example: WP 2FA by Melapress](#working-bridge-example-wp-2fa-by-melapress)
@@ -30,6 +31,23 @@ WP Sudo does **not** implement any 2FA method itself. It delegates entirely:
 - **Validation** — "Is this code correct?" is answered by plugins via a filter.
 
 The [Two Factor](https://wordpress.org/plugins/two-factor/) plugin by WordPress contributors is supported automatically. Every other 2FA plugin requires a small bridge — typically 30–50 lines of PHP.
+
+---
+
+## Compatibility Matrix: Ship Code vs Manual Targets
+
+Use this matrix to separate code that can ship now from documentation-only or
+manual-fixture work. "Shippable code?" answers whether WP Sudo should bundle or
+promote the artifact in the current bridge lane, not whether a future bridge is
+possible.
+
+| Plugin / provider | Primary purpose in WP Sudo | Tier/status | Shippable code? | Covered operations | Known gaps | Evidence source/date | Fixture/test status | Next action |
+|-------------------|----------------------------|-------------|-----------------|--------------------|------------|----------------------|---------------------|-------------|
+| WordPress/two-factor challenge validation | challenge validation | built-in | yes | Sudo challenge detects enrolled users and delegates provider rendering, preprocessing, and code validation through `Two_Factor_Core`. | Does not gate factor-management changes that create or replace future challenge credentials. | WP Sudo integration code plus WordPress/two-factor `class-two-factor-core.php`; source checked 2026-06-29 at master `fb2671b46d7fad4ceb1962297bf02762e9547309`. | Covered by WP Sudo automated challenge tests. | Keep built-in challenge behavior stable. |
+| WordPress/two-factor REST lifecycle routes | factor lifecycle gating | bridge exists | yes | [`bridges/wp-sudo-two-factor-lifecycle-bridge.php`](../bridges/wp-sudo-two-factor-lifecycle-bridge.php) gates recovery-code generation and TOTP setup/delete REST routes. | Classic profile provider saves and in-place `apiFetch` recovery UX remain outside the v1 bridge. | Local bridge file plus WordPress/two-factor `providers/class-two-factor-backup-codes.php` and `providers/class-two-factor-totp.php`; source checked 2026-06-29 at master `fb2671b46d7fad4ceb1962297bf02762e9547309`. | Bridge artifact exists; release posture depends on Phase 19 Plan 01 review/tests. | Complete Plan 01 source refresh and TDD acceptance before promoting. |
+| WordPress/two-factor profile provider changes | factor lifecycle gating | bridge candidate | candidate | Potentially gates `profile.php` / `user-edit.php` saves that change `_two_factor_enabled_providers` or `_two_factor_provider`. | Needs an idempotent, enrollment-aware predicate so first-time enrollment and no-op saves are not overblocked. | WordPress/two-factor `class-two-factor-core.php`; source checked 2026-06-29 at master `fb2671b46d7fad4ceb1962297bf02762e9547309`. | Design-review/TDD required before any shipped artifact. | Plan separately from REST lifecycle routes. |
+| WP 2FA by Melapress | challenge validation | docs-only bridge example | no | Existing example bridge covers TOTP, email OTP, and backup-code challenge validation using WP Sudo's public 2FA hooks. | Not a bundled first-party support promise; no broad source refresh in this Phase 19 matrix pass. | Existing ecosystem guide and [`bridges/wp-sudo-wp2fa-bridge.php`](../bridges/wp-sudo-wp2fa-bridge.php). | Example bridge only; site owners must test in their own runtime. | Keep as a documented pattern unless a release decides to promote bundled examples. |
+| Patchstack Security | both | manual-test target | no | Source inspection identifies TOTP challenge fields, local TOTP validation, and profile/WooCommerce lifecycle hooks. | Paid fixture missing; free-license mode returns before meaningful 2FA hook registration, so runtime behavior cannot be claimed. | [`includes/login.php`](https://plugins.svn.wordpress.org/patchstack/trunk/includes/login.php); repository revision `3590474`, file revision `3433693` dated 2026-01-06, checked 2026-06-29. | Fixture-blocked; manual runtime tests still required. | Acquire a paid Patchstack-enabled fixture, then run/manual-record challenge and lifecycle tests before considering any code. |
 
 ---
 
@@ -153,32 +171,32 @@ Here is how the major WordPress 2FA plugins store and validate credentials, and 
 
 ### Patchstack Security
 
-**Status:** Bridgeable compatibility target, but likely requires a paid Patchstack
-setup for end-to-end testing because the login/2FA hooks are disabled when the
-plugin is in free-license mode.
+**Status:** Second-tier/manual-test target and bridgeable design target;
+fixture-blocked until a paid Patchstack-enabled runtime exists. Do not treat
+source inspection as a shipped support claim.
 
-Verified against current WordPress.org SVN trunk revision 3589135 at the time of this review:
+Verified against WordPress.org SVN on 2026-06-29:
 
 | Aspect | Detail |
 |--------|--------|
+| Source | [`includes/login.php`](https://plugins.svn.wordpress.org/patchstack/trunk/includes/login.php) |
+| Repository evidence | Repository revision `3590474`; file last changed revision `3433693`, 2026-01-06 07:17:24 -0700. |
 | Feature flag | Plugin option `patchstack_login_2fa` enables the 2FA hooks. |
-| Free-license behavior | `P_Login::__construct()` returns early when `patchstack_license_free` is `1`, before registering 2FA hooks. |
+| Paid-fixture caveat | `P_Login::__construct()` returns early when `patchstack_license_free` is `1`, before meaningful 2FA hook registration. Runtime behavior cannot be claimed without a paid Patchstack-enabled fixture. |
 | Detection | `get_user_option( 'webarx_2fa_enabled', $user_id )` |
 | Login field | `patchstack_2fa` |
 | Validation | `TokenAuth6238::verify( $secret, $code )` after `P_Login::tfa_get_secret( $user )` decrypts/generates the secret. |
 | Storage | `webarx_2fa_secretkey` plus `webarx_2fa_secretkey_nonce` user options. |
 | Profile lifecycle | `patchstack_2fa_enabled` is saved on `personal_options_update` / `edit_user_profile_update`; WooCommerce account forms have parallel handlers. |
-| Source | [`includes/login.php`](https://plugins.svn.wordpress.org/patchstack/trunk/includes/login.php) |
 
-Compatibility-test implications:
+Manual-test implications:
 
-- Patchstack will not be covered by WP Sudo's built-in `WordPress/two-factor`
+- This target is outside WP Sudo's automatic `WordPress/two-factor`
   integration because it uses its own TOTP implementation and user-option keys.
-- It appears practical to build a bridge because validation is local TOTP rather
-  than a hosted/cloud-only check.
-- Treat it as a second-tier 2FA compatibility target after the upstream
-  `WordPress/two-factor` lifecycle bridge, unless user demand makes Patchstack
-  compatibility urgent.
+- Source inspection suggests a bridgeable design target because validation is
+  local TOTP rather than a hosted/cloud-only check.
+- Keep Patchstack behind the upstream `WordPress/two-factor` lifecycle bridge
+  unless user demand and a paid fixture make manual runtime testing possible.
 
 ### Wordfence Login Security
 

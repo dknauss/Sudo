@@ -350,33 +350,38 @@ The bridge uses the `wp_sudo_gated_actions` filter to add AJAX rules for the Web
 
 See `bridges/wp-sudo-webauthn-bridge.php` for the complete implementation, or the [Developer Reference](developer-reference.md#gating-third-party-plugin-actions) for a general guide to adding custom gated actions.
 
-#### Planned: Gating Two Factor Recovery Codes and TOTP Lifecycle
+#### Current: Gating Two Factor Recovery Codes and TOTP Lifecycle
 
-WP Sudo's built-in Two Factor integration validates second factors during the
-sudo challenge, but it does not currently gate all Two Factor factor-management
-actions. This matters because factor lifecycle changes can create credentials
-that satisfy future sudo challenges.
+WP Sudo's built-in Two Factor integration already validates second factors
+during the sudo challenge. Factor lifecycle changes are a separate concern:
+they can create, replace, or remove credentials that satisfy future sudo
+challenges, so they need their own gate instead of relying on challenge-time
+validation.
 
-Verified against WordPress/two-factor commit
-[`38cd183`](https://github.com/WordPress/two-factor/tree/38cd183d099ca3597d9bd0f6152a08e824f02a54)
-on April 29, 2026. Source files:
-[`providers/class-two-factor-backup-codes.php`](https://github.com/WordPress/two-factor/blob/38cd183d099ca3597d9bd0f6152a08e824f02a54/providers/class-two-factor-backup-codes.php),
-[`providers/class-two-factor-totp.php`](https://github.com/WordPress/two-factor/blob/38cd183d099ca3597d9bd0f6152a08e824f02a54/providers/class-two-factor-totp.php), and
-[`class-two-factor-core.php`](https://github.com/WordPress/two-factor/blob/38cd183d099ca3597d9bd0f6152a08e824f02a54/class-two-factor-core.php):
+The current starting point is the opt-in lifecycle bridge in
+[`bridges/wp-sudo-two-factor-lifecycle-bridge.php`](../bridges/wp-sudo-two-factor-lifecycle-bridge.php).
+Install that file as a mu-plugin to require an active WP Sudo session before
+the upstream Two Factor REST routes for recovery-code generation and TOTP
+create/delete run.
+
+Source refreshed against WordPress/two-factor master commit
+[`fb2671b46d7fad4ceb1962297bf02762e9547309`](https://github.com/WordPress/two-factor/commit/fb2671b46d7fad4ceb1962297bf02762e9547309),
+checked 2026-06-29. Source files:
+[`providers/class-two-factor-backup-codes.php`](https://github.com/WordPress/two-factor/blob/fb2671b46d7fad4ceb1962297bf02762e9547309/providers/class-two-factor-backup-codes.php),
+[`providers/class-two-factor-totp.php`](https://github.com/WordPress/two-factor/blob/fb2671b46d7fad4ceb1962297bf02762e9547309/providers/class-two-factor-totp.php), and
+[`class-two-factor-core.php`](https://github.com/WordPress/two-factor/blob/fb2671b46d7fad4ceb1962297bf02762e9547309/class-two-factor-core.php):
 
 - Recovery-code generation uses `POST /two-factor/1.0/generate-backup-codes`.
-  The callback stores hashed codes in `_two_factor_backup_codes` and returns the
-  new plaintext codes in the REST response.
-- TOTP setup/deletion uses `POST` and `DELETE` on `/two-factor/1.0/totp` and
+  The bridge gates this route with the `two_factor.backup_codes_generate` rule.
+  Upstream stores hashed codes in `_two_factor_backup_codes` and returns the new
+  plaintext codes in the REST response.
+- TOTP setup/deletion uses `POST` and `DELETE` on `/two-factor/1.0/totp`.
+  The bridge gates both methods with the `two_factor.totp_manage` rule. Upstream
   writes or deletes `_two_factor_totp_key`.
 - Profile form saves can change `_two_factor_enabled_providers` and
-  `_two_factor_provider` via `profile.php` / `user-edit.php` `action=update`.
-
-This should be handled by a Two Factor lifecycle bridge that gates:
-
-1. recovery-code generation;
-2. TOTP setup/reset/delete;
-3. profile-form Two Factor provider changes.
+  `_two_factor_provider` via the classic profile update flow. Those changes are
+  **not** gated by the REST bridge and remain planned guard work because a broad
+  profile-save gate would block unrelated profile edits.
 
 Threat model note: Two Factor's own revalidation window can still allow factor
 management when WP Sudo's shorter sudo session is inactive. If a session is
@@ -384,6 +389,53 @@ compromised and the attacker also knows or phishes the password, newly generated
 recovery codes can satisfy the later WP Sudo 2FA step. The bridge should require
 an active WP Sudo session before creating or replacing factors that can satisfy
 future sudo challenges.
+
+##### Profile provider changes
+
+Profile provider changes are the remaining upstream Two Factor lifecycle surface
+that needs a separate, TDD-first design before any production guard ships. The
+future guard should target classic profile updates only when the request is a
+real profile save (`profile.php` or `user-edit.php` with `action=update`) and
+Two Factor's own POST contract is present. Source refresh
+`fb2671b46d7fad4ceb1962297bf02762e9547309`, checked 2026-06-29, shows the
+classic form nonce as `_nonce_user_two_factor_options` for action
+`user_two_factor_options`, provider checkboxes named
+`_two_factor_enabled_providers[]`, and the primary-provider select named
+`_two_factor_provider`.
+
+The guard predicate must be idempotent and enrollment-aware:
+
+1. Read the current user meta before Two Factor writes it:
+   `_two_factor_enabled_providers`, `_two_factor_provider`, and the current TOTP
+   key state (`_two_factor_totp_key`) if the classic form path can alter or
+   replace an enrolled TOTP factor.
+2. Normalize the submitted provider set the same way Two Factor does: ignore the
+   dummy empty `_two_factor_enabled_providers[]` value, intersect submitted
+   provider keys with supported/available providers, and treat ordering as
+   irrelevant.
+3. Gate only meaningful lifecycle changes: enabling or disabling a configured
+   provider, changing the primary provider, or removing/replacing an enrolled
+   TOTP factor. Do not gate an unrelated profile save and do not gate a no-op
+   resubmission of the existing Two Factor settings.
+4. Make first-enrollment policy explicit before implementation. The policy may
+   intentionally allow first enrollment to avoid blocking initial setup, or it
+   may gate first enrollment because it creates a new future sudo factor; either
+   way, the behavior must be documented and tested before code lands.
+
+Required TDD cases before any future profile guard implementation:
+
+- an unrelated profile save with no Two Factor nonce/fields is not gated;
+- a profile save that preserves the same enabled-provider set is not gated;
+- enabled-provider set changes are gated once the user already has Two Factor
+  configured;
+- primary provider changes are gated;
+- removal or replacement of an enrolled TOTP factor is gated;
+- first enrollment is covered by an explicit test for the selected policy.
+
+Because this would add a security guard that can block legitimate profile
+updates, `CLAUDE.md` design review is required before writing the future tests
+or production guard code. The current REST bridge does not ship, recommend, or
+approximate an overbroad profile-save gate.
 
 ---
 

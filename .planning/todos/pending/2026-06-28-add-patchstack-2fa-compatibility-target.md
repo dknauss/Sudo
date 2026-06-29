@@ -9,10 +9,15 @@ files:
 
 ## Problem
 
-Patchstack Security includes a paid-feature TOTP 2FA flow that is not covered by WP Sudo's built-in WordPress/two-factor integration and was not previously listed in the 2FA ecosystem compatibility survey. Compatibility planning should not lose this target now that the plugin source has been checked.
+Patchstack Security includes a paid-feature TOTP 2FA flow outside WP Sudo's automatic WordPress/two-factor integration. The Phase 19 ecosystem matrix now tracks it conservatively as a second-tier/manual-test target so source-inspection findings do not become runtime support claims.
 
-Verified context from WordPress.org SVN trunk revision 3589135 on 2026-06-28: Patchstack enables 2FA hooks with `patchstack_login_2fa`, stores enrollment/secret state in `webarx_2fa_enabled`, `webarx_2fa_secretkey`, and `webarx_2fa_secretkey_nonce`, accepts login codes from `patchstack_2fa`, and validates local TOTP codes via `TokenAuth6238::verify()` in `includes/login.php`. Free-license mode returns early before registering the 2FA hooks, so end-to-end testing likely needs a paid Patchstack-enabled fixture.
+Refreshed evidence in `docs/two-factor-ecosystem.md` points to WordPress.org SVN [`includes/login.php`](https://plugins.svn.wordpress.org/patchstack/trunk/includes/login.php), repository revision `3590474`, file revision `3433693` dated 2026-01-06, checked 2026-06-29. The source still shows `patchstack_login_2fa`, `webarx_2fa_enabled`, `webarx_2fa_secretkey`, `webarx_2fa_secretkey_nonce`, `patchstack_2fa`, and `TokenAuth6238::verify()`. Free-license mode returns before meaningful 2FA hook registration, so runtime behavior remains unverified without a paid Patchstack-enabled fixture.
 
-## Solution
+## Remaining Work
 
-Track Patchstack as a second-tier 2FA bridge/manual compatibility target behind the upstream Two Factor lifecycle bridge. When the 2FA bridge milestone is planned, include Patchstack enrollment detection, local TOTP validation through Patchstack's own verifier, and profile 2FA enable/disable lifecycle gating in the compatibility matrix if a paid test fixture is available.
+Keep this todo pending until both unresolved actions are complete:
+
+1. Acquire or provision a paid Patchstack-enabled fixture where 2FA hooks actually register.
+2. Manually record challenge validation and profile/WooCommerce 2FA lifecycle tests against that fixture before considering any Patchstack-specific bridge code or support wording.
+
+Do not move this todo to completed based on source inspection alone.

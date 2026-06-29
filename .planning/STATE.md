@@ -2,24 +2,24 @@
 gsd_state_version: 1.0
 milestone: v4.3.0
 milestone_name: Post-.org Readiness Hardening
-status: in_progress
-last_updated: "2026-06-29T14:31:00Z"
-last_activity: "2026-06-29 — Phase 18 planned; ready to execute E2E runtime review."
+status: complete
+last_updated: "2026-06-29T18:06:16Z"
+last_activity: "2026-06-29 — Phase 19 complete; upstream Two Factor bridge plan, Patchstack matrix, and 2FA requirements finalized."
 progress:
   total_phases: 4
-  completed_phases: 2
-  total_plans: 2
-  completed_plans: 1
+  completed_phases: 4
+  total_plans: 4
+  completed_plans: 4
 ---
 
 ## Current Position
 
-Phase: v4.3.0 milestone — **IN PROGRESS**. Phase 18 E2E Runtime Review and Tuning Decision is planned; next action is `$gsd-execute-phase 18`.
-Branch: main — post-v4.2.2 Phase 16/17 readiness work plus Phase 18 planning. Latest tagged release remains `v4.2.2`; localization packaging and release-environment assurance are unreleased drift.
-Done & merged to main: v4.0.0 milestone phases 11-15 complete; Phase 16 localization packaging readiness complete; Phase 17 release environment log/gate split complete; v4.2.2 tagged/pushed; Patchstack 2FA compatibility documented and captured as a GSD todo.
-Open threads: WordPress.org submission remains intentionally delayed/on hold; keep `docs/wporg-submission-checklist.md` ready. Remaining v4.3.0 work focuses on executing Phase 18 E2E runtime review and Phase 19 2FA bridge planning.
-Resume file: .planning/phases/18-e2e-runtime-review-and-tuning-decision/18-01-PLAN.md
-Last activity: 2026-06-29 — Phase 18 planned; ready to execute E2E runtime review.
+Phase: v4.3.0 milestone — **IN PROGRESS**. Phase 19 2FA Bridge Planning and Compatibility Matrix is complete: Plan 01 finalized upstream Two Factor lifecycle bridge planning and Plan 02 finalized Patchstack compatibility matrix scope.
+Branch: main — post-v4.2.2 Phase 16/17 readiness work plus Phase 18 E2E runtime evidence. Latest tagged release remains `v4.2.2`; localization packaging and release-environment assurance are unreleased drift.
+Done & merged to main: v4.0.0 milestone phases 11-15 complete; Phase 16 localization packaging readiness complete; Phase 17 release environment log/gate split complete; Phase 18 runtime review complete; Phase 19 2FA bridge planning and compatibility matrix complete; v4.2.2 tagged/pushed.
+Open threads: WordPress.org submission remains intentionally delayed/on hold; keep `docs/wporg-submission-checklist.md` ready. Remaining follow-up is the Phase 18 no-coverage-loss E2E shard-rebalance when scheduled; Patchstack runtime support remains fixture-blocked/manual-test only.
+Resume file: `.planning/phases/19-2fa-bridge-planning-and-compatibility-matrix/19-01-SUMMARY.md` and `19-02-SUMMARY.md` — Phase 19 complete.
+Last activity: 2026-06-29 — Phase 19 complete; upstream Two Factor bridge plan, Patchstack matrix, and 2FA requirements finalized.
 
 ## Project Reference
 
@@ -31,15 +31,15 @@ Canonical current facts:
 - `CHANGELOG.md` — shipped release contents.
 
 **Core value:** Every destructive admin action requires proof the person at the keyboard is still the authenticated user.
-**Current focus:** v4.3.0 post-.org readiness hardening is planned. Latest tagged release is **4.2.2** (see `docs/release-status.md`). WordPress.org submission (`docs/wporg-submission-checklist.md`) is delayed/on hold, but readiness should be maintained.
+**Current focus:** v4.3.0 post-.org readiness hardening phases are complete; the remaining tracked follow-up is the Phase 18 E2E shard-rebalance item when scheduled. Latest tagged release is **4.2.2** (see `docs/release-status.md`). WordPress.org submission (`docs/wporg-submission-checklist.md`) is delayed/on hold, but readiness should be maintained.
 
 ## Active Priorities (v4.3.0 milestone)
 
 Phase execution order:
 1. ✅ **Phase 16 — Localization and Translation Packaging Readiness** (L10N-01 through L10N-03): complete — Composer i18n commands, committed POT, translator-comment cleanup, and release docs.
 2. ✅ **Phase 17 — Release-only Environment Assurance** (REL-01 through REL-03): complete — durable release environment log, v4.2.2 deferrals, and pre-tag/.org gate split documented.
-3. ⏳ **Phase 18 — E2E Runtime Review and Tuning Decision** (CI-01 through CI-03): planned; execution pending.
-4. ⬜ **Phase 19 — 2FA Bridge Planning and Compatibility Matrix** (2FA-01 through 2FA-03): not started; includes upstream Two Factor lifecycle bridge planning and Patchstack as a second-tier/manual-test target.
+3. ✅ **Phase 18 — E2E Runtime Review and Tuning Decision** (CI-01 through CI-03): complete — `docs/e2e-runtime-review.md` records refreshed Actions runtimes and one no-coverage-loss rebalance follow-up.
+4. ✅ **Phase 19 — 2FA Bridge Planning and Compatibility Matrix** (2FA-01 through 2FA-03): complete — upstream Two Factor lifecycle bridge planning, TDD-first profile-provider guard scope, and Patchstack fixture-blocked compatibility matrix are documented.
 
 **Latest release: 4.2.2 (2026-06-28)** — `docs/release-status.md` is canonical for release/package metadata. WordPress.org submission is delayed/on hold; keep `docs/wporg-submission-checklist.md` ready to execute at any time.
 
@@ -51,7 +51,11 @@ Phase execution order:
 - Phase 16 requirements complete: 3/3
 - Phase 17 requirements complete: 3/3
 - Phase 17 Plan 01: docs-only release environment assurance completed 2026-06-29; WordPress.org submission remains delayed/on hold
-- Phase 18 Plan 01: planned 2026-06-29; execution will refresh GitHub Actions E2E runtime evidence and document a no-change or one-action tuning decision
+- Phase 18 requirements complete: 3/3
+- Phase 18 Plan 01: completed 2026-06-29; refreshed GitHub Actions E2E runtime evidence and proposed one no-coverage-loss four-group rebalance follow-up
+- Phase 19 Plan 01: 5 min, 3 tasks, 4 files (completed 2026-06-29); refreshed upstream Two Factor lifecycle bridge posture and TDD-first profile-provider guard plan
+- Phase 19 requirements complete: 3/3
+- Phase 19 Plan 02: 5 min, 3 tasks, 3 files (completed 2026-06-29); Patchstack is fixture-blocked/manual-test only and matrix separates shippable bridge code from docs/manual targets
 - Phase 13.1 Plan 01: 8 min, 3 tasks, 4 files (completed 2026-06-28)
 - Phase 13.1 Plan 02: 4 min, 3 tasks, 2 files (completed 2026-06-28)
 
@@ -74,7 +78,33 @@ Phase execution order:
 
 ### Pending Todos
 
-- `2026-06-28-add-patchstack-2fa-compatibility-target.md` — Track Patchstack Security as a second-tier 2FA bridge/manual compatibility target behind the upstream Two Factor lifecycle bridge.
+- `2026-06-28-add-patchstack-2fa-compatibility-target.md` — Pending paid Patchstack-enabled fixture acquisition plus manual challenge/lifecycle runtime tests; source inspection is recorded in the matrix but is not a support claim.
+- Phase 18 CI follow-up — Rebalance a small test slice out of `E2E Tests 1/4 (challenge-basic-admin)` within the existing four baseline E2E groups. Evidence: `docs/e2e-runtime-review.md` shows group 1 averaging 372.2s across 9 successful post-`v4.2.2` observations, about 34% slower than groups 3/4. Owner/timing: Maintainer / next CI-speed follow-up; refresh Actions data before editing `.github/workflows/e2e.yml`.
+
+## Key Decisions (Phase 19-02, 2026-06-29)
+
+- Patchstack remains second-tier/manual-test only until a paid Patchstack-enabled fixture proves runtime behavior.
+- The Phase 19 2FA matrix distinguishes built-in support, bridge-exists artifacts, bridge candidates, docs-only examples, and manual-test targets.
+- Plan 19-02 shipped no bundled Patchstack bridge code and leaves the Patchstack todo pending for fixture/manual runtime tests.
+
+## Key Decisions (Phase 19-01, 2026-06-29)
+
+- WordPress/two-factor REST lifecycle route behavior remains current at commit `fb2671b46d7fad4ceb1962297bf02762e9547309`; bridge behavior and unit tests did not need changes.
+- Classic profile provider changes remain future TDD/design-review work rather than an overbroad profile-save gate.
+- `docs/current-metrics.md` must be updated when source-comment changes alter production PHP line counts.
+
+## Key Decisions (Phase 19 discussion, 2026-06-29)
+
+- Treat `bridges/wp-sudo-two-factor-lifecycle-bridge.php` as an existing upstream Two Factor lifecycle bridge starting point, not speculative greenfield work.
+- Keep upstream Two Factor profile-provider changes as a separate planning/testing problem because profile saves are broad and need an idempotent, enrollment-aware predicate.
+- Patchstack Security is second-tier/manual-test only until a paid Patchstack-enabled fixture exists; source-verified design notes are not compatibility claims.
+- Refreshed live-source verification is captured in `.planning/phases/19-2fa-bridge-planning-and-compatibility-matrix/19-CONTEXT.md`; plan/commit messages must cite source revisions when adding third-party technical details.
+
+## Key Decisions (Phase 18-01, 2026-06-29)
+
+- GitHub Actions job timestamps are the source of truth for E2E runtime tuning decisions; no local Playwright/browser timings were used.
+- `E2E Tests 1/4 (challenge-basic-admin)` is a repeatable long pole after `v4.2.2` and warrants exactly one no-coverage-loss follow-up: rebalance a small test slice within the existing four groups.
+- Scheduled/manual workflow gaps (`E2E Nginx Multisite Smoke`, `E2E SQLite Smoke`, single visual-baseline observation) are documented in `docs/e2e-runtime-review.md` and do not block Phase 18 completion.
 
 ## Key Decisions (Phase 17-01, 2026-06-29)
 
