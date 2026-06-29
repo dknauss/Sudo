@@ -153,32 +153,32 @@ Here is how the major WordPress 2FA plugins store and validate credentials, and 
 
 ### Patchstack Security
 
-**Status:** Bridgeable compatibility target, but likely requires a paid Patchstack
-setup for end-to-end testing because the login/2FA hooks are disabled when the
-plugin is in free-license mode.
+**Status:** Second-tier/manual-test target and bridgeable design target;
+fixture-blocked until a paid Patchstack-enabled runtime exists. Do not treat
+source inspection as a shipped support claim.
 
-Verified against current WordPress.org SVN trunk revision 3589135 at the time of this review:
+Verified against WordPress.org SVN on 2026-06-29:
 
 | Aspect | Detail |
 |--------|--------|
+| Source | [`includes/login.php`](https://plugins.svn.wordpress.org/patchstack/trunk/includes/login.php) |
+| Repository evidence | Repository revision `3590474`; file last changed revision `3433693`, 2026-01-06 07:17:24 -0700. |
 | Feature flag | Plugin option `patchstack_login_2fa` enables the 2FA hooks. |
-| Free-license behavior | `P_Login::__construct()` returns early when `patchstack_license_free` is `1`, before registering 2FA hooks. |
+| Paid-fixture caveat | `P_Login::__construct()` returns early when `patchstack_license_free` is `1`, before meaningful 2FA hook registration. Runtime behavior cannot be claimed without a paid Patchstack-enabled fixture. |
 | Detection | `get_user_option( 'webarx_2fa_enabled', $user_id )` |
 | Login field | `patchstack_2fa` |
 | Validation | `TokenAuth6238::verify( $secret, $code )` after `P_Login::tfa_get_secret( $user )` decrypts/generates the secret. |
 | Storage | `webarx_2fa_secretkey` plus `webarx_2fa_secretkey_nonce` user options. |
 | Profile lifecycle | `patchstack_2fa_enabled` is saved on `personal_options_update` / `edit_user_profile_update`; WooCommerce account forms have parallel handlers. |
-| Source | [`includes/login.php`](https://plugins.svn.wordpress.org/patchstack/trunk/includes/login.php) |
 
-Compatibility-test implications:
+Manual-test implications:
 
-- Patchstack will not be covered by WP Sudo's built-in `WordPress/two-factor`
+- This target is outside WP Sudo's automatic `WordPress/two-factor`
   integration because it uses its own TOTP implementation and user-option keys.
-- It appears practical to build a bridge because validation is local TOTP rather
-  than a hosted/cloud-only check.
-- Treat it as a second-tier 2FA compatibility target after the upstream
-  `WordPress/two-factor` lifecycle bridge, unless user demand makes Patchstack
-  compatibility urgent.
+- Source inspection suggests a bridgeable design target because validation is
+  local TOTP rather than a hosted/cloud-only check.
+- Keep Patchstack behind the upstream `WordPress/two-factor` lifecycle bridge
+  unless user demand and a paid fixture make manual runtime testing possible.
 
 ### Wordfence Login Security
 
