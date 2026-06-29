@@ -1,4 +1,33 @@
 import { test, expect, activateSudoSession } from '../fixtures/test';
+import type { Page } from '@playwright/test';
+
+async function clickTimerAndWaitForRedirect( page: Page ): Promise<void> {
+    const urlBefore = new URL( page.url() );
+
+    await Promise.all( [
+        page.waitForRequest( ( request ) => {
+            if ( ! request.isNavigationRequest() ) {
+                return false;
+            }
+
+            const requestUrl = new URL( request.url() );
+
+            return requestUrl.searchParams.get( 'wp_sudo_deactivate' ) === '1' &&
+                requestUrl.searchParams.get( 'wp_sudo_redirect_to' ) === urlBefore.href &&
+                requestUrl.searchParams.has( '_wpnonce' );
+        } ),
+        page.locator( '#wp-admin-bar-wp-sudo-active .ab-item' ).click(),
+    ] );
+
+    await page.waitForURL(
+        ( url ) =>
+            url.pathname === urlBefore.pathname &&
+            ! url.searchParams.has( 'wp_sudo_deactivate' ) &&
+            ! url.searchParams.has( 'wp_sudo_redirect_to' ) &&
+            ! url.searchParams.has( '_wpnonce' ),
+        { waitUntil: 'load', timeout: 15_000 }
+    );
+}
 
 test.describe( 'WP Sudo alternative stack smoke tests', () => {
     test( 'STACK-01: admin dashboard and settings page load', async ( {
@@ -56,25 +85,21 @@ test.describe( 'WP Sudo alternative stack smoke tests', () => {
         );
         await page.fill( '#wp-sudo-challenge-password', 'password' );
 
-        await Promise.all( [
-            page.waitForURL(
-                /\/wp-admin\/options-general\.php\?page=wp-sudo-settings$/,
-                { timeout: 15_000 }
-            ),
-            page.click( '#wp-sudo-challenge-submit' ),
-        ] );
+        await page.click( '#wp-sudo-challenge-submit' );
+        await expect( page ).toHaveURL(
+            /\/wp-admin\/options-general\.php\?page=wp-sudo-settings(?:&updated=true)?$/,
+            { timeout: 15_000 }
+        );
 
         await expect( sessionDuration ).toHaveValue( updatedValue );
 
         // Restore the original setting so stack smoke runs stay side-effect-light.
         await sessionDuration.fill( originalValue );
-        await Promise.all( [
-            page.waitForURL(
-                /\/wp-admin\/options-general\.php\?page=wp-sudo-settings$/,
-                { timeout: 15_000 }
-            ),
-            page.locator( '#submit' ).click(),
-        ] );
+        await page.locator( '#submit' ).click();
+        await expect( page ).toHaveURL(
+            /\/wp-admin\/options-general\.php\?page=wp-sudo-settings(?:&updated=true)?$/,
+            { timeout: 15_000 }
+        );
         await expect( sessionDuration ).toHaveValue( originalValue );
     } );
 
@@ -85,10 +110,7 @@ test.describe( 'WP Sudo alternative stack smoke tests', () => {
         await activateSudoSession( page );
         await expect( page.locator( '#wp-admin-bar-wp-sudo-active' ) ).toBeVisible();
 
-        await Promise.all( [
-            page.waitForURL( /\/wp-admin\/(?:index\.php)?$/, { timeout: 15_000 } ),
-            page.locator( '#wp-admin-bar-wp-sudo-active' ).click(),
-        ] );
+        await clickTimerAndWaitForRedirect( page );
 
         await expect( page.locator( '#wp-admin-bar-wp-sudo-active' ) ).not.toBeVisible();
 
@@ -168,13 +190,13 @@ test.describe( 'WP Sudo alternative stack smoke tests', () => {
             page.locator( '#submit' ).click(),
         ] );
 
-        await Promise.all( [
-            page.waitForURL(
-                /\/wp-admin\/options-general\.php\?page=wp-sudo-settings$/,
-                { timeout: 15_000 }
-            ),
-            page.locator( '#wp-sudo-challenge-password-step a.button:has-text("Cancel")' ).click(),
-        ] );
+        await page
+            .locator( '#wp-sudo-challenge-password-step a.button:has-text("Cancel")' )
+            .click();
+        await expect( page ).toHaveURL(
+            /\/wp-admin\/options-general\.php\?page=wp-sudo-settings$/,
+            { timeout: 15_000 }
+        );
 
         await page.reload();
         await expect( sessionDuration ).toHaveValue( originalValue );
