@@ -138,9 +138,7 @@ async function getActivateUrl(
 }
 
 async function submitTwoFactorChallenge( page: Page ): Promise<void> {
-    await page
-        .locator( '#wp-sudo-challenge-2fa-submit' )
-        .evaluate( ( button ) => ( button as HTMLButtonElement ).click() );
+    await page.locator( '#wp-sudo-challenge-2fa-submit' ).click( { force: true } );
 }
 
 /**
