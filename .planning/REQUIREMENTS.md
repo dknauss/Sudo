@@ -10,19 +10,19 @@
 
 ### Runtime Evidence
 
-- [ ] **E2E-01**: Maintainers can refresh the latest `E2E Tests` 1/4 through 4/4 GitHub Actions job durations immediately before changing the workflow.
-- [ ] **E2E-02**: The rebalance decision identifies the current long pole and the shortest suitable destination group using refreshed Actions data, not local timing assumptions.
+- [x] **E2E-01**: Maintainers can refresh the latest `E2E Tests` 1/4 through 4/4 GitHub Actions job durations immediately before changing the workflow.
+- [x] **E2E-02**: The rebalance decision identifies the current long pole and the shortest suitable destination group using refreshed Actions data, not local timing assumptions.
 
 ### Workflow Rebalance
 
-- [ ] **E2E-03**: The required baseline `.github/workflows/e2e.yml` matrix still has exactly four groups and the same final required `E2E Tests` gate.
-- [ ] **E2E-04**: A small, low-risk test slice is moved out of `E2E Tests 1/4 (challenge-basic-admin)` without skipping specs, removing surfaces, or moving coverage to manual-only validation.
-- [ ] **E2E-05**: The workflow comments or adjacent documentation explain the rebalance rationale and preserve the fixed `wp-env` startup-floor constraint.
+- [x] **E2E-03**: The required baseline `.github/workflows/e2e.yml` matrix still has exactly four groups and the same final required `E2E Tests` gate.
+- [x] **E2E-04**: A small, low-risk test slice is moved out of `E2E Tests 1/4 (challenge-basic-admin)` without skipping specs, removing surfaces, or moving coverage to manual-only validation.
+- [x] **E2E-05**: The workflow comments or adjacent documentation explain the rebalance rationale and preserve the fixed `wp-env` startup-floor constraint.
 
 ### Verification and Documentation
 
-- [ ] **E2E-06**: Required GitHub CI passes after the workflow change, including all four baseline E2E groups.
-- [ ] **E2E-07**: `docs/e2e-runtime-review.md` records the rebalance implementation, validation run, and whether the long-pole runtime improved enough to keep the change.
+- [x] **E2E-06**: Required GitHub CI passes after the workflow change, including all four baseline E2E groups.
+- [x] **E2E-07**: `docs/e2e-runtime-review.md` records the rebalance implementation, validation run, and whether the long-pole runtime improved enough to keep the change.
 
 ## Future Requirements
 
@@ -43,13 +43,13 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| E2E-01 | Phase 20 | Pending |
-| E2E-02 | Phase 20 | Pending |
-| E2E-03 | Phase 20 | Pending |
-| E2E-04 | Phase 20 | Pending |
-| E2E-05 | Phase 20 | Pending |
-| E2E-06 | Phase 20 | Pending |
-| E2E-07 | Phase 20 | Pending |
+| E2E-01 | Phase 20 | Complete |
+| E2E-02 | Phase 20 | Complete |
+| E2E-03 | Phase 20 | Complete |
+| E2E-04 | Phase 20 | Complete |
+| E2E-05 | Phase 20 | Complete |
+| E2E-06 | Phase 20 | Complete |
+| E2E-07 | Phase 20 | Complete |
 
 **Coverage:**
 - v1 requirements: 7 total
@@ -58,4 +58,4 @@
 
 ---
 *Requirements defined: 2026-06-29*
-*Last updated: 2026-06-29 — v4.3.1 milestone requirements created.*
+*Last updated: 2026-06-29 — Phase 20 completed; all v4.3.1 requirements marked complete.*
