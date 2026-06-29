@@ -87,7 +87,11 @@ Plans:
 2. Patchstack Security is represented in the compatibility matrix as a second-tier/manual-test target with paid-fixture caveat.
 3. The plan distinguishes bridge code that should ship from documentation/manual-compatibility targets.
 
-**Plans:** Pending — start with `$gsd-discuss-phase 19`.
+**Plans:** 2 plans
+
+Plans:
+- [ ] 19-01-PLAN.md — Source-refresh and document the upstream WordPress/two-factor lifecycle bridge plan, including REST bridge posture and TDD-first profile-provider guard scope.
+- [ ] 19-02-PLAN.md — Update the compatibility matrix so Patchstack is a fixture-blocked manual-test target and shippable bridge code is clearly separated from docs/manual targets.
 
 ## Progress
 
@@ -96,7 +100,7 @@ Plans:
 | 16. Localization and Translation Packaging Readiness | v4.3.0 | direct | Complete | 2026-06-28 |
 | 17. Release-only Environment Assurance | v4.3.0 | 1/1 | Complete | 2026-06-29 |
 | 18. E2E Runtime Review and Tuning Decision | v4.3.0 | 1/1 | Complete | 2026-06-29 |
-| 19. 2FA Bridge Planning and Compatibility Matrix | v4.3.0 | 0/? | Not started | - |
+| 19. 2FA Bridge Planning and Compatibility Matrix | v4.3.0 | 0/2 | Planned | - |
 
 ---
 
