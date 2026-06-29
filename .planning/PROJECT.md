@@ -12,18 +12,21 @@ WP Sudo is a WordPress plugin that provides action-gated reauthentication. Dange
 Every destructive WordPress admin action requires proof that the person at the keyboard is still the authenticated user — not a hijacked session, XSS payload, or unattended browser.
 
 
-## Current State
+## Current Milestone: v4.3.1 — E2E Shard Rebalance
 
-Milestone v4.3.0 — Post-.org Readiness Hardening is complete and archived. The repository remains submission-ready, but WordPress.org publication is intentionally delayed/on hold. Product release metadata remains at `4.2.2`; no `v4.3.0` release tag was created during milestone archival.
+**Goal:** Reduce the required E2E matrix long pole by rebalancing a small test slice out of `E2E Tests 1/4` while preserving the same four required groups and release-grade coverage.
 
-**Validated in v4.3.0:** localization packaging readiness, release-only environment assurance, measured E2E runtime review, and 2FA bridge planning/compatibility scoping.
+**Target features / tracks:**
+- **E2E evidence refresh** — Re-run the existing GitHub Actions runtime refresh commands before editing `.github/workflows/e2e.yml` so the rebalance uses current data.
+- **No-coverage-loss workflow rebalance** — Move only a small, low-risk test slice from `challenge-basic-admin` into the shortest existing group; do not add a fifth group, remove specs, or weaken required gates.
+- **CI verification** — Use GitHub CI as the final verifier and update the runtime review with the actual before/after decision and observed outcome.
 
-**Next milestone candidates:**
-- No-coverage-loss E2E shard rebalance from Phase 18 evidence.
-- Patchstack paid-fixture/manual runtime compatibility testing.
-- Larger product tracks from `../docs/ROADMAP.md`, such as Gutenberg reauthentication UX, Sudo Activity, and multisite policy hierarchy.
+**Decisions locked at kickoff (2026-06-29):**
+- This is a narrow CI/runtime milestone, not a plugin release milestone and not a WordPress.org submission trigger.
+- Skip new ecosystem/domain research; the source evidence is the existing `docs/e2e-runtime-review.md` plus a fresh Actions refresh immediately before implementation.
+- Keep the same required `E2E Tests` gate and four baseline groups; scheduled/manual smoke workflows remain out of scope.
 
-**Source of truth:** `../docs/ROADMAP.md`, `../docs/release-status.md`, `.planning/MILESTONES.md`, and archived v4.3.0 planning files under `.planning/milestones/`.
+**Source of truth:** `../docs/e2e-runtime-review.md`, `.github/workflows/e2e.yml`, `.planning/REQUIREMENTS.md`, and `.planning/ROADMAP.md` for this milestone.
 
 ## Requirements
 
@@ -60,9 +63,11 @@ Milestone v4.3.0 — Post-.org Readiness Hardening is complete and archived. The
 
 ### Active
 
-<!-- Next milestone requirements will be defined by `$gsd-new-milestone`. -->
+<!-- Current scope (v4.3.1 milestone). -->
 
-- [ ] Select and define the next milestone scope.
+- [ ] Refresh current GitHub Actions runtime evidence for the baseline E2E matrix — v4.3.1
+- [ ] Rebalance one small E2E test slice out of `E2E Tests 1/4` without coverage loss — v4.3.1
+- [ ] Verify the rebalance through required CI and document the outcome — v4.3.1
 
 ### Out of Scope
 
@@ -115,4 +120,4 @@ Recommended next multisite browser sequence:
 | Local multisite browser verification stays outside hosted CI | GitHub-hosted `wp-env` is single-site; the multisite network-admin failure only surfaced on a symlinked Local install | Adopted — keep hosted CI single-site, add Local multisite regression + helper script + bootstrap hardening |
 
 ---
-*Last updated: 2026-06-29 after v4.3.0 GSD milestone archival; product release metadata remains 4.2.2.*
+*Last updated: 2026-06-29 — v4.3.1 E2E Shard Rebalance milestone started; product release metadata remains 4.2.2.*

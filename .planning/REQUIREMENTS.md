@@ -1,0 +1,61 @@
+# Requirements: WP Sudo v4.3.1 — E2E Shard Rebalance
+
+**Defined:** 2026-06-29
+**Core Value:** Every destructive admin action requires proof the person at the keyboard is still the authenticated user.
+**Milestone:** v4.3.1
+
+> v4.3.1 is a narrow GSD/CI planning milestone, not a plugin release tag. It implements the Phase 18 follow-up from `docs/e2e-runtime-review.md`: rebalance the required baseline E2E matrix without reducing browser coverage, adding another startup-cost group, or changing WordPress.org publication status.
+
+## v1 Requirements
+
+### Runtime Evidence
+
+- [ ] **E2E-01**: Maintainers can refresh the latest `E2E Tests` 1/4 through 4/4 GitHub Actions job durations immediately before changing the workflow.
+- [ ] **E2E-02**: The rebalance decision identifies the current long pole and the shortest suitable destination group using refreshed Actions data, not local timing assumptions.
+
+### Workflow Rebalance
+
+- [ ] **E2E-03**: The required baseline `.github/workflows/e2e.yml` matrix still has exactly four groups and the same final required `E2E Tests` gate.
+- [ ] **E2E-04**: A small, low-risk test slice is moved out of `E2E Tests 1/4 (challenge-basic-admin)` without skipping specs, removing surfaces, or moving coverage to manual-only validation.
+- [ ] **E2E-05**: The workflow comments or adjacent documentation explain the rebalance rationale and preserve the fixed `wp-env` startup-floor constraint.
+
+### Verification and Documentation
+
+- [ ] **E2E-06**: Required GitHub CI passes after the workflow change, including all four baseline E2E groups.
+- [ ] **E2E-07**: `docs/e2e-runtime-review.md` records the rebalance implementation, validation run, and whether the long-pole runtime improved enough to keep the change.
+
+## Future Requirements
+
+- **E2E-FUT-01**: Revisit adding a fifth E2E group only if future evidence shows rebalance cannot reduce the critical path and the added startup floor is justified.
+- **E2E-FUT-02**: Refresh sparse scheduled/manual smoke workflow evidence (`e2e-nginx-multisite.yml`, `e2e-sqlite.yml`, `e2e-visual.yml`) during a separate release-grade evidence pass.
+
+## Out of Scope
+
+| Feature | Reason |
+|---------|--------|
+| Adding a fifth baseline E2E group | Phase 18 evidence recommended rebalancing within the current four groups first because each group pays fixed `wp-env` startup cost. |
+| Removing E2E specs or changing required gate semantics | The follow-up must preserve release-grade coverage and required-check behavior. |
+| Scheduled/manual smoke workflow tuning | The Phase 18 decision scoped this follow-up to the required baseline `E2E Tests` matrix only. |
+| WordPress.org submission/upload | Publication remains intentionally delayed/on hold. |
+| Product version bump or release tag | This milestone is CI/runtime work; product metadata remains `4.2.2` unless a separate release process changes it. |
+
+## Traceability
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| E2E-01 | Phase 20 | Pending |
+| E2E-02 | Phase 20 | Pending |
+| E2E-03 | Phase 20 | Pending |
+| E2E-04 | Phase 20 | Pending |
+| E2E-05 | Phase 20 | Pending |
+| E2E-06 | Phase 20 | Pending |
+| E2E-07 | Phase 20 | Pending |
+
+**Coverage:**
+- v1 requirements: 7 total
+- Mapped to phases: 7
+- Unmapped: 0 ✓
+
+---
+*Requirements defined: 2026-06-29*
+*Last updated: 2026-06-29 — v4.3.1 milestone requirements created.*
