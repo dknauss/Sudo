@@ -33,6 +33,8 @@ test.describe( 'WP Sudo smoke tests', () => {
         page,
     } ) => {
         const presetSelection = page.locator( '#policy_preset_selection' );
+        const settingsUrlPattern =
+            /\/wp-admin\/options-general\.php\?page=wp-sudo-settings(?:&updated=true)?$/;
 
         const applyPresetAndWait = async ( preset: string, expectedLabel: string ) => {
             // The preset field is a <select> dropdown. Selecting a new preset
@@ -44,7 +46,7 @@ test.describe( 'WP Sudo smoke tests', () => {
                 .evaluate( ( button ) => ( button as HTMLInputElement ).form?.requestSubmit() );
 
             await Promise.race( [
-                page.waitForURL( /page=wp-sudo-settings/, { timeout: 15_000 } ),
+                page.waitForURL( settingsUrlPattern, { timeout: 15_000 } ),
                 page.waitForURL( /page=wp-sudo-challenge/, { timeout: 15_000 } ),
             ] );
 
@@ -54,7 +56,7 @@ test.describe( 'WP Sudo smoke tests', () => {
                 await page
                     .locator( '#wp-sudo-challenge-password-form' )
                     .evaluate( ( form ) => ( form as HTMLFormElement ).requestSubmit() );
-                await expect( page ).toHaveURL( /page=wp-sudo-settings/, { timeout: 15_000 } );
+                await expect( page ).toHaveURL( settingsUrlPattern, { timeout: 15_000 } );
             }
 
             // The notice format is "{Label} preset applied. {details}"
