@@ -8,7 +8,7 @@
 # Active Roadmap: Milestone v4.3.0 — Post-.org Readiness Hardening
 
 **Milestone:** v4.3.0
-**Status:** In progress — Phases 16-18 complete; Phase 19 remains planned
+**Status:** In progress — Phases 16-18 complete; Phase 19 is 1/2 plans complete
 **Previous milestone last phase:** 15 (Manual Testing Environment Checklist, v4.2.x)
 **Phase numbering continues from:** 16
 
@@ -19,7 +19,7 @@
 - [x] **Phase 16: Localization and Translation Packaging Readiness** — POT generation, translator comments, JS/CLI strings, and an i18n check (completed 2026-06-28).
 - [x] **Phase 17: Release-only Environment Assurance** — Complete: release environment log and tag-vs-.org gates documented (completed 2026-06-29).
 - [x] **Phase 18: E2E Runtime Review and Tuning Decision** — Complete: refreshed GitHub Actions E2E runtime evidence and documented one no-coverage-loss rebalance follow-up in [`docs/e2e-runtime-review.md`](../docs/e2e-runtime-review.md) (completed 2026-06-29).
-- [ ] **Phase 19: 2FA Bridge Planning and Compatibility Matrix** — convert upstream Two Factor lifecycle bridge scope into an implementation plan and keep Patchstack as a second-tier compatibility target.
+- [ ] **Phase 19: 2FA Bridge Planning and Compatibility Matrix** — convert upstream Two Factor lifecycle bridge scope into an implementation plan and keep Patchstack as a second-tier compatibility target; Plan 02 completed Patchstack/matrix requirements on 2026-06-29.
 
 ## Phase Details
 
@@ -87,11 +87,11 @@ Plans:
 2. Patchstack Security is represented in the compatibility matrix as a second-tier/manual-test target with paid-fixture caveat.
 3. The plan distinguishes bridge code that should ship from documentation/manual-compatibility targets.
 
-**Plans:** 2 plans
+**Plans:** 1/2 plans complete
 
 Plans:
-- [ ] 19-01-PLAN.md — Source-refresh and document the upstream WordPress/two-factor lifecycle bridge plan, including REST bridge posture and TDD-first profile-provider guard scope.
-- [ ] 19-02-PLAN.md — Update the compatibility matrix so Patchstack is a fixture-blocked manual-test target and shippable bridge code is clearly separated from docs/manual targets.
+- [x] 19-01-PLAN.md — Source-refreshed and documented the upstream WordPress/two-factor lifecycle bridge plan, including REST bridge posture and TDD-first profile-provider guard scope.
+- [x] 19-02-PLAN.md — Updated the compatibility matrix so Patchstack is a fixture-blocked manual-test target and shippable bridge code is clearly separated from docs/manual targets.
 
 ## Progress
 
@@ -100,7 +100,7 @@ Plans:
 | 16. Localization and Translation Packaging Readiness | v4.3.0 | direct | Complete | 2026-06-28 |
 | 17. Release-only Environment Assurance | v4.3.0 | 1/1 | Complete | 2026-06-29 |
 | 18. E2E Runtime Review and Tuning Decision | v4.3.0 | 1/1 | Complete | 2026-06-29 |
-| 19. 2FA Bridge Planning and Compatibility Matrix | v4.3.0 | 0/2 | Planned | - |
+| 19. 2FA Bridge Planning and Compatibility Matrix | v4.3.0 | 1/2 | In progress | - |
 
 ---
 
@@ -396,7 +396,7 @@ Plans:
 - URL pathname unchanged after admin bar deactivation click
 - All tests pass in CI
 
-**Plans:** 2 plans
+**Plans:** 1/2 plans complete
 
 Plans:
 - [x] 08-01-PLAN.md â Keyboard navigation + shortcut tests (KEYB-01-04)

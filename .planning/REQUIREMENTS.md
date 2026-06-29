@@ -29,9 +29,9 @@
 
 ### 2FA Bridge Planning and Compatibility
 
-- [ ] **2FA-01**: The upstream WordPress/two-factor lifecycle bridge scope is converted into an implementation-ready plan covering recovery-code generation, TOTP setup/delete, and profile provider changes.
-- [ ] **2FA-02**: Patchstack Security remains tracked as a second-tier 2FA compatibility/manual-test target, including the paid-fixture caveat and verified SVN source details.
-- [ ] **2FA-03**: The 2FA bridge plan distinguishes compatibility testing, documentation-only targets, and bridge code that should actually ship.
+- [x] **2FA-01**: The upstream WordPress/two-factor lifecycle bridge scope is converted into an implementation-ready plan covering recovery-code generation, TOTP setup/delete, and profile provider changes.
+- [x] **2FA-02**: Patchstack Security remains tracked as a second-tier 2FA compatibility/manual-test target, including the paid-fixture caveat and verified SVN source details.
+- [x] **2FA-03**: The 2FA bridge plan distinguishes compatibility testing, documentation-only targets, and bridge code that should actually ship.
 
 ## Future Requirements
 
@@ -62,16 +62,16 @@
 | CI-01 | Phase 18 | Complete |
 | CI-02 | Phase 18 | Complete |
 | CI-03 | Phase 18 | Complete |
-| 2FA-01 | Phase 19 | Pending |
-| 2FA-02 | Phase 19 | Pending |
-| 2FA-03 | Phase 19 | Pending |
+| 2FA-01 | Phase 19 | Complete |
+| 2FA-02 | Phase 19 | Complete |
+| 2FA-03 | Phase 19 | Complete |
 
 **Coverage:**
 - v1 requirements: 12 total
-- Complete: 9/12
+- Complete: 11/12
 - Mapped to phases: 12/12
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-06-28*
-*Last updated: 2026-06-29 — Phase 18 E2E runtime review completed; one no-coverage-loss CI rebalance follow-up proposed.*
+*Last updated: 2026-06-29 — Phase 19 Plan 01 completed; 2FA-01 and 2FA-03 marked complete for upstream Two Factor lifecycle bridge planning.*
