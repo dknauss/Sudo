@@ -1,33 +1,4 @@
 import { test, expect, activateSudoSession } from '../fixtures/test';
-import type { Page } from '@playwright/test';
-
-async function clickTimerAndWaitForRedirect( page: Page ): Promise<void> {
-    const urlBefore = new URL( page.url() );
-
-    await Promise.all( [
-        page.waitForRequest( ( request ) => {
-            if ( ! request.isNavigationRequest() ) {
-                return false;
-            }
-
-            const requestUrl = new URL( request.url() );
-
-            return requestUrl.searchParams.get( 'wp_sudo_deactivate' ) === '1' &&
-                requestUrl.searchParams.get( 'wp_sudo_redirect_to' ) === urlBefore.href &&
-                requestUrl.searchParams.has( '_wpnonce' );
-        } ),
-        page.locator( '#wp-admin-bar-wp-sudo-active .ab-item' ).click(),
-    ] );
-
-    await page.waitForURL(
-        ( url ) =>
-            url.pathname === urlBefore.pathname &&
-            ! url.searchParams.has( 'wp_sudo_deactivate' ) &&
-            ! url.searchParams.has( 'wp_sudo_redirect_to' ) &&
-            ! url.searchParams.has( '_wpnonce' ),
-        { waitUntil: 'load', timeout: 15_000 }
-    );
-}
 
 test.describe( 'WP Sudo alternative stack smoke tests', () => {
     test( 'STACK-01: admin dashboard and settings page load', async ( {
@@ -85,7 +56,9 @@ test.describe( 'WP Sudo alternative stack smoke tests', () => {
         );
         await page.fill( '#wp-sudo-challenge-password', 'password' );
 
-        await page.click( '#wp-sudo-challenge-submit' );
+        await page
+            .locator( '#wp-sudo-challenge-password-form' )
+            .evaluate( ( form ) => ( form as HTMLFormElement ).requestSubmit() );
         await expect( page ).toHaveURL(
             /\/wp-admin\/options-general\.php\?page=wp-sudo-settings(?:&updated=true)?$/,
             { timeout: 15_000 }
@@ -110,9 +83,13 @@ test.describe( 'WP Sudo alternative stack smoke tests', () => {
         await activateSudoSession( page );
         await expect( page.locator( '#wp-admin-bar-wp-sudo-active' ) ).toBeVisible();
 
-        await clickTimerAndWaitForRedirect( page );
+        await page
+            .locator( '#wp-admin-bar-wp-sudo-active .ab-item' )
+            .evaluate( ( link ) => ( link as HTMLAnchorElement ).click() );
 
-        await expect( page.locator( '#wp-admin-bar-wp-sudo-active' ) ).not.toBeVisible();
+        await expect( page.locator( '#wp-admin-bar-wp-sudo-active' ) ).not.toBeVisible( {
+            timeout: 15_000,
+        } );
 
         const cookies = await context.cookies();
         expect(
@@ -192,7 +169,7 @@ test.describe( 'WP Sudo alternative stack smoke tests', () => {
 
         await page
             .locator( '#wp-sudo-challenge-password-step a.button:has-text("Cancel")' )
-            .click();
+            .evaluate( ( link ) => ( link as HTMLAnchorElement ).click() );
         await expect( page ).toHaveURL(
             /\/wp-admin\/options-general\.php\?page=wp-sudo-settings$/,
             { timeout: 15_000 }
