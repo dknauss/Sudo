@@ -390,6 +390,53 @@ recovery codes can satisfy the later WP Sudo 2FA step. The bridge should require
 an active WP Sudo session before creating or replacing factors that can satisfy
 future sudo challenges.
 
+##### Profile provider changes
+
+Profile provider changes are the remaining upstream Two Factor lifecycle surface
+that needs a separate, TDD-first design before any production guard ships. The
+future guard should target classic profile updates only when the request is a
+real profile save (`profile.php` or `user-edit.php` with `action=update`) and
+Two Factor's own POST contract is present. Source refresh
+`fb2671b46d7fad4ceb1962297bf02762e9547309`, checked 2026-06-29, shows the
+classic form nonce as `_nonce_user_two_factor_options` for action
+`user_two_factor_options`, provider checkboxes named
+`_two_factor_enabled_providers[]`, and the primary-provider select named
+`_two_factor_provider`.
+
+The guard predicate must be idempotent and enrollment-aware:
+
+1. Read the current user meta before Two Factor writes it:
+   `_two_factor_enabled_providers`, `_two_factor_provider`, and the current TOTP
+   key state (`_two_factor_totp_key`) if the classic form path can alter or
+   replace an enrolled TOTP factor.
+2. Normalize the submitted provider set the same way Two Factor does: ignore the
+   dummy empty `_two_factor_enabled_providers[]` value, intersect submitted
+   provider keys with supported/available providers, and treat ordering as
+   irrelevant.
+3. Gate only meaningful lifecycle changes: enabling or disabling a configured
+   provider, changing the primary provider, or removing/replacing an enrolled
+   TOTP factor. Do not gate an unrelated profile save and do not gate a no-op
+   resubmission of the existing Two Factor settings.
+4. Make first-enrollment policy explicit before implementation. The policy may
+   intentionally allow first enrollment to avoid blocking initial setup, or it
+   may gate first enrollment because it creates a new future sudo factor; either
+   way, the behavior must be documented and tested before code lands.
+
+Required TDD cases before any future profile guard implementation:
+
+- an unrelated profile save with no Two Factor nonce/fields is not gated;
+- a profile save that preserves the same enabled-provider set is not gated;
+- enabled-provider set changes are gated once the user already has Two Factor
+  configured;
+- primary provider changes are gated;
+- removal or replacement of an enrolled TOTP factor is gated;
+- first enrollment is covered by an explicit test for the selected policy.
+
+Because this would add a security guard that can block legitimate profile
+updates, `CLAUDE.md` design review is required before writing the future tests
+or production guard code. The current REST bridge does not ship, recommend, or
+approximate an overbroad profile-save gate.
+
 ---
 
 ## Security Model
