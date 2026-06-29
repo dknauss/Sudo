@@ -30,6 +30,7 @@ jobs:
             "docs/current-metrics.md"
             "docs/llm-lies-log.md"
             "docs/release-status.md"
+            "docs/release-environment-log.md"
             "docs/security-model.md"
             "docs/two-factor-authentication-flow.md"
             "docs/vulnerability-testing-guide.md"
