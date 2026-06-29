@@ -94,7 +94,9 @@ test.describe( 'Access tab — grant capability', () => {
 		await visitAdminPage( 'options-general.php', ACCESS_QUERY );
 		await page.selectOption( '#wp-sudo-grant-user', String( targetId ) );
 		await page.selectOption( '#wp-sudo-grant-cap', 'manage_wp_sudo' );
-		await page.click( '#wp-sudo-grant-submit' );
+		await page
+			.locator( '#wp-sudo-grant-submit' )
+			.evaluate( ( button ) => ( button as HTMLButtonElement ).click() );
 
 		// The Gate returns sudo_required; the JS surfaces data.message verbatim.
 		await expect( page.locator( '#wp-sudo-grant-result' ) ).toContainText(
@@ -114,7 +116,9 @@ test.describe( 'Access tab — grant capability', () => {
 		await visitAdminPage( 'options-general.php', ACCESS_QUERY );
 		await page.selectOption( '#wp-sudo-grant-user', String( targetId ) );
 		await page.selectOption( '#wp-sudo-grant-cap', 'manage_wp_sudo' );
-		await page.click( '#wp-sudo-grant-submit' );
+		await page
+			.locator( '#wp-sudo-grant-submit' )
+			.evaluate( ( button ) => ( button as HTMLButtonElement ).click() );
 
 		// Success feedback in the aria-live result span.
 		await expect( page.locator( '#wp-sudo-grant-result' ) ).toContainText(

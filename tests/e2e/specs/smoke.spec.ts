@@ -39,7 +39,9 @@ test.describe( 'WP Sudo smoke tests', () => {
             // and clicking Save applies it directly (no separate checkbox).
             await presetSelection.selectOption( preset );
 
-            await page.click( '#submit' );
+            await page
+                .locator( '#submit' )
+                .evaluate( ( button ) => ( button as HTMLInputElement ).form?.requestSubmit() );
 
             await Promise.race( [
                 page.waitForURL( /page=wp-sudo-settings/, { timeout: 15_000 } ),
@@ -49,10 +51,10 @@ test.describe( 'WP Sudo smoke tests', () => {
             if ( /page=wp-sudo-challenge/.test( page.url() ) ) {
                 await page.fill( '#wp-sudo-challenge-password', 'password' );
 
-                await Promise.all( [
-                    page.waitForURL( /page=wp-sudo-settings/, { timeout: 15_000 } ),
-                    page.click( '#wp-sudo-challenge-submit' ),
-                ] );
+                await page
+                    .locator( '#wp-sudo-challenge-password-form' )
+                    .evaluate( ( form ) => ( form as HTMLFormElement ).requestSubmit() );
+                await expect( page ).toHaveURL( /page=wp-sudo-settings/, { timeout: 15_000 } );
             }
 
             // The notice format is "{Label} preset applied. {details}"

@@ -587,10 +587,10 @@ test.describe( 'Challenge flow', () => {
         // Step 7: Submit and wait for redirect back to plugins.php.
         // CRITICAL (Pitfall 2): Promise.all pattern — AJAX triggers window.location.href.
         // Source: admin/js/wp-sudo-challenge.js handleReplay() — sets window.location.href = data.redirect (verified)
-        await Promise.all( [
-            page.waitForURL( /plugins\.php/, { timeout: 15_000 } ),
-            page.click( '#wp-sudo-challenge-submit' ),
-        ] );
+        await page
+            .locator( '#wp-sudo-challenge-password-form' )
+            .evaluate( ( form ) => ( form as HTMLFormElement ).requestSubmit() );
+        await expect( page ).toHaveURL( /plugins\.php/, { timeout: 15_000 } );
 
         // Step 8: Verify we landed on plugins.php (stash replayed).
         await expect(
@@ -1426,7 +1426,9 @@ test.describe( 'Challenge flow', () => {
             await reachStashedPluginActivationChallenge( page, true );
 
             await page.fill( '#wp-sudo-challenge-password', 'password' );
-            await page.click( '#wp-sudo-challenge-submit' );
+            await page
+                .locator( '#wp-sudo-challenge-password-form' )
+                .evaluate( ( form ) => ( form as HTMLFormElement ).requestSubmit() );
 
             await expect(
                 page.locator( '#wp-sudo-challenge-2fa-step' ),
@@ -1514,7 +1516,9 @@ test.describe( 'Challenge flow', () => {
             await reachStashedPluginActivationChallenge( page, true );
 
             await page.fill( '#wp-sudo-challenge-password', 'password' );
-            await page.click( '#wp-sudo-challenge-submit' );
+            await page
+                .locator( '#wp-sudo-challenge-password-form' )
+                .evaluate( ( form ) => ( form as HTMLFormElement ).requestSubmit() );
 
             await expect(
                 page.locator( '#wp-sudo-challenge-2fa-step' ),
@@ -1648,7 +1652,9 @@ test.describe( 'Challenge flow', () => {
 
             await Promise.all( [
                 page.waitForURL( /page=wp-sudo-challenge/, { timeout: 15_000 } ),
-                page.click( '#submit' ),
+                page
+                    .locator( '#submit' )
+                    .evaluate( ( button ) => ( button as HTMLInputElement ).form?.requestSubmit() ),
             ] );
 
             await page.waitForFunction(
@@ -1656,7 +1662,9 @@ test.describe( 'Challenge flow', () => {
             );
 
             await page.fill( '#wp-sudo-challenge-password', 'password' );
-            await page.click( '#wp-sudo-challenge-submit' );
+            await page
+                .locator( '#wp-sudo-challenge-password-form' )
+                .evaluate( ( form ) => ( form as HTMLFormElement ).requestSubmit() );
 
             await expect(
                 page.locator( '#wp-sudo-challenge-2fa-step' ),

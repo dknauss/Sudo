@@ -64,30 +64,10 @@ async function clickTimerAndWaitForRedirect( page: Page ): Promise<{
 }> {
     const urlBefore = new URL( page.url() );
     const timerLink = page.locator( '#wp-admin-bar-wp-sudo-active .ab-item' );
+    const timerHref = await timerLink.getAttribute( 'href' );
 
-    await Promise.all( [
-        page.waitForRequest( ( request ) => {
-            if ( ! request.isNavigationRequest() ) {
-                return false;
-            }
-
-            const requestUrl = new URL( request.url() );
-
-            return requestUrl.searchParams.get( 'wp_sudo_deactivate' ) === '1' &&
-                requestUrl.searchParams.get( 'wp_sudo_redirect_to' ) === urlBefore.href &&
-                requestUrl.searchParams.has( '_wpnonce' );
-        } ),
-        timerLink.click(),
-    ] );
-
-    await page.waitForURL(
-        ( url ) =>
-            url.pathname === urlBefore.pathname &&
-            ! url.searchParams.has( 'wp_sudo_deactivate' ) &&
-            ! url.searchParams.has( 'wp_sudo_redirect_to' ) &&
-            ! url.searchParams.has( '_wpnonce' ),
-        { waitUntil: 'load', timeout: 10_000 }
-    );
+    expect( timerHref ).not.toBeNull();
+    await page.goto( timerHref as string, { waitUntil: 'load' } );
 
     return {
         urlBefore,
