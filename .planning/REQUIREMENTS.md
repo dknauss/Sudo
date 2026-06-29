@@ -23,9 +23,9 @@
 
 ### E2E Runtime Review
 
-- [ ] **CI-01**: The explicit E2E group runtimes from recent GitHub Actions runs are reviewed and recorded before any further CI tuning.
-- [ ] **CI-02**: If a new E2E long pole exists, the next tuning action is scoped narrowly and preserves release-grade full-suite coverage.
-- [ ] **CI-03**: If no material long pole exists, the decision to avoid additional CI complexity is documented.
+- [x] **CI-01**: The explicit E2E group runtimes from recent GitHub Actions runs are reviewed and recorded before any further CI tuning.
+- [x] **CI-02**: If a new E2E long pole exists, the next tuning action is scoped narrowly and preserves release-grade full-suite coverage.
+- [x] **CI-03**: If no material long pole exists, the decision to avoid additional CI complexity is documented.
 
 ### 2FA Bridge Planning and Compatibility
 
@@ -59,19 +59,19 @@
 | REL-01 | Phase 17 | Complete |
 | REL-02 | Phase 17 | Complete |
 | REL-03 | Phase 17 | Complete |
-| CI-01 | Phase 18 | Pending |
-| CI-02 | Phase 18 | Pending |
-| CI-03 | Phase 18 | Pending |
+| CI-01 | Phase 18 | Complete |
+| CI-02 | Phase 18 | Complete |
+| CI-03 | Phase 18 | Complete |
 | 2FA-01 | Phase 19 | Pending |
 | 2FA-02 | Phase 19 | Pending |
 | 2FA-03 | Phase 19 | Pending |
 
 **Coverage:**
 - v1 requirements: 12 total
-- Complete: 6/12
+- Complete: 9/12
 - Mapped to phases: 12/12
 - Unmapped: 0
 
 ---
 *Requirements defined: 2026-06-28*
-*Last updated: 2026-06-29 — Phase 17 release-only environment assurance completed.*
+*Last updated: 2026-06-29 — Phase 18 E2E runtime review completed; one no-coverage-loss CI rebalance follow-up proposed.*

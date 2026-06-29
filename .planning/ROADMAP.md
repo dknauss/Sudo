@@ -1,6 +1,6 @@
 # GSD Roadmap Context
 
-> **Current routing note (2026-06-28):** Milestone v4.3.0 (Post-.org Readiness Hardening) is active/planned. Milestone v4.0.0 phases 11-15 are retained below as the execution record. Canonical product roadmap truth is `../docs/ROADMAP.md`; current release/package truth is `../docs/release-status.md`. WordPress.org submission is intentionally delayed, but the repo should remain submission-ready at any time.
+> **Current routing note (2026-06-29):** Milestone v4.3.0 (Post-.org Readiness Hardening) is active; Phase 19 planning is next after the completed Phase 18 E2E runtime review. Milestone v4.0.0 phases 11-15 are retained below as the execution record. Canonical product roadmap truth is `../docs/ROADMAP.md`; current release/package truth is `../docs/release-status.md`. WordPress.org submission is intentionally delayed, but the repo should remain submission-ready at any time.
 
 ---
 
@@ -8,7 +8,7 @@
 # Active Roadmap: Milestone v4.3.0 — Post-.org Readiness Hardening
 
 **Milestone:** v4.3.0
-**Status:** In progress — Phases 16-17 complete; phases 18-19 remain planned
+**Status:** In progress — Phases 16-18 complete; Phase 19 remains planned
 **Previous milestone last phase:** 15 (Manual Testing Environment Checklist, v4.2.x)
 **Phase numbering continues from:** 16
 
@@ -18,7 +18,7 @@
 
 - [x] **Phase 16: Localization and Translation Packaging Readiness** — POT generation, translator comments, JS/CLI strings, and an i18n check (completed 2026-06-28).
 - [x] **Phase 17: Release-only Environment Assurance** — Complete: release environment log and tag-vs-.org gates documented (completed 2026-06-29).
-- [ ] **Phase 18: E2E Runtime Review and Tuning Decision** — review explicit group runtimes and either scope a targeted tuning action or document no-change.
+- [x] **Phase 18: E2E Runtime Review and Tuning Decision** — Complete: refreshed GitHub Actions E2E runtime evidence and documented one no-coverage-loss rebalance follow-up in [`docs/e2e-runtime-review.md`](../docs/e2e-runtime-review.md) (completed 2026-06-29).
 - [ ] **Phase 19: 2FA Bridge Planning and Compatibility Matrix** — convert upstream Two Factor lifecycle bridge scope into an implementation plan and keep Patchstack as a second-tier compatibility target.
 
 ## Phase Details
@@ -69,10 +69,10 @@ Plans:
 2. If there is a material long pole, exactly one low-risk tuning action is proposed.
 3. If there is no material long pole, the no-change decision is documented to avoid unnecessary CI complexity.
 
-**Plans:** 1 plan
+**Plans:** 1/1 plans complete
 
 Plans:
-- [ ] 18-01-PLAN.md — Refresh GitHub Actions E2E runtime evidence, create the durable runtime review, and document the CI tuning decision.
+- [x] 18-01-PLAN.md — Refreshed GitHub Actions E2E runtime evidence in [`docs/e2e-runtime-review.md`](../docs/e2e-runtime-review.md); final decision proposes exactly one no-coverage-loss follow-up to rebalance a small test slice out of `E2E Tests 1/4` within the existing four baseline groups.
 
 ### Phase 19: 2FA Bridge Planning and Compatibility Matrix
 
@@ -95,7 +95,7 @@ Plans:
 |-------|-----------|----------------|--------|-----------|
 | 16. Localization and Translation Packaging Readiness | v4.3.0 | direct | Complete | 2026-06-28 |
 | 17. Release-only Environment Assurance | v4.3.0 | 1/1 | Complete | 2026-06-29 |
-| 18. E2E Runtime Review and Tuning Decision | v4.3.0 | 0/? | Not started | - |
+| 18. E2E Runtime Review and Tuning Decision | v4.3.0 | 1/1 | Complete | 2026-06-29 |
 | 19. 2FA Bridge Planning and Compatibility Matrix | v4.3.0 | 0/? | Not started | - |
 
 ---

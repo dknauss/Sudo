@@ -28,6 +28,7 @@ This file is the canonical source for **current release state** in this reposito
 - **WordPress.org plugin repository:** not published. Submission is intentionally delayed/on hold, but the repository should remain submission-ready at any time.
 - **Readiness source:** `docs/wporg-submission-checklist.md` is the operational checklist to keep ready for publication approval.
 - **Release environment assurance source:** `docs/release-environment-log.md` records per-version manual environment outcomes and deferrals.
+- **E2E runtime evidence source:** [`docs/e2e-runtime-review.md`](e2e-runtime-review.md) records refreshed post-`v4.2.2` GitHub Actions E2E job runtimes and the current CI tuning decision; it is release-readiness evidence, not a WordPress.org submission gate.
 - **`readme.txt` stable tag:** package/release metadata for generated plugin zips and future WordPress.org publication; it does not indicate that this plugin is currently live in the WordPress.org repository.
 
 ## Latest release contents
@@ -58,13 +59,17 @@ Canonical source for post-tag drift after `v4.2.2`: `git log v4.2.2..main --onel
 
 ## Unreleased `main` work
 
-Unreleased work after `v4.2.2` currently includes localization packaging readiness: WP-CLI-backed Composer commands for POT generation/freshness verification, a committed `languages/wp-sudo.pot`, targeted translator-comment cleanup, and release documentation updates. Canonical source for drift after the tag: `git log v4.2.2..main --oneline`.
+Unreleased work after `v4.2.2` currently includes localization packaging readiness: WP-CLI-backed Composer commands for POT generation/freshness verification, a committed `languages/wp-sudo.pot`, targeted translator-comment cleanup, release documentation updates, and refreshed E2E runtime evidence in [`docs/e2e-runtime-review.md`](e2e-runtime-review.md). Canonical source for drift after the tag: `git log v4.2.2..main --oneline`.
 
 ### Release environment assurance
 
 Phase 17 added [`docs/release-environment-log.md`](release-environment-log.md) as the record of record for release-grade manual environment matrix outcomes. The current `v4.2.2` package row is explicitly **Deferred**: Apache stack, managed WordPress host, and minimum-supported-WordPress lanes were not rerun in Phase 17 and each is owned by the Maintainer before the next public tag/publication decision, blocking unless explicitly waived.
 
 Release readiness now distinguishes **Pre-tag/core** gates from **WordPress.org-only** gates. Pre-tag/core gates cover version sync, Composer validation commands, external-claim audit, changelog/readme/release-status sanity, package metadata, and the release environment matrix/log gate. WordPress.org-only gates cover the readme validator, clean-package Plugin Check, SVN layout/upload, listing assets, screenshot/caption parity, slug-lock decision, and final publication approval. WordPress.org submission/upload remains delayed/on hold.
+
+### E2E runtime evidence
+
+Phase 18 added [`docs/e2e-runtime-review.md`](e2e-runtime-review.md) as the durable GitHub Actions E2E runtime review. Refreshed post-`v4.2.2` evidence found `E2E Tests 1/4 (challenge-basic-admin)` to be the repeatable long pole and records exactly one no-coverage-loss follow-up proposal: rebalance a small test slice within the existing four baseline groups. No workflow file was edited in Phase 18, and this review remains CI evidence rather than a WordPress.org publication gate.
 
 **Pre-tag checklist reminder:** before tagging a future release, confirm the five version-sync points are still in sync, re-verify external claims added since the previous tag, ensure the CHANGELOG/`readme.txt` release entries are dated/current, and update this file's "Latest tagged release" once the tag is cut.
 
