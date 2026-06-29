@@ -162,6 +162,40 @@ These rows are recorded for auditability but are not used to decide green-run lo
 - `E2E Visual Baselines` / `.github/workflows/e2e-visual.yml`: one successful post-cutoff observation found. Record it, but do not declare a repeatable long pole from a single scheduled/manual data point.
 - Failed/cancelled dependency-bump observations are intentionally separated above so they do not distort successful-run runtime comparisons.
 
-## Findings pending decision
+## Findings
 
-The evidence above is ready for the long-pole rule review. The final CI tuning conclusion is added in the follow-up task after checking the aggregate table against the Phase 18 threshold.
+### Baseline `E2E Tests` matrix
+
+`E2E Tests 1/4 (challenge-basic-admin)` is the repeatable long pole in the successful post-`v4.2.2` baseline matrix:
+
+- 9 successful comparable observations, 340-418 seconds, 372.2 seconds average.
+- The next-slowest baseline groups averaged 278.2 seconds (`3/4`) and 276.4 seconds (`4/4`).
+- Group 1 was about 33.8% slower than group 3 and about 34.6% slower than group 4 by average runtime, crossing the Phase 18 materiality threshold of about 25%.
+- In the 6 successful `push`/`main` observations, group 1 averaged 369.8 seconds versus 274.3-277.0 seconds for groups 3 and 4, so the finding is not limited to dependency PR variance.
+
+This is enough evidence to treat the group-1 imbalance as real, but it does not justify adding a fifth E2E group, removing specs, changing required checks, or moving coverage to manual-only validation. The existing workflow comments already prefer rebalancing inside the four current groups before adding parallelism because each group pays the fixed `wp-env` startup floor.
+
+### Smoke and scheduled/manual workflows
+
+- `E2E Nginx Smoke (run)` is stable in successful runs: 10 observations, 90-108 seconds, 98.2 seconds average.
+- `E2E Visual Baselines (Apache + MariaDB, non-blocking)` has one successful scheduled observation at 193 seconds; it is recorded but not enough to infer a repeatable long pole.
+- `E2E Nginx Multisite Smoke` and `E2E SQLite Smoke` have no post-cutoff observations in the refreshed inventory. This is an evidence gap, not a failure of the current required CI path.
+
+## Final decision
+
+**One proposed follow-up:** Rebalance the existing four-group baseline `E2E Tests` matrix by moving a small, low-risk test slice out of `E2E Tests 1/4 (challenge-basic-admin)` into a shorter existing group, preferably group 2 or whichever group is shortest in the follow-up refresh.
+
+Scope constraints for that follow-up:
+
+- preserve release-grade E2E coverage with no coverage loss;
+- keep the same four groups and the same required `E2E Tests` gate;
+- do not remove specs, skip surfaces, or move coverage to manual-only validation;
+- do not change scheduled/manual smoke workflows as part of the rebalance.
+
+This plan does **not** implement the workflow change. It records the evidence-based decision only; the actual test-slice movement should happen in a separate narrow CI follow-up after refreshing the same `gh run view` job-duration table.
+
+### Phase follow-up note
+
+- **Evidence:** 9 successful post-cutoff baseline observations show `E2E Tests 1/4 (challenge-basic-admin)` averaging 372.2 seconds, about 34% slower than the next comparable baseline groups and repeatably on the critical path.
+- **Rationale:** A small rebalance within the current four groups can reduce the long pole without adding startup overhead, changing required checks, or sacrificing coverage.
+- **Owner/timing:** Maintainer / next CI-speed follow-up before the next release-grade tuning pass; re-run the refresh commands in this document immediately before editing `.github/workflows/e2e.yml`.
