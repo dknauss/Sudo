@@ -25,7 +25,7 @@
  * REST App Password policy. No custom blocking logic lives here.
  *
  * Verified against WordPress/two-factor master commit
- * fb2671b46d7fad4ceb1962297bf02762e9547309 (checked 2026-06-29):
+ * c515462d51ac92941685e39293673c08538e16c8 (checked 2026-06-30):
  * routes are `two-factor/1.0/totp` (POST + DELETE) and
  * `two-factor/1.0/generate-backup-codes` (POST); `user_id` is a request
  * parameter, not a path segment.
@@ -34,16 +34,16 @@
  *   - The classic profile-form provider toggle (`_two_factor_enabled_providers`
  *     / `_two_factor_provider`) and classic-form TOTP-key writes are NOT yet
  *     gated here — they need an effect-level guard with an idempotent,
- *     enrollment-excluding change predicate and are tracked as a follow-up.
+ *     enrollment-aware change predicate and are tracked as a follow-up.
  *   - A blocked request from the Two Factor *settings UI* (an `apiFetch`)
  *     receives a `sudo_required` JSON 403 it cannot yet recover from in place; a
  *     future in-editor/challenge-URL affordance will improve this.
  *   - Recovery-code generation via WP-CLI or a direct PHP call is not gated
  *     (governed instead by WP Sudo's non-interactive surface policy).
- *   - First-time enrollment is intentionally not blocked here — these rules fire
- *     on the management routes regardless, but a user with no prior factor can
- *     obtain a sudo session with their password alone (the challenge is
- *     password-only until a factor exists).
+ *   - First-time TOTP-backed enrollment through the classic profile form is
+ *     not covered by this REST-only bridge. WP Sudo v4.4.0 planning treats
+ *     that enrollment as a future profile-guard lifecycle change because it
+ *     creates a factor that can satisfy later sudo challenges.
  *
  * @package    WP_Sudo_Bridges
  * @version    1.0.0

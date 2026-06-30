@@ -397,7 +397,7 @@ that needs a separate, TDD-first design before any production guard ships. The
 future guard should target classic profile updates only when the request is a
 real profile save (`profile.php` or `user-edit.php` with `action=update`) and
 Two Factor's own POST contract is present. Source refresh
-`fb2671b46d7fad4ceb1962297bf02762e9547309`, checked 2026-06-29, shows the
+`c515462d51ac92941685e39293673c08538e16c8`, checked 2026-06-30, shows the
 classic form nonce as `_nonce_user_two_factor_options` for action
 `user_two_factor_options`, provider checkboxes named
 `_two_factor_enabled_providers[]`, and the primary-provider select named
@@ -414,13 +414,13 @@ The guard predicate must be idempotent and enrollment-aware:
    provider keys with supported/available providers, and treat ordering as
    irrelevant.
 3. Gate only meaningful lifecycle changes: enabling or disabling a configured
-   provider, changing the primary provider, or removing/replacing an enrolled
-   TOTP factor. Do not gate an unrelated profile save and do not gate a no-op
+   provider, changing the primary provider, removing/replacing an enrolled TOTP
+   factor, or first enrolling a TOTP-backed factor that can satisfy future sudo
+   challenges. Do not gate an unrelated profile save and do not gate a no-op
    resubmission of the existing Two Factor settings.
-4. Make first-enrollment policy explicit before implementation. The policy may
-   intentionally allow first enrollment to avoid blocking initial setup, or it
-   may gate first enrollment because it creates a new future sudo factor; either
-   way, the behavior must be documented and tested before code lands.
+4. Treat first TOTP-backed enrollment as a lifecycle change for v4.4.0 because
+   it creates a new future sudo factor. That behavior must be documented and
+   tested before code lands.
 
 Required TDD cases before any future profile guard implementation:
 
@@ -430,7 +430,7 @@ Required TDD cases before any future profile guard implementation:
   configured;
 - primary provider changes are gated;
 - removal or replacement of an enrolled TOTP factor is gated;
-- first enrollment is covered by an explicit test for the selected policy.
+- first TOTP-backed enrollment is gated and covered by an explicit test.
 
 Because this would add a security guard that can block legitimate profile
 updates, `CLAUDE.md` design review is required before writing the future tests
