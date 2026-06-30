@@ -2,26 +2,26 @@
 gsd_state_version: 1.0
 milestone: v4.4.0
 milestone_name: Two Factor Lifecycle Bridge
-status: ready_to_execute_phase
-last_updated: "2026-06-30T01:08:00Z"
-last_activity: "2026-06-30 — Phase 21 planned with one executable plan, research scaffold, and validation strategy; ready to execute Phase 21."
+status: phase_complete
+last_updated: "2026-06-30T01:15:00Z"
+last_activity: "2026-06-30 — Phase 21 completed; source evidence/design captured and targeted REST bridge validation passed."
 progress:
   total_phases: 3
-  completed_phases: 0
+  completed_phases: 1
   total_plans: 1
-  completed_plans: 0
+  completed_plans: 1
 ---
 
 ## Current Position
 
-Phase: 21 planned — Two Factor Source Refresh and Guard Design.
-Plan: `.planning/phases/21-two-factor-source-refresh-and-guard-design/21-01-PLAN.md` — ready for `$gsd-execute-phase 21`.
-Status: Phase 21 is planned and ready to execute.
-Branch: `main` — v4.4.0 planning docs and Phase 21 plan are committed locally.
+Phase: 21 complete — Two Factor Source Refresh and Guard Design.
+Plan: `.planning/phases/21-two-factor-source-refresh-and-guard-design/21-01-SUMMARY.md` — completed.
+Status: Phase 21 complete; Phase 22 is next.
+Branch: `main` — v4.4.0 planning docs and Phase 21 execution are committed locally.
 Done & merged: v4.3.1 TIMR/admin-bar-timer moved from E2E group 1 to group 2; GitHub Actions validated all four E2E shards and final `E2E Tests` gate.
 Product release state: Latest tagged plugin release remains `v4.2.2`; v4.4.0 is a GSD milestone and does not create a product release tag unless release metadata is intentionally bumped.
 Open threads: WordPress.org submission remains intentionally delayed/on hold; keep `docs/wporg-submission-checklist.md` ready. Patchstack paid-fixture/manual runtime testing remains fixture-blocked and out of runtime-claim scope.
-Resume file: `.planning/phases/21-two-factor-source-refresh-and-guard-design/21-01-PLAN.md`
+Resume file: None
 
 ## Project Reference
 
@@ -39,13 +39,14 @@ Canonical current facts:
 
 ## Active Priorities
 
-1. Execute Phase 21: refresh upstream WordPress/two-factor source evidence and design the profile-provider guard predicate.
-2. Implement the profile-provider guard with TDD only after Phase 21 design/source verification is complete.
+1. Discuss or plan Phase 22: implement the profile-provider guard with TDD using Phase 21 source evidence.
+2. Keep Phase 21 evidence current if upstream WordPress/two-factor changes before behavior implementation.
 3. Keep WordPress.org readiness maintained while submission remains delayed/on hold.
 4. Keep Patchstack runtime testing as fixture-blocked/manual-test work until a paid fixture exists.
 
 ## Accumulated Context
 
+- Phase 21 source evidence is complete in `.planning/phases/21-two-factor-source-refresh-and-guard-design/21-SOURCE-EVIDENCE.md`; upstream WordPress/two-factor commit `c515462d51ac92941685e39293673c08538e16c8` was checked 2026-06-30.
 - v4.3.1 is archived in `.planning/milestones/v4.3.1-ROADMAP.md` and `.planning/milestones/v4.3.1-REQUIREMENTS.md`.
 - Phase 20 execution files are archived in `.planning/milestones/historical-phases/20-baseline-e2e-shard-rebalance/`.
 - v4.3.0 is archived in `.planning/milestones/v4.3.0-ROADMAP.md` and `.planning/milestones/v4.3.0-REQUIREMENTS.md`.

@@ -9,8 +9,8 @@ Requirements for the Two Factor Lifecycle Bridge milestone. Each maps to roadmap
 
 ### Source Verification
 
-- [ ] **TFA-SRC-01**: Maintainer can see refreshed upstream WordPress/two-factor source evidence before implementation changes rely on third-party route, form-field, hook, nonce, or meta-key details.
-- [ ] **TFA-SRC-02**: Maintainer can trace every added or changed third-party technical claim to an upstream source URL, commit or revision, and checked date.
+- [x] **TFA-SRC-01**: Maintainer can see refreshed upstream WordPress/two-factor source evidence before implementation changes rely on third-party route, form-field, hook, nonce, or meta-key details.
+- [x] **TFA-SRC-02**: Maintainer can trace every added or changed third-party technical claim to an upstream source URL, commit or revision, and checked date.
 
 ### Profile Provider Guard
 
@@ -19,12 +19,12 @@ Requirements for the Two Factor Lifecycle Bridge milestone. Each maps to roadmap
 - [ ] **TFA-GUARD-03**: User must have an active WP Sudo session before a classic profile save enables or disables an upstream Two Factor provider.
 - [ ] **TFA-GUARD-04**: User must have an active WP Sudo session before a classic profile save changes the upstream Two Factor primary provider.
 - [ ] **TFA-GUARD-05**: User must have an active WP Sudo session before a classic profile save removes, replaces, or first enrolls a TOTP-backed factor that can satisfy future sudo challenges.
-- [ ] **TFA-GUARD-06**: Developer can review the guard predicate as an idempotent, enrollment-aware rule instead of a broad `profile.php` / `user-edit.php` save gate.
+- [x] **TFA-GUARD-06**: Developer can review the guard predicate as an idempotent, enrollment-aware rule instead of a broad `profile.php` / `user-edit.php` save gate.
 
 ### Existing REST Bridge Assurance
 
-- [ ] **TFA-REST-01**: Existing bridge coverage for `POST /two-factor/1.0/generate-backup-codes` remains tested and unchanged unless refreshed upstream source requires a deliberate update.
-- [ ] **TFA-REST-02**: Existing bridge coverage for `POST` and `DELETE /two-factor/1.0/totp` remains tested and unchanged unless refreshed upstream source requires a deliberate update.
+- [x] **TFA-REST-01**: Existing bridge coverage for `POST /two-factor/1.0/generate-backup-codes` remains tested and unchanged unless refreshed upstream source requires a deliberate update.
+- [x] **TFA-REST-02**: Existing bridge coverage for `POST` and `DELETE /two-factor/1.0/totp` remains tested and unchanged unless refreshed upstream source requires a deliberate update.
 
 ### Documentation and Release Posture
 
@@ -65,16 +65,16 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| TFA-SRC-01 | Phase 21 | Pending |
-| TFA-SRC-02 | Phase 21 | Pending |
+| TFA-SRC-01 | Phase 21 | Complete |
+| TFA-SRC-02 | Phase 21 | Complete |
 | TFA-GUARD-01 | Phase 22 | Pending |
 | TFA-GUARD-02 | Phase 22 | Pending |
 | TFA-GUARD-03 | Phase 22 | Pending |
 | TFA-GUARD-04 | Phase 22 | Pending |
 | TFA-GUARD-05 | Phase 22 | Pending |
-| TFA-GUARD-06 | Phase 21 | Pending |
-| TFA-REST-01 | Phase 21 | Pending |
-| TFA-REST-02 | Phase 21 | Pending |
+| TFA-GUARD-06 | Phase 21 | Complete |
+| TFA-REST-01 | Phase 21 | Complete |
+| TFA-REST-02 | Phase 21 | Complete |
 | TFA-DOC-01 | Phase 23 | Pending |
 | TFA-DOC-02 | Phase 23 | Pending |
 | TFA-DOC-03 | Phase 23 | Pending |
