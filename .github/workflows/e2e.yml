@@ -76,14 +76,14 @@ jobs:
             group-total: 4
             group-name: challenge-basic-admin
             test-command: |
-              npm run test:e2e -- tests/e2e/specs/admin-bar-deactivate.spec.ts tests/e2e/specs/admin-bar-timer.spec.ts tests/e2e/specs/challenge.spec.ts --grep 'ABAR|TIMR|CHAL-0[1-5]'
+              npm run test:e2e -- tests/e2e/specs/admin-bar-deactivate.spec.ts tests/e2e/specs/challenge.spec.ts --grep 'ABAR|CHAL-0[1-5]'
               npm run test:e2e -- tests/e2e/specs/challenge.spec.ts --grep 'CHAL-09|CHAL-10|CHAL-11'
           - group-index: 2
             group-total: 4
             group-name: challenge-2fa-ui
             test-command: |
               npm run test:e2e -- tests/e2e/specs/challenge.spec.ts --grep 'CHAL-0[6-8]'
-              npm run test:e2e -- tests/e2e/specs/cookie.spec.ts tests/e2e/specs/gate-ui.spec.ts tests/e2e/specs/keyboard.spec.ts
+              npm run test:e2e -- tests/e2e/specs/admin-bar-timer.spec.ts tests/e2e/specs/cookie.spec.ts tests/e2e/specs/gate-ui.spec.ts tests/e2e/specs/keyboard.spec.ts
           - group-index: 3
             group-total: 4
             group-name: challenge-lockout-surfaces

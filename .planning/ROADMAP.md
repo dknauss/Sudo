@@ -7,7 +7,7 @@
 # Active Roadmap: Milestone v4.3.1 — E2E Shard Rebalance
 
 **Milestone:** v4.3.1
-**Status:** Planned
+**Status:** Complete
 **Previous milestone last phase:** 19 (2FA Bridge Planning and Compatibility Matrix, v4.3.0)
 **Phase numbering continues from:** 20
 
@@ -15,7 +15,7 @@
 
 ## Phases
 
-- [ ] **Phase 20: Baseline E2E Shard Rebalance** — Refresh current Actions evidence, move one small low-risk test slice out of group 1 into the shortest suitable existing group, and verify/document the result.
+- [x] **Phase 20: Baseline E2E Shard Rebalance** — Refresh current Actions evidence, move one small low-risk test slice out of group 1 into the shortest suitable existing group, and verify/document the result. (completed 2026-06-29)
 
 ## Phase Details
 
@@ -34,13 +34,13 @@
 4. CI passes on the resulting branch/PR, including `E2E Tests 1/4` through `4/4` and the final gate.
 5. `docs/e2e-runtime-review.md` records the implementation, validation run, and whether observed timing supports keeping the rebalance.
 
-**Plans:** 0/1 planned
+**Plans:** 1/1 plans complete
 
 Plans:
-- [ ] 20-01-PLAN.md — Refresh E2E runtime evidence, rebalance one low-risk test slice within the existing four-group matrix, and document/verify the result.
+- [x] 20-01-PLAN.md — Refresh E2E runtime evidence, rebalance one low-risk test slice within the existing four-group matrix, and document/verify the result. (completed 2026-06-29)
 
 ## Progress
 
 | Phase | Milestone | Plans Complete | Status | Completed |
 |-------|-----------|----------------|--------|-----------|
-| 20. Baseline E2E Shard Rebalance | v4.3.1 | 0/1 | Planned | - |
+| 20. Baseline E2E Shard Rebalance | v4.3.1 | 1/1 | Complete | 2026-06-29 |
