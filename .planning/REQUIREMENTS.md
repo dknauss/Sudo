@@ -28,9 +28,9 @@ Requirements for the Two Factor Lifecycle Bridge milestone. Each maps to roadmap
 
 ### Documentation and Release Posture
 
-- [ ] **TFA-DOC-01**: Maintainer docs distinguish built-in challenge-time Two Factor validation, existing REST lifecycle bridge coverage, and the new classic profile-provider lifecycle guard.
-- [ ] **TFA-DOC-02**: Release/readiness docs do not claim Patchstack Security runtime compatibility or ship Patchstack bridge behavior until a paid Patchstack-enabled fixture has been tested.
-- [ ] **TFA-DOC-03**: Current metrics and changelog/release notes are updated only if implementation changes affect canonical counts or release-facing behavior.
+- [x] **TFA-DOC-01**: Maintainer docs distinguish built-in challenge-time Two Factor validation, existing REST lifecycle bridge coverage, and the new classic profile-provider lifecycle guard.
+- [x] **TFA-DOC-02**: Release/readiness docs do not claim Patchstack Security runtime compatibility or ship Patchstack bridge behavior until a paid Patchstack-enabled fixture has been tested.
+- [x] **TFA-DOC-03**: Current metrics and changelog/release notes are updated only if implementation changes affect canonical counts or release-facing behavior.
 
 ## Future Requirements
 
@@ -75,9 +75,9 @@ Which phases cover which requirements. Updated during roadmap creation.
 | TFA-GUARD-06 | Phase 21 | Complete |
 | TFA-REST-01 | Phase 21 | Complete |
 | TFA-REST-02 | Phase 21 | Complete |
-| TFA-DOC-01 | Phase 23 | Pending |
-| TFA-DOC-02 | Phase 23 | Pending |
-| TFA-DOC-03 | Phase 23 | Pending |
+| TFA-DOC-01 | Phase 23 | Complete |
+| TFA-DOC-02 | Phase 23 | Complete |
+| TFA-DOC-03 | Phase 23 | Complete |
 
 **Coverage:**
 - v4.4.0 requirements: 13 total
