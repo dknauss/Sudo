@@ -65,25 +65,25 @@ Which phases cover which requirements. Updated during roadmap creation.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| TFA-SRC-01 | — | Pending |
-| TFA-SRC-02 | — | Pending |
-| TFA-GUARD-01 | — | Pending |
-| TFA-GUARD-02 | — | Pending |
-| TFA-GUARD-03 | — | Pending |
-| TFA-GUARD-04 | — | Pending |
-| TFA-GUARD-05 | — | Pending |
-| TFA-GUARD-06 | — | Pending |
-| TFA-REST-01 | — | Pending |
-| TFA-REST-02 | — | Pending |
-| TFA-DOC-01 | — | Pending |
-| TFA-DOC-02 | — | Pending |
-| TFA-DOC-03 | — | Pending |
+| TFA-SRC-01 | Phase 21 | Pending |
+| TFA-SRC-02 | Phase 21 | Pending |
+| TFA-GUARD-01 | Phase 22 | Pending |
+| TFA-GUARD-02 | Phase 22 | Pending |
+| TFA-GUARD-03 | Phase 22 | Pending |
+| TFA-GUARD-04 | Phase 22 | Pending |
+| TFA-GUARD-05 | Phase 22 | Pending |
+| TFA-GUARD-06 | Phase 21 | Pending |
+| TFA-REST-01 | Phase 21 | Pending |
+| TFA-REST-02 | Phase 21 | Pending |
+| TFA-DOC-01 | Phase 23 | Pending |
+| TFA-DOC-02 | Phase 23 | Pending |
+| TFA-DOC-03 | Phase 23 | Pending |
 
 **Coverage:**
 - v4.4.0 requirements: 13 total
-- Mapped to phases: 0
-- Unmapped: 13 ⚠️
+- Mapped to phases: 13
+- Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-06-30*
-*Last updated: 2026-06-30 after initial v4.4.0 definition*
+*Last updated: 2026-06-30 after roadmap traceability mapping*
