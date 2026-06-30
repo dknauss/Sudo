@@ -14,11 +14,11 @@ Requirements for the Two Factor Lifecycle Bridge milestone. Each maps to roadmap
 
 ### Profile Provider Guard
 
-- [ ] **TFA-GUARD-01**: User can save an unrelated classic profile update without WP Sudo gating when no upstream Two Factor lifecycle fields are present.
-- [ ] **TFA-GUARD-02**: User can resubmit unchanged upstream Two Factor provider settings without WP Sudo gating when the enabled-provider set and primary provider are unchanged.
-- [ ] **TFA-GUARD-03**: User must have an active WP Sudo session before a classic profile save enables or disables an upstream Two Factor provider.
-- [ ] **TFA-GUARD-04**: User must have an active WP Sudo session before a classic profile save changes the upstream Two Factor primary provider.
-- [ ] **TFA-GUARD-05**: User must have an active WP Sudo session before a classic profile save removes, replaces, or first enrolls a TOTP-backed factor that can satisfy future sudo challenges.
+- [x] **TFA-GUARD-01**: User can save an unrelated classic profile update without WP Sudo gating when no upstream Two Factor lifecycle fields are present.
+- [x] **TFA-GUARD-02**: User can resubmit unchanged upstream Two Factor provider settings without WP Sudo gating when the enabled-provider set and primary provider are unchanged.
+- [x] **TFA-GUARD-03**: User must have an active WP Sudo session before a classic profile save enables or disables an upstream Two Factor provider.
+- [x] **TFA-GUARD-04**: User must have an active WP Sudo session before a classic profile save changes the upstream Two Factor primary provider.
+- [x] **TFA-GUARD-05**: User must have an active WP Sudo session before a classic profile save removes, replaces, or first enrolls a TOTP-backed factor that can satisfy future sudo challenges.
 - [x] **TFA-GUARD-06**: Developer can review the guard predicate as an idempotent, enrollment-aware rule instead of a broad `profile.php` / `user-edit.php` save gate.
 
 ### Existing REST Bridge Assurance
@@ -67,11 +67,11 @@ Which phases cover which requirements. Updated during roadmap creation.
 |-------------|-------|--------|
 | TFA-SRC-01 | Phase 21 | Complete |
 | TFA-SRC-02 | Phase 21 | Complete |
-| TFA-GUARD-01 | Phase 22 | Pending |
-| TFA-GUARD-02 | Phase 22 | Pending |
-| TFA-GUARD-03 | Phase 22 | Pending |
-| TFA-GUARD-04 | Phase 22 | Pending |
-| TFA-GUARD-05 | Phase 22 | Pending |
+| TFA-GUARD-01 | Phase 22 | Complete |
+| TFA-GUARD-02 | Phase 22 | Complete |
+| TFA-GUARD-03 | Phase 22 | Complete |
+| TFA-GUARD-04 | Phase 22 | Complete |
+| TFA-GUARD-05 | Phase 22 | Complete |
 | TFA-GUARD-06 | Phase 21 | Complete |
 | TFA-REST-01 | Phase 21 | Complete |
 | TFA-REST-02 | Phase 21 | Complete |
