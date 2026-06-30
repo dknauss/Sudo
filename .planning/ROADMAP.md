@@ -13,7 +13,7 @@
 | # | Phase | Goal | Requirements | Success Criteria |
 |---|-------|------|--------------|------------------|
 | 21 | Two Factor Source Refresh and Guard Design | Complete — source evidence/design captured 2026-06-30 | TFA-SRC-01, TFA-SRC-02, TFA-GUARD-06, TFA-REST-01, TFA-REST-02 | 5/5 complete |
-| 22 | Profile Provider Guard Implementation | In Progress — 1/2 plans executed; guard implementation complete, validation plan pending. | TFA-GUARD-01, TFA-GUARD-02, TFA-GUARD-03, TFA-GUARD-04, TFA-GUARD-05 | 5 |
+| 22 | Profile Provider Guard Implementation | Complete — guard implementation and validation finished 2026-06-30. | TFA-GUARD-01, TFA-GUARD-02, TFA-GUARD-03, TFA-GUARD-04, TFA-GUARD-05 | 5/5 complete |
 | 23 | Bridge Documentation and Release Posture Closure | Update maintainer/release docs and canonical metrics without expanding unsupported compatibility claims. | TFA-DOC-01, TFA-DOC-02, TFA-DOC-03 | 4 |
 
 ## Phase Details
@@ -43,11 +43,11 @@
 
 **Requirements:** TFA-GUARD-01, TFA-GUARD-02, TFA-GUARD-03, TFA-GUARD-04, TFA-GUARD-05
 
-**Plans:** 1/2 plans executed
+**Plans:** 2/2 plans executed
 
 Plans:
 - [x] 22-01-PLAN.md — TDD implementation of the optional Two Factor classic profile-provider lifecycle guard.
-- [ ] 22-02-PLAN.md — Required validation and scope-boundary verification for the guard implementation.
+- [x] 22-02-PLAN.md — Required validation and scope-boundary verification for the guard implementation.
 
 **Success criteria:**
 1. Tests prove unrelated `profile.php` / `user-edit.php` saves without Two Factor lifecycle fields are not gated.
@@ -89,7 +89,7 @@ Plans:
 
 ## Current Status
 
-Phase 21 is complete. Ready to discuss or plan Phase 22.
+Phases 21 and 22 are complete. Ready to discuss or plan Phase 23 documentation and release-posture closure.
 
 ## Recently Completed
 
