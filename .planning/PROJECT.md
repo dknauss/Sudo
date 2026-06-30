@@ -12,9 +12,20 @@ WP Sudo is a WordPress plugin that provides action-gated reauthentication. Dange
 Every destructive WordPress admin action requires proof that the person at the keyboard is still the authenticated user — not a hijacked session, XSS payload, or unattended browser.
 
 
+## Current Milestone: v4.4.0 — Two Factor Lifecycle Bridge
+
+**Goal:** Close the remaining upstream WordPress Two Factor lifecycle gap by adding a narrow, source-verified profile-provider guard without blocking unrelated profile saves.
+
+**Target features:**
+- Refresh upstream WordPress/two-factor source evidence before implementation and preserve source citations for third-party technical claims.
+- Add TDD-first coverage for profile saves that change Two Factor enabled providers, primary provider, or TOTP-backed lifecycle state.
+- Implement a narrow profile-provider guard for classic `profile.php` / `user-edit.php` saves only when Two Factor lifecycle fields are present and sensitive changes are detected.
+- Keep existing REST lifecycle bridge coverage for backup-code generation and TOTP create/delete intact.
+- Update integration docs to distinguish challenge-time 2FA validation, existing REST lifecycle gating, and the new profile-provider lifecycle guard.
+
 ## Current State
 
-No active GSD milestone is open. Milestone v4.3.1 — E2E Shard Rebalance is complete and archived after PR #129 merged on 2026-06-30.
+Milestone v4.4.0 — Two Factor Lifecycle Bridge is active and defining requirements. Milestone v4.3.1 — E2E Shard Rebalance is complete and archived after PR #129 merged on 2026-06-30.
 
 **Most recent GSD milestone outcome:**
 - Refreshed current GitHub Actions E2E runtime evidence.
@@ -22,9 +33,9 @@ No active GSD milestone is open. Milestone v4.3.1 — E2E Shard Rebalance is com
 - Preserved the same four required E2E groups and final `E2E Tests` gate.
 - Documented validation and keep decision in `../docs/e2e-runtime-review.md`.
 
-**Product release state:** Latest tagged plugin release remains `4.2.2`; v4.3.1 was a GSD/CI milestone only and did not create a product release tag or version bump.
+**Product release state:** Latest tagged plugin release remains `4.2.2`; v4.4.0 is a GSD milestone and does not imply a product release tag or version bump until release metadata is intentionally changed.
 
-**Next planning step:** Run `$gsd-new-milestone` when the next work cycle is selected.
+**Next planning step:** Define v4.4.0 requirements and roadmap, then start Phase 21.
 
 ## Requirements
 
@@ -64,7 +75,9 @@ No active GSD milestone is open. Milestone v4.3.1 — E2E Shard Rebalance is com
 
 <!-- Current scope. -->
 
-- [ ] Define the next milestone with `$gsd-new-milestone`.
+- [ ] Complete the v4.4.0 Two Factor Lifecycle Bridge milestone requirements and roadmap.
+- [ ] Add a narrow, TDD-covered upstream WordPress Two Factor profile-provider lifecycle guard.
+- [ ] Preserve and verify existing REST lifecycle bridge behavior for backup-code generation and TOTP create/delete.
 - [ ] Acquire a paid Patchstack-enabled fixture before making runtime Patchstack compatibility claims.
 
 ### Out of Scope
@@ -107,6 +120,8 @@ Recommended next multisite browser sequence:
 - **CI time budget**: E2E suite should add no more than ~2 minutes to CI pipeline
 - **Local multisite drift**: Symlinked Local/Studio plugin installs can execute the plugin from the repo target path, not the public `wp-content/plugins/<slug>` path. Bootstrap URL logic must recover the public plugin basename from active plugin state, and browser regressions for that behavior remain local-only.
 - **Multisite browser scope**: Hosted Playwright CI still cannot prove network-admin-only stash/replay behavior. Local multisite regressions should target multisite-specific routing seams in priority order instead of adding broad duplicate coverage.
+- **Two Factor source discipline**: Third-party technical claims about upstream WordPress/two-factor internals must be refreshed from live source before implementation and cited in code/docs.
+- **Patchstack fixture boundary**: Patchstack Security 2FA compatibility remains manual/fixture-blocked until a paid Patchstack-enabled test environment exists; do not ship Patchstack bridge code or runtime support claims from source inspection alone.
 
 ## Key Decisions
 
@@ -117,6 +132,7 @@ Recommended next multisite browser sequence:
 | Visual regression via screenshot comparison | Catches WP 7.0 admin refresh breakage without manual testing | Adopted — 4 baselines captured (challenge card, settings form, admin bar active/expiring) |
 | Local multisite browser verification stays outside hosted CI | GitHub-hosted `wp-env` is single-site; the multisite network-admin failure only surfaced on a symlinked Local install | Adopted — keep hosted CI single-site, add Local multisite regression + helper script + bootstrap hardening |
 | Actions runtime evidence drives E2E shard balancing | Local Playwright timings and transient wp-env behavior are less reliable than GitHub Actions job durations for CI critical-path decisions | Adopted — moved TIMR/admin-bar-timer from group 1 to group 2 in v4.3.1 |
+| Upstream Two Factor profile guard is the v4.4.0 focus | Phase 19 proved the REST lifecycle bridge remains current while classic profile provider changes need a narrow idempotent guard | Pending — requirements and roadmap being defined |
 
 ---
-*Last updated: 2026-06-30 — v4.3.1 E2E Shard Rebalance milestone archived; product release metadata remains 4.2.2.*
+*Last updated: 2026-06-30 — v4.4.0 Two Factor Lifecycle Bridge milestone started; product release metadata remains 4.2.2.*

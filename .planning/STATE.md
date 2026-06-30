@@ -1,10 +1,10 @@
 ---
 gsd_state_version: 1.0
-milestone: none
-milestone_name: none
-status: ready_for_next_milestone
-last_updated: "2026-06-30T00:20:00Z"
-last_activity: "2026-06-30 — v4.3.1 GSD milestone archived after PR #129 merge; no plugin release tag created."
+milestone: v4.4.0
+milestone_name: Two Factor Lifecycle Bridge
+status: defining_requirements
+last_updated: "2026-06-30T00:42:00Z"
+last_activity: "2026-06-30 — Milestone v4.4.0 Two Factor Lifecycle Bridge started; requirements and roadmap are being defined."
 progress:
   total_phases: 0
   completed_phases: 0
@@ -14,13 +14,13 @@ progress:
 
 ## Current Position
 
-Phase: None — v4.3.1 E2E Shard Rebalance is complete and archived.
+Phase: Not started — defining v4.4.0 requirements.
 Plan: None active.
-Status: Ready for `$gsd-new-milestone` when the next work cycle is chosen.
-Branch: `main` — PR #129 merged as `7e2bdb8fde7bd0e7e82a10d643e34b4857f3837a`; local `main` is synced with `origin/main` before archival edits.
-Done & merged: TIMR/admin-bar-timer moved from E2E group 1 to group 2; GitHub Actions validated all four E2E shards and final `E2E Tests` gate.
-Product release state: Latest tagged plugin release remains `v4.2.2`; product version metadata was not bumped; no `v4.3.1` product git tag was created.
-Open threads: WordPress.org submission remains intentionally delayed/on hold; keep `docs/wporg-submission-checklist.md` ready. Patchstack paid-fixture/manual runtime testing remains a separate pending candidate.
+Status: Defining requirements for **v4.4.0 — Two Factor Lifecycle Bridge**.
+Branch: `main` — local planning docs are being updated for the new milestone.
+Done & merged: v4.3.1 TIMR/admin-bar-timer moved from E2E group 1 to group 2; GitHub Actions validated all four E2E shards and final `E2E Tests` gate.
+Product release state: Latest tagged plugin release remains `v4.2.2`; v4.4.0 is a GSD milestone and does not create a product release tag unless release metadata is intentionally bumped.
+Open threads: WordPress.org submission remains intentionally delayed/on hold; keep `docs/wporg-submission-checklist.md` ready. Patchstack paid-fixture/manual runtime testing remains fixture-blocked and out of runtime-claim scope.
 Resume file: None.
 
 ## Project Reference
@@ -35,13 +35,14 @@ Canonical current facts:
 - `.planning/MILESTONES.md` — archived GSD milestone history.
 
 **Core value:** Every destructive admin action requires proof the person at the keyboard is still the authenticated user.
-**Current focus:** No active GSD milestone. Latest tagged release is **4.2.2** (see `docs/release-status.md`). WordPress.org submission (`docs/wporg-submission-checklist.md`) is delayed/on hold, but readiness should be maintained.
+**Current focus:** v4.4.0 — Two Factor Lifecycle Bridge. Latest tagged release is **4.2.2** (see `docs/release-status.md`). WordPress.org submission (`docs/wporg-submission-checklist.md`) is delayed/on hold, but readiness should be maintained.
 
 ## Active Priorities
 
-1. Start the next milestone with `$gsd-new-milestone` when ready.
-2. Keep WordPress.org readiness maintained while submission remains delayed/on hold.
-3. Keep Patchstack runtime testing as fixture-blocked/manual-test work until a paid fixture exists.
+1. Define v4.4.0 requirements and roadmap for the upstream WordPress Two Factor lifecycle bridge.
+2. Implement the profile-provider guard with TDD and refreshed source verification before behavior changes.
+3. Keep WordPress.org readiness maintained while submission remains delayed/on hold.
+4. Keep Patchstack runtime testing as fixture-blocked/manual-test work until a paid fixture exists.
 
 ## Accumulated Context
 
@@ -56,6 +57,7 @@ Canonical current facts:
 ### Pending Todos
 
 - Patchstack runtime testing remains pending: acquire a paid Patchstack-enabled fixture plus manual challenge/lifecycle runtime tests before making runtime support claims.
+- Upstream WordPress/two-factor source must be refreshed before v4.4.0 implementation changes, even though Phase 19 evidence was current on 2026-06-29.
 
 ## Key Decisions
 
@@ -65,3 +67,4 @@ Canonical current facts:
 - Keep the rebalance because PR #129 passed all four E2E shard jobs and the final gate on run 28406226487.
 - Keep WordPress.org submission delayed/on hold while maintaining readiness.
 - Do not create product release tags from GSD milestone names unless plugin version metadata/readme stable tag have been intentionally bumped.
+- v4.4.0 scope targets upstream WordPress Two Factor profile-provider lifecycle changes; Patchstack remains fixture-blocked and out of implementation scope.
