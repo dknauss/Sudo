@@ -43,6 +43,12 @@
 
 **Requirements:** TFA-GUARD-01, TFA-GUARD-02, TFA-GUARD-03, TFA-GUARD-04, TFA-GUARD-05
 
+**Plans:** 2 plans
+
+Plans:
+- [ ] 22-01-PLAN.md — TDD implementation of the optional Two Factor classic profile-provider lifecycle guard.
+- [ ] 22-02-PLAN.md — Required validation and scope-boundary verification for the guard implementation.
+
 **Success criteria:**
 1. Tests prove unrelated `profile.php` / `user-edit.php` saves without Two Factor lifecycle fields are not gated.
 2. Tests prove unchanged Two Factor provider settings are not gated after normalization.
