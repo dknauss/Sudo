@@ -1,10 +1,9 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.4.0
-milestone_name: Two Factor Lifecycle Bridge
-status: ready_to_plan_phase
-last_updated: "2026-06-30T00:46:00Z"
-last_activity: "2026-06-30 — v4.4.0 roadmap created with phases 21–23; ready to discuss or plan Phase 21."
+milestone: v4.4
+milestone_name: milestone
+status: Roadmap ready for **v4.4.0 — Two Factor Lifecycle Bridge**; Phase 21 can be discussed or planned.
+last_updated: "2026-06-30T01:02:44.220Z"
 progress:
   total_phases: 3
   completed_phases: 0
@@ -21,7 +20,7 @@ Branch: `main` — v4.4.0 planning docs are committed locally.
 Done & merged: v4.3.1 TIMR/admin-bar-timer moved from E2E group 1 to group 2; GitHub Actions validated all four E2E shards and final `E2E Tests` gate.
 Product release state: Latest tagged plugin release remains `v4.2.2`; v4.4.0 is a GSD milestone and does not create a product release tag unless release metadata is intentionally bumped.
 Open threads: WordPress.org submission remains intentionally delayed/on hold; keep `docs/wporg-submission-checklist.md` ready. Patchstack paid-fixture/manual runtime testing remains fixture-blocked and out of runtime-claim scope.
-Resume file: None.
+Resume file: .planning/phases/21-two-factor-source-refresh-and-guard-design/21-CONTEXT.md
 
 ## Project Reference
 
