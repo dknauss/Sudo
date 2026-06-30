@@ -13,7 +13,7 @@
 | # | Phase | Goal | Requirements | Success Criteria |
 |---|-------|------|--------------|------------------|
 | 21 | Two Factor Source Refresh and Guard Design | Complete — source evidence/design captured 2026-06-30 | TFA-SRC-01, TFA-SRC-02, TFA-GUARD-06, TFA-REST-01, TFA-REST-02 | 5/5 complete |
-| 22 | Profile Provider Guard Implementation | Complete — guard implementation and validation finished 2026-06-30. | TFA-GUARD-01, TFA-GUARD-02, TFA-GUARD-03, TFA-GUARD-04, TFA-GUARD-05 | 5/5 complete |
+| 22 | Profile Provider Guard Implementation | Complete — guard implementation and validation finished 2026-06-30 | TFA-GUARD-01, TFA-GUARD-02, TFA-GUARD-03, TFA-GUARD-04, TFA-GUARD-05 | 5/5 complete |
 | 23 | Bridge Documentation and Release Posture Closure | Update maintainer/release docs and canonical metrics without expanding unsupported compatibility claims. | TFA-DOC-01, TFA-DOC-02, TFA-DOC-03 | 4 |
 
 ## Phase Details
@@ -43,7 +43,7 @@
 
 **Requirements:** TFA-GUARD-01, TFA-GUARD-02, TFA-GUARD-03, TFA-GUARD-04, TFA-GUARD-05
 
-**Plans:** 2/2 plans executed
+**Plans:** 2/2 plans complete
 
 Plans:
 - [x] 22-01-PLAN.md — TDD implementation of the optional Two Factor classic profile-provider lifecycle guard.
@@ -81,7 +81,7 @@ Plans:
 
 ## Milestones
 
-- ◆ **v4.4.0 — Two Factor Lifecycle Bridge** — Phases 21–23 (active; Phase 21 complete).
+- ◆ **v4.4.0 — Two Factor Lifecycle Bridge** — Phases 21–23 (active; Phases 21–22 complete, Phase 23 next).
 - ✅ **v4.3.1 — E2E Shard Rebalance** — Phase 20 (completed 2026-06-30; merged via PR #129). Archive: `.planning/milestones/v4.3.1-ROADMAP.md`.
 - ✅ **v4.3.0 — Post-.org Readiness Hardening** — Phases 16-19 (archived 2026-06-29). Archive: `.planning/milestones/v4.3.0-ROADMAP.md`.
 - ✅ **v4.0.0 — Pre-Public Hardening Baseline** — Phases 11-15 plus 13.1 (archived). See `.planning/MILESTONES.md`.
