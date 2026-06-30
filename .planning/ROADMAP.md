@@ -67,6 +67,11 @@ Plans:
 
 **Requirements:** TFA-DOC-01, TFA-DOC-02, TFA-DOC-03
 
+**Plans:** 1 plan
+
+Plans:
+- [ ] 23-01-PLAN.md — Refresh Two Factor bridge documentation, Patchstack/release posture, canonical metrics, and final validation.
+
 **Success criteria:**
 1. `docs/two-factor-integration.md` accurately distinguishes challenge-time provider delegation, REST lifecycle bridge coverage, and classic profile-provider lifecycle gating.
 2. `docs/two-factor-ecosystem.md` and release/readiness docs keep Patchstack Security as fixture-blocked/manual-test only unless a paid fixture has actually been tested.
