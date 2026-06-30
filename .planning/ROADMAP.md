@@ -14,7 +14,7 @@
 |---|-------|------|--------------|------------------|
 | 21 | Two Factor Source Refresh and Guard Design | Complete — source evidence/design captured 2026-06-30 | TFA-SRC-01, TFA-SRC-02, TFA-GUARD-06, TFA-REST-01, TFA-REST-02 | 5/5 complete |
 | 22 | Profile Provider Guard Implementation | Complete — guard implementation and validation finished 2026-06-30 | TFA-GUARD-01, TFA-GUARD-02, TFA-GUARD-03, TFA-GUARD-04, TFA-GUARD-05 | 5/5 complete |
-| 23 | 1/1 | Complete   | 2026-06-30 | 4 |
+| 23 | 1/1 | Complete    | 2026-06-30 | 4 |
 
 ## Phase Details
 
