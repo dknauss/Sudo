@@ -2,26 +2,26 @@
 gsd_state_version: 1.0
 milestone: v4.4.0
 milestone_name: Two Factor Lifecycle Bridge
-status: context_gathered
-last_updated: "2026-06-30T01:30:00Z"
-last_activity: "2026-06-30 — Phase 22 context gathered; profile-provider guard defaults captured for planning."
+status: phase_planned
+last_updated: "2026-06-30T02:00:00Z"
+last_activity: "2026-06-30 — Phase 22 planned and plan-checker verified; ready for execution."
 progress:
   total_phases: 3
   completed_phases: 1
-  total_plans: 1
+  total_plans: 3
   completed_plans: 1
 ---
 
 ## Current Position
 
-Phase: 22 context gathered — Profile Provider Guard Implementation.
-Context: `.planning/phases/22-profile-provider-guard-implementation/22-CONTEXT.md` — ready for planning.
-Status: Phase 22 needs a plan before implementation.
+Phase: 22 planned — Profile Provider Guard Implementation.
+Plans: `.planning/phases/22-profile-provider-guard-implementation/22-01-PLAN.md` and `22-02-PLAN.md` — verified and ready for execution.
+Status: Phase 22 is ready to execute.
 Branch: `main` — v4.4.0 planning docs and Phase 21 execution are committed locally.
 Done & merged: v4.3.1 TIMR/admin-bar-timer moved from E2E group 1 to group 2; GitHub Actions validated all four E2E shards and final `E2E Tests` gate.
 Product release state: Latest tagged plugin release remains `v4.2.2`; v4.4.0 is a GSD milestone and does not create a product release tag unless release metadata is intentionally bumped.
 Open threads: WordPress.org submission remains intentionally delayed/on hold; keep `docs/wporg-submission-checklist.md` ready. Patchstack paid-fixture/manual runtime testing remains fixture-blocked and out of runtime-claim scope.
-Resume file: `.planning/phases/22-profile-provider-guard-implementation/22-CONTEXT.md`
+Resume file: `.planning/phases/22-profile-provider-guard-implementation/22-01-PLAN.md`
 
 ## Project Reference
 
@@ -39,13 +39,14 @@ Canonical current facts:
 
 ## Active Priorities
 
-1. Plan Phase 22: implement the profile-provider guard with TDD using Phase 21 source evidence and Phase 22 context.
+1. Execute Phase 22: implement the profile-provider guard with TDD using Phase 21 source evidence and Phase 22 plans.
 2. Keep Phase 21 evidence current if upstream WordPress/two-factor changes before behavior implementation.
 3. Keep WordPress.org readiness maintained while submission remains delayed/on hold.
 4. Keep Patchstack runtime testing as fixture-blocked/manual-test work until a paid fixture exists.
 
 ## Accumulated Context
 
+- Phase 22 has two verified execution plans: `22-01-PLAN.md` for design-reviewed TDD implementation and `22-02-PLAN.md` for required validation/scope-boundary checks.
 - Phase 22 context is complete in `.planning/phases/22-profile-provider-guard-implementation/22-CONTEXT.md`; defaults captured: extend the optional Two Factor lifecycle bridge, use normal WP Sudo admin challenge/replay, and gate only proven normalized provider lifecycle changes.
 - Phase 21 source evidence is complete in `.planning/phases/21-two-factor-source-refresh-and-guard-design/21-SOURCE-EVIDENCE.md`; upstream WordPress/two-factor commit `c515462d51ac92941685e39293673c08538e16c8` was checked 2026-06-30.
 - v4.3.1 is archived in `.planning/milestones/v4.3.1-ROADMAP.md` and `.planning/milestones/v4.3.1-REQUIREMENTS.md`.
