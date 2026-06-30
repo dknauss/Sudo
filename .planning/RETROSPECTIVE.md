@@ -40,6 +40,40 @@
 
 ---
 
+## Milestone: v4.3.1 — E2E Shard Rebalance
+
+**Completed:** 2026-06-30
+**Phases:** 1 | **Plans:** 1 | **Sessions:** one GSD execution and completion session
+
+### What Was Built
+- A GitHub Actions-backed rebalance of the required E2E matrix: `admin-bar-timer.spec.ts` / `TIMR` moved from group 1 to group 2.
+- Runtime review evidence documenting fresh pre-edit timings, the chosen destination group, post-change CI validation, and the keep decision.
+- Phase 20 summary and verification artifacts archived with the milestone.
+
+### What Worked
+- Refreshing live Actions run durations immediately before editing kept the rebalance grounded in current CI behavior.
+- Required GitHub CI, not local Playwright timing, provided the acceptance evidence.
+- Keeping the change to one workflow slice made review and rollback risk small.
+
+### What Was Inefficient
+- A docs-only verification commit retriggered the full PR check set; the resulting transient network failures required reruns even though the implementation was already validated.
+- The generic milestone completion tool inferred an incorrect `v4.3` state and empty accomplishments, so repo-specific manual cleanup was required.
+
+### Patterns Established
+- For E2E shard work, record exact run IDs, durations, conclusions, and keep/revert decisions in `docs/e2e-runtime-review.md`.
+- Do not create product release tags for GSD milestone names unless version constants and stable tag have intentionally changed.
+
+### Key Lessons
+1. Treat follow-up docs commits on workflow PRs as CI-triggering changes and expect required checks to rerun.
+2. For narrow CI milestones, milestone archives should explicitly state “no product tag/version bump.”
+3. The current four-group E2E matrix remains the preferred optimization boundary until evidence justifies another `wp-env` startup floor.
+
+### Cost Observations
+- Model mix: inherited session model with reviewer/verifier subagents only where they added commit/goal assurance.
+- Notable: Live GitHub CLI checks avoided guessing about CI state and made transient infrastructure failures easy to distinguish from code failures.
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution
@@ -47,15 +81,18 @@
 | Milestone | Sessions | Phases | Key Change |
 |-----------|----------|--------|------------|
 | v4.3.0 | multiple | 4 | Post-release readiness treated as small hardening/planning work, not publication or product redesign. |
+| v4.3.1 | one | 1 | Narrow CI/runtime follow-ups should be grounded in exact GitHub Actions evidence and archived separately from product releases. |
 
 ### Cumulative Quality
 
 | Milestone | Tests | Coverage | Zero-Dep Additions |
 |-----------|-------|----------|-------------------|
 | v4.3.0 | See `docs/current-metrics.md` | PHPUnit + Playwright + release checks | i18n tooling and documentation gates without production dependencies |
+| v4.3.1 | See `docs/current-metrics.md` | Required four-group E2E matrix stayed green | No production dependency changes; CI workflow rebalance only |
 
 ### Top Lessons (Verified Across Milestones)
 
 1. Keep volatile project facts in canonical docs and link to them instead of duplicating counts.
 2. Use live/source verification for third-party integration claims before committing docs or bridge plans.
 3. Separate release readiness from release publication to avoid accidental `.org` or tag commitments.
+4. Treat GitHub Actions run IDs and job durations as the source of truth for CI runtime tuning.

@@ -12,21 +12,19 @@ WP Sudo is a WordPress plugin that provides action-gated reauthentication. Dange
 Every destructive WordPress admin action requires proof that the person at the keyboard is still the authenticated user — not a hijacked session, XSS payload, or unattended browser.
 
 
-## Current Milestone: v4.3.1 — E2E Shard Rebalance
+## Current State
 
-**Goal:** Reduce the required E2E matrix long pole by rebalancing a small test slice out of `E2E Tests 1/4` while preserving the same four required groups and release-grade coverage.
+No active GSD milestone is open. Milestone v4.3.1 — E2E Shard Rebalance is complete and archived after PR #129 merged on 2026-06-30.
 
-**Target features / tracks:**
-- **E2E evidence refresh** — Re-run the existing GitHub Actions runtime refresh commands before editing `.github/workflows/e2e.yml` so the rebalance uses current data.
-- **No-coverage-loss workflow rebalance** — Move only a small, low-risk test slice from `challenge-basic-admin` into the shortest existing group; do not add a fifth group, remove specs, or weaken required gates.
-- **CI verification** — Use GitHub CI as the final verifier and update the runtime review with the actual before/after decision and observed outcome.
+**Most recent GSD milestone outcome:**
+- Refreshed current GitHub Actions E2E runtime evidence.
+- Moved `tests/e2e/specs/admin-bar-timer.spec.ts` / `TIMR` from `E2E Tests 1/4` to `E2E Tests 2/4`.
+- Preserved the same four required E2E groups and final `E2E Tests` gate.
+- Documented validation and keep decision in `../docs/e2e-runtime-review.md`.
 
-**Decisions locked at kickoff (2026-06-29):**
-- This is a narrow CI/runtime milestone, not a plugin release milestone and not a WordPress.org submission trigger.
-- Skip new ecosystem/domain research; the source evidence is the existing `docs/e2e-runtime-review.md` plus a fresh Actions refresh immediately before implementation.
-- Keep the same required `E2E Tests` gate and four baseline groups; scheduled/manual smoke workflows remain out of scope.
+**Product release state:** Latest tagged plugin release remains `4.2.2`; v4.3.1 was a GSD/CI milestone only and did not create a product release tag or version bump.
 
-**Source of truth:** `../docs/e2e-runtime-review.md`, `.github/workflows/e2e.yml`, `.planning/REQUIREMENTS.md`, and `.planning/ROADMAP.md` for this milestone.
+**Next planning step:** Run `$gsd-new-milestone` when the next work cycle is selected.
 
 ## Requirements
 
@@ -59,15 +57,15 @@ Every destructive WordPress admin action requires proof that the person at the k
 - Release-only environment assurance and WordPress.org checklist readiness — v4.3.0
 - E2E explicit-group runtime review and targeted tuning decision — v4.3.0
 - 2FA bridge planning for upstream Two Factor lifecycle operations and Patchstack compatibility — v4.3.0
+- E2E shard rebalance based on current GitHub Actions runtime evidence — v4.3.1
 
 
 ### Active
 
-<!-- Current scope (v4.3.1 milestone). -->
+<!-- Current scope. -->
 
-- [ ] Refresh current GitHub Actions runtime evidence for the baseline E2E matrix — v4.3.1
-- [ ] Rebalance one small E2E test slice out of `E2E Tests 1/4` without coverage loss — v4.3.1
-- [ ] Verify the rebalance through required CI and document the outcome — v4.3.1
+- [ ] Define the next milestone with `$gsd-new-milestone`.
+- [ ] Acquire a paid Patchstack-enabled fixture before making runtime Patchstack compatibility claims.
 
 ### Out of Scope
 
@@ -118,6 +116,7 @@ Recommended next multisite browser sequence:
 | wp-env for test environment | Standard WordPress dev tool, used by Gutenberg, handles DB setup | Adopted — @wordpress/env 11.1.0, port 8889 |
 | Visual regression via screenshot comparison | Catches WP 7.0 admin refresh breakage without manual testing | Adopted — 4 baselines captured (challenge card, settings form, admin bar active/expiring) |
 | Local multisite browser verification stays outside hosted CI | GitHub-hosted `wp-env` is single-site; the multisite network-admin failure only surfaced on a symlinked Local install | Adopted — keep hosted CI single-site, add Local multisite regression + helper script + bootstrap hardening |
+| Actions runtime evidence drives E2E shard balancing | Local Playwright timings and transient wp-env behavior are less reliable than GitHub Actions job durations for CI critical-path decisions | Adopted — moved TIMR/admin-bar-timer from group 1 to group 2 in v4.3.1 |
 
 ---
-*Last updated: 2026-06-29 — v4.3.1 E2E Shard Rebalance milestone started; product release metadata remains 4.2.2.*
+*Last updated: 2026-06-30 — v4.3.1 E2E Shard Rebalance milestone archived; product release metadata remains 4.2.2.*

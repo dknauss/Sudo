@@ -1,5 +1,33 @@
 # Milestones
 
+## v4.3.1 — E2E Shard Rebalance (Archived: 2026-06-30)
+
+**Delivered:** Required E2E matrix shard rebalance based on current GitHub Actions timing evidence, preserving browser coverage and required-check semantics.
+
+**Release note:** This is a GSD/CI milestone archive, not a plugin release tag. Product version metadata remains `4.2.2`; no `v4.3.1` git tag was created.
+
+**Phases completed:** 20 (1 phase; 1 plan)
+
+### Phase
+
+| # | Phase | Outcome |
+|---|-------|---------|
+| 20 | Baseline E2E Shard Rebalance | Moved `admin-bar-timer.spec.ts` / `TIMR` from E2E group 1 to group 2 after refreshing Actions runtime evidence; PR #129 merged green. |
+
+### Key Outcomes
+
+- Refreshed baseline `E2E Tests` 1/4–4/4 GitHub Actions duration evidence before editing the workflow.
+- Identified group 1 as the long pole and group 2 as the shortest suitable destination from current Actions data.
+- Preserved exactly four required E2E groups and the final `E2E Tests` gate.
+- Validated the implementation through GitHub Actions, including all four E2E shards and the final gate.
+- Archived Phase 20 summary and verification in `.planning/milestones/historical-phases/20-baseline-e2e-shard-rebalance/`.
+
+### Deferred Follow-up
+
+- Revisit adding a fifth E2E group only if future evidence shows rebalance cannot reduce the critical path and the added startup floor is justified.
+- Refresh sparse scheduled/manual smoke workflow evidence in a separate release-grade evidence pass if needed.
+
+---
 ## v4.3.0 — Post-.org Readiness Hardening (Archived: 2026-06-29)
 
 **Delivered:** Release-readiness hardening and 2FA bridge planning after the v4.2.2 package release, while keeping WordPress.org submission intentionally delayed/on hold.
