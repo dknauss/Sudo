@@ -282,6 +282,12 @@ if ( ! class_exists( 'Two_Factor_Core' ) ) {
 		/** @var Two_Factor_Provider|null */
 		public static ?Two_Factor_Provider $mock_provider = null;
 
+		/** @var string[] Supported provider keys for source-style normalization tests. */
+		public static array $mock_supported_provider_keys = array();
+
+		/** Whether the upstream save capability helper should allow writes. */
+		public static bool $mock_can_update_two_factor_options = true;
+
 		public static function is_user_using_two_factor( int $user_id ): bool {
 			return self::$mock_provider !== null;
 		}
@@ -289,7 +295,39 @@ if ( ! class_exists( 'Two_Factor_Core' ) ) {
 		public static function get_primary_provider_for_user( WP_User $user ): ?Two_Factor_Provider {
 			return self::$mock_provider;
 		}
+
+		/**
+		 * Return a keyed provider map like upstream Two Factor.
+		 *
+		 * @param int $user_id User ID.
+		 * @return array<string, Two_Factor_Provider>
+		 */
+		public static function get_supported_providers_for_user( int $user_id ): array {
+			$providers = array();
+
+			foreach ( self::$mock_supported_provider_keys as $provider_key ) {
+				$providers[ $provider_key ] = new Two_Factor_Provider();
+			}
+
+			return $providers;
+		}
+
+		public static function current_user_can_update_two_factor_options( string $context ): bool {
+			return self::$mock_can_update_two_factor_options;
+		}
 	}
+}
+
+if ( ! class_exists( 'Two_Factor_Email' ) ) {
+	class Two_Factor_Email extends Two_Factor_Provider {}
+}
+
+if ( ! class_exists( 'Two_Factor_Totp' ) ) {
+	class Two_Factor_Totp extends Two_Factor_Provider {}
+}
+
+if ( ! class_exists( 'Two_Factor_Backup_Codes' ) ) {
+	class Two_Factor_Backup_Codes extends Two_Factor_Provider {}
 }
 
 // ── Composer autoloader ──────────────────────────────────────────────

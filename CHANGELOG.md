@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- **Two Factor profile-provider lifecycle bridge:** the optional Two Factor lifecycle bridge now also gates meaningful classic `profile.php` / `user-edit.php` provider lifecycle changes — enabling or disabling a provider, changing the primary provider, and TOTP-backed enrollment or removal — behind an active WP Sudo session. Unrelated profile saves and normalized no-op provider resubmissions are not gated. Profile replay for mixed profile plus Two Factor saves preserves source-verified core profile fields.
 - **Localization packaging readiness:** added WP-CLI-backed Composer commands to regenerate and verify `languages/wp-sudo.pot`, committed the release-grade POT template, documented the workflow, and normalized a duplicate translator comment.
 
 ## 4.2.2 - 2026-06-28

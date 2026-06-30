@@ -1,52 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <files psalm-version="6.16.1@f1f5de594dc76faf8784e02d3dc4716c91c6f6ac">
-  <file src="bridges/wp-sudo-two-factor-lifecycle-bridge.php">
-    <HookNotFound>
-      <code><![CDATA[add_filter(
-	'wp_sudo_gated_actions',
-	/**
-	 * Register the Two Factor factor-management REST routes as gated rules.
-	 *
-	 * @param array<int, array<string, mixed>> $rules Existing gated rules.
-	 * @return array<int, array<string, mixed>>
-	 */
-	static function ( array $rules ): array {
-		// Runtime integration check: only register when the Two Factor plugin is
-		// actually present. mu-plugins load before regular plugins, so this is
-		// evaluated when the filter runs (request time), not at file load.
-		if ( ! class_exists( 'Two_Factor_Core' ) ) {
-			return $rules;
-		}
-
-		$rules[] = array(
-			'id'       => 'two_factor.backup_codes_generate',
-			'label'    => __( 'Generate Two Factor recovery codes', 'wp-sudo' ),
-			'category' => 'users',
-			'admin'    => null,
-			'ajax'     => null,
-			'rest'     => array(
-				'route'   => '#^/two-factor/1\.0/generate-backup-codes$#',
-				'methods' => array( 'POST' ),
-			),
-		);
-
-		$rules[] = array(
-			'id'       => 'two_factor.totp_manage',
-			'label'    => __( 'Set up or remove Two Factor TOTP', 'wp-sudo' ),
-			'category' => 'users',
-			'admin'    => null,
-			'ajax'     => null,
-			'rest'     => array(
-				'route'   => '#^/two-factor/1\.0/totp$#',
-				'methods' => array( 'POST', 'DELETE' ),
-			),
-		);
-
-		return $rules;
-	}
-)]]></code>
-    </HookNotFound>
-  </file>
   <file src="bridges/wp-sudo-webauthn-bridge.php">
     <HookNotFound>
       <code><![CDATA[add_filter(
