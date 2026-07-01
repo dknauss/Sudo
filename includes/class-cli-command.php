@@ -80,7 +80,7 @@ class CLI_Command {
 	 */
 	public function revoke( array $args, array $assoc_args ): void { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed
 		if ( $this->is_flag_enabled( $assoc_args, 'all' ) ) {
-			$revoked = $this->revoke_all_active_sessions();
+			$revoked = Sudo_Session::revoke_all_active_sessions();
 
 			if ( 0 === $revoked ) {
 				\WP_CLI::log( 'No active sudo sessions found.' );
@@ -113,32 +113,6 @@ class CLI_Command {
 		}
 
 		return (int) get_current_user_id();
-	}
-
-	/**
-	 * Revoke all active sudo sessions currently tracked in user meta.
-	 *
-	 * @return int Number of revoked sessions.
-	 */
-	private function revoke_all_active_sessions(): int {
-		$user_ids = get_users(
-			array(
-				'fields'   => 'ids',
-				// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key -- Operator query intentionally scans users with active sudo expiry meta.
-				'meta_key' => Sudo_Session::META_KEY,
-				'number'   => -1,
-			)
-		);
-
-		if ( ! is_array( $user_ids ) || empty( $user_ids ) ) {
-			return 0;
-		}
-
-		foreach ( $user_ids as $user_id ) {
-			Sudo_Session::deactivate( (int) $user_id );
-		}
-
-		return count( $user_ids );
 	}
 
 	/**

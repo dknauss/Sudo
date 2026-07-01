@@ -1,5 +1,39 @@
 # Milestones
 
+## v4.4.0 — Two Factor Lifecycle Bridge (Archived: 2026-06-30)
+
+**Delivered:** Narrow, source-verified classic profile-provider lifecycle guard for the optional Two Factor bridge; preserved REST lifecycle bridge coverage; refreshed Two Factor integration docs and canonical metrics.
+
+**Release note:** This is a GSD milestone archive, not a plugin release tag. Product version metadata remains `4.2.2`; no `v4.4.0` git tag was created.
+
+**Phases completed:** 21–23 (3 phases; 3 documented plans)
+
+**Archive:** `.planning/milestones/v4.4.0-ROADMAP.md`, `.planning/milestones/v4.4.0-REQUIREMENTS.md`
+
+### Phases
+
+| # | Phase | Outcome |
+|---|-------|---------|
+| 21 | Two Factor Source Refresh and Guard Design | Refreshed upstream WordPress/two-factor source evidence; guard predicate designed to distinguish no-op resubmissions, provider set changes, primary-provider changes, and TOTP enrollment/removal |
+| 22 | Profile Provider Guard Implementation | `two_factor.profile_provider_lifecycle` guard implemented in the optional bridge with RED/GREEN TDD; mixed profile+Two Factor saves replay correctly; 9/9 must-haves verified |
+| 23 | Bridge Documentation and Release Posture Closure | `docs/two-factor-integration.md` updated to distinguish three integration surfaces; Patchstack kept fixture-blocked; `docs/current-metrics.md` refreshed |
+
+### Key Outcomes
+
+- Implemented the `two_factor.profile_provider_lifecycle` predicate in the optional Two Factor lifecycle bridge.
+- Guard correctly passes through unrelated profile saves and no-op provider resubmissions without gating.
+- Replay allowlist preserves source-verified core profile fields so mixed profile+Two Factor saves complete correctly after the WP Sudo challenge.
+- Patchstack Security remains fixture-blocked/manual-test-only with no runtime support claims added.
+- Two Factor integration documented as three distinct surfaces: challenge-time provider delegation, REST lifecycle bridge, and classic profile-provider lifecycle guard.
+- Latest tagged plugin release remained `4.2.2`; no version bump occurred.
+
+### Deferred Follow-up
+
+- Patchstack runtime testing remains fixture-blocked pending a paid Patchstack-enabled test environment.
+- Any future Two Factor source refresh should precede v4.5+ implementation changes.
+
+---
+
 ## v4.3.1 — E2E Shard Rebalance (Archived: 2026-06-30)
 
 **Delivered:** Required E2E matrix shard rebalance based on current GitHub Actions timing evidence, preserving browser coverage and required-check semantics.

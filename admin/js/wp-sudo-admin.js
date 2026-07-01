@@ -466,24 +466,5 @@
 			);
 			return;
 		}
-
-		// Revoke an active session. The session can be re-established, so do not
-		// remove the row — disable and relabel the button.
-		if ( target.classList.contains( 'wp-sudo-revoke-session' ) ) {
-			sendAccessAction(
-				wpSudoAdmin.revokeSessionAction,
-				target.getAttribute( 'data-nonce' ),
-				{ user_id: target.getAttribute( 'data-user-id' ) },
-				target,
-				function () {
-					target.disabled = true;
-					if ( accessStrings.sessionRevoked ) {
-						target.textContent = accessStrings.sessionRevoked;
-					}
-				},
-				null
-			);
-			return;
-		}
 	} );
 } )();

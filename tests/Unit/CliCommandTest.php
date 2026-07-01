@@ -81,9 +81,14 @@ class CliCommandTest extends TestCase {
 			->with(
 				\Mockery::on(
 					static function ( array $args ): bool {
-						return 'ids' === ( $args['fields'] ?? '' )
-							&& Sudo_Session::META_KEY === ( $args['meta_key'] ?? '' )
-							&& -1 === ( $args['number'] ?? 0 );
+						if ( 'ids' !== ( $args['fields'] ?? '' ) || -1 !== ( $args['number'] ?? 0 ) ) {
+							return false;
+						}
+						$meta_query = $args['meta_query'][0] ?? array();
+						return Sudo_Session::META_KEY === ( $meta_query['key'] ?? '' )
+							&& '>' === ( $meta_query['compare'] ?? '' )
+							&& 'NUMERIC' === ( $meta_query['type'] ?? '' )
+							&& is_int( $meta_query['value'] ?? null );
 					}
 				)
 			)
