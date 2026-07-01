@@ -21,7 +21,7 @@
   },
   "devDependencies": {
     "@playwright/test": "1.61.1",
-    "@wordpress/env": "11.8.1"
+    "@wordpress/env": "11.9.0"
   },
   "overrides": {
     "fast-xml-parser": "5.7.0",
