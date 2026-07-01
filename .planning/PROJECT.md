@@ -12,30 +12,33 @@ WP Sudo is a WordPress plugin that provides action-gated reauthentication. Dange
 Every destructive WordPress admin action requires proof that the person at the keyboard is still the authenticated user — not a hijacked session, XSS payload, or unattended browser.
 
 
-## Current Milestone: v4.4.0 — Two Factor Lifecycle Bridge
+## Current Milestone: v4.5 — Session Governance & Admin UX
 
-**Goal:** Close the remaining upstream WordPress Two Factor lifecycle gap by adding a narrow, source-verified profile-provider guard without blocking unrelated profile saves.
+**Goal:** Separate sudo-session revocation from capability administration with an active-session-keyed revocation surface, and correct the governance-coverage panel's multisite behavior.
 
 **Target features:**
-- Refresh upstream WordPress/two-factor source evidence before implementation and preserve source citations for third-party technical claims.
-- Add TDD-first coverage for profile saves that change Two Factor enabled providers, primary provider, or TOTP-backed lifecycle state.
-- Implement a narrow profile-provider guard for classic `profile.php` / `user-edit.php` saves only when Two Factor lifecycle fields are present and sensitive changes are detected.
-- Keep existing REST lifecycle bridge coverage for backup-code generation and TOTP create/delete intact.
-- Update integration docs to distinguish challenge-time 2FA validation, existing REST lifecycle gating, and the new profile-provider lifecycle guard.
+- Add a "Revoke sudo session" row action on the Users list, shown only for users with an active session (reuses the existing `_wp_sudo_expires > time()` "Sudo Active" enumeration).
+- Surface the network-wide "revoke all active sessions" action in the UI behind a confirmation step (today CLI-only via `wp sudo revoke --all`).
+- Decouple session revocation from capability revocation in the Access-tab governance table so the two controls are unambiguous.
+- Fix the "Sudo governance coverage" panel on multisite: name the correct capability (`manage_network_options`) and stop flagging super admins who have effective access via the `wp_sudo_can()` short-circuit.
+- Preserve the existing revocation guardrails throughout: `revoke_wp_sudo_sessions` capability, per-revoker rate limit, and the `wp_sudo_session_revoked` audit hook.
 
 ## Current State
 
-Milestone v4.4.0 — Two Factor Lifecycle Bridge is active and defining requirements. Milestone v4.3.1 — E2E Shard Rebalance is complete and archived after PR #129 merged on 2026-06-30.
+Milestone v4.5 — Session Governance & Admin UX is starting (defining requirements). Milestone v4.4.0 — Two Factor Lifecycle Bridge is complete (Phases 21–23; milestone audit passed 2026-06-30).
 
-**Most recent GSD milestone outcome:**
-- Refreshed current GitHub Actions E2E runtime evidence.
-- Moved `tests/e2e/specs/admin-bar-timer.spec.ts` / `TIMR` from `E2E Tests 1/4` to `E2E Tests 2/4`.
-- Preserved the same four required E2E groups and final `E2E Tests` gate.
-- Documented validation and keep decision in `../docs/e2e-runtime-review.md`.
+**Most recent GSD milestone outcome (v4.4.0):**
+- Refreshed upstream WordPress/two-factor source evidence (Phase 21).
+- Implemented a narrow classic profile-provider lifecycle guard plus preserved REST lifecycle bridge coverage (Phase 22).
+- Closed bridge documentation, canonical metrics, and release posture (Phase 23).
 
-**Product release state:** Latest tagged plugin release remains `4.2.2`; v4.4.0 is a GSD milestone and does not imply a product release tag or version bump until release metadata is intentionally changed.
+**Origin of v4.5 scope:** Captured during a session-revocation UI review on 2026-06-30 — see `.planning/todos/pending/2026-06-30-session-revocation-surfaces.md`.
 
-**Next planning step:** Define v4.4.0 requirements and roadmap, then start Phase 21.
+**Scope decisions (locked):** revocation surface = Users-list row action (not an Access-tab panel); network-wide revoke-all = UI button with confirmation; multisite coverage-panel fixes included in this milestone; research skipped (internal refactor of existing capability/UI code).
+
+**Product release state:** Latest tagged plugin release remains `4.2.2`; v4.5 is a GSD milestone and does not imply a product release tag or version bump until release metadata is intentionally changed.
+
+**Next planning step:** Define v4.5 requirements and roadmap, then start Phase 24.
 
 ## Requirements
 
@@ -69,21 +72,24 @@ Milestone v4.4.0 — Two Factor Lifecycle Bridge is active and defining requirem
 - E2E explicit-group runtime review and targeted tuning decision — v4.3.0
 - 2FA bridge planning for upstream Two Factor lifecycle operations and Patchstack compatibility — v4.3.0
 - E2E shard rebalance based on current GitHub Actions runtime evidence — v4.3.1
+- Narrow classic profile-provider Two Factor lifecycle guard + preserved REST lifecycle bridge — v4.4.0
 
 
 ### Active
 
-<!-- Current scope. -->
+<!-- Current scope (v4.5). -->
 
-- [ ] Complete the v4.4.0 Two Factor Lifecycle Bridge milestone requirements and roadmap.
-- [ ] Add a narrow, TDD-covered upstream WordPress Two Factor profile-provider lifecycle guard.
-- [ ] Preserve and verify existing REST lifecycle bridge behavior for backup-code generation and TOTP create/delete.
-- [ ] Acquire a paid Patchstack-enabled fixture before making runtime Patchstack compatibility claims.
+- [ ] Revoke another user's active sudo session from a Users-list row action (shown only for users with a live session).
+- [ ] Revoke all active sudo sessions network-wide from the UI, behind a confirmation step.
+- [ ] Decouple session revocation from capability revocation in the Access-tab governance table.
+- [ ] Correct the "Sudo governance coverage" panel on multisite (capability naming + super-admin false positives).
 
 ### Out of Scope
 
 <!-- Explicit boundaries. Includes reasoning to prevent re-adding. -->
 
+- Access-tab "Active Sessions" panel — chose the Users-list row action instead for v4.5 (where admins already manage users)
+- Session metadata in the revoke UI (expiry countdown, bound IP) — deferred; not required to revoke
 - Client-side modal challenge — design-heavy, separate milestone
 - Gutenberg block editor integration — depends on Playwright being in place first
 - Network policy hierarchy — feature work, not testing infrastructure
@@ -132,7 +138,9 @@ Recommended next multisite browser sequence:
 | Visual regression via screenshot comparison | Catches WP 7.0 admin refresh breakage without manual testing | Adopted — 4 baselines captured (challenge card, settings form, admin bar active/expiring) |
 | Local multisite browser verification stays outside hosted CI | GitHub-hosted `wp-env` is single-site; the multisite network-admin failure only surfaced on a symlinked Local install | Adopted — keep hosted CI single-site, add Local multisite regression + helper script + bootstrap hardening |
 | Actions runtime evidence drives E2E shard balancing | Local Playwright timings and transient wp-env behavior are less reliable than GitHub Actions job durations for CI critical-path decisions | Adopted — moved TIMR/admin-bar-timer from group 1 to group 2 in v4.3.1 |
-| Upstream Two Factor profile guard is the v4.4.0 focus | Phase 19 proved the REST lifecycle bridge remains current while classic profile provider changes need a narrow idempotent guard | Pending — requirements and roadmap being defined |
+| Upstream Two Factor profile guard is the v4.4.0 focus | Phase 19 proved the REST lifecycle bridge remains current while classic profile provider changes need a narrow idempotent guard | ✓ Good — shipped in v4.4.0 (Phase 22) |
+| Active-session revocation lives on the Users list, not an Access-tab panel | Reuses the existing `_wp_sudo_expires > time()` "Sudo Active" enumeration and puts the action where admins already manage users; the Access-tab table stays for capability administration | Pending — v4.5 |
+| Coverage panel must measure effective `wp_sudo_can()` access, not raw `allcaps` | Keying on raw `allcaps['manage_wp_sudo']` produces multisite super-admin false positives because it bypasses the `is_super_admin()` short-circuit | Pending — v4.5 |
 
 ---
-*Last updated: 2026-06-30 — v4.4.0 Two Factor Lifecycle Bridge milestone started; product release metadata remains 4.2.2.*
+*Last updated: 2026-06-30 — v4.5 Session Governance & Admin UX milestone started; product release metadata remains 4.2.2.*

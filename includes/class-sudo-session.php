@@ -1203,4 +1203,78 @@ class Sudo_Session {
 		delete_user_meta( $user_id, self::FAILURE_EVENT_META_KEY );
 		delete_user_meta( $user_id, self::THROTTLE_UNTIL_META_KEY );
 	}
+
+	// -------------------------------------------------------------------------
+	// Bulk / shared revocation helpers
+	// -------------------------------------------------------------------------
+
+	/**
+	 * Whether a target user currently has a live (non-expired) sudo session.
+	 *
+	 * Browser-independent — reads only the expiry user meta, unlike is_active()
+	 * which also requires a cookie-bound token for the *current* request's user.
+	 * This is the single liveness predicate shared by the Users-list row-action
+	 * visibility gate and the admin revocation core's target-expired precondition.
+	 *
+	 * @since 4.5.0
+	 *
+	 * @param int $user_id User ID.
+	 * @return bool True when the user's session expiry is in the future.
+	 */
+	public static function is_session_live( int $user_id ): bool {
+		$expires = (int) get_user_meta( $user_id, self::META_KEY, true );
+
+		return $expires > time();
+	}
+
+	/**
+	 * Revoke all currently-live sudo sessions on the current site.
+	 *
+	 * Enumerates users whose session expiry is in the future (matching
+	 * is_session_live() and the "Sudo Active (N)" count), deactivates each,
+	 * and optionally excludes one user (the operator's own session) from the
+	 * batch. Gate-free by design — callers (CLI, UI) apply their own
+	 * capability/rate-limit gating before invoking this method.
+	 *
+	 * @since 4.5.0
+	 *
+	 * @param int $exclude_user_id User ID to exclude from revocation (e.g. the
+	 *                              operator's own session), or 0 for none.
+	 * @return int Number of sessions revoked.
+	 */
+	public static function revoke_all_active_sessions( int $exclude_user_id = 0 ): int {
+		$user_ids = get_users(
+			array(
+				'fields'     => 'ids',
+				'meta_query' => array( // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Operator-facing bulk revoke; scans live sudo sessions on the current site.
+					array(
+						'key'     => self::META_KEY,
+						'value'   => time(),
+						'compare' => '>',
+						'type'    => 'NUMERIC',
+					),
+				),
+				'number'     => -1,
+			)
+		);
+
+		if ( ! is_array( $user_ids ) || empty( $user_ids ) ) {
+			return 0;
+		}
+
+		$count = 0;
+
+		foreach ( $user_ids as $user_id ) {
+			$user_id = (int) $user_id;
+
+			if ( $exclude_user_id && $user_id === $exclude_user_id ) {
+				continue;
+			}
+
+			self::deactivate( $user_id );
+			++$count;
+		}
+
+		return $count;
+	}
 }

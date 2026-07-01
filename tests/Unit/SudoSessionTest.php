@@ -1687,4 +1687,102 @@ class SudoSessionTest extends TestCase
 
 		$this->assertSame(0, $delay);
 	}
+
+	// =================================================================
+	// is_session_live() — shared browser-independent liveness predicate
+	// =================================================================
+
+	public function test_is_session_live_returns_true_when_expiry_is_in_the_future(): void
+	{
+		Functions\when('get_user_meta')->justReturn(time() + 120);
+
+		$this->assertTrue(Sudo_Session::is_session_live(5));
+	}
+
+	public function test_is_session_live_returns_false_when_expired(): void
+	{
+		Functions\when('get_user_meta')->justReturn(time() - 60);
+
+		$this->assertFalse(Sudo_Session::is_session_live(5));
+	}
+
+	public function test_is_session_live_returns_false_when_meta_absent(): void
+	{
+		Functions\when('get_user_meta')->justReturn('');
+
+		$this->assertFalse(Sudo_Session::is_session_live(5));
+	}
+
+	// =================================================================
+	// revoke_all_active_sessions() — shared current-site bulk revoke
+	// =================================================================
+
+	public function test_revoke_all_active_sessions_enumerates_via_live_meta_query(): void
+	{
+		Functions\when('headers_sent')->justReturn(true);
+
+		Functions\expect('get_users')
+			->once()
+			->with(
+				\Mockery::on(
+					static function (array $args): bool {
+						if ('ids' !== ($args['fields'] ?? '') || -1 !== ($args['number'] ?? 0)) {
+							return false;
+						}
+						$meta_query = $args['meta_query'][0] ?? array();
+						return Sudo_Session::META_KEY === ($meta_query['key'] ?? '')
+							&& '>' === ($meta_query['compare'] ?? '')
+							&& 'NUMERIC' === ($meta_query['type'] ?? '')
+							&& is_int($meta_query['value'] ?? null);
+					}
+				)
+			)
+			->andReturn(array(2, 3));
+
+		Functions\expect('delete_user_meta')
+			->times(6) // 2 users x (META_KEY + TOKEN_META_KEY + SESSION_BIND_META_KEY).
+			->with(\Mockery::type('int'), \Mockery::type('string'));
+
+		Functions\expect('do_action')
+			->times(2)
+			->with('wp_sudo_deactivated', \Mockery::type('int'));
+
+		$count = Sudo_Session::revoke_all_active_sessions();
+
+		$this->assertSame(2, $count);
+	}
+
+	public function test_revoke_all_active_sessions_excludes_operator_post_enumeration(): void
+	{
+		Functions\when('headers_sent')->justReturn(true);
+
+		Functions\when('get_users')->justReturn(array(2, 3, 5));
+
+		Functions\expect('delete_user_meta')
+			->times(6) // users 2 and 5 only x (META_KEY + TOKEN_META_KEY + SESSION_BIND_META_KEY).
+			->with(\Mockery::type('int'), \Mockery::type('string'));
+
+		Functions\expect('do_action')
+			->times(2)
+			->with('wp_sudo_deactivated', \Mockery::type('int'));
+
+		Functions\expect('do_action')
+			->never()
+			->with('wp_sudo_deactivated', 3);
+
+		$count = Sudo_Session::revoke_all_active_sessions(3);
+
+		$this->assertSame(2, $count);
+	}
+
+	public function test_revoke_all_active_sessions_returns_zero_when_no_live_sessions(): void
+	{
+		Functions\when('get_users')->justReturn(array());
+
+		Functions\expect('do_action')->never();
+
+		$count = Sudo_Session::revoke_all_active_sessions();
+
+		$this->assertSame(0, $count);
+	}
 }

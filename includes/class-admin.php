@@ -70,13 +70,62 @@ class Admin {
 	public const AJAX_REVOKE_CAP = 'wp_sudo_revoke_cap';
 
 	/**
-	 * AJAX action for force-revoking another user's sudo session.
+	 * Admin_post_ action for the per-user Users-list row-action revoke.
 	 *
-	 * Gated by the options.wp_sudo_access rule in Action_Registry.
-	 *
+	 * @since 4.5.0
 	 * @var string
 	 */
-	public const AJAX_REVOKE_SESSION = 'wp_sudo_revoke_session';
+	public const ACTION_REVOKE_SESSION_ROW = 'wp_sudo_revoke_session_row';
+
+	/**
+	 * Nonce action for the per-user Users-list row-action revoke link.
+	 *
+	 * @since 4.5.0
+	 * @var string
+	 */
+	public const REVOKE_SESSION_ROW_NONCE_ACTION = 'wp_sudo_revoke_session_row';
+
+	/**
+	 * Query arg carrying the per-user/revoke-all result code after redirect
+	 * back to users.php.
+	 *
+	 * @since 4.5.0
+	 * @var string
+	 */
+	public const REVOKE_RESULT_QUERY_ARG = 'wp_sudo_revoke_result';
+
+	/**
+	 * Query arg carrying the number of sessions revoked by a successful
+	 * revoke-all, appended alongside REVOKE_RESULT_QUERY_ARG on redirect.
+	 *
+	 * @since 4.5.0
+	 * @var string
+	 */
+	public const REVOKE_COUNT_QUERY_ARG = 'wp_sudo_revoke_count';
+
+	/**
+	 * Admin_post_ action for the Users-list revoke-all interstitial confirm screen.
+	 *
+	 * @since 4.5.0
+	 * @var string
+	 */
+	public const ACTION_REVOKE_ALL_CONFIRM = 'wp_sudo_revoke_all_confirm';
+
+	/**
+	 * Admin_post_ action for the revoke-all perform handler.
+	 *
+	 * @since 4.5.0
+	 * @var string
+	 */
+	public const ACTION_REVOKE_ALL_PERFORM = 'wp_sudo_revoke_all_perform';
+
+	/**
+	 * Nonce action shared by the revoke-all confirm link and perform form.
+	 *
+	 * @since 4.5.0
+	 * @var string
+	 */
+	public const REVOKE_ALL_NONCE_ACTION = 'wp_sudo_revoke_all';
 
 	/**
 	 * All four governance capabilities managed by the Access tab.
@@ -303,10 +352,9 @@ class Admin {
 		add_action( 'wp_ajax_' . self::AJAX_MU_INSTALL, array( $this, 'handle_mu_install' ), 10, 0 );
 		add_action( 'wp_ajax_' . self::AJAX_MU_UNINSTALL, array( $this, 'handle_mu_uninstall' ), 10, 0 );
 
-		// Governance Access tab: capability grant/revoke and session-revoke handlers.
+		// Governance Access tab: capability grant/revoke handlers.
 		add_action( 'wp_ajax_' . self::AJAX_GRANT_CAP, array( $this, 'handle_grant_cap' ), 10, 0 );
 		add_action( 'wp_ajax_' . self::AJAX_REVOKE_CAP, array( $this, 'handle_revoke_cap' ), 10, 0 );
-		add_action( 'wp_ajax_' . self::AJAX_REVOKE_SESSION, array( $this, 'handle_revoke_session' ), 10, 0 );
 
 		// Per-application-password policy dropdowns on user profile pages.
 		add_action( 'wp_ajax_wp_sudo_app_password_policy', array( $this, 'handle_app_password_policy_save' ), 10, 0 );
@@ -316,6 +364,18 @@ class Admin {
 		// Users list screen: Sudo Active filter.
 		add_filter( 'views_users', array( $this, 'filter_user_views' ) );
 		add_action( 'pre_get_users', array( $this, 'filter_users_by_sudo_active' ) );
+
+		// Users list screen: per-row "Revoke sudo session" action (current-site only).
+		add_filter( 'user_row_actions', array( $this, 'user_row_actions' ), 10, 2 );
+		add_action( 'admin_post_' . self::ACTION_REVOKE_SESSION_ROW, array( $this, 'handle_revoke_session_row_action' ), 10, 0 );
+
+		// Users list screen: revoke-all button (tablenav) + interstitial confirm + perform.
+		add_action( 'restrict_manage_users', array( $this, 'render_revoke_all_button' ), 10, 1 );
+		add_action( 'admin_post_' . self::ACTION_REVOKE_ALL_CONFIRM, array( $this, 'render_revoke_all_confirm_screen' ), 10, 0 );
+		add_action( 'admin_post_' . self::ACTION_REVOKE_ALL_PERFORM, array( $this, 'handle_revoke_all_perform' ), 10, 0 );
+
+		// Users list screen: post-redirect result notice for the row-action and revoke-all handlers.
+		add_action( 'admin_notices', array( $this, 'render_revoke_result_notice' ), 10, 0 );
 	}
 
 	/**
@@ -1010,24 +1070,22 @@ class Admin {
 			'wp-sudo-admin',
 			'wpSudoAdmin',
 			array(
-				'ajaxUrl'             => admin_url( 'admin-ajax.php' ),
-				'nonce'               => wp_create_nonce( 'wp_sudo_mu_plugin' ),
-				'installAction'       => self::AJAX_MU_INSTALL,
-				'uninstallAction'     => self::AJAX_MU_UNINSTALL,
-				'grantAction'         => self::AJAX_GRANT_CAP,
-				'revokeCapAction'     => self::AJAX_REVOKE_CAP,
-				'revokeSessionAction' => self::AJAX_REVOKE_SESSION,
-				'presetDescriptions'  => self::get_preset_descriptions(),
-				'presetPolicies'      => self::get_preset_policies(),
-				'surfaceKeys'         => self::get_surface_keys(),
-				'strings'             => array(
+				'ajaxUrl'            => admin_url( 'admin-ajax.php' ),
+				'nonce'              => wp_create_nonce( 'wp_sudo_mu_plugin' ),
+				'installAction'      => self::AJAX_MU_INSTALL,
+				'uninstallAction'    => self::AJAX_MU_UNINSTALL,
+				'grantAction'        => self::AJAX_GRANT_CAP,
+				'revokeCapAction'    => self::AJAX_REVOKE_CAP,
+				'presetDescriptions' => self::get_preset_descriptions(),
+				'presetPolicies'     => self::get_preset_policies(),
+				'surfaceKeys'        => self::get_surface_keys(),
+				'strings'            => array(
 					'genericError' => __( 'An error occurred.', 'wp-sudo' ),
 					'networkError' => __( 'A network error occurred. Please try again.', 'wp-sudo' ),
 				),
-				'access'              => array(
-					'success'        => __( 'Done.', 'wp-sudo' ),
-					'invalidUser'    => __( 'Select a user.', 'wp-sudo' ),
-					'sessionRevoked' => __( 'Session revoked', 'wp-sudo' ),
+				'access'             => array(
+					'success'     => __( 'Done.', 'wp-sudo' ),
+					'invalidUser' => __( 'Select a user.', 'wp-sudo' ),
 				),
 			)
 		);
@@ -1189,6 +1247,419 @@ class Admin {
 	 */
 	private function get_current_site_id(): int {
 		return (int) get_current_blog_id();
+	}
+
+	/**
+	 * Add a "Revoke sudo session" row action on the Users list.
+	 *
+	 * Visibility is gated on Sudo_Session::is_session_live() — the same
+	 * browser-independent `_wp_sudo_expires > time()` predicate that drives
+	 * the "Sudo Active (N)" count — NOT Sudo_Session::is_active(), which also
+	 * requires the *current* request's cookie-bound token. The action is
+	 * shown for a cap-holding operator even when the operator's own sudo
+	 * session is not active; the per-user handler enforces that gate
+	 * separately and fails with a distinct message instead of silently
+	 * hiding the control.
+	 *
+	 * @since 4.5.0
+	 *
+	 * @param array<string, string> $actions Existing row actions, keyed by action slug.
+	 * @param \WP_User              $user    The row's user object.
+	 * @return array<string, string>
+	 */
+	public function user_row_actions( array $actions, \WP_User $user ): array {
+		if ( ! wp_sudo_can( 'revoke_wp_sudo_sessions' ) ) {
+			return $actions;
+		}
+
+		$row_user_id = (int) $user->ID;
+
+		if ( get_current_user_id() === $row_user_id ) {
+			return $actions;
+		}
+
+		if ( ! Sudo_Session::is_session_live( $row_user_id ) ) {
+			return $actions;
+		}
+
+		$url = wp_nonce_url(
+			add_query_arg(
+				array(
+					'action'  => self::ACTION_REVOKE_SESSION_ROW,
+					'user_id' => $row_user_id,
+				),
+				admin_url( 'admin-post.php' )
+			),
+			self::REVOKE_SESSION_ROW_NONCE_ACTION
+		);
+
+		$actions['wp_sudo_revoke_session'] = sprintf(
+			'<a href="%s">%s</a>',
+			esc_url( $url ),
+			esc_html__( 'Revoke sudo session', 'wp-sudo' )
+		);
+
+		return $actions;
+	}
+
+	/**
+	 * Handle the per-user "Revoke sudo session" row-action admin_post_ request.
+	 *
+	 * Verifies the nonce, requires the revoke_wp_sudo_sessions capability,
+	 * requires the operator's OWN active sudo session (a second, distinct
+	 * gate from the target's liveness check inside revoke_session_core()),
+	 * then delegates to the factored core with the users_list_row_action
+	 * reason tag. Every core outcome maps to a distinct redirect query arg —
+	 * including target_expired, reached when the target's session expires
+	 * between row-render and click (REVK-05: never a silent no-op).
+	 *
+	 * @since 4.5.0
+	 *
+	 * @return void
+	 */
+	public function handle_revoke_session_row_action(): void {
+		check_admin_referer( self::REVOKE_SESSION_ROW_NONCE_ACTION );
+
+		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified above via check_admin_referer.
+		$target_user_id = isset( $_GET['user_id'] ) ? (int) $_GET['user_id'] : 0;
+
+		$result_code = $this->process_revoke_session_row_action( $target_user_id );
+
+		wp_safe_redirect(
+			add_query_arg(
+				array( self::REVOKE_RESULT_QUERY_ARG => $result_code ),
+				admin_url( 'users.php' )
+			)
+		);
+		exit;
+	}
+
+	/**
+	 * Run the guarded per-user revoke flow and return its result code.
+	 *
+	 * Separated from handle_revoke_session_row_action() so the redirect/exit
+	 * wiring stays in one place while this method's branching maps every
+	 * core outcome to a distinct, testable result code.
+	 *
+	 * @since 4.5.0
+	 *
+	 * @param int $target_user_id Target user ID from the request.
+	 * @return string Result code: no_cap|no-operator-session|self_target|target_expired|success.
+	 */
+	private function process_revoke_session_row_action( int $target_user_id ): string {
+		if ( ! wp_sudo_can( 'revoke_wp_sudo_sessions' ) ) {
+			return 'no_cap';
+		}
+
+		$operator_id = get_current_user_id();
+
+		if ( ! Sudo_Session::is_session_live( $operator_id ) ) {
+			return 'no-operator-session';
+		}
+
+		$result = $this->revoke_session_core( $target_user_id, $operator_id, 'users_list_row_action' );
+
+		return $result['outcome'];
+	}
+
+	// -------------------------------------------------------------------------
+	// Users list screen: revoke-all button + interstitial confirm + perform
+	// -------------------------------------------------------------------------
+
+	/**
+	 * Render the "Revoke all active sessions" button in the Users-list tablenav.
+	 *
+	 * Hooked to `restrict_manage_users` (fires near the views/tablenav on the
+	 * Users list, both above and below the table). Absent entirely when the
+	 * operator lacks the capability, and absent when the current-site active
+	 * count is 0 — the same `_wp_sudo_expires > time()` count that drives the
+	 * "Sudo Active (N)" view link.
+	 *
+	 * @since 4.5.0
+	 *
+	 * @param string $which Tablenav position ('top' or 'bottom'), unused.
+	 * @return void
+	 */
+	public function render_revoke_all_button( string $which ): void { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.Found, VariableAnalysis.CodeAnalysis.VariableAnalysis.UnusedVariable -- Signature parity with the restrict_manage_users hook; the button renders identically at both tablenav positions.
+		if ( ! wp_sudo_can( 'revoke_wp_sudo_sessions' ) ) {
+			return;
+		}
+
+		$count = $this->get_sudo_active_user_count();
+		if ( 0 === $count ) {
+			return;
+		}
+
+		$url = wp_nonce_url(
+			add_query_arg(
+				array( 'action' => self::ACTION_REVOKE_ALL_CONFIRM ),
+				admin_url( 'admin-post.php' )
+			),
+			self::REVOKE_ALL_NONCE_ACTION
+		);
+
+		printf(
+			'<a href="%s" class="button wp-sudo-revoke-all">%s</a>',
+			esc_url( $url ),
+			esc_html__( 'Revoke all active sessions', 'wp-sudo' )
+		);
+	}
+
+	/**
+	 * Render the revoke-all interstitial confirm screen.
+	 *
+	 * A minimal native wp-admin `.wrap` page stating the EXACT current-site
+	 * active-session count, with a primary Confirm button (nonced POST to the
+	 * perform handler) and a Cancel link back to users.php. Requires the cap
+	 * up front — an operator without it sees no path to this screen via the
+	 * button, but the handler is independently guarded against direct access.
+	 *
+	 * @since 4.5.0
+	 *
+	 * @return void
+	 */
+	public function render_revoke_all_confirm_screen(): void {
+		check_admin_referer( self::REVOKE_ALL_NONCE_ACTION );
+
+		if ( ! wp_sudo_can( 'revoke_wp_sudo_sessions' ) ) {
+			wp_die( esc_html__( 'Unauthorized', 'wp-sudo' ), '', array( 'response' => 403 ) );
+			return;
+		}
+
+		$count       = $this->get_sudo_active_user_count();
+		$users_url   = admin_url( 'users.php' );
+		$perform_url = admin_url( 'admin-post.php' );
+		?>
+		<div class="wrap">
+			<h1><?php esc_html_e( 'Revoke all active sudo sessions', 'wp-sudo' ); ?></h1>
+			<p>
+				<?php
+				printf(
+					/* translators: %d: number of active sudo sessions on this site. */
+					esc_html( _n( 'You are about to revoke %d active sudo session on this site.', 'You are about to revoke %d active sudo sessions on this site.', $count, 'wp-sudo' ) ),
+					(int) $count
+				);
+				?>
+			</p>
+			<p>
+				<?php esc_html_e( 'This does not affect your own sudo session.', 'wp-sudo' ); ?>
+			</p>
+			<form method="post" action="<?php echo esc_url( $perform_url ); ?>">
+				<input type="hidden" name="action" value="<?php echo esc_attr( self::ACTION_REVOKE_ALL_PERFORM ); ?>" />
+				<?php wp_nonce_field( self::REVOKE_ALL_NONCE_ACTION ); ?>
+				<?php submit_button( __( 'Confirm', 'wp-sudo' ), 'primary', 'submit', false ); ?>
+				<a href="<?php echo esc_url( $users_url ); ?>" class="button"><?php esc_html_e( 'Cancel', 'wp-sudo' ); ?></a>
+			</form>
+		</div>
+		<?php
+	}
+
+	/**
+	 * Handle the revoke-all perform admin_post_ request.
+	 *
+	 * Verifies the nonce, then delegates all guard/enumeration logic to
+	 * process_revoke_all_perform() and redirects to users.php with a result
+	 * code (and, on success, a count).
+	 *
+	 * @since 4.5.0
+	 *
+	 * @return void
+	 */
+	public function handle_revoke_all_perform(): void {
+		check_admin_referer( self::REVOKE_ALL_NONCE_ACTION );
+
+		$result = $this->process_revoke_all_perform();
+
+		$query_args = array( self::REVOKE_RESULT_QUERY_ARG => $result['outcome'] );
+		if ( 'success' === $result['outcome'] ) {
+			$query_args[ self::REVOKE_COUNT_QUERY_ARG ] = $result['count'];
+		}
+
+		wp_safe_redirect( add_query_arg( $query_args, admin_url( 'users.php' ) ) );
+		exit;
+	}
+
+	/**
+	 * Run the guarded revoke-all flow and return its outcome + count.
+	 *
+	 * This is the UI's own cap/rate wrapper around the gate-free
+	 * Sudo_Session::revoke_all_active_sessions() enumerator (design objection
+	 * C): the bulk enumerator stays un-gated so WP-CLI can call it directly,
+	 * so THIS method — not the enumerator — verifies the cap, requires the
+	 * operator's own active sudo session, and consumes exactly ONE rate-limit
+	 * slot for the whole batch via the same REVOKE_RATE_PREFIX/REVOKE_RATE_LIMIT
+	 * transient accounting the per-user core uses. A mid-batch-expired target
+	 * is simply absent from the enumerator's live-set scan — not an error —
+	 * so an empty/drained set still reports 'success' with count 0.
+	 *
+	 * @since 4.5.0
+	 *
+	 * @return array{outcome: string, count: int} Result with outcome code:
+	 *                                              no_cap|no-operator-session|rate_limited|success.
+	 */
+	private function process_revoke_all_perform(): array {
+		if ( ! wp_sudo_can( 'revoke_wp_sudo_sessions' ) ) {
+			return array(
+				'outcome' => 'no_cap',
+				'count'   => 0,
+			);
+		}
+
+		$operator_id = get_current_user_id();
+
+		if ( ! Sudo_Session::is_session_live( $operator_id ) ) {
+			return array(
+				'outcome' => 'no-operator-session',
+				'count'   => 0,
+			);
+		}
+
+		$rate_key     = self::REVOKE_RATE_PREFIX . $operator_id;
+		$revoke_count = (int) get_transient( $rate_key );
+		if ( $revoke_count >= self::REVOKE_RATE_LIMIT ) {
+			return array(
+				'outcome' => 'rate_limited',
+				'count'   => 0,
+			);
+		}
+		set_transient( $rate_key, $revoke_count + 1, HOUR_IN_SECONDS );
+
+		$count = Sudo_Session::revoke_all_active_sessions( $operator_id );
+
+		/**
+		 * Fires when an operator revokes all active sudo sessions on the
+		 * current site via the Users-list revoke-all UI.
+		 *
+		 * The batch has no single target, so $target_user_id is 0 — this
+		 * mirrors the per-user wp_sudo_session_revoked signature so external
+		 * loggers can share one listener, distinguishing the batch case by
+		 * the 'revoke_all_ui' reason tag and a zero target.
+		 *
+		 * @since 4.5.0
+		 *
+		 * @param int    $target_user_id  Always 0 for a batch revocation.
+		 * @param int    $revoker_user_id Operator who performed the revocation.
+		 * @param string $reason          Reason/surface tag ('revoke_all_ui').
+		 * @param int    $site_id         Site context for the revocation.
+		 */
+		do_action( 'wp_sudo_session_revoked', 0, $operator_id, 'revoke_all_ui', get_current_blog_id() );
+
+		return array(
+			'outcome' => 'success',
+			'count'   => $count,
+		);
+	}
+
+	/**
+	 * Render the post-redirect result notice on the Users-list screen.
+	 *
+	 * Hooked to `admin_notices`. Reads the result code the per-user and
+	 * revoke-all handlers append to the redirect (REVOKE_RESULT_QUERY_ARG,
+	 * plus REVOKE_COUNT_QUERY_ARG for a successful revoke-all), maps it to a
+	 * distinct, actionable message via select_revoke_result_notice(), and
+	 * renders it with wp_admin_notice() (WP 6.4+). Only renders on users.php
+	 * — the only screen either handler ever redirects back to — and renders
+	 * nothing for an absent or unrecognized code (REVK-05: every KNOWN
+	 * outcome gets a notice; an unrecognized/forged code fabricates none).
+	 *
+	 * @since 4.5.0
+	 *
+	 * @return void
+	 */
+	public function render_revoke_result_notice(): void {
+		if ( 'users.php' !== ( $GLOBALS['pagenow'] ?? '' ) ) {
+			return;
+		}
+
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only notice selection from a redirect the handler itself constructed.
+		$result_code = isset( $_GET[ self::REVOKE_RESULT_QUERY_ARG ] ) ? sanitize_text_field( wp_unslash( (string) $_GET[ self::REVOKE_RESULT_QUERY_ARG ] ) ) : '';
+		if ( '' === $result_code ) {
+			return;
+		}
+
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Read-only count display from a redirect the handler itself constructed.
+		$count = isset( $_GET[ self::REVOKE_COUNT_QUERY_ARG ] ) ? absint( wp_unslash( $_GET[ self::REVOKE_COUNT_QUERY_ARG ] ) ) : 0;
+
+		$notice = $this->select_revoke_result_notice( $result_code, $count );
+		if ( null === $notice ) {
+			return;
+		}
+
+		$is_error = 'error' === $notice['type'];
+
+		wp_admin_notice(
+			$notice['message'],
+			array(
+				'type'        => $notice['type'],
+				'dismissible' => true,
+				'attributes'  => array(
+					'role'      => $is_error ? 'alert' : 'status',
+					'aria-live' => $is_error ? 'assertive' : 'polite',
+				),
+			)
+		);
+	}
+
+	/**
+	 * Map a revoke result code to its distinct, actionable notice.
+	 *
+	 * Every outcome revoke_session_core(), process_revoke_session_row_action(),
+	 * and process_revoke_all_perform() can produce is covered so no blocked
+	 * path is a silent no-op (REVK-05). The three REVK-05 blocked-path
+	 * messages — no_cap, no-operator-session, target_expired — are each
+	 * distinct and actionable; self_target and rate_limited are covered for
+	 * completeness even though self_target is defense-in-depth (the row
+	 * action never renders on the operator's own row).
+	 *
+	 * @since 4.5.0
+	 *
+	 * @param string $result_code Result code from the redirect query arg.
+	 * @param int    $count       Sessions revoked, used only for a successful revoke-all.
+	 * @return array{type: string, message: string}|null Notice data, or null for an unrecognized code.
+	 */
+	private function select_revoke_result_notice( string $result_code, int $count ): ?array {
+		switch ( $result_code ) {
+			case 'no_cap':
+				return array(
+					'type'    => 'error',
+					'message' => __( "You don't have permission to revoke sudo sessions.", 'wp-sudo' ),
+				);
+			case 'no-operator-session':
+				return array(
+					'type'    => 'error',
+					'message' => __( 'Start a sudo session before revoking others.', 'wp-sudo' ),
+				);
+			case 'self_target':
+				return array(
+					'type'    => 'error',
+					'message' => __( 'You cannot revoke your own session.', 'wp-sudo' ),
+				);
+			case 'target_expired':
+				return array(
+					'type'    => 'error',
+					'message' => __( 'That user no longer has an active sudo session.', 'wp-sudo' ),
+				);
+			case 'rate_limited':
+				return array(
+					'type'    => 'error',
+					'message' => __( 'Rate limit exceeded. You may revoke at most 10 sessions per hour.', 'wp-sudo' ),
+				);
+			case 'success':
+				if ( $count > 0 ) {
+					return array(
+						'type'    => 'success',
+						/* translators: %d: number of sudo sessions revoked. */
+						'message' => sprintf( _n( '%d active sudo session revoked.', '%d active sudo sessions revoked.', $count, 'wp-sudo' ), $count ),
+					);
+				}
+
+				return array(
+					'type'    => 'success',
+					'message' => __( 'Sudo session revoked.', 'wp-sudo' ),
+				);
+			default:
+				return null;
+		}
 	}
 
 	// -------------------------------------------------------------------------
@@ -1397,7 +1868,6 @@ class Admin {
 					<tr>
 						<th scope="col"><?php esc_html_e( 'User', 'wp-sudo' ); ?></th>
 						<th scope="col"><?php esc_html_e( 'Capabilities', 'wp-sudo' ); ?></th>
-						<th scope="col"><?php esc_html_e( 'Actions', 'wp-sudo' ); ?></th>
 					</tr>
 				</thead>
 				<tbody>
@@ -1416,12 +1886,6 @@ class Admin {
 										data-nonce="<?php echo esc_attr( $nonce ); ?>"
 									><?php esc_html_e( 'Revoke', 'wp-sudo' ); ?></button>
 								<?php endforeach; ?>
-							</td>
-							<td>
-								<button type="button" class="button wp-sudo-revoke-session"
-									data-user-id="<?php echo (int) $holder['user']->ID; ?>"
-									data-nonce="<?php echo esc_attr( $nonce ); ?>"
-								><?php esc_html_e( 'Revoke Session', 'wp-sudo' ); ?></button>
 							</td>
 						</tr>
 					<?php endforeach; ?>
@@ -1483,7 +1947,8 @@ class Admin {
 	 * Render the drift detection panel on the Access tab.
 	 *
 	 * Shows users who hold manage_options (or manage_network_options on multisite)
-	 * but do not hold manage_wp_sudo — potential unexpected gaps in strict mode.
+	 * but do not hold manage_wp_sudo. Surfaced for review: the separation is often
+	 * intentional (least privilege), so this is informational, not an error.
 	 *
 	 * @param string $nonce Nonce value for the grant action button.
 	 * @return void
@@ -1518,9 +1983,9 @@ class Admin {
 			return;
 		}
 		?>
-		<h3><?php esc_html_e( 'Drift Detection', 'wp-sudo' ); ?></h3>
+		<h3><?php esc_html_e( 'Sudo governance coverage', 'wp-sudo' ); ?></h3>
 		<p class="description">
-			<?php esc_html_e( 'The following users hold manage_options but do not hold manage_wp_sudo. In strict governance mode, they cannot access Sudo settings — but this may indicate unexpected access gaps.', 'wp-sudo' ); ?>
+			<?php esc_html_e( 'These administrators hold manage_options but not manage_wp_sudo, so they cannot access Sudo settings. This is often intentional — review the list to confirm each separation is deliberate rather than an accidental gap.', 'wp-sudo' ); ?>
 		</p>
 		<table class="widefat striped">
 			<caption class="screen-reader-text"><?php esc_html_e( 'Users with admin capabilities but without Sudo management access', 'wp-sudo' ); ?></caption>
@@ -1660,41 +2125,48 @@ class Admin {
 	}
 
 	/**
-	 * Handle AJAX request to force-revoke another user's sudo session.
+	 * Factored revocation core shared by per-user revoke surfaces.
 	 *
-	 * Requires: revoke_wp_sudo_sessions capability + valid nonce.
-	 * Rate limit: max REVOKE_RATE_LIMIT revocations per revoker per hour.
-	 * Fires: wp_sudo_session_revoked after a successful revocation.
+	 * Enforces, in order: capability gate, self-target guard, target-liveness
+	 * precondition, per-revoker rate limit, then deactivates the target's
+	 * session and fires the audit hook. The cap check runs FIRST so a capless
+	 * caller never learns whether the target session is live. The bulk
+	 * revoke-all enumerator (Sudo_Session::revoke_all_active_sessions()) does
+	 * NOT route through this core — it stays gate-free so WP-CLI can call it
+	 * un-gated; the UI revoke-all's own cap/rate wrapper is added separately.
 	 *
-	 * @return void
+	 * @since 4.5.0
+	 *
+	 * @param int    $target_user_id  User whose session is being revoked.
+	 * @param int    $revoker_user_id Operator performing the revocation.
+	 * @param string $reason          Reason/surface tag passed through to the audit hook.
+	 * @return array{outcome: string} Result with outcome code: no_cap|self_target|target_expired|rate_limited|success.
 	 */
-	public function handle_revoke_session(): void {
-		check_ajax_referer( 'wp_sudo_access', '_nonce' );
-
+	private function revoke_session_core( int $target_user_id, int $revoker_user_id, string $reason ): array {
+		// 1. Cap gate FIRST — never reveal target session state to an unauthorized caller.
 		if ( ! wp_sudo_can( 'revoke_wp_sudo_sessions' ) ) {
-			wp_send_json_error( array( 'message' => __( 'Insufficient permissions.', 'wp-sudo' ) ), 403 );
-			return;
+			return array( 'outcome' => 'no_cap' );
 		}
 
-		$revoker_user_id = get_current_user_id();
+		// 2. Self-target guard — the core refuses to revoke the operator's own session.
+		if ( $target_user_id === $revoker_user_id ) {
+			return array( 'outcome' => 'self_target' );
+		}
 
-		// Per-revoker rate limit: max 10 revocations per hour.
+		// 3. Target-liveness precondition — browser-independent, mirrors row-action visibility.
+		if ( ! Sudo_Session::is_session_live( $target_user_id ) ) {
+			return array( 'outcome' => 'target_expired' );
+		}
+
+		// 4. Per-revoker rate limit: max REVOKE_RATE_LIMIT revocations per hour.
 		$rate_key     = self::REVOKE_RATE_PREFIX . $revoker_user_id;
 		$revoke_count = (int) get_transient( $rate_key );
 		if ( $revoke_count >= self::REVOKE_RATE_LIMIT ) {
-			wp_send_json_error(
-				array( 'message' => __( 'Rate limit exceeded. You may revoke at most 10 sessions per hour.', 'wp-sudo' ) ),
-				429
-			);
-			return;
+			return array( 'outcome' => 'rate_limited' );
 		}
 		set_transient( $rate_key, $revoke_count + 1, HOUR_IN_SECONDS );
 
-		// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified above via check_ajax_referer.
-		$target_user_id = isset( $_POST['user_id'] ) ? (int) $_POST['user_id'] : 0;
-		// phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotValidated -- Nonce verified above; sanitize_text_field is the right sanitization.
-		$reason = isset( $_POST['reason'] ) ? sanitize_text_field( wp_unslash( $_POST['reason'] ) ) : '';
-
+		// 5. Teardown.
 		Sudo_Session::deactivate( $target_user_id );
 
 		/**
@@ -1704,12 +2176,12 @@ class Admin {
 		 *
 		 * @param int    $target_user_id  User whose session was revoked.
 		 * @param int    $revoker_user_id Operator who performed the revocation.
-		 * @param string $reason          Optional reason for the revocation.
+		 * @param string $reason          Reason/surface tag for the revocation.
 		 * @param int    $site_id         Site context for the revocation.
 		 */
 		do_action( 'wp_sudo_session_revoked', $target_user_id, $revoker_user_id, $reason, get_current_blog_id() );
 
-		wp_send_json_success( array( 'message' => __( 'Session revoked.', 'wp-sudo' ) ) );
+		return array( 'outcome' => 'success' );
 	}
 
 	/**
