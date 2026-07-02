@@ -45,14 +45,20 @@ jobs:
             }
 
             delete pluginStep.pluginZipFile;
-            // Pin the install to the PR commit via a plain GitHub archive .zip
-            // (resource: 'url'), NOT git:directory. Playground's git-clone path
-            // currently fails with "createHash is not a function", while plain
-            // .zip downloads are unaffected; a commit archive installs the exact
-            // SHA and dodges that regression.
+            // Pin the install to the PR commit via a GitHub archive .zip
+            // (resource: 'url'), NOT git:directory. Two reasons the URL is
+            // wrapped in the official CORS proxy:
+            //   1. Playground's git-clone path currently fails with
+            //      "createHash is not a function", so git:directory is out.
+            //   2. A *direct* github.com/.../archive/<sha>.zip is CORS-blocked
+            //      when Playground fetches it client-side: GitHub serves it
+            //      with Access-Control-Allow-Origin: render.githubusercontent.com,
+            //      not playground.wordpress.net. Routing through
+            //      wordpress-playground-cors-proxy.net returns a permissive
+            //      ACAO so the fetch succeeds. Installs the exact SHA.
             pluginStep.pluginData = {
               resource: 'url',
-              url: `${repoUrl}/archive/${sha}.zip`,
+              url: `https://wordpress-playground-cors-proxy.net/?${repoUrl}/archive/${sha}.zip`,
             };
 
             const encoded = encodeURIComponent(JSON.stringify(blueprint));
@@ -65,7 +71,7 @@ jobs:
               '',
               'Preview is pinned to WordPress `7.0`.',
               '',
-              `Uses the checked-in \`blueprint.json\` from this PR, with the plugin install pinned to commit \`${sha}\` via a GitHub archive \`.zip\` (\`resource: url\`).`,
+              `Uses the checked-in \`blueprint.json\` from this PR, with the plugin install pinned to commit \`${sha}\` via a GitHub archive \`.zip\` (\`resource: url\`, fetched through the WordPress Playground CORS proxy).`,
               '',
               'Logs in as `admin` / `password`; use `password` again for the WP Sudo reauthentication challenge.',
               '',
