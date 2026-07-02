@@ -373,3 +373,6 @@ unset( $_patchwork, $_patchwork_candidates, $active_vendor_autoload );
 // Loaded AFTER Patchwork so Brain\Monkey can stub wp_sudo_is_recovery_mode()
 // and any other governance functions in unit tests.
 require_once dirname( __DIR__ ) . '/includes/functions-governance.php';
+
+// ── Challenge URL helpers ────────────────────────────────────────────
+require_once dirname( __DIR__ ) . '/includes/functions-challenge-url.php';

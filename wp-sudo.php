@@ -23,6 +23,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 
 require_once __DIR__ . '/includes/class-bootstrap.php';
 require_once __DIR__ . '/includes/functions-governance.php';
+require_once __DIR__ . '/includes/functions-challenge-url.php';
 
 add_filter( 'map_meta_cap', 'wp_sudo_map_governance_meta_cap', 10, 4 );
 

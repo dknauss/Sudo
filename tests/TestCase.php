@@ -65,6 +65,107 @@ abstract class TestCase extends PHPUnitTestCase {
 		);
 	}
 
+	/**
+	 * Stub add_query_arg()/wp_parse_url() with FAITHFUL WordPress core semantics.
+	 *
+	 * This mirrors wp-includes/functions.php add_query_arg()/build_query()/
+	 * _http_build_query() byte-for-byte, including the behavior most other
+	 * stubs in this suite get wrong: newly-added array values are concatenated
+	 * WITHOUT urlencode() (build_query() calls _http_build_query() with
+	 * $urlencode = false). Only values already present in the URL's existing
+	 * query string get urlencode_deep()'d, because they were parsed back out
+	 * of a real (already-encoded) query string via wp_parse_str().
+	 *
+	 * This distinction is load-bearing: a caller that nests a full URL
+	 * (itself containing '&') as a raw, un-pre-encoded VALUE inside the
+	 * array passed to add_query_arg() will have that nested '&' become a
+	 * new top-level query separator in the output — silently truncating
+	 * the nested URL's own query string. Do NOT use http_build_query()
+	 * (which encodes by default) to stub this function; it hides that bug.
+	 *
+	 * @return void
+	 */
+	protected function stub_faithful_add_query_arg(): void {
+		Functions\when( 'wp_parse_str' )->alias(
+			static function ( $string, &$array ) {
+				parse_str( (string) $string, $array );
+			}
+		);
+
+		Functions\when( 'add_query_arg' )->alias(
+			static function ( ...$args ) {
+				if ( is_array( $args[0] ) ) {
+					$uri = ( count( $args ) < 2 || false === $args[1] ) ? ( $_SERVER['REQUEST_URI'] ?? '' ) : $args[1];
+				} else {
+					$uri = ( count( $args ) < 3 || false === $args[2] ) ? ( $_SERVER['REQUEST_URI'] ?? '' ) : $args[2];
+				}
+
+				$frag = strstr( $uri, '#' );
+				if ( $frag ) {
+					$uri = substr( $uri, 0, -strlen( $frag ) );
+				} else {
+					$frag = '';
+				}
+
+				$protocol = '';
+				if ( 0 === stripos( $uri, 'http://' ) ) {
+					$protocol = 'http://';
+					$uri      = substr( $uri, 7 );
+				} elseif ( 0 === stripos( $uri, 'https://' ) ) {
+					$protocol = 'https://';
+					$uri      = substr( $uri, 8 );
+				}
+
+				if ( str_contains( $uri, '?' ) ) {
+					list( $base, $query ) = explode( '?', $uri, 2 );
+					$base                .= '?';
+				} elseif ( $protocol || ! str_contains( $uri, '=' ) ) {
+					$base  = $uri . '?';
+					$query = '';
+				} else {
+					$base  = '';
+					$query = $uri;
+				}
+
+				parse_str( $query, $qs );
+				$qs = array_map(
+					static function ( $v ) {
+						return is_array( $v ) ? $v : urlencode( (string) $v );
+					},
+					$qs
+				);
+
+				if ( is_array( $args[0] ) ) {
+					foreach ( $args[0] as $k => $v ) {
+						$qs[ $k ] = $v; // NOT urlencoded — matches real WP behavior.
+					}
+				} else {
+					$qs[ $args[0] ] = $args[1]; // NOT urlencoded.
+				}
+
+				foreach ( $qs as $k => $v ) {
+					if ( false === $v ) {
+						unset( $qs[ $k ] );
+					}
+				}
+
+				$pairs = array();
+				foreach ( $qs as $k => $v ) {
+					if ( null === $v ) {
+						continue;
+					}
+					$pairs[] = $k . '=' . ( false === $v ? '0' : $v );
+				}
+				$ret = implode( '&', $pairs );
+				$ret = trim( $ret, '?' );
+				$ret = preg_replace( '#=(&|$)#', '$1', $ret );
+				$ret = $protocol . $base . $ret . $frag;
+				$ret = rtrim( $ret, '?' );
+				return str_replace( '?#', '#', $ret );
+			}
+		);
+	}
+
 	protected function tearDown(): void {
 		unset( $_COOKIE[ \WP_Sudo\Sudo_Session::CHALLENGE_COOKIE ] );
 		unset( $_COOKIE[ \WP_Sudo\Sudo_Session::TOKEN_COOKIE ] );
