@@ -793,6 +793,69 @@ class ChallengeTest extends TestCase
 		unset($_GET['page']);
 	}
 
+	/**
+	 * Single-site reproduction: the Ctrl+Shift+S / Cmd+Shift+S shortcut opens
+	 * the challenge page in session-only mode (no stash_key) from the Access
+	 * tab (Plugin::enqueue_shortcut() builds return_url from the CURRENT
+	 * REQUEST_URI, i.e. options-general.php?page=wp-sudo-settings&tab=access).
+	 * enqueue_assets() must parse that return_url back into a cancelUrl that
+	 * still contains &tab=access — this is the URL the challenge JS uses for
+	 * the code==='authenticated' (session-only-success) redirect target.
+	 */
+	public function test_enqueue_assets_cancel_url_preserves_tab_query_arg_from_access_tab(): void
+	{
+		$_GET['page'] = 'wp-sudo-challenge';
+		// This is exactly the value Plugin::enqueue_shortcut() would set for
+		// return_url when invoked from options-general.php?page=wp-sudo-settings&tab=access.
+		$_GET['return_url'] = 'https://example.com/wp-admin/options-general.php?page=wp-sudo-settings&tab=access';
+
+		Functions\when('__')->returnArg();
+		Functions\when('get_current_user_id')->justReturn(42);
+		Functions\when('wp_enqueue_style')->justReturn(null);
+		Functions\when('wp_enqueue_script')->justReturn(null);
+		Functions\when('wp_create_nonce')->justReturn('test-nonce');
+		Functions\when('sanitize_text_field')->alias(static fn($value) => $value);
+		Functions\when('wp_unslash')->alias(static fn($value) => $value);
+		// esc_url_raw is stubbed to returnArg() globally in setUp().
+
+		Functions\when('admin_url')->alias(
+			static fn(string $path = ''): string => 'https://example.com/wp-admin/' . $path
+		);
+
+		// Real wp_validate_redirect() semantics: same-host redirect passes
+		// through untouched, including its full query string.
+		Functions\when('wp_validate_redirect')->alias(
+			static function (string $location, $fallback = '') {
+				$host = parse_url($location, PHP_URL_HOST);
+				return ('example.com' === $host) ? $location : $fallback;
+			}
+		);
+
+		$captured = null;
+		Functions\expect('wp_localize_script')
+			->once()
+			->with(
+				'wp-sudo-challenge',
+				'wpSudoChallenge',
+				\Mockery::on(function ($data) use (&$captured) {
+					$captured = $data;
+					return true;
+				})
+			);
+
+		$this->challenge->enqueue_assets();
+
+		$this->assertIsArray($captured);
+		$this->assertArrayHasKey('cancelUrl', $captured);
+		$this->assertStringContainsString(
+			'tab=access',
+			$captured['cancelUrl'],
+			'Root cause candidate: the session-only challenge cancelUrl must preserve the &tab= the user was on when the shortcut/challenge was triggered from a non-default Settings tab.'
+		);
+
+		unset($_GET['page'], $_GET['return_url']);
+	}
+
 	// -----------------------------------------------------------------
 	// handle_ajax_2fa — invalid code returns 401
 	// -----------------------------------------------------------------
