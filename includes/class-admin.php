@@ -42,6 +42,16 @@ class Admin {
 	public const PAGE_SLUG = 'wp-sudo-settings';
 
 	/**
+	 * Valid settings page tab keys.
+	 *
+	 * Single source of truth shared by render_settings_page() (tab routing)
+	 * and handle_network_settings_save() (redirect tab preservation).
+	 *
+	 * @var string[]
+	 */
+	private const VALID_TABS = array( 'settings', 'actions', 'tester', 'access' );
+
+	/**
 	 * AJAX action for installing the MU-plugin shim.
 	 *
 	 * @var string
@@ -440,15 +450,34 @@ class Admin {
 		update_site_option( self::OPTION_KEY, $sanitized );
 		self::reset_cache();
 
-		wp_safe_redirect(
-			add_query_arg(
-				array(
-					'page'    => self::PAGE_SLUG,
-					'updated' => 'true',
-				),
-				network_admin_url( 'settings.php' )
-			)
-		);
+		$target = add_query_arg( array( 'page' => self::PAGE_SLUG ), network_admin_url( 'settings.php' ) );
+
+		// wp_get_referer() prefers the replayed `_wp_http_referer` POST field
+		// over the Referer header, which is what carries the tabbed settings
+		// URL through a sudo reauth replay (see Action_Registry's
+		// options.wp_sudo stash allowlist). A future edit to that allowlist
+		// must not drop `_wp_http_referer` or this tab-preservation breaks.
+		//
+		// The referer is never redirected to directly — only a validated
+		// `tab` value is lifted onto our own trusted settings URL, so an
+		// attacker-controlled `_wp_http_referer` cannot redirect elsewhere.
+		$referer = wp_get_referer();
+		if ( $referer ) {
+			$query = array();
+			$parts = wp_parse_url( $referer );
+			if ( ! empty( $parts['query'] ) ) {
+				parse_str( $parts['query'], $query );
+			}
+
+			if ( isset( $query['page'] ) && self::PAGE_SLUG === $query['page'] && ! empty( $query['tab'] ) ) {
+				$tab = sanitize_key( $query['tab'] );
+				if ( in_array( $tab, self::VALID_TABS, true ) ) {
+					$target = add_query_arg( 'tab', $tab, $target );
+				}
+			}
+		}
+
+		wp_safe_redirect( add_query_arg( 'updated', 'true', $target ) );
 		exit;
 	}
 
@@ -1679,10 +1708,9 @@ class Admin {
 		$this->maybe_record_recovery_mode_usage();
 
 		$is_network = is_multisite();
-		$valid_tabs = array( 'settings', 'actions', 'tester', 'access' );
 		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Tab routing only, no state change.
 		$active_tab = isset( $_GET['tab'] ) ? sanitize_text_field( wp_unslash( $_GET['tab'] ) ) : 'settings';
-		if ( ! in_array( $active_tab, $valid_tabs, true ) ) {
+		if ( ! in_array( $active_tab, self::VALID_TABS, true ) ) {
 			$active_tab = 'settings';
 		}
 

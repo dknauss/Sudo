@@ -1444,6 +1444,8 @@ class AdminTest extends TestCase {
 		Functions\when( 'check_admin_referer' )->justReturn( true );
 		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		Functions\when( 'absint' )->alias( fn( $value ) => abs( (int) $value ) );
+		// No-referer case: fallback must be the bare settings page, no tab.
+		Functions\when( 'wp_get_referer' )->justReturn( false );
 		Functions\when( 'add_query_arg' )->justReturn( 'https://example.com/wp-admin/network/settings.php?page=wp-sudo-settings&updated=true' );
 
 		Functions\expect( 'update_site_option' )
@@ -1461,7 +1463,16 @@ class AdminTest extends TestCase {
 
 		Functions\expect( 'wp_safe_redirect' )
 			->once()
-			->with( \Mockery::on( fn( $url ) => is_string( $url ) && str_contains( $url, 'page=wp-sudo-settings' ) && str_contains( $url, 'updated=true' ) ) )
+			->with(
+				\Mockery::on(
+					function ( $url ) {
+						return is_string( $url )
+							&& str_contains( $url, 'page=wp-sudo-settings' )
+							&& str_contains( $url, 'updated=true' )
+							&& ! str_contains( $url, 'tab=' );
+					}
+				)
+			)
 			->andThrow( new \RuntimeException( 'redirected' ) );
 
 		$admin = new Admin();
@@ -1472,6 +1483,228 @@ class AdminTest extends TestCase {
 		} catch ( \RuntimeException $e ) {
 			$this->assertSame( 'redirected', $e->getMessage() );
 		}
+
+		unset( $_POST[ Admin::OPTION_KEY ] );
+	}
+
+	/**
+	 * Real add_query_arg() semantics for use across the tests below —
+	 * supports both the single-array-args form and the
+	 * (key, value, url) form used by handle_network_settings_save().
+	 *
+	 * @return void
+	 */
+	private function stub_real_add_query_arg_semantics(): void {
+		Functions\when( 'add_query_arg' )->alias(
+			static function ( ...$args ): string {
+				if ( 2 === count( $args ) && is_array( $args[0] ) ) {
+					$new_args = $args[0];
+					$url      = $args[1];
+				} else {
+					$new_args = array( $args[0] => $args[1] );
+					$url      = $args[2];
+				}
+
+				$parts = wp_parse_url( $url );
+				$query = array();
+				if ( ! empty( $parts['query'] ) ) {
+					parse_str( $parts['query'], $query );
+				}
+				$query = array_merge( $query, $new_args );
+				$base  = ( $parts['scheme'] ?? 'https' ) . '://' . ( $parts['host'] ?? '' ) . ( $parts['path'] ?? '' );
+				return $base . '?' . http_build_query( $query );
+			}
+		);
+		Functions\when( 'wp_parse_url' )->alias( static fn( string $url ) => parse_url( $url ) );
+	}
+
+	/**
+	 * Bug: settings-tab-lost-on-reauth-replay.
+	 *
+	 * When a sudo-gated network settings save is replayed after reauthentication,
+	 * wp_get_referer() (which prefers the replayed `_wp_http_referer` POST field
+	 * over the Referer header) returns the tabbed settings URL the user was on
+	 * (e.g. `...settings.php?page=wp-sudo-settings&tab=access`). The redirect
+	 * must preserve that validated tab rather than dropping it.
+	 *
+	 * This test does NOT stub add_query_arg()/wp_parse_url() to a fixed
+	 * string — it lets them run with real semantics, proving the &tab=
+	 * argument present on the referring page reaches the final redirect.
+	 */
+	public function test_handle_network_settings_save_redirect_preserves_tab_query_arg(): void {
+		$_POST[ Admin::OPTION_KEY ] = array(
+			'session_duration' => '8',
+			'cli_policy'       => Gate::POLICY_UNRESTRICTED,
+		);
+
+		Functions\when( 'is_multisite' )->justReturn( true );
+		Functions\when( 'get_site_option' )->justReturn( Admin::defaults() );
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'check_admin_referer' )->justReturn( true );
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
+		Functions\when( 'absint' )->alias( fn( $value ) => abs( (int) $value ) );
+		Functions\when( 'update_site_option' )->justReturn( true );
+
+		Functions\when( 'network_admin_url' )->alias(
+			static fn( string $path = '' ): string => 'https://example.com/wp-admin/network/' . $path
+		);
+
+		// Simulates wp_referer_field() having captured the tabbed page the
+		// form was rendered on, replayed via _wp_http_referer.
+		Functions\when( 'wp_get_referer' )->justReturn(
+			'https://example.com/wp-admin/network/settings.php?page=wp-sudo-settings&tab=access'
+		);
+		Functions\when( 'sanitize_key' )->returnArg();
+
+		$this->stub_real_add_query_arg_semantics();
+
+		$captured_redirect = null;
+		Functions\expect( 'wp_safe_redirect' )
+			->once()
+			->with(
+				\Mockery::on(
+					function ( $url ) use ( &$captured_redirect ) {
+						$captured_redirect = $url;
+						return true;
+					}
+				)
+			)
+			->andThrow( new \RuntimeException( 'redirected' ) );
+
+		$admin = new Admin();
+
+		try {
+			$admin->handle_network_settings_save();
+			$this->fail( 'Expected redirect short-circuit.' );
+		} catch ( \RuntimeException $e ) {
+			$this->assertSame( 'redirected', $e->getMessage() );
+		}
+
+		$this->assertIsString( $captured_redirect );
+		$this->assertStringContainsString( 'tab=access', $captured_redirect );
+		$this->assertStringContainsString( 'updated=true', $captured_redirect );
+		$this->assertStringContainsString( 'page=wp-sudo-settings', $captured_redirect );
+
+		unset( $_POST[ Admin::OPTION_KEY ] );
+	}
+
+	/**
+	 * Security: a same-host referer that is NOT the settings page must not
+	 * have its query lifted onto the redirect target — only a validated
+	 * `tab` from OUR settings page is ever honored.
+	 */
+	public function test_handle_network_settings_save_redirect_ignores_referer_for_different_page(): void {
+		$_POST[ Admin::OPTION_KEY ] = array(
+			'session_duration' => '8',
+			'cli_policy'       => Gate::POLICY_UNRESTRICTED,
+		);
+
+		Functions\when( 'is_multisite' )->justReturn( true );
+		Functions\when( 'get_site_option' )->justReturn( Admin::defaults() );
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'check_admin_referer' )->justReturn( true );
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
+		Functions\when( 'absint' )->alias( fn( $value ) => abs( (int) $value ) );
+		Functions\when( 'update_site_option' )->justReturn( true );
+
+		Functions\when( 'network_admin_url' )->alias(
+			static fn( string $path = '' ): string => 'https://example.com/wp-admin/network/' . $path
+		);
+
+		// Referer points at a different network admin page entirely.
+		Functions\when( 'wp_get_referer' )->justReturn(
+			'https://example.com/wp-admin/network/users.php?x=1'
+		);
+
+		$this->stub_real_add_query_arg_semantics();
+
+		$captured_redirect = null;
+		Functions\expect( 'wp_safe_redirect' )
+			->once()
+			->with(
+				\Mockery::on(
+					function ( $url ) use ( &$captured_redirect ) {
+						$captured_redirect = $url;
+						return true;
+					}
+				)
+			)
+			->andThrow( new \RuntimeException( 'redirected' ) );
+
+		$admin = new Admin();
+
+		try {
+			$admin->handle_network_settings_save();
+			$this->fail( 'Expected redirect short-circuit.' );
+		} catch ( \RuntimeException $e ) {
+			$this->assertSame( 'redirected', $e->getMessage() );
+		}
+
+		$this->assertIsString( $captured_redirect );
+		$this->assertStringNotContainsString( 'x=1', $captured_redirect );
+		$this->assertStringNotContainsString( 'tab=', $captured_redirect );
+		$this->assertStringContainsString( 'page=wp-sudo-settings', $captured_redirect );
+		$this->assertStringContainsString( 'updated=true', $captured_redirect );
+
+		unset( $_POST[ Admin::OPTION_KEY ] );
+	}
+
+	/**
+	 * Security: a referer for our settings page with an invalid/unknown
+	 * `tab` value must not have that tab appended to the redirect.
+	 */
+	public function test_handle_network_settings_save_redirect_ignores_invalid_tab(): void {
+		$_POST[ Admin::OPTION_KEY ] = array(
+			'session_duration' => '8',
+			'cli_policy'       => Gate::POLICY_UNRESTRICTED,
+		);
+
+		Functions\when( 'is_multisite' )->justReturn( true );
+		Functions\when( 'get_site_option' )->justReturn( Admin::defaults() );
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'check_admin_referer' )->justReturn( true );
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
+		Functions\when( 'absint' )->alias( fn( $value ) => abs( (int) $value ) );
+		Functions\when( 'update_site_option' )->justReturn( true );
+
+		Functions\when( 'network_admin_url' )->alias(
+			static fn( string $path = '' ): string => 'https://example.com/wp-admin/network/' . $path
+		);
+
+		Functions\when( 'wp_get_referer' )->justReturn(
+			'https://example.com/wp-admin/network/settings.php?page=wp-sudo-settings&tab=bogus'
+		);
+		Functions\when( 'sanitize_key' )->returnArg();
+
+		$this->stub_real_add_query_arg_semantics();
+
+		$captured_redirect = null;
+		Functions\expect( 'wp_safe_redirect' )
+			->once()
+			->with(
+				\Mockery::on(
+					function ( $url ) use ( &$captured_redirect ) {
+						$captured_redirect = $url;
+						return true;
+					}
+				)
+			)
+			->andThrow( new \RuntimeException( 'redirected' ) );
+
+		$admin = new Admin();
+
+		try {
+			$admin->handle_network_settings_save();
+			$this->fail( 'Expected redirect short-circuit.' );
+		} catch ( \RuntimeException $e ) {
+			$this->assertSame( 'redirected', $e->getMessage() );
+		}
+
+		$this->assertIsString( $captured_redirect );
+		$this->assertStringNotContainsString( 'tab=bogus', $captured_redirect );
+		$this->assertStringNotContainsString( 'tab=', $captured_redirect );
+		$this->assertStringContainsString( 'page=wp-sudo-settings', $captured_redirect );
+		$this->assertStringContainsString( 'updated=true', $captured_redirect );
 
 		unset( $_POST[ Admin::OPTION_KEY ] );
 	}
