@@ -235,7 +235,7 @@ class PublicApiTest extends TestCase {
 				\Mockery::on(
 					static function ( array $args ): bool {
 						return 'wp-sudo-challenge' === ( $args['page'] ?? '' )
-							&& 'https://example.com/wp-admin/plugins.php' === ( $args['return_url'] ?? '' );
+							&& rawurlencode( 'https://example.com/wp-admin/plugins.php' ) === ( $args['return_url'] ?? '' );
 					}
 				),
 				'https://example.com/wp-admin/admin.php'
@@ -255,6 +255,76 @@ class PublicApiTest extends TestCase {
 		$this->expectExceptionMessage( 'redirected' );
 
 		Public_API::require( array( 'rule_id' => 'cron.run' ) );
+	}
+
+	/**
+	 * Bug: settings-tab-lost-on-reauth-replay (7th affected site — Public_API::
+	 * build_challenge_url(), missed by the first pass of the fix).
+	 *
+	 * build_challenge_url() nests a full URL (which already contains its own
+	 * query string, e.g. "...options-general.php?page=wp-sudo-settings&tab=access")
+	 * as a raw VALUE inside the array given to add_query_arg(). Real WP core's
+	 * add_query_arg()/build_query() do NOT urlencode newly-added array values,
+	 * so the nested "&tab=access" becomes a new sibling top-level query
+	 * parameter, truncating return_url at the first "&" once the browser
+	 * round-trips the link through $_GET. This test uses FAITHFUL
+	 * add_query_arg() semantics (TestCase::stub_faithful_add_query_arg())
+	 * rather than the Mockery::on()/andReturn() stub used above, which
+	 * cannot detect this defect.
+	 */
+	public function test_require_redirect_preserves_nested_query_string_in_return_url(): void {
+		$user_id = 34;
+
+		Functions\when( 'get_current_user_id' )->justReturn( $user_id );
+		Functions\when( 'get_user_meta' )->justReturn( '' );
+		Functions\when( 'headers_sent' )->justReturn( false );
+		Functions\when( 'wp_doing_ajax' )->justReturn( false );
+		Functions\when( 'is_network_admin' )->justReturn( false );
+		Functions\when( 'admin_url' )->alias(
+			static function ( string $path = '' ): string {
+				return 'https://example.com/wp-admin/' . ltrim( $path, '/' );
+			}
+		);
+		$this->stub_faithful_add_query_arg();
+
+		$_SERVER['HTTP_REFERER'] = 'https://example.com/wp-admin/options-general.php?page=wp-sudo-settings&tab=access';
+
+		Actions\expectDone( 'wp_sudo_action_gated' )
+			->once()
+			->with( $user_id, 'cron.run', 'public_api' );
+
+		$captured_url = null;
+		Functions\expect( 'wp_safe_redirect' )
+			->once()
+			->andReturnUsing(
+				function ( $url ) use ( &$captured_url ) {
+					$captured_url = $url;
+					throw new \RuntimeException( 'redirected' );
+				}
+			);
+
+		try {
+			Public_API::require( array( 'rule_id' => 'cron.run' ) );
+			$this->fail( 'Expected RuntimeException from wp_safe_redirect stub.' );
+		} catch ( \RuntimeException $e ) {
+			$this->assertSame( 'redirected', $e->getMessage() );
+		}
+
+		$this->assertIsString( $captured_url );
+
+		// Simulate the browser navigating to $captured_url and PHP parsing its
+		// query string into $_GET, exactly as Challenge::enqueue_assets() would see it.
+		$parts = parse_url( $captured_url );
+		parse_str( $parts['query'] ?? '', $get );
+
+		$this->assertArrayHasKey( 'return_url', $get );
+		$this->assertStringContainsString(
+			'tab=access',
+			$get['return_url'],
+			'The Public_API::require() challenge_url must carry a return_url that survives the browser\'s query-string round trip with &tab=access intact.'
+		);
+
+		unset( $_SERVER['HTTP_REFERER'] );
 	}
 
 	public function test_require_calls_wp_die_when_redirect_fails(): void {

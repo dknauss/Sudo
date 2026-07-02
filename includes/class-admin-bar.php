@@ -85,7 +85,7 @@ class Admin_Bar {
 			add_query_arg(
 				array(
 					self::DEACTIVATE_PARAM => '1',
-					self::REDIRECT_PARAM   => $current_url,
+					self::REDIRECT_PARAM   => rawurlencode( $current_url ),
 				),
 				admin_url()
 			),

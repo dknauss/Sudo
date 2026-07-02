@@ -264,6 +264,27 @@
 				is_array( $post_params ) ? $post_params : array()
 			)]]></code>
     </InvalidArgument>
+    <UndefinedFunction>
+      <code><![CDATA[wp_sudo_build_challenge_url(
+			$base_url,
+			$return_url,
+			array(
+				'page'      => 'wp-sudo-challenge',
+				'stash_key' => $stash_key,
+			)
+		)]]></code>
+      <code><![CDATA[wp_sudo_build_challenge_url(
+			is_network_admin() ? network_admin_url( 'admin.php' ) : admin_url( 'admin.php' ),
+			$current_url,
+			array( 'page' => 'wp-sudo-challenge' )
+		)]]></code>
+      <code><![CDATA[wp_sudo_build_challenge_url(
+			is_network_admin() ? network_admin_url( 'admin.php' ) : admin_url( 'admin.php' ),
+			$current_url,
+			array( 'page' => 'wp-sudo-challenge' )
+		)]]></code>
+      <code><![CDATA[wp_sudo_build_challenge_url( $base_url, $return_url, array( 'page' => 'wp-sudo-challenge' ) )]]></code>
+    </UndefinedFunction>
   </file>
   <file src="includes/class-plugin.php">
     <UndefinedConstant>
@@ -275,6 +296,18 @@
       <code><![CDATA[WP_SUDO_VERSION]]></code>
       <code><![CDATA[WP_SUDO_VERSION]]></code>
     </UndefinedConstant>
+    <UndefinedFunction>
+      <code><![CDATA[wp_sudo_build_challenge_url(
+			is_network_admin() ? network_admin_url( 'admin.php' ) : admin_url( 'admin.php' ),
+			$this->get_current_admin_url(),
+			array( 'page' => 'wp-sudo-challenge' )
+		)]]></code>
+    </UndefinedFunction>
+  </file>
+  <file src="includes/class-public-api.php">
+    <UndefinedFunction>
+      <code><![CDATA[wp_sudo_build_challenge_url( $base_url, $return_url, array( 'page' => 'wp-sudo-challenge' ) )]]></code>
+    </UndefinedFunction>
   </file>
   <file src="includes/class-request-stash.php">
     <InvalidArgument>
