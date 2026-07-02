@@ -1,0 +1,47 @@
+name: Release
+
+# Builds a clean install ZIP on every v* tag and attaches it to the GitHub
+# Release under a FIXED asset name (wp-sudo.zip). That makes
+#   https://github.com/dknauss/Sudo/releases/latest/download/wp-sudo.zip
+# a stable, always-latest URL — so the Playground "latest release" demo can
+# install from it (via the CORS proxy) and never needs a per-release edit.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and publish release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify tag matches plugin version
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          HEADER_VERSION="$(grep -m1 -E '^\s*\*\s*Version:' wp-sudo.php | sed -E 's/.*Version:[[:space:]]*//')"
+          echo "tag=$VERSION header=$HEADER_VERSION"
+          test "$VERSION" = "$HEADER_VERSION"
+
+      - name: Build install ZIP (reuses the Plugin Check dist builder)
+        run: |
+          bash bin/build-plugin-check-dist.sh build/wp-sudo
+          ( cd build && zip -rq wp-sudo.zip wp-sudo )
+          unzip -tq build/wp-sudo.zip
+
+      - name: Create GitHub Release + attach ZIP
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/wp-sudo.zip
+          generate_release_notes: true
+          fail_on_unmatched_files: true
