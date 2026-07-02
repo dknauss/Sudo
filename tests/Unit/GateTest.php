@@ -1696,6 +1696,78 @@ class GateTest extends TestCase {
 	}
 
 	/**
+	 * Bug: settings-tab-lost-on-reauth-replay (single-site, CONFIRMED).
+	 *
+	 * Root cause: challenge_admin() builds $query_args['return_url'] from
+	 * wp_get_referer() — a full URL that already contains its own query
+	 * string (e.g. "...options-general.php?page=wp-sudo-settings&tab=access")
+	 * — then passes that array into add_query_arg(). Real WP core's
+	 * add_query_arg()/build_query() do NOT urlencode newly-added array
+	 * values, so the nested "&tab=access" becomes a new sibling top-level
+	 * query parameter in the emitted challenge_url instead of staying part
+	 * of the return_url value. This test uses FAITHFUL add_query_arg()
+	 * semantics (TestCase::stub_faithful_add_query_arg()) rather than the
+	 * http_build_query()-based / hardcoded-string stubs used elsewhere in
+	 * this file, which encode-away the defect and cannot detect it.
+	 */
+	public function test_intercept_admin_challenge_redirect_preserves_tab_query_arg(): void {
+		Functions\when( 'get_current_user_id' )->justReturn( 5 );
+		Functions\when( 'wp_doing_ajax' )->justReturn( false );
+		Functions\when( 'wp_doing_cron' )->justReturn( false );
+		Functions\when( 'is_admin' )->justReturn( true );
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+		Functions\when( 'admin_url' )->alias( static fn( string $path = '' ): string => 'https://example.com/wp-admin/' . $path );
+		Functions\when( 'get_user_meta' )->justReturn( 0 );
+		Functions\when( 'wp_get_referer' )->justReturn( 'https://example.com/wp-admin/options-general.php?page=wp-sudo-settings&tab=access' );
+		$this->stub_faithful_add_query_arg();
+
+		$GLOBALS['pagenow']        = 'plugins.php';
+		$_REQUEST['action']        = 'activate';
+		$_SERVER['REQUEST_METHOD'] = 'GET';
+
+		$this->stash->shouldReceive( 'save' )
+			->once()
+			->with( 5, \Mockery::type( 'array' ) )
+			->andReturn( 'abc123' );
+
+		$captured_url = null;
+		Functions\expect( 'wp_safe_redirect' )
+			->once()
+			->andReturnUsing(
+				function ( $url ) use ( &$captured_url ) {
+					$captured_url = $url;
+					throw new \RuntimeException( 'redirect' );
+				}
+			);
+
+		Actions\expectDone( 'wp_sudo_action_gated' )
+			->once()
+			->with( 5, 'plugin.activate', 'admin' );
+
+		try {
+			$this->gate->intercept();
+			$this->fail( 'Expected RuntimeException from wp_safe_redirect stub.' );
+		} catch ( \RuntimeException $e ) {
+			$this->assertSame( 'redirect', $e->getMessage() );
+		}
+
+		$this->assertIsString( $captured_url );
+
+		// Simulate the browser navigating to $captured_url and PHP parsing its
+		// query string into $_GET, exactly as Challenge::enqueue_assets() would see it.
+		$parts = parse_url( $captured_url );
+		parse_str( $parts['query'] ?? '', $get );
+
+		$this->assertArrayHasKey( 'return_url', $get );
+		$this->assertStringContainsString(
+			'tab=access',
+			$get['return_url'],
+			'The gated-action bounce challenge_url must carry a return_url that survives the browser\'s query-string round trip with &tab=access intact.'
+		);
+	}
+
+	/**
 	 * Test intercept sends JSON error for gated AJAX request.
 	 *
 	 * Verifies that when a gated AJAX request arrives without an active
@@ -3055,6 +3127,59 @@ class GateTest extends TestCase {
 		$this->gate->render_gate_notice();
 	}
 
+	/**
+	 * Bug: settings-tab-lost-on-reauth-replay (single-site, CONFIRMED — general
+	 * form, not tab-specific: any gated page reached with a query string).
+	 *
+	 * render_gate_notice() (and, structurally identically, render_blocked_notice())
+	 * builds $query_args['return_url'] from get_current_admin_url() — a full URL
+	 * that includes its own query string — then passes that array into
+	 * add_query_arg(). Real WP core's add_query_arg()/build_query() do not
+	 * urlencode newly-added array values, so a nested "&" in return_url becomes
+	 * a new sibling top-level query parameter in the emitted challenge_url,
+	 * truncating return_url at the first "&". This test uses FAITHFUL
+	 * add_query_arg() semantics rather than the hardcoded-return-value stub
+	 * used by the passing tests above, which cannot detect this defect.
+	 */
+	public function test_gate_notice_challenge_link_preserves_query_string_on_current_page(): void {
+		Functions\when( 'get_current_user_id' )->justReturn( 1 );
+		Functions\when( 'get_user_meta' )->justReturn( 0 );
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'esc_html__' )->returnArg();
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'esc_url' )->alias( static fn( string $url ): string => $url );
+		Functions\when( 'admin_url' )->alias( static fn( string $path = '' ): string => 'https://example.com/wp-admin/' . $path );
+		Functions\when( 'is_ssl' )->justReturn( true );
+		Functions\when( 'esc_url_raw' )->returnArg();
+		Functions\when( 'sanitize_text_field' )->returnArg();
+		Functions\when( 'wp_unslash' )->returnArg();
+		$this->stub_faithful_add_query_arg();
+
+		$_SERVER['REQUEST_URI'] = '/wp-admin/plugins.php?plugin_status=active&paged=2';
+		$_SERVER['HTTP_HOST']   = 'example.com';
+		$GLOBALS['pagenow']     = 'plugins.php';
+
+		ob_start();
+		$this->gate->render_gate_notice();
+		$html = ob_get_clean();
+
+		// Extract the challenge_url from the rendered <a href="...">.
+		$this->assertMatchesRegularExpression( '/href="([^"]*wp-sudo-challenge[^"]*)"/', $html );
+		preg_match( '/href="([^"]*wp-sudo-challenge[^"]*)"/', $html, $matches );
+
+		$parts = parse_url( $matches[1] );
+		parse_str( $parts['query'] ?? '', $get );
+
+		$this->assertArrayHasKey( 'return_url', $get );
+		$this->assertStringContainsString(
+			'paged=2',
+			$get['return_url'],
+			'The gate-notice challenge_url must carry a return_url that survives the browser\'s query-string round trip with the full current query string intact.'
+		);
+
+		unset( $_SERVER['REQUEST_URI'], $_SERVER['HTTP_HOST'] );
+	}
+
 	public function test_gate_notice_uses_current_network_admin_request_url(): void {
 		Functions\when( 'get_current_user_id' )->justReturn( 1 );
 		Functions\when( 'get_user_meta' )->justReturn( 0 );
@@ -3094,7 +3219,7 @@ class GateTest extends TestCase {
 		ob_end_clean();
 
 		$this->assertSame(
-			'http://multisite-subdomains.local/wp-admin/network/plugins.php',
+			rawurlencode( 'http://multisite-subdomains.local/wp-admin/network/plugins.php' ),
 			$captured_args['return_url'] ?? '',
 			'Gate notice should point back to the current network admin page, not a subsite home_url().'
 		);

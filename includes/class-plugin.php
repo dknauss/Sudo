@@ -215,12 +215,10 @@ class Plugin {
 			true
 		);
 
-		$challenge_url = add_query_arg(
-			array(
-				'page'       => 'wp-sudo-challenge',
-				'return_url' => $this->get_current_admin_url(),
-			),
-			is_network_admin() ? network_admin_url( 'admin.php' ) : admin_url( 'admin.php' )
+		$challenge_url = wp_sudo_build_challenge_url(
+			is_network_admin() ? network_admin_url( 'admin.php' ) : admin_url( 'admin.php' ),
+			$this->get_current_admin_url(),
+			array( 'page' => 'wp-sudo-challenge' )
 		);
 
 		wp_localize_script(

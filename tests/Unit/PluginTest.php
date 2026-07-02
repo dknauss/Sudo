@@ -285,6 +285,14 @@ class PluginTest extends TestCase {
 		unset( $_GET['page'] );
 	}
 
+	/**
+	 * Bug fix: settings-tab-lost-on-reauth-replay. return_url must be encoded
+	 * EXACTLY ONCE via rawurlencode() before being handed to add_query_arg() —
+	 * add_query_arg() does not encode newly-added array values, so leaving
+	 * return_url raw let its nested "&" leak out as a new top-level query
+	 * separator. This test locks in single-encoding: not raw, and not
+	 * double-encoded (no literal "%25").
+	 */
 	public function test_enqueue_shortcut_return_url_is_not_double_encoded(): void {
 		Functions\when( 'get_current_user_id' )->justReturn( 1 );
 		Functions\when( 'get_user_meta' )->justReturn( 0 );
@@ -321,11 +329,86 @@ class PluginTest extends TestCase {
 		$plugin->enqueue_shortcut();
 
 		$this->assertArrayHasKey( 'return_url', $captured_args );
-		// The return_url must NOT be URL-encoded before add_query_arg (which encodes it itself).
-		$this->assertStringNotContainsString( '%3A', $captured_args['return_url'], 'return_url should not be pre-encoded before add_query_arg.' );
-		$this->assertStringNotContainsString( '%2F', $captured_args['return_url'], 'return_url should not be pre-encoded before add_query_arg.' );
+		// The return_url must be rawurlencode()'d exactly once before add_query_arg
+		// (which does NOT encode newly-added array values itself).
+		$this->assertSame(
+			rawurlencode( 'https://example.com/wp-admin/admin.php?page=plugins&plugin_status=active' ),
+			$captured_args['return_url'],
+			'return_url should be encoded exactly once before add_query_arg.'
+		);
+		// Guard against double-encoding: a single rawurlencode() never produces a literal "%25".
+		$this->assertStringNotContainsString( '%25', $captured_args['return_url'], 'return_url must not be double-encoded.' );
 
 		unset( $_GET['page'], $_SERVER['REQUEST_URI'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_SCHEME'] );
+	}
+
+	/**
+	 * Bug: settings-tab-lost-on-reauth-replay (single-site, CONFIRMED).
+	 *
+	 * Root cause: enqueue_shortcut() passes return_url — a full URL that
+	 * itself already contains a query string (e.g. "...?page=wp-sudo-settings&tab=access")
+	 * — as a raw VALUE inside the array given to add_query_arg(). Real WP core's
+	 * add_query_arg()/build_query() do NOT urlencode newly-added array values
+	 * (build_query() calls _http_build_query() with $urlencode = false), so the
+	 * nested "&tab=access" is emitted as a literal "&" in the output URL,
+	 * becoming a new *sibling* top-level query parameter instead of staying
+	 * part of the return_url value. When the browser then parses the resulting
+	 * challengeUrl's query string into $_GET, $_GET['return_url'] is truncated
+	 * at the first "&" and "tab=access" is lost entirely.
+	 *
+	 * This test uses FAITHFUL add_query_arg() semantics (TestCase::stub_faithful_add_query_arg(),
+	 * a byte-for-byte port of wordpress-develop trunk's add_query_arg()/build_query()/
+	 * _http_build_query()) — not the http_build_query()-based stub used elsewhere in
+	 * this suite, which silently urlencodes and therefore cannot detect this defect.
+	 */
+	public function test_enqueue_shortcut_challenge_url_preserves_tab_query_arg_from_access_tab(): void {
+		Functions\when( 'get_current_user_id' )->justReturn( 1 );
+		Functions\when( 'get_user_meta' )->justReturn( 0 );
+		Functions\when( 'admin_url' )->alias( fn( $path = '' ) => 'https://example.com/wp-admin/' . $path );
+		Functions\when( 'is_ssl' )->justReturn( true );
+		Functions\when( 'esc_url_raw' )->returnArg();
+		Functions\when( 'sanitize_text_field' )->returnArg();
+		Functions\when( 'wp_unslash' )->returnArg();
+		Functions\when( 'wp_enqueue_script' )->justReturn();
+		$this->stub_faithful_add_query_arg();
+
+		$_GET['page']           = 'wp-sudo-settings';
+		$_SERVER['REQUEST_URI'] = '/wp-admin/options-general.php?page=wp-sudo-settings&tab=access';
+		$_SERVER['HTTP_HOST']   = 'example.com';
+
+		$captured = null;
+		Functions\expect( 'wp_localize_script' )
+			->once()
+			->with(
+				'wp-sudo-shortcut',
+				'wpSudoShortcut',
+				\Mockery::on(
+					function ( $data ) use ( &$captured ) {
+						$captured = $data;
+						return true;
+					}
+				)
+			);
+
+		$plugin = new Plugin();
+		$plugin->enqueue_shortcut();
+
+		$this->assertIsArray( $captured );
+		$this->assertArrayHasKey( 'challengeUrl', $captured );
+
+		// Simulate the browser navigating to challengeUrl and PHP parsing its
+		// query string into $_GET, exactly as Challenge::enqueue_assets() would see it.
+		$parts = parse_url( $captured['challengeUrl'] );
+		parse_str( $parts['query'] ?? '', $get );
+
+		$this->assertArrayHasKey( 'return_url', $get );
+		$this->assertStringContainsString(
+			'tab=access',
+			$get['return_url'],
+			'The shortcut challengeUrl must carry a return_url that survives the browser\'s query-string round trip with &tab=access intact.'
+		);
+
+		unset( $_GET['page'], $_SERVER['REQUEST_URI'], $_SERVER['HTTP_HOST'] );
 	}
 
 	public function test_enqueue_shortcut_uses_current_network_admin_request_url(): void {
@@ -367,7 +450,7 @@ class PluginTest extends TestCase {
 		$plugin->enqueue_shortcut();
 
 		$this->assertSame(
-			'http://multisite-subdomains.local/wp-admin/network/plugins.php',
+			rawurlencode( 'http://multisite-subdomains.local/wp-admin/network/plugins.php' ),
 			$captured_args['return_url'] ?? '',
 			'Network admin shortcut should return to the current network admin URL, not a subsite home_url().'
 		);

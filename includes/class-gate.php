@@ -2579,12 +2579,7 @@ class Gate {
 			}
 		}
 
-		$query_args = array( 'page' => 'wp-sudo-challenge' );
-		if ( $return_url ) {
-			$query_args['return_url'] = $return_url;
-		}
-
-		return add_query_arg( $query_args, $base_url );
+		return wp_sudo_build_challenge_url( $base_url, $return_url, array( 'page' => 'wp-sudo-challenge' ) );
 	}
 
 	/**
@@ -2608,15 +2603,14 @@ class Gate {
 			$return_url = '';
 		}
 
-		$query_args = array(
-			'page'      => 'wp-sudo-challenge',
-			'stash_key' => $stash_key,
+		$challenge_url = wp_sudo_build_challenge_url(
+			$base_url,
+			$return_url,
+			array(
+				'page'      => 'wp-sudo-challenge',
+				'stash_key' => $stash_key,
+			)
 		);
-		if ( $return_url ) {
-			$query_args['return_url'] = $return_url;
-		}
-
-		$challenge_url = add_query_arg( $query_args, $base_url );
 
 		if ( wp_safe_redirect( $challenge_url ) ) {
 			exit;
@@ -2763,14 +2757,10 @@ class Gate {
 
 		$current_url = $this->get_current_admin_url();
 
-		$query_args = array( 'page' => 'wp-sudo-challenge' );
-		if ( $current_url ) {
-			$query_args['return_url'] = $current_url;
-		}
-
-		$challenge_url = add_query_arg(
-			$query_args,
-			is_network_admin() ? network_admin_url( 'admin.php' ) : admin_url( 'admin.php' )
+		$challenge_url = wp_sudo_build_challenge_url(
+			is_network_admin() ? network_admin_url( 'admin.php' ) : admin_url( 'admin.php' ),
+			$current_url,
+			array( 'page' => 'wp-sudo-challenge' )
 		);
 
 		printf(
@@ -2828,14 +2818,10 @@ class Gate {
 
 		$current_url = $this->get_current_admin_url();
 
-		$query_args = array( 'page' => 'wp-sudo-challenge' );
-		if ( $current_url ) {
-			$query_args['return_url'] = $current_url;
-		}
-
-		$challenge_url = add_query_arg(
-			$query_args,
-			is_network_admin() ? network_admin_url( 'admin.php' ) : admin_url( 'admin.php' )
+		$challenge_url = wp_sudo_build_challenge_url(
+			is_network_admin() ? network_admin_url( 'admin.php' ) : admin_url( 'admin.php' ),
+			$current_url,
+			array( 'page' => 'wp-sudo-challenge' )
 		);
 
 		printf(

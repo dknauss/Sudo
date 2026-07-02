@@ -109,7 +109,7 @@ class AdminBarTest extends TestCase {
 					static function ( array $args ): bool {
 						return isset( $args[ Admin_Bar::DEACTIVATE_PARAM ], $args[ Admin_Bar::REDIRECT_PARAM ] )
 							&& '1' === $args[ Admin_Bar::DEACTIVATE_PARAM ]
-							&& 'https://example.com/sample-page/' === $args[ Admin_Bar::REDIRECT_PARAM ];
+							&& rawurlencode( 'https://example.com/sample-page/' ) === $args[ Admin_Bar::REDIRECT_PARAM ];
 					}
 				),
 				'https://example.com/wp-admin/'
@@ -150,6 +150,79 @@ class AdminBarTest extends TestCase {
 		$this->assertSame(
 			'https://example.com/wp-admin/?wp_sudo_deactivate=1&wp_sudo_redirect_to=https%3A%2F%2Fexample.com%2Fsample-page%2F&_wpnonce=abc',
 			$nodes['wp-sudo-active']['href']
+		);
+	}
+
+	/**
+	 * Bug: settings-tab-lost-on-reauth-replay (single-site, CONFIRMED — 4th
+	 * trigger: admin-bar sudo deactivation from a tabbed/query-string page).
+	 *
+	 * admin_bar_node() builds the deactivate URL by nesting $current_url — a
+	 * full URL that already contains its own query string (e.g.
+	 * "...options-general.php?page=wp-sudo-settings&tab=access") — as a raw
+	 * VALUE inside the array given to add_query_arg() (self::REDIRECT_PARAM).
+	 * Real WP core's add_query_arg()/build_query() do not urlencode newly-added
+	 * array values, so the nested "&tab=access" becomes a new sibling
+	 * top-level query parameter on the deactivate URL instead of staying part
+	 * of the REDIRECT_PARAM value. When handle_deactivate() later reads
+	 * $_GET[REDIRECT_PARAM] back (class-admin-bar.php:186-188), it is
+	 * truncated at the first "&" and "tab=access" is lost.
+	 *
+	 * This test uses FAITHFUL add_query_arg() semantics
+	 * (TestCase::stub_faithful_add_query_arg()) rather than the fully
+	 * hand-fabricated Mockery expectation/andReturn() string used by
+	 * test_admin_bar_node_shows_for_active_session() above (which hardcodes
+	 * a pre-percent-encoded fake result and does not exercise a query-string
+	 * REQUEST_URI at all), so it can actually detect the defect.
+	 */
+	public function test_admin_bar_node_deactivate_url_preserves_tab_query_arg(): void {
+		Functions\when( 'get_current_user_id' )->justReturn( 5 );
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'admin_url' )->alias( static fn( string $path = '' ): string => 'https://example.com/wp-admin/' . $path );
+		Functions\when( 'is_ssl' )->justReturn( true );
+		Functions\when( 'esc_url_raw' )->returnArg();
+		Functions\when( 'wp_nonce_url' )->alias(
+			static fn( string $url, $action = -1, string $name = '_wpnonce' ): string => $url . '&' . $name . '=abc'
+		);
+		$this->stub_faithful_add_query_arg();
+
+		$_SERVER['REQUEST_URI'] = '/wp-admin/options-general.php?page=wp-sudo-settings&tab=access';
+		$_SERVER['HTTP_HOST']   = 'example.com';
+
+		$future = time() + 300;
+		$token  = 'bar-token-tab';
+
+		Functions\when( 'get_user_meta' )->alias(
+			function ( $uid, $key, $single ) use ( $future, $token ) {
+				if ( Sudo_Session::META_KEY === $key ) {
+					return $future;
+				}
+				if ( Sudo_Session::TOKEN_META_KEY === $key ) {
+					return hash( 'sha256', $token );
+				}
+				return '';
+			}
+		);
+
+		$_COOKIE[ Sudo_Session::TOKEN_COOKIE ] = $token;
+
+		$bar = new \WP_Admin_Bar();
+		$this->admin_bar->admin_bar_node( $bar );
+
+		$nodes = $bar->get_nodes();
+		$this->assertArrayHasKey( 'wp-sudo-active', $nodes );
+
+		// Simulate the browser navigating to the deactivate href and PHP
+		// parsing its query string into $_GET, exactly as handle_deactivate()
+		// would see it via $_GET[ Admin_Bar::REDIRECT_PARAM ].
+		$parts = parse_url( $nodes['wp-sudo-active']['href'] );
+		parse_str( $parts['query'] ?? '', $get );
+
+		$this->assertArrayHasKey( Admin_Bar::REDIRECT_PARAM, $get );
+		$this->assertStringContainsString(
+			'tab=access',
+			$get[ Admin_Bar::REDIRECT_PARAM ],
+			'The admin-bar deactivate URL\'s redirect_to must survive the browser\'s query-string round trip with &tab=access intact.'
 		);
 	}
 
