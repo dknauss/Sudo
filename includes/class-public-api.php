@@ -182,15 +182,7 @@ class Public_API {
 	private static function build_challenge_url( string $return_url ): string {
 		$base_url = is_network_admin() ? network_admin_url( 'admin.php' ) : admin_url( 'admin.php' );
 
-		$query_args = array(
-			'page' => 'wp-sudo-challenge',
-		);
-
-		if ( '' !== $return_url ) {
-			$query_args['return_url'] = $return_url;
-		}
-
-		return add_query_arg( $query_args, $base_url );
+		return wp_sudo_build_challenge_url( $base_url, $return_url, array( 'page' => 'wp-sudo-challenge' ) );
 	}
 
 	/**
