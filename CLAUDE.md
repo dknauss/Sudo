@@ -198,6 +198,12 @@ changed since the last release. Use the project size commands above.
 
 And update `Stable tag` in `readme.txt`.
 
+Also bump the Playground stable-demo install target in `blueprint.json` — the
+`archive/refs/tags/vX.Y.Z.zip` URL in its `installPlugin` step — to the new tag.
+The release badges point at `main/blueprint.json` (not a frozen tag), so this one
+edit keeps "Try the latest release in Playground" installing the current release.
+(`blueprint-main.json` tracks `archive/refs/heads/main.zip` and needs no bump.)
+
 ## Test-Driven Development
 
 All new code must follow TDD:

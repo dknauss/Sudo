@@ -45,11 +45,14 @@ jobs:
             }
 
             delete pluginStep.pluginZipFile;
+            // Pin the install to the PR commit via a plain GitHub archive .zip
+            // (resource: 'url'), NOT git:directory. Playground's git-clone path
+            // currently fails with "createHash is not a function", while plain
+            // .zip downloads are unaffected; a commit archive installs the exact
+            // SHA and dodges that regression.
             pluginStep.pluginData = {
-              resource: 'git:directory',
-              url: repoUrl,
-              ref: sha,
-              refType: 'commit',
+              resource: 'url',
+              url: `${repoUrl}/archive/${sha}.zip`,
             };
 
             const encoded = encodeURIComponent(JSON.stringify(blueprint));
@@ -62,7 +65,7 @@ jobs:
               '',
               'Preview is pinned to WordPress `7.0`.',
               '',
-              `Uses the checked-in \`blueprint.json\` from this PR, with the plugin install pinned to commit \`${sha}\` through Playground's CORS-safe \`git:directory\` resource.`,
+              `Uses the checked-in \`blueprint.json\` from this PR, with the plugin install pinned to commit \`${sha}\` via a GitHub archive \`.zip\` (\`resource: url\`).`,
               '',
               'Logs in as `admin` / `password`; use `password` again for the WP Sudo reauthentication challenge.',
               '',
