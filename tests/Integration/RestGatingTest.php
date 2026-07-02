@@ -86,7 +86,7 @@ class RestGatingTest extends TestCase {
 		$challenge_url = (string) $error_data['challenge_url'];
 		$this->assertStringStartsWith( admin_url( 'admin.php' ), $challenge_url );
 		$this->assertStringContainsString( 'page=wp-sudo-challenge', $challenge_url );
-		$this->assertStringContainsString( 'return_url=' . admin_url( 'site-editor.php' ), $challenge_url );
+		$this->assertStringContainsString( 'return_url=' . rawurlencode( admin_url( 'site-editor.php' ) ), $challenge_url );
 		$this->assertStringNotContainsString( 'stash_key=', $challenge_url );
 	}
 
@@ -120,7 +120,7 @@ class RestGatingTest extends TestCase {
 		$challenge_url = (string) $error_data['challenge_url'];
 		$this->assertStringStartsWith( network_admin_url( 'admin.php' ), $challenge_url );
 		$this->assertStringContainsString( 'page=wp-sudo-challenge', $challenge_url );
-		$this->assertStringContainsString( 'return_url=' . network_admin_url( 'plugins.php' ), $challenge_url );
+		$this->assertStringContainsString( 'return_url=' . rawurlencode( network_admin_url( 'plugins.php' ) ), $challenge_url );
 		$this->assertStringNotContainsString( 'stash_key=', $challenge_url );
 	}
 
