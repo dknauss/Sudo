@@ -4063,8 +4063,23 @@ class AdminTest extends TestCase {
 			->andReturn( true );
 		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		Functions\when( 'get_current_user_id' )->justReturn( 2 );
-		// Operator session live (own gate) AND target session live.
-		Functions\when( 'get_user_meta' )->justReturn( time() + 120 );
+		// Operator (2) holds a token-bound active sudo session (is_active) AND the
+		// target (9) session is live. is_active(2) requires the expiry meta, a
+		// stored token hash, and a matching request cookie token.
+		$operator_token = 'operator-sudo-token';
+		Functions\when( 'get_user_meta' )->alias(
+			static function ( int $uid, string $key ) use ( $operator_token ) {
+				if ( \WP_Sudo\Sudo_Session::META_KEY === $key ) {
+					return time() + 120;
+				}
+				if ( 2 === $uid && \WP_Sudo\Sudo_Session::TOKEN_META_KEY === $key ) {
+					return hash( 'sha256', $operator_token );
+				}
+				return '';
+			}
+		);
+		Functions\when( 'hash_equals' )->alias( static fn( string $a, string $b ): bool => $a === $b );
+		$_COOKIE[ \WP_Sudo\Sudo_Session::TOKEN_COOKIE ] = $operator_token;
 		Functions\when( 'get_transient' )->justReturn( 0 );
 		Functions\when( 'set_transient' )->justReturn( true );
 		Functions\when( 'delete_user_meta' )->justReturn( true );
@@ -4102,6 +4117,7 @@ class AdminTest extends TestCase {
 		}
 
 		unset( $_GET['user_id'] );
+		unset( $_COOKIE[ \WP_Sudo\Sudo_Session::TOKEN_COOKIE ] );
 	}
 
 	public function test_revoke_session_row_action_blocked_when_operator_has_no_active_session(): void {
@@ -4119,6 +4135,64 @@ class AdminTest extends TestCase {
 					return 0;
 				}
 				return time() + 120;
+			}
+		);
+
+		Functions\expect( 'set_transient' )->never();
+		Functions\expect( 'delete_user_meta' )->never();
+		Functions\expect( 'do_action' )->never();
+		Functions\when( 'admin_url' )->alias( static fn( string $path = '' ) => 'https://example.com/wp-admin/' . ltrim( $path, '/' ) );
+		Functions\when( 'add_query_arg' )->alias(
+			static function ( array $args, string $url ) {
+				return $url . ( str_contains( $url, '?' ) ? '&' : '?' ) . http_build_query( $args );
+			}
+		);
+
+		Functions\expect( 'wp_safe_redirect' )
+			->once()
+			->with( \Mockery::on( static function ( string $url ): bool {
+				return false !== strpos( $url, 'users.php' )
+					&& false !== strpos( $url, 'wp_sudo_revoke_result=no-operator-session' );
+			} ) )
+			->andThrow( new \RuntimeException( 'redirected' ) );
+
+		$_GET['user_id'] = '9';
+
+		$admin = new Admin();
+
+		try {
+			$admin->handle_revoke_session_row_action();
+			$this->fail( 'Expected redirect short-circuit.' );
+		} catch ( \RuntimeException $e ) {
+			$this->assertSame( 'redirected', $e->getMessage() );
+		}
+
+		unset( $_GET['user_id'] );
+	}
+
+	/**
+	 * Security regression guard: the perform handler must require the operator's
+	 * CURRENT request to hold a token-bound sudo session (is_active), not merely
+	 * a future expiry timestamp (is_session_live). A live expiry with no valid
+	 * request token — e.g. a stolen auth cookie, or a second session without its
+	 * own sudo — must be blocked before any session is revoked.
+	 *
+	 * @since 4.5.0
+	 */
+	public function test_revoke_session_row_action_blocked_when_operator_session_lacks_token_binding(): void {
+		Functions\expect( 'check_admin_referer' )
+			->once()
+			->andReturn( true );
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
+		Functions\when( 'get_current_user_id' )->justReturn( 2 );
+		// Operator (2) expiry is in the FUTURE — is_session_live(2) would pass —
+		// but there is no stored token hash, so verify_token()/is_active(2) fails.
+		Functions\when( 'get_user_meta' )->alias(
+			static function ( int $user_id, string $key ) { // phpcs:ignore VariableAnalysis.CodeAnalysis.VariableAnalysis.UnusedVariable -- $user_id parity with get_user_meta signature.
+				if ( \WP_Sudo\Sudo_Session::META_KEY === $key ) {
+					return time() + 600;
+				}
+				return ''; // no TOKEN_META_KEY hash -> verify_token() is false
 			}
 		);
 
@@ -4203,16 +4277,22 @@ class AdminTest extends TestCase {
 			->andReturn( true );
 		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		Functions\when( 'get_current_user_id' )->justReturn( 2 );
-		// Operator session is live (passes own gate), but the target's session
-		// has since expired (race condition) -> core returns target_expired.
+		// Operator (2) holds a token-bound active sudo session (passes is_active),
+		// but the target's session has since expired (race) -> target_expired.
+		$operator_token = 'operator-sudo-token';
 		Functions\when( 'get_user_meta' )->alias(
-			static function ( int $user_id, string $key ) {
+			static function ( int $user_id, string $key ) use ( $operator_token ) {
 				if ( 2 === $user_id && \WP_Sudo\Sudo_Session::META_KEY === $key ) {
 					return time() + 120;
+				}
+				if ( 2 === $user_id && \WP_Sudo\Sudo_Session::TOKEN_META_KEY === $key ) {
+					return hash( 'sha256', $operator_token );
 				}
 				return time() - 60;
 			}
 		);
+		Functions\when( 'hash_equals' )->alias( static fn( string $a, string $b ): bool => $a === $b );
+		$_COOKIE[ \WP_Sudo\Sudo_Session::TOKEN_COOKIE ] = $operator_token;
 
 		Functions\expect( 'get_transient' )->never();
 		Functions\expect( 'set_transient' )->never();
@@ -4244,6 +4324,7 @@ class AdminTest extends TestCase {
 		}
 
 		unset( $_GET['user_id'] );
+		unset( $_COOKIE[ \WP_Sudo\Sudo_Session::TOKEN_COOKIE ] );
 	}
 
 	// -----------------------------------------------------------------
@@ -4423,7 +4504,7 @@ class AdminTest extends TestCase {
 	public function test_process_revoke_all_perform_blocked_when_operator_has_no_active_session(): void {
 		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		Functions\when( 'get_current_user_id' )->justReturn( 2 );
-		// Operator's own session expiry is in the past -> is_session_live(2) false.
+		// Operator's own session expiry is in the past -> is_active(2) false (expiry check).
 		Functions\when( 'get_user_meta' )->justReturn( time() - 60 );
 
 		Functions\expect( 'get_transient' )->never();
@@ -4437,10 +4518,45 @@ class AdminTest extends TestCase {
 		$this->assertSame( 0, $result['count'] );
 	}
 
-	public function test_process_revoke_all_perform_blocked_when_rate_limited(): void {
+	/**
+	 * Security regression guard (revoke-all): performing a batch revocation must
+	 * require the operator's token-bound sudo session (is_active), not merely a
+	 * future expiry timestamp (is_session_live). A live expiry with no valid
+	 * request token — e.g. a stolen auth cookie, or a second session without its
+	 * own sudo — must be blocked before any session is revoked.
+	 *
+	 * @since 4.5.0
+	 */
+	public function test_process_revoke_all_perform_blocked_when_operator_session_lacks_token_binding(): void {
 		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		Functions\when( 'get_current_user_id' )->justReturn( 2 );
-		Functions\when( 'get_user_meta' )->justReturn( time() + 120 ); // Operator session live.
+		// Operator expiry is in the FUTURE — is_session_live(2) would pass — but no
+		// stored token hash, so verify_token()/is_active(2) is false.
+		Functions\when( 'get_user_meta' )->alias(
+			static function ( int $user_id, string $key ) { // phpcs:ignore VariableAnalysis.CodeAnalysis.VariableAnalysis.UnusedVariable -- $user_id parity with get_user_meta signature.
+				if ( \WP_Sudo\Sudo_Session::META_KEY === $key ) {
+					return time() + 600;
+				}
+				return ''; // no TOKEN_META_KEY hash -> verify_token() is false
+			}
+		);
+
+		Functions\expect( 'get_transient' )->never();
+		Functions\expect( 'set_transient' )->never();
+		Functions\expect( 'get_users' )->never();
+		Functions\expect( 'do_action' )->never();
+
+		$admin  = new Admin();
+		$result = $this->invoke_process_revoke_all_perform( $admin );
+
+		$this->assertSame( 'no-operator-session', $result['outcome'] );
+		$this->assertSame( 0, $result['count'] );
+	}
+
+	public function test_process_revoke_all_perform_blocked_when_rate_limited(): void {
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
+		// Operator (2) holds a token-bound active sudo session (is_active).
+		$this->mock_active_sudo_session( 2 );
 		Functions\when( 'get_transient' )->justReturn( 10 ); // At REVOKE_RATE_LIMIT.
 
 		Functions\expect( 'set_transient' )->never();
@@ -4456,8 +4572,8 @@ class AdminTest extends TestCase {
 
 	public function test_process_revoke_all_perform_consumes_exactly_one_rate_slot_and_excludes_operator(): void {
 		Functions\when( 'wp_sudo_can' )->justReturn( true );
-		Functions\when( 'get_current_user_id' )->justReturn( 2 );
-		Functions\when( 'get_user_meta' )->justReturn( time() + 120 ); // Operator session live.
+		// Operator (2) holds a token-bound active sudo session (is_active).
+		$this->mock_active_sudo_session( 2 );
 		Functions\when( 'get_transient' )->justReturn( 3 );
 		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
 
@@ -4490,8 +4606,8 @@ class AdminTest extends TestCase {
 
 	public function test_process_revoke_all_perform_drained_set_is_success_with_zero_count_not_an_error(): void {
 		Functions\when( 'wp_sudo_can' )->justReturn( true );
-		Functions\when( 'get_current_user_id' )->justReturn( 2 );
-		Functions\when( 'get_user_meta' )->justReturn( time() + 120 ); // Operator session live.
+		// Operator (2) holds a token-bound active sudo session (is_active).
+		$this->mock_active_sudo_session( 2 );
 		Functions\when( 'get_transient' )->justReturn( 0 );
 		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
 
@@ -4540,7 +4656,19 @@ class AdminTest extends TestCase {
 			->andReturn( true );
 		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		Functions\when( 'get_current_user_id' )->justReturn( 2 );
-		Functions\when( 'get_user_meta' )->justReturn( time() + 120 );
+		// Operator (2) holds a token-bound active sudo session (passes is_active);
+		// any other meta read (target liveness) stays live.
+		$operator_token = 'operator-sudo-token';
+		Functions\when( 'get_user_meta' )->alias(
+			static function ( int $uid, string $key ) use ( $operator_token ) {
+				if ( 2 === $uid && \WP_Sudo\Sudo_Session::TOKEN_META_KEY === $key ) {
+					return hash( 'sha256', $operator_token );
+				}
+				return time() + 120;
+			}
+		);
+		Functions\when( 'hash_equals' )->alias( static fn( string $a, string $b ): bool => $a === $b );
+		$_COOKIE[ \WP_Sudo\Sudo_Session::TOKEN_COOKIE ] = $operator_token;
 		Functions\when( 'get_transient' )->justReturn( 0 );
 		Functions\when( 'set_transient' )->justReturn( true );
 		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
@@ -4572,6 +4700,8 @@ class AdminTest extends TestCase {
 		} catch ( \RuntimeException $e ) {
 			$this->assertSame( 'redirected', $e->getMessage() );
 		}
+
+		unset( $_COOKIE[ \WP_Sudo\Sudo_Session::TOKEN_COOKIE ] );
 	}
 
 	public function test_handle_revoke_all_perform_blocked_paths_redirect_without_enumeration(): void {

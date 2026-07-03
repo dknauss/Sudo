@@ -354,6 +354,9 @@ class SudoSessionTest extends TestCase
 		Functions\when('delete_user_meta')->justReturn(true);
 		Functions\when('is_ssl')->justReturn(false);
 		Functions\when('headers_sent')->justReturn(false);
+		// Self-deactivate: user 9 is the current request user, so the browser
+		// cookie belongs to this request and is expired.
+		Functions\when('get_current_user_id')->justReturn(9);
 
 		// Clears cookies on both COOKIEPATH and ADMIN_COOKIE_PATH (stale cleanup).
 		Functions\expect('setcookie')
@@ -363,6 +366,22 @@ class SudoSessionTest extends TestCase
 				'',
 				\Mockery::type('array')
 			);
+
+		Sudo_Session::deactivate(9);
+	}
+
+	public function test_deactivate_other_user_preserves_current_request_cookie(): void
+	{
+		// An operator (current request user 2) revokes another user's (9)
+		// session. The wp_sudo_token cookie belongs to the operator's request,
+		// so it must NOT be expired — only the target's server-side session data
+		// is cleared. Otherwise the operator's own token-bound sudo would break
+		// after revoking someone else.
+		Functions\when('get_current_user_id')->justReturn(2);
+		Functions\when('headers_sent')->justReturn(false);
+
+		Functions\expect('delete_user_meta')->times(3); // target META, TOKEN, BIND.
+		Functions\expect('setcookie')->never();
 
 		Sudo_Session::deactivate(9);
 	}
