@@ -4606,6 +4606,75 @@ class GateTest extends TestCase {
 	}
 
 	/**
+	 * Security regression guard (multisite): the authority check is scoped to the
+	 * blog whose capabilities row is written. An actor who is an admin on the
+	 * CURRENT blog, with an active sudo session, must NOT pass when the write
+	 * targets a DIFFERENT blog (`wp_2_capabilities`) where they lack
+	 * promote_users — otherwise a cross-site handler enables cross-blog
+	 * escalation.
+	 *
+	 * @since 4.5.1
+	 */
+	public function test_escalation_guard_blocks_cross_blog_grant_without_target_blog_authority(): void {
+		$this->prime_escalation_env( true );
+		Functions\when( 'is_multisite' )->justReturn( true );
+		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
+		Functions\when( 'get_main_site_id' )->justReturn( 1 );
+
+		// user_can reflects the CURRENT blog context: the actor is an admin on
+		// blog 1 (not switched) but lacks promote_users on the target blog 2
+		// (switched). This isolates the blog-scoping: the old current-blog check
+		// would see `true` and wrongly allow.
+		$switched = false;
+		Functions\when( 'switch_to_blog' )->alias(
+			static function ( $blog_id ) use ( &$switched ) { // phpcs:ignore VariableAnalysis.CodeAnalysis.VariableAnalysis.UnusedVariable -- $blog_id parity with switch_to_blog signature.
+				$switched = true;
+				return true;
+			}
+		);
+		Functions\when( 'restore_current_blog' )->alias(
+			static function () use ( &$switched ) {
+				$switched = false;
+				return true;
+			}
+		);
+		Functions\when( 'user_can' )->alias(
+			static function ( $uid, $cap ) use ( &$switched ) { // phpcs:ignore VariableAnalysis.CodeAnalysis.VariableAnalysis.UnusedVariable -- signature parity.
+				return ! $switched; // admin on current blog, not on target blog.
+			}
+		);
+
+		$token = 'authority-test-token';
+		Functions\when( 'get_current_user_id' )->justReturn( 5 );
+		Functions\when( 'get_user_meta' )->alias(
+			static function ( $uid, $key, $single = true ) use ( $token ) { // phpcs:ignore VariableAnalysis.CodeAnalysis.VariableAnalysis.UnusedVariable -- signature parity.
+				if ( 5 === (int) $uid && \WP_Sudo\Sudo_Session::META_KEY === $key ) {
+					return time() + 600;
+				}
+				if ( 5 === (int) $uid && \WP_Sudo\Sudo_Session::TOKEN_META_KEY === $key ) {
+					return hash( 'sha256', $token );
+				}
+				return array();
+			}
+		);
+		Functions\when( 'hash_equals' )->alias( static fn( $a, $b ) => $a === $b );
+		$_COOKIE[ \WP_Sudo\Sudo_Session::TOKEN_COOKIE ] = $token;
+
+		Actions\expectDone( 'wp_sudo_escalation_blocked' )
+			->once()
+			->with( 7, 'user.promote', 'admin' );
+		Functions\expect( 'wp_die' )
+			->once()
+			->with( \Mockery::type( 'string' ), '', array( 'response' => 403 ) );
+
+		$guard  = $this->capture_escalation_guard();
+		$result = $guard( null, 7, 'wp_2_capabilities', array( 'administrator' => true ), '' );
+
+		$this->assertNull( $result );
+		unset( $_COOKIE[ \WP_Sudo\Sudo_Session::TOKEN_COOKIE ] );
+	}
+
+	/**
 	 * Capture the closure arm_escalation_guard() registers on grant_super_admin.
 	 *
 	 * @return callable
