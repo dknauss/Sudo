@@ -1382,7 +1382,15 @@ class Admin {
 
 		$operator_id = get_current_user_id();
 
-		if ( ! Sudo_Session::is_session_live( $operator_id ) ) {
+		// Token-bound gate: require the operator's CURRENT request to carry a
+		// valid cookie-bound sudo token (is_active), not merely a live expiry
+		// timestamp (is_session_live). The row-action visibility deliberately
+		// uses the browser-independent is_session_live so the control still
+		// shows and the operator gets a distinct message, but performing the
+		// revocation must verify this request actually holds sudo — otherwise a
+		// stolen auth cookie, or a second session without its own sudo, could
+		// revoke other users' sessions while `_wp_sudo_expires` is still future.
+		if ( ! Sudo_Session::is_active( $operator_id ) ) {
 			return 'no-operator-session';
 		}
 
@@ -1536,7 +1544,12 @@ class Admin {
 
 		$operator_id = get_current_user_id();
 
-		if ( ! Sudo_Session::is_session_live( $operator_id ) ) {
+		// Token-bound gate (mirrors process_revoke_session_row_action): a batch
+		// revocation must verify this request holds a valid cookie-bound sudo
+		// token (is_active), not merely a live expiry timestamp (is_session_live)
+		// — otherwise a stolen auth cookie, or a second session without its own
+		// sudo, could revoke every active session on the site.
+		if ( ! Sudo_Session::is_active( $operator_id ) ) {
 			return array(
 				'outcome' => 'no-operator-session',
 				'count'   => 0,
