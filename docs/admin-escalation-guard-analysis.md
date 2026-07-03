@@ -358,12 +358,17 @@ reauth prompt (§6, §8).
   (admin, REST, AJAX, cron, XML-RPC, unauthenticated), so one guard here covers
   all of them — this is the recommended scope (§5), not an admin-`init`-only
   guard.
-- **Trigger condition:** block only when the write **newly grants**
-  `administrator` (single-site) or super-admin (multisite) AND no
-  `Sudo_Session::is_active()/is_within_grace()`. "Newly grants" = administrator
-  present in the new value but absent from the user's current capabilities (use
-  the existing caps, not solely the filter's `$prev_value`, which is empty for
-  `add_user_metadata`).
+- **Trigger condition (per the _Superseded reasoning_ note at the top):** block
+  when the write **newly grants** `administrator` (single-site) or super-admin
+  (multisite) **unless the actor both** holds the promoting authority
+  (`promote_users` on the target blog, or existing super-admin for
+  `grant_super_admin`) **and** has an active/grace `Sudo_Session`. The
+  session-only trigger in earlier drafts (block whenever there is no
+  `is_active()/is_within_grace()`) was insufficient: sudo is reauthentication, not
+  authorization, so a low-privilege actor can hold a session — the authority check
+  is what actually stops them. "Newly grants" = administrator present in the new
+  value but absent from the user's current capabilities (use the existing caps,
+  not solely the filter's `$prev_value`, which is empty for `add_user_metadata`).
 - **Detection basis:** role-name `administrator` is the v1 choice for precision
   and low false positives. A capability-based check (gaining `manage_options` /
   `promote_users` / `edit_users`) would catch custom admin-equivalent roles but
@@ -546,11 +551,16 @@ low-privilege user (a subscriber, a customer), triggers it and walks away with
 full control of the site.
 
 This guard adds a second, independent lock: granting administrator (or
-super-admin) requires that whoever is doing it has **recently re-confirmed their
-identity** (an active WP Sudo session). The attacker in these exploits is
-unauthenticated or low-privilege, so they *cannot* hold that session — the grant
-is denied **even though the vulnerable plugin's own permission check failed**. It
-is protection that works on code you did not write and cannot audit.
+super-admin) requires that whoever is doing it **both** holds the promoting
+authority (`promote_users` on the target blog, or existing super-admin) **and**
+has **recently re-confirmed their identity** (an active WP Sudo session). The
+attacker in these exploits is unauthenticated or low-privilege, so they lack that
+authority — and a low-privilege account that somehow holds a session still fails
+the authority check — so the grant is denied **even though the vulnerable
+plugin's own permission check failed**. (Sudo is reauthentication, not
+authorization: the authority requirement, not the session alone, is what stops an
+under-privileged actor.) It is protection that works on code you did not write and
+cannot audit.
 
 ### How do we avoid leaving "orphaned" users in the database?
 
