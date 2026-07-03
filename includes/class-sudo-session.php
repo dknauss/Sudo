@@ -971,6 +971,16 @@ class Sudo_Session {
 		delete_user_meta( $user_id, self::TOKEN_META_KEY );
 		delete_user_meta( $user_id, self::SESSION_BIND_META_KEY );
 
+		// The wp_sudo_token cookie is browser-scoped — it belongs to whoever is
+		// making THIS request, not to $user_id. Only expire it when clearing the
+		// current user's OWN session (logout / self-deactivate). When an operator
+		// revokes another user's session, leaving the operator's own request
+		// cookie intact keeps their token-bound sudo (is_active) valid for a
+		// follow-up revoke instead of forcing an immediate re-challenge.
+		if ( get_current_user_id() !== $user_id ) {
+			return;
+		}
+
 		// Expire cookies on both paths — clears the current COOKIEPATH cookie
 		// and any stale cookie from the old ADMIN_COOKIE_PATH scope.
 		// Guard with headers_sent() so CLI/cron/integration-test contexts do not
