@@ -984,11 +984,20 @@ class Gate {
 				return $check;
 			}
 
-			// A re-confirmed actor (active or in-grace sudo session) may grant
-			// administrator. An unauthenticated (0) or low-privilege actor cannot
-			// hold a session, so the grant is blocked.
+			// Allow the grant only for an actor who BOTH holds the authority to
+			// promote users AND has re-confirmed via an active or in-grace sudo
+			// session. Sudo is reauthentication, not authorization — a
+			// low-privilege account (subscriber/customer) can hold a sudo session
+			// too, so requiring the session alone would let this backstop wave
+			// through an escalation reaching a broken-access-control route. The
+			// authority is checked on the blog whose capabilities row is being
+			// written (parsed from $meta_key), so a cross-site handler cannot let
+			// an admin of one blog grant administrator on another.
 			$actor = (int) get_current_user_id();
-			if ( $actor && ( Sudo_Session::is_active( $actor ) || Sudo_Session::is_within_grace( $actor ) ) ) {
+			if ( $actor > 0
+				&& $this->actor_can_promote_on_target_blog( $actor, (string) $meta_key )
+				&& ( Sudo_Session::is_active( $actor ) || Sudo_Session::is_within_grace( $actor ) )
+			) {
 				return $check;
 			}
 
@@ -1054,8 +1063,16 @@ class Gate {
 				return;
 			}
 
+			// Allow only for an actor who is ALREADY a super admin (the authority
+			// to grant super admin) AND has re-confirmed via sudo. As above, a
+			// sudo session alone is reauthentication, not authorization: a
+			// low-privilege account can hold one, so requiring it alone would let
+			// this backstop pass a super-admin escalation on a broken route.
 			$actor = (int) get_current_user_id();
-			if ( $actor && ( Sudo_Session::is_active( $actor ) || Sudo_Session::is_within_grace( $actor ) ) ) {
+			if ( $actor
+				&& is_super_admin( $actor )
+				&& ( Sudo_Session::is_active( $actor ) || Sudo_Session::is_within_grace( $actor ) )
+			) {
 				return;
 			}
 
@@ -1200,6 +1217,70 @@ class Gate {
 
 		// The literal default key, in case base_prefix differs from 'wp_'.
 		return 'wp_capabilities' === $meta_key;
+	}
+
+	/**
+	 * Whether the actor holds `promote_users` on the blog whose capabilities row
+	 * is being written.
+	 *
+	 * The escalation guard fires on a `{prefix}capabilities` write that may target
+	 * any blog on multisite (e.g. `wp_2_capabilities`). Checking the actor's
+	 * capability on the *current* blog would let a cross-site handler — one that
+	 * writes another blog's capabilities without `switch_to_blog()` — treat an
+	 * admin of the current blog as authorized to grant administrator on a
+	 * different blog. So the check is scoped to the target blog.
+	 *
+	 * @since 4.5.1
+	 *
+	 * @param int    $actor    Acting user ID (already verified > 0).
+	 * @param string $meta_key The capabilities meta key being written.
+	 * @return bool True if the actor can promote users on the target blog.
+	 */
+	private function actor_can_promote_on_target_blog( int $actor, string $meta_key ): bool {
+		$blog_id = $this->capabilities_meta_key_blog_id( $meta_key );
+
+		if ( is_multisite()
+			&& $blog_id > 0
+			&& function_exists( 'get_current_blog_id' )
+			&& (int) get_current_blog_id() !== $blog_id
+		) {
+			switch_to_blog( $blog_id ); // phpcs:ignore WordPressVIPMinimum.Functions.RestrictedFunctions.switch_to_blog_switch_to_blog -- Intentional: the authority check must run in the target blog's role context; paired with restore_current_blog() below.
+			$can = user_can( $actor, 'promote_users' );
+			restore_current_blog();
+
+			return (bool) $can;
+		}
+
+		return (bool) user_can( $actor, 'promote_users' );
+	}
+
+	/**
+	 * Resolve the blog ID a `{prefix}capabilities` meta key belongs to.
+	 *
+	 * `wp_{N}_capabilities` → blog N; the unprefixed `{base}capabilities` key uses
+	 * the base table prefix and so belongs to blog 1 (on multisite), or is
+	 * irrelevant on single site (returns 0, which callers treat as "the
+	 * current/only blog").
+	 *
+	 * @since 4.5.1
+	 *
+	 * @param string $meta_key The capabilities meta key.
+	 * @return int Target blog ID, or 0 when not blog-specific.
+	 */
+	private function capabilities_meta_key_blog_id( string $meta_key ): int {
+		global $wpdb;
+
+		$base = isset( $wpdb->base_prefix ) ? (string) $wpdb->base_prefix : 'wp_';
+
+		if ( 1 === preg_match( '/^' . preg_quote( $base, '/' ) . '(\d+)_capabilities$/', $meta_key, $m ) ) {
+			return (int) $m[1];
+		}
+
+		// The unnumbered `{base_prefix}capabilities` key uses the base table
+		// prefix, which belongs to the network's original site — blog 1 — not
+		// necessarily get_main_site_id() (which can differ on a multi-network
+		// install). On single site the blog is irrelevant (0 = current/only blog).
+		return is_multisite() ? 1 : 0;
 	}
 
 	/**
