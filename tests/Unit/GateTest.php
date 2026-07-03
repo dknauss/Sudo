@@ -4372,6 +4372,11 @@ class GateTest extends TestCase {
 		Functions\when( 'wp_doing_ajax' )->justReturn( false );
 		Functions\when( 'wp_doing_cron' )->justReturn( false );
 		Functions\when( 'is_admin' )->justReturn( true );
+		// Default the actor to an authorized promoter; the no-authority regression
+		// test overrides this to false to exercise the escalation-authority gate.
+		// (Super-admin tests mock is_super_admin themselves — it also drives the
+		// guard's idempotent target check, so it is not defaulted here.)
+		Functions\when( 'user_can' )->justReturn( true );
 		Functions\when( 'apply_filters' )->alias(
 			static function ( $hook, $value = null ) use ( $guard_on ) {
 				if ( 'wp_sudo_guard_escalation' === $hook ) {
@@ -4558,6 +4563,49 @@ class GateTest extends TestCase {
 	}
 
 	/**
+	 * Security regression guard: an actor who holds an active sudo session but
+	 * LACKS promote_users must NOT pass the escalation backstop. Sudo is
+	 * reauthentication, not authorization — a low-privilege account can hold a
+	 * session — so the administrator grant is still blocked.
+	 *
+	 * @since 4.5.1
+	 */
+	public function test_escalation_guard_blocks_admin_grant_when_actor_lacks_authority(): void {
+		$this->prime_escalation_env( true );
+		$token = 'authority-test-token';
+		// Actor 5 has an active sudo session (is_active true)...
+		Functions\when( 'get_current_user_id' )->justReturn( 5 );
+		Functions\when( 'get_user_meta' )->alias(
+			static function ( $uid, $key, $single = true ) use ( $token ) { // phpcs:ignore VariableAnalysis.CodeAnalysis.VariableAnalysis.UnusedVariable -- $single parity with get_user_meta signature.
+				if ( 5 === (int) $uid && \WP_Sudo\Sudo_Session::META_KEY === $key ) {
+					return time() + 600;
+				}
+				if ( 5 === (int) $uid && \WP_Sudo\Sudo_Session::TOKEN_META_KEY === $key ) {
+					return hash( 'sha256', $token );
+				}
+				return array(); // target 7 has no caps -> newly grants administrator
+			}
+		);
+		Functions\when( 'hash_equals' )->alias( static fn( $a, $b ) => $a === $b );
+		$_COOKIE[ \WP_Sudo\Sudo_Session::TOKEN_COOKIE ] = $token;
+		// ...but does NOT hold promote_users.
+		Functions\when( 'user_can' )->justReturn( false );
+
+		Actions\expectDone( 'wp_sudo_escalation_blocked' )
+			->once()
+			->with( 7, 'user.promote', 'admin' );
+		Functions\expect( 'wp_die' )
+			->once()
+			->with( \Mockery::type( 'string' ), '', array( 'response' => 403 ) );
+
+		$guard  = $this->capture_escalation_guard();
+		$result = $guard( null, 7, 'wp_capabilities', array( 'administrator' => true ), '' );
+
+		$this->assertNull( $result );
+		unset( $_COOKIE[ \WP_Sudo\Sudo_Session::TOKEN_COOKIE ] );
+	}
+
+	/**
 	 * Capture the closure arm_escalation_guard() registers on grant_super_admin.
 	 *
 	 * @return callable
@@ -4607,6 +4655,46 @@ class GateTest extends TestCase {
 
 		$guard = $this->capture_super_admin_guard();
 		$guard( 7 );
+	}
+
+	/**
+	 * Security regression guard: an actor with an active sudo session who is NOT
+	 * already a super admin must NOT pass the super-admin escalation backstop —
+	 * reauthentication is not authorization.
+	 *
+	 * @since 4.5.1
+	 */
+	public function test_super_admin_guard_blocks_grant_when_actor_not_super_admin(): void {
+		$this->prime_escalation_env( true );
+		// Neither target (7) nor actor (5) is a super admin.
+		Functions\when( 'is_super_admin' )->justReturn( false );
+		$token = 'authority-test-token';
+		// Actor 5 nonetheless holds an active sudo session (is_active true).
+		Functions\when( 'get_current_user_id' )->justReturn( 5 );
+		Functions\when( 'get_user_meta' )->alias(
+			static function ( $uid, $key, $single = true ) use ( $token ) { // phpcs:ignore VariableAnalysis.CodeAnalysis.VariableAnalysis.UnusedVariable -- $single parity with get_user_meta signature.
+				if ( 5 === (int) $uid && \WP_Sudo\Sudo_Session::META_KEY === $key ) {
+					return time() + 600;
+				}
+				if ( 5 === (int) $uid && \WP_Sudo\Sudo_Session::TOKEN_META_KEY === $key ) {
+					return hash( 'sha256', $token );
+				}
+				return array();
+			}
+		);
+		Functions\when( 'hash_equals' )->alias( static fn( $a, $b ) => $a === $b );
+		$_COOKIE[ \WP_Sudo\Sudo_Session::TOKEN_COOKIE ] = $token;
+
+		Actions\expectDone( 'wp_sudo_escalation_blocked' )
+			->once()
+			->with( 7, 'user.super_admin', 'admin' );
+		Functions\expect( 'wp_die' )
+			->once()
+			->with( \Mockery::type( 'string' ), '', array( 'response' => 403 ) );
+
+		$guard = $this->capture_super_admin_guard();
+		$guard( 7 );
+		unset( $_COOKIE[ \WP_Sudo\Sudo_Session::TOKEN_COOKIE ] );
 	}
 
 	/**

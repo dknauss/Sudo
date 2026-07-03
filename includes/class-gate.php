@@ -984,11 +984,17 @@ class Gate {
 				return $check;
 			}
 
-			// A re-confirmed actor (active or in-grace sudo session) may grant
-			// administrator. An unauthenticated (0) or low-privilege actor cannot
-			// hold a session, so the grant is blocked.
+			// Allow the grant only for an actor who BOTH holds the authority to
+			// promote users (promote_users) AND has re-confirmed via an active or
+			// in-grace sudo session. Sudo is reauthentication, not authorization —
+			// a low-privilege account (subscriber/customer) can hold a sudo
+			// session too, so requiring the session alone would let this backstop
+			// wave through an escalation reaching a broken-access-control route.
 			$actor = (int) get_current_user_id();
-			if ( $actor && ( Sudo_Session::is_active( $actor ) || Sudo_Session::is_within_grace( $actor ) ) ) {
+			if ( $actor
+				&& user_can( $actor, 'promote_users' )
+				&& ( Sudo_Session::is_active( $actor ) || Sudo_Session::is_within_grace( $actor ) )
+			) {
 				return $check;
 			}
 
@@ -1054,8 +1060,16 @@ class Gate {
 				return;
 			}
 
+			// Allow only for an actor who is ALREADY a super admin (the authority
+			// to grant super admin) AND has re-confirmed via sudo. As above, a
+			// sudo session alone is reauthentication, not authorization: a
+			// low-privilege account can hold one, so requiring it alone would let
+			// this backstop pass a super-admin escalation on a broken route.
 			$actor = (int) get_current_user_id();
-			if ( $actor && ( Sudo_Session::is_active( $actor ) || Sudo_Session::is_within_grace( $actor ) ) ) {
+			if ( $actor
+				&& is_super_admin( $actor )
+				&& ( Sudo_Session::is_active( $actor ) || Sudo_Session::is_within_grace( $actor ) )
+			) {
 				return;
 			}
 
