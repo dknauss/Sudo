@@ -1257,9 +1257,10 @@ class Gate {
 	/**
 	 * Resolve the blog ID a `{prefix}capabilities` meta key belongs to.
 	 *
-	 * `wp_{N}_capabilities` → blog N; the unprefixed `{base}capabilities` key is
-	 * the main site (on multisite) or irrelevant on single site (returns 0, which
-	 * callers treat as "the current/only blog").
+	 * `wp_{N}_capabilities` → blog N; the unprefixed `{base}capabilities` key uses
+	 * the base table prefix and so belongs to blog 1 (on multisite), or is
+	 * irrelevant on single site (returns 0, which callers treat as "the
+	 * current/only blog").
 	 *
 	 * @since 4.5.1
 	 *
@@ -1275,11 +1276,11 @@ class Gate {
 			return (int) $m[1];
 		}
 
-		if ( is_multisite() && function_exists( 'get_main_site_id' ) ) {
-			return (int) get_main_site_id();
-		}
-
-		return 0;
+		// The unnumbered `{base_prefix}capabilities` key uses the base table
+		// prefix, which belongs to the network's original site — blog 1 — not
+		// necessarily get_main_site_id() (which can differ on a multi-network
+		// install). On single site the blog is irrelevant (0 = current/only blog).
+		return is_multisite() ? 1 : 0;
 	}
 
 	/**

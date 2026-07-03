@@ -4537,6 +4537,25 @@ class GateTest extends TestCase {
 	}
 
 	/**
+	 * The capabilities-key → blog-ID mapping: a numbered secondary-blog key
+	 * resolves to that blog, and the unnumbered base key resolves to blog 1 (the
+	 * base-prefix site) — NOT get_main_site_id(), which can differ on a
+	 * multi-network install.
+	 *
+	 * @since 4.5.1
+	 */
+	public function test_capabilities_meta_key_blog_id_maps_unnumbered_key_to_blog_one(): void {
+		$GLOBALS['wpdb'] = new class() {
+			public string $base_prefix = 'wp_';
+		};
+		Functions\when( 'is_multisite' )->justReturn( true );
+		Functions\when( 'get_main_site_id' )->justReturn( 5 ); // deliberately not 1.
+
+		$this->assertSame( 2, $this->invoke_gate( 'capabilities_meta_key_blog_id', 'wp_2_capabilities' ) );
+		$this->assertSame( 1, $this->invoke_gate( 'capabilities_meta_key_blog_id', 'wp_capabilities' ) );
+	}
+
+	/**
 	 * An allowlisted grant (wp_sudo_allow_escalation === true) passes untouched —
 	 * the trusted-provisioner escape hatch.
 	 */

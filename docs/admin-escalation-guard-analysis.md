@@ -51,6 +51,17 @@ friction — is a structural property:
 > **In the common exploit shapes, the attacker structurally cannot hold a sudo
 > session.**
 
+> **Update (post-4.1.0 hardening):** this structural property is no longer relied
+> on *alone*. Because sudo is reauthentication, not authorization, a low-privilege
+> account *can* hold a sudo session — so the guard now *also* requires the actor
+> to hold the promoting authority (`promote_users` on the blog whose capabilities
+> are being written, or existing super-admin for `grant_super_admin`). The
+> authority check is what stops an under-privileged actor; the session requirement
+> still blocks stolen-cookie replay by an otherwise-authorized admin. The
+> "structurally cannot hold a session" reasoning below describes the original
+> 4.1.0 model and is retained for history — see `security-model.md` / `FAQ.md`
+> for current behavior.
+
 - **Unauthenticated** broken-endpoint exploit (the classic `role=administrator`
   POST to a missing-capability route): `current_user` is `0`, so no sudo session
   can possibly exist → an `administrator` grant is **blocked**.
