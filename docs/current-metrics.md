@@ -22,7 +22,7 @@ Verification environment: local workspace, PHP 8.x
 | Production PHP lines (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 16,779 | `find ./includes ./wp-sudo.php ./uninstall.php ./mu-plugin ./bridges -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
 | Tests PHP lines (`tests/`) | 35,045 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
 | Production + tests PHP lines | 51,824 | sum of the two rows above |
-| Test-to-production ratio | 2.08:1 | `35045 / 16779` |
+| Test-to-production ratio | 2.09:1 | `35045 / 16779` |
 | Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`) | 52,096 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
 
 ## Architectural Facts
