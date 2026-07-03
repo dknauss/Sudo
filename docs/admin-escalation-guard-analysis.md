@@ -16,6 +16,20 @@
 > Sections written in the future tense ("if implemented", "if approved") below
 > describe decisions that have since shipped as described.
 
+> **Superseded reasoning (read first).** This document's threat model — most
+> visibly §1, §6, and §10 — argues that the guard is a genuine mitigation because
+> an under-privileged attacker *structurally cannot hold a sudo session*, and that
+> an active sudo session is therefore sufficient to allow a grant. That reasoning
+> describes the **original 4.1.0** model and is **retained here for history only.**
+> The guard was later hardened: because sudo is reauthentication, not
+> authorization (a low-privilege account *can* hold a sudo session), it now
+> **also** requires the actor to hold the promoting authority — `promote_users` on
+> the blog whose capabilities are being written, or existing super-admin status
+> for `grant_super_admin` — in addition to the sudo session. Wherever a section
+> below says a grant proceeds on the strength of a sudo session alone, read it
+> against this requirement. `security-model.md` and `FAQ.md` are the source of
+> truth for current behavior.
+
 ## 1. The gap
 
 The interactive admin backstop (`Gate::register_interactive_backstop` →
