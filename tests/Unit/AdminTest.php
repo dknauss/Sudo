@@ -4726,8 +4726,8 @@ class AdminTest extends TestCase {
 	}
 
 	/**
-	 * Success on revoke-all includes the exact count in the message so the
-	 * operator sees how many sessions were actually revoked.
+	 * Success on a bulk revocation includes the exact count in the message
+	 * so the operator sees how many sessions were actually revoked.
 	 */
 	public function test_select_revoke_result_notice_success_includes_count_for_bulk_revocation(): void {
 		Functions\when( '__' )->returnArg();
@@ -4842,7 +4842,7 @@ class AdminTest extends TestCase {
 	/**
 	 * A success code on users.php calls wp_admin_notice() with the success
 	 * type, is-dismissible, and a polite status role/aria-live pairing, and
-	 * uses the revoke-count query arg when present (revoke-all).
+	 * uses the revoke-count query arg when present (bulk revocation).
 	 */
 	public function test_render_revoke_result_notice_renders_success_notice_with_count(): void {
 		$GLOBALS['pagenow'] = 'users.php';

@@ -398,9 +398,9 @@ class Event_Recorder {
 	 *
 	 * @since 4.5.0
 	 *
-	 * @param int    $target_user_id  Revoked user (0 for a batch revoke-all).
+	 * @param int    $target_user_id  Revoked user (0 = third-party batch convention).
 	 * @param int    $revoker_user_id Operator who performed the revocation.
-	 * @param string $reason          Reason/surface tag (users_list_row_action, revoke_all_ui).
+	 * @param string $reason          Reason/surface tag (users_list_row_action, users_list_bulk_action).
 	 * @param int    $site_id         Site context reported by the fire site (unused; see above).
 	 * @return void
 	 */

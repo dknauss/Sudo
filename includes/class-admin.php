@@ -96,7 +96,7 @@ class Admin {
 	public const REVOKE_SESSION_ROW_NONCE_ACTION = 'wp_sudo_revoke_session_row';
 
 	/**
-	 * Query arg carrying the per-user/revoke-all result code after redirect
+	 * Query arg carrying the per-user/bulk result code after redirect
 	 * back to users.php.
 	 *
 	 * @since 4.5.0
@@ -106,7 +106,7 @@ class Admin {
 
 	/**
 	 * Query arg carrying the number of sessions revoked by a successful
-	 * revoke-all, appended alongside REVOKE_RESULT_QUERY_ARG on redirect.
+	 * bulk revocation, appended alongside REVOKE_RESULT_QUERY_ARG on redirect.
 	 *
 	 * @since 4.5.0
 	 * @var string
@@ -2126,10 +2126,11 @@ class Admin {
 	 * Enforces, in order: capability gate, self-target guard, target-liveness
 	 * precondition, per-revoker rate limit, then deactivates the target's
 	 * session and fires the audit hook. The cap check runs FIRST so a capless
-	 * caller never learns whether the target session is live. The bulk
-	 * revoke-all enumerator (Sudo_Session::revoke_all_active_sessions()) does
-	 * NOT route through this core — it stays gate-free so WP-CLI can call it
-	 * un-gated; the UI revoke-all's own cap/rate wrapper is added separately.
+	 * caller never learns whether the target session is live. The site-wide
+	 * enumerator (Sudo_Session::revoke_all_active_sessions()) does NOT route
+	 * through this core — it stays gate-free so WP-CLI can call it un-gated;
+	 * the Users-list bulk action carries its own cap/rate wrapper in
+	 * handle_bulk_revoke_sessions().
 	 *
 	 * @since 4.5.0
 	 *
