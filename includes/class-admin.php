@@ -116,10 +116,11 @@ class Admin {
 	/**
 	 * Bulk-action key for the Users-list "Revoke sudo sessions" entry.
 	 *
-	 * Registered via the `bulk_actions-users` filter; core verifies the
-	 * `bulk-users` nonce and collects the selected user IDs before the
-	 * `handle_bulk_actions-users` filter fires, so the handler needs no
-	 * nonce of its own.
+	 * Registered via the `bulk_actions-users` filter. Handling runs from a
+	 * `load-users.php` interceptor that verifies the `bulk-users` nonce
+	 * itself: core does NOT nonce-check custom bulk actions on users.php
+	 * (unlike edit.php), so the `handle_bulk_actions-users` filter is
+	 * reachable by crafted GET and is deliberately not used.
 	 *
 	 * @since 4.5.0
 	 * @var string
@@ -377,9 +378,15 @@ class Admin {
 		add_filter( 'user_row_actions', array( $this, 'user_row_actions' ), 10, 2 );
 		add_action( 'admin_post_' . self::ACTION_REVOKE_SESSION_ROW, array( $this, 'handle_revoke_session_row_action' ), 10, 0 );
 
-		// Users list screen: "Revoke sudo sessions" bulk action (dropdown + handler).
+		// Users list screen: "Revoke sudo sessions" bulk action. The dropdown
+		// entry registers via bulk_actions-users; handling deliberately does
+		// NOT use the handle_bulk_actions-users filter — core fires it for
+		// custom actions with no nonce check (and strips _wpnonce first when
+		// present), so it cannot be secured. The load-users.php interceptor
+		// below runs before core's dispatch, while the bulk-users nonce is
+		// still in the request, and verifies it.
 		add_filter( 'bulk_actions-users', array( $this, 'register_bulk_revoke_action' ), 10, 1 );
-		add_filter( 'handle_bulk_actions-users', array( $this, 'handle_bulk_revoke_sessions' ), 10, 3 );
+		add_action( 'load-users.php', array( $this, 'handle_bulk_revoke_request' ), 10, 0 );
 
 		// Users list screen: post-redirect result notice for the row-action and bulk-action handlers.
 		add_action( 'admin_notices', array( $this, 'render_revoke_result_notice' ), 10, 0 );
@@ -1401,6 +1408,61 @@ class Admin {
 	// -------------------------------------------------------------------------
 
 	/**
+	 * Intercept the "Revoke sudo sessions" bulk submission on load-users.php.
+	 *
+	 * Runs before users.php dispatches bulk actions, while the list-table's
+	 * `bulk-users` nonce is still present in the request — core's own
+	 * dispatch fires `handle_bulk_actions-users` for custom actions WITHOUT
+	 * any nonce check, and self-redirects to strip `_wpnonce` first when a
+	 * referer field is present, so this is the only point where the request
+	 * can be nonce-verified. Action detection mirrors the verified
+	 * WP_List_Table::current_action() logic exactly: bail when
+	 * `filter_action` is set (the Filter button won the submit), then read
+	 * `action` only — current_action() has no action2 fallback. Bails in
+	 * the network admin: network/users.php rewrites $pagenow to users.php,
+	 * so load-users.php fires there too, but that screen is out of scope
+	 * (its nonce is bulk-users-network and this handler is site-scoped).
+	 *
+	 * @since 4.5.0
+	 *
+	 * @return void
+	 */
+	public function handle_bulk_revoke_request(): void {
+		if ( is_network_admin() ) {
+			return;
+		}
+
+		// phpcs:disable WordPress.Security.NonceVerification.Recommended -- Dispatch detection only; check_admin_referer() runs below before any state change.
+		if ( ! empty( $_REQUEST['filter_action'] ) ) {
+			return;
+		}
+
+		$doaction = isset( $_REQUEST['action'] ) ? sanitize_text_field( wp_unslash( (string) $_REQUEST['action'] ) ) : '';
+		if ( self::BULK_REVOKE_SESSIONS_ACTION !== $doaction ) {
+			return;
+		}
+		// phpcs:enable
+
+		check_admin_referer( 'bulk-users' );
+
+		$user_ids = isset( $_REQUEST['users'] ) ? array_map( 'intval', (array) $_REQUEST['users'] ) : array();
+		if ( empty( $user_ids ) ) {
+			// Match core: an empty selection falls through to the page render.
+			return;
+		}
+
+		$sendback = wp_get_referer();
+		if ( ! $sendback ) {
+			$sendback = admin_url( 'users.php' );
+		}
+
+		$sendback = $this->handle_bulk_revoke_sessions( $sendback, $doaction, $user_ids );
+
+		wp_safe_redirect( $sendback );
+		exit;
+	}
+
+	/**
 	 * Add the "Revoke sudo sessions" entry to the Users-list bulk actions.
 	 *
 	 * Visible whenever the operator holds the revocation capability. The
@@ -1425,12 +1487,14 @@ class Admin {
 	}
 
 	/**
-	 * Handle the "Revoke sudo sessions" bulk action on the Users list.
+	 * Guarded engine for the "Revoke sudo sessions" bulk action.
 	 *
-	 * Core has already verified the `bulk-users` nonce and collected the
-	 * selected IDs before this filter fires (the users table submits via
-	 * GET; a nonce-protected state-changing GET is core precedent for bulk
-	 * actions). Guard order mirrors the row-action path: capability first,
+	 * Called only from handle_bulk_revoke_request(), which has already
+	 * verified the `bulk-users` nonce (core does NOT nonce-check custom
+	 * bulk actions on users.php, so this engine must never be wired to the
+	 * un-nonced handle_bulk_actions-users filter). Kept as a separate
+	 * sendback-in/sendback-out method so tests can exercise the guard
+	 * ladder directly. Guard order mirrors the row-action path: capability first,
 	 * then the operator's token-bound sudo session (is_active — a live
 	 * expiry with a stolen auth cookie must not revoke anyone), then the
 	 * per-operator rate limit. The batch consumes exactly ONE rate slot
@@ -1481,7 +1545,10 @@ class Admin {
 		}
 		set_transient( $rate_key, $revoke_count + 1, HOUR_IN_SECONDS );
 
-		// 4. Per-target teardown: skip self, ignore rows without a live session.
+		// 4. Per-target teardown: skip self, skip non-members of this site
+		// (forged users[] cannot reach cross-site sessions; a batch of only
+		// forged IDs reports bulk_none_live), ignore rows without a live
+		// session.
 		$revoked      = 0;
 		$skipped_self = false;
 
@@ -1627,6 +1694,11 @@ class Admin {
 				return array(
 					'type'    => 'error',
 					'message' => __( 'That user no longer has an active sudo session.', 'wp-sudo' ),
+				);
+			case 'target_not_member':
+				return array(
+					'type'    => 'error',
+					'message' => __( 'That user is not a member of this site.', 'wp-sudo' ),
 				);
 			case 'rate_limited':
 				return array(
@@ -2137,7 +2209,7 @@ class Admin {
 	 * @param int    $target_user_id  User whose session is being revoked.
 	 * @param int    $revoker_user_id Operator performing the revocation.
 	 * @param string $reason          Reason/surface tag passed through to the audit hook.
-	 * @return array{outcome: string} Result with outcome code: no_cap|self_target|target_expired|rate_limited|success.
+	 * @return array{outcome: string} Result with outcome code: no_cap|self_target|target_not_member|target_expired|rate_limited|success.
 	 */
 	private function revoke_session_core( int $target_user_id, int $revoker_user_id, string $reason ): array {
 		// 1. Cap gate FIRST — never reveal target session state to an unauthorized caller.
@@ -2148,6 +2220,13 @@ class Admin {
 		// 2. Self-target guard — the core refuses to revoke the operator's own session.
 		if ( $target_user_id === $revoker_user_id ) {
 			return array( 'outcome' => 'self_target' );
+		}
+
+		// 2b. Site-membership guard, BEFORE liveness — a forged target ID
+		// must not let an operator on this site enumerate (or touch) the
+		// network-global sudo state of users belonging to other sites.
+		if ( ! is_user_member_of_blog( $target_user_id ) ) {
+			return array( 'outcome' => 'target_not_member' );
 		}
 
 		// 3. Target-liveness precondition — browser-independent, mirrors row-action visibility.
@@ -2183,11 +2262,18 @@ class Admin {
 	 * @param int    $target_user_id  User whose session is being revoked.
 	 * @param int    $revoker_user_id Operator performing the revocation.
 	 * @param string $reason          Reason/surface tag passed through to the audit hook.
-	 * @return string Outcome code: self_target|target_expired|success.
+	 * @return string Outcome code: self_target|target_not_member|target_expired|success.
 	 */
 	private function revoke_session_teardown( int $target_user_id, int $revoker_user_id, string $reason ): string {
 		if ( $target_user_id === $revoker_user_id ) {
 			return 'self_target';
+		}
+
+		// Membership before liveness (mirrors revoke_session_core): forged
+		// IDs from other network sites are skipped without touching — or
+		// revealing — their global session state.
+		if ( ! is_user_member_of_blog( $target_user_id ) ) {
+			return 'target_not_member';
 		}
 
 		if ( ! Sudo_Session::is_session_live( $target_user_id ) ) {

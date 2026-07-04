@@ -3860,6 +3860,7 @@ class AdminTest extends TestCase {
 	}
 
 	public function test_revoke_session_core_returns_target_expired_without_deactivate_or_rate_slot(): void {
+		Functions\when( 'is_user_member_of_blog' )->justReturn( true );
 		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		// Target's expiry is in the past -> not live.
 		Functions\when( 'get_user_meta' )->justReturn( time() - 60 );
@@ -3876,6 +3877,7 @@ class AdminTest extends TestCase {
 	}
 
 	public function test_revoke_session_core_returns_rate_limited_when_transient_at_limit(): void {
+		Functions\when( 'is_user_member_of_blog' )->justReturn( true );
 		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		Functions\when( 'get_user_meta' )->justReturn( time() + 120 ); // Live target.
 		Functions\when( 'get_transient' )->justReturn( 10 );
@@ -3891,6 +3893,7 @@ class AdminTest extends TestCase {
 	}
 
 	public function test_revoke_session_core_succeeds_and_fires_audit_hook_with_reason_tag(): void {
+		Functions\when( 'is_user_member_of_blog' )->justReturn( true );
 		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		Functions\when( 'get_user_meta' )->justReturn( time() + 120 ); // Live target.
 		Functions\when( 'get_transient' )->justReturn( 0 );
@@ -3914,6 +3917,7 @@ class AdminTest extends TestCase {
 	}
 
 	public function test_revoke_session_core_consumes_one_rate_slot_per_call(): void {
+		Functions\when( 'is_user_member_of_blog' )->justReturn( true );
 		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		Functions\when( 'get_user_meta' )->justReturn( time() + 120 ); // Live target.
 		Functions\when( 'get_transient' )->justReturn( 3 );
@@ -4058,6 +4062,7 @@ class AdminTest extends TestCase {
 	}
 
 	public function test_revoke_session_row_action_success_calls_core_and_redirects(): void {
+		Functions\when( 'is_user_member_of_blog' )->justReturn( true );
 		Functions\expect( 'check_admin_referer' )
 			->once()
 			->andReturn( true );
@@ -4272,6 +4277,7 @@ class AdminTest extends TestCase {
 	 * a distinct result code rather than collapsing into success.
 	 */
 	public function test_revoke_session_row_action_handles_target_expired_race(): void {
+		Functions\when( 'is_user_member_of_blog' )->justReturn( true );
 		Functions\expect( 'check_admin_referer' )
 			->once()
 			->andReturn( true );
@@ -4331,14 +4337,19 @@ class AdminTest extends TestCase {
 	// Bulk action: "Revoke sudo sessions" on the Users list
 	// -----------------------------------------------------------------
 
-	public function test_register_adds_bulk_revoke_filters(): void {
+	public function test_register_adds_bulk_revoke_dropdown_and_nonced_interceptor(): void {
 		Filters\expectAdded( 'bulk_actions-users' )
 			->once()
 			->with( \Mockery::type( 'array' ), 10, 1 );
 
-		Filters\expectAdded( 'handle_bulk_actions-users' )
+		Actions\expectAdded( 'load-users.php' )
 			->once()
-			->with( \Mockery::type( 'array' ), 10, 3 );
+			->with( \Mockery::type( 'array' ), 10, 0 );
+
+		// Core does NOT nonce-check custom bulk actions on users.php, so the
+		// un-nonce-able handle_bulk_actions-users filter must NOT be used —
+		// it would remain a CSRF bypass around the load-users.php interceptor.
+		Filters\expectAdded( 'handle_bulk_actions-users' )->never();
 
 		$admin = new Admin();
 		$admin->register();
@@ -4351,6 +4362,226 @@ class AdminTest extends TestCase {
 
 		$admin = new Admin();
 		$admin->register();
+	}
+
+	// -----------------------------------------------------------------
+	// handle_bulk_revoke_request() — nonce-verified load-users.php interceptor
+	// -----------------------------------------------------------------
+
+	/**
+	 * CSRF regression guard: a crafted GET with our action but no nonce must
+	 * die inside check_admin_referer() BEFORE any guard or teardown work —
+	 * this is the exact un-nonced hole (core does not nonce-check custom
+	 * users.php bulk actions) that the interceptor exists to close.
+	 */
+	public function test_bulk_request_nonce_checked_before_any_processing(): void {
+		Functions\when( 'is_network_admin' )->justReturn( false );
+		$_REQUEST['action'] = Admin::BULK_REVOKE_SESSIONS_ACTION;
+		$_REQUEST['users']  = array( '9' );
+
+		Functions\expect( 'check_admin_referer' )
+			->once()
+			->with( 'bulk-users' )
+			->andThrow( new \RuntimeException( 'nonce check executed' ) );
+
+		Functions\expect( 'wp_sudo_can' )->never();
+		Functions\expect( 'get_transient' )->never();
+		Functions\expect( 'delete_user_meta' )->never();
+
+		$admin = new Admin();
+
+		try {
+			$admin->handle_bulk_revoke_request();
+			$this->fail( 'Expected nonce check short-circuit.' );
+		} catch ( \RuntimeException $e ) {
+			$this->assertSame( 'nonce check executed', $e->getMessage() );
+		}
+
+		unset( $_REQUEST['action'], $_REQUEST['users'] );
+	}
+
+	public function test_bulk_request_ignores_other_actions(): void {
+		Functions\when( 'is_network_admin' )->justReturn( false );
+		$_REQUEST['action'] = 'delete';
+
+		Functions\expect( 'check_admin_referer' )->never();
+		Functions\expect( 'wp_safe_redirect' )->never();
+
+		$admin = new Admin();
+		$admin->handle_bulk_revoke_request();
+
+		unset( $_REQUEST['action'] );
+	}
+
+	/**
+	 * load-users.php also fires for network/users.php ($pagenow is rewritten
+	 * to users.php there), where the list-table nonce is bulk-users-network —
+	 * the site-scoped handler must bail explicitly rather than wp_die a
+	 * legitimate network operator.
+	 */
+	public function test_bulk_request_bails_in_network_admin(): void {
+		Functions\when( 'is_network_admin' )->justReturn( true );
+		$_REQUEST['action'] = Admin::BULK_REVOKE_SESSIONS_ACTION;
+		$_REQUEST['users']  = array( '9' );
+
+		Functions\expect( 'check_admin_referer' )->never();
+		Functions\expect( 'wp_safe_redirect' )->never();
+
+		$admin = new Admin();
+		$admin->handle_bulk_revoke_request();
+
+		unset( $_REQUEST['action'], $_REQUEST['users'] );
+	}
+
+	/**
+	 * Mirrors WP_List_Table::current_action(): when filter_action is set the
+	 * Filter button won the submit and no bulk action runs.
+	 */
+	public function test_bulk_request_bails_when_filter_action_present(): void {
+		Functions\when( 'is_network_admin' )->justReturn( false );
+		$_REQUEST['action']        = Admin::BULK_REVOKE_SESSIONS_ACTION;
+		$_REQUEST['filter_action'] = 'Filter';
+		$_REQUEST['users']         = array( '9' );
+
+		Functions\expect( 'check_admin_referer' )->never();
+		Functions\expect( 'wp_safe_redirect' )->never();
+
+		$admin = new Admin();
+		$admin->handle_bulk_revoke_request();
+
+		unset( $_REQUEST['action'], $_REQUEST['filter_action'], $_REQUEST['users'] );
+	}
+
+	public function test_bulk_request_empty_selection_falls_through_after_nonce(): void {
+		Functions\when( 'is_network_admin' )->justReturn( false );
+		$_REQUEST['action'] = Admin::BULK_REVOKE_SESSIONS_ACTION;
+
+		Functions\expect( 'check_admin_referer' )
+			->once()
+			->with( 'bulk-users' )
+			->andReturn( 1 );
+		Functions\expect( 'wp_safe_redirect' )->never();
+		Functions\expect( 'wp_sudo_can' )->never();
+
+		$admin = new Admin();
+		$admin->handle_bulk_revoke_request();
+
+		unset( $_REQUEST['action'] );
+	}
+
+	public function test_bulk_request_success_delegates_and_redirects_with_result(): void {
+		Functions\when( 'is_network_admin' )->justReturn( false );
+		$this->stub_bulk_sendback_url_fns();
+		Functions\when( 'check_admin_referer' )->justReturn( 1 );
+		Functions\when( 'wp_get_referer' )->justReturn( 'https://example.com/wp-admin/users.php?sudo_active=1' );
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
+		$this->mock_active_sudo_session( 2 );
+		Functions\when( 'is_user_member_of_blog' )->justReturn( true );
+		Functions\when( 'get_user_meta' )->alias(
+			static function ( int $uid, string $key ) {
+				if ( \WP_Sudo\Sudo_Session::META_KEY === $key ) {
+					return time() + 600;
+				}
+				if ( \WP_Sudo\Sudo_Session::TOKEN_META_KEY === $key && 2 === $uid ) {
+					return hash( 'sha256', 'test-sudo-token' );
+				}
+				return '';
+			}
+		);
+		Functions\when( 'get_transient' )->justReturn( 0 );
+		Functions\when( 'set_transient' )->justReturn( true );
+		Functions\when( 'delete_user_meta' )->justReturn( true );
+		Functions\when( 'setcookie' )->justReturn( true );
+		Functions\when( 'headers_sent' )->justReturn( true );
+		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
+
+		$_REQUEST['action'] = Admin::BULK_REVOKE_SESSIONS_ACTION;
+		$_REQUEST['users']  = array( '9' );
+
+		Functions\expect( 'wp_safe_redirect' )
+			->once()
+			->with( \Mockery::on( static function ( string $url ): bool {
+				return false !== strpos( $url, 'wp_sudo_revoke_result=success' )
+					&& false !== strpos( $url, 'sudo_active=1' );
+			} ) )
+			->andThrow( new \RuntimeException( 'redirected' ) );
+
+		$admin = new Admin();
+
+		try {
+			$admin->handle_bulk_revoke_request();
+			$this->fail( 'Expected redirect short-circuit.' );
+		} catch ( \RuntimeException $e ) {
+			$this->assertSame( 'redirected', $e->getMessage() );
+		}
+
+		unset( $_REQUEST['action'], $_REQUEST['users'] );
+		unset( $_COOKIE[ \WP_Sudo\Sudo_Session::TOKEN_COOKIE ] );
+	}
+
+	/**
+	 * Multisite scope guard: submitted IDs that are not members of the
+	 * current site are skipped — a per-site operator cannot revoke a
+	 * network user's global session by forging users[] (Codex P2).
+	 */
+	public function test_handle_bulk_revoke_skips_targets_not_member_of_current_site(): void {
+		$this->stub_bulk_sendback_url_fns();
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
+		$this->mock_active_sudo_session( 2 );
+		Functions\when( 'is_user_member_of_blog' )->alias(
+			static fn( int $uid ): bool => 11 === $uid
+		);
+		Functions\when( 'get_user_meta' )->alias(
+			static function ( int $uid, string $key ) {
+				if ( \WP_Sudo\Sudo_Session::META_KEY === $key ) {
+					return time() + 600; // Both live network-wide…
+				}
+				if ( \WP_Sudo\Sudo_Session::TOKEN_META_KEY === $key && 2 === $uid ) {
+					return hash( 'sha256', 'test-sudo-token' );
+				}
+				return '';
+			}
+		);
+		Functions\when( 'get_transient' )->justReturn( 0 );
+		Functions\when( 'set_transient' )->justReturn( true );
+		Functions\when( 'delete_user_meta' )->justReturn( true );
+		Functions\when( 'setcookie' )->justReturn( true );
+		Functions\when( 'headers_sent' )->justReturn( true );
+		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
+
+		// …but only member 11 is revoked; forged non-member 9 is skipped.
+		Actions\expectDone( 'wp_sudo_session_revoked' )
+			->once()
+			->with( 11, 2, 'users_list_bulk_action', 1 );
+
+		$admin  = new Admin();
+		$result = $admin->handle_bulk_revoke_sessions( 'https://example.com/wp-admin/users.php', Admin::BULK_REVOKE_SESSIONS_ACTION, array( 9, 11 ) );
+
+		$this->assertStringContainsString( 'wp_sudo_revoke_result=success', $result );
+		$this->assertStringContainsString( 'wp_sudo_revoke_count=1', $result );
+
+		unset( $_COOKIE[ \WP_Sudo\Sudo_Session::TOKEN_COOKIE ] );
+	}
+
+	/**
+	 * Cross-site liveness oracle guard: the row-action core must reject a
+	 * non-member target BEFORE consulting session liveness, so an operator
+	 * on site A cannot enumerate whether a network user's sudo session is
+	 * live via the target_expired/target_not_member outcome split.
+	 */
+	public function test_revoke_session_core_rejects_non_member_before_liveness_or_rate(): void {
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
+		Functions\when( 'is_user_member_of_blog' )->justReturn( false );
+
+		Functions\expect( 'get_user_meta' )->never();
+		Functions\expect( 'get_transient' )->never();
+		Functions\expect( 'set_transient' )->never();
+		Functions\expect( 'do_action' )->never();
+
+		$admin  = new Admin();
+		$result = $this->invoke_revoke_session_core( $admin, 9, 2, 'users_list_row_action' );
+
+		$this->assertSame( 'target_not_member', $result['outcome'] );
 	}
 
 	public function test_bulk_revoke_dropdown_entry_requires_cap(): void {
@@ -4481,6 +4712,7 @@ class AdminTest extends TestCase {
 	 * bulk reason tag.
 	 */
 	public function test_handle_bulk_revoke_consumes_one_slot_skips_self_and_fires_hook_per_user(): void {
+		Functions\when( 'is_user_member_of_blog' )->justReturn( true );
 		$this->stub_bulk_sendback_url_fns();
 		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		// Operator (2) token-bound active (cookie + hash from the helper) …
@@ -4554,6 +4786,7 @@ class AdminTest extends TestCase {
 	}
 
 	public function test_handle_bulk_revoke_none_live_returns_distinct_code(): void {
+		Functions\when( 'is_user_member_of_blog' )->justReturn( true );
 		$this->stub_bulk_sendback_url_fns();
 		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
@@ -4637,6 +4870,7 @@ class AdminTest extends TestCase {
 			'self_target'          => array( 'self_target', 'error', 'own session' ),
 			'target_expired'       => array( 'target_expired', 'error', 'no longer has an active sudo session' ),
 			'rate_limited'         => array( 'rate_limited', 'error', 'Rate limit' ),
+			'target_not_member'    => array( 'target_not_member', 'error', 'not a member of this site' ),
 			'success'              => array( 'success', 'success', 'revoked' ),
 			'bulk_none_live'       => array( 'bulk_none_live', 'warning', 'None of the selected users' ),
 		);
