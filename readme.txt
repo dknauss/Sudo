@@ -175,10 +175,10 @@ Extensibility: the action registry is filterable via wp_sudo_gated_actions. Audi
 3. Settings tab — policy presets, session duration, and entry-point policies.
 4. Gated Actions tab — protected operations with rule IDs and covered surfaces.
 5. Rule Tester tab — evaluate representative request shapes without executing them.
-6. Access tab — manage dedicated Sudo governance capabilities and revoke sessions.
-7. Dashboard widget — active sessions, policy summary, and recent privilege-action events.
+6. Access tab — manage dedicated Sudo governance capabilities.
+7. Dashboard widget — active sessions, policy summary, and recent events including session revocations.
 8. Admin bar timer — live countdown while a sudo session is active.
-9. Break-glass recovery notice — visible warning while WP_SUDO_RECOVERY_MODE is active.
+9. Users list — Sudo Active view with the "Revoke sudo sessions" bulk action and per-user row action.
 
 == Changelog ==
 

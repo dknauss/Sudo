@@ -48,7 +48,7 @@ Playground demo credentials are `admin` / `password`. When Sudo asks for reauthe
 <td><strong>Access tab</strong></td>
 </tr>
 <tr>
-<td><img src="https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-7.png" alt="Dashboard widget with active sudo sessions, policy summary, and recent privilege-action events."></td>
+<td><img src="https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-7.png" alt="Dashboard widget with active sudo sessions, policy summary, and recent events including session revocations."></td>
 <td width="50%"><img src="https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-8.png" alt="Admin bar showing a live countdown timer while a sudo session is active."></td>
 </tr>
 <tr>
@@ -56,11 +56,11 @@ Playground demo credentials are `admin` / `password`. When Sudo asks for reauthe
 <td><strong>Admin bar timer</strong></td>
 </tr>
 <tr>
-<td><img src="https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-9.png" alt="Break-glass recovery notice shown on the Sudo settings screen while WP_SUDO_RECOVERY_MODE is active."></td>
+<td><img src="https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-9.png" alt="Users list showing the Sudo Active view with the Revoke sudo sessions bulk action selected."></td>
 <td></td>
 </tr>
 <tr>
-<td><strong>Break-glass recovery notice</strong></td>
+<td><strong>Users list revocation</strong></td>
 <td></td>
 </tr>
 </table>
