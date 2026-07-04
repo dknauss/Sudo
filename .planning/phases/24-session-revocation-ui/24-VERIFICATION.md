@@ -1,8 +1,31 @@
 ---
 phase: 24-session-revocation-ui
 verified: 2026-07-01T15:43:27Z
-status: human_needed
-score: 5/5 must-haves verified (code-level); manual browser UI verification outstanding
+status: verified
+score: 5/5 must-haves verified (code-level); manual browser UI verification completed 2026-07-04 (see Human Verification Outcome)
+human_verified: 2026-07-04
+human_verification_outcome: |
+  All five REVK requirements PASS in a live-browser run on 2026-07-04, executed
+  against WP Sudo from dknauss/Sudo main (post-#139/#140/#131 merges) on
+  WordPress 7.0 / PHP 8.4 / SQLite, driven by Playwright. Environment note:
+  playground.wordpress.net was egress-blocked from the verification
+  environment, so the Playground blueprint (blueprint-main.json) was
+  replicated locally with full fidelity — its runPHP seed steps (demo users,
+  session meta, Event_Store rows, capability grants, admin session clearing)
+  were executed verbatim; the two-factor plugin could not be installed
+  (distribution hosts blocked), so the challenge ran password-only, which is
+  what this checklist exercises. Checklist updated for the post-#140 surface:
+  the revoke-all button/interstitial steps are superseded by the bulk action.
+  Observed verbatim: "Start a sudo session before revoking others." (blocked
+  operator), "Sudo session revoked." (row success; Sudo Active badge count
+  decreased on the same page load — no stale cache), "3 active sudo sessions
+  revoked. Your own session was skipped." (bulk with self selected; no
+  interstitial; filtered view + query args preserved), "None of the selected
+  users had an active sudo session." (bulk none-live warning). Dashboard
+  widget shows per-user "Revoked" pills with users-list and bulk-action
+  surface codes; Access tab has no session-revoke control; no plugin JS
+  console errors. Screenshots archived in the session scratchpad (revk3/) and
+  delivered to the maintainer 2026-07-04.
 human_verification:
   - test: "As an operator WITH revoke_wp_sudo_sessions and an active sudo session, on the Users list: confirm the 'Revoke sudo session' row action appears only for users with a live session (per 'Sudo Active (N)'), never on your own row; click it and confirm the session revokes immediately with a dismissible success notice and the row drops from 'Sudo Active'."
     expected: "Row action visible only for live-session, non-self rows; click causes immediate revoke and a success notice; user disappears from the active-session set."

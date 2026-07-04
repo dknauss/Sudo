@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v4.5
 milestone_name: — Session Governance & Admin UX
-status: verifying
-stopped_at: "Phase 24 plan 03 (Access-tab "Revoke Session" button removal + orphaned AJAX consolidation) fully implemented and committed across 2 commits (c40ddde, 4fc0203); automated gate green (941 tests/2831 assertions, PHPStan L6, Psalm, PHPCS, verify:metrics synced via af07dc1); Phase 24 is now feature-complete (3/3 plans, all REVK-01..05 requirements implemented). Manual browser-based UI verification of REVK-01..05 (Task 3 how-to-verify) is OUTSTANDING/deferred to a browser-capable session. SUMMARY.md and STATE/ROADMAP/REQUIREMENTS doc updates left uncommitted pending orchestrator commit."
+status: complete (pending PR #141 merge)
+stopped_at: "v4.5 milestone work complete: Phase 24 (Session Revocation UI) shipped via PR #131 and redesigned/hardened via PRs #139/#140 (widget visibility, bulk action replacing the revoke-all button+interstitial, nonce interceptor, membership guards, badge-count invalidation); manual REVK-01..05 browser verification COMPLETED 2026-07-04 (24-VERIFICATION.md status: verified, all PASS). Phase 25 (Governance Coverage Panel Fix, GCOV-01/02) implemented, reviewer-approved, and open as draft PR #141 awaiting merge."
 last_updated: "2026-07-01T15:45:21.733Z"
-last_activity: 2026-07-01 — Phase 24 plan 03 (Access-tab button removal, orphaned AJAX consolidation) implemented via TDD across 2 commits, automated gate green; manual UI verification deferred
+last_activity: 2026-07-04 — Phase 25 shipped (PR #141); Phase 24 manual browser verification completed, all REVK PASS; revocation UX redesigned to a bulk action with security hardening (PRs #139/#140 merged)
 progress:
   total_phases: 2
   completed_phases: 1
