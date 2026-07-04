@@ -105,6 +105,10 @@ Sudo gates built-in operations across categories including:
 
 For the full rule list and surface counts, see [docs/current-metrics.md](docs/current-metrics.md).
 
+## Single sign-on (SSO)
+
+Sudo's challenge is a WordPress **password** check, so it assumes an account can authenticate with a WordPress-native password. It still works alongside SSO/SAML/OIDC: when your identity provider's plugin fires the standard `wp_login` action (most do), each fresh provider login grants the sudo window automatically — so even accounts with **no** WordPress password reach gated actions, and logging in again through the provider *is* their reauthentication. The tradeoff to know: for those passwordless accounts the window opens at login rather than at the moment of the action, a slightly weaker guarantee than the password challenge gives. Sudo is **not** something to avoid under SSO — it still gates actions, bounds the window, and fires audit hooks — but if you require a genuine at-the-moment step-up for administrators, give those admins real WordPress passwords or track the roadmapped identity-provider challenge framework. See the [SSO section of the FAQ](docs/FAQ.md) for setup details and the `wp_sudo_grant_session_on_login` opt-out.
+
 ## Why it helps
 
 WordPress has roles, capabilities, and authentication, but no native way to say "a logged-in session alone isn't enough for this action." Sudo adds that missing checkpoint for the parts of WordPress where a mistake, hijacked session, stale browser, or over-broad automation token can do the most damage.
