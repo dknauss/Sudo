@@ -5229,6 +5229,104 @@ class AdminTest extends TestCase {
 		$this->assertStringNotContainsString( 'Real Manager', $output );
 	}
 
+	/**
+	 * GCOV-01: on single-site the body copy must keep naming manage_options —
+	 * the wording fix is context-aware, not a blanket rename.
+	 */
+	public function test_drift_panel_names_manage_options_on_single_site(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'esc_attr' )->returnArg();
+		Functions\when( 'esc_html_e' )->alias( static function ( $s ) { echo $s; } );
+		Functions\when( 'is_multisite' )->justReturn( false );
+
+		$drifted               = new \WP_User( 2 );
+		$drifted->display_name = 'Drifted Editor';
+		$drifted->user_login   = 'drifted';
+		$drifted->allcaps      = array( 'manage_options' => true );
+		Functions\when( 'get_users' )->justReturn( array( $drifted ) );
+
+		$admin = new Admin();
+		ob_start();
+		$method = new \ReflectionMethod( Admin::class, 'render_drift_detection_panel' );
+		@$method->setAccessible( true ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		$method->invoke( $admin, 'test-nonce' );
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( 'hold manage_options but not manage_wp_sudo', $output );
+		$this->assertStringNotContainsString( 'manage_network_options', $output );
+	}
+
+	/**
+	 * GCOV-01: on multisite the detection capability is manage_network_options,
+	 * and the body copy must name that capability, not manage_options.
+	 */
+	public function test_drift_panel_names_network_capability_on_multisite(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'esc_attr' )->returnArg();
+		Functions\when( 'esc_html_e' )->alias( static function ( $s ) { echo $s; } );
+		Functions\when( 'is_multisite' )->justReturn( true );
+		Functions\when( 'is_super_admin' )->justReturn( false );
+
+		$drifted               = new \WP_User( 2 );
+		$drifted->display_name = 'Network Operator';
+		$drifted->user_login   = 'netop';
+		$drifted->allcaps      = array( 'manage_network_options' => true );
+		Functions\when( 'get_users' )->justReturn( array( $drifted ) );
+
+		$admin = new Admin();
+		ob_start();
+		$method = new \ReflectionMethod( Admin::class, 'render_drift_detection_panel' );
+		@$method->setAccessible( true ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		$method->invoke( $admin, 'test-nonce' );
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( 'hold manage_network_options but not manage_wp_sudo', $output );
+		$this->assertStringContainsString( 'Network Operator', $output );
+	}
+
+	/**
+	 * GCOV-02: a multisite super admin has effective access to Sudo settings
+	 * via the wp_sudo_can() short-circuit regardless of stored caps, so the
+	 * panel must not list them as "cannot access" — while a candidate who is
+	 * NOT a super admin (a stored manage_network_options grant, e.g. via a
+	 * plugin role) and lacks the raw manage_wp_sudo cap must STILL be listed.
+	 * The second half pins the regression a wholesale switch to wp_sudo_can()
+	 * would cause.
+	 */
+	public function test_drift_panel_excludes_super_admin_but_lists_drifted_network_operator(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'esc_attr' )->returnArg();
+		Functions\when( 'esc_html_e' )->alias( static function ( $s ) { echo $s; } );
+		Functions\when( 'is_multisite' )->justReturn( true );
+		Functions\when( 'is_super_admin' )->alias( static fn( int $user_id ): bool => 3 === $user_id );
+
+		$super               = new \WP_User( 3 );
+		$super->display_name = 'Super Admin';
+		$super->user_login   = 'superadmin';
+		$super->allcaps      = array( 'manage_network_options' => true ); // no raw manage_wp_sudo
+
+		$drifted               = new \WP_User( 4 );
+		$drifted->display_name = 'Network Operator';
+		$drifted->user_login   = 'netop';
+		$drifted->allcaps      = array( 'manage_network_options' => true ); // no raw manage_wp_sudo
+
+		Functions\when( 'get_users' )->justReturn( array( $super, $drifted ) );
+
+		$admin = new Admin();
+		ob_start();
+		$method = new \ReflectionMethod( Admin::class, 'render_drift_detection_panel' );
+		@$method->setAccessible( true ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		$method->invoke( $admin, 'test-nonce' );
+		$output = ob_get_clean();
+
+		$this->assertStringNotContainsString( 'Super Admin', $output, 'Super admin has effective access via wp_sudo_can() and must not be listed' );
+		$this->assertStringNotContainsString( 'superadmin', $output );
+		$this->assertStringContainsString( 'Network Operator', $output, 'Genuinely drifted non-super-admin network operator must still be listed' );
+	}
+
 	public function test_drift_panel_renders_nothing_when_no_drift(): void {
 		Functions\when( '__' )->returnArg();
 		Functions\when( 'esc_html' )->returnArg();

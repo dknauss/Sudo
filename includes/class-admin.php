@@ -2029,6 +2029,18 @@ class Admin {
 	 * but do not hold manage_wp_sudo. Surfaced for review: the separation is often
 	 * intentional (least privilege), so this is informational, not an error.
 	 *
+	 * Multisite notes: super admins are excluded — they have effective access
+	 * via the wp_sudo_can() short-circuit regardless of stored caps, so listing
+	 * them as "cannot access" would be false. They only become candidates at
+	 * all when a STORED manage_network_options grant exists (a plugin role or
+	 * direct add_cap): WP_User_Query capability queries read the stored
+	 * {prefix}capabilities meta and cannot see the site_admins network option,
+	 * so on a default network the candidate set is empty and the panel renders
+	 * nothing — that is a known scope limit, not a regression (a future phase
+	 * could union get_super_admins() into the candidate source). A recovery-mode
+	 * viewer who lacks the raw cap still appears in their own list by design:
+	 * break-glass access is temporary and they are genuinely drifted.
+	 *
 	 * @param string $nonce Nonce value for the grant action button.
 	 * @return void
 	 */
@@ -2045,6 +2057,17 @@ class Admin {
 		$drift = array_filter(
 			is_array( $options_admins ) ? $options_admins : array(),
 			static function ( \WP_User $user ): bool {
+				// Super admins mirror wp_sudo_can()'s short-circuit: effective
+				// access is always true for them on multisite, so they are never
+				// drifted. is_super_admin() reads the site_admins network option,
+				// not the viewer's caps, so the list stays viewer-independent.
+				// The is_multisite() gate is essential — on single-site
+				// is_super_admin() degrades to has_cap( 'delete_users' ), which
+				// would wrongly exclude ordinary administrators.
+				if ( is_multisite() && is_super_admin( $user->ID ) ) {
+					return false;
+				}
+
 				// Check the RAW stored capability via allcaps, not has_cap().
 				// has_cap() routes through map_meta_cap, where the break-glass
 				// recovery mapper (wp_sudo_map_governance_meta_cap) rewrites
@@ -2064,7 +2087,15 @@ class Admin {
 		?>
 		<h3><?php esc_html_e( 'Sudo governance coverage', 'wp-sudo' ); ?></h3>
 		<p class="description">
-			<?php esc_html_e( 'These administrators hold manage_options but not manage_wp_sudo, so they cannot access Sudo settings. This is often intentional — review the list to confirm each separation is deliberate rather than an accidental gap.', 'wp-sudo' ); ?>
+			<?php
+			echo esc_html(
+				sprintf(
+					/* translators: %s: the capability the panel scanned for (manage_options on single-site, manage_network_options on multisite). */
+					__( 'These administrators hold %s but not manage_wp_sudo, so they cannot access Sudo settings. This is often intentional — review the list to confirm each separation is deliberate rather than an accidental gap.', 'wp-sudo' ),
+					$capability
+				)
+			);
+			?>
 		</p>
 		<table class="widefat striped">
 			<caption class="screen-reader-text"><?php esc_html_e( 'Users with admin capabilities but without Sudo management access', 'wp-sudo' ); ?></caption>
