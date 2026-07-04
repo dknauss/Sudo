@@ -3,12 +3,12 @@ gsd_state_version: 1.0
 milestone: v4.5
 milestone_name: — Session Governance & Admin UX
 status: complete (pending PR #141 merge)
-stopped_at: "v4.5 milestone work complete: Phase 24 (Session Revocation UI) shipped via PR #131 and redesigned/hardened via PRs #139/#140 (widget visibility, bulk action replacing the revoke-all button+interstitial, nonce interceptor, membership guards, badge-count invalidation); manual REVK-01..05 browser verification COMPLETED 2026-07-04 (24-VERIFICATION.md status: verified, all PASS). Phase 25 (Governance Coverage Panel Fix, GCOV-01/02) implemented, reviewer-approved, and open as draft PR #141 awaiting merge."
-last_updated: "2026-07-01T15:45:21.733Z"
+stopped_at: "v4.5 milestone work complete: Phase 24 (Session Revocation UI) shipped via PR #131 and redesigned/hardened via PRs #139/#140 (widget visibility, bulk action replacing the revoke-all button+interstitial, nonce interceptor, membership guards, badge-count invalidation); manual REVK-01..05 browser verification COMPLETED 2026-07-04 (24-VERIFICATION.md status: verified, all PASS). Phase 25 (Governance Coverage Panel Fix, GCOV-01/02) implemented, reviewer-approved, and open as PR #141 (ready for review) awaiting merge."
+last_updated: "2026-07-04T21:26:04Z"
 last_activity: 2026-07-04 — Phase 25 shipped (PR #141); Phase 24 manual browser verification completed, all REVK PASS; revocation UX redesigned to a bulk action with security hardening (PRs #139/#140 merged)
 progress:
   total_phases: 2
-  completed_phases: 1
+  completed_phases: 2
   total_plans: 3
   completed_plans: 3
   percent: 100
@@ -16,16 +16,16 @@ progress:
 
 ## Current Position
 
-Phase: 24 — Session Revocation UI (complete, pending deferred manual verification)
-Plan: 03 — Access-tab cleanup + orphaned AJAX removal complete; Phase 24 fully implemented (3/3 plans)
-Status: Plan 24-03 fully implemented and committed (2 commits: c40ddde, 4fc0203); automated gate green (composer test 941/2831 assertions, analyse PHPStan L6 + Psalm, lint, verify:metrics synced via af07dc1); SUMMARY.md and STATE/ROADMAP/REQUIREMENTS doc updates pending orchestrator commit. Manual browser-based UI verification of REVK-01..05 (Task 3's how-to-verify) is OUTSTANDING — deferred to a future browser-capable session by explicit user choice.
-Progress: [██████████] 100% of Phase 24 (3/3 plans complete); Phase 25 (Governance Coverage Panel Fix) not yet started
-Last activity: 2026-07-01 — Phase 24 plan 03 (Access-tab button removal, orphaned AJAX consolidation) implemented via TDD across 2 commits, automated gate green; manual UI verification deferred
-Branch: `gsd/v4.4.0-two-factor-lifecycle-bridge` — predecessor v4.4.0 work committed locally; new branch expected for v4.5 work.
-Origin: session-revocation UI review on 2026-06-30 (`.planning/todos/pending/2026-06-30-session-revocation-surfaces.md`).
+Phase: 25 — Governance Coverage Panel Fix (complete; awaiting PR #141 merge)
+Plan: n/a — Phase 25 executed as a single design-reviewed TDD pass (GCOV-01/02)
+Status: Both v4.5 phases are complete. Phase 24 (Session Revocation UI) merged via PR #131, then redesigned per maintainer UX feedback and security-hardened via PRs #139/#140 (widget revocation visibility; "Revoke sudo sessions" bulk action replacing the revoke-all button + interstitial; nonce-verified load-users.php interceptor; site-membership guards; Sudo Active badge-count invalidation; registry scrub). Manual browser verification of REVK-01..05 COMPLETED 2026-07-04 — all PASS; `24-VERIFICATION.md` status is `verified`. Phase 25 implemented, reviewer-approved, and open as PR #141 (ready for review).
+Progress: [██████████] 100% of v4.5 (Phase 24 verified end-to-end incl. manual; Phase 25 complete, merge pending)
+Last activity: 2026-07-04 — Phase 25 shipped (PR #141); REVK manual verification recorded; STATE consistency fixes
+Branch: `claude/whats-next-dc6xeq` — all v4.5 follow-up work (PRs #139/#140/#141) developed and pushed here; branch restarts from main after each merge.
+Origin: session-revocation UI review on 2026-06-30 (`.planning/todos/done/2026-06-30-session-revocation-surfaces.md` — retired 2026-07-04).
 Product release state: Latest tagged plugin release remains `v4.2.2`; v4.5 is a GSD milestone and does not create a product release tag unless release metadata is intentionally bumped.
-Open threads: WordPress.org submission remains intentionally delayed/on hold; keep `docs/wporg-submission-checklist.md` ready. Patchstack paid-fixture/manual runtime testing remains fixture-blocked and out of runtime-claim scope.
-Resume file: .planning/phases/24-session-revocation-ui/24-CONTEXT.md
+Open threads: WordPress.org submission remains intentionally delayed/on hold; keep `docs/wporg-submission-checklist.md` ready. Patchstack paid-fixture/manual runtime testing remains fixture-blocked and out of runtime-claim scope. Public screenshot refresh (swap within the 9-slot budget, not add) is pending post-#141-merge because the v4.5 Users-list/widget surfaces are absent from the current set.
+Resume file: .planning/phases/24-session-revocation-ui/24-VERIFICATION.md (verified) and PR #141
 
 ## Project Reference
 
@@ -45,12 +45,13 @@ Canonical current facts:
 
 1. Keep WordPress.org readiness maintained while submission remains delayed/on hold.
 2. Keep Patchstack runtime testing as fixture-blocked/manual-test work until a paid fixture exists.
-3. Phase 24 and Phase 25 both require a Pre-Implementation Design Review before TDD (per CLAUDE.md — new UI surface, capability checks, security-sensitive panel logic).
+3. (Done) Phase 24 and Phase 25 pre-implementation design reviews were performed before TDD; Phase 25's review is reflected in the panel docblock and PR #141.
 
 ## Accumulated Context
 
 - v4.5 roadmap created 2026-06-30: Phase 24 (Session Revocation UI) covers REVK-01..05; Phase 25 (Governance Coverage Panel Fix) covers GCOV-01..02.
-- Phase 24 plan 03 complete 2026-07-01: Access-tab "Revoke Session" button/column removed and the orphaned wp_ajax_handle_revoke_session registration, AJAX wrapper, and dead JS handler deleted across 2 commits (941 tests green). REVK-04 now satisfied alongside REVK-01/02/03/05 (already Complete). Phase 24 is feature-complete (3/3 plans) with the automated gate green; manual browser-based UI verification of REVK-01..05 is DEFERRED to a future browser-capable session — see Pending Todos.
+- 2026-07-04: v4.5 follow-up arc complete. PR #139 (widget records/labels session_revoked events; i18n label fix), PR #140 (bulk-action revocation redesign + nonce interceptor + membership guards + badge invalidation + registry scrub, hardened through Copilot/Codex/maintainer review rounds), and PR #141 (Phase 25 GCOV-01/02) opened; #139/#140 merged same day. Manual REVK-01..05 browser verification completed with all PASS (24-VERIFICATION.md: verified); confabulation entries #29/#30 logged in docs/llm-lies-log.md.
+- Phase 24 plan 03 complete 2026-07-01: Access-tab "Revoke Session" button/column removed and the orphaned wp_ajax_handle_revoke_session registration, AJAX wrapper, and dead JS handler deleted across 2 commits (941 tests green). REVK-04 now satisfied alongside REVK-01/02/03/05 (already Complete). Phase 24 was feature-complete (3/3 plans) with the automated gate green; the then-deferred manual browser verification was completed 2026-07-04 (see entry above).
 - Phase 24 plan 02 complete 2026-06-30: Users-list "Revoke sudo session" row action, revoke-all button + interstitial confirm, and centralized wp_admin_notice() result-code map shipped across 4 commits (943 tests green). REVK-01 now fully satisfied alongside REVK-02/03/05 (already Complete from plan 01).
 - v4.4.0 milestone completed 2026-06-30 (Phases 21–23 all complete). Archive: `.planning/milestones/v4.4.0-ROADMAP.md`.
 - Phase 23 context is complete in `.planning/phases/23-bridge-documentation-and-release-posture-closure/23-CONTEXT.md`; defaults captured: update Two Factor integration/ecosystem docs, refresh current metrics, add concise unreleased/current-main notes if warranted, preserve Patchstack fixture-blocked wording, and avoid version/tag/submission actions.
@@ -69,9 +70,10 @@ Canonical current facts:
 
 ### Pending Todos
 
-- **Outstanding: manual UI verification of REVK-01..05 deferred to a browser session.** Phase 24's automated gate (composer test/analyse/lint/verify:metrics) is green, but the Task 3 manual browser-based UI verification steps in `24-03-PLAN.md` (row-action visibility/behavior for cap-holder with/without an active session, no-cap absence, revoke-all confirm/count, distinct per-path notices) were NOT performed against a live Studio/wp-env multisite — deferred by explicit user choice ("Proceed on automated"). Run these steps from a browser-capable session (`claude-playwright` / `claude-browser-handoff`) before treating REVK-01..05 as fully verified end-to-end. See `.planning/phases/24-session-revocation-ui/24-03-SUMMARY.md` "Outstanding: Manual UI Verification".
 - Patchstack runtime testing remains pending: acquire a paid Patchstack-enabled fixture plus manual challenge/lifecycle runtime tests before making runtime support claims.
-- Design review required before Phase 25 TDD: resolve "effective `wp_sudo_can()` access" vs "raw stored governance state" tension and confirm the fix does not re-introduce the recovery-mode `map_meta_cap` remap.
+- Public screenshot refresh after PR #141 merges: the v4.5 Users-list surfaces (Sudo Active view, row action, "Revoke sudo sessions" bulk action) and the widget's "Revoked" pills are absent from the current 9-image set; refresh by SWAPPING within the 9-slot budget (maintainer directive 2026-07-04: 6-9 images max), keeping readme.txt captions and the README gallery in sync.
+
+(Resolved 2026-07-04: the REVK-01..05 manual browser verification and the Phase 25 design review, both formerly listed here — see 24-VERIFICATION.md and PR #141.)
 
 ## Key Decisions
 
@@ -79,9 +81,9 @@ Canonical current facts:
 - Keep WordPress.org submission delayed/on hold while maintaining readiness.
 - Do not create product release tags from GSD milestone names unless plugin version metadata/readme stable tag have been intentionally bumped.
 - Revocation surface for v4.5 = Users-list row action (not an Access-tab panel); chosen because it reuses existing `_wp_sudo_expires > time()` enumeration and puts revocation where admins already manage users.
-- Network-wide revoke-all gains a UI confirmation step in v4.5 (was CLI-only); single-user revocation continues to act immediately.
+- (Superseded 2026-07-04 by PR #140) The revoke-all button + confirmation interstitial were replaced by a native "Revoke sudo sessions" bulk action (selection is the confirmation, per core's password-reset precedent); site-wide revoke-everything is CLI-only (`wp sudo revoke --all`). Single-user revocation continues to act immediately.
 - Access-tab capability-holder table loses the "Revoke Session" button in Phase 24; session revocation and capability administration become separate concerns.
-- Coverage panel must measure effective `wp_sudo_can()` access in Phase 25, not raw `allcaps`, to eliminate multisite super-admin false positives.
+- (Revised by the Phase 25 design review, implemented in PR #141) The coverage panel KEEPS the raw `allcaps` predicate (recovery-remap immunity, viewer independence) and adds an `is_multisite()`-gated `is_super_admin()` exclusion mirroring `wp_sudo_can()`'s short-circuit — rather than switching wholesale to `wp_sudo_can()`, which would re-introduce the viewer-dependent recovery remap.
 - `Sudo_Session::is_active()` requires a cookie-bound token; the Users-list enumeration must use `_wp_sudo_expires > time()` meta query (browser-independent) — keep that distinction explicit in Phase 24 code.
 - v4.4.0 scope targeted upstream WordPress Two Factor profile-provider lifecycle changes; Patchstack remains fixture-blocked and out of implementation scope.
 - Keep the Two Factor profile lifecycle guard in the optional bridge and fail open when upstream lifecycle data cannot prove a meaningful change.
@@ -96,7 +98,7 @@ Canonical current facts:
 - A target whose session expires mid-batch during revoke-all is silently skipped by the enumeration (not an error); the target_expired outcome is a per-user-path concern surfaced only by the row-action handler, not a revoke-all error path (Phase 24 plan 02).
 - `Admin::select_revoke_result_notice()` returns `null` for unknown/absent result codes rather than a generic fallback message, so no code can render a fabricated notice (Phase 24 plan 02, REVK-05).
 - Access-tab capability-holder table's "Revoke Session" button and the orphaned `wp_ajax_handle_revoke_session` registration/wrapper/JS handler are removed (Phase 24 plan 03); `revoke_session_core()` and the two plan-02 admin-post handlers are the sole live revocation entry points.
-- Phase 24's manual browser-based UI verification (REVK-01..05) is deferred to a future browser-capable session; the automated gate (tests/PHPStan/Psalm/lint/metrics) is the only verification completed for plan 24-03 (Phase 24 plan 03).
+- Phase 24's manual browser-based UI verification (REVK-01..05) was deferred at plan 24-03 time and COMPLETED 2026-07-04 against main (post #139/#140) with all PASS; 24-VERIFICATION.md is the record.
 
 ## Performance Metrics
 
@@ -111,5 +113,5 @@ Canonical current facts:
 
 ## Last Session
 
-- **Stopped at:** Phase 24 plan 03 (Access-tab "Revoke Session" button removal + orphaned AJAX consolidation) fully implemented and committed across 2 commits (c40ddde, 4fc0203); automated gate green (941 tests/2831 assertions, PHPStan L6, Psalm, PHPCS, verify:metrics synced via af07dc1); Phase 24 is now feature-complete (3/3 plans, all REVK-01..05 requirements implemented). Manual browser-based UI verification of REVK-01..05 (Task 3 how-to-verify) is OUTSTANDING/deferred to a browser-capable session. SUMMARY.md and STATE/ROADMAP/REQUIREMENTS doc updates left uncommitted pending orchestrator commit.
-- **Next:** Orchestrator commits the plan 24-03 doc updates (SUMMARY.md, STATE.md, ROADMAP.md, REQUIREMENTS.md). When a browser-capable session is available, run the deferred manual UI verification (REVK-01..05) per `24-03-SUMMARY.md`. Then begin Phase 25 (Governance Coverage Panel Fix; GCOV-01..02) — requires a Pre-Implementation Design Review before TDD per CLAUDE.md.
+- **Stopped at:** 2026-07-04 — v4.5 milestone work complete. PRs #139 (widget revocation visibility + i18n labels) and #140 (bulk-action revocation redesign with nonce interceptor, membership guards, badge invalidation, registry scrub) merged to main; manual REVK-01..05 browser verification completed with all PASS and recorded in 24-VERIFICATION.md (status: verified); Phase 25 (GCOV-01/02) implemented via design-reviewed TDD, reviewer-approved, and open as PR #141 (ready for review, CI green-trending, Codecov 100% patch).
+- **Next:** Merge PR #141 to close the v4.5 milestone, then archive it per GSD convention. Post-merge follow-ups: public screenshot refresh (swap within the 9-image budget), Patchstack fixture work when available; larger roadmap items per docs/ROADMAP.md (Gutenberg reauth UX design is the top major-feature track).
