@@ -22,6 +22,8 @@ namespace WP_Sudo;
  * - wp_sudo_action_allowed (policy: non-interactive request permitted)
  * - wp_sudo_action_passed (feature: gated action succeeds during active session)
  * - wp_sudo_action_replayed (flow: stashed request replayed after reauth)
+ * - wp_sudo_recovery_mode_active (security: break-glass access, sampled hourly)
+ * - wp_sudo_session_revoked (security: operator revoked sudo session(s) via UI)
  *
  * @since 2.15.0
  */
@@ -41,6 +43,7 @@ class Event_Recorder {
 		'wp_sudo_action_passed'        => 3, // user_id, rule_id, surface.
 		'wp_sudo_action_replayed'      => 2, // user_id, rule_id.
 		'wp_sudo_recovery_mode_active' => 1, // user_id.
+		'wp_sudo_session_revoked'      => 4, // target_user_id, revoker_user_id, reason, site_id.
 	);
 
 	/**
@@ -367,6 +370,47 @@ class Event_Recorder {
 				'event'   => 'recovery_mode',
 				'rule_id' => '',
 				'surface' => '',
+			)
+		);
+	}
+
+	/**
+	 * Handle wp_sudo_session_revoked event.
+	 *
+	 * Fired when an operator revokes another user's sudo session from the
+	 * Users-list row action, or every active session via the revoke-all
+	 * control (batch firings carry a zero target). The reason tag is stored
+	 * in the surface column — the dashboard widget's event query omits the
+	 * context payload, so surface is the only slot that keeps revocation
+	 * provenance visible in the widget. The operator lands in context for
+	 * full-row consumers (Event_Store::recent(), external log bridges).
+	 *
+	 * The $site_id hook argument is accepted for signature parity but not
+	 * written: Event_Store stamps the current site itself at insert (or
+	 * buffered shutdown-flush) time. That matches the hook value today
+	 * because both fire sites are admin-post handlers that do not
+	 * switch_to_blog() before shutdown — revisit this if a network-admin
+	 * revoke surface is ever added.
+	 *
+	 * WP-CLI revocations (`wp sudo revoke`) do not fire this hook and are
+	 * therefore not recorded here.
+	 *
+	 * @since 4.5.0
+	 *
+	 * @param int    $target_user_id  Revoked user (0 for a batch revoke-all).
+	 * @param int    $revoker_user_id Operator who performed the revocation.
+	 * @param string $reason          Reason/surface tag (users_list_row_action, revoke_all_ui).
+	 * @param int    $site_id         Site context reported by the fire site (unused; see above).
+	 * @return void
+	 */
+	public static function on_session_revoked( int $target_user_id, int $revoker_user_id, string $reason, int $site_id ): void { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed, VariableAnalysis.CodeAnalysis.VariableAnalysis.UnusedVariable -- Signature parity with the 4-arg hook; Event_Store stamps the site itself.
+		self::enqueue(
+			array(
+				'user_id' => $target_user_id,
+				'event'   => 'session_revoked',
+				'rule_id' => '',
+				'surface' => $reason,
+				'context' => array( 'revoked_by' => $revoker_user_id ),
 			)
 		);
 	}

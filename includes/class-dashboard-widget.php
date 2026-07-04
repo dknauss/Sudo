@@ -311,13 +311,15 @@ class Dashboard_Widget {
 	 * @var array<string, string>
 	 */
 	private const EVENT_LABELS = array(
-		'lockout'         => 'Lockout',
-		'action_gated'    => 'Gated',
-		'action_blocked'  => 'Blocked',
-		'action_allowed'  => 'Allowed',
-		'action_passed'   => 'Passed',
-		'action_replayed' => 'Replayed',
-		'recovery_mode'   => 'Break-glass',
+		'lockout'            => 'Lockout',
+		'action_gated'       => 'Gated',
+		'action_blocked'     => 'Blocked',
+		'action_allowed'     => 'Allowed',
+		'action_passed'      => 'Passed',
+		'action_replayed'    => 'Replayed',
+		'recovery_mode'      => 'Break-glass',
+		'escalation_blocked' => 'Escalation',
+		'session_revoked'    => 'Revoked',
 	);
 
 	/**
@@ -349,16 +351,18 @@ class Dashboard_Widget {
 	 * @var array<string, string>
 	 */
 	private const SURFACE_LABELS = array(
-		'admin'             => 'admin',
-		'ajax'              => 'ajax',
-		'rest'              => 'rest',
-		'rest_app_password' => 'app-pass',
-		'cli'               => 'wp-cli',
-		'cron'              => 'cron',
-		'xmlrpc'            => 'xml-rpc',
-		'wpgraphql'         => 'graphql',
-		'public_api'        => 'public-api',
-		'reauth'            => 'reauth',
+		'admin'                 => 'admin',
+		'ajax'                  => 'ajax',
+		'rest'                  => 'rest',
+		'rest_app_password'     => 'app-pass',
+		'cli'                   => 'wp-cli',
+		'cron'                  => 'cron',
+		'xmlrpc'                => 'xml-rpc',
+		'wpgraphql'             => 'graphql',
+		'public_api'            => 'public-api',
+		'reauth'                => 'reauth',
+		'users_list_row_action' => 'users-list',
+		'revoke_all_ui'         => 'revoke-all',
 	);
 
 	/**
@@ -1186,6 +1190,16 @@ class Dashboard_Widget {
 	background: #e7f0ff;
 	border-color: #c2d5fb;
 	color: #2e5fa9;
+}
+#wp_sudo_activity .wp-sudo-event-pill-escalation-blocked {
+	background: #fbeeee;
+	border-color: #efcfcf;
+	color: #8c2f2f;
+}
+#wp_sudo_activity .wp-sudo-event-pill-session-revoked {
+	background: #f3effb;
+	border-color: #d9cdf0;
+	color: #5a3d96;
 }
 #wp_sudo_activity .wp-sudo-surface-code {
 	display: inline-block;

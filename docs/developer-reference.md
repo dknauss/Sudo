@@ -539,6 +539,12 @@ do_action( 'wp_sudo_capability_tampered', string $role, string $capability );
 // Governance access-model transitions (v3.2.0).
 do_action( 'wp_sudo_capability_granted', int $target_user_id, string $cap, int $granter_user_id, int $site_id );
 do_action( 'wp_sudo_capability_revoked', int $target_user_id, string $cap, int $revoker_user_id, int $site_id );
+// The bundled Event_Recorder stores this as a `session_revoked` event row
+// (target user in user_id — 0 for a batch revoke-all — reason tag in the
+// surface column, operator in context as `revoked_by`). WP-CLI revocations
+// (`wp sudo revoke`) do not fire this hook, so they never appear in the
+// Session Activity dashboard widget — during incident response, do not read
+// an empty widget as "no revocations" if a CLI runbook was in play.
 do_action( 'wp_sudo_session_revoked', int $target_user_id, int $revoker_user_id, string $reason, int $site_id );
 
 // Break-glass recovery usage (v3.4.0). Fires on every Sudo admin-page load

@@ -194,6 +194,68 @@ class DashboardWidgetFakeWpdbWithRecoveryEvent extends DashboardWidgetFakeWpdbWi
 }
 
 /**
+ * Fake wpdb that returns a session-revoked event for label rendering tests.
+ */
+class DashboardWidgetFakeWpdbWithSessionRevokedEvent extends DashboardWidgetFakeWpdbWithEvents {
+
+	/**
+	 * Mock get_results() - returns a session-revoked event row.
+	 *
+	 * @param string $query SQL query.
+	 * @return array<int, object>
+	 */
+	public function get_results( string $query ): array {
+		$this->last_get_results_query = $query;
+		if ( strpos( $query, 'wpsudo_events' ) !== false ) {
+			return [
+				(object) [
+					'id'         => 3,
+					'user_id'    => 1,
+					'event'      => 'session_revoked',
+					'rule_id'    => '',
+					'surface'    => 'users_list_row_action',
+					'created_at' => gmdate( 'Y-m-d H:i:s', time() - 60 ),
+				],
+			];
+		}
+
+		return [];
+	}
+
+}
+
+/**
+ * Fake wpdb that returns an escalation-blocked event for label rendering tests.
+ */
+class DashboardWidgetFakeWpdbWithEscalationEvent extends DashboardWidgetFakeWpdbWithEvents {
+
+	/**
+	 * Mock get_results() - returns an escalation-blocked event row.
+	 *
+	 * @param string $query SQL query.
+	 * @return array<int, object>
+	 */
+	public function get_results( string $query ): array {
+		$this->last_get_results_query = $query;
+		if ( strpos( $query, 'wpsudo_events' ) !== false ) {
+			return [
+				(object) [
+					'id'         => 4,
+					'user_id'    => 1,
+					'event'      => 'escalation_blocked',
+					'rule_id'    => 'user.promote',
+					'surface'    => 'admin',
+					'created_at' => gmdate( 'Y-m-d H:i:s', time() - 60 ),
+				],
+			];
+		}
+
+		return [];
+	}
+
+}
+
+/**
  * Fake wpdb that returns a critical event for badge rendering tests.
  */
 class DashboardWidgetFakeWpdbWithCriticalEvent {
@@ -1017,6 +1079,83 @@ class DashboardWidgetTest extends TestCase {
 		$this->assertStringContainsString( 'title="Break-glass"', $output );
 		$this->assertStringContainsString( 'data-event="recovery_mode"', $output );
 		$this->assertStringNotContainsString( 'title="Recovery"', $output );
+
+		$this->restoreWpdb();
+	}
+
+	/**
+	 * Test session-revoked events render the human-readable Revoked label
+	 * with the reason tag mapped to a compact surface code.
+	 *
+	 * @return void
+	 */
+	public function testSessionRevokedEventsRenderRevokedLabelAndReasonSurface(): void {
+		$this->setUpRenderStubs();
+		\WP_User_Query::$mock_total   = 0;
+		\WP_User_Query::$mock_results = [];
+		Functions\when( 'human_time_diff' )->justReturn( '1 min ago' );
+		Functions\when( 'get_option' )->justReturn( [] );
+		Functions\when( 'get_users' )->alias(
+			function ( array $args ): array {
+				if ( isset( $args['include'] ) ) {
+					$user             = (object) array();
+					$user->ID         = 1;
+					$user->user_login = 'testuser';
+					return array( $user );
+				}
+
+				return array();
+			}
+		);
+
+		$GLOBALS['wpdb'] = new DashboardWidgetFakeWpdbWithSessionRevokedEvent();
+
+		ob_start();
+		Dashboard_Widget::render();
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( '>Revoked</span>', $output );
+		$this->assertStringContainsString( 'data-event="session_revoked"', $output );
+		$this->assertStringContainsString( '>users-list</code>', $output );
+		$this->assertStringNotContainsString( '>session_revoked</span>', $output );
+
+		$this->restoreWpdb();
+	}
+
+	/**
+	 * Test escalation-blocked events render a human-readable label instead
+	 * of the raw event type string.
+	 *
+	 * @return void
+	 */
+	public function testEscalationBlockedEventsRenderEscalationLabel(): void {
+		$this->setUpRenderStubs();
+		\WP_User_Query::$mock_total   = 0;
+		\WP_User_Query::$mock_results = [];
+		Functions\when( 'human_time_diff' )->justReturn( '1 min ago' );
+		Functions\when( 'get_option' )->justReturn( [] );
+		Functions\when( 'get_users' )->alias(
+			function ( array $args ): array {
+				if ( isset( $args['include'] ) ) {
+					$user             = (object) array();
+					$user->ID         = 1;
+					$user->user_login = 'testuser';
+					return array( $user );
+				}
+
+				return array();
+			}
+		);
+
+		$GLOBALS['wpdb'] = new DashboardWidgetFakeWpdbWithEscalationEvent();
+
+		ob_start();
+		Dashboard_Widget::render();
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( '>Escalation</span>', $output );
+		$this->assertStringContainsString( 'data-event="escalation_blocked"', $output );
+		$this->assertStringNotContainsString( '>escalation_blocked</span>', $output );
 
 		$this->restoreWpdb();
 	}
