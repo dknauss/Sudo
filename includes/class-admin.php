@@ -381,7 +381,7 @@ class Admin {
 		add_filter( 'bulk_actions-users', array( $this, 'register_bulk_revoke_action' ), 10, 1 );
 		add_filter( 'handle_bulk_actions-users', array( $this, 'handle_bulk_revoke_sessions' ), 10, 3 );
 
-		// Users list screen: post-redirect result notice for the row-action and revoke-all handlers.
+		// Users list screen: post-redirect result notice for the row-action and bulk-action handlers.
 		add_action( 'admin_notices', array( $this, 'render_revoke_result_notice' ), 10, 0 );
 	}
 

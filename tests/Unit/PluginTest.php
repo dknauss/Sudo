@@ -1079,7 +1079,7 @@ class PluginTest extends TestCase {
 
 		$captured = array();
 		Functions\when( 'add_action' )->alias(
-			function ( $hook, $callback ) use ( &$captured ) {
+			function ( $hook, $callback, ...$unused ) use ( &$captured ) { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed, VariableAnalysis.CodeAnalysis.VariableAnalysis.UnusedVariable -- Accept add_action's priority/accepted_args explicitly; only hook + callback are asserted.
 				$captured[] = array( $hook, $callback );
 			}
 		);
