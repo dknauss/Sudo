@@ -199,6 +199,13 @@ class DashboardWidgetFakeWpdbWithRecoveryEvent extends DashboardWidgetFakeWpdbWi
 class DashboardWidgetFakeWpdbWithSessionRevokedEvent extends DashboardWidgetFakeWpdbWithEvents {
 
 	/**
+	 * Surface (reason tag) for the returned event row.
+	 *
+	 * @var string
+	 */
+	public string $surface_value = 'users_list_row_action';
+
+	/**
 	 * Mock get_results() - returns a session-revoked event row.
 	 *
 	 * @param string $query SQL query.
@@ -213,7 +220,7 @@ class DashboardWidgetFakeWpdbWithSessionRevokedEvent extends DashboardWidgetFake
 					'user_id'    => 1,
 					'event'      => 'session_revoked',
 					'rule_id'    => '',
-					'surface'    => 'users_list_row_action',
+					'surface'    => $this->surface_value,
 					'created_at' => gmdate( 'Y-m-d H:i:s', time() - 60 ),
 				],
 			];
@@ -1118,6 +1125,44 @@ class DashboardWidgetTest extends TestCase {
 		$this->assertStringContainsString( 'data-event="session_revoked"', $output );
 		$this->assertStringContainsString( '>users-list</code>', $output );
 		$this->assertStringNotContainsString( '>session_revoked</span>', $output );
+
+		$this->restoreWpdb();
+	}
+
+	/**
+	 * Test the bulk-action revocation reason tag renders a compact surface code.
+	 *
+	 * @return void
+	 */
+	public function testSessionRevokedBulkActionReasonRendersCompactSurfaceCode(): void {
+		$this->setUpRenderStubs();
+		\WP_User_Query::$mock_total   = 0;
+		\WP_User_Query::$mock_results = [];
+		Functions\when( 'human_time_diff' )->justReturn( '1 min ago' );
+		Functions\when( 'get_option' )->justReturn( [] );
+		Functions\when( 'get_users' )->alias(
+			function ( array $args ): array {
+				if ( isset( $args['include'] ) ) {
+					$user             = (object) array();
+					$user->ID         = 1;
+					$user->user_login = 'testuser';
+					return array( $user );
+				}
+
+				return array();
+			}
+		);
+
+		$wpdb                = new DashboardWidgetFakeWpdbWithSessionRevokedEvent();
+		$wpdb->surface_value = 'users_list_bulk_action';
+		$GLOBALS['wpdb']     = $wpdb;
+
+		ob_start();
+		Dashboard_Widget::render();
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( '>bulk-action</code>', $output );
+		$this->assertStringNotContainsString( '>users_list_bulk_action</code>', $output );
 
 		$this->restoreWpdb();
 	}

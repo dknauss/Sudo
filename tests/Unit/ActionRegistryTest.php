@@ -739,9 +739,12 @@ class ActionRegistryTest extends TestCase {
 	}
 
 	/**
-	 * AJAX surface must gate the wp_sudo_revoke_session action.
+	 * The wp_sudo_revoke_session AJAX action was removed in Phase 24 plan 03
+	 * (no wp_ajax_ handler registers it), so the rule must not gate a dead
+	 * action name — session revocation is enforced directly by its handlers
+	 * (token-bound operator sudo + rate limit), not via the registry.
 	 */
-	public function test_wp_sudo_access_ajax_gates_revoke_session(): void {
+	public function test_wp_sudo_access_ajax_does_not_reference_removed_revoke_session_action(): void {
 		Functions\when( '__' )->returnArg();
 		Functions\when( 'apply_filters' )->returnArg( 2 );
 
@@ -749,7 +752,7 @@ class ActionRegistryTest extends TestCase {
 
 		$this->assertNotNull( $rule );
 		$this->assertNotNull( $rule['ajax'] );
-		$this->assertContains( 'wp_sudo_revoke_session', $rule['ajax']['actions'] );
+		$this->assertNotContains( 'wp_sudo_revoke_session', $rule['ajax']['actions'] );
 	}
 
 	/**

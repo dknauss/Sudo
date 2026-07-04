@@ -114,6 +114,13 @@ class Plugin {
 		// Cron: prune old event rows daily.
 		add_action( 'wp_sudo_prune_events', array( self::class, 'prune_events' ), 10, 0 );
 
+		// Users-list "Sudo Active (N)" badge: invalidate the count cache whenever
+		// a session starts or ends. Registered here, unconditionally — sessions
+		// are granted on wp_login and torn down via WP-CLI, both outside
+		// is_admin(), where the Admin instance below never exists.
+		add_action( 'wp_sudo_activated', array( Admin::class, 'flush_sudo_active_count_cache' ), 10, 0 );
+		add_action( 'wp_sudo_deactivated', array( Admin::class, 'flush_sudo_active_count_cache' ), 10, 0 );
+
 		// Enforce unfiltered_html restriction on every request (tamper detection).
 		add_action( 'init', array( $this, 'enforce_editor_unfiltered_html' ), 1, 0 );
 

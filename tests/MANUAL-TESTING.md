@@ -1929,7 +1929,7 @@ curl -sk -X POST "YOUR_SITE_URL/graphql" \
 4. Verify via WP-CLI: `wp user meta get <primary-id> wp_capabilities`
 5. **Expected:** `manage_wp_sudo` is still present in the user's capabilities.
 
-### 23.6 Force-Revoke Another User's Sudo Session
+### 23.6 Force-Revoke Another User's Sudo Session (Users-List Row Action)
 
 - The second account must hold `revoke_wp_sudo_sessions`. Grant it first via
   **Access > Grant Capability** (select `revoke_wp_sudo_sessions`).
@@ -1937,14 +1937,46 @@ curl -sk -X POST "YOUR_SITE_URL/graphql" \
 
 1. Activate a sudo session as the primary account (confirm the countdown
    timer appears in the admin bar).
-2. Log in as the second account and go to the **Access** tab.
-3. Locate the primary account in the holder table and click **Revoke
-   Session**.
-4. **Expected:** An inline success message appears. The revocation is logged
-   via the `wp_sudo_session_revoked` audit hook.
-5. Switch back to the primary account and reload any admin page.
-6. **Expected:** The admin bar timer is gone. The primary account no longer
+2. Log in as the second account, activate a sudo session (the revoke handler
+   requires the operator's own token-bound session), and go to
+   **Users > All Users**.
+3. **Expected:** A **Sudo Active (N)** view link appears, and hovering the
+   primary account's row shows a **Revoke sudo session** row action. The
+   operator's own row shows no such action.
+4. Click **Revoke sudo session** on the primary account's row.
+5. **Expected:** Redirect back to the Users list with a success notice. The
+   revocation is logged via the `wp_sudo_session_revoked` audit hook (reason
+   `users_list_row_action`) and appears in the Session Activity dashboard
+   widget as a "Revoked" event with the `users-list` surface code. The
+   **Sudo Active (N)** count decreases immediately (no stale 30-second cache).
+6. Switch back to the primary account and reload any admin page.
+7. **Expected:** The admin bar timer is gone. The primary account no longer
    has an active sudo session and will be challenged on the next gated action.
+
+### 23.6b Bulk-Revoke Sudo Sessions (Users-List Bulk Action)
+
+- Requires several accounts with active sudo sessions (the Playground demo
+  blueprint seeds five) and an operator holding `revoke_wp_sudo_sessions`
+  with an active sudo session of their own.
+
+1. As the operator, go to **Users > All Users** and click the
+   **Sudo Active (N)** view link.
+2. **Expected:** The **Bulk actions** dropdown contains **Revoke sudo
+   sessions** (it appears on every Users-list view for cap holders; there is
+   no separate toolbar button and no confirmation interstitial).
+3. Select all listed users — including your own row — choose **Revoke sudo
+   sessions**, and click **Apply**.
+4. **Expected:** Redirect back to the same filtered view with a count-aware
+   success notice that also says your own session was skipped. Each revoked
+   user is logged via `wp_sudo_session_revoked` (reason
+   `users_list_bulk_action`) and shows in the dashboard widget as a
+   "Revoked" event with the `bulk-action` surface code. Exactly one
+   revocation rate-limit slot is consumed for the whole batch.
+5. Re-apply the bulk action with only sessionless users selected.
+6. **Expected:** A distinct warning notice: none of the selected users had an
+   active sudo session.
+7. (CLI parity) `wp sudo revoke --all` remains the site-wide
+   revoke-everything path and does not fire the audit hook (documented gap).
 
 ### 23.7 Drift Detection Panel
 
