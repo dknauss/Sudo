@@ -4452,6 +4452,28 @@ class AdminTest extends TestCase {
 		unset( $_REQUEST['action'], $_REQUEST['filter_action'], $_REQUEST['users'] );
 	}
 
+	/**
+	 * Mirrors WP_Users_List_Table::current_action(): a role-change submit
+	 * (changeit) takes precedence over whatever sits in the bulk-action
+	 * dropdown, so core's promote flow must win over a stale revoke
+	 * selection.
+	 */
+	public function test_bulk_request_bails_when_role_change_submitted(): void {
+		Functions\when( 'is_network_admin' )->justReturn( false );
+		$_REQUEST['action']   = Admin::BULK_REVOKE_SESSIONS_ACTION;
+		$_REQUEST['changeit'] = 'Change';
+		$_REQUEST['users']    = array( '9' );
+
+		Functions\expect( 'check_admin_referer' )->never();
+		Functions\expect( 'wp_safe_redirect' )->never();
+		Functions\expect( 'delete_user_meta' )->never();
+
+		$admin = new Admin();
+		$admin->handle_bulk_revoke_request();
+
+		unset( $_REQUEST['action'], $_REQUEST['changeit'], $_REQUEST['users'] );
+	}
+
 	public function test_bulk_request_empty_selection_falls_through_after_nonce(): void {
 		Functions\when( 'is_network_admin' )->justReturn( false );
 		$_REQUEST['action'] = Admin::BULK_REVOKE_SESSIONS_ACTION;

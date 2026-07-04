@@ -1415,10 +1415,14 @@ class Admin {
 	 * dispatch fires `handle_bulk_actions-users` for custom actions WITHOUT
 	 * any nonce check, and self-redirects to strip `_wpnonce` first when a
 	 * referer field is present, so this is the only point where the request
-	 * can be nonce-verified. Action detection mirrors the verified
-	 * WP_List_Table::current_action() logic exactly: bail when
-	 * `filter_action` is set (the Filter button won the submit), then read
-	 * `action` only — current_action() has no action2 fallback. Bails in
+	 * can be nonce-verified. Action detection mirrors the users screen's
+	 * verified dispatch exactly: bail when `filter_action` is set (the
+	 * Filter button won the submit), bail when `changeit` is set (the
+	 * WP_Users_List_Table::current_action() override gives role-change
+	 * submits precedence as 'promote'), then read `action` only — the base
+	 * current_action() has no action2 fallback, and since WP 5.7 common.js
+	 * marries the bottom bulk controls to the top, so the bottom dropdown
+	 * always arrives in `action`. Bails in
 	 * the network admin: network/users.php rewrites $pagenow to users.php,
 	 * so load-users.php fires there too, but that screen is out of scope
 	 * (its nonce is bulk-users-network and this handler is site-scoped).
@@ -1434,6 +1438,13 @@ class Admin {
 
 		// phpcs:disable WordPress.Security.NonceVerification.Recommended -- Dispatch detection only; check_admin_referer() runs below before any state change.
 		if ( ! empty( $_REQUEST['filter_action'] ) ) {
+			return;
+		}
+
+		// Mirrors WP_Users_List_Table::current_action(): a role-change submit
+		// (changeit) takes precedence and dispatches 'promote', so a stale
+		// revoke selection in the dropdown must not hijack a role change.
+		if ( isset( $_REQUEST['changeit'] ) ) {
 			return;
 		}
 

@@ -499,7 +499,15 @@ Repos:   wp-sudo, wordpress-2fa-ecosystem
            and 6.4-branch (~633-643), fetched live 2026-07-04.
    Notes:  Caught by the design reviewer before implementation. The
            interceptor mirrors the verified logic exactly (filter_action
-           bail + action only).
+           bail + action only). Addendum (same day): the design review
+           verified only the BASE class — WP_Users_List_Table overrides
+           current_action() to give the role-change submit (changeit)
+           precedence as 'promote' (verified live, master ~line 355), a
+           divergence a second external review round (Codex) caught; the
+           interceptor now mirrors the subclass. The base/subclass action2
+           claim itself remains false in both; since WP 5.7 common.js
+           marries the bottom bulk controls to the top (marryControls), so
+           bottom-dropdown submissions arrive in `action`.
 
 ROOT CAUSE
 ----------
