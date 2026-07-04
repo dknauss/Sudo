@@ -51,8 +51,8 @@ human_verification:
 
 **Phase Goal:** Add Users-list row action for per-user revocation and a UI-surfaced revoke-all with confirmation; remove the Access-tab "Revoke Session" button; provide clear feedback on every path including gated/no-session and missing-cap cases.
 
-**Verified:** 2026-07-01T15:43:27Z
-**Status:** human_needed
+**Verified:** 2026-07-01T15:43:27Z (code-level) / 2026-07-04 (manual browser verification)
+**Status:** verified
 **Re-verification:** No — initial verification
 
 ## Goal Achievement
@@ -128,9 +128,9 @@ No code-level gaps found. All 5 observable truths, all required artifacts (three
 
 One documentation-accuracy note (not a code gap): REQUIREMENTS.md's REVK-02 text still says "network-wide" while the implementation is deliberately current-site-scoped per 24-CONTEXT.md's documented v4.5 scope decision (network-wide deferred to REVK-F3). Recommend updating REVK-02's wording in REQUIREMENTS.md to say "current-site" to match the implementation, as plan 01 itself recommends.
 
-The phase's only genuine outstanding item is the deferred manual browser-based UI verification of REVK-01..05, which is a recorded, deliberate scope decision (not a lapse) and is reflected here as `status: human_needed` rather than `gaps_found`.
+The phase's one deferred item — manual browser-based UI verification of REVK-01..05 — was a recorded, deliberate scope decision (not a lapse) and was COMPLETED on 2026-07-04 with all requirements passing; see the Human Verification Outcome in the front matter. The report status is now `verified`.
 
 ---
 
-*Verified: 2026-07-01T15:43:27Z*
+*Verified: 2026-07-01T15:43:27Z (code-level); manual browser verification completed 2026-07-04*
 *Verifier: Claude (gsd-verifier)*
