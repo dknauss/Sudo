@@ -198,6 +198,10 @@ class EventRecorderTest extends TestCase {
 			->once()
 			->with( [ Event_Recorder::class, 'on_recovery_mode_active' ], 10, 1 );
 
+		Actions\expectAdded( 'wp_sudo_session_revoked' )
+			->once()
+			->with( [ Event_Recorder::class, 'on_session_revoked' ], 10, 4 );
+
 		new Event_Recorder();
 	}
 
@@ -222,10 +226,12 @@ class EventRecorderTest extends TestCase {
 		Actions\expectAdded( 'wp_sudo_lockout' )->once();
 		Actions\expectAdded( 'wp_sudo_action_gated' )->once();
 		Actions\expectAdded( 'wp_sudo_action_blocked' )->once();
+		Actions\expectAdded( 'wp_sudo_escalation_blocked' )->once();
 		Actions\expectAdded( 'wp_sudo_action_allowed' )->once();
 		Actions\expectAdded( 'wp_sudo_action_passed' )->once();
 		Actions\expectAdded( 'wp_sudo_action_replayed' )->once();
 		Actions\expectAdded( 'wp_sudo_recovery_mode_active' )->once();
+		Actions\expectAdded( 'wp_sudo_session_revoked' )->once();
 
 		new Event_Recorder();
 	}
@@ -242,10 +248,12 @@ class EventRecorderTest extends TestCase {
 			'wp_sudo_lockout'              => 3,
 			'wp_sudo_action_gated'         => 3,
 			'wp_sudo_action_blocked'       => 3,
+			'wp_sudo_escalation_blocked'   => 3,
 			'wp_sudo_action_allowed'       => 3,
 			'wp_sudo_action_passed'        => 3,
 			'wp_sudo_action_replayed'      => 2,
 			'wp_sudo_recovery_mode_active' => 1,
+			'wp_sudo_session_revoked'      => 4,
 		];
 
 		foreach ( $hooks_with_args as $hook => $accepted_args ) {
@@ -291,10 +299,12 @@ class EventRecorderTest extends TestCase {
 			'wp_sudo_lockout'              => 3,
 			'wp_sudo_action_gated'         => 3,
 			'wp_sudo_action_blocked'       => 3,
+			'wp_sudo_escalation_blocked'   => 3,
 			'wp_sudo_action_allowed'       => 3,
 			'wp_sudo_action_passed'        => 3,
 			'wp_sudo_action_replayed'      => 2,
 			'wp_sudo_recovery_mode_active' => 1,
+			'wp_sudo_session_revoked'      => 4,
 		];
 
 		foreach ( $expected_args as $hook => $expected ) {
@@ -305,6 +315,14 @@ class EventRecorderTest extends TestCase {
 				"Hook $hook should have $expected accepted args"
 			);
 		}
+
+		// Exhaustiveness guard: if the recorder subscribes to a hook this
+		// test does not enumerate, fail loudly instead of drifting silently.
+		$this->assertSame(
+			count( $expected_args ),
+			count( $captured ),
+			'Recorder subscribed to hooks not enumerated in this test: ' . implode( ', ', array_diff( array_keys( $captured ), array_keys( $expected_args ) ) )
+		);
 	}
 
 	// ─── Payload mapping tests ───────────────────────────────────────────
@@ -422,6 +440,60 @@ class EventRecorderTest extends TestCase {
 
 		$context = is_string( $data['context'] ) ? json_decode( $data['context'], true ) : $data['context'];
 		$this->assertSame( 'high', $context['severity'] );
+
+		$this->restoreWpdb();
+	}
+
+	/**
+	 * Test on_session_revoked() records the target user with the reason tag
+	 * in the surface column and the operator in context.
+	 *
+	 * The reason lands in `surface` (not context) because the dashboard
+	 * widget's SELECT omits the context column — surface is the only slot
+	 * that keeps revocation provenance visible in the widget.
+	 *
+	 * @return void
+	 */
+	public function testOnSessionRevokedInsertsTargetWithReasonSurfaceAndOperatorContext(): void {
+		$this->setUpFakeWpdb();
+
+		Event_Recorder::on_session_revoked( 42, 7, 'users_list_row_action', 1 );
+
+		$this->assertCount( 1, $this->fake_wpdb->inserts );
+
+		$data = $this->fake_wpdb->inserts[0]['data'];
+		$this->assertSame( 42, $data['user_id'] );
+		$this->assertSame( 'session_revoked', $data['event'] );
+		$this->assertSame( '', $data['rule_id'] );
+		$this->assertSame( 'users_list_row_action', $data['surface'] );
+
+		$context = is_string( $data['context'] ) ? json_decode( $data['context'], true ) : $data['context'];
+		$this->assertIsArray( $context );
+		$this->assertSame( 7, $context['revoked_by'] );
+
+		$this->restoreWpdb();
+	}
+
+	/**
+	 * Test on_session_revoked() records a batch revoke-all as a zero-target
+	 * row tagged with the revoke_all_ui surface.
+	 *
+	 * @return void
+	 */
+	public function testOnSessionRevokedBatchRecordsZeroTargetWithRevokeAllSurface(): void {
+		$this->setUpFakeWpdb();
+
+		Event_Recorder::on_session_revoked( 0, 7, 'revoke_all_ui', 1 );
+
+		$this->assertCount( 1, $this->fake_wpdb->inserts );
+
+		$data = $this->fake_wpdb->inserts[0]['data'];
+		$this->assertSame( 0, $data['user_id'] );
+		$this->assertSame( 'session_revoked', $data['event'] );
+		$this->assertSame( 'revoke_all_ui', $data['surface'] );
+
+		$context = is_string( $data['context'] ) ? json_decode( $data['context'], true ) : $data['context'];
+		$this->assertSame( 7, $context['revoked_by'] );
 
 		$this->restoreWpdb();
 	}
