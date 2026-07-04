@@ -1123,6 +1123,51 @@ class DashboardWidgetTest extends TestCase {
 	}
 
 	/**
+	 * Test event pill labels pass through __() with the wp-sudo text domain
+	 * so they are localizable.
+	 *
+	 * Aliases __() to prefix wp-sudo-domain strings with an [i18n] marker:
+	 * if the label came from an untranslated constant the marker is absent
+	 * and the assertion fails.
+	 *
+	 * @return void
+	 */
+	public function testEventPillLabelsAreTranslatable(): void {
+		$this->setUpRenderStubs();
+		\WP_User_Query::$mock_total   = 0;
+		\WP_User_Query::$mock_results = [];
+		Functions\when( 'human_time_diff' )->justReturn( '1 min ago' );
+		Functions\when( 'get_option' )->justReturn( [] );
+		Functions\when( 'get_users' )->alias(
+			function ( array $args ): array {
+				if ( isset( $args['include'] ) ) {
+					$user             = (object) array();
+					$user->ID         = 1;
+					$user->user_login = 'testuser';
+					return array( $user );
+				}
+
+				return array();
+			}
+		);
+		Functions\when( '__' )->alias(
+			function ( string $text, string $domain = 'default' ): string {
+				return 'wp-sudo' === $domain ? '[i18n]' . $text : $text;
+			}
+		);
+
+		$GLOBALS['wpdb'] = new DashboardWidgetFakeWpdbWithSessionRevokedEvent();
+
+		ob_start();
+		Dashboard_Widget::render();
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( '>[i18n]Revoked</span>', $output );
+
+		$this->restoreWpdb();
+	}
+
+	/**
 	 * Test escalation-blocked events render a human-readable label instead
 	 * of the raw event type string.
 	 *

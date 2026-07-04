@@ -308,19 +308,24 @@ class Dashboard_Widget {
 	/**
 	 * Event label map for human-readable display.
 	 *
-	 * @var array<string, string>
+	 * A method rather than a constant so the labels pass through __()
+	 * and stay localizable.
+	 *
+	 * @return array<string, string>
 	 */
-	private const EVENT_LABELS = array(
-		'lockout'            => 'Lockout',
-		'action_gated'       => 'Gated',
-		'action_blocked'     => 'Blocked',
-		'action_allowed'     => 'Allowed',
-		'action_passed'      => 'Passed',
-		'action_replayed'    => 'Replayed',
-		'recovery_mode'      => 'Break-glass',
-		'escalation_blocked' => 'Escalation',
-		'session_revoked'    => 'Revoked',
-	);
+	private static function event_labels(): array {
+		return array(
+			'lockout'            => __( 'Lockout', 'wp-sudo' ),
+			'action_gated'       => __( 'Gated', 'wp-sudo' ),
+			'action_blocked'     => __( 'Blocked', 'wp-sudo' ),
+			'action_allowed'     => __( 'Allowed', 'wp-sudo' ),
+			'action_passed'      => __( 'Passed', 'wp-sudo' ),
+			'action_replayed'    => __( 'Replayed', 'wp-sudo' ),
+			'recovery_mode'      => __( 'Break-glass', 'wp-sudo' ),
+			'escalation_blocked' => __( 'Escalation', 'wp-sudo' ),
+			'session_revoked'    => __( 'Revoked', 'wp-sudo' ),
+		);
+	}
 
 	/**
 	 * High-risk rule IDs that should show the critical badge in activity views.
@@ -451,7 +456,8 @@ class Dashboard_Widget {
 		echo '<th scope="col" data-sort-column="surface" aria-sort="none"><button type="button" class="wp-sudo-sort-button" data-sort-key="surface" data-default-dir="asc" aria-label="' . esc_attr__( 'Sort by Surface', 'wp-sudo' ) . '"><span class="wp-sudo-sort-label">' . esc_html__( 'Surface', 'wp-sudo' ) . '</span><span class="wp-sudo-sort-indicator" aria-hidden="true"></span></button></th>';
 		echo '</tr></thead><tbody>';
 
-		$row_index = 0;
+		$row_index    = 0;
+		$event_labels = self::event_labels();
 		foreach ( $events as $event ) {
 			$event_obj       = is_array( $event ) ? (object) $event : $event;
 			$created_at      = isset( $event_obj->created_at ) ? self::parse_created_at_timestamp( (string) $event_obj->created_at ) : 0;
@@ -469,7 +475,7 @@ class Dashboard_Widget {
 				$username = '—';
 			}
 			$event_type    = isset( $event_obj->event ) ? (string) $event_obj->event : '';
-			$event_label   = self::EVENT_LABELS[ $event_type ] ?? $event_type;
+			$event_label   = $event_labels[ $event_type ] ?? $event_type;
 			$event_class   = 'wp-sudo-event-pill wp-sudo-event-pill-' . str_replace( '_', '-', $event_type );
 			$rule_id       = isset( $event_obj->rule_id ) ? (string) $event_obj->rule_id : '';
 			$rule_metadata = self::get_rule_metadata( $rule_id );
