@@ -4530,6 +4530,29 @@ class AdminTest extends TestCase {
 		$this->assertStringContainsString( 'paged=2', $result );
 	}
 
+	public function test_handle_bulk_revoke_self_only_selection_returns_self_target(): void {
+		$this->stub_bulk_sendback_url_fns();
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
+		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
+		$this->mock_active_sudo_session( 2 );
+		Functions\when( 'get_transient' )->justReturn( 0 );
+		// The batch slot is consumed up front, even when nothing ends up
+		// revoked (same accounting as the old drained-set path).
+		Functions\expect( 'set_transient' )
+			->once()
+			->with( '_wp_sudo_revoke_count_2', 1, \Mockery::type( 'int' ) );
+
+		Functions\expect( 'delete_user_meta' )->never();
+		Actions\expectDone( 'wp_sudo_session_revoked' )->never();
+
+		$admin  = new Admin();
+		$result = $admin->handle_bulk_revoke_sessions( 'https://example.com/wp-admin/users.php', Admin::BULK_REVOKE_SESSIONS_ACTION, array( 2 ) );
+
+		$this->assertStringContainsString( 'wp_sudo_revoke_result=self_target', $result );
+
+		unset( $_COOKIE[ \WP_Sudo\Sudo_Session::TOKEN_COOKIE ] );
+	}
+
 	public function test_handle_bulk_revoke_none_live_returns_distinct_code(): void {
 		$this->stub_bulk_sendback_url_fns();
 		Functions\when( 'wp_sudo_can' )->justReturn( true );

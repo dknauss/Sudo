@@ -9,8 +9,8 @@ Verification environment: local workspace, PHP 8.x
 
 | Metric | Value | Verification |
 |---|---:|---|
-| Unit tests | 970 tests | `composer test:unit` |
-| Unit assertions | 2,949 assertions | `composer test:unit` |
+| Unit tests | 971 tests | `composer test:unit` |
+| Unit assertions | 2,953 assertions | `composer test:unit` |
 | Integration tests in suite | 208 test methods | `rg -c "function test" tests/Integration/*.php | awk -F: '{sum+=$2} END{print sum}'` |
 | Unit test files | 29 | `ls tests/Unit/*.php | wc -l` |
 | Integration test files | 28 | `ls tests/Integration/*.php | wc -l` |
@@ -20,10 +20,10 @@ Verification environment: local workspace, PHP 8.x
 | Metric | Value | Verification |
 |---|---:|---|
 | Production PHP lines (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 16,918 | `find ./includes ./wp-sudo.php ./uninstall.php ./mu-plugin ./bridges -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
-| Tests PHP lines (`tests/`) | 35,449 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
-| Production + tests PHP lines | 52,367 | sum of the two rows above |
-| Test-to-production ratio | 2.10:1 | `35449 / 16918` |
-| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`) | 52,639 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Tests PHP lines (`tests/`) | 35,472 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Production + tests PHP lines | 52,390 | sum of the two rows above |
+| Test-to-production ratio | 2.10:1 | `35472 / 16918` |
+| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`) | 52,662 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
 
 ## Architectural Facts
 
@@ -66,7 +66,7 @@ Source: `.github/workflows/phpunit.yml`, `.github/workflows/e2e.yml`, `.github/w
 
 ## Verification Notes
 
-- `composer test:unit` passed on 2026-07-04 (`970 tests`, `2949 assertions`). Session revocation moved from the Users-list toolbar button + admin-post interstitial to a native "Revoke sudo sessions" bulk action (one rate slot per batch, self-skip, per-user audit fires with the `users_list_bulk_action` reason); the Sudo Active badge count transient is now invalidated on session grant/teardown; the stale `wp_sudo_revoke_session` AJAX reference was scrubbed from the registry.
+- `composer test:unit` passed on 2026-07-04 (`971 tests`, `2953 assertions`). Session revocation moved from the Users-list toolbar button + admin-post interstitial to a native "Revoke sudo sessions" bulk action (one rate slot per batch, self-skip, per-user audit fires with the `users_list_bulk_action` reason); the Sudo Active badge count transient is now invalidated on session grant/teardown; the stale `wp_sudo_revoke_session` AJAX reference was scrubbed from the registry.
 - `composer test:unit` passed on 2026-07-04 (`968 tests`, `2948 assertions`). The Event_Recorder now subscribes to `wp_sudo_session_revoked` and stores `session_revoked` event rows, and the dashboard widget renders human-readable labels for `session_revoked` ("Revoked") and `escalation_blocked` ("Escalation") with distinct pill styling (+4 tests).
 - `composer test:unit` passed on 2026-07-01 (`956 tests`, `2888 assertions`). Phase 24 (Session Revocation UI) added the shared revoke-all/liveness methods, the factored revocation core, the Users-list row action + revoke-all interstitial + distinct result notices, and removed the Access-tab session-revoke button and the orphaned AJAX path. Follow-up fixes preserve the settings `tab` across a sudo reauth: on multisite network settings save, and single-site via a shared `wp_sudo_build_challenge_url()` helper that rawurlencodes the nested return_url across all challenge-URL builders + the admin-bar deactivate link (+11 tests, incl. a faithful add_query_arg test stub).
 - `composer lint` passed on 2026-06-30.
