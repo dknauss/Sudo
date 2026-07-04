@@ -4469,6 +4469,43 @@ class AdminTest extends TestCase {
 		unset( $_REQUEST['action'] );
 	}
 
+	/**
+	 * When the request carries no referer, the interceptor falls back to
+	 * admin_url('users.php') as the sendback base so the operator still
+	 * lands on the Users list with the result notice.
+	 */
+	public function test_bulk_request_falls_back_to_users_url_without_referer(): void {
+		Functions\when( 'is_network_admin' )->justReturn( false );
+		$this->stub_bulk_sendback_url_fns();
+		Functions\when( 'check_admin_referer' )->justReturn( 1 );
+		Functions\when( 'wp_get_referer' )->justReturn( false );
+		Functions\when( 'admin_url' )->alias( static fn( string $path = '' ) => 'https://example.com/wp-admin/' . ltrim( $path, '/' ) );
+		Functions\when( 'wp_sudo_can' )->justReturn( false ); // Shortest guard path: no_cap.
+		Functions\when( 'get_current_user_id' )->justReturn( 2 );
+
+		Functions\expect( 'wp_safe_redirect' )
+			->once()
+			->with( \Mockery::on( static function ( string $url ): bool {
+				return 0 === strpos( $url, 'https://example.com/wp-admin/users.php' )
+					&& false !== strpos( $url, 'wp_sudo_revoke_result=no_cap' );
+			} ) )
+			->andThrow( new \RuntimeException( 'redirected' ) );
+
+		$_REQUEST['action'] = Admin::BULK_REVOKE_SESSIONS_ACTION;
+		$_REQUEST['users']  = array( '9' );
+
+		$admin = new Admin();
+
+		try {
+			$admin->handle_bulk_revoke_request();
+			$this->fail( 'Expected redirect short-circuit.' );
+		} catch ( \RuntimeException $e ) {
+			$this->assertSame( 'redirected', $e->getMessage() );
+		}
+
+		unset( $_REQUEST['action'], $_REQUEST['users'] );
+	}
+
 	public function test_bulk_request_success_delegates_and_redirects_with_result(): void {
 		Functions\when( 'is_network_admin' )->justReturn( false );
 		$this->stub_bulk_sendback_url_fns();
