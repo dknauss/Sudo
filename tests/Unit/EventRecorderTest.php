@@ -475,12 +475,16 @@ class EventRecorderTest extends TestCase {
 	}
 
 	/**
-	 * Test on_session_revoked() records a batch revoke-all as a zero-target
-	 * row tagged with the revoke_all_ui surface.
+	 * Test on_session_revoked() tolerates a zero-target fire.
+	 *
+	 * The plugin's own surfaces now always fire per-user (the users.php bulk
+	 * action fires once per revoked user), but the hook signature documents
+	 * target 0 as a valid batch convention for third-party callers — the
+	 * recorder must store such a row rather than dropping or crashing on it.
 	 *
 	 * @return void
 	 */
-	public function testOnSessionRevokedBatchRecordsZeroTargetWithRevokeAllSurface(): void {
+	public function testOnSessionRevokedToleratesThirdPartyZeroTargetFires(): void {
 		$this->setUpFakeWpdb();
 
 		Event_Recorder::on_session_revoked( 0, 7, 'revoke_all_ui', 1 );

@@ -378,8 +378,9 @@ class Event_Recorder {
 	 * Handle wp_sudo_session_revoked event.
 	 *
 	 * Fired when an operator revokes another user's sudo session from the
-	 * Users-list row action, or every active session via the revoke-all
-	 * control (batch firings carry a zero target). The reason tag is stored
+	 * Users-list row action or the "Revoke sudo sessions" bulk action (which
+	 * fires once per revoked user; a zero target remains a documented batch
+	 * convention for third-party callers). The reason tag is stored
 	 * in the surface column — the dashboard widget's event query omits the
 	 * context payload, so surface is the only slot that keeps revocation
 	 * provenance visible in the widget. The operator lands in context for
@@ -397,9 +398,9 @@ class Event_Recorder {
 	 *
 	 * @since 4.5.0
 	 *
-	 * @param int    $target_user_id  Revoked user (0 for a batch revoke-all).
+	 * @param int    $target_user_id  Revoked user (0 = third-party batch convention).
 	 * @param int    $revoker_user_id Operator who performed the revocation.
-	 * @param string $reason          Reason/surface tag (users_list_row_action, revoke_all_ui).
+	 * @param string $reason          Reason/surface tag (users_list_row_action, users_list_bulk_action).
 	 * @param int    $site_id         Site context reported by the fire site (unused; see above).
 	 * @return void
 	 */

@@ -1060,4 +1060,42 @@ class PluginTest extends TestCase {
 	private function include_mu_loader_file(): void {
 		include __DIR__ . '/../../mu-plugin/wp-sudo-loader.php';
 	}
+
+	// -----------------------------------------------------------------
+	// Sudo Active count cache invalidation registration
+	// -----------------------------------------------------------------
+
+	/**
+	 * The Users-list "Sudo Active (N)" badge cache must be invalidated on
+	 * session grant/teardown from EVERY execution context — sessions are
+	 * granted on wp_login and revoked via WP-CLI, both outside is_admin()
+	 * — so the flush hooks must register unconditionally in init(), not
+	 * inside the is_admin()-only Admin instance.
+	 *
+	 * @return void
+	 */
+	public function test_init_registers_sudo_active_count_flush_hooks_outside_admin(): void {
+		$this->stub_init_deps( false ); // Front-end context: no Admin instance.
+
+		$captured = array();
+		Functions\when( 'add_action' )->alias(
+			function ( $hook, $callback, ...$unused ) use ( &$captured ) { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed, VariableAnalysis.CodeAnalysis.VariableAnalysis.UnusedVariable -- Accept add_action's priority/accepted_args explicitly; only hook + callback are asserted.
+				$captured[] = array( $hook, $callback );
+			}
+		);
+
+		$plugin = new Plugin();
+		$plugin->init();
+
+		$this->assertContains(
+			array( 'wp_sudo_activated', array( Admin::class, 'flush_sudo_active_count_cache' ) ),
+			$captured,
+			'wp_sudo_activated must flush the Sudo Active count cache even outside is_admin()'
+		);
+		$this->assertContains(
+			array( 'wp_sudo_deactivated', array( Admin::class, 'flush_sudo_active_count_cache' ) ),
+			$captured,
+			'wp_sudo_deactivated must flush the Sudo Active count cache even outside is_admin()'
+		);
+	}
 }

@@ -356,18 +356,19 @@ class Dashboard_Widget {
 	 * @var array<string, string>
 	 */
 	private const SURFACE_LABELS = array(
-		'admin'                 => 'admin',
-		'ajax'                  => 'ajax',
-		'rest'                  => 'rest',
-		'rest_app_password'     => 'app-pass',
-		'cli'                   => 'wp-cli',
-		'cron'                  => 'cron',
-		'xmlrpc'                => 'xml-rpc',
-		'wpgraphql'             => 'graphql',
-		'public_api'            => 'public-api',
-		'reauth'                => 'reauth',
-		'users_list_row_action' => 'users-list',
-		'revoke_all_ui'         => 'revoke-all',
+		'admin'                  => 'admin',
+		'ajax'                   => 'ajax',
+		'rest'                   => 'rest',
+		'rest_app_password'      => 'app-pass',
+		'cli'                    => 'wp-cli',
+		'cron'                   => 'cron',
+		'xmlrpc'                 => 'xml-rpc',
+		'wpgraphql'              => 'graphql',
+		'public_api'             => 'public-api',
+		'reauth'                 => 'reauth',
+		'users_list_row_action'  => 'users-list',
+		'users_list_bulk_action' => 'bulk-action',
+		'revoke_all_ui'          => 'revoke-all',
 	);
 
 	/**
