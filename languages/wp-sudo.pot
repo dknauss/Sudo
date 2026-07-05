@@ -2,7 +2,7 @@
 # This file is distributed under the GPL-2.0-or-later.
 msgid ""
 msgstr ""
-"Project-Id-Version: Sudo – Admin Action Gating 4.5.0\n"
+"Project-Id-Version: Sudo – Admin Action Gating 4.5.1\n"
 "Report-Msgid-Bugs-To: https://github.com/dknauss/Sudo/issues\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
