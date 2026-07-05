@@ -152,27 +152,30 @@ class Admin {
 	);
 
 	/**
-	 * Human-readable labels for governance capabilities.
+	 * Get the operator-facing, translatable label for a governance capability.
 	 *
-	 * Keys must remain the exact capability slugs used in GOVERNANCE_CAPS.
-	 *
-	 * @var array<string, string>
-	 */
-	private const CAP_LABELS = array(
-		'manage_wp_sudo'          => 'Manage Sudo settings and policies',
-		'view_wp_sudo_activity'   => 'View sudo activity and sessions',
-		'export_wp_sudo_activity' => 'Export sudo activity data',
-		'revoke_wp_sudo_sessions' => "Revoke other users' active sessions",
-	);
-
-	/**
-	 * Get the operator-facing label for a governance capability.
+	 * Labels are returned through the text domain at call time so localized
+	 * installs get translated capability names — since the slug is no longer
+	 * shown as the visible fallback in the Access-tab table, the label is the
+	 * primary visible text. Cases are the exact capability slugs used in
+	 * GOVERNANCE_CAPS; an unknown slug returns itself.
 	 *
 	 * @param string $cap Capability slug.
 	 * @return string Human-readable label, or the slug when no label exists.
 	 */
 	private static function get_cap_label( string $cap ): string {
-		return self::CAP_LABELS[ $cap ] ?? $cap;
+		switch ( $cap ) {
+			case 'manage_wp_sudo':
+				return __( 'Manage Sudo settings and policies', 'wp-sudo' );
+			case 'view_wp_sudo_activity':
+				return __( 'View sudo activity and sessions', 'wp-sudo' );
+			case 'export_wp_sudo_activity':
+				return __( 'Export sudo activity data', 'wp-sudo' );
+			case 'revoke_wp_sudo_sessions':
+				return __( "Revoke other users' active sessions", 'wp-sudo' );
+			default:
+				return $cap;
+		}
 	}
 
 	/**
@@ -1964,6 +1967,7 @@ class Admin {
 											data-user-id="<?php echo (int) $holder['user']->ID; ?>"
 											data-cap="<?php echo esc_attr( $cap ); ?>"
 											data-nonce="<?php echo esc_attr( $nonce ); ?>"
+											aria-label="<?php echo esc_attr( sprintf( /* translators: %s: governance capability label. */ __( 'Revoke %s capability', 'wp-sudo' ), self::get_cap_label( $cap ) ) ); ?>"
 										><?php esc_html_e( 'Revoke', 'wp-sudo' ); ?></button>
 									</div>
 								<?php endforeach; ?>

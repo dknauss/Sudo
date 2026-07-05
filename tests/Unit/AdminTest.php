@@ -3370,6 +3370,9 @@ class AdminTest extends TestCase {
 		$this->assertStringContainsString( 'wp-sudo-revoke-cap', $output );
 		$this->assertStringContainsString( 'data-cap="revoke_wp_sudo_sessions"', $output );
 		$this->assertStringContainsString( '>Revoke<', $output );
+		// Each button carries a capability-specific accessible name for screen readers
+		// tabbing through otherwise-identical "Revoke" controls.
+		$this->assertStringContainsString( 'aria-label="Revoke Revoke other users\' active sessions capability"', $output );
 	}
 
 	// -----------------------------------------------------------------
