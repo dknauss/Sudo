@@ -311,7 +311,18 @@ function psudo_lite_current_admin_url(): string {
 		? sanitize_url( wp_unslash( $_SERVER['REQUEST_URI'] ) )
 		: '/wp-admin/';
 
-	return wp_validate_redirect( home_url( $request_uri ), admin_url() );
+	// REQUEST_URI is already the full path from the domain root, including any
+	// subdirectory install path (e.g. /blog/wp-admin/plugins.php). Building the
+	// URL from the request host rather than home_url() avoids prepending the
+	// home path a second time, which on a subdirectory install would yield
+	// /blog/blog/wp-admin/... and 404 after reauth. wp_validate_redirect()
+	// still constrains the result to this site, falling back to admin_url().
+	$host    = isset( $_SERVER['HTTP_HOST'] )
+		? sanitize_text_field( wp_unslash( $_SERVER['HTTP_HOST'] ) )
+		: '';
+	$current = '' !== $host ? set_url_scheme( 'http://' . $host . $request_uri ) : admin_url();
+
+	return wp_validate_redirect( $current, admin_url() );
 }
 
 /**
