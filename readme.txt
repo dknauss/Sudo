@@ -405,7 +405,7 @@ See the plugin's `CHANGELOG.md` for all versions.
 == Upgrade Notice ==
 
 = 4.5.0 =
-Recommended security update: hardens the admin-escalation guard (now requires the acting user's promoting authority) and session revocation (now requires a token-bound sudo session). Adds bulk session revocation, dashboard revocation visibility, and Access-tab accessibility/i18n. No settings migration required.
+Recommended security update: hardens the admin-escalation guard (requires the actor's promoting authority) and session revocation (requires a token-bound sudo session). Adds bulk session revocation, dashboard revocation visibility, and Access-tab a11y/i18n. No migration required.
 
 = 4.0.0 =
 Breaking release: replace `sudo_can()` with `wp_sudo_can()`. Compatibility governance mode is removed; strict governance and `WP_SUDO_RECOVERY_MODE` remain. Requires WordPress 6.4+ and PHP 8.2+.
