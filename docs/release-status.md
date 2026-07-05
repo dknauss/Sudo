@@ -33,11 +33,12 @@ All steps done; retained as the release record.
 
 The tree is release-ready; the annotated tag and GitHub Release are maintainer-owned and not yet done.
 
-1. **Version sync — ✅ done.** All five points at `4.5.1` (`wp-sudo.php` header + constant, `tests/bootstrap.php`, `phpstan-bootstrap.php`, `readme.txt` Stable tag).
-2. **CHANGELOG + readme.txt — ✅ done.** `4.5.1` dated section in `CHANGELOG.md`; `readme.txt` Changelog and Upgrade Notice entries added.
-3. **Bump `blueprint.json` — ✅ done.** Stable-demo install target now `archive/refs/tags/v4.5.1.zip` (the tag ZIP resolves once the tag is cut).
+1. **Release-environment matrix sign-off — ✅ carried over.** The `4.5.1` delta over the `v4.5.0` tag is PR #154's **admin-UI presentation** changes (dashboard widget + Access-tab rendering, `User_Identity` helper, admin CSS, `get_avatar` `force_display` fix) plus the version bump — admin-side rendering that does not touch the server/host/WordPress-floor dimensions the manual matrix exercises, and is CI-covered on the 6.4 floor. The completed `4.5.0` matrix (Apache completed, min-WP CI-covered, managed-host waived) therefore applies. Reuse rationale recorded in `docs/release-environment-log.md`.
+2. **Version sync — ✅ done.** All five points at `4.5.1` (`wp-sudo.php` header + constant, `tests/bootstrap.php`, `phpstan-bootstrap.php`, `readme.txt` Stable tag).
+3. **CHANGELOG + readme.txt — ✅ done.** `4.5.1` dated section in `CHANGELOG.md`; `readme.txt` Changelog and Upgrade Notice entries added.
 4. **Cut the annotated tag — ⏳ pending (maintainer).** Cut `v4.5.1` from the release commit; publish the GitHub Release.
-5. **Update this file — ⏳ pending.** After the tag is cut, record `4.5.1` as Latest tagged release / `v4.5.1` as latest git tag observed.
+5. **Bump `blueprint.json` — ⏳ pending (post-tag).** Deliberately **not** bumped in this PR: the public "Try latest release" badges load `blueprint.json` from `main`, so pointing the install target at `archive/refs/tags/v4.5.1.zip` before the tag exists would make the public demo fetch a missing ZIP. It stays on `v4.5.0.zip` and is bumped to `v4.5.1.zip` **after** the tag is cut (the same post-tag ordering used for `4.5.0` via PR #150).
+6. **Update this file — ⏳ pending.** After the tag is cut, record `4.5.1` as Latest tagged release / `v4.5.1` as latest git tag observed.
 
 ## Current `main` release state
 
