@@ -4,9 +4,10 @@
 (1) design review → "revise before TDD", findings folded in (Part 3.5);
 (2) focused adversarial **security review** of the editor AJAX-grant reuse →
 **SAFE WITH STATED CONDITIONS**, verdict + must-dos folded in (Part 3.6).
-No production code proposed here. Design is TDD-ready once the single remaining
-scope decision (Part 5 Q1, "beat the floor") is made; the security question that
-gated it is resolved.
+**Scope decided 2026-07-05: Tier 2 — transparent in-editor modal** (Part 4 / Part 5 Q1).
+No production code proposed here. The gating security question is resolved (Part 3.6),
+and the scope is set; the design is **TDD-ready** pending a plan-phase breakdown of the
+Part 5 residual questions (batch depth, concurrency policy, SEV-3 label handling).
 
 **Verification stamp:** Surface inventory and security-boundary claims below were
 re-grounded against the live codebase on **2026-07-05** (current `main`, plugin
@@ -242,22 +243,33 @@ Key refutations (all code-grounded):
   app-password/bearer branch (`class-gate.php:1869-1883`); the editor feature must not
   cause it to leak to headless sessions.
 
-## Part 4 — Phased plan & effort (corrected)
+## Part 4 — Phased plan & effort (scope decided 2026-07-05: **Tier 2 — transparent modal**)
+
+**Structural correction that sets the phasing:** a `core/notices` **snackbar cannot
+host a password field** — it only shows a message with action buttons. The AJAX grant
+requires the user's password (+2FA). Therefore the transparent, stay-in-editor path
+**requires a modal** (`wp.components.Modal`) to collect the password; the snackbar can
+only *notify* and *trigger* the modal (or, in fallback, link out). The earlier
+"snackbar MVP now, modal later" sequencing was incoherent — the modal is **in the MVP**.
+
+**Decision:** build the transparent in-editor flow (never leave the editor). The
+security review cleared the AJAX-grant reuse (Part 3.6) and the modal is build-free
+(`wp.element.createElement( wp.components.Modal, … )`), so Tier 2 is cheaper than the
+original "largest lift" framing — but it does carry the C1–C4 conditions, batch
+handling, and concurrency edge cases.
 
 | Phase | Scope | Build step? | Status |
 |---|---|---|---|
 | 1 | Server `challenge_url` on cookie-auth REST error + tests | No | ✅ **Shipped v4.2.0** |
-| 2 | `apiFetch` middleware (batch-aware) + snackbar + **reuse existing AJAX grant** + re-dispatch; Playwright E2E | **No (build-free)** | Not started |
-| 3 | Snackbar → modal challenge (try `wp.components.Modal` via `createElement`) | Reconsider build only if unmaintainable | Not started |
-| ~~4~~ | ~~2FA-in-editor (deferred)~~ — **folded into Phase 2**: AJAX 2FA already exists (`handle_ajax_2fa`) | — | Rationale withdrawn (SEV-1) |
-| 4 | Broaden E2E matrix once challenge transport is no longer page-based | — | Not started |
+| 2 | `apiFetch` middleware (batch-aware) → snackbar trigger → **modal** (password + AJAX 2FA) via existing grant endpoints → **auto re-dispatch**; conditions C1–C4; Playwright E2E | **No (build-free)** | Not started |
+| 3 | Polish: concurrency/debounce refinement, error-state UX, accessibility pass on the modal | No | Not started |
 
-**Even-smaller floor (MVP fallback, per scope discipline):** if the middleware +
-grant-nonce plumbing proves disproportionate for essentially one flow (Block Directory
-install/activate), the honest minimum is: improve the `sudo_required` snackbar to carry
-an actionable "Reauthenticate" link to the full-page challenge and stop — no AJAX grant,
-no re-dispatch. State this as the floor the design must beat to justify the extra
-machinery.
+**Graceful-degradation fallback (kept, not the primary path):** the *link-out snackbar*
+(open the challenge in a **new tab**, editor state preserved, manual retry) is the
+degradation path when the modal cannot serve a case — e.g. a session/2FA edge the
+in-editor modal cannot complete, or `challenge_url` absent on a headless session (show
+the plain message, no action; **C4**). The modal is the default; the link-out is the
+safety net, not a separate phase.
 
 **Build-step decision (settled):** declined for the MVP. The plugin ships zero
 production npm deps and no build step today; the snackbar/middleware reach core
@@ -279,10 +291,12 @@ a `build/` artifact, and version-pinning maintenance — cost a snackbar does no
   not a Settings checkbox. Out of Phase 2 scope. Confirmed.
 
 **Remaining questions for the second review pass / discussion phase:**
-1. **Scope discipline — beat the floor.** Given essentially one real flow (Block
-   Directory install/activate), does the middleware + grant-nonce + re-dispatch design
-   earn its keep over the Part 4 "even-smaller floor" (actionable link only)? This is
-   the single decision most likely to move the ETA.
+1. **Scope discipline — beat the floor.** ✅ **RESOLVED 2026-07-05: Tier 2 (transparent
+   modal).** Build the stay-in-editor flow (modal collects password/2FA via the
+   security-cleared AJAX grant, then auto re-dispatch). The link-out snackbar is kept
+   only as the degradation fallback. Rationale: the flow is infrequent but high-intent
+   (user is actively blocked mid-compose), the AJAX endpoints already exist, and the
+   modal is build-free. Accepts the C1–C4 conditions + batch + concurrency cost.
 2. **Batch handling depth.** Unwrap `/batch/v1` envelopes now, or document out-of-scope?
    The gated `plugins` controller is not `allow_batch` in core today, so out-of-scope is
    defensible for the MVP — but a third-party gated route or a core change could
