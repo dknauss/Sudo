@@ -2,10 +2,10 @@
 gsd_state_version: 1.0
 milestone: v4.5
 milestone_name: — Session Governance & Admin UX
-status: complete (pending PR #141 merge)
-stopped_at: "v4.5 milestone work complete: Phase 24 (Session Revocation UI) shipped via PR #131 and redesigned/hardened via PRs #139/#140 (widget visibility, bulk action replacing the revoke-all button+interstitial, nonce interceptor, membership guards, badge-count invalidation); manual REVK-01..05 browser verification COMPLETED 2026-07-04 (24-VERIFICATION.md status: verified, all PASS). Phase 25 (Governance Coverage Panel Fix, GCOV-01/02) implemented, reviewer-approved, and open as PR #141 (ready for review) awaiting merge."
-last_updated: "2026-07-04T21:26:04Z"
-last_activity: 2026-07-04 — Phase 25 shipped (PR #141); Phase 24 manual browser verification completed, all REVK PASS; revocation UX redesigned to a bulk action with security hardening (PRs #139/#140 merged)
+status: complete (v4.5 merged; follow-ups PR #143/#144 merged, PR #145 in review)
+stopped_at: "v4.5 milestone complete and merged: Phase 24 (Session Revocation UI) shipped via PR #131 and redesigned/hardened via PRs #139/#140; manual REVK-01..05 browser verification COMPLETED 2026-07-04 (24-VERIFICATION.md status: verified, all PASS); Phase 25 (Governance Coverage Panel Fix, GCOV-01/02) merged via PR #141 on 2026-07-04. Session follow-ups merged: PR #143 (public screenshot refresh) and PR #144 (Access-tab capability-table readability + accessible names + translatable labels). Patchstack 2FA compatibility runtime-validated offline against a licensed Pro 2.3.6 fixture and documented in PR #145 (in review)."
+last_updated: "2026-07-05"
+last_activity: 2026-07-05 — v4.5 closed (Phase 25 merged via PR #141, 2026-07-04); session follow-ups PR #143 (screenshot refresh) and PR #144 (Access-tab table a11y/i18n) merged; Patchstack 2FA runtime-validated offline and documented in PR #145 (in review)
 progress:
   total_phases: 2
   completed_phases: 2
@@ -16,7 +16,7 @@ progress:
 
 ## Current Position
 
-Phase: 25 — Governance Coverage Panel Fix (complete; awaiting PR #141 merge)
+Phase: 25 — Governance Coverage Panel Fix (complete and merged via PR #141)
 Plan: n/a — Phase 25 executed as a single design-reviewed TDD pass (GCOV-01/02)
 Status: Both v4.5 phases are complete. Phase 24 (Session Revocation UI) merged via PR #131, then redesigned per maintainer UX feedback and security-hardened via PRs #139/#140 (widget revocation visibility; "Revoke sudo sessions" bulk action replacing the revoke-all button + interstitial; nonce-verified load-users.php interceptor; site-membership guards; Sudo Active badge-count invalidation; registry scrub). Manual browser verification of REVK-01..05 COMPLETED 2026-07-04 — all PASS; `24-VERIFICATION.md` status is `verified`. Phase 25 implemented, reviewer-approved, and merged via PR #141 (2026-07-04), closing the v4.5 milestone.
 Progress: [██████████] 100% of v4.5 (Phase 24 verified end-to-end incl. manual; Phase 25 complete and merged via PR #141)
