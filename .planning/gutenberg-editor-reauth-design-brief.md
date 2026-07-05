@@ -1,8 +1,12 @@
 # Design Phase Scaffold — Block-Editor (Gutenberg) Reauthentication UX
 
-**Status:** Design-phase scaffold. No production code proposed here. This document
-is the input to the mandatory Pre-Implementation Design Review (per `CLAUDE.md`)
-that must run before any TDD on this feature.
+**Status:** Design-phase scaffold, **design-reviewed 2026-07-05 → verdict: revise
+before TDD**. The review findings are folded in below (Part 3 recast; Part 4 phasing
+corrected; Part 5 split into resolved decisions + remaining questions; new Part 3.5
+records the findings with code evidence). No production code proposed here. This
+document is the input to the mandatory Pre-Implementation Design Review (per
+`CLAUDE.md`) — the first review pass is done; a second pass should confirm the
+revisions before TDD.
 
 **Verification stamp:** Surface inventory and security-boundary claims below were
 re-grounded against the live codebase on **2026-07-05** (current `main`, plugin
@@ -124,38 +128,86 @@ the challenge page would destroy unsaved editor state. This is a UX dead-end, no
 security gap — the gate already fires correctly.
 
 **Proposed approach / files.** A **build-free, vanilla-JS** client layer (same
-pattern as the existing hand-written `admin/js/*.js` files, declaring script deps on
-`wp-api-fetch`, `wp-data`, `wp-notices`):
+pattern as the existing hand-written `admin/js/*.js` files — e.g.
+`admin/js/wp-sudo-shortcut.js` already consumes a localized `challengeUrl` — declaring
+script deps on `wp-api-fetch`, `wp-data`, `wp-notices`):
 1. An `apiFetch` middleware (`wp.apiFetch.use(...)`) that catches the `sudo_required`
    error, reads its `challenge_url`, and instead of failing shows an in-editor
    **snackbar** (`wp.data.dispatch('core/notices').createNotice(...)`) with a
-   "Reauthenticate" action.
-2. Snackbar action opens the challenge (MVP: link to the full-page challenge in a new
-   context / same-document AJAX against existing challenge handlers — **not** an
-   iframe, which breaks SameSite/partitioned sudo-cookie readback).
-3. On successful session grant, the client **re-dispatches its own original request**
-   (re-minting the REST nonce, which apiFetch's nonce middleware already does).
-   No new PHP gating rules. Possible small refactor to extract challenge rendering
-   from `class-challenge.php` for reuse without regressing the classic flow.
+   "Reauthenticate" action. The middleware must **unwrap `/batch/v1` response
+   envelopes** (see Part 3.5 SEV-2) or explicitly document batched gated writes as
+   out of scope; must **degrade gracefully when `challenge_url` is absent** (headless
+   / app-password sessions get `sudo_blocked` with no URL — show the plain message,
+   no action); and must **not echo the rule label** verbatim (see SEV-3 — the label
+   can be wrong for REST deactivate).
+2. Snackbar action grants the session via **same-document AJAX against the existing
+   `wp_ajax_` challenge endpoints** — `handle_ajax_auth()` already supports a
+   **session-only grant** (no `stash_key` → `attempt_activation` →
+   `{code:'authenticated'}`, `class-challenge.php:448-450`) and `handle_ajax_2fa()`
+   already handles **2FA over AJAX** (`:506`, registered `:96`). This is why 2FA does
+   **not** force a full-page redirect (correcting the earlier deferral). This requires
+   localizing the `wp_sudo_challenge` grant nonce (`NONCE_ACTION`) into the editor
+   context (see SEV-4). **Not** an iframe — but for the correct reason (SEV-5): the
+   sudo cookie is `HttpOnly`+`SameSite=Strict` and JS never reads it, so an iframe
+   buys nothing and a cross-site frame is blocked by `Strict`; same-origin,
+   same-document AJAX satisfies `Strict` and the cookie rides along automatically.
+3. On successful session grant, the client **re-dispatches its own original request**.
+   Consume the **server-emitted `challenge_url` verbatim** — do NOT rebuild it in JS
+   (multisite/network-admin URL construction is server-side and referrer-fragile;
+   SEV-missing-5). No new PHP gating rules. A small refactor may localize the grant
+   nonce/endpoints for the editor; challenge *rendering* need not be extracted since
+   the AJAX grant path is reused, not the full-page form.
 
 **What it explicitly blocks / must NOT block.** It changes **no** gating decision:
 the same actions gate, the same actions pass. It must NOT gate any content/design
 save; must NOT route REST through `Request_Stash`; must NOT emit `challenge_url` to
-headless clients; must NOT depend on `is_network_admin()` context under REST (build
-the URL from a localized base or the server-emitted `challenge_url`); must NOT
-introduce an `@wordpress/scripts` build step for the MVP.
+headless clients; must NOT depend on `is_network_admin()` context under REST (consume
+the server-emitted `challenge_url`); must NOT introduce an `@wordpress/scripts` build
+step for the MVP; must NOT throw when `challenge_url` is absent; must NOT fire
+duplicate snackbars for concurrent in-flight requests or when a grant just landed
+inside the grace window.
 
 ---
 
-## Part 4 — Phased plan & effort
+## Part 3.5 — Design Review Findings (2026-07-05, folded in above)
+
+First-pass review verdict: **needs revision before TDD**. The core model
+(soft-block + client re-dispatch, no stash) is sound and the security boundary holds;
+the issues are scope/framing and execution-context gaps. SEV-1 and SEV-3 were
+independently re-verified against code before folding in.
+
+| # | Finding | Code evidence | Resolution folded into brief |
+|---|---|---|---|
+| SEV-1 | Transport was treated as an open question and 2FA deferred — but the AJAX **session-only grant** and **AJAX 2FA** already exist and work outside the full-page challenge | `class-challenge.php:448-450` (`{code:'authenticated'}` with no stash_key), `:506` + `:96` (2FA over AJAX registered) | Part 3 recast to reuse these; 2FA no longer forces full-page; Phase 4 deferral rationale dropped. **Verified.** |
+| SEV-2 | A naive apiFetch middleware won't see `sudo_required` when it arrives inside a `/batch/v1` envelope (site editor uses batch saves) → silent no-op | `intercept_rest` on `rest_request_before_callbacks` fires per inner request | Part 3 step 1: middleware must unwrap batch envelopes, or document batched gated writes out of scope. |
+| SEV-3 | `plugin.activate`/`plugin.deactivate` share an identical route+method with no discriminating callback → a REST deactivate is gated but labeled "Activate plugin"; the new snackbar would promote this latent mislabel to a user-visible string | `class-action-registry.php:101-133` (identical `#^/wp/v2/plugins/[^/]+(?:/[^/]+)?$#` PUT/PATCH); `matches_rest` returns first match | Part 3 step 1: don't echo the rule label. (Optional follow-up: add a body `status` callback to disambiguate.) **Verified.** |
+| SEV-4 | Same-document AJAX grant needs the `wp_sudo_challenge` nonce, which is localized only on the challenge admin page | `handle_ajax_auth`/`_2fa` require `check_ajax_referer(NONCE_ACTION)` (`:414,:507`); nonce localized only when `page===wp-sudo-challenge` (`:177-181`) | Part 3 step 2: editor enqueue must mint+localize the grant nonce; noted as a security-relevant surface widening. |
+| SEV-5 | The iframe rejection was justified by "SameSite/partitioned cookie readback," but the sudo cookie is `HttpOnly` — JS never reads it, so there is no readback | `class-sudo-session.php:876,891,905` (`HttpOnly`+`SameSite=Strict`) | Part 3 step 2: keep the no-iframe decision, corrected rationale, so no test asserts a non-existent readback mechanism. |
+
+**Missing scenarios added to the design:** batched writes (SEV-2); grace-window
+debounce (no snackbar when a grant just landed — `is_within_grace`,
+`class-sudo-session.php:252`); concurrent N in-flight gated requests (re-dispatch which?
+debounce snackbars); nonce-staleness claim was overstated (apiFetch does not auto-refresh
+a stale REST nonce mid-flight — don't assert it as guaranteed); multisite → consume the
+server-emitted `challenge_url` verbatim; app-password editor sessions degrade gracefully
+(no `challenge_url` → plain message).
+
+## Part 4 — Phased plan & effort (corrected)
 
 | Phase | Scope | Build step? | Status |
 |---|---|---|---|
 | 1 | Server `challenge_url` on cookie-auth REST error + tests | No | ✅ **Shipped v4.2.0** |
-| 2 | `apiFetch` middleware + snackbar (MVP) + re-dispatch; Playwright E2E | **No (build-free)** | Not started |
+| 2 | `apiFetch` middleware (batch-aware) + snackbar + **reuse existing AJAX grant** + re-dispatch; Playwright E2E | **No (build-free)** | Not started |
 | 3 | Snackbar → modal challenge (try `wp.components.Modal` via `createElement`) | Reconsider build only if unmaintainable | Not started |
-| 4 | 2FA-in-editor (script/enqueue-context problem) | — | **Deferred** — snackbar-link-to-full-page is the only safe 2FA MVP |
-| 5 | Broaden E2E matrix once challenge transport is no longer page-based | — | Not started |
+| ~~4~~ | ~~2FA-in-editor (deferred)~~ — **folded into Phase 2**: AJAX 2FA already exists (`handle_ajax_2fa`) | — | Rationale withdrawn (SEV-1) |
+| 4 | Broaden E2E matrix once challenge transport is no longer page-based | — | Not started |
+
+**Even-smaller floor (MVP fallback, per scope discipline):** if the middleware +
+grant-nonce plumbing proves disproportionate for essentially one flow (Block Directory
+install/activate), the honest minimum is: improve the `sudo_required` snackbar to carry
+an actionable "Reauthenticate" link to the full-page challenge and stop — no AJAX grant,
+no re-dispatch. State this as the floor the design must beat to justify the extra
+machinery.
 
 **Build-step decision (settled):** declined for the MVP. The plugin ships zero
 production npm deps and no build step today; the snackbar/middleware reach core
@@ -165,29 +217,36 @@ a `build/` artifact, and version-pinning maintenance — cost a snackbar does no
 
 ---
 
-## Part 5 — Open questions for the design reviewer
+## Part 5 — Decisions (post-review) and remaining questions
 
-1. **Challenge transport for the snackbar action.** Same-document AJAX against the
-   existing challenge handlers vs. link-to-full-page. AJAX keeps editor state but
-   needs the challenge password/2FA form reachable outside the full-page context;
-   link-to-full-page is safe but loses state. For 2FA sites, link-to-full-page is
-   forced (Phase 4 deferral). Is a mixed strategy (AJAX for password-only, link for
-   2FA) acceptable, or does that split add too much surface?
-2. **`class-challenge.php` extraction.** How much can be reused without regressing
-   the classic stash/replay flow and its tests? Is a shared verifier extraction worth
-   it for a one-to-few-route UX layer, or is a thin dedicated AJAX endpoint simpler?
-3. **Scope discipline.** Given the surface is essentially one flow (Block Directory
-   plugin install/activate), is the snackbar+re-dispatch machinery proportionate, or
-   should the MVP be even smaller (e.g. improve the existing error message with an
-   actionable link and stop there)?
-4. **Gray-area opt-in.** `global-styles` and `font-families/faces` sit just outside
-   the model. If ever gated, do it as a **default-OFF, filter-gated opt-in** (mirror
-   the 4.1.0 escalation guard: `wp_sudo_guard_escalation`), **not** a Settings
-   checkbox. Confirm this stays out of the Phase 2 scope entirely.
-5. **Test strategy.** Phase 2 is the natural first Playwright E2E of a
-   challenge-transport flow. Which specs: block-plugin install/activate happy path,
-   re-dispatch after grant, headless-branch-stays-`challenge_url`-free regression,
-   grace-window no-re-challenge.
+**Resolved by the first review pass:**
+- **Transport (was Q1):** reuse the existing AJAX grant (`handle_ajax_auth` session-only
+  + `handle_ajax_2fa`); 2FA does not force full-page. No mixed strategy needed.
+- **`class-challenge.php` extraction (was Q2):** not required — reuse the AJAX grant
+  endpoints, not the full-page form; no shared-verifier refactor for the MVP.
+- **Gray-area opt-in (was Q4):** `global-styles` / `font-families/faces` stay ungated;
+  if ever gated, do it as a default-OFF filter opt-in (mirror `wp_sudo_guard_escalation`),
+  not a Settings checkbox. Out of Phase 2 scope. Confirmed.
+
+**Remaining questions for the second review pass / discussion phase:**
+1. **Scope discipline — beat the floor.** Given essentially one real flow (Block
+   Directory install/activate), does the middleware + grant-nonce + re-dispatch design
+   earn its keep over the Part 4 "even-smaller floor" (actionable link only)? This is
+   the single decision most likely to move the ETA.
+2. **Batch handling depth.** Unwrap `/batch/v1` envelopes now, or document out-of-scope?
+   The gated `plugins` controller is not `allow_batch` in core today, so out-of-scope is
+   defensible for the MVP — but a third-party gated route or a core change could
+   silently regress. Decide and document.
+3. **Concurrency policy.** On grant, re-dispatch only the user-actioned request, or all
+   in-flight `sudo_required` requests? Snackbar debounce/idempotency for N requests and
+   for the grace-window race.
+4. **SEV-3 disambiguation.** Ship the snackbar with the label suppressed (cheap), or
+   also add a body-`status` callback to the registry so `plugin.deactivate` labels
+   correctly (a small registry change with its own tests)?
+5. **Test strategy.** Phase 2 is the first Playwright E2E of a challenge-transport flow.
+   Specs: block-plugin install/activate happy path; re-dispatch after grant; AJAX 2FA
+   grant path; **batched gated write** (per the Q2 decision); headless-branch-stays-
+   `challenge_url`-free regression; grace-window no-duplicate-snackbar.
 
 ---
 
