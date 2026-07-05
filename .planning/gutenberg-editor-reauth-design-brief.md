@@ -1,12 +1,12 @@
 # Design Phase Scaffold — Block-Editor (Gutenberg) Reauthentication UX
 
-**Status:** Design-phase scaffold, **design-reviewed 2026-07-05 → verdict: revise
-before TDD**. The review findings are folded in below (Part 3 recast; Part 4 phasing
-corrected; Part 5 split into resolved decisions + remaining questions; new Part 3.5
-records the findings with code evidence). No production code proposed here. This
-document is the input to the mandatory Pre-Implementation Design Review (per
-`CLAUDE.md`) — the first review pass is done; a second pass should confirm the
-revisions before TDD.
+**Status:** Design-phase scaffold, **reviewed twice on 2026-07-05**:
+(1) design review → "revise before TDD", findings folded in (Part 3.5);
+(2) focused adversarial **security review** of the editor AJAX-grant reuse →
+**SAFE WITH STATED CONDITIONS**, verdict + must-dos folded in (Part 3.6).
+No production code proposed here. Design is TDD-ready once the single remaining
+scope decision (Part 5 Q1, "beat the floor") is made; the security question that
+gated it is resolved.
 
 **Verification stamp:** Surface inventory and security-boundary claims below were
 re-grounded against the live codebase on **2026-07-05** (current `main`, plugin
@@ -192,6 +192,56 @@ a stale REST nonce mid-flight — don't assert it as guaranteed); multisite → 
 server-emitted `challenge_url` verbatim; app-password editor sessions degrade gracefully
 (no `challenge_url` → plain message).
 
+## Part 3.6 — Focused Security Review (2026-07-05): editor AJAX-grant reuse
+
+A second, narrow adversarial review answered the one question worth double-checking:
+does reusing `handle_ajax_auth()` / `handle_ajax_2fa()` as the editor's grant
+transport open any CSRF, nonce-reuse, session-fixation, replay, token-binding,
+rate-limit, or info-disclosure surface the full-page flow does **not** already have?
+
+**Verdict: SAFE WITH STATED CONDITIONS.** No new attack was found. The grant is
+transport-agnostic — `handle_ajax_auth`/`_2fa` authenticate the current cookie-auth
+user by password (+2FA), mint a login-session-bound token, and the session is then
+"on" for all subsequent gated requests, identical to the full-page flow. Nothing in
+grant, binding, replay, or rate-limit behavior is keyed on the calling page.
+
+Key refutations (all code-grounded):
+- **CSRF / confused-deputy:** cross-site grant is blocked by `SameSite=Strict` on both
+  cookies (`class-sudo-session.php:891,905,522,645`) + `check_ajax_referer` + the
+  password requirement. The grant does **not** bind to the re-dispatched request — but
+  neither does the full-page flow; the session is action-agnostic in both. Re-dispatch
+  fires the user's own `wp_rest`-nonce-bearing request, so it stays first-party.
+- **Nonce exposure (the one real delta):** localizing `NONCE_ACTION` into the editor is
+  a new place the grant nonce lives, but it is a **CSRF token, not an authz token** —
+  possessing it does not authenticate (password still required, `class-sudo-session.php:442`;
+  2FA still browser-bound via the HttpOnly `wp_sudo_challenge` cookie). Any same-origin
+  script can already mint WP nonces, so this does not lower the bar. It does **not**
+  expose the sudo token (HttpOnly, JS-unreadable).
+- **Fixation / binding:** `set_token()` binds to the login session unconditionally
+  (`:851-866`); no branch is conditional on the calling page or `DOING_AJAX`. In
+  admin-ajax `headers_sent()` is false, so the Set-Cookie fires normally.
+- **Replay:** session-only grant requires an empty `stash_key` and REST never stashes;
+  the editor path cannot enter the stash/replay branch.
+- **Rate-limit:** shared `(user_id)` / `(ip,user_id)` accounting — no parallel bucket,
+  no bypass or amplification.
+- **Info disclosure:** grant responses carry only generic messages/codes; no extra leak.
+
+**Conditions (must-dos / defense-in-depth), folded into the plan below:**
+- **C1 — grant-nonce blast radius.** Keeping the single `wp_sudo_challenge` nonce action
+  is acceptable (it is a CSRF token); a distinct editor-grant nonce action is optional
+  defense-in-depth. Decide, don't drift.
+- **C2 — tight localization.** Enqueue/localize the grant nonce **only on actual
+  block/site-editor screens** (mirror `class-challenge.php:179`), and skip it when
+  `Sudo_Session::is_active()` (as the existing shortcut enqueue does,
+  `class-plugin.php:200-202`). Do not spray the nonce onto non-editor pages.
+- **C3 — first-party re-dispatch.** The re-fired request must carry the user's own
+  `wp_rest` nonce so `is_rest_cookie_auth()` (`class-gate.php:451-466`) classifies it as
+  cookie-auth and re-evaluates the now-active session at `:1829`. Never rebuild it
+  server-side.
+- **C4 — headless-branch regression test.** Assert `challenge_url` stays absent on the
+  app-password/bearer branch (`class-gate.php:1869-1883`); the editor feature must not
+  cause it to leak to headless sessions.
+
 ## Part 4 — Phased plan & effort (corrected)
 
 | Phase | Scope | Build step? | Status |
@@ -246,7 +296,9 @@ a `build/` artifact, and version-pinning maintenance — cost a snackbar does no
 5. **Test strategy.** Phase 2 is the first Playwright E2E of a challenge-transport flow.
    Specs: block-plugin install/activate happy path; re-dispatch after grant; AJAX 2FA
    grant path; **batched gated write** (per the Q2 decision); headless-branch-stays-
-   `challenge_url`-free regression; grace-window no-duplicate-snackbar.
+   `challenge_url`-free regression (**security C4**); grace-window no-duplicate-snackbar;
+   grant-nonce localized only on editor screens and skipped when session active
+   (**security C2**); re-dispatch carries a first-party `wp_rest` nonce (**security C3**).
 
 ---
 
