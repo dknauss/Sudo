@@ -371,6 +371,21 @@ Current Playground previews are pinned to WordPress `7.0-RC1`. See [`docs/releas
 
 For WordPress 7.0 release signoff, do not treat the green RC-era CI matrix as a substitute for the remaining RC/GA manual passes. RC1 is recorded in the `15.0 Release Signoff Log` table in [`tests/MANUAL-TESTING.md`](tests/MANUAL-TESTING.md); repeat that signoff for the scheduled RC3/RC4 checkpoints and again for the final 7.0 release before claiming final readiness. See [`docs/release-status.md`](docs/release-status.md) for the current dates.
 
+### Blueprint files
+
+The repo ships several Playground blueprints. All are **source-only artifacts**
+and are excluded from the distributed plugin ZIP (see [`.pressshipignore`](.pressshipignore)).
+
+| File | Tier | Purpose | Install source | Documented in |
+|------|------|---------|----------------|---------------|
+| [`blueprint.json`](blueprint.json) | Public demo | "Try latest release" — stable-tag demo with the standard seed | `archive/refs/tags/vX.Y.Z.zip` (bumped at tag time) | readme.md / readme.txt badges |
+| [`blueprint-main.json`](blueprint-main.json) | Public demo | "Try main" — tracks the `main` branch | `archive/refs/heads/main.zip` | readme.md / readme.txt badges |
+| [`blueprint-recovery-mode.json`](blueprint-recovery-mode.json) | Reviewer scenario | Break-glass `WP_SUDO_RECOVERY_MODE` demo | `main` | [`docs/ui-ux-testing-prompts.md`](docs/ui-ux-testing-prompts.md) §6a |
+| [`blueprint-user-switching.json`](blueprint-user-switching.json) | Reviewer scenario | Session-theft demo via the User Switching plugin | `main` | [`docs/ui-ux-testing-prompts.md`](docs/ui-ux-testing-prompts.md) §6b |
+| [`.github/playground/sqlite-stack-smoke.blueprint.json`](.github/playground/sqlite-stack-smoke.blueprint.json) | CI smoke | SQLite drop-in stack smoke used by the E2E-SQLite workflow | (CI-driven) | [`.github/workflows/e2e-sqlite.yml`](.github/workflows/e2e-sqlite.yml) |
+
+The two **public** blueprints are surfaced via the readme "Try in Playground" badges; the two **reviewer** blueprints stage hard-to-reach states for manual review (not linked from the readme by design); the **CI smoke** blueprint is owned by its workflow. When adding a new blueprint, add it to `.pressshipignore` and to this table.
+
 ### WordPress 7.0 Final Prep Checklist
 
 Use this checklist for each later RC and again at GA:

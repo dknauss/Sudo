@@ -2,28 +2,28 @@
 
 This file is the single source of truth for current repository counts.
 
-Last verified: 2026-07-04
+Last verified: 2026-07-05
 Verification environment: local workspace, PHP 8.x
 
 ## Test Metrics
 
 | Metric | Value | Verification |
 |---|---:|---|
-| Unit tests | 986 tests | `composer test:unit` |
-| Unit assertions | 3,003 assertions | `composer test:unit` |
+| Unit tests | 997 tests | `composer test:unit` |
+| Unit assertions | 3,032 assertions | `composer test:unit` |
 | Integration tests in suite | 208 test methods | `rg -c "function test" tests/Integration/*.php | awk -F: '{sum+=$2} END{print sum}'` |
-| Unit test files | 29 | `ls tests/Unit/*.php | wc -l` |
+| Unit test files | 30 | `ls tests/Unit/*.php | wc -l` |
 | Integration test files | 28 | `ls tests/Integration/*.php | wc -l` |
 
 ## Size Metrics
 
 | Metric | Value | Verification |
 |---|---:|---|
-| Production PHP lines (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 17,053 | `find ./includes ./wp-sudo.php ./uninstall.php ./mu-plugin ./bridges -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
-| Tests PHP lines (`tests/`) | 35,913 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
-| Production + tests PHP lines | 52,966 | sum of the two rows above |
-| Test-to-production ratio | 2.11:1 | `35913 / 17053` |
-| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`) | 53,238 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Production PHP lines (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 17,183 | `find ./includes ./wp-sudo.php ./uninstall.php ./mu-plugin ./bridges -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Tests PHP lines (`tests/`) | 36,231 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Production + tests PHP lines | 53,414 | sum of the two rows above |
+| Test-to-production ratio | 2.11:1 | `36231 / 17183` |
+| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`) | 53,686 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
 
 ## Architectural Facts
 
@@ -66,6 +66,7 @@ Source: `.github/workflows/phpunit.yml`, `.github/workflows/e2e.yml`, `.github/w
 
 ## Verification Notes
 
+- `composer test:unit` passed on 2026-07-05 (`995 tests`, `3024 assertions`). Harmonized user identity across the dashboard Session Activity widget and the Settings → Sudo Access tab: both now lead with the user's **full real name** (primary), with the **username secondary** (linked to user-edit when permitted), an avatar, and translated role chip(s). A shared `WP_Sudo\User_Identity` helper (`primary_name()` / `role_labels()`) is the single source of truth so the two surfaces cannot drift; role names go through `translate_user_role()`. Also fixed a latent no-op: `get_avatar()`'s force key is `force_display`, not `force` (the widget's avatar previously honored the site "Show Avatars" setting instead of always rendering); the stale Psalm baseline entry for it was removed (+9 tests: 6 `UserIdentityTest`, 3 Access-tab/widget cell + permission-branch).
 - `composer test:unit` passed on 2026-07-05 (`986 tests`, `3003 assertions`). Access-tab capability-holder table: each capability now renders as its own `wp-sudo-cap-item` row showing the human-readable label instead of the raw slug, with the Revoke control paired directly to it (responsive at narrow widths, no orphaned links); the slug moves to a tooltip + `screen-reader-text` span, and the Grant Capability dropdown drops the parenthetical slug from its visible option text. The revoke JS now removes the whole capability item container rather than a position-dependent `<code>` sibling. Each Revoke button also carries a capability-specific `aria-label` ("Revoke <label> capability") so screen-reader users tabbing through otherwise-identical controls get the capability context, and `get_cap_label()` now returns its labels through the text domain so localized installs get translated capability names (the label is the primary visible text now that the slug is hidden) (+1 test).
 - `composer test:unit` passed on 2026-07-04 (`985 tests`, `2993 assertions`). Phase 25 (Governance Coverage Panel Fix, GCOV-01/02): the Access-tab coverage panel names the context-correct capability (manage_network_options on multisite) and excludes multisite super admins from the "cannot access" list while still listing genuinely drifted non-super-admin network operators (+3 tests).
 - `composer test:unit` passed on 2026-07-04 (`982 tests`, `2986 assertions`). Session revocation moved from the Users-list toolbar button + admin-post interstitial to a native "Revoke sudo sessions" bulk action (one rate slot per batch, self-skip, per-user audit fires with the `users_list_bulk_action` reason); the Sudo Active badge count transient is now invalidated on session grant/teardown; the stale `wp_sudo_revoke_session` AJAX reference was scrubbed from the registry. External-review hardening: bulk handling moved behind a nonce-verified `load-users.php` interceptor (core does not nonce-check custom users.php bulk actions) and both revocation paths gained a current-site membership guard placed before the liveness check.

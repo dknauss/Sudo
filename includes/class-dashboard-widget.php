@@ -175,20 +175,14 @@ class Dashboard_Widget {
 				continue;
 			}
 
-			$user_id      = (int) $user->ID;
-			$expires      = (int) get_user_meta( $user_id, '_wp_sudo_expires', true );
-			$time_left    = self::format_compact_duration( $expires - time() );
-			$user_login   = isset( $user->user_login ) && is_string( $user->user_login ) ? $user->user_login : 'User ' . $user_id;
-			$display_name = isset( $user->display_name ) && is_string( $user->display_name ) ? $user->display_name : '';
-			$first_name   = isset( $user->first_name ) && is_string( $user->first_name ) ? $user->first_name : '';
-			$last_name    = isset( $user->last_name ) && is_string( $user->last_name ) ? $user->last_name : '';
-			$full_name    = trim( $first_name . ' ' . $last_name );
+			$user_id    = (int) $user->ID;
+			$expires    = (int) get_user_meta( $user_id, '_wp_sudo_expires', true );
+			$time_left  = self::format_compact_duration( $expires - time() );
+			$user_login = isset( $user->user_login ) && is_string( $user->user_login ) ? $user->user_login : 'User ' . $user_id;
 
-			// Role - simplified to avoid WordPress type issues in widget.
-			$role = '';
-			if ( ! empty( $user->roles ) && is_array( $user->roles ) ) {
-				$role = $user->roles[0];
-			}
+			// Full real name preferred, username secondary — shared with the Access tab.
+			$primary_name = User_Identity::primary_name( $user );
+			$role_labels  = User_Identity::role_labels( $user );
 
 			// Gravatar.
 			$avatar = get_avatar(
@@ -197,7 +191,7 @@ class Dashboard_Widget {
 				'',
 				'',
 				array(
-					'force' => true,
+					'force_display' => true,
 				)
 			);
 
@@ -207,23 +201,31 @@ class Dashboard_Widget {
 
 			echo '<li class="wp-sudo-user-row">';
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- get_avatar is trusted WP function.
-			echo '<div class="wp-sudo-user-gravatar">' . $avatar . '</div>';
+			echo '<div class="wp-sudo-user-gravatar" aria-hidden="true">' . $avatar . '</div>';
+			// The username renders as a distinct secondary line only when it
+			// differs from the primary name; otherwise (e.g. an account with no
+			// real name, like `admin`) the login IS the primary, so the edit
+			// link must attach to the primary instead of being dropped.
+			$has_secondary_login = ( '' !== $user_login && $user_login !== $primary_name );
+
 			echo '<div class="wp-sudo-user-info">';
 			echo '<div class="wp-sudo-user-primary">';
-			if ( '' !== $edit_url ) {
-				echo '<a href="' . esc_url( $edit_url ) . '" class="wp-sudo-username">' . esc_html( $user_login ) . '</a>';
+			if ( ! $has_secondary_login && '' !== $edit_url ) {
+				echo '<a href="' . esc_url( $edit_url ) . '" class="wp-sudo-fullname wp-sudo-username">' . esc_html( $primary_name ) . '</a>';
 			} else {
-				echo '<span class="wp-sudo-username">' . esc_html( $user_login ) . '</span>';
+				echo '<span class="wp-sudo-fullname">' . esc_html( $primary_name ) . '</span>';
 			}
-			if ( $role ) {
-				echo '<span class="wp-sudo-user-role">' . esc_html( $role ) . '</span>';
+			foreach ( $role_labels as $role_label ) {
+				echo '<span class="wp-sudo-user-role">' . esc_html( $role_label ) . '</span>';
 			}
 			echo '</div>';
 			echo '<div class="wp-sudo-user-secondary">';
-			if ( $full_name ) {
-				echo '<span class="wp-sudo-fullname">' . esc_html( $full_name ) . '</span>';
-			} elseif ( $display_name && $display_name !== $user_login ) {
-				echo '<span class="wp-sudo-displayname">' . esc_html( $display_name ) . '</span>';
+			if ( $has_secondary_login ) {
+				if ( '' !== $edit_url ) {
+					echo '<a href="' . esc_url( $edit_url ) . '" class="wp-sudo-username">' . esc_html( $user_login ) . '</a>';
+				} else {
+					echo '<span class="wp-sudo-username">' . esc_html( $user_login ) . '</span>';
+				}
 			}
 			echo '<span class="wp-sudo-time-remaining">' . esc_html( $time_left ) . ' ' . esc_html__( 'left', 'wp-sudo' ) . '</span>';
 			echo '</div>';
@@ -966,8 +968,11 @@ class Dashboard_Widget {
 	gap: 0.5em;
 	flex-wrap: wrap;
 }
-#wp_sudo_activity .wp-sudo-username {
+#wp_sudo_activity .wp-sudo-fullname {
 	font-weight: 600;
+	color: #1d2327;
+}
+#wp_sudo_activity .wp-sudo-username {
 	color: #2271b1;
 	text-decoration: none;
 }
@@ -986,8 +991,7 @@ class Dashboard_Widget {
 	font-size: 0.85em;
 	color: #646970;
 }
-#wp_sudo_activity .wp-sudo-user-secondary .wp-sudo-fullname,
-#wp_sudo_activity .wp-sudo-user-secondary .wp-sudo-displayname {
+#wp_sudo_activity .wp-sudo-user-secondary .wp-sudo-username {
 	margin-right: 0.5em;
 }
 
