@@ -166,7 +166,7 @@ For current release posture, supported lanes, and forward `main` notes, see [doc
 
 Sudo is an event-gate, not a query-heavy plugin — it does no per-page database work.
 
-- **No production dependencies and no build step** — hand-written PHP (~17k lines) and vanilla JS.
+- **No production dependencies and no build step** — ~17k lines of PHP plus vanilla JS assets (no bundler or transpiler).
 - **Front-end page loads:** zero added database queries for visitors, and at most one cached user-meta read for a logged-in user (the admin-bar session check). Database activity is confined to the specific gated action being confirmed, not to normal browsing.
 - **Storage:** three small options, per-user session and rate-limit meta plus transients that self-expire, and one activity-log table that self-prunes at a 14-day default retention. Everything is removed on uninstall.
 
