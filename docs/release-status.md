@@ -1,6 +1,6 @@
 # Release Status (Canonical Current State)
 
-Last verified: 2026-06-30
+Last verified: 2026-07-05
 
 This file is the canonical source for **current release state** in this repository:
 
@@ -59,12 +59,34 @@ Canonical source for post-tag drift after `v4.2.2`: `git log v4.2.2..main --onel
 
 ## Unreleased `main` work
 
-Unreleased work after `v4.2.2` currently includes:
+Unreleased work after `v4.2.2` is **substantial** — it spans two completed GSD
+milestones (v4.4.0 Two Factor Lifecycle Bridge and v4.5 Session Governance &
+Admin UX) plus security hardening, none of it yet cut as a plugin release. The
+plugin version constant remains `4.2.2`; the next tag would bundle all of the
+below. Canonical drift source: `git log v4.2.2..main --oneline` (98 commits as
+of 2026-07-05; see `CHANGELOG.md` "Unreleased" for the curated feature list).
 
-- **Two Factor profile-provider lifecycle bridge:** the optional Two Factor lifecycle bridge (`bridges/wp-sudo-two-factor-lifecycle-bridge.php`) now gates meaningful classic `profile.php` / `user-edit.php` provider lifecycle changes behind an active WP Sudo session, alongside the existing REST factor-management gates. Unrelated profile saves and normalized no-op resubmissions are not gated. This completes the v4.4.0 Two Factor Lifecycle Bridge milestone.
-- **Canonical metrics refresh:** `docs/current-metrics.md` updated to reflect Phase 22 unit test additions (893 tests / 2,676 assertions) and bridge production line growth.
-- **Localization packaging readiness:** WP-CLI-backed Composer commands for POT generation/freshness verification, a committed `languages/wp-sudo.pot`, targeted translator-comment cleanup, and release documentation updates.
-- **E2E runtime evidence:** refreshed post-`v4.2.2` GitHub Actions E2E job runtimes in [`docs/e2e-runtime-review.md`](e2e-runtime-review.md).
+**Security hardening (backward-compatible fixes):**
+
+- **Escalation-guard authority hardening:** the opt-in admin-escalation guard now requires the acting user to hold the promoting authority (`promote_users` for administrator grants, checked on the target blog; existing super-admin for `grant_super_admin`) *in addition to* an active/in-grace sudo session — closing a gap where a low-privilege account holding a sudo session could pass the backstop on a broken-access-control route.
+- **Session-revocation hardening:** the Users-list revocation paths now require the operator's token-bound `Sudo_Session::is_active()` (not the browser-independent expiry check), so a stolen auth cookie or a second session without its own sudo cannot revoke other users' sessions; the operator's cookie is preserved across consecutive revokes.
+
+**Features / UX (v4.5 Session Governance & Admin UX):**
+
+- **Users-list bulk revocation:** native "Revoke sudo sessions" bulk action (replacing the revoke-all button + unstyled interstitial), nonce-verified via a `load-users.php` interceptor, one rate slot per batch, self-skip, current-site membership guards; site-wide revoke stays CLI-only.
+- **Dashboard widget revocation visibility:** the Session Activity widget records/renders `session_revoked` and `escalation_blocked` events with distinct pills and translatable labels.
+- **Governance coverage panel fix (multisite):** the Access-tab coverage panel names the context-correct capability and excludes multisite super admins from false "cannot access" listings.
+- **Access-tab capability table readability + accessibility + i18n:** one row per capability with friendly labels (slugs demoted to tooltip + screen-reader text), per-capability accessible names on the Revoke controls, and translatable capability labels.
+- **Sudo Active badge-count invalidation** on session grant/teardown from every execution context; registry scrub of the stale `wp_sudo_revoke_session` AJAX reference.
+- **Settings-tab preservation** across a sudo reauth (single-site and multisite network settings).
+
+**Integration / infrastructure (v4.4.0 + follow-ups):**
+
+- **Two Factor profile-provider lifecycle bridge:** the optional bridge (`bridges/wp-sudo-two-factor-lifecycle-bridge.php`) gates meaningful classic `profile.php` / `user-edit.php` provider lifecycle changes behind an active sudo session, alongside the existing REST factor-management gates. Completes the v4.4.0 milestone.
+- **Playground demo fixes + release CI:** PR-preview installs fetch plugin archives via the CORS proxy; an install ZIP asset is built/attached on version tags.
+- **Localization packaging readiness:** WP-CLI-backed Composer commands for POT generation/verification and a committed `languages/wp-sudo.pot`.
+
+**Documentation (no runtime impact):** Patchstack 2FA compatibility runtime-validated offline against a licensed Pro 2.3.6 fixture and documented (not a shipped integration); SSO/passwordless auth boundary clarified; Two Factor ecosystem/integration docs and canonical metrics refreshed. Current suite: **986 unit tests / 3,003 assertions** (see `docs/current-metrics.md`).
 
 Canonical source for drift after the tag: `git log v4.2.2..main --oneline`.
 
