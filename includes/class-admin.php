@@ -1962,7 +1962,12 @@ class Admin {
 								$holder_name  = User_Identity::primary_name( $holder_user );
 								$holder_login = isset( $holder_user->user_login ) && is_string( $holder_user->user_login ) ? $holder_user->user_login : '';
 								$holder_roles = User_Identity::role_labels( $holder_user );
-								$holder_edit  = current_user_can( 'edit_user', $holder_id ) ? admin_url( 'user-edit.php?user_id=' . $holder_id ) : '';
+								// self_admin_url() keeps the link on the correct (site vs network) admin surface.
+								$holder_edit = current_user_can( 'edit_user', $holder_id ) ? self_admin_url( 'user-edit.php?user_id=' . $holder_id ) : '';
+								// The username renders as a distinct secondary line only when it differs
+								// from the primary name; otherwise the login IS the primary, so the edit
+								// link attaches to the primary instead of being dropped.
+								$holder_has_secondary = ( '' !== $holder_login && $holder_login !== $holder_name );
 								?>
 								<div class="wp-sudo-access-user">
 									<span class="wp-sudo-access-user-avatar" aria-hidden="true">
@@ -1973,12 +1978,16 @@ class Admin {
 									</span>
 									<span class="wp-sudo-access-user-info">
 										<span class="wp-sudo-access-user-primary">
-											<span class="wp-sudo-access-user-name"><?php echo esc_html( $holder_name ); ?></span>
+											<?php if ( ! $holder_has_secondary && '' !== $holder_edit ) : ?>
+												<a href="<?php echo esc_url( $holder_edit ); ?>" class="wp-sudo-access-user-name wp-sudo-access-user-login"><?php echo esc_html( $holder_name ); ?></a>
+											<?php else : ?>
+												<span class="wp-sudo-access-user-name"><?php echo esc_html( $holder_name ); ?></span>
+											<?php endif; ?>
 											<?php foreach ( $holder_roles as $holder_role ) : ?>
 												<span class="wp-sudo-access-user-role"><?php echo esc_html( $holder_role ); ?></span>
 											<?php endforeach; ?>
 										</span>
-										<?php if ( '' !== $holder_login && $holder_login !== $holder_name ) : ?>
+										<?php if ( $holder_has_secondary ) : ?>
 											<span class="wp-sudo-access-user-secondary">
 												<?php if ( '' !== $holder_edit ) : ?>
 													<a href="<?php echo esc_url( $holder_edit ); ?>" class="wp-sudo-access-user-login"><?php echo esc_html( $holder_login ); ?></a>

@@ -755,6 +755,40 @@ class DashboardWidgetTest extends TestCase {
 	}
 
 	/**
+	 * Test the primary line itself is the edit link when the login is the only
+	 * identity (no real name, display_name === login) and the operator may edit.
+	 * There is no secondary line to carry the link, so the primary must.
+	 *
+	 * @return void
+	 */
+	public function testActiveSessionsLinkPrimaryWhenLoginIsPrimaryAndEditAllowed(): void {
+		$user               = new \WP_User( 21, [ 'administrator' ] );
+		$user->ID           = 21;
+		$user->user_login   = 'admin';
+		$user->display_name = 'admin'; // No real name; login is the sole identity.
+
+		$this->setUpRenderStubs(); // current_user_can() => true (edit allowed).
+		\WP_User_Query::$mock_total   = 1;
+		\WP_User_Query::$mock_results = [ $user ];
+		Functions\when( 'get_user_meta' )->justReturn( time() + 300 );
+		Functions\when( 'human_time_diff' )->justReturn( '5 mins' );
+		Functions\when( 'get_option' )->justReturn( [] );
+
+		ob_start();
+		Dashboard_Widget::render();
+		$output = ob_get_clean();
+
+		// The primary line carries the edit link and both identity classes.
+		$this->assertStringContainsString( 'class="wp-sudo-fullname wp-sudo-username"', $output );
+		$this->assertStringContainsString( 'user-edit.php?user_id=21', $output );
+		$this->assertStringContainsString( '>admin</a>', $output );
+		// No standalone secondary username link is emitted.
+		$this->assertStringNotContainsString( '<span class="wp-sudo-username">admin</span>', $output );
+
+		$this->restoreWpdb();
+	}
+
+	/**
 	 * Test inline widget i18n JSON is encoded with explicit HTML-safe flags.
 	 *
 	 * @return void

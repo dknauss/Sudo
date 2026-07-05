@@ -3296,6 +3296,7 @@ class AdminTest extends TestCase {
 		Functions\when( 'get_avatar' )->justReturn( '<img alt="" src="avatar.png" />' );
 		Functions\when( 'current_user_can' )->justReturn( true );
 		Functions\when( 'admin_url' )->returnArg();
+		Functions\when( 'self_admin_url' )->returnArg();
 		Functions\when( 'translate_user_role' )->returnArg( 1 );
 		Functions\when( 'wp_roles' )->alias(
 			static function () {
@@ -3471,6 +3472,40 @@ class AdminTest extends TestCase {
 		// Login shows as a non-linked span, not an anchor, and no edit URL leaks.
 		$this->assertStringContainsString( '<span class="wp-sudo-access-user-login">msantos</span>', $output );
 		$this->assertStringNotContainsString( 'user-edit.php?user_id=13', $output );
+	}
+
+	public function test_render_access_tab_user_cell_links_primary_when_login_is_primary_and_edit_allowed(): void {
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'esc_html_e' )->alias( static function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		Functions\when( 'esc_attr_e' )->alias( static function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		Functions\when( 'esc_attr' )->returnArg();
+		Functions\when( 'esc_url' )->returnArg();
+		Functions\when( 'wp_create_nonce' )->justReturn( 'test-nonce' );
+		$this->stub_access_user_cell();
+
+		// No real name and display_name === login → the login is the sole identity,
+		// so it becomes the primary line and must still carry the edit link.
+		$holder               = new \WP_User( 15, array( 'administrator' ) );
+		$holder->user_login   = 'admin';
+		$holder->display_name = 'admin';
+
+		Functions\when( 'get_users' )->alias(
+			static function ( array $args = array() ) use ( $holder ): array {
+				return 'manage_wp_sudo' === ( $args['capability'] ?? null ) ? array( $holder ) : array();
+			}
+		);
+
+		$admin = new Admin();
+		ob_start();
+		$admin->render_access_tab();
+		$output = ob_get_clean();
+
+		// The primary line itself is the edit link, carrying both identity classes.
+		$this->assertStringContainsString( 'class="wp-sudo-access-user-name wp-sudo-access-user-login"', $output );
+		$this->assertStringContainsString( 'user-edit.php?user_id=15', $output );
+		$this->assertStringContainsString( '>admin</a>', $output );
+		// No separate secondary login line is emitted.
+		$this->assertStringNotContainsString( 'wp-sudo-access-user-secondary', $output );
 	}
 
 	// -----------------------------------------------------------------

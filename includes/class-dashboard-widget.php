@@ -202,15 +202,25 @@ class Dashboard_Widget {
 			echo '<li class="wp-sudo-user-row">';
 			// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- get_avatar is trusted WP function.
 			echo '<div class="wp-sudo-user-gravatar" aria-hidden="true">' . $avatar . '</div>';
+			// The username renders as a distinct secondary line only when it
+			// differs from the primary name; otherwise (e.g. an account with no
+			// real name, like `admin`) the login IS the primary, so the edit
+			// link must attach to the primary instead of being dropped.
+			$has_secondary_login = ( '' !== $user_login && $user_login !== $primary_name );
+
 			echo '<div class="wp-sudo-user-info">';
 			echo '<div class="wp-sudo-user-primary">';
-			echo '<span class="wp-sudo-fullname">' . esc_html( $primary_name ) . '</span>';
+			if ( ! $has_secondary_login && '' !== $edit_url ) {
+				echo '<a href="' . esc_url( $edit_url ) . '" class="wp-sudo-fullname wp-sudo-username">' . esc_html( $primary_name ) . '</a>';
+			} else {
+				echo '<span class="wp-sudo-fullname">' . esc_html( $primary_name ) . '</span>';
+			}
 			foreach ( $role_labels as $role_label ) {
 				echo '<span class="wp-sudo-user-role">' . esc_html( $role_label ) . '</span>';
 			}
 			echo '</div>';
 			echo '<div class="wp-sudo-user-secondary">';
-			if ( '' !== $user_login && $user_login !== $primary_name ) {
+			if ( $has_secondary_login ) {
 				if ( '' !== $edit_url ) {
 					echo '<a href="' . esc_url( $edit_url ) . '" class="wp-sudo-username">' . esc_html( $user_login ) . '</a>';
 				} else {
