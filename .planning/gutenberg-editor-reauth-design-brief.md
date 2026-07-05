@@ -316,8 +316,9 @@ a `build/` artifact, and version-pinning maintenance — cost a snackbar does no
    Specs: block-plugin install/activate happy path; re-dispatch after grant; AJAX 2FA
    grant path; **batched gated write** (per the Q2 decision); headless-branch-stays-
    `challenge_url`-free regression (**security C4**); grace-window no-duplicate-snackbar;
-   grant-nonce localized only on editor screens and skipped when session active
-   (**security C2**); re-dispatch carries a first-party `wp_rest` nonce (**security C3**).
+   grant-nonce localized only on editor screens **but loaded even when a session is
+   active** (**revised security C2** — do NOT skip when active); re-dispatch carries a
+   first-party `wp_rest` nonce (**security C3**).
 
 ---
 

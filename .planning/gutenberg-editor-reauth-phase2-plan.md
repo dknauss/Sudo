@@ -101,6 +101,15 @@ gated; the REST path never touches `Request_Stash`.
   a later gated action would return `sudo_required` with no handler/modal/nonce loaded,
   reopening the opaque 403 this feature fixes (Codex PR #157 review). The nonce is a CSRF
   token (brief Part 3.6), so always-loading it in the editor adds negligible risk.
+- **⚠ Grant-nonce staleness (Codex #158 review).** Localizing the nonce at page load is
+  not sufficient on its own: `handle_ajax_auth()`/`handle_ajax_2fa()` reject on
+  `check_ajax_referer()` once the `wp_sudo_challenge` nonce ages out (WP nonces ~24 h). An
+  editor tab left open overnight has a valid login cookie, an expired sudo session, and the
+  loaded handler — but the AJAX grant then fails on the **stale grant nonce**, recreating
+  the dead-end. Require a **nonce refresh**: re-mint the grant nonce on demand (a tiny
+  authenticated endpoint keyed on the still-valid login/`wp_rest` cookie) before the grant
+  call, or retry once with a fresh nonce on a `check_ajax_referer` failure. Long-open
+  recovery tests (Task 6) must exercise a **stale-nonce** tab, not only a nonce-valid one.
 
 ### Task 3 — In-editor modal: password + 2FA (with a per-factor 2FA rendering split)
 - **RED:** test that the modal calls `handle_ajax_auth` with the password and **no**
@@ -156,9 +165,14 @@ green does **not** imply multisite green.
   succeeds on a subsite editor using the **existing editor-reachable REST route**
   (`/wp/v2/plugins` install/activate — the only realistic surface per the inventory);
   the `challenge_url` routes to the correct (network vs. site) admin context via the
-  referrer logic in `build_session_challenge_url()`; per-site session isolation holds
-  (a grant on one site does not silently satisfy a gated action on another beyond
-  documented behavior). **Do not** scope a `network.*` action into this lane — those
+  referrer logic in `build_session_challenge_url()`. **Assert the documented network-wide
+  session contract, NOT per-site isolation** (Codex #158 review): sudo sessions live in
+  global user meta (`_wp_sudo_expires`/`_wp_sudo_token` via `update_user_meta()`,
+  `class-sudo-session.php:294,854`), so per `docs/FAQ.md` "authenticating on one site
+  covers all sites" — a grant in one subsite editor satisfies the same user's gated
+  action on another site (bounded by the cookie domain / login-session binding). A test
+  asserting isolation would contradict the product contract. **Do not** scope a
+  `network.*` action into this lane — those
   rules are `rest => null` (admin-only) and are not editor-reachable (surface inventory);
   testing them here would drag in unrelated classic-network-admin coverage. Run the
   integration suite with **`WP_MULTISITE=1 composer test:integration`** (the flag
