@@ -1060,6 +1060,21 @@ SBOM, accessibility roadmap) are documented in the [CHANGELOG](../CHANGELOG.md).
 **~~Public `wp_sudo_check()` / `wp_sudo_require()` API~~** — implemented on `main` for v2.12.0 for third-party action gating integrations.
 **~~Multi-Dimensional Rate Limiting (IP + User)~~** — shipped v2.13.0. Per-IP tracking via transients alongside per-user tracking, combined lockout policy, and the triggering IP address added as the third `wp_sudo_lockout` hook argument.
 
+### Open — Ecosystem & compatibility research
+
+**Password-manager / 2FA interaction with reauth (research).** How password managers
+(1Password, Bitwarden, iCloud Keychain, browser built-ins, Dashlane) interact with WP
+Sudo's reauth surfaces — the full-page `wp-sudo-challenge` form and, if the Tier 2
+block-editor feature ships, an in-editor modal — is unverified. Managers key off
+login-form heuristics (`autocomplete` tokens, field semantics, a real `<form>`), and
+our custom challenge handler is deliberately not `wp-login.php`; a `wp.components.Modal`
+field is the most autofill-hostile surface. **1Password is notably tough with two-factor
+now** and needs a concrete repro. Also covers how WordPress/two-factor renders each
+provider (TOTP, WebAuthn/passkey, backup codes) at our challenge time. Deliverable: a
+per-manager × per-surface autofill matrix plus any cheap markup fixes. Tracked in
+`.planning/todos/pending/2026-07-05-password-manager-2fa-interaction.md`; feeds the
+Tier 2 modal autofill check in `.planning/gutenberg-editor-reauth-phase2-plan.md`.
+
 ### Open — Escalation guard follow-ups
 
 **Orphaned-user sweep (optional, opt-in)** — When the admin-escalation guard
