@@ -9,6 +9,23 @@
  * License: GPL-2.0-or-later
  * Text Domain: psudo-lite
  *
+ * SECURITY NOTICE — ILLUSTRATIVE REFERENCE ONLY. NOT PRODUCTION-SECURE.
+ * DO NOT DEPLOY.
+ *
+ * These "Sudo Lite" files are a teaching baseline for cross-checking WP Sudo's
+ * design against a minimal reauthentication model. They are intentionally not
+ * hardened and have known limitations that the WP Sudo plugin itself handles:
+ *
+ * - The grant keys off a pre-login nonce bound to the WordPress session token,
+ *   which does not survive the token rotation of a real wp-login.php?reauth=1
+ *   flow; the return handler also grants without proof that a password was
+ *   actually re-entered, so it must not be relied on for enforcement.
+ * - Gating is a filename allow-list of interactive wp-admin screens and does
+ *   not cover the Settings-API save (options.php) or the plugin/theme install
+ *   and upgrade endpoints (update.php?action=...).
+ *
+ * For real enforcement use the WP Sudo plugin.
+ *
  * @package PsudoLite
  */
 

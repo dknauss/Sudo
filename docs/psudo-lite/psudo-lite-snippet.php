@@ -10,6 +10,23 @@
  * for WP Sudo's action registry, request replay, REST/AJAX handling, or
  * effect-level backstops.
  *
+ * SECURITY NOTICE — ILLUSTRATIVE REFERENCE ONLY. NOT PRODUCTION-SECURE.
+ * DO NOT DEPLOY.
+ *
+ * This "Sudo Lite" baseline is a teaching reference for cross-checking WP Sudo's
+ * design against a minimal reauthentication model. It is intentionally not
+ * hardened and has known limitations that the WP Sudo plugin itself handles:
+ *
+ * - The grant keys off a pre-login nonce bound to the WordPress session token,
+ *   which does not survive the token rotation of a real wp-login.php?reauth=1
+ *   flow; the return handler also grants without proof that a password was
+ *   actually re-entered, so it must not be relied on for enforcement.
+ * - Gating is a filename allow-list of interactive wp-admin screens and does
+ *   not cover the Settings-API save (options.php) or the plugin/theme install
+ *   and upgrade endpoints (update.php?action=...).
+ *
+ * For real enforcement use the WP Sudo plugin.
+ *
  * @package PsudoLite
  */
 
