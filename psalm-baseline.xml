@@ -213,7 +213,6 @@
       <code><![CDATA[wp_sudo_can( 'revoke_wp_sudo_sessions' )]]></code>
       <code><![CDATA[wp_sudo_can( 'revoke_wp_sudo_sessions' )]]></code>
       <code><![CDATA[wp_sudo_can( 'revoke_wp_sudo_sessions' )]]></code>
-      <code><![CDATA[wp_sudo_can( 'revoke_wp_sudo_sessions' )]]></code>
       <code><![CDATA[wp_sudo_is_recovery_mode()]]></code>
       <code><![CDATA[wp_sudo_is_recovery_mode()]]></code>
     </UndefinedFunction>
@@ -238,11 +237,6 @@
       <code><![CDATA[add_action( 'wp_sudo_activated', array( self::class, 'flush_active_sessions_cache' ), 10, 0 )]]></code>
       <code><![CDATA[add_action( 'wp_sudo_deactivated', array( self::class, 'flush_active_sessions_cache' ), 10, 0 )]]></code>
     </HookNotFound>
-    <InvalidArgument>
-      <code><![CDATA[array(
-					'force' => true,
-				)]]></code>
-    </InvalidArgument>
     <UndefinedFunction>
       <code><![CDATA[wp_sudo_can( 'view_wp_sudo_activity' )]]></code>
     </UndefinedFunction>
@@ -287,6 +281,10 @@
     </UndefinedFunction>
   </file>
   <file src="includes/class-plugin.php">
+    <HookNotFound>
+      <code><![CDATA[add_action( 'wp_sudo_activated', array( Admin::class, 'flush_sudo_active_count_cache' ), 10, 0 )]]></code>
+      <code><![CDATA[add_action( 'wp_sudo_deactivated', array( Admin::class, 'flush_sudo_active_count_cache' ), 10, 0 )]]></code>
+    </HookNotFound>
     <UndefinedConstant>
       <code><![CDATA[WP_SUDO_PLUGIN_BASENAME]]></code>
       <code><![CDATA[WP_SUDO_PLUGIN_URL]]></code>

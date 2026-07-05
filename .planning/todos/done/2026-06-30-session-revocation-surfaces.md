@@ -11,10 +11,16 @@ files:
 
 ## Status
 
-Design brief — ready to seed a full phase plan (`/gsd:plan-phase`). Not yet
-designed-reviewed or implemented. Per CLAUDE.md this is a non-trivial change
-(new UI surface, capability checks, multisite/Users-list execution contexts):
-write a design brief → spawn the design reviewer → then TDD.
+RESOLVED 2026-07-04 — everything below was delivered across the v4.5
+milestone: Phase 24 (Session Revocation UI, PR #131) implemented the
+Users-list row action and separated session revocation from capability
+administration; PRs #139/#140 added widget revocation visibility and
+replaced the revoke-all button + interstitial with the "Revoke sudo
+sessions" bulk action (nonce-verified interceptor, membership guards,
+badge-count invalidation); Phase 25 (PR #141) fixed the bundled
+governance-coverage-panel defects (GCOV-01/02). Manual REVK-01..05
+browser verification passed 2026-07-04 (24-VERIFICATION.md). The
+original brief follows unchanged for historical context.
 
 ## Problem / failure mode
 

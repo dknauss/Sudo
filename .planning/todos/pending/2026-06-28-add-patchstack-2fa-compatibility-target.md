@@ -15,9 +15,15 @@ Refreshed evidence in `docs/two-factor-ecosystem.md` points to WordPress.org SVN
 
 ## Remaining Work
 
-Keep this todo pending until both unresolved actions are complete:
+1. ~~Acquire or provision a paid Patchstack-enabled fixture where 2FA hooks actually register.~~ **Resolved 2026-07-05.** The maintainer supplied a legitimately licensed Patchstack Pro 2.3.6 copy, run in a local WP 7.0 + SQLite fixture with the plugin's TOTP 2FA enabled. With 2FA enabled on a licensed Pro install, the full 2FA hook stack registers and can be exercised offline (the fixture has no outbound network, so the plugin runs in its local mode).
+2. Manually record challenge validation and profile/WooCommerce 2FA lifecycle tests against that fixture before considering any Patchstack-specific bridge code or support wording. **Partially done 2026-07-05:** runtime-verified offline that (a) the 2FA hooks register, (b) `TokenAuth6238::verify` accepts a generated TOTP and rejects a wrong one, and (c) the bridge path works end to end — detection via `webarx_2fa_enabled`, secret retrieval via the private `P_Login::tfa_get_secret()` (reflection), encrypted-secret storage + decrypt round trip, and validation of a code generated from that secret. See `docs/two-factor-ecosystem.md` → Patchstack "Runtime fixture (verified offline)". **Still not exercised:** the live `wp_authenticate` login-form challenge submission, the `profile.php` POST save flow, and the WooCommerce account-form lifecycle (WooCommerce not installed in the fixture).
 
-1. Acquire or provision a paid Patchstack-enabled fixture where 2FA hooks actually register.
-2. Manually record challenge validation and profile/WooCommerce 2FA lifecycle tests against that fixture before considering any Patchstack-specific bridge code or support wording.
+## Status
 
-Do not move this todo to completed based on source inspection alone.
+Source inspection is confirmed first-hand against Pro 2.3.6, and the core runtime
+path is validated offline — the target is **runtime-validated as bridgeable**, not
+a shipped/supported integration. Remaining before this can close or turn into ship
+code: the live challenge-form + profile-save + WooCommerce lifecycle runs, and a
+decision on whether to write a dedicated WP Sudo↔Patchstack bridge (vs. keeping it
+behind the upstream `WordPress/two-factor` lifecycle bridge). Do not claim shipped
+Patchstack support until those land.

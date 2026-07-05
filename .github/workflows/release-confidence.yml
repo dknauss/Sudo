@@ -1,0 +1,357 @@
+name: Release Confidence E2E
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: release-confidence-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  apache-wp-env-full-e2e:
+    name: "Apache/wp-env full E2E"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Patch wp-env for Composer audit compatibility
+        run: node bin/patch-wp-env.js
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Start WordPress environment
+        run: npx wp-env start --config .wp-env.e2e.json
+
+      - name: Wait for WordPress to be ready
+        run: |
+          for i in $(seq 1 30); do
+            if curl -s -o /dev/null -w "%{http_code}" http://localhost:8889/wp-login.php | grep -q "200"; then
+              echo "WordPress is ready"
+              exit 0
+            fi
+            echo "Waiting for WordPress... (attempt $i)"
+            sleep 2
+          done
+          exit 1
+
+      - name: Assert pinned WordPress beta version
+        env:
+          WP_ENV_CONFIG_PATH: .wp-env.e2e.json
+          WP_ENV_ASSERT_CONTAINERS: cli
+        run: npm run env:assert-wp-version
+
+      - name: Run Playwright E2E suite (functional, non-visual)
+        env:
+          WP_ENV_CONFIG_PATH: .wp-env.e2e.json
+        # Runs the chromium project (all functional specs). The chromium-visual
+        # project is deliberately excluded: it is treated as non-blocking
+        # (continue-on-error) in e2e-visual.yml because snapshot drift and
+        # platform rendering differences are not runtime-compatibility failures,
+        # so it must not gate this release-confidence run.
+        run: npm run test:e2e
+
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-confidence-apache-wp-env-report
+          path: |
+            playwright-report/
+            tests/e2e/artifacts/test-results/
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Stop WordPress environment
+        if: always()
+        run: npx wp-env stop --config .wp-env.e2e.json
+
+  nginx-smoke:
+    name: "Nginx/MariaDB smoke"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Start nginx stack
+        run: docker compose -f .github/docker/nginx-mariadb.compose.yml up -d --wait db php nginx
+
+      - name: Wait for nginx WordPress bootstrap files
+        run: |
+          for i in $(seq 1 30); do
+            if curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:9080/wp-admin/install.php | grep -Eq "200|302"; then
+              echo "WordPress bootstrap files are ready"
+              exit 0
+            fi
+            echo "Waiting for bootstrap files... (attempt $i)"
+            sleep 2
+          done
+          exit 1
+
+      - name: Install WordPress and activate WP Sudo
+        run: |
+          docker compose -f .github/docker/nginx-mariadb.compose.yml run --rm cli wp core install \
+            --path=/var/www/html \
+            --url=http://127.0.0.1:9080 \
+            --title='WP Sudo Nginx Smoke' \
+            --admin_user=admin \
+            --admin_password=password \
+            --admin_email=dev@example.com \
+            --skip-email
+          for cap in manage_wp_sudo view_wp_sudo_activity export_wp_sudo_activity revoke_wp_sudo_sessions; do
+            docker compose -f .github/docker/nginx-mariadb.compose.yml run --rm cli wp user add-cap admin "$cap" --path=/var/www/html
+          done
+          docker compose -f .github/docker/nginx-mariadb.compose.yml run --rm cli wp plugin activate wp-sudo --path=/var/www/html
+
+      - name: Wait for nginx WordPress to be ready
+        run: |
+          for i in $(seq 1 30); do
+            if curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:9080/wp-login.php | grep -q "200"; then
+              echo "WordPress is ready"
+              exit 0
+            fi
+            echo "Waiting for WordPress... (attempt $i)"
+            sleep 2
+          done
+          exit 1
+
+      - name: Run stack smoke tests
+        env:
+          WP_BASE_URL: http://127.0.0.1:9080
+          WP_REQUEST_BASE_URL: http://127.0.0.1:9080
+          WP_SUDO_SKIP_WP_ENV_CAP_SETUP: '1'
+        run: npm run test:e2e:stack-smoke
+
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-confidence-nginx-report
+          path: |
+            playwright-report/
+            tests/e2e/artifacts/test-results/
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Stop nginx stack
+        if: always()
+        run: docker compose -f .github/docker/nginx-mariadb.compose.yml down -v
+
+  nginx-multisite-smoke:
+    name: "Nginx/MariaDB multisite smoke"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Start multisite nginx stack
+        run: docker compose -f .github/docker/nginx-mariadb-multisite.compose.yml up -d --wait db php nginx
+
+      - name: Wait for multisite bootstrap files
+        run: |
+          for i in $(seq 1 30); do
+            if curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:9081/wp-admin/install.php | grep -Eq "200|302"; then
+              echo "WordPress bootstrap files are ready"
+              exit 0
+            fi
+            echo "Waiting for bootstrap files... (attempt $i)"
+            sleep 2
+          done
+          exit 1
+
+      - name: Install multisite WordPress and activate WP Sudo
+        run: |
+          docker compose -f .github/docker/nginx-mariadb-multisite.compose.yml run --rm cli wp core multisite-install \
+            --path=/var/www/html \
+            --url=http://127.0.0.1:9081 \
+            --title='WP Sudo Nginx Multisite Smoke' \
+            --admin_user=admin \
+            --admin_password=password \
+            --admin_email=dev@example.com \
+            --skip-email \
+            --subdomains=false
+          docker compose -f .github/docker/nginx-mariadb-multisite.compose.yml run --rm cli wp plugin activate wp-sudo --network --path=/var/www/html
+
+      - name: Wait for multisite WordPress to be ready
+        run: |
+          for i in $(seq 1 30); do
+            if curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:9081/wp-login.php | grep -q "200"; then
+              echo "WordPress is ready"
+              exit 0
+            fi
+            echo "Waiting for WordPress... (attempt $i)"
+            sleep 2
+          done
+          exit 1
+
+      - name: Run multisite stack smoke tests
+        env:
+          WP_BASE_URL: http://127.0.0.1:9081
+          WP_REQUEST_BASE_URL: http://127.0.0.1:9081
+          WP_SUDO_E2E_MULTISITE_STACK: '1'
+          WP_SUDO_SKIP_WP_ENV_CAP_SETUP: '1'
+        run: npm run test:e2e:multisite:stack-smoke
+
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-confidence-nginx-multisite-report
+          path: |
+            playwright-report/
+            tests/e2e/artifacts/test-results/
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Stop multisite nginx stack
+        if: always()
+        run: docker compose -f .github/docker/nginx-mariadb-multisite.compose.yml down -v
+
+  sqlite-smoke:
+    name: "Playground SQLite smoke"
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Start Playground SQLite stack
+        run: |
+          nohup npx @wp-playground/cli@3.1.13 server \
+            --port=9400 \
+            --site-url=http://127.0.0.1:9400 \
+            --wp=6.7 \
+            --php=8.3 \
+            --mount-dir . /wordpress/wp-content/plugins/wp-sudo \
+            --blueprint=.github/playground/sqlite-stack-smoke.blueprint.json \
+            > playground.log 2>&1 &
+          echo $! > playground.pid
+
+      - name: Wait for Playground WordPress to be ready
+        run: |
+          for i in $(seq 1 45); do
+            if curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:9400/wp-login.php | grep -Eq "200|302"; then
+              echo "WordPress is ready"
+              exit 0
+            fi
+            echo "Waiting for WordPress... (attempt $i)"
+            sleep 2
+          done
+          exit 1
+
+      - name: Run stack smoke tests
+        env:
+          WP_BASE_URL: http://127.0.0.1:9400
+          WP_REQUEST_BASE_URL: http://127.0.0.1:9400
+          WP_SUDO_SKIP_WP_ENV_CAP_SETUP: '1'
+        run: npm run test:e2e:stack-smoke
+
+      - name: Upload Playwright report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-confidence-sqlite-report
+          path: |
+            playground.log
+            playwright-report/
+            tests/e2e/artifacts/test-results/
+          retention-days: 14
+          if-no-files-found: ignore
+
+      - name: Stop Playground SQLite stack
+        if: always()
+        run: |
+          if [ -f playground.pid ]; then
+            kill "$(cat playground.pid)" || true
+          fi
+
+  release-confidence:
+    name: "Release Confidence E2E"
+    runs-on: ubuntu-24.04
+    needs:
+      - apache-wp-env-full-e2e
+      - nginx-smoke
+      - nginx-multisite-smoke
+      - sqlite-smoke
+    if: always()
+
+    steps:
+      - name: Check release-confidence jobs
+        run: |
+          failed=false
+          for result in \
+            "${{ needs['apache-wp-env-full-e2e'].result }}" \
+            "${{ needs['nginx-smoke'].result }}" \
+            "${{ needs['nginx-multisite-smoke'].result }}" \
+            "${{ needs['sqlite-smoke'].result }}"; do
+            if [ "$result" != "success" ]; then
+              failed=true
+            fi
+          done
+
+          if [ "$failed" = "true" ]; then
+            echo "One or more release-confidence E2E jobs failed or were cancelled."
+            echo "Apache/wp-env full E2E: ${{ needs['apache-wp-env-full-e2e'].result }}"
+            echo "Nginx/MariaDB smoke: ${{ needs['nginx-smoke'].result }}"
+            echo "Nginx/MariaDB multisite smoke: ${{ needs['nginx-multisite-smoke'].result }}"
+            echo "Playground SQLite smoke: ${{ needs['sqlite-smoke'].result }}"
+            exit 1
+          fi
+
+          echo "Release-confidence E2E passed across Apache/wp-env, nginx, nginx multisite, and SQLite smoke targets."

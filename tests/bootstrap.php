@@ -19,7 +19,7 @@ define( 'WPMU_PLUGIN_DIR', WP_CONTENT_DIR . '/mu-plugins' );
 define( 'WPMU_PLUGIN_URL', 'https://example.com/wp-content/mu-plugins' );
 
 // ── Plugin constants (normally defined in wp-sudo.php) ───────────────
-define( 'WP_SUDO_VERSION', '4.2.2' );
+define( 'WP_SUDO_VERSION', '4.5.1' );
 define( 'WP_SUDO_PLUGIN_DIR', dirname( __DIR__ ) . '/' );
 define( 'WP_SUDO_PLUGIN_URL', 'https://example.com/wp-content/plugins/wp-sudo/' );
 define( 'WP_SUDO_PLUGIN_BASENAME', 'wp-sudo/wp-sudo.php' );
@@ -42,6 +42,7 @@ define( 'COOKIE_DOMAIN', '' );
 // these as type hints in method signatures.
 
 if ( ! class_exists( 'WP_User' ) ) {
+	#[\AllowDynamicProperties]
 	class WP_User {
 		public int    $ID           = 0;
 		public array  $roles        = [];

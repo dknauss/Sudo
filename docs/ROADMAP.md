@@ -1,6 +1,6 @@
 # Roadmap: Past and Future Planning — Integration Tests, WP 7.0 Prep, Collaboration, TDD, and Core Design
 
-*Updated June 28, 2026*
+*Updated July 5, 2026*
 
 ## Table of Contents
 
@@ -78,6 +78,12 @@ and acceptance criteria.
 ~~**Connectors matcher and release verification path**~~ ✅ Done across the v4.x release line: the registry-aware matcher shipped, the package metadata now targets WP 7.0, and manual Connectors credential-gating checks live in [tests/MANUAL-TESTING.md](../tests/MANUAL-TESTING.md). Current release/package truth is [`docs/release-status.md`](release-status.md); do not duplicate volatile tag or version facts here.
 
 Remaining Connectors-adjacent backlog should be tracked as future feature work, not as WP 7.0 prep debt.
+
+### Short-term: Release Confidence and Sudo Fundamentals Baseline
+
+- **Release Confidence E2E workflow** — Add a manual release-grade GitHub Actions entrypoint that runs the existing high-confidence targets together without making nginx multisite or SQLite mandatory on every PR: Apache/wp-env full Playwright E2E, nginx + MariaDB smoke, nginx + MariaDB multisite smoke, and Playground SQLite smoke. See [`docs/release-e2e-confidence.md`](release-e2e-confidence.md).
+- **Psudo Lite / Sudo Lite reference baseline** — Preserve the original Psudo idea as a deliberately small page-level reauthentication reference, and define Sudo Lite as the minimal action-gating baseline. Use [`docs/sudo-lite/fundamentals-cross-check.md`](sudo-lite/fundamentals-cross-check.md) during WP Sudo reviews so the full plugin remains faithful to the simple invariants: fresh reauthentication, current-session binding, short trust windows, clear protected-action rules, safe redirects, and safe non-interactive failure behavior.
+- **Roadmap intent:** these lightweight references are not replacement products for WP Sudo. They are design anchors and audit tools for keeping the main project understandable and security-focused as coverage expands.
 
 ### Short-term: Testing Infrastructure
 
@@ -1178,34 +1184,46 @@ where factor-management actions can create credentials used to pass later sudo
 **Patchstack 2FA compatibility target**
 
 Patchstack Security includes its own paid-feature TOTP flow rather than using the
-upstream `WordPress/two-factor` provider API. Verified against WordPress.org SVN
-trunk revision 3589135 on 2026-06-28: the login integration is enabled by the
-`patchstack_login_2fa` option, stores per-user state in `webarx_2fa_enabled`,
-`webarx_2fa_secretkey`, and `webarx_2fa_secretkey_nonce`, collects the login code
-from `patchstack_2fa`, and validates with `TokenAuth6238::verify()` in
+upstream `WordPress/two-factor` provider API. Confirmed first-hand against
+Patchstack Pro 2.3.6 source (file last-changed SVN revision 3433693, 2026-01-06):
+the login integration is enabled by the `patchstack_login_2fa` option, stores
+per-user state in `webarx_2fa_enabled`, `webarx_2fa_secretkey`, and
+`webarx_2fa_secretkey_nonce`, collects the login code from `patchstack_2fa`, and
+validates with `TokenAuth6238::verify()` in
 [`includes/login.php`](https://plugins.svn.wordpress.org/patchstack/trunk/includes/login.php).
-The constructor returns early for free-license mode (`patchstack_license_free`),
-so end-to-end compatibility testing probably needs a paid Patchstack-enabled
-environment.
+2FA registration is limited to licensed Pro installs (the constructor returns
+early in free-license mode). The core bridge path is now **runtime-validated
+offline** against a legitimately licensed Pro 2.3.6 fixture; the live login-form
+challenge, `profile.php` save, and WooCommerce lifecycle remain manual-test. See
+[`docs/two-factor-ecosystem.md`](two-factor-ecosystem.md) → Patchstack for the
+full evidence.
 
 Recommended scope:
 
 - Track Patchstack as a **second-tier 2FA compatibility target**, behind the
   upstream Two Factor lifecycle bridge.
-- Start with documentation/manual compatibility testing: confirm WP Sudo's
-  challenge can delegate to a Patchstack bridge for TOTP validation without
-  reading/storing the secret directly.
-- If demand justifies a bridge, detect enrollment via `webarx_2fa_enabled` and
-  validate through Patchstack's own TOTP verifier instead of duplicating secret
-  handling.
+- Remaining manual compatibility testing: exercise the live login-form
+  challenge, the `profile.php` save flow, and the WooCommerce account-form
+  lifecycle (the core detection/validation path is already runtime-validated
+  offline).
+- If demand justifies a bridge, detect enrollment via the public
+  `webarx_2fa_enabled` user option and validate through Patchstack's own
+  `TokenAuth6238::verify()`. Verification needs the plaintext secret, which
+  Patchstack exposes only through the private `P_Login::tfa_get_secret()`, so a
+  bridge must reach it via reflection or replicate the libsodium decrypt of
+  `webarx_2fa_secretkey` / `_nonce` — validating "without reading the secret" is
+  not possible for this plugin's design.
 - Treat Patchstack profile 2FA enable/disable as a factor-lifecycle action that
   should be considered for gating in the same design pass as other 2FA lifecycle
   bridges.
 
 *Impact:* Medium. This broadens compatibility coverage for a security-plugin
-audience, but is less urgent than the upstream Two Factor lifecycle bridge because
-it may require a paid testing fixture and does not appear to expose recovery-code
-creation in the free SVN code path.
+audience, but is less urgent than the upstream Two Factor lifecycle bridge. The
+core detection/validation path is now runtime-validated offline against a
+legitimately licensed Pro 2.3.6 fixture; the remaining work is the live
+login-form challenge, `profile.php` save, and WooCommerce account-form lifecycle
+runs, plus the decision on shipping a dedicated bridge vs. keeping Patchstack
+behind the upstream Two Factor lifecycle bridge.
 
 ### Open — Medium Effort
 

@@ -734,7 +734,7 @@ test.describe( 'Challenge flow', () => {
 
         await page.goto(
             '/wp-admin/admin.php?page=wp-sudo-challenge&stash_key=expired-key&return_url=' +
-            encodeURIComponent( 'http://localhost:8889/wp-admin/plugins.php' )
+            encodeURIComponent( `${ WP_BASE_URL }/wp-admin/plugins.php` )
         );
 
         await page.waitForURL( /plugins\.php/, { timeout: 15_000 } );

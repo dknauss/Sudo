@@ -47,3 +47,73 @@
 #wp-sudo-mu-message {
 	margin-top: 8px;
 }
+
+/* Access tab: capability holder table — one item per capability, so each
+   capability and its Revoke control stay visually paired at any width and the
+   Revoke link can never orphan onto its own line ambiguously. */
+.wp-sudo-cap-item {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 2px 8px;
+	padding: 5px 0;
+}
+
+.wp-sudo-cap-item + .wp-sudo-cap-item {
+	border-top: 1px solid #f0f0f1;
+}
+
+/* Keep the label content-width so Revoke sits directly after it (adjacent),
+   rather than being pushed to the far edge and reading as an orphaned link. */
+.wp-sudo-cap-label {
+	flex: 0 1 auto;
+}
+
+.wp-sudo-cap-item .wp-sudo-revoke-cap {
+	flex: 0 0 auto;
+	white-space: nowrap;
+}
+
+/* Access tab: capability-holder user cell — avatar + full name (primary) + username (secondary). */
+.wp-sudo-access-user {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+.wp-sudo-access-user-avatar img {
+	border-radius: 50%;
+	display: block;
+}
+.wp-sudo-access-user-info {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+}
+.wp-sudo-access-user-primary {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-wrap: wrap;
+}
+.wp-sudo-access-user-name {
+	font-weight: 600;
+	color: #1d2327;
+}
+.wp-sudo-access-user-role {
+	font-size: 0.75em;
+	padding: 0.15em 0.5em;
+	background: #ddefe3;
+	color: #1a7f37;
+	border-radius: 3px;
+}
+.wp-sudo-access-user-secondary {
+	font-size: 0.9em;
+	color: #646970;
+}
+.wp-sudo-access-user-login {
+	color: #2271b1;
+	text-decoration: none;
+}
+a.wp-sudo-access-user-login:hover {
+	text-decoration: underline;
+}

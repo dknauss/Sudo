@@ -48,7 +48,7 @@ Playground demo credentials are `admin` / `password`. When Sudo asks for reauthe
 <td><strong>Access tab</strong></td>
 </tr>
 <tr>
-<td><img src="https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-7.png" alt="Dashboard widget with active sudo sessions, policy summary, and recent privilege-action events."></td>
+<td><img src="https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-7.png" alt="Dashboard widget with active sudo sessions, policy summary, and recent events including session revocations."></td>
 <td width="50%"><img src="https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-8.png" alt="Admin bar showing a live countdown timer while a sudo session is active."></td>
 </tr>
 <tr>
@@ -56,11 +56,11 @@ Playground demo credentials are `admin` / `password`. When Sudo asks for reauthe
 <td><strong>Admin bar timer</strong></td>
 </tr>
 <tr>
-<td><img src="https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-9.png" alt="Break-glass recovery notice shown on the Sudo settings screen while WP_SUDO_RECOVERY_MODE is active."></td>
+<td><img src="https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-9.png" alt="Users list showing the Sudo Active view with the Revoke sudo sessions bulk action selected."></td>
 <td></td>
 </tr>
 <tr>
-<td><strong>Break-glass recovery notice</strong></td>
+<td><strong>Users list revocation</strong></td>
 <td></td>
 </tr>
 </table>
@@ -104,6 +104,10 @@ Sudo gates built-in operations across categories including:
 - connector credential writes via the REST settings endpoint
 
 For the full rule list and surface counts, see [docs/current-metrics.md](docs/current-metrics.md).
+
+## Single sign-on (SSO)
+
+Sudo's challenge is a WordPress **password** check, so it assumes an account can authenticate with a WordPress-native password. It still works alongside SSO/SAML/OIDC **when your identity provider's plugin fires the standard `wp_login` action** — verify this against your provider's documentation or source, since a provider that does not fire it leaves passwordless accounts unable to pass the WordPress-password challenge. When it does fire, each fresh provider login grants the sudo window automatically — so even accounts with **no** WordPress password reach gated actions, and logging in again through the provider *is* their reauthentication. The tradeoff to know: for those passwordless accounts the window opens at login rather than at the moment of the action, a slightly weaker guarantee than the password challenge gives. Sudo is **not** something to avoid under SSO — it still gates actions, bounds the window, and fires audit hooks — but if you require a genuine at-the-moment step-up for administrators, note that giving them WordPress passwords is not enough on its own: the login auto-grant still opens a window on every login, so also suppress it for those admins via the `wp_sudo_grant_session_on_login` filter (so they meet the challenge at the first gated action), or track the roadmapped identity-provider challenge framework. See the [SSO section of the FAQ](docs/FAQ.md) for setup details and the `wp_sudo_grant_session_on_login` opt-out.
 
 ## Why it helps
 

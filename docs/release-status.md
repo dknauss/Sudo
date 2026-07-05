@@ -1,6 +1,6 @@
 # Release Status (Canonical Current State)
 
-Last verified: 2026-06-30
+Last verified: 2026-07-05
 
 This file is the canonical source for **current release state** in this repository:
 
@@ -13,14 +13,38 @@ This file is the canonical source for **current release state** in this reposito
 
 ## Latest GitHub/tagged release
 
-- **Latest tagged release:** `4.2.2`
-- **Latest git tag observed:** `v4.2.2` (annotated, cut 2026-06-28).
+- **Latest tagged release:** `4.5.0` (the `v4.5.1` tag is **staged but not yet cut** — see below).
+- **Latest git tag observed:** `v4.5.0` (annotated, cut 2026-07-05, on `70cddfe`).
+- **Previous tag:** `v4.2.2` (annotated, cut 2026-06-28).
+- **Unreleased work beyond the tag:** `main` is bumped to `4.5.1` across all five version-sync points, staged for a `v4.5.1` tag that has **not** been cut yet. Until it is, the latest actual tag remains `v4.5.0` and `main` is ahead of it. The `4.5.1` payload is the dashboard-widget/Access-tab user-identity harmonization (PR #154) plus the release bump; the exact commit set is `git log v4.5.0..main --oneline`.
+
+### `v4.5.0` tag checklist (completed 2026-07-05)
+
+All steps done; retained as the release record.
+
+1. **Release-environment matrix sign-off — ✅ done.** Apache lane completed (real Apache 2.4.58 + mod_php 8.3.6 run, all six core sections pass, `Authorization`-header passthrough confirmed), minimum-WordPress (6.4) lane CI-covered, managed-host lane cleared by explicit maintainer waiver — all recorded in `docs/release-environment-log.md`.
+2. **Re-confirm version sync — ✅ done.** All five points at `4.5.0`; no drift (re-verified with the full gate run: unit, PHPStan L6, Psalm, PHPCS, metrics, i18n).
+3. **Bump `blueprint.json` — ✅ done** (PR #150): stable-demo install target now `archive/refs/tags/v4.5.0.zip`, merged after the tag was cut.
+4. **Cut the annotated tag — ✅ done.** `v4.5.0` (annotated, signed) on `70cddfe`; GitHub Release published, release-ZIP CI attaches the install asset.
+5. **Update this file — ✅ done** (this edit): `4.5.0` recorded as Latest tagged release / `v4.5.0` as latest git tag observed.
+6. **wordpress.org submission** remains independently on hold and is not gated by the GitHub tag.
+
+### `v4.5.1` tag checklist (staged 2026-07-05, tag pending)
+
+The tree is release-ready; the annotated tag and GitHub Release are maintainer-owned and not yet done.
+
+1. **Release-environment matrix sign-off — ✅ carried over.** The `4.5.1` delta over the `v4.5.0` tag is PR #154's **admin-UI presentation** changes (dashboard widget + Access-tab rendering, `User_Identity` helper, admin CSS, `get_avatar` `force_display` fix) plus the version bump — admin-side rendering that does not touch the server/host/WordPress-floor dimensions the manual matrix exercises, and is CI-covered on the 6.4 floor. The completed `4.5.0` matrix (Apache completed, min-WP CI-covered, managed-host waived) therefore applies. Reuse rationale recorded in `docs/release-environment-log.md`.
+2. **Version sync — ✅ done.** All five points at `4.5.1` (`wp-sudo.php` header + constant, `tests/bootstrap.php`, `phpstan-bootstrap.php`, `readme.txt` Stable tag).
+3. **CHANGELOG + readme.txt — ✅ done.** `4.5.1` dated section in `CHANGELOG.md`; `readme.txt` Changelog and Upgrade Notice entries added.
+4. **Cut the annotated tag — ⏳ pending (maintainer).** Cut `v4.5.1` from the release commit; publish the GitHub Release.
+5. **Bump `blueprint.json` — ⏳ pending (post-tag).** Deliberately **not** bumped in this PR: the public "Try latest release" badges load `blueprint.json` from `main`, so pointing the install target at `archive/refs/tags/v4.5.1.zip` before the tag exists would make the public demo fetch a missing ZIP. It stays on `v4.5.0.zip` and is bumped to `v4.5.1.zip` **after** the tag is cut (the same post-tag ordering used for `4.5.0` via PR #150).
+6. **Update this file — ⏳ pending.** After the tag is cut, record `4.5.1` as Latest tagged release / `v4.5.1` as latest git tag observed.
 
 ## Current `main` release state
 
-- **Current `main` version:** `4.2.2` — tagged as `v4.2.2` after the Access-tab gap closure and release-planning refresh.
-- **Runtime version constant:** `4.2.2` on `main`. `WP_SUDO_VERSION` is set in `wp-sudo.php` (header + constant), `tests/bootstrap.php`, and `phpstan-bootstrap.php`; `readme.txt` Stable tag is `4.2.2`. All five version-sync points are in sync.
-- **Current package metadata (on `main`):** `readme.txt` Stable tag `4.2.2` == header Version (no `stable_tag_mismatch`); `Requires at least 6.4`, `Requires PHP 8.2`, `Tested up to 7.0`. WordPress.org listing name: **"Sudo – Admin Action Gating"** (UI brand "Sudo"; slug/text-domain stay `wp-sudo` — lock the slug at submission).
+- **Current `main` version:** `4.5.1` (runtime constant), staged for the `v4.5.1` tag (**not yet cut**). The latest actual tag is still `v4.5.0`; `main` is ahead of it by the `4.5.1` payload.
+- **Runtime version constant:** `4.5.1` on `main`. `WP_SUDO_VERSION` is set in `wp-sudo.php` (header + constant), `tests/bootstrap.php`, and `phpstan-bootstrap.php`; `readme.txt` Stable tag is `4.5.1`. All five version-sync points are in sync at `4.5.1`.
+- **Current package metadata (on `main`):** `readme.txt` Stable tag `4.5.1` == header Version (no `stable_tag_mismatch`); `Requires at least 6.4`, `Requires PHP 8.2`, `Tested up to 7.0`. WordPress.org listing name: **"Sudo – Admin Action Gating"** (UI brand "Sudo"; slug/text-domain stay `wp-sudo` — lock the slug at submission).
 - **Last archived release checklist:** `docs/archive/release-3.0.0-checklist.md`
 
 ## WordPress.org publication status
@@ -29,11 +53,22 @@ This file is the canonical source for **current release state** in this reposito
 - **Readiness source:** `docs/wporg-submission-checklist.md` is the operational checklist to keep ready for publication approval.
 - **Release environment assurance source:** `docs/release-environment-log.md` records per-version manual environment outcomes and deferrals.
 - **E2E runtime evidence source:** [`docs/e2e-runtime-review.md`](e2e-runtime-review.md) records refreshed post-`v4.2.2` GitHub Actions E2E job runtimes and the current CI tuning decision; it is release-readiness evidence, not a WordPress.org submission gate.
+- **Release confidence E2E source:** [`docs/release-e2e-confidence.md`](release-e2e-confidence.md) documents the manual release-grade E2E workflow across Apache/wp-env, nginx, nginx multisite, and Playground SQLite smoke targets.
+- **Sudo fundamentals source:** [`docs/sudo-lite/fundamentals-cross-check.md`](sudo-lite/fundamentals-cross-check.md) preserves the Psudo Lite/Sudo Lite baseline used to review WP Sudo changes for fidelity to the core reauthentication model.
 - **`readme.txt` stable tag:** package/release metadata for generated plugin zips and future WordPress.org publication; it does not indicate that this plugin is currently live in the WordPress.org repository.
 
 ## Latest release contents
 
-`4.2.2` is a release-readiness refresh after Phase 13.1 gap closure:
+`4.5.0` (tagged 2026-07-05) is a recommended security update bundling the work since `v4.2.2`:
+
+- **Security hardening:** escalation-guard authority (the opt-in guard now requires the actor's promoting capability, not just a sudo session) and session-revocation token-binding (a stolen cookie can't revoke sessions).
+- **Session governance & admin UX:** native "Revoke sudo sessions" Users-list bulk action, dashboard revocation/escalation visibility, and an Access-tab capability-table readability/accessibility/i18n pass.
+- **Two Factor lifecycle bridge:** gates classic profile/user-edit provider lifecycle changes behind an active sudo session.
+- **Localization packaging:** WP-CLI-backed POT regenerate/verify commands and the committed release-grade `wp-sudo.pot`.
+
+See the `CHANGELOG.md` `4.5.0` section for the full itemized list.
+
+`4.2.2` was a release-readiness refresh after Phase 13.1 gap closure:
 
 - **Access tab polish:** Grant Capability now has a searchable administrator picker with tests while preserving the numeric `user_id` grant contract.
 - **Canonical metrics and screenshot refresh:** `docs/current-metrics.md` verifies cleanly and `.wordpress-org/screenshot-6.png` shows the searchable picker.
@@ -55,18 +90,41 @@ This file is the canonical source for **current release state** in this reposito
 
 `4.1.0` (tagged 2026-06-24) remains the security-hardening release that closed the coordinated-disclosure gate-completeness findings and introduced the opt-in admin-escalation guard.
 
-Canonical source for post-tag drift after `v4.2.2`: `git log v4.2.2..main --oneline`.
+Canonical source for post-tag drift after `v4.5.0`: `git log v4.5.0..main --oneline`.
 
-## Unreleased `main` work
+## `4.5.0` release contents (shipped)
 
-Unreleased work after `v4.2.2` currently includes:
+The `v4.5.0` tag (2026-07-05) shipped the **substantial** body of work
+accumulated since `v4.2.2` — two completed GSD milestones (v4.4.0 Two Factor
+Lifecycle Bridge and v4.5 Session Governance & Admin UX) plus security
+hardening. All of it is now released. `main` and the tag are level, so there is
+no unreleased work beyond the tag. Canonical drift source for the release:
+`git log v4.2.2..v4.5.0 --oneline`; see the `CHANGELOG.md` `4.5.0` section for
+the curated feature list.
 
-- **Two Factor profile-provider lifecycle bridge:** the optional Two Factor lifecycle bridge (`bridges/wp-sudo-two-factor-lifecycle-bridge.php`) now gates meaningful classic `profile.php` / `user-edit.php` provider lifecycle changes behind an active WP Sudo session, alongside the existing REST factor-management gates. Unrelated profile saves and normalized no-op resubmissions are not gated. This completes the v4.4.0 Two Factor Lifecycle Bridge milestone.
-- **Canonical metrics refresh:** `docs/current-metrics.md` updated to reflect Phase 22 unit test additions (893 tests / 2,676 assertions) and bridge production line growth.
-- **Localization packaging readiness:** WP-CLI-backed Composer commands for POT generation/freshness verification, a committed `languages/wp-sudo.pot`, targeted translator-comment cleanup, and release documentation updates.
-- **E2E runtime evidence:** refreshed post-`v4.2.2` GitHub Actions E2E job runtimes in [`docs/e2e-runtime-review.md`](e2e-runtime-review.md).
+**Security hardening (backward-compatible fixes):**
 
-Canonical source for drift after the tag: `git log v4.2.2..main --oneline`.
+- **Escalation-guard authority hardening:** the opt-in admin-escalation guard now requires the acting user to hold the promoting authority (`promote_users` for administrator grants, checked on the target blog; existing super-admin for `grant_super_admin`) *in addition to* an active/in-grace sudo session — closing a gap where a low-privilege account holding a sudo session could pass the backstop on a broken-access-control route.
+- **Session-revocation hardening:** the Users-list revocation paths now require the operator's token-bound `Sudo_Session::is_active()` (not the browser-independent expiry check), so a stolen auth cookie or a second session without its own sudo cannot revoke other users' sessions; the operator's cookie is preserved across consecutive revokes.
+
+**Features / UX (v4.5 Session Governance & Admin UX):**
+
+- **Users-list bulk revocation:** native "Revoke sudo sessions" bulk action (replacing the revoke-all button + unstyled interstitial), nonce-verified via a `load-users.php` interceptor, one rate slot per batch, self-skip, current-site membership guards; site-wide revoke stays CLI-only.
+- **Dashboard widget revocation visibility:** the Session Activity widget records/renders `session_revoked` and `escalation_blocked` events with distinct pills and translatable labels.
+- **Governance coverage panel fix (multisite):** the Access-tab coverage panel names the context-correct capability and excludes multisite super admins from false "cannot access" listings.
+- **Access-tab capability table readability + accessibility + i18n:** one row per capability with friendly labels (slugs demoted to tooltip + screen-reader text), per-capability accessible names on the Revoke controls, and translatable capability labels.
+- **Sudo Active badge-count invalidation** on session grant/teardown from every execution context; registry scrub of the stale `wp_sudo_revoke_session` AJAX reference.
+- **Settings-tab preservation** across a sudo reauth (single-site and multisite network settings).
+
+**Integration / infrastructure (v4.4.0 + follow-ups):**
+
+- **Two Factor profile-provider lifecycle bridge:** the optional bridge (`bridges/wp-sudo-two-factor-lifecycle-bridge.php`) gates meaningful classic `profile.php` / `user-edit.php` provider lifecycle changes behind an active sudo session, alongside the existing REST factor-management gates. Completes the v4.4.0 milestone.
+- **Playground demo fixes + release CI:** PR-preview installs fetch plugin archives via the CORS proxy; an install ZIP asset is built/attached on version tags.
+- **Localization packaging readiness:** WP-CLI-backed Composer commands for POT generation/verification and a committed `languages/wp-sudo.pot`.
+
+**Documentation (no runtime impact):** Patchstack 2FA compatibility runtime-validated offline against a licensed Pro 2.3.6 fixture and documented (not a shipped integration); SSO/passwordless auth boundary clarified; Two Factor ecosystem/integration docs and canonical metrics refreshed. Current suite: **986 unit tests / 3,003 assertions** (see `docs/current-metrics.md`).
+
+Canonical source for drift after the tag: `git log v4.5.0..main --oneline`.
 
 ### Release environment assurance
 

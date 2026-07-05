@@ -541,7 +541,7 @@ class Action_Registry {
 						return 'wp-sudo-access' === $option_page;
 					},
 				),
-				'ajax'     => array( 'actions' => array( 'wp_sudo_grant_cap', 'wp_sudo_revoke_cap', 'wp_sudo_revoke_session' ) ),
+				'ajax'     => array( 'actions' => array( 'wp_sudo_grant_cap', 'wp_sudo_revoke_cap' ) ),
 				'rest'     => null,
 				'stash'    => self::stash_allowlist( array( Admin::OPTION_KEY ) ),
 			),

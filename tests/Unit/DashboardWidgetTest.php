@@ -194,6 +194,75 @@ class DashboardWidgetFakeWpdbWithRecoveryEvent extends DashboardWidgetFakeWpdbWi
 }
 
 /**
+ * Fake wpdb that returns a session-revoked event for label rendering tests.
+ */
+class DashboardWidgetFakeWpdbWithSessionRevokedEvent extends DashboardWidgetFakeWpdbWithEvents {
+
+	/**
+	 * Surface (reason tag) for the returned event row.
+	 *
+	 * @var string
+	 */
+	public string $surface_value = 'users_list_row_action';
+
+	/**
+	 * Mock get_results() - returns a session-revoked event row.
+	 *
+	 * @param string $query SQL query.
+	 * @return array<int, object>
+	 */
+	public function get_results( string $query ): array {
+		$this->last_get_results_query = $query;
+		if ( strpos( $query, 'wpsudo_events' ) !== false ) {
+			return [
+				(object) [
+					'id'         => 3,
+					'user_id'    => 1,
+					'event'      => 'session_revoked',
+					'rule_id'    => '',
+					'surface'    => $this->surface_value,
+					'created_at' => gmdate( 'Y-m-d H:i:s', time() - 60 ),
+				],
+			];
+		}
+
+		return [];
+	}
+
+}
+
+/**
+ * Fake wpdb that returns an escalation-blocked event for label rendering tests.
+ */
+class DashboardWidgetFakeWpdbWithEscalationEvent extends DashboardWidgetFakeWpdbWithEvents {
+
+	/**
+	 * Mock get_results() - returns an escalation-blocked event row.
+	 *
+	 * @param string $query SQL query.
+	 * @return array<int, object>
+	 */
+	public function get_results( string $query ): array {
+		$this->last_get_results_query = $query;
+		if ( strpos( $query, 'wpsudo_events' ) !== false ) {
+			return [
+				(object) [
+					'id'         => 4,
+					'user_id'    => 1,
+					'event'      => 'escalation_blocked',
+					'rule_id'    => 'user.promote',
+					'surface'    => 'admin',
+					'created_at' => gmdate( 'Y-m-d H:i:s', time() - 60 ),
+				],
+			];
+		}
+
+		return [];
+	}
+
+}
+
+/**
  * Fake wpdb that returns a critical event for badge rendering tests.
  */
 class DashboardWidgetFakeWpdbWithCriticalEvent {
@@ -437,6 +506,22 @@ class DashboardWidgetTest extends TestCase {
 		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
 		Functions\when( 'get_avatar' )->justReturn( '<img src="avatar.jpg" />' );
 		Functions\when( 'get_role' )->justReturn( null );
+		Functions\when( 'translate_user_role' )->returnArg( 1 );
+		Functions\when( 'wp_roles' )->alias(
+			static function () {
+				return new class() {
+					public function get_names(): array {
+						return array(
+							'administrator' => 'Administrator',
+							'editor'        => 'Editor',
+							'author'        => 'Author',
+							'contributor'   => 'Contributor',
+							'subscriber'    => 'Subscriber',
+						);
+					}
+				};
+			}
+		);
 		if ( $stub_json_encode ) {
 			Functions\when( 'wp_json_encode' )->alias( 'json_encode' );
 		}
@@ -605,9 +690,10 @@ class DashboardWidgetTest extends TestCase {
 	 * @return void
 	 */
 	public function testActiveSessionsRenderPlainUsernameWhenEditUserDenied(): void {
-		$user             = new \WP_User( 7, [ 'administrator' ] );
-		$user->ID         = 7;
-		$user->user_login = 'restricted-admin';
+		$user               = new \WP_User( 7, [ 'administrator' ] );
+		$user->ID           = 7;
+		$user->user_login   = 'restricted-admin';
+		$user->display_name = 'Restricted Admin'; // Real name is primary; the login shows secondary.
 
 		$this->setUpRenderStubs();
 		\WP_User_Query::$mock_total   = 1;
@@ -631,6 +717,73 @@ class DashboardWidgetTest extends TestCase {
 
 		$this->assertStringContainsString( '<span class="wp-sudo-username">restricted-admin</span>', $output );
 		$this->assertStringNotContainsString( 'href="user-edit.php?user_id=7"', $output );
+
+		$this->restoreWpdb();
+	}
+
+	/**
+	 * Test the secondary username links to user-edit when the user has a real
+	 * name (so it is not the primary) and the operator may edit them.
+	 *
+	 * @return void
+	 */
+	public function testActiveSessionsLinkUsernameWhenEditAllowedAndUserHasRealName(): void {
+		$user               = new \WP_User( 14, [ 'administrator' ] );
+		$user->ID           = 14;
+		$user->user_login   = 'mariadev';
+		$user->display_name = 'Maria Santos'; // Real name is primary; username is a linked secondary.
+
+		$this->setUpRenderStubs(); // current_user_can() => true (edit allowed).
+		\WP_User_Query::$mock_total   = 1;
+		\WP_User_Query::$mock_results = [ $user ];
+		Functions\when( 'get_user_meta' )->justReturn( time() + 300 );
+		Functions\when( 'human_time_diff' )->justReturn( '5 mins' );
+		Functions\when( 'get_option' )->justReturn( [] );
+
+		ob_start();
+		Dashboard_Widget::render();
+		$output = ob_get_clean();
+
+		// Full name is the primary identity.
+		$this->assertStringContainsString( '<span class="wp-sudo-fullname">Maria Santos</span>', $output );
+		// Username is a linked secondary.
+		$this->assertStringContainsString( 'class="wp-sudo-username"', $output );
+		$this->assertStringContainsString( 'user-edit.php?user_id=14', $output );
+		$this->assertStringContainsString( '>mariadev</a>', $output );
+
+		$this->restoreWpdb();
+	}
+
+	/**
+	 * Test the primary line itself is the edit link when the login is the only
+	 * identity (no real name, display_name === login) and the operator may edit.
+	 * There is no secondary line to carry the link, so the primary must.
+	 *
+	 * @return void
+	 */
+	public function testActiveSessionsLinkPrimaryWhenLoginIsPrimaryAndEditAllowed(): void {
+		$user               = new \WP_User( 21, [ 'administrator' ] );
+		$user->ID           = 21;
+		$user->user_login   = 'admin';
+		$user->display_name = 'admin'; // No real name; login is the sole identity.
+
+		$this->setUpRenderStubs(); // current_user_can() => true (edit allowed).
+		\WP_User_Query::$mock_total   = 1;
+		\WP_User_Query::$mock_results = [ $user ];
+		Functions\when( 'get_user_meta' )->justReturn( time() + 300 );
+		Functions\when( 'human_time_diff' )->justReturn( '5 mins' );
+		Functions\when( 'get_option' )->justReturn( [] );
+
+		ob_start();
+		Dashboard_Widget::render();
+		$output = ob_get_clean();
+
+		// The primary line carries the edit link and both identity classes.
+		$this->assertStringContainsString( 'class="wp-sudo-fullname wp-sudo-username"', $output );
+		$this->assertStringContainsString( 'user-edit.php?user_id=21', $output );
+		$this->assertStringContainsString( '>admin</a>', $output );
+		// No standalone secondary username link is emitted.
+		$this->assertStringNotContainsString( '<span class="wp-sudo-username">admin</span>', $output );
 
 		$this->restoreWpdb();
 	}
@@ -1017,6 +1170,166 @@ class DashboardWidgetTest extends TestCase {
 		$this->assertStringContainsString( 'title="Break-glass"', $output );
 		$this->assertStringContainsString( 'data-event="recovery_mode"', $output );
 		$this->assertStringNotContainsString( 'title="Recovery"', $output );
+
+		$this->restoreWpdb();
+	}
+
+	/**
+	 * Test session-revoked events render the human-readable Revoked label
+	 * with the reason tag mapped to a compact surface code.
+	 *
+	 * @return void
+	 */
+	public function testSessionRevokedEventsRenderRevokedLabelAndReasonSurface(): void {
+		$this->setUpRenderStubs();
+		\WP_User_Query::$mock_total   = 0;
+		\WP_User_Query::$mock_results = [];
+		Functions\when( 'human_time_diff' )->justReturn( '1 min ago' );
+		Functions\when( 'get_option' )->justReturn( [] );
+		Functions\when( 'get_users' )->alias(
+			function ( array $args ): array {
+				if ( isset( $args['include'] ) ) {
+					$user             = (object) array();
+					$user->ID         = 1;
+					$user->user_login = 'testuser';
+					return array( $user );
+				}
+
+				return array();
+			}
+		);
+
+		$GLOBALS['wpdb'] = new DashboardWidgetFakeWpdbWithSessionRevokedEvent();
+
+		ob_start();
+		Dashboard_Widget::render();
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( '>Revoked</span>', $output );
+		$this->assertStringContainsString( 'data-event="session_revoked"', $output );
+		$this->assertStringContainsString( '>users-list</code>', $output );
+		$this->assertStringNotContainsString( '>session_revoked</span>', $output );
+
+		$this->restoreWpdb();
+	}
+
+	/**
+	 * Test the bulk-action revocation reason tag renders a compact surface code.
+	 *
+	 * @return void
+	 */
+	public function testSessionRevokedBulkActionReasonRendersCompactSurfaceCode(): void {
+		$this->setUpRenderStubs();
+		\WP_User_Query::$mock_total   = 0;
+		\WP_User_Query::$mock_results = [];
+		Functions\when( 'human_time_diff' )->justReturn( '1 min ago' );
+		Functions\when( 'get_option' )->justReturn( [] );
+		Functions\when( 'get_users' )->alias(
+			function ( array $args ): array {
+				if ( isset( $args['include'] ) ) {
+					$user             = (object) array();
+					$user->ID         = 1;
+					$user->user_login = 'testuser';
+					return array( $user );
+				}
+
+				return array();
+			}
+		);
+
+		$wpdb                = new DashboardWidgetFakeWpdbWithSessionRevokedEvent();
+		$wpdb->surface_value = 'users_list_bulk_action';
+		$GLOBALS['wpdb']     = $wpdb;
+
+		ob_start();
+		Dashboard_Widget::render();
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( '>bulk-action</code>', $output );
+		$this->assertStringNotContainsString( '>users_list_bulk_action</code>', $output );
+
+		$this->restoreWpdb();
+	}
+
+	/**
+	 * Test event pill labels pass through __() with the wp-sudo text domain
+	 * so they are localizable.
+	 *
+	 * Aliases __() to prefix wp-sudo-domain strings with an [i18n] marker:
+	 * if the label came from an untranslated constant the marker is absent
+	 * and the assertion fails.
+	 *
+	 * @return void
+	 */
+	public function testEventPillLabelsAreTranslatable(): void {
+		$this->setUpRenderStubs();
+		\WP_User_Query::$mock_total   = 0;
+		\WP_User_Query::$mock_results = [];
+		Functions\when( 'human_time_diff' )->justReturn( '1 min ago' );
+		Functions\when( 'get_option' )->justReturn( [] );
+		Functions\when( 'get_users' )->alias(
+			function ( array $args ): array {
+				if ( isset( $args['include'] ) ) {
+					$user             = (object) array();
+					$user->ID         = 1;
+					$user->user_login = 'testuser';
+					return array( $user );
+				}
+
+				return array();
+			}
+		);
+		Functions\when( '__' )->alias(
+			function ( string $text, string $domain = 'default' ): string {
+				return 'wp-sudo' === $domain ? '[i18n]' . $text : $text;
+			}
+		);
+
+		$GLOBALS['wpdb'] = new DashboardWidgetFakeWpdbWithSessionRevokedEvent();
+
+		ob_start();
+		Dashboard_Widget::render();
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( '>[i18n]Revoked</span>', $output );
+
+		$this->restoreWpdb();
+	}
+
+	/**
+	 * Test escalation-blocked events render a human-readable label instead
+	 * of the raw event type string.
+	 *
+	 * @return void
+	 */
+	public function testEscalationBlockedEventsRenderEscalationLabel(): void {
+		$this->setUpRenderStubs();
+		\WP_User_Query::$mock_total   = 0;
+		\WP_User_Query::$mock_results = [];
+		Functions\when( 'human_time_diff' )->justReturn( '1 min ago' );
+		Functions\when( 'get_option' )->justReturn( [] );
+		Functions\when( 'get_users' )->alias(
+			function ( array $args ): array {
+				if ( isset( $args['include'] ) ) {
+					$user             = (object) array();
+					$user->ID         = 1;
+					$user->user_login = 'testuser';
+					return array( $user );
+				}
+
+				return array();
+			}
+		);
+
+		$GLOBALS['wpdb'] = new DashboardWidgetFakeWpdbWithEscalationEvent();
+
+		ob_start();
+		Dashboard_Widget::render();
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( '>Escalation</span>', $output );
+		$this->assertStringContainsString( 'data-event="escalation_blocked"', $output );
+		$this->assertStringNotContainsString( '>escalation_blocked</span>', $output );
 
 		$this->restoreWpdb();
 	}

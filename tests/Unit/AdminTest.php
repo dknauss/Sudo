@@ -3273,7 +3273,9 @@ class AdminTest extends TestCase {
 		$this->assertStringContainsString( '<option value="7" data-search-text="ada admin ada">Ada Admin (ada)</option>', $output );
 		$this->assertStringNotContainsString( 'type="number" id="wp-sudo-grant-user"', $output );
 		$this->assertStringContainsString( '<option value="manage_wp_sudo"', $output );
-		$this->assertStringContainsString( 'Manage Sudo settings and policies (manage_wp_sudo)', $output );
+		// Friendly label is the visible option text; the raw slug is not shown in prominent text.
+		$this->assertStringContainsString( 'Manage Sudo settings and policies', $output );
+		$this->assertStringNotContainsString( 'Manage Sudo settings and policies (manage_wp_sudo)', $output );
 		$this->assertStringContainsString( 'value="view_wp_sudo_activity"', $output );
 		$this->assertStringContainsString( 'value="export_wp_sudo_activity"', $output );
 		$this->assertStringContainsString( 'value="revoke_wp_sudo_sessions"', $output );
@@ -3286,6 +3288,27 @@ class AdminTest extends TestCase {
 		unset( $_GET['tab'] );
 	}
 
+	/**
+	 * Stubs the WordPress functions the Access-tab User cell newly depends on
+	 * (avatar, edit-link capability, admin URL, and translated role names).
+	 */
+	private function stub_access_user_cell(): void {
+		Functions\when( 'get_avatar' )->justReturn( '<img alt="" src="avatar.png" />' );
+		Functions\when( 'current_user_can' )->justReturn( true );
+		Functions\when( 'admin_url' )->returnArg();
+		Functions\when( 'self_admin_url' )->returnArg();
+		Functions\when( 'translate_user_role' )->returnArg( 1 );
+		Functions\when( 'wp_roles' )->alias(
+			static function () {
+				return new class() {
+					public function get_names(): array {
+						return array( 'administrator' => 'Administrator' );
+					}
+				};
+			}
+		);
+	}
+
 	public function test_render_access_tab_holder_table_has_no_revoke_session_button(): void {
 		Functions\when( 'esc_html' )->returnArg();
 		Functions\when( 'esc_html_e' )->alias( static function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
@@ -3293,6 +3316,7 @@ class AdminTest extends TestCase {
 		Functions\when( 'esc_attr' )->returnArg();
 		Functions\when( 'esc_url' )->returnArg();
 		Functions\when( 'wp_create_nonce' )->justReturn( 'test-nonce' );
+		$this->stub_access_user_cell();
 
 		$holder_admin               = new \WP_User( 9, array( 'administrator' ) );
 		$holder_admin->display_name = 'Holder Admin';
@@ -3323,6 +3347,165 @@ class AdminTest extends TestCase {
 		$this->assertStringContainsString( '>Revoke<', $output );
 		$this->assertStringNotContainsString( 'wp-sudo-revoke-session', $output );
 		$this->assertStringNotContainsString( 'Revoke Session', $output );
+	}
+
+	public function test_render_access_tab_holder_table_shows_friendly_labels_not_slug_codes(): void {
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'esc_html_e' )->alias( static function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		Functions\when( 'esc_attr_e' )->alias( static function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		Functions\when( 'esc_attr' )->returnArg();
+		Functions\when( 'esc_url' )->returnArg();
+		Functions\when( 'wp_create_nonce' )->justReturn( 'test-nonce' );
+		$this->stub_access_user_cell();
+
+		$holder_admin               = new \WP_User( 9, array( 'administrator' ) );
+		$holder_admin->display_name = 'Holder Admin';
+		$holder_admin->user_login   = 'holder';
+
+		Functions\when( 'get_users' )->alias( static function ( array $args = array() ) use ( $holder_admin ): array {
+			if ( 'revoke_wp_sudo_sessions' === ( $args['capability'] ?? null ) ) {
+				return array( $holder_admin );
+			}
+
+			if ( array_key_exists( 'capability', $args ) ) {
+				return array();
+			}
+
+			return array();
+		} );
+
+		$admin = new Admin();
+
+		ob_start();
+		$admin->render_access_tab();
+		$output = ob_get_clean();
+
+		// The human-readable label is the visible text for the capability.
+		$this->assertStringContainsString( "Revoke other users' active sessions", $output );
+		// Each capability and its Revoke control are grouped in one container.
+		$this->assertStringContainsString( 'wp-sudo-cap-item', $output );
+		// The raw slug is NOT rendered as prominent visible text (no bare <code> slug).
+		$this->assertStringNotContainsString( '<code>revoke_wp_sudo_sessions</code>', $output );
+		// The slug stays available to assistive tech (screen-reader text) and as a tooltip.
+		$this->assertStringContainsString( '<span class="screen-reader-text">revoke_wp_sudo_sessions</span>', $output );
+		$this->assertStringContainsString( 'title="revoke_wp_sudo_sessions"', $output );
+		// The revoke control contract is preserved for the JS handler.
+		$this->assertStringContainsString( 'wp-sudo-revoke-cap', $output );
+		$this->assertStringContainsString( 'data-cap="revoke_wp_sudo_sessions"', $output );
+		$this->assertStringContainsString( '>Revoke<', $output );
+		// Each button carries a capability-specific accessible name for screen readers
+		// tabbing through otherwise-identical "Revoke" controls.
+		$this->assertStringContainsString( 'aria-label="Revoke Revoke other users\' active sessions capability"', $output );
+	}
+
+	public function test_render_access_tab_user_cell_shows_avatar_name_role_and_secondary_login(): void {
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'esc_html_e' )->alias( static function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		Functions\when( 'esc_attr_e' )->alias( static function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		Functions\when( 'esc_attr' )->returnArg();
+		Functions\when( 'esc_url' )->returnArg();
+		Functions\when( 'wp_create_nonce' )->justReturn( 'test-nonce' );
+		$this->stub_access_user_cell();
+
+		$holder               = new \WP_User( 12, array( 'administrator' ) );
+		$holder->user_login   = 'msantos';
+		$holder->display_name = 'msantos';
+		$holder->first_name   = 'Maria';
+		$holder->last_name    = 'Santos';
+
+		Functions\when( 'get_users' )->alias(
+			static function ( array $args = array() ) use ( $holder ): array {
+				if ( 'manage_wp_sudo' === ( $args['capability'] ?? null ) ) {
+					return array( $holder );
+				}
+				return array();
+			}
+		);
+
+		$admin = new Admin();
+		ob_start();
+		$admin->render_access_tab();
+		$output = ob_get_clean();
+
+		// Avatar container present (image supplied by the get_avatar stub).
+		$this->assertStringContainsString( 'wp-sudo-access-user-avatar', $output );
+		// Full real name is the primary/prominent identity, not the login.
+		$this->assertStringContainsString( '<span class="wp-sudo-access-user-name">Maria Santos</span>', $output );
+		// Translated role label is shown as a chip.
+		$this->assertStringContainsString( '<span class="wp-sudo-access-user-role">Administrator</span>', $output );
+		// Username is secondary and linked to the user-edit screen.
+		$this->assertStringContainsString( 'wp-sudo-access-user-login', $output );
+		$this->assertStringContainsString( 'user-edit.php?user_id=12', $output );
+		$this->assertStringContainsString( '>msantos</a>', $output );
+		// The old bare display_name + <code>login</code> layout is gone.
+		$this->assertStringNotContainsString( '<code>msantos</code>', $output );
+	}
+
+	public function test_render_access_tab_user_cell_login_is_plain_span_when_edit_user_denied(): void {
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'esc_html_e' )->alias( static function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		Functions\when( 'esc_attr_e' )->alias( static function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		Functions\when( 'esc_attr' )->returnArg();
+		Functions\when( 'esc_url' )->returnArg();
+		Functions\when( 'wp_create_nonce' )->justReturn( 'test-nonce' );
+		$this->stub_access_user_cell();
+		// Deny the edit-user capability so the login renders unlinked.
+		Functions\when( 'current_user_can' )->justReturn( false );
+
+		$holder               = new \WP_User( 13, array( 'administrator' ) );
+		$holder->user_login   = 'msantos';
+		$holder->display_name = 'msantos';
+		$holder->first_name   = 'Maria';
+		$holder->last_name    = 'Santos';
+
+		Functions\when( 'get_users' )->alias(
+			static function ( array $args = array() ) use ( $holder ): array {
+				return 'manage_wp_sudo' === ( $args['capability'] ?? null ) ? array( $holder ) : array();
+			}
+		);
+
+		$admin = new Admin();
+		ob_start();
+		$admin->render_access_tab();
+		$output = ob_get_clean();
+
+		// Login shows as a non-linked span, not an anchor, and no edit URL leaks.
+		$this->assertStringContainsString( '<span class="wp-sudo-access-user-login">msantos</span>', $output );
+		$this->assertStringNotContainsString( 'user-edit.php?user_id=13', $output );
+	}
+
+	public function test_render_access_tab_user_cell_links_primary_when_login_is_primary_and_edit_allowed(): void {
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'esc_html_e' )->alias( static function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		Functions\when( 'esc_attr_e' )->alias( static function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		Functions\when( 'esc_attr' )->returnArg();
+		Functions\when( 'esc_url' )->returnArg();
+		Functions\when( 'wp_create_nonce' )->justReturn( 'test-nonce' );
+		$this->stub_access_user_cell();
+
+		// No real name and display_name === login → the login is the sole identity,
+		// so it becomes the primary line and must still carry the edit link.
+		$holder               = new \WP_User( 15, array( 'administrator' ) );
+		$holder->user_login   = 'admin';
+		$holder->display_name = 'admin';
+
+		Functions\when( 'get_users' )->alias(
+			static function ( array $args = array() ) use ( $holder ): array {
+				return 'manage_wp_sudo' === ( $args['capability'] ?? null ) ? array( $holder ) : array();
+			}
+		);
+
+		$admin = new Admin();
+		ob_start();
+		$admin->render_access_tab();
+		$output = ob_get_clean();
+
+		// The primary line itself is the edit link, carrying both identity classes.
+		$this->assertStringContainsString( 'class="wp-sudo-access-user-name wp-sudo-access-user-login"', $output );
+		$this->assertStringContainsString( 'user-edit.php?user_id=15', $output );
+		$this->assertStringContainsString( '>admin</a>', $output );
+		// No separate secondary login line is emitted.
+		$this->assertStringNotContainsString( 'wp-sudo-access-user-secondary', $output );
 	}
 
 	// -----------------------------------------------------------------
@@ -3860,6 +4043,7 @@ class AdminTest extends TestCase {
 	}
 
 	public function test_revoke_session_core_returns_target_expired_without_deactivate_or_rate_slot(): void {
+		Functions\when( 'is_user_member_of_blog' )->justReturn( true );
 		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		// Target's expiry is in the past -> not live.
 		Functions\when( 'get_user_meta' )->justReturn( time() - 60 );
@@ -3876,6 +4060,7 @@ class AdminTest extends TestCase {
 	}
 
 	public function test_revoke_session_core_returns_rate_limited_when_transient_at_limit(): void {
+		Functions\when( 'is_user_member_of_blog' )->justReturn( true );
 		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		Functions\when( 'get_user_meta' )->justReturn( time() + 120 ); // Live target.
 		Functions\when( 'get_transient' )->justReturn( 10 );
@@ -3891,6 +4076,7 @@ class AdminTest extends TestCase {
 	}
 
 	public function test_revoke_session_core_succeeds_and_fires_audit_hook_with_reason_tag(): void {
+		Functions\when( 'is_user_member_of_blog' )->justReturn( true );
 		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		Functions\when( 'get_user_meta' )->justReturn( time() + 120 ); // Live target.
 		Functions\when( 'get_transient' )->justReturn( 0 );
@@ -3914,6 +4100,7 @@ class AdminTest extends TestCase {
 	}
 
 	public function test_revoke_session_core_consumes_one_rate_slot_per_call(): void {
+		Functions\when( 'is_user_member_of_blog' )->justReturn( true );
 		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		Functions\when( 'get_user_meta' )->justReturn( time() + 120 ); // Live target.
 		Functions\when( 'get_transient' )->justReturn( 3 );
@@ -4058,6 +4245,7 @@ class AdminTest extends TestCase {
 	}
 
 	public function test_revoke_session_row_action_success_calls_core_and_redirects(): void {
+		Functions\when( 'is_user_member_of_blog' )->justReturn( true );
 		Functions\expect( 'check_admin_referer' )
 			->once()
 			->andReturn( true );
@@ -4272,6 +4460,7 @@ class AdminTest extends TestCase {
 	 * a distinct result code rather than collapsing into success.
 	 */
 	public function test_revoke_session_row_action_handles_target_expired_race(): void {
+		Functions\when( 'is_user_member_of_blog' )->justReturn( true );
 		Functions\expect( 'check_admin_referer' )
 			->once()
 			->andReturn( true );
@@ -4328,412 +4517,578 @@ class AdminTest extends TestCase {
 	}
 
 	// -----------------------------------------------------------------
-	// render_revoke_all_button() — Users-list tablenav revoke-all control
+	// Bulk action: "Revoke sudo sessions" on the Users list
 	// -----------------------------------------------------------------
 
-	public function test_render_revoke_all_button_absent_when_count_zero(): void {
-		Functions\when( 'wp_sudo_can' )->justReturn( true );
-		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
-		Functions\when( 'get_transient' )->justReturn( false );
-		Functions\when( 'set_transient' )->justReturn( true );
-		\WP_User_Query::$mock_total = 0;
+	public function test_register_adds_bulk_revoke_dropdown_and_nonced_interceptor(): void {
+		Filters\expectAdded( 'bulk_actions-users' )
+			->once()
+			->with( \Mockery::type( 'array' ), 10, 1 );
+
+		Actions\expectAdded( 'load-users.php' )
+			->once()
+			->with( \Mockery::type( 'array' ), 10, 0 );
+
+		// Core does NOT nonce-check custom bulk actions on users.php, so the
+		// un-nonce-able handle_bulk_actions-users filter must NOT be used —
+		// it would remain a CSRF bypass around the load-users.php interceptor.
+		Filters\expectAdded( 'handle_bulk_actions-users' )->never();
 
 		$admin = new Admin();
-
-		ob_start();
-		$admin->render_revoke_all_button( 'top' );
-		$output = ob_get_clean();
-
-		$this->assertSame( '', $output );
+		$admin->register();
 	}
 
-	public function test_render_revoke_all_button_absent_when_operator_lacks_cap(): void {
-		Functions\when( 'wp_sudo_can' )->justReturn( false );
-		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
-		Functions\when( 'get_transient' )->justReturn( false );
-		Functions\when( 'set_transient' )->justReturn( true );
-		\WP_User_Query::$mock_total = 5;
-
-		// Cap gate must short-circuit before any count query is needed for rendering.
-		$admin = new Admin();
-
-		ob_start();
-		$admin->render_revoke_all_button( 'top' );
-		$output = ob_get_clean();
-
-		$this->assertSame( '', $output );
-	}
-
-	public function test_render_revoke_all_button_present_when_count_positive_and_cap_holder(): void {
-		Functions\when( 'wp_sudo_can' )->justReturn( true );
-		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
-		Functions\when( 'get_transient' )->justReturn( false );
-		Functions\when( 'set_transient' )->justReturn( true );
-		\WP_User_Query::$mock_total = 3;
-
-		Functions\when( 'wp_nonce_url' )->alias(
-			static function ( string $url, $action = -1 ) {
-				return $url . '&_wpnonce=test-nonce&action=' . rawurlencode( (string) $action );
-			}
-		);
-		Functions\when( 'admin_url' )->alias(
-			static function ( string $path = '' ) {
-				return 'https://example.com/wp-admin/' . ltrim( $path, '/' );
-			}
-		);
-		Functions\when( 'add_query_arg' )->alias(
-			static function ( array $args, string $url ) {
-				return $url . ( str_contains( $url, '?' ) ? '&' : '?' ) . http_build_query( $args );
-			}
-		);
-		Functions\when( 'esc_url' )->returnArg( 1 );
-		Functions\when( 'esc_html__' )->returnArg( 1 );
-		Functions\when( '__' )->returnArg( 1 );
+	public function test_register_does_not_add_revoke_all_admin_post_or_tablenav_hooks(): void {
+		Actions\expectAdded( 'restrict_manage_users' )->never();
+		Actions\expectAdded( 'admin_post_wp_sudo_revoke_all_confirm' )->never();
+		Actions\expectAdded( 'admin_post_wp_sudo_revoke_all_perform' )->never();
 
 		$admin = new Admin();
-
-		ob_start();
-		$admin->render_revoke_all_button( 'top' );
-		$output = ob_get_clean();
-
-		$this->assertStringContainsString( 'admin-post.php', $output );
-		$this->assertStringContainsString( 'action=' . Admin::ACTION_REVOKE_ALL_CONFIRM, $output );
+		$admin->register();
 	}
 
 	// -----------------------------------------------------------------
-	// render_revoke_all_confirm_screen() — interstitial confirm
+	// handle_bulk_revoke_request() — nonce-verified load-users.php interceptor
 	// -----------------------------------------------------------------
 
-	public function test_revoke_all_confirm_screen_states_exact_count(): void {
+	/**
+	 * CSRF regression guard: a crafted GET with our action but no nonce must
+	 * die inside check_admin_referer() BEFORE any guard or teardown work —
+	 * this is the exact un-nonced hole (core does not nonce-check custom
+	 * users.php bulk actions) that the interceptor exists to close.
+	 */
+	public function test_bulk_request_nonce_checked_before_any_processing(): void {
+		Functions\when( 'is_network_admin' )->justReturn( false );
+		$_REQUEST['action'] = Admin::BULK_REVOKE_SESSIONS_ACTION;
+		$_REQUEST['users']  = array( '9' );
+
 		Functions\expect( 'check_admin_referer' )
 			->once()
-			->with( Admin::REVOKE_ALL_NONCE_ACTION )
-			->andReturn( true );
-		Functions\when( 'wp_sudo_can' )->justReturn( true );
-		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
-		Functions\when( 'get_transient' )->justReturn( false );
-		Functions\when( 'set_transient' )->justReturn( true );
-		\WP_User_Query::$mock_total = 7;
+			->with( 'bulk-users' )
+			->andThrow( new \RuntimeException( 'nonce check executed' ) );
 
-		Functions\when( 'wp_nonce_field' )->justReturn( '' );
-		Functions\when( 'admin_url' )->alias(
-			static function ( string $path = '' ) {
-				return 'https://example.com/wp-admin/' . ltrim( $path, '/' );
-			}
-		);
-		Functions\when( 'esc_url' )->returnArg( 1 );
-		Functions\when( 'esc_html' )->returnArg( 1 );
-		Functions\when( 'esc_html_e' )->alias( static function ( $s ) { echo $s; } );
-		Functions\when( 'esc_attr' )->returnArg( 1 );
-		Functions\when( '__' )->returnArg( 1 );
-		Functions\when( '_n' )->alias(
-			static function ( $single, $plural, $number ) {
-				return 1 === (int) $number ? $single : $plural;
-			}
-		);
-		Functions\when( 'submit_button' )->alias(
-			static function ( $text = '' ) { echo $text; }
-		);
-		Functions\when( 'get_admin_page_title' )->justReturn( '' );
-
-		$admin = new Admin();
-
-		ob_start();
-		$admin->render_revoke_all_confirm_screen();
-		$output = ob_get_clean();
-
-		$this->assertStringContainsString( '7', $output );
-		$this->assertStringContainsString( Admin::ACTION_REVOKE_ALL_PERFORM, $output );
-		$this->assertStringContainsString( 'users.php', $output );
-	}
-
-	public function test_revoke_all_confirm_screen_requires_cap(): void {
-		Functions\expect( 'check_admin_referer' )
-			->once()
-			->andReturn( true );
-		Functions\when( 'wp_sudo_can' )->justReturn( false );
-		Functions\when( 'esc_html__' )->returnArg( 1 );
-
+		Functions\expect( 'wp_sudo_can' )->never();
 		Functions\expect( 'get_transient' )->never();
-		Functions\expect( 'wp_die' )
-			->once()
-			->andThrow( new \RuntimeException( 'died' ) );
+		Functions\expect( 'delete_user_meta' )->never();
 
 		$admin = new Admin();
 
 		try {
-			$admin->render_revoke_all_confirm_screen();
-			$this->fail( 'Expected wp_die short-circuit.' );
+			$admin->handle_bulk_revoke_request();
+			$this->fail( 'Expected nonce check short-circuit.' );
 		} catch ( \RuntimeException $e ) {
-			$this->assertSame( 'died', $e->getMessage() );
+			$this->assertSame( 'nonce check executed', $e->getMessage() );
 		}
+
+		unset( $_REQUEST['action'], $_REQUEST['users'] );
 	}
 
-	// -----------------------------------------------------------------
-	// handle_revoke_all_perform() / process_revoke_all_perform()
-	// -----------------------------------------------------------------
+	public function test_bulk_request_ignores_other_actions(): void {
+		Functions\when( 'is_network_admin' )->justReturn( false );
+		$_REQUEST['action'] = 'delete';
+
+		Functions\expect( 'check_admin_referer' )->never();
+		Functions\expect( 'wp_safe_redirect' )->never();
+
+		$admin = new Admin();
+		$admin->handle_bulk_revoke_request();
+
+		unset( $_REQUEST['action'] );
+	}
 
 	/**
-	 * Invoke the private process_revoke_all_perform() method via reflection.
-	 *
-	 * @param Admin $admin Admin instance.
-	 * @return array<string, mixed>
+	 * load-users.php also fires for network/users.php ($pagenow is rewritten
+	 * to users.php there), where the list-table nonce is bulk-users-network —
+	 * the site-scoped handler must bail explicitly rather than wp_die a
+	 * legitimate network operator.
 	 */
-	private function invoke_process_revoke_all_perform( Admin $admin ): array {
-		$method = new \ReflectionMethod( Admin::class, 'process_revoke_all_perform' );
-		@$method->setAccessible( true ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
-		return $method->invoke( $admin );
+	public function test_bulk_request_bails_in_network_admin(): void {
+		Functions\when( 'is_network_admin' )->justReturn( true );
+		$_REQUEST['action'] = Admin::BULK_REVOKE_SESSIONS_ACTION;
+		$_REQUEST['users']  = array( '9' );
+
+		Functions\expect( 'check_admin_referer' )->never();
+		Functions\expect( 'wp_safe_redirect' )->never();
+
+		$admin = new Admin();
+		$admin->handle_bulk_revoke_request();
+
+		unset( $_REQUEST['action'], $_REQUEST['users'] );
 	}
 
-	public function test_process_revoke_all_perform_blocked_when_operator_lacks_cap(): void {
+	/**
+	 * Mirrors WP_List_Table::current_action(): when filter_action is set the
+	 * Filter button won the submit and no bulk action runs.
+	 */
+	public function test_bulk_request_bails_when_filter_action_present(): void {
+		Functions\when( 'is_network_admin' )->justReturn( false );
+		$_REQUEST['action']        = Admin::BULK_REVOKE_SESSIONS_ACTION;
+		$_REQUEST['filter_action'] = 'Filter';
+		$_REQUEST['users']         = array( '9' );
+
+		Functions\expect( 'check_admin_referer' )->never();
+		Functions\expect( 'wp_safe_redirect' )->never();
+
+		$admin = new Admin();
+		$admin->handle_bulk_revoke_request();
+
+		unset( $_REQUEST['action'], $_REQUEST['filter_action'], $_REQUEST['users'] );
+	}
+
+	/**
+	 * Mirrors WP_Users_List_Table::current_action(): a role-change submit
+	 * (changeit) takes precedence over whatever sits in the bulk-action
+	 * dropdown, so core's promote flow must win over a stale revoke
+	 * selection.
+	 */
+	public function test_bulk_request_bails_when_role_change_submitted(): void {
+		Functions\when( 'is_network_admin' )->justReturn( false );
+		$_REQUEST['action']   = Admin::BULK_REVOKE_SESSIONS_ACTION;
+		$_REQUEST['changeit'] = 'Change';
+		$_REQUEST['users']    = array( '9' );
+
+		Functions\expect( 'check_admin_referer' )->never();
+		Functions\expect( 'wp_safe_redirect' )->never();
+		Functions\expect( 'delete_user_meta' )->never();
+
+		$admin = new Admin();
+		$admin->handle_bulk_revoke_request();
+
+		unset( $_REQUEST['action'], $_REQUEST['changeit'], $_REQUEST['users'] );
+	}
+
+	public function test_bulk_request_empty_selection_falls_through_after_nonce(): void {
+		Functions\when( 'is_network_admin' )->justReturn( false );
+		$_REQUEST['action'] = Admin::BULK_REVOKE_SESSIONS_ACTION;
+
+		Functions\expect( 'check_admin_referer' )
+			->once()
+			->with( 'bulk-users' )
+			->andReturn( 1 );
+		Functions\expect( 'wp_safe_redirect' )->never();
+		Functions\expect( 'wp_sudo_can' )->never();
+
+		$admin = new Admin();
+		$admin->handle_bulk_revoke_request();
+
+		unset( $_REQUEST['action'] );
+	}
+
+	/**
+	 * When the request carries no referer, the interceptor falls back to
+	 * admin_url('users.php') as the sendback base so the operator still
+	 * lands on the Users list with the result notice.
+	 */
+	public function test_bulk_request_falls_back_to_users_url_without_referer(): void {
+		Functions\when( 'is_network_admin' )->justReturn( false );
+		$this->stub_bulk_sendback_url_fns();
+		Functions\when( 'check_admin_referer' )->justReturn( 1 );
+		Functions\when( 'wp_get_referer' )->justReturn( false );
+		Functions\when( 'admin_url' )->alias( static fn( string $path = '' ) => 'https://example.com/wp-admin/' . ltrim( $path, '/' ) );
+		Functions\when( 'wp_sudo_can' )->justReturn( false ); // Shortest guard path: no_cap.
+		Functions\when( 'get_current_user_id' )->justReturn( 2 );
+
+		Functions\expect( 'wp_safe_redirect' )
+			->once()
+			->with( \Mockery::on( static function ( string $url ): bool {
+				return 0 === strpos( $url, 'https://example.com/wp-admin/users.php' )
+					&& false !== strpos( $url, 'wp_sudo_revoke_result=no_cap' );
+			} ) )
+			->andThrow( new \RuntimeException( 'redirected' ) );
+
+		$_REQUEST['action'] = Admin::BULK_REVOKE_SESSIONS_ACTION;
+		$_REQUEST['users']  = array( '9' );
+
+		$admin = new Admin();
+
+		try {
+			$admin->handle_bulk_revoke_request();
+			$this->fail( 'Expected redirect short-circuit.' );
+		} catch ( \RuntimeException $e ) {
+			$this->assertSame( 'redirected', $e->getMessage() );
+		}
+
+		unset( $_REQUEST['action'], $_REQUEST['users'] );
+	}
+
+	public function test_bulk_request_success_delegates_and_redirects_with_result(): void {
+		Functions\when( 'is_network_admin' )->justReturn( false );
+		$this->stub_bulk_sendback_url_fns();
+		Functions\when( 'check_admin_referer' )->justReturn( 1 );
+		Functions\when( 'wp_get_referer' )->justReturn( 'https://example.com/wp-admin/users.php?sudo_active=1' );
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
+		$this->mock_active_sudo_session( 2 );
+		Functions\when( 'is_user_member_of_blog' )->justReturn( true );
+		Functions\when( 'get_user_meta' )->alias(
+			static function ( int $uid, string $key ) {
+				if ( \WP_Sudo\Sudo_Session::META_KEY === $key ) {
+					return time() + 600;
+				}
+				if ( \WP_Sudo\Sudo_Session::TOKEN_META_KEY === $key && 2 === $uid ) {
+					return hash( 'sha256', 'test-sudo-token' );
+				}
+				return '';
+			}
+		);
+		Functions\when( 'get_transient' )->justReturn( 0 );
+		Functions\when( 'set_transient' )->justReturn( true );
+		Functions\when( 'delete_user_meta' )->justReturn( true );
+		Functions\when( 'setcookie' )->justReturn( true );
+		Functions\when( 'headers_sent' )->justReturn( true );
+		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
+
+		$_REQUEST['action'] = Admin::BULK_REVOKE_SESSIONS_ACTION;
+		$_REQUEST['users']  = array( '9' );
+
+		Functions\expect( 'wp_safe_redirect' )
+			->once()
+			->with( \Mockery::on( static function ( string $url ): bool {
+				return false !== strpos( $url, 'wp_sudo_revoke_result=success' )
+					&& false !== strpos( $url, 'sudo_active=1' );
+			} ) )
+			->andThrow( new \RuntimeException( 'redirected' ) );
+
+		$admin = new Admin();
+
+		try {
+			$admin->handle_bulk_revoke_request();
+			$this->fail( 'Expected redirect short-circuit.' );
+		} catch ( \RuntimeException $e ) {
+			$this->assertSame( 'redirected', $e->getMessage() );
+		}
+
+		unset( $_REQUEST['action'], $_REQUEST['users'] );
+		unset( $_COOKIE[ \WP_Sudo\Sudo_Session::TOKEN_COOKIE ] );
+	}
+
+	/**
+	 * Multisite scope guard: submitted IDs that are not members of the
+	 * current site are skipped — a per-site operator cannot revoke a
+	 * network user's global session by forging users[] (Codex P2).
+	 */
+	public function test_handle_bulk_revoke_skips_targets_not_member_of_current_site(): void {
+		$this->stub_bulk_sendback_url_fns();
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
+		$this->mock_active_sudo_session( 2 );
+		Functions\when( 'is_user_member_of_blog' )->alias(
+			static fn( int $uid ): bool => 11 === $uid
+		);
+		Functions\when( 'get_user_meta' )->alias(
+			static function ( int $uid, string $key ) {
+				if ( \WP_Sudo\Sudo_Session::META_KEY === $key ) {
+					return time() + 600; // Both live network-wide…
+				}
+				if ( \WP_Sudo\Sudo_Session::TOKEN_META_KEY === $key && 2 === $uid ) {
+					return hash( 'sha256', 'test-sudo-token' );
+				}
+				return '';
+			}
+		);
+		Functions\when( 'get_transient' )->justReturn( 0 );
+		Functions\when( 'set_transient' )->justReturn( true );
+		Functions\when( 'delete_user_meta' )->justReturn( true );
+		Functions\when( 'setcookie' )->justReturn( true );
+		Functions\when( 'headers_sent' )->justReturn( true );
+		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
+
+		// …but only member 11 is revoked; forged non-member 9 is skipped.
+		Actions\expectDone( 'wp_sudo_session_revoked' )
+			->once()
+			->with( 11, 2, 'users_list_bulk_action', 1 );
+
+		$admin  = new Admin();
+		$result = $admin->handle_bulk_revoke_sessions( 'https://example.com/wp-admin/users.php', Admin::BULK_REVOKE_SESSIONS_ACTION, array( 9, 11 ) );
+
+		$this->assertStringContainsString( 'wp_sudo_revoke_result=success', $result );
+		$this->assertStringContainsString( 'wp_sudo_revoke_count=1', $result );
+
+		unset( $_COOKIE[ \WP_Sudo\Sudo_Session::TOKEN_COOKIE ] );
+	}
+
+	/**
+	 * Cross-site liveness oracle guard: the row-action core must reject a
+	 * non-member target BEFORE consulting session liveness, so an operator
+	 * on site A cannot enumerate whether a network user's sudo session is
+	 * live via the target_expired/target_not_member outcome split.
+	 */
+	public function test_revoke_session_core_rejects_non_member_before_liveness_or_rate(): void {
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
+		Functions\when( 'is_user_member_of_blog' )->justReturn( false );
+
+		Functions\expect( 'get_user_meta' )->never();
+		Functions\expect( 'get_transient' )->never();
+		Functions\expect( 'set_transient' )->never();
+		Functions\expect( 'do_action' )->never();
+
+		$admin  = new Admin();
+		$result = $this->invoke_revoke_session_core( $admin, 9, 2, 'users_list_row_action' );
+
+		$this->assertSame( 'target_not_member', $result['outcome'] );
+	}
+
+	public function test_bulk_revoke_dropdown_entry_requires_cap(): void {
+		Functions\when( '__' )->returnArg();
+
+		Functions\when( 'wp_sudo_can' )->justReturn( false );
+		$admin = new Admin();
+		$this->assertArrayNotHasKey(
+			Admin::BULK_REVOKE_SESSIONS_ACTION,
+			$admin->register_bulk_revoke_action( array( 'delete' => 'Delete' ) )
+		);
+	}
+
+	public function test_bulk_revoke_dropdown_entry_present_for_cap_holder_regardless_of_count(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
+
+		// The entry must NOT consult the 30s-stale active count — no transient reads.
+		Functions\expect( 'get_transient' )->never();
+
+		$admin   = new Admin();
+		$actions = $admin->register_bulk_revoke_action( array( 'delete' => 'Delete' ) );
+
+		$this->assertSame( 'Revoke sudo sessions', $actions[ Admin::BULK_REVOKE_SESSIONS_ACTION ] );
+		$this->assertSame( 'Delete', $actions['delete'] ); // Existing entries preserved.
+	}
+
+	public function test_handle_bulk_revoke_ignores_other_actions(): void {
+		Functions\expect( 'wp_sudo_can' )->never();
+		Functions\expect( 'get_transient' )->never();
+
+		$admin    = new Admin();
+		$sendback = 'https://example.com/wp-admin/users.php?sudo_active=1';
+
+		$this->assertSame(
+			$sendback,
+			$admin->handle_bulk_revoke_sessions( $sendback, 'delete', array( 9 ) )
+		);
+	}
+
+	public function test_handle_bulk_revoke_blocked_when_operator_lacks_cap(): void {
+		$this->stub_bulk_sendback_url_fns();
 		Functions\when( 'wp_sudo_can' )->justReturn( false );
 		Functions\when( 'get_current_user_id' )->justReturn( 2 );
 
 		Functions\expect( 'get_user_meta' )->never();
 		Functions\expect( 'get_transient' )->never();
-		Functions\expect( 'get_users' )->never();
+		Functions\expect( 'set_transient' )->never();
+		Functions\expect( 'delete_user_meta' )->never();
 		Functions\expect( 'do_action' )->never();
 
 		$admin  = new Admin();
-		$result = $this->invoke_process_revoke_all_perform( $admin );
+		$result = $admin->handle_bulk_revoke_sessions( 'https://example.com/wp-admin/users.php', Admin::BULK_REVOKE_SESSIONS_ACTION, array( 9 ) );
 
-		$this->assertSame( 'no_cap', $result['outcome'] );
-		$this->assertSame( 0, $result['count'] );
+		$this->assertStringContainsString( 'wp_sudo_revoke_result=no_cap', $result );
 	}
 
-	public function test_process_revoke_all_perform_blocked_when_operator_has_no_active_session(): void {
+	public function test_handle_bulk_revoke_blocked_when_operator_has_no_active_session(): void {
+		$this->stub_bulk_sendback_url_fns();
 		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		Functions\when( 'get_current_user_id' )->justReturn( 2 );
-		// Operator's own session expiry is in the past -> is_active(2) false (expiry check).
+		// Operator's own expiry is in the past -> is_active(2) false.
 		Functions\when( 'get_user_meta' )->justReturn( time() - 60 );
 
 		Functions\expect( 'get_transient' )->never();
-		Functions\expect( 'get_users' )->never();
+		Functions\expect( 'set_transient' )->never();
+		Functions\expect( 'delete_user_meta' )->never();
 		Functions\expect( 'do_action' )->never();
 
 		$admin  = new Admin();
-		$result = $this->invoke_process_revoke_all_perform( $admin );
+		$result = $admin->handle_bulk_revoke_sessions( 'https://example.com/wp-admin/users.php', Admin::BULK_REVOKE_SESSIONS_ACTION, array( 9 ) );
 
-		$this->assertSame( 'no-operator-session', $result['outcome'] );
-		$this->assertSame( 0, $result['count'] );
+		$this->assertStringContainsString( 'wp_sudo_revoke_result=no-operator-session', $result );
 	}
 
 	/**
-	 * Security regression guard (revoke-all): performing a batch revocation must
-	 * require the operator's token-bound sudo session (is_active), not merely a
-	 * future expiry timestamp (is_session_live). A live expiry with no valid
-	 * request token — e.g. a stolen auth cookie, or a second session without its
-	 * own sudo — must be blocked before any session is revoked.
-	 *
-	 * @since 4.5.0
+	 * Security regression guard (bulk): the batch must require the operator's
+	 * token-bound sudo session (is_active), not merely a future expiry
+	 * timestamp (is_session_live). A live expiry with no valid request token
+	 * — e.g. a stolen auth cookie, or a second session without its own sudo —
+	 * must be blocked before any session is revoked.
 	 */
-	public function test_process_revoke_all_perform_blocked_when_operator_session_lacks_token_binding(): void {
+	public function test_handle_bulk_revoke_blocked_when_operator_session_lacks_token_binding(): void {
+		$this->stub_bulk_sendback_url_fns();
 		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		Functions\when( 'get_current_user_id' )->justReturn( 2 );
-		// Operator expiry is in the FUTURE — is_session_live(2) would pass — but no
-		// stored token hash, so verify_token()/is_active(2) is false.
+		// Future expiry but no stored token hash -> verify_token()/is_active(2) false.
 		Functions\when( 'get_user_meta' )->alias(
 			static function ( int $user_id, string $key ) { // phpcs:ignore VariableAnalysis.CodeAnalysis.VariableAnalysis.UnusedVariable -- $user_id parity with get_user_meta signature.
 				if ( \WP_Sudo\Sudo_Session::META_KEY === $key ) {
 					return time() + 600;
 				}
-				return ''; // no TOKEN_META_KEY hash -> verify_token() is false
+				return '';
 			}
 		);
 
 		Functions\expect( 'get_transient' )->never();
 		Functions\expect( 'set_transient' )->never();
-		Functions\expect( 'get_users' )->never();
+		Functions\expect( 'delete_user_meta' )->never();
 		Functions\expect( 'do_action' )->never();
 
 		$admin  = new Admin();
-		$result = $this->invoke_process_revoke_all_perform( $admin );
+		$result = $admin->handle_bulk_revoke_sessions( 'https://example.com/wp-admin/users.php', Admin::BULK_REVOKE_SESSIONS_ACTION, array( 9 ) );
 
-		$this->assertSame( 'no-operator-session', $result['outcome'] );
-		$this->assertSame( 0, $result['count'] );
+		$this->assertStringContainsString( 'wp_sudo_revoke_result=no-operator-session', $result );
 	}
 
-	public function test_process_revoke_all_perform_blocked_when_rate_limited(): void {
+	public function test_handle_bulk_revoke_blocked_when_rate_limited_without_consuming_slot(): void {
+		$this->stub_bulk_sendback_url_fns();
 		Functions\when( 'wp_sudo_can' )->justReturn( true );
-		// Operator (2) holds a token-bound active sudo session (is_active).
 		$this->mock_active_sudo_session( 2 );
 		Functions\when( 'get_transient' )->justReturn( 10 ); // At REVOKE_RATE_LIMIT.
 
 		Functions\expect( 'set_transient' )->never();
-		Functions\expect( 'get_users' )->never();
+		Functions\expect( 'delete_user_meta' )->never();
 		Functions\expect( 'do_action' )->never();
 
 		$admin  = new Admin();
-		$result = $this->invoke_process_revoke_all_perform( $admin );
+		$result = $admin->handle_bulk_revoke_sessions( 'https://example.com/wp-admin/users.php', Admin::BULK_REVOKE_SESSIONS_ACTION, array( 9 ) );
 
-		$this->assertSame( 'rate_limited', $result['outcome'] );
-		$this->assertSame( 0, $result['count'] );
+		$this->assertStringContainsString( 'wp_sudo_revoke_result=rate_limited', $result );
 	}
 
-	public function test_process_revoke_all_perform_consumes_exactly_one_rate_slot_and_excludes_operator(): void {
+	/**
+	 * The security contract inherited from the old revoke-all path: a batch
+	 * consumes exactly ONE rate slot regardless of size, skips the operator's
+	 * own row, and fires the audit hook once per revoked user with the
+	 * bulk reason tag.
+	 */
+	public function test_handle_bulk_revoke_consumes_one_slot_skips_self_and_fires_hook_per_user(): void {
+		Functions\when( 'is_user_member_of_blog' )->justReturn( true );
+		$this->stub_bulk_sendback_url_fns();
 		Functions\when( 'wp_sudo_can' )->justReturn( true );
-		// Operator (2) holds a token-bound active sudo session (is_active).
+		// Operator (2) token-bound active (cookie + hash from the helper) …
 		$this->mock_active_sudo_session( 2 );
+		// … and the selected targets (9, 11) hold live sessions too.
+		Functions\when( 'get_user_meta' )->alias(
+			static function ( int $uid, string $key ) {
+				if ( \WP_Sudo\Sudo_Session::META_KEY === $key ) {
+					return time() + 600;
+				}
+				if ( \WP_Sudo\Sudo_Session::TOKEN_META_KEY === $key && 2 === $uid ) {
+					return hash( 'sha256', 'test-sudo-token' );
+				}
+				return '';
+			}
+		);
 		Functions\when( 'get_transient' )->justReturn( 3 );
 		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
+		Functions\when( 'delete_user_meta' )->justReturn( true );
+		Functions\when( 'setcookie' )->justReturn( true );
+		Functions\when( 'headers_sent' )->justReturn( true );
 
-		// Exactly ONE rate slot consumed for the whole batch, regardless of
-		// how many sessions get_users() (via revoke_all_active_sessions) returns.
+		// Exactly ONE rate slot for the whole batch.
 		Functions\expect( 'set_transient' )
 			->once()
 			->with( '_wp_sudo_revoke_count_2', 4, \Mockery::type( 'int' ) );
 
-		Functions\expect( 'get_users' )
-			->once()
-			->andReturn( array( 9, 10, 11 ) );
-
-		Functions\when( 'delete_user_meta' )->justReturn( true );
-		Functions\when( 'setcookie' )->justReturn( true );
-		Functions\when( 'headers_sent' )->justReturn( true );
-
 		Actions\expectDone( 'wp_sudo_session_revoked' )
 			->once()
-			->with( 0, 2, 'revoke_all_ui', 1 );
+			->with( 9, 2, 'users_list_bulk_action', 1 );
+		Actions\expectDone( 'wp_sudo_session_revoked' )
+			->once()
+			->with( 11, 2, 'users_list_bulk_action', 1 );
 
 		$admin  = new Admin();
-		$result = $this->invoke_process_revoke_all_perform( $admin );
+		$result = $admin->handle_bulk_revoke_sessions(
+			'https://example.com/wp-admin/users.php?sudo_active=1&paged=2',
+			Admin::BULK_REVOKE_SESSIONS_ACTION,
+			array( 9, 2, 11 ) // Operator 2 selected among targets.
+		);
 
-		$this->assertSame( 'success', $result['outcome'] );
-		// The operator (user 2) is excluded from the enumerated set by construction
-		// (revoke_all_active_sessions receives get_current_user_id() as $exclude).
-		$this->assertSame( 3, $result['count'] );
+		$this->assertStringContainsString( 'wp_sudo_revoke_result=success', $result );
+		$this->assertStringContainsString( 'wp_sudo_revoke_count=2', $result );
+		$this->assertStringContainsString( 'wp_sudo_revoke_skipped_self=1', $result );
+		// Sendback filter context preserved (objection 6b): filter + pagination survive.
+		$this->assertStringContainsString( 'sudo_active=1', $result );
+		$this->assertStringContainsString( 'paged=2', $result );
 	}
 
-	public function test_process_revoke_all_perform_drained_set_is_success_with_zero_count_not_an_error(): void {
+	public function test_handle_bulk_revoke_self_only_selection_returns_self_target(): void {
+		$this->stub_bulk_sendback_url_fns();
 		Functions\when( 'wp_sudo_can' )->justReturn( true );
-		// Operator (2) holds a token-bound active sudo session (is_active).
+		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
 		$this->mock_active_sudo_session( 2 );
 		Functions\when( 'get_transient' )->justReturn( 0 );
-		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
-
+		// The batch slot is consumed up front, even when nothing ends up
+		// revoked (same accounting as the old drained-set path).
 		Functions\expect( 'set_transient' )
 			->once()
 			->with( '_wp_sudo_revoke_count_2', 1, \Mockery::type( 'int' ) );
 
-		// A mid-batch-expired/drained set: no live sessions left to enumerate.
-		Functions\expect( 'get_users' )
-			->once()
-			->andReturn( array() );
-
-		Actions\expectDone( 'wp_sudo_session_revoked' )
-			->once()
-			->with( 0, 2, 'revoke_all_ui', 1 );
+		Functions\expect( 'delete_user_meta' )->never();
+		Actions\expectDone( 'wp_sudo_session_revoked' )->never();
 
 		$admin  = new Admin();
-		$result = $this->invoke_process_revoke_all_perform( $admin );
+		$result = $admin->handle_bulk_revoke_sessions( 'https://example.com/wp-admin/users.php', Admin::BULK_REVOKE_SESSIONS_ACTION, array( 2 ) );
 
-		$this->assertSame( 'success', $result['outcome'] );
-		$this->assertSame( 0, $result['count'] );
-	}
-
-	public function test_handle_revoke_all_perform_calls_nonce_check_first(): void {
-		Functions\expect( 'check_admin_referer' )
-			->once()
-			->with( Admin::REVOKE_ALL_NONCE_ACTION )
-			->andThrow( new \RuntimeException( 'nonce check executed' ) );
-
-		Functions\expect( 'wp_sudo_can' )->never();
-		Functions\expect( 'get_users' )->never();
-
-		$admin = new Admin();
-
-		try {
-			$admin->handle_revoke_all_perform();
-			$this->fail( 'Expected nonce check short-circuit.' );
-		} catch ( \RuntimeException $e ) {
-			$this->assertSame( 'nonce check executed', $e->getMessage() );
-		}
-	}
-
-	public function test_handle_revoke_all_perform_success_redirects_with_count(): void {
-		Functions\expect( 'check_admin_referer' )
-			->once()
-			->andReturn( true );
-		Functions\when( 'wp_sudo_can' )->justReturn( true );
-		Functions\when( 'get_current_user_id' )->justReturn( 2 );
-		// Operator (2) holds a token-bound active sudo session (passes is_active);
-		// any other meta read (target liveness) stays live.
-		$operator_token = 'operator-sudo-token';
-		Functions\when( 'get_user_meta' )->alias(
-			static function ( int $uid, string $key ) use ( $operator_token ) {
-				if ( 2 === $uid && \WP_Sudo\Sudo_Session::TOKEN_META_KEY === $key ) {
-					return hash( 'sha256', $operator_token );
-				}
-				return time() + 120;
-			}
-		);
-		Functions\when( 'hash_equals' )->alias( static fn( string $a, string $b ): bool => $a === $b );
-		$_COOKIE[ \WP_Sudo\Sudo_Session::TOKEN_COOKIE ] = $operator_token;
-		Functions\when( 'get_transient' )->justReturn( 0 );
-		Functions\when( 'set_transient' )->justReturn( true );
-		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
-		Functions\when( 'delete_user_meta' )->justReturn( true );
-		Functions\when( 'setcookie' )->justReturn( true );
-		Functions\when( 'headers_sent' )->justReturn( true );
-		Functions\when( 'get_users' )->justReturn( array( 9, 10 ) );
-		Functions\when( 'admin_url' )->alias( static fn( string $path = '' ) => 'https://example.com/wp-admin/' . ltrim( $path, '/' ) );
-		Functions\when( 'add_query_arg' )->alias(
-			static function ( array $args, string $url ) {
-				return $url . ( str_contains( $url, '?' ) ? '&' : '?' ) . http_build_query( $args );
-			}
-		);
-
-		Functions\expect( 'wp_safe_redirect' )
-			->once()
-			->with( \Mockery::on( static function ( string $url ): bool {
-				return false !== strpos( $url, 'users.php' )
-					&& false !== strpos( $url, 'wp_sudo_revoke_result=success' )
-					&& false !== strpos( $url, 'wp_sudo_revoke_count=2' );
-			} ) )
-			->andThrow( new \RuntimeException( 'redirected' ) );
-
-		$admin = new Admin();
-
-		try {
-			$admin->handle_revoke_all_perform();
-			$this->fail( 'Expected redirect short-circuit.' );
-		} catch ( \RuntimeException $e ) {
-			$this->assertSame( 'redirected', $e->getMessage() );
-		}
+		$this->assertStringContainsString( 'wp_sudo_revoke_result=self_target', $result );
 
 		unset( $_COOKIE[ \WP_Sudo\Sudo_Session::TOKEN_COOKIE ] );
 	}
 
-	public function test_handle_revoke_all_perform_blocked_paths_redirect_without_enumeration(): void {
-		Functions\expect( 'check_admin_referer' )
-			->once()
-			->andReturn( true );
-		Functions\when( 'wp_sudo_can' )->justReturn( false );
-		Functions\when( 'get_current_user_id' )->justReturn( 2 );
+	public function test_handle_bulk_revoke_none_live_returns_distinct_code(): void {
+		Functions\when( 'is_user_member_of_blog' )->justReturn( true );
+		$this->stub_bulk_sendback_url_fns();
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
+		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
+		// Operator (2) token-bound active; targets 9/11 have no live session
+		// (the helper's meta stub returns '' for every other user).
+		$this->mock_active_sudo_session( 2 );
+		Functions\when( 'get_transient' )->justReturn( 0 );
+		Functions\when( 'set_transient' )->justReturn( true );
 
-		Functions\expect( 'get_users' )->never();
-		Functions\when( 'admin_url' )->alias( static fn( string $path = '' ) => 'https://example.com/wp-admin/' . ltrim( $path, '/' ) );
+		Functions\expect( 'delete_user_meta' )->never();
+		Actions\expectDone( 'wp_sudo_session_revoked' )->never();
+
+		$admin  = new Admin();
+		$result = $admin->handle_bulk_revoke_sessions( 'https://example.com/wp-admin/users.php', Admin::BULK_REVOKE_SESSIONS_ACTION, array( 9, 11 ) );
+
+		$this->assertStringContainsString( 'wp_sudo_revoke_result=bulk_none_live', $result );
+
+		unset( $_COOKIE[ \WP_Sudo\Sudo_Session::TOKEN_COOKIE ] );
+	}
+
+	/**
+	 * The "Sudo Active (N)" badge count transient must be deleted for the
+	 * current site when a session starts or ends.
+	 */
+	public function test_flush_sudo_active_count_cache_deletes_site_scoped_transient(): void {
+		Functions\when( 'get_current_blog_id' )->justReturn( 7 );
+
+		Functions\expect( 'delete_transient' )
+			->once()
+			->with( 'wp_sudo_active_count_7' );
+
+		Admin::flush_sudo_active_count_cache();
+	}
+
+	/**
+	 * Stub add_query_arg/remove_query_arg for bulk sendback tests.
+	 *
+	 * @return void
+	 */
+	private function stub_bulk_sendback_url_fns(): void {
+		Functions\when( 'remove_query_arg' )->alias(
+			static function ( $keys, string $url ): string {
+				foreach ( (array) $keys as $key ) {
+					$url = preg_replace( '/([?&])' . preg_quote( $key, '/' ) . '=[^&]*(&|$)/', '$1', $url );
+				}
+				return rtrim( $url, '?&' );
+			}
+		);
 		Functions\when( 'add_query_arg' )->alias(
-			static function ( array $args, string $url ) {
+			static function ( $args, ?string $url = null ) {
+				if ( ! is_array( $args ) ) {
+					// add_query_arg( $key, $value, $url ) form.
+					$key   = $args;
+					$value = func_get_arg( 1 );
+					$url   = func_get_arg( 2 );
+					$args  = array( $key => $value );
+				}
 				return $url . ( str_contains( $url, '?' ) ? '&' : '?' ) . http_build_query( $args );
 			}
 		);
-
-		Functions\expect( 'wp_safe_redirect' )
-			->once()
-			->with( \Mockery::on( static function ( string $url ): bool {
-				return false !== strpos( $url, 'wp_sudo_revoke_result=no_cap' );
-			} ) )
-			->andThrow( new \RuntimeException( 'redirected' ) );
-
-		$admin = new Admin();
-
-		try {
-			$admin->handle_revoke_all_perform();
-			$this->fail( 'Expected redirect short-circuit.' );
-		} catch ( \RuntimeException $e ) {
-			$this->assertSame( 'redirected', $e->getMessage() );
-		}
 	}
 
 	// -----------------------------------------------------------------
@@ -4757,8 +5112,34 @@ class AdminTest extends TestCase {
 			'self_target'          => array( 'self_target', 'error', 'own session' ),
 			'target_expired'       => array( 'target_expired', 'error', 'no longer has an active sudo session' ),
 			'rate_limited'         => array( 'rate_limited', 'error', 'Rate limit' ),
+			'target_not_member'    => array( 'target_not_member', 'error', 'not a member of this site' ),
 			'success'              => array( 'success', 'success', 'revoked' ),
+			'bulk_none_live'       => array( 'bulk_none_live', 'warning', 'None of the selected users' ),
 		);
+	}
+
+	/**
+	 * A bulk success that skipped the operator's own row must say so in the
+	 * same notice, so the self-protection is visible rather than silent.
+	 */
+	public function test_select_revoke_result_notice_success_mentions_skipped_self(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( '_n' )->alias( static fn( $single, $plural, $number ) => 1 === (int) $number ? $single : $plural );
+
+		$admin  = new Admin();
+		$method = new \ReflectionMethod( Admin::class, 'select_revoke_result_notice' );
+		@$method->setAccessible( true ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+
+		$notice = $method->invoke( $admin, 'success', 2, true );
+
+		$this->assertIsArray( $notice );
+		$this->assertSame( 'success', $notice['type'] );
+		$this->assertStringContainsString( 'revoked', $notice['message'] );
+		$this->assertStringContainsString( 'own session was skipped', $notice['message'] );
+
+		// Without the flag the fragment must be absent.
+		$plain = $method->invoke( $admin, 'success', 2, false );
+		$this->assertStringNotContainsString( 'own session was skipped', $plain['message'] );
 	}
 
 	/**
@@ -4821,10 +5202,10 @@ class AdminTest extends TestCase {
 	}
 
 	/**
-	 * Success on revoke-all includes the exact count in the message so the
-	 * operator sees how many sessions were actually revoked.
+	 * Success on a bulk revocation includes the exact count in the message
+	 * so the operator sees how many sessions were actually revoked.
 	 */
-	public function test_select_revoke_result_notice_success_includes_count_for_revoke_all(): void {
+	public function test_select_revoke_result_notice_success_includes_count_for_bulk_revocation(): void {
 		Functions\when( '__' )->returnArg();
 		Functions\when( '_n' )->alias( static fn( $single, $plural, $number ) => 1 === (int) $number ? $single : $plural );
 
@@ -4937,7 +5318,7 @@ class AdminTest extends TestCase {
 	/**
 	 * A success code on users.php calls wp_admin_notice() with the success
 	 * type, is-dismissible, and a polite status role/aria-live pairing, and
-	 * uses the revoke-count query arg when present (revoke-all).
+	 * uses the revoke-count query arg when present (bulk revocation).
 	 */
 	public function test_render_revoke_result_notice_renders_success_notice_with_count(): void {
 		$GLOBALS['pagenow'] = 'users.php';
@@ -5029,6 +5410,104 @@ class AdminTest extends TestCase {
 		$this->assertStringContainsString( 'drifted', $output );
 		// Holder (stored manage_wp_sudo) is excluded.
 		$this->assertStringNotContainsString( 'Real Manager', $output );
+	}
+
+	/**
+	 * GCOV-01: on single-site the body copy must keep naming manage_options —
+	 * the wording fix is context-aware, not a blanket rename.
+	 */
+	public function test_drift_panel_names_manage_options_on_single_site(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'esc_attr' )->returnArg();
+		Functions\when( 'esc_html_e' )->alias( static function ( $s ) { echo $s; } );
+		Functions\when( 'is_multisite' )->justReturn( false );
+
+		$drifted               = new \WP_User( 2 );
+		$drifted->display_name = 'Drifted Editor';
+		$drifted->user_login   = 'drifted';
+		$drifted->allcaps      = array( 'manage_options' => true );
+		Functions\when( 'get_users' )->justReturn( array( $drifted ) );
+
+		$admin = new Admin();
+		ob_start();
+		$method = new \ReflectionMethod( Admin::class, 'render_drift_detection_panel' );
+		@$method->setAccessible( true ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		$method->invoke( $admin, 'test-nonce' );
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( 'hold manage_options but not manage_wp_sudo', $output );
+		$this->assertStringNotContainsString( 'manage_network_options', $output );
+	}
+
+	/**
+	 * GCOV-01: on multisite the detection capability is manage_network_options,
+	 * and the body copy must name that capability, not manage_options.
+	 */
+	public function test_drift_panel_names_network_capability_on_multisite(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'esc_attr' )->returnArg();
+		Functions\when( 'esc_html_e' )->alias( static function ( $s ) { echo $s; } );
+		Functions\when( 'is_multisite' )->justReturn( true );
+		Functions\when( 'is_super_admin' )->justReturn( false );
+
+		$drifted               = new \WP_User( 2 );
+		$drifted->display_name = 'Network Operator';
+		$drifted->user_login   = 'netop';
+		$drifted->allcaps      = array( 'manage_network_options' => true );
+		Functions\when( 'get_users' )->justReturn( array( $drifted ) );
+
+		$admin = new Admin();
+		ob_start();
+		$method = new \ReflectionMethod( Admin::class, 'render_drift_detection_panel' );
+		@$method->setAccessible( true ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		$method->invoke( $admin, 'test-nonce' );
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( 'hold manage_network_options but not manage_wp_sudo', $output );
+		$this->assertStringContainsString( 'Network Operator', $output );
+	}
+
+	/**
+	 * GCOV-02: a multisite super admin has effective access to Sudo settings
+	 * via the wp_sudo_can() short-circuit regardless of stored caps, so the
+	 * panel must not list them as "cannot access" — while a candidate who is
+	 * NOT a super admin (a stored manage_network_options grant, e.g. via a
+	 * plugin role) and lacks the raw manage_wp_sudo cap must STILL be listed.
+	 * The second half pins the regression a wholesale switch to wp_sudo_can()
+	 * would cause.
+	 */
+	public function test_drift_panel_excludes_super_admin_but_lists_drifted_network_operator(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'esc_attr' )->returnArg();
+		Functions\when( 'esc_html_e' )->alias( static function ( $s ) { echo $s; } );
+		Functions\when( 'is_multisite' )->justReturn( true );
+		Functions\when( 'is_super_admin' )->alias( static fn( int $user_id ): bool => 3 === $user_id );
+
+		$super               = new \WP_User( 3 );
+		$super->display_name = 'Super Admin';
+		$super->user_login   = 'superadmin';
+		$super->allcaps      = array( 'manage_network_options' => true ); // no raw manage_wp_sudo
+
+		$drifted               = new \WP_User( 4 );
+		$drifted->display_name = 'Network Operator';
+		$drifted->user_login   = 'netop';
+		$drifted->allcaps      = array( 'manage_network_options' => true ); // no raw manage_wp_sudo
+
+		Functions\when( 'get_users' )->justReturn( array( $super, $drifted ) );
+
+		$admin = new Admin();
+		ob_start();
+		$method = new \ReflectionMethod( Admin::class, 'render_drift_detection_panel' );
+		@$method->setAccessible( true ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		$method->invoke( $admin, 'test-nonce' );
+		$output = ob_get_clean();
+
+		$this->assertStringNotContainsString( 'Super Admin', $output, 'Super admin has effective access via wp_sudo_can() and must not be listed' );
+		$this->assertStringNotContainsString( 'superadmin', $output );
+		$this->assertStringContainsString( 'Network Operator', $output, 'Genuinely drifted non-super-admin network operator must still be listed' );
 	}
 
 	public function test_drift_panel_renders_nothing_when_no_drift(): void {

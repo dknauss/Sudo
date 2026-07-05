@@ -57,6 +57,7 @@ readme.md
 .wordpress-org/**
 
 # Playground/source-only artifacts.
+blueprint.json
 blueprint-main.json
 blueprint-recovery-mode.json
 blueprint-user-switching.json
