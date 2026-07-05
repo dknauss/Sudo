@@ -25,6 +25,45 @@ Verification environment: local workspace, PHP 8.x
 | Test-to-production ratio | 2.11:1 | `36231 / 17183` |
 | Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`) | 54,349 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
 
+## Footprint & Performance
+
+Persistent storage is near-static; the only growing table self-prunes. Per-request
+DB cost is characterized from a full static hook sweep (2026-07-05), not runtime
+profiling — a precise Query Monitor figure would confirm but not change the shape.
+
+### Persistent storage
+
+| Item | Value | Verification |
+|---|---:|---|
+| Persistent options | 3 | `wp_sudo_settings` (config, `Admin::OPTION_KEY`), `wp_sudo_activated`, `wp_sudo_governance_mode`: `grep -rhoE "wp_sudo_(settings\|activated\|governance_mode)\b" includes/ wp-sudo.php \| sort -u \| wc -l` → 3 |
+| Custom tables | 1 | `{base_prefix}wpsudo_events` (dashboard activity log; one network-wide table on multisite): `grep -oE "wpsudo_events" includes/class-event-store.php \| sort -u \| wc -l` → 1 |
+| Events retention (default) | 14 days, batch-pruned | `grep -c 'function prune( int \$days = 14' includes/class-event-store.php` → 1 |
+
+Per-user meta (`_wp_sudo_*`: session token/expiry/bind + ephemeral rate-limit counters)
+and transients (request stash, rate-limit keys, active-count cache) are written only for
+users who hold a session or trigger gating; they self-expire and are removed on uninstall.
+
+### Per-request cost (front-end)
+
+WP Sudo is an event-gate — no per-page DB work. The only always-on per-request hooks are
+three `init` callbacks (`enforce_editor_unfiltered_html`, `gate_non_interactive`,
+`handle_deactivate`); `map_meta_cap` returns immediately for any non-governance capability.
+
+| Context | Added DB queries | Basis |
+|---|---:|---|
+| Front-end visitor (logged out) | 0 | No admin bar; the `init` hooks do constant/global + cached-role checks only |
+| Front-end, logged-in user | ≤ 1 (cached user-meta) | Admin-bar `Sudo_Session::is_active()` — static per-request cache, else one `get_user_meta` |
+| Non-gated admin page | negligible | In-memory rule matching + the same cached session check |
+| Gated action | bounded (grant/stash/rate-limit) | Only on the specific dangerous action, not on browsing |
+
+Re-derive the hook inventory (confirm the always-on set is only the 3 `init` hooks):
+
+```
+grep -rhoE "add_(action|filter)\(\s*'[^']+'" includes/ wp-sudo.php bridges/ mu-plugin/ | grep -oE "'[^']+'" | sort | uniq -c | sort -rn
+```
+
+No production dependencies, no build step: `jq '.dependencies // {} | length' package.json` → `0`.
+
 ## Architectural Facts
 
 Volatile counts that change when features ship. Every doc referencing these

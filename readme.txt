@@ -17,6 +17,8 @@ WordPress has rich access control — roles, capabilities, policies on who can d
 
 This is not role-based escalation. Every logged-in user is treated the same: attempt a gated action without an active sudo session, get challenged. Sessions are time-bounded and non-extendable, enforcing the zero-trust principle that trust must be continuously earned, never assumed. Sudo verifies that the current user is still the account holder; WordPress still decides whether that user is allowed to perform the action.
 
+Lightweight by design. Sudo is an event-gate, not a query-heavy plugin: it adds no database queries to normal front-end page loads (at most one cached read for the logged-in admin-bar timer), ships zero production dependencies with no build step, and stores only three small options plus self-expiring session data. Its one growing table — the activity log — self-prunes at a 14-day default, and everything is removed on uninstall. Database work happens only when a covered action is actually being confirmed.
+
 = Playground demo =
 
 * [Try the latest release in WordPress Playground](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint.json)
