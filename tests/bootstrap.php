@@ -42,6 +42,7 @@ define( 'COOKIE_DOMAIN', '' );
 // these as type hints in method signatures.
 
 if ( ! class_exists( 'WP_User' ) ) {
+	#[\AllowDynamicProperties]
 	class WP_User {
 		public int    $ID           = 0;
 		public array  $roles        = [];

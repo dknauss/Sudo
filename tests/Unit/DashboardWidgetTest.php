@@ -506,6 +506,22 @@ class DashboardWidgetTest extends TestCase {
 		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
 		Functions\when( 'get_avatar' )->justReturn( '<img src="avatar.jpg" />' );
 		Functions\when( 'get_role' )->justReturn( null );
+		Functions\when( 'translate_user_role' )->returnArg( 1 );
+		Functions\when( 'wp_roles' )->alias(
+			static function () {
+				return new class() {
+					public function get_names(): array {
+						return array(
+							'administrator' => 'Administrator',
+							'editor'        => 'Editor',
+							'author'        => 'Author',
+							'contributor'   => 'Contributor',
+							'subscriber'    => 'Subscriber',
+						);
+					}
+				};
+			}
+		);
 		if ( $stub_json_encode ) {
 			Functions\when( 'wp_json_encode' )->alias( 'json_encode' );
 		}
@@ -674,9 +690,10 @@ class DashboardWidgetTest extends TestCase {
 	 * @return void
 	 */
 	public function testActiveSessionsRenderPlainUsernameWhenEditUserDenied(): void {
-		$user             = new \WP_User( 7, [ 'administrator' ] );
-		$user->ID         = 7;
-		$user->user_login = 'restricted-admin';
+		$user               = new \WP_User( 7, [ 'administrator' ] );
+		$user->ID           = 7;
+		$user->user_login   = 'restricted-admin';
+		$user->display_name = 'Restricted Admin'; // Real name is primary; the login shows secondary.
 
 		$this->setUpRenderStubs();
 		\WP_User_Query::$mock_total   = 1;
@@ -700,6 +717,73 @@ class DashboardWidgetTest extends TestCase {
 
 		$this->assertStringContainsString( '<span class="wp-sudo-username">restricted-admin</span>', $output );
 		$this->assertStringNotContainsString( 'href="user-edit.php?user_id=7"', $output );
+
+		$this->restoreWpdb();
+	}
+
+	/**
+	 * Test the secondary username links to user-edit when the user has a real
+	 * name (so it is not the primary) and the operator may edit them.
+	 *
+	 * @return void
+	 */
+	public function testActiveSessionsLinkUsernameWhenEditAllowedAndUserHasRealName(): void {
+		$user               = new \WP_User( 14, [ 'administrator' ] );
+		$user->ID           = 14;
+		$user->user_login   = 'mariadev';
+		$user->display_name = 'Maria Santos'; // Real name is primary; username is a linked secondary.
+
+		$this->setUpRenderStubs(); // current_user_can() => true (edit allowed).
+		\WP_User_Query::$mock_total   = 1;
+		\WP_User_Query::$mock_results = [ $user ];
+		Functions\when( 'get_user_meta' )->justReturn( time() + 300 );
+		Functions\when( 'human_time_diff' )->justReturn( '5 mins' );
+		Functions\when( 'get_option' )->justReturn( [] );
+
+		ob_start();
+		Dashboard_Widget::render();
+		$output = ob_get_clean();
+
+		// Full name is the primary identity.
+		$this->assertStringContainsString( '<span class="wp-sudo-fullname">Maria Santos</span>', $output );
+		// Username is a linked secondary.
+		$this->assertStringContainsString( 'class="wp-sudo-username"', $output );
+		$this->assertStringContainsString( 'user-edit.php?user_id=14', $output );
+		$this->assertStringContainsString( '>mariadev</a>', $output );
+
+		$this->restoreWpdb();
+	}
+
+	/**
+	 * Test the primary line itself is the edit link when the login is the only
+	 * identity (no real name, display_name === login) and the operator may edit.
+	 * There is no secondary line to carry the link, so the primary must.
+	 *
+	 * @return void
+	 */
+	public function testActiveSessionsLinkPrimaryWhenLoginIsPrimaryAndEditAllowed(): void {
+		$user               = new \WP_User( 21, [ 'administrator' ] );
+		$user->ID           = 21;
+		$user->user_login   = 'admin';
+		$user->display_name = 'admin'; // No real name; login is the sole identity.
+
+		$this->setUpRenderStubs(); // current_user_can() => true (edit allowed).
+		\WP_User_Query::$mock_total   = 1;
+		\WP_User_Query::$mock_results = [ $user ];
+		Functions\when( 'get_user_meta' )->justReturn( time() + 300 );
+		Functions\when( 'human_time_diff' )->justReturn( '5 mins' );
+		Functions\when( 'get_option' )->justReturn( [] );
+
+		ob_start();
+		Dashboard_Widget::render();
+		$output = ob_get_clean();
+
+		// The primary line carries the edit link and both identity classes.
+		$this->assertStringContainsString( 'class="wp-sudo-fullname wp-sudo-username"', $output );
+		$this->assertStringContainsString( 'user-edit.php?user_id=21', $output );
+		$this->assertStringContainsString( '>admin</a>', $output );
+		// No standalone secondary username link is emitted.
+		$this->assertStringNotContainsString( '<span class="wp-sudo-username">admin</span>', $output );
 
 		$this->restoreWpdb();
 	}
