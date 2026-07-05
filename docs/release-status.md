@@ -15,12 +15,13 @@ This file is the canonical source for **current release state** in this reposito
 
 - **Latest tagged release:** `4.2.2`
 - **Latest git tag observed:** `v4.2.2` (annotated, cut 2026-06-28).
+- **Next release staged (not yet tagged):** `4.5.0` — the version bump is committed on `main` (all five version-sync points, CHANGELOG, readme, blueprint) but no `v4.5.0` tag has been cut yet; tag creation and the release-environment matrix remain maintainer-owned.
 
 ## Current `main` release state
 
-- **Current `main` version:** `4.2.2` — tagged as `v4.2.2` after the Access-tab gap closure and release-planning refresh.
-- **Runtime version constant:** `4.2.2` on `main`. `WP_SUDO_VERSION` is set in `wp-sudo.php` (header + constant), `tests/bootstrap.php`, and `phpstan-bootstrap.php`; `readme.txt` Stable tag is `4.2.2`. All five version-sync points are in sync.
-- **Current package metadata (on `main`):** `readme.txt` Stable tag `4.2.2` == header Version (no `stable_tag_mismatch`); `Requires at least 6.4`, `Requires PHP 8.2`, `Tested up to 7.0`. WordPress.org listing name: **"Sudo – Admin Action Gating"** (UI brand "Sudo"; slug/text-domain stay `wp-sudo` — lock the slug at submission).
+- **Current `main` version:** `4.5.0` — version bump committed and staged for the next tag; **no `v4.5.0` tag cut yet** (latest tag remains `v4.2.2`).
+- **Runtime version constant:** `4.5.0` on `main`. `WP_SUDO_VERSION` is set in `wp-sudo.php` (header + constant), `tests/bootstrap.php`, and `phpstan-bootstrap.php`; `readme.txt` Stable tag is `4.5.0`. All five version-sync points are in sync at `4.5.0`.
+- **Current package metadata (on `main`):** `readme.txt` Stable tag `4.5.0` == header Version (no `stable_tag_mismatch`); `Requires at least 6.4`, `Requires PHP 8.2`, `Tested up to 7.0`. WordPress.org listing name: **"Sudo – Admin Action Gating"** (UI brand "Sudo"; slug/text-domain stay `wp-sudo` — lock the slug at submission).
 - **Last archived release checklist:** `docs/archive/release-3.0.0-checklist.md`
 
 ## WordPress.org publication status
