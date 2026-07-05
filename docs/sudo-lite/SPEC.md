@@ -1,8 +1,20 @@
 # Sudo Lite specification
 
+> **Status: illustrative design reference — not a committed product roadmap.**
+> This document describes what a minimal action-gating tier *would* look like, and
+> exists to keep WP Sudo honest about its fundamentals (see
+> [`fundamentals-cross-check.md`](fundamentals-cross-check.md)). It is **not** a plan
+> to ship a separate "Sudo Lite" plugin, and the layouts/rule sets below are a design
+> foil, not a build order. A security review of the accompanying Psudo Lite reference
+> found that a minimal reauthentication model is structurally hard to make secure —
+> proof of *completed* reauth, surviving session-token rotation, and effect-level
+> gating are the hard parts — and hardening it converges on WP Sudo itself. If a
+> lightweight on-ramp is ever wanted, the recommended path is a **minimal WP Sudo
+> preset/config**, not a second reauthentication implementation.
+
 Sudo Lite is a deliberately small action-gating design derived from WP Sudo's core security model. It is not a replacement for WP Sudo; it is a minimal reference implementation and a recurring cross-check for whether the main project is preserving its fundamentals.
 
-## Product tiers
+## Conceptual tiers (illustrative, not a shipping plan)
 
 | Tier | Purpose | Primary scope |
 |---|---|---|
