@@ -71,12 +71,13 @@ Canonical source for post-tag drift after `v4.2.2`: `git log v4.2.2..main --onel
 
 ## Unreleased `main` work
 
-Unreleased work after `v4.2.2` is **substantial** — it spans two completed GSD
+Work after `v4.2.2` is **substantial** — it spans two completed GSD
 milestones (v4.4.0 Two Factor Lifecycle Bridge and v4.5 Session Governance &
-Admin UX) plus security hardening, none of it yet cut as a plugin release. The
-plugin version constant remains `4.2.2`; the next tag would bundle all of the
-below. Canonical drift source: `git log v4.2.2..main --oneline` (98 commits as
-of 2026-07-05; see `CHANGELOG.md` "Unreleased" for the curated feature list).
+Admin UX) plus security hardening, none of it yet cut as a **tagged** plugin
+release. The version constant is now bumped to `4.5.0` on `main` (staged; no
+`v4.5.0` tag exists yet), so the next tag would ship all of the below. Canonical
+drift source: `git log v4.2.2..main --oneline` (98 commits as of 2026-07-05; see
+the `CHANGELOG.md` `4.5.0` section for the curated feature list).
 
 **Security hardening (backward-compatible fixes):**
 
