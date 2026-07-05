@@ -47,3 +47,29 @@
 #wp-sudo-mu-message {
 	margin-top: 8px;
 }
+
+/* Access tab: capability holder table — one item per capability, so each
+   capability and its Revoke control stay visually paired at any width and the
+   Revoke link can never orphan onto its own line ambiguously. */
+.wp-sudo-cap-item {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: 2px 8px;
+	padding: 5px 0;
+}
+
+.wp-sudo-cap-item + .wp-sudo-cap-item {
+	border-top: 1px solid #f0f0f1;
+}
+
+/* Keep the label content-width so Revoke sits directly after it (adjacent),
+   rather than being pushed to the far edge and reading as an orphaned link. */
+.wp-sudo-cap-label {
+	flex: 0 1 auto;
+}
+
+.wp-sudo-cap-item .wp-sudo-revoke-cap {
+	flex: 0 0 auto;
+	white-space: nowrap;
+}
