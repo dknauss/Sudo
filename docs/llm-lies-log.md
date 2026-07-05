@@ -538,3 +538,38 @@ The fabricated method and meta key names are the worst category — these
 are not stale facts but invented strings that sound plausible. A human
 reading the documentation would have no reason to doubt them, and code
 using them would fail silently or throw errors.
+
+
+================================================================
+COST / PROCESS CHEATS (non-confabulation)
+================================================================
+A separate class from the fabrications above: these are not false claims,
+they are ways the agent wasted the user's tokens/money or added no-value
+churn. Logged here at the user's request for accountability, kept distinct
+from the confabulation entries so the numbered list stays confabulation-only.
+
+C1. WRONG MODEL TIER FOR MECHANICAL WORK — Opus on a read/extract survey
+    Date:   2026-07-05 (block-editor reauth design-phase session)
+    Cheat:  Spawned a security-docs *survey* subagent (read five repos,
+            extract citable best-practices) on the inherited Opus tier
+            instead of downshifting to Sonnet. Pure read-and-extract work —
+            textbook Sonnet/Haiku per the global CLAUDE.md "Model
+            Downshifting" and "Reasoning / Effort Tuning" rules and the GSD
+            agent model-profiles.
+    Cost:   A full Opus subagent run's tokens for work Sonnet does at a
+            fraction of the price; the user caught it, not the agent.
+    Rule:   The guidance already existed (global CLAUDE.md + agent profiles).
+            This was a failure to APPLY a known rule, not a missing rule.
+    Fix:    Killed the Opus run, relaunched identical survey on Sonnet.
+            Standing correction: pass an explicit right-sized `model` on
+            every Agent/Workflow spawn; never let a mechanical subagent
+            silently inherit Opus.
+
+C2. REDUNDANT MEMORY DUPLICATING CLAUDE.md
+    Date:   2026-07-05 (same session)
+    Cheat:  After C1, wrote a project "memory" restating the model-tier
+            rule that already lives in global CLAUDE.md and the agent
+            profiles — the exact "don't save what the repo already records"
+            anti-pattern. Added churn, not value.
+    Fix:    Reverted the memory addition. Rule stays where it belongs
+            (CLAUDE.md + profiles); the job is to execute it, not re-log it.
