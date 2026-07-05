@@ -1,0 +1,8 @@
+# Patterns (regex) for URLs lychee should skip in the docs link check.
+#
+# Codecov badge SVG: a dynamically generated status image whose badge service
+# intermittently returns 504 Gateway Timeout, flaking the link check for reasons
+# unrelated to any change in this repo. The badge renders fine in the README and
+# is not a documentation link worth gating CI on. The Codecov *project* link
+# (codecov.io/gh/dknauss/Sudo) is still checked.
+codecov\.io/gh/dknauss/Sudo/graph/badge\.svg

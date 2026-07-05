@@ -15,6 +15,10 @@
       "step": "login",
       "username": "admin",
       "password": "password"
+    },
+    {
+      "step": "runPHP",
+      "code": "<?php require_once '/wordpress/wp-load.php'; $u = get_user_by( 'login', 'admin' ); if ( $u ) { foreach ( array( 'manage_wp_sudo', 'view_wp_sudo_activity', 'export_wp_sudo_activity', 'revoke_wp_sudo_sessions' ) as $c ) { $u->add_cap( $c ); } }"
     }
   ]
 }
