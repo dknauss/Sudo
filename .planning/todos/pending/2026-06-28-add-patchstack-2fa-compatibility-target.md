@@ -11,7 +11,7 @@ files:
 
 Patchstack Security includes a paid-feature TOTP 2FA flow outside WP Sudo's automatic WordPress/two-factor integration. The Phase 19 ecosystem matrix now tracks it conservatively as a second-tier/manual-test target so source-inspection findings do not become runtime support claims.
 
-Refreshed evidence in `docs/two-factor-ecosystem.md` points to WordPress.org SVN [`includes/login.php`](https://plugins.svn.wordpress.org/patchstack/trunk/includes/login.php), repository revision `3590474`, file revision `3433693` dated 2026-01-06, checked 2026-06-29. The source still shows `patchstack_login_2fa`, `webarx_2fa_enabled`, `webarx_2fa_secretkey`, `webarx_2fa_secretkey_nonce`, `patchstack_2fa`, and `TokenAuth6238::verify()`. Free-license mode returns before meaningful 2FA hook registration, so runtime behavior remains unverified without a paid Patchstack-enabled fixture.
+Refreshed evidence in `docs/two-factor-ecosystem.md` points to WordPress.org SVN [`includes/login.php`](https://plugins.svn.wordpress.org/patchstack/trunk/includes/login.php), repository revision `3590474`, file revision `3433693` dated 2026-01-06, checked 2026-06-29. The source still shows `patchstack_login_2fa`, `webarx_2fa_enabled`, `webarx_2fa_secretkey`, `webarx_2fa_secretkey_nonce`, `patchstack_2fa`, and `TokenAuth6238::verify()`. Free-license mode returns before meaningful 2FA hook registration; runtime behavior has since been verified offline against a licensed Pro 2.3.6 fixture (see Remaining Work / Status below), resolving the earlier fixture blocker. The remaining gap is the live login-form / profile-save / WooCommerce lifecycle runs.
 
 ## Remaining Work
 

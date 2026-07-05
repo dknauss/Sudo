@@ -105,7 +105,10 @@ Rule of thumb: if you cannot point to a new entry this change adds to
 - Releases are annotated tags `vX.Y.Z` cut from the release commit; the GitHub
   Release is published from that tag. Tagging/publishing is **maintainer-owned**.
 - Every release keeps the five version-sync points in agreement (see the
-  `CLAUDE.md` version-sync checklist); the `verify:metrics`/CI gates fail on drift.
+  `CLAUDE.md` version-sync checklist). This is a **manual** release-checklist step —
+  `verify:metrics` checks `docs/current-metrics.md` (test/LOC/registry counts), **not**
+  the version-sync points, so version-sync drift is caught by the checklist, not by an
+  automated CI gate.
 - The public "Try latest release" Playground badge loads `blueprint.json` from
   `main`, so its tag-ZIP target is bumped **after** the tag is cut, never before
   (a pre-tag bump would make the public demo fetch a missing ZIP).
