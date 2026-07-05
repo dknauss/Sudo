@@ -73,3 +73,47 @@
 	flex: 0 0 auto;
 	white-space: nowrap;
 }
+
+/* Access tab: capability-holder user cell — avatar + full name (primary) + username (secondary). */
+.wp-sudo-access-user {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+.wp-sudo-access-user-avatar img {
+	border-radius: 50%;
+	display: block;
+}
+.wp-sudo-access-user-info {
+	display: flex;
+	flex-direction: column;
+	min-width: 0;
+}
+.wp-sudo-access-user-primary {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	flex-wrap: wrap;
+}
+.wp-sudo-access-user-name {
+	font-weight: 600;
+	color: #1d2327;
+}
+.wp-sudo-access-user-role {
+	font-size: 0.75em;
+	padding: 0.15em 0.5em;
+	background: #ddefe3;
+	color: #1a7f37;
+	border-radius: 3px;
+}
+.wp-sudo-access-user-secondary {
+	font-size: 0.9em;
+	color: #646970;
+}
+.wp-sudo-access-user-login {
+	color: #2271b1;
+	text-decoration: none;
+}
+.wp-sudo-access-user-login:hover {
+	text-decoration: underline;
+}

@@ -506,6 +506,22 @@ class DashboardWidgetTest extends TestCase {
 		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
 		Functions\when( 'get_avatar' )->justReturn( '<img src="avatar.jpg" />' );
 		Functions\when( 'get_role' )->justReturn( null );
+		Functions\when( 'translate_user_role' )->returnArg( 1 );
+		Functions\when( 'wp_roles' )->alias(
+			static function () {
+				return new class() {
+					public function get_names(): array {
+						return array(
+							'administrator' => 'Administrator',
+							'editor'        => 'Editor',
+							'author'        => 'Author',
+							'contributor'   => 'Contributor',
+							'subscriber'    => 'Subscriber',
+						);
+					}
+				};
+			}
+		);
 		if ( $stub_json_encode ) {
 			Functions\when( 'wp_json_encode' )->alias( 'json_encode' );
 		}
@@ -674,9 +690,10 @@ class DashboardWidgetTest extends TestCase {
 	 * @return void
 	 */
 	public function testActiveSessionsRenderPlainUsernameWhenEditUserDenied(): void {
-		$user             = new \WP_User( 7, [ 'administrator' ] );
-		$user->ID         = 7;
-		$user->user_login = 'restricted-admin';
+		$user               = new \WP_User( 7, [ 'administrator' ] );
+		$user->ID           = 7;
+		$user->user_login   = 'restricted-admin';
+		$user->display_name = 'Restricted Admin'; // Real name is primary; the login shows secondary.
 
 		$this->setUpRenderStubs();
 		\WP_User_Query::$mock_total   = 1;

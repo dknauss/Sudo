@@ -3288,6 +3288,26 @@ class AdminTest extends TestCase {
 		unset( $_GET['tab'] );
 	}
 
+	/**
+	 * Stubs the WordPress functions the Access-tab User cell newly depends on
+	 * (avatar, edit-link capability, admin URL, and translated role names).
+	 */
+	private function stub_access_user_cell(): void {
+		Functions\when( 'get_avatar' )->justReturn( '<img alt="" src="avatar.png" />' );
+		Functions\when( 'current_user_can' )->justReturn( true );
+		Functions\when( 'admin_url' )->returnArg();
+		Functions\when( 'translate_user_role' )->returnArg( 1 );
+		Functions\when( 'wp_roles' )->alias(
+			static function () {
+				return new class() {
+					public function get_names(): array {
+						return array( 'administrator' => 'Administrator' );
+					}
+				};
+			}
+		);
+	}
+
 	public function test_render_access_tab_holder_table_has_no_revoke_session_button(): void {
 		Functions\when( 'esc_html' )->returnArg();
 		Functions\when( 'esc_html_e' )->alias( static function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
@@ -3295,6 +3315,7 @@ class AdminTest extends TestCase {
 		Functions\when( 'esc_attr' )->returnArg();
 		Functions\when( 'esc_url' )->returnArg();
 		Functions\when( 'wp_create_nonce' )->justReturn( 'test-nonce' );
+		$this->stub_access_user_cell();
 
 		$holder_admin               = new \WP_User( 9, array( 'administrator' ) );
 		$holder_admin->display_name = 'Holder Admin';
@@ -3334,6 +3355,7 @@ class AdminTest extends TestCase {
 		Functions\when( 'esc_attr' )->returnArg();
 		Functions\when( 'esc_url' )->returnArg();
 		Functions\when( 'wp_create_nonce' )->justReturn( 'test-nonce' );
+		$this->stub_access_user_cell();
 
 		$holder_admin               = new \WP_User( 9, array( 'administrator' ) );
 		$holder_admin->display_name = 'Holder Admin';
@@ -3373,6 +3395,49 @@ class AdminTest extends TestCase {
 		// Each button carries a capability-specific accessible name for screen readers
 		// tabbing through otherwise-identical "Revoke" controls.
 		$this->assertStringContainsString( 'aria-label="Revoke Revoke other users\' active sessions capability"', $output );
+	}
+
+	public function test_render_access_tab_user_cell_shows_avatar_name_role_and_secondary_login(): void {
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'esc_html_e' )->alias( static function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		Functions\when( 'esc_attr_e' )->alias( static function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		Functions\when( 'esc_attr' )->returnArg();
+		Functions\when( 'esc_url' )->returnArg();
+		Functions\when( 'wp_create_nonce' )->justReturn( 'test-nonce' );
+		$this->stub_access_user_cell();
+
+		$holder               = new \WP_User( 12, array( 'administrator' ) );
+		$holder->user_login   = 'msantos';
+		$holder->display_name = 'msantos';
+		$holder->first_name   = 'Maria';
+		$holder->last_name    = 'Santos';
+
+		Functions\when( 'get_users' )->alias(
+			static function ( array $args = array() ) use ( $holder ): array {
+				if ( 'manage_wp_sudo' === ( $args['capability'] ?? null ) ) {
+					return array( $holder );
+				}
+				return array();
+			}
+		);
+
+		$admin = new Admin();
+		ob_start();
+		$admin->render_access_tab();
+		$output = ob_get_clean();
+
+		// Avatar container present (image supplied by the get_avatar stub).
+		$this->assertStringContainsString( 'wp-sudo-access-user-avatar', $output );
+		// Full real name is the primary/prominent identity, not the login.
+		$this->assertStringContainsString( '<span class="wp-sudo-access-user-name">Maria Santos</span>', $output );
+		// Translated role label is shown as a chip.
+		$this->assertStringContainsString( '<span class="wp-sudo-access-user-role">Administrator</span>', $output );
+		// Username is secondary and linked to the user-edit screen.
+		$this->assertStringContainsString( 'wp-sudo-access-user-login', $output );
+		$this->assertStringContainsString( 'user-edit.php?user_id=12', $output );
+		$this->assertStringContainsString( '>msantos</a>', $output );
+		// The old bare display_name + <code>login</code> layout is gone.
+		$this->assertStringNotContainsString( '<code>msantos</code>', $output );
 	}
 
 	// -----------------------------------------------------------------
