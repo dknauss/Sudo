@@ -16,10 +16,12 @@ if the Tier 2 block-editor feature ships, an in-editor modal) present a password
 field and, on 2FA sites, a second-factor step. How password managers interact with
 these surfaces is unverified, and at least one manager is known to be getting harder:
 
-- **1Password is particularly tough with two-factor now.** Recent 1Password behavior
-  around TOTP autofill / passkeys / the in-app 2FA flow makes it awkward on
-  second-factor prompts. Worth pinning down what actually breaks (autofill not
-  offered, TOTP not surfaced, passkey prompt intercepted, etc.) rather than assuming.
+- **1Password is reportedly/anecdotally harder with two-factor lately — UNVERIFIED.**
+  This is a hypothesis to reproduce, not a settled fact. Recent 1Password behavior
+  around TOTP autofill / passkeys / the in-app 2FA flow *may* make it awkward on
+  second-factor prompts. Pin down what actually breaks (autofill not offered, TOTP not
+  surfaced, passkey prompt intercepted, etc.) with a **concrete 1Password version +
+  repro** before recording any of it as fact (per the repo verification rules).
 
 The reauth flow is deliberately *not* the WordPress login form — it is a custom
 challenge handler (`includes/class-challenge.php`). Password managers key heavily off

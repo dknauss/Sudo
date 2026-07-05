@@ -231,10 +231,15 @@ Key refutations (all code-grounded):
 - **C1 — grant-nonce blast radius.** Keeping the single `wp_sudo_challenge` nonce action
   is acceptable (it is a CSRF token); a distinct editor-grant nonce action is optional
   defense-in-depth. Decide, don't drift.
-- **C2 — tight localization.** Enqueue/localize the grant nonce **only on actual
-  block/site-editor screens** (mirror `class-challenge.php:179`), and skip it when
-  `Sudo_Session::is_active()` (as the existing shortcut enqueue does,
-  `class-plugin.php:200-202`). Do not spray the nonce onto non-editor pages.
+- **C2 — tight localization (revised after PR #157 review).** Enqueue/localize the grant
+  nonce **only on actual block/site-editor screens** (mirror `class-challenge.php:179`);
+  do not spray it onto non-editor pages. **Correction:** the original C2 said to also skip
+  when `Sudo_Session::is_active()` (mirroring `class-plugin.php:200-202`) — that is
+  **wrong** for the editor. The editor is a long-lived SPA and the short sudo session
+  expires while it stays open, so the recovery handler must be loaded even if a session
+  is active at page load, or a later gated action reopens the opaque 403. Safe to always
+  load because this nonce is a CSRF token, not authz (this Part 3.6), trivially mintable
+  by any same-origin script.
 - **C3 — first-party re-dispatch.** The re-fired request must carry the user's own
   `wp_rest` nonce so `is_rest_cookie_auth()` (`class-gate.php:451-466`) classifies it as
   cookie-auth and re-evaluates the now-active session at `:1829`. Never rebuild it
