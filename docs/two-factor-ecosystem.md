@@ -205,13 +205,23 @@ Manual-test implications:
 - Keep Patchstack behind the upstream `WordPress/two-factor` lifecycle bridge
   unless user demand and manual runtime testing justify a dedicated bridge.
 
-**Runtime fixture (in progress):** the paid-fixture blocker recorded in the
-original todo is surmountable offline — the license gate is a stored option, not
-a live call. A local WP replica with Patchstack Pro 2.3.6, `patchstack_license_free = 0`,
-and `patchstack_login_2fa = 1` is being used to confirm (1) the 2FA hooks
-register, (2) `TokenAuth6238::verify` validates a generated TOTP offline, and
-(3) a WP Sudo bridge shape. This section will be updated with the runtime
-outcome; the compatibility target remains manual-test until then.
+**Runtime fixture (verified offline, 2026-07-05):** the paid-fixture blocker
+recorded in the original todo is surmountable offline — the license gate is a
+stored option, not a live call. Using a local WP 7.0 + SQLite replica with
+Patchstack Pro 2.3.6 activated, `patchstack_license_free = 0`, and
+`patchstack_login_2fa = 1`, the following were confirmed at runtime:
+
+- **2FA hooks register offline** — `P_Login` registered `authenticate → tfa_authenticate` (priority 30), `login_form → tfa_login_form`, and the `personal_options` / `personal_options_update` / `edit_user_profile_update` lifecycle handlers, with no license-server round trip (the activation-time API calls fail closed without blocking the 2FA stack).
+- **TOTP validation works offline** — `TokenAuth6238::verify()` accepts a correctly generated RFC 6238 code and rejects a wrong one (±3×30 s window, HMAC-SHA1, 6 digits).
+- **Bridge path is viable end to end** — detection reads the public `webarx_2fa_enabled` user option; the plaintext secret is obtained from the private `P_Login::tfa_get_secret()` (reachable via reflection), which generates and stores the libsodium-encrypted `webarx_2fa_secretkey` + `_nonce` and decrypts them on the round trip; `TokenAuth6238::verify()` then accepts a code generated from that secret.
+
+Not yet exercised at runtime (out of scope for this pass): the live
+`wp_authenticate` login-form challenge submission, the actual `profile.php`
+POST save flow, and the WooCommerce account-form lifecycle (WooCommerce is not
+installed in the fixture). A shippable bridge would also need to decide between
+reflection into the private `tfa_get_secret()` and re-implementing the sodium
+decrypt from the stored option keys. The compatibility target is therefore
+**runtime-validated as bridgeable**, not yet a shipped/supported integration.
 
 ### Wordfence Login Security
 
