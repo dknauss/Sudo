@@ -12,6 +12,44 @@ Pre-Implementation Design Review is already satisfied by the brief + two reviews
 
 ---
 
+## ⛔ Required gates — READ BEFORE WRITING ANY CODE
+
+This feature is **security-sensitive** (new REST + editor surface, sudo-session grant,
+CSRF-nonce exposure, capability-gated actions). Per `CLAUDE.md` and the global
+"size review to risk" rule it gets a **mandatory deep review**, not a light touch.
+These gates are non-negotiable; do not merge past their findings.
+
+**Deterministic gates that WILL fire automatically (do not bypass):**
+- **Pre-commit reviewer-agent approval** on every code commit. The text-only skip is
+  `\.(md|txt|rst)$` — the editor `.js` and any `.php` here do **not** qualify, so each
+  code commit needs a fresh `reviewer-approved` flag written by the reviewer agent
+  (not the main agent). Do **not** use `USER_COMMIT=1` on AI-generated code.
+- **`composer test` + `composer analyse` (PHPStan L6) + Psalm + PHPCS** via the hook.
+- **CODEOWNERS** `* @dknauss` → GitHub review + "require conversation resolution".
+- **`docs/current-metrics.md`** must be updated in the same commit that changes any
+  counted quantity (new E2E specs, unit tests) — `composer verify:metrics` gates it.
+
+**Judgment gates the deterministic gates CANNOT enforce — you must actively do these:**
+1. **Reconfirm the design before TDD.** The Pre-Implementation Design Review is
+   satisfied by the brief + two reviews, but before writing tests, verify the surface
+   inventory and the security boundary still hold against the *current* code (routes,
+   `intercept_rest`, `block_rest` cookie-auth branch, the AJAX grant endpoints). If any
+   drifted, re-review before proceeding.
+2. **Hand the reviewer the C1–C4 checklist explicitly.** The pre-commit reviewer is
+   generic and will **not** know about these unless the review brief names them. Every
+   review request for this feature MUST ask the reviewer to verify:
+   - **C1** — grant nonce stays the single `wp_sudo_challenge` CSRF action; not broadened to authz use.
+   - **C2** — grant nonce localized **only** on block/site-editor screens, skipped when `Sudo_Session::is_active()`; never sprayed onto non-editor pages.
+   - **C3** — re-dispatch carries the user's own first-party `wp_rest` nonce; the request is never rebuilt server-side.
+   - **C4** — `challenge_url` stays absent on the headless/app-password branch (regression test present and passing).
+   - Plus: REST path never touches `Request_Stash`; no content/design save is gated; no `@wordpress/scripts` build step introduced.
+3. **Security-focused review pass on the finished implementation.** The design-time
+   security review (brief Part 3.6) cleared the *approach*; the real bugs live in the
+   JS/enqueue. Run a security-scoped review of the actual diff (nonce localization
+   surface, modal password field handling, re-dispatch) before merge.
+
+---
+
 ## Goal
 
 When a gated action is triggered from the block/site editor (in practice: Block
