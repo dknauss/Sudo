@@ -440,22 +440,22 @@
 			return;
 		}
 
-		// Revoke a single capability. Remove the cap label + its button; if the
-		// holder has no caps left, remove the whole row.
+		// Revoke a single capability. Remove the whole capability item (label +
+		// screen-reader slug + button); if the holder has no caps left, remove
+		// the entire holder row.
 		if ( target.classList.contains( 'wp-sudo-revoke-cap' ) ) {
 			var capCell = target.closest( 'td' );
 			var capRow  = target.closest( 'tr' );
-			var capCode = target.previousElementSibling;
+			var capItem = target.closest( '.wp-sudo-cap-item' );
 			sendAccessAction(
 				wpSudoAdmin.revokeCapAction,
 				target.getAttribute( 'data-nonce' ),
 				{ user_id: target.getAttribute( 'data-user-id' ), cap: target.getAttribute( 'data-cap' ) },
 				target,
 				function () {
-					if ( capCode && 'CODE' === capCode.tagName ) {
-						capCode.parentNode.removeChild( capCode );
-					}
-					if ( target.parentNode ) {
+					if ( capItem && capItem.parentNode ) {
+						capItem.parentNode.removeChild( capItem );
+					} else if ( target.parentNode ) {
 						target.parentNode.removeChild( target );
 					}
 					if ( capRow && capCell && ! capCell.querySelector( '.wp-sudo-revoke-cap' ) && capRow.parentNode ) {

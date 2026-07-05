@@ -9,8 +9,8 @@ Verification environment: local workspace, PHP 8.x
 
 | Metric | Value | Verification |
 |---|---:|---|
-| Unit tests | 985 tests | `composer test:unit` |
-| Unit assertions | 2,993 assertions | `composer test:unit` |
+| Unit tests | 986 tests | `composer test:unit` |
+| Unit assertions | 3,002 assertions | `composer test:unit` |
 | Integration tests in suite | 208 test methods | `rg -c "function test" tests/Integration/*.php | awk -F: '{sum+=$2} END{print sum}'` |
 | Unit test files | 29 | `ls tests/Unit/*.php | wc -l` |
 | Integration test files | 28 | `ls tests/Integration/*.php | wc -l` |
@@ -19,11 +19,11 @@ Verification environment: local workspace, PHP 8.x
 
 | Metric | Value | Verification |
 |---|---:|---|
-| Production PHP lines (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 17,047 | `find ./includes ./wp-sudo.php ./uninstall.php ./mu-plugin ./bridges -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
-| Tests PHP lines (`tests/`) | 35,863 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
-| Production + tests PHP lines | 52,910 | sum of the two rows above |
-| Test-to-production ratio | 2.10:1 | `35863 / 17047` |
-| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`) | 53,182 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Production PHP lines (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 17,049 | `find ./includes ./wp-sudo.php ./uninstall.php ./mu-plugin ./bridges -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Tests PHP lines (`tests/`) | 35,910 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Production + tests PHP lines | 52,959 | sum of the two rows above |
+| Test-to-production ratio | 2.11:1 | `35910 / 17049` |
+| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`) | 53,231 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
 
 ## Architectural Facts
 
@@ -66,6 +66,7 @@ Source: `.github/workflows/phpunit.yml`, `.github/workflows/e2e.yml`, `.github/w
 
 ## Verification Notes
 
+- `composer test:unit` passed on 2026-07-05 (`986 tests`, `3002 assertions`). Access-tab capability-holder table: each capability now renders as its own `wp-sudo-cap-item` row showing the human-readable label instead of the raw slug, with the Revoke control paired directly to it (responsive at narrow widths, no orphaned links); the slug moves to a tooltip + `screen-reader-text` span, and the Grant Capability dropdown drops the parenthetical slug from its visible option text. The revoke JS now removes the whole capability item container rather than a position-dependent `<code>` sibling (+1 test).
 - `composer test:unit` passed on 2026-07-04 (`985 tests`, `2993 assertions`). Phase 25 (Governance Coverage Panel Fix, GCOV-01/02): the Access-tab coverage panel names the context-correct capability (manage_network_options on multisite) and excludes multisite super admins from the "cannot access" list while still listing genuinely drifted non-super-admin network operators (+3 tests).
 - `composer test:unit` passed on 2026-07-04 (`982 tests`, `2986 assertions`). Session revocation moved from the Users-list toolbar button + admin-post interstitial to a native "Revoke sudo sessions" bulk action (one rate slot per batch, self-skip, per-user audit fires with the `users_list_bulk_action` reason); the Sudo Active badge count transient is now invalidated on session grant/teardown; the stale `wp_sudo_revoke_session` AJAX reference was scrubbed from the registry. External-review hardening: bulk handling moved behind a nonce-verified `load-users.php` interceptor (core does not nonce-check custom users.php bulk actions) and both revocation paths gained a current-site membership guard placed before the liveness check.
 - `composer test:unit` passed on 2026-07-04 (`968 tests`, `2948 assertions`). The Event_Recorder now subscribes to `wp_sudo_session_revoked` and stores `session_revoked` event rows, and the dashboard widget renders human-readable labels for `session_revoked` ("Revoked") and `escalation_blocked` ("Escalation") with distinct pill styling (+4 tests).

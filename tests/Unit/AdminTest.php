@@ -3273,7 +3273,9 @@ class AdminTest extends TestCase {
 		$this->assertStringContainsString( '<option value="7" data-search-text="ada admin ada">Ada Admin (ada)</option>', $output );
 		$this->assertStringNotContainsString( 'type="number" id="wp-sudo-grant-user"', $output );
 		$this->assertStringContainsString( '<option value="manage_wp_sudo"', $output );
-		$this->assertStringContainsString( 'Manage Sudo settings and policies (manage_wp_sudo)', $output );
+		// Friendly label is the visible option text; the raw slug is not shown in prominent text.
+		$this->assertStringContainsString( 'Manage Sudo settings and policies', $output );
+		$this->assertStringNotContainsString( 'Manage Sudo settings and policies (manage_wp_sudo)', $output );
 		$this->assertStringContainsString( 'value="view_wp_sudo_activity"', $output );
 		$this->assertStringContainsString( 'value="export_wp_sudo_activity"', $output );
 		$this->assertStringContainsString( 'value="revoke_wp_sudo_sessions"', $output );
@@ -3323,6 +3325,51 @@ class AdminTest extends TestCase {
 		$this->assertStringContainsString( '>Revoke<', $output );
 		$this->assertStringNotContainsString( 'wp-sudo-revoke-session', $output );
 		$this->assertStringNotContainsString( 'Revoke Session', $output );
+	}
+
+	public function test_render_access_tab_holder_table_shows_friendly_labels_not_slug_codes(): void {
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'esc_html_e' )->alias( static function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		Functions\when( 'esc_attr_e' )->alias( static function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		Functions\when( 'esc_attr' )->returnArg();
+		Functions\when( 'esc_url' )->returnArg();
+		Functions\when( 'wp_create_nonce' )->justReturn( 'test-nonce' );
+
+		$holder_admin               = new \WP_User( 9, array( 'administrator' ) );
+		$holder_admin->display_name = 'Holder Admin';
+		$holder_admin->user_login   = 'holder';
+
+		Functions\when( 'get_users' )->alias( static function ( array $args = array() ) use ( $holder_admin ): array {
+			if ( 'revoke_wp_sudo_sessions' === ( $args['capability'] ?? null ) ) {
+				return array( $holder_admin );
+			}
+
+			if ( array_key_exists( 'capability', $args ) ) {
+				return array();
+			}
+
+			return array();
+		} );
+
+		$admin = new Admin();
+
+		ob_start();
+		$admin->render_access_tab();
+		$output = ob_get_clean();
+
+		// The human-readable label is the visible text for the capability.
+		$this->assertStringContainsString( "Revoke other users' active sessions", $output );
+		// Each capability and its Revoke control are grouped in one container.
+		$this->assertStringContainsString( 'wp-sudo-cap-item', $output );
+		// The raw slug is NOT rendered as prominent visible text (no bare <code> slug).
+		$this->assertStringNotContainsString( '<code>revoke_wp_sudo_sessions</code>', $output );
+		// The slug stays available to assistive tech (screen-reader text) and as a tooltip.
+		$this->assertStringContainsString( '<span class="screen-reader-text">revoke_wp_sudo_sessions</span>', $output );
+		$this->assertStringContainsString( 'title="revoke_wp_sudo_sessions"', $output );
+		// The revoke control contract is preserved for the JS handler.
+		$this->assertStringContainsString( 'wp-sudo-revoke-cap', $output );
+		$this->assertStringContainsString( 'data-cap="revoke_wp_sudo_sessions"', $output );
+		$this->assertStringContainsString( '>Revoke<', $output );
 	}
 
 	// -----------------------------------------------------------------

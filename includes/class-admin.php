@@ -1958,12 +1958,14 @@ class Admin {
 							</td>
 							<td>
 								<?php foreach ( $holder['caps'] as $cap ) : ?>
-									<code><?php echo esc_html( $cap ); ?></code>
-									<button type="button" class="button-link wp-sudo-revoke-cap"
-										data-user-id="<?php echo (int) $holder['user']->ID; ?>"
-										data-cap="<?php echo esc_attr( $cap ); ?>"
-										data-nonce="<?php echo esc_attr( $nonce ); ?>"
-									><?php esc_html_e( 'Revoke', 'wp-sudo' ); ?></button>
+									<div class="wp-sudo-cap-item" title="<?php echo esc_attr( $cap ); ?>">
+										<span class="wp-sudo-cap-label"><?php echo esc_html( self::get_cap_label( $cap ) ); ?><span class="screen-reader-text"><?php echo esc_html( $cap ); ?></span></span>
+										<button type="button" class="button-link wp-sudo-revoke-cap"
+											data-user-id="<?php echo (int) $holder['user']->ID; ?>"
+											data-cap="<?php echo esc_attr( $cap ); ?>"
+											data-nonce="<?php echo esc_attr( $nonce ); ?>"
+										><?php esc_html_e( 'Revoke', 'wp-sudo' ); ?></button>
+									</div>
 								<?php endforeach; ?>
 							</td>
 						</tr>
@@ -2001,7 +2003,7 @@ class Admin {
 					<select id="wp-sudo-grant-cap">
 						<?php foreach ( self::GOVERNANCE_CAPS as $cap ) : ?>
 							<option value="<?php echo esc_attr( $cap ); ?>" title="<?php echo esc_attr( $cap ); ?>">
-								<?php echo esc_html( self::get_cap_label( $cap ) . ' (' . $cap . ')' ); ?>
+								<?php echo esc_html( self::get_cap_label( $cap ) ); ?>
 							</option>
 						<?php endforeach; ?>
 					</select>
