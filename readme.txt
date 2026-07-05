@@ -5,7 +5,7 @@ Tags:              reauthentication, access control, admin protection, multisite
 Requires at least: 6.4
 Tested up to:      7.0
 Requires PHP:      8.2
-Stable tag:        4.2.2
+Stable tag:        4.5.0
 License:           GPL-2.0-or-later
 License URI:       https://spdx.org/licenses/GPL-2.0-or-later.html
 
@@ -181,6 +181,14 @@ Extensibility: the action registry is filterable via wp_sudo_gated_actions. Audi
 9. Users list — Sudo Active view with the "Revoke sudo sessions" bulk action and per-user row action.
 
 == Changelog ==
+
+= 4.5.0 =
+* **Security — escalation-guard authority** — the opt-in admin-escalation guard now requires the acting user to hold the promoting authority (`promote_users` for administrator grants, super-admin for `grant_super_admin`) in addition to an active sudo session, closing a broken-access-control bypass where a low-privilege account with a sudo session could pass the backstop.
+* **Security — session-revocation binding** — revoking another user's sudo session now requires the operator's token-bound sudo session, so a stolen auth cookie or a session without its own sudo can no longer revoke others' sessions.
+* **Session revocation UX** — revocation moved to a native "Revoke sudo sessions" Users-list bulk action (replacing the toolbar button and its unstyled interstitial), and the Session Activity dashboard widget now records and displays session revocations.
+* **Access tab** — the capability-holder table is more readable and accessible (one row per capability, human-readable labels, per-control accessible names, translatable labels); the governance coverage panel now names the context-correct capability on multisite and no longer lists super admins as unable to access settings.
+* **Two Factor lifecycle bridge** — the optional bridge now also gates classic `profile.php` / `user-edit.php` provider lifecycle changes behind an active sudo session.
+* **Localization** — committed the translation template and added WP-CLI-backed Composer commands to regenerate and verify it.
 
 = 4.2.2 =
 * **Access tab polish** — the Grant Capability form now includes a searchable administrator picker while preserving the numeric `user_id` grant contract.
@@ -395,6 +403,9 @@ Extensibility: the action registry is filterable via wp_sudo_gated_actions. Audi
 See the plugin's `CHANGELOG.md` for all versions.
 
 == Upgrade Notice ==
+
+= 4.5.0 =
+Recommended security update: hardens the admin-escalation guard (requires the actor's promoting authority) and session revocation (requires a token-bound sudo session). Adds bulk session revocation, dashboard revocation visibility, and Access-tab a11y/i18n. No migration required.
 
 = 4.0.0 =
 Breaking release: replace `sudo_can()` with `wp_sudo_can()`. Compatibility governance mode is removed; strict governance and `WP_SUDO_RECOVERY_MODE` remain. Requires WordPress 6.4+ and PHP 8.2+.
