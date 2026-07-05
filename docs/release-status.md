@@ -13,24 +13,25 @@ This file is the canonical source for **current release state** in this reposito
 
 ## Latest GitHub/tagged release
 
-- **Latest tagged release:** `4.2.2`
-- **Latest git tag observed:** `v4.2.2` (annotated, cut 2026-06-28).
-- **Next release staged (not yet tagged):** `4.5.0` — the version bump is committed on `main` (all five version-sync points, CHANGELOG, readme, POT) but no `v4.5.0` tag has been cut yet; tag creation remains maintainer-owned. The release-environment matrix is **cleared** for `4.5.0` (Apache lane completed, 6.4 CI-covered, managed-host waived — see `docs/release-environment-log.md`). Note: `blueprint.json`'s "Try latest release" target is intentionally left at `v4.2.2` and is bumped to `v4.5.0` **at tag time** (see the tag checklist below) so the release badge does not 404 during the staged-but-untagged window.
+- **Latest tagged release:** `4.5.0`
+- **Latest git tag observed:** `v4.5.0` (annotated, cut 2026-07-05, on `70cddfe`).
+- **Previous tag:** `v4.2.2` (annotated, cut 2026-06-28).
+- **Unreleased work beyond the tag:** `main` has advanced past the `v4.5.0` tag (`70cddfe`) and is **not** level with it. Post-tag commits include packaging bookkeeping (the `blueprint.json` "Try latest release" target bump to `archive/refs/tags/v4.5.0.zip`, PR #150) and post-release follow-up work (e.g. the dashboard-widget/Access-tab user-identity harmonization, PR #154). None of it is part of the `v4.5.0` release, and the runtime version constant stays `4.5.0` because no newer tag has been cut. This set is volatile — `git log v4.5.0..main --oneline` is the authoritative current list.
 
-### `v4.5.0` tag checklist (maintainer)
+### `v4.5.0` tag checklist (completed 2026-07-05)
 
-Perform in order when cutting the tag:
+All steps done; retained as the release record.
 
-1. **Release-environment matrix sign-off — ✅ complete for `4.5.0`.** The **Apache lane is completed** (real Apache 2.4.58 + mod_php 8.3.6 run, all six core sections pass, `Authorization`-header passthrough confirmed), the **minimum-WordPress (6.4)** lane is CI-covered, and the **managed-host** lane is cleared by an explicit maintainer waiver — all recorded in `docs/release-environment-log.md`. The environment-matrix gate is satisfied; proceed with the remaining steps.
-2. **Re-confirm version sync** — the five points are already at `4.5.0`; verify none drifted.
-3. **Bump `blueprint.json`** — change the stable-demo install target from `archive/refs/tags/v4.2.2.zip` to `archive/refs/tags/v4.5.0.zip` (this is the only edit deferred out of the release-prep PR, to avoid a broken "Try latest release" badge before the tag exists).
-4. **Cut the annotated tag** `v4.5.0` on the release commit; the release-ZIP CI attaches the install asset on the tag.
-5. **Update this file** — move `4.5.0` from "staged" to **Latest tagged release**, and set "Latest git tag observed" to `v4.5.0`.
+1. **Release-environment matrix sign-off — ✅ done.** Apache lane completed (real Apache 2.4.58 + mod_php 8.3.6 run, all six core sections pass, `Authorization`-header passthrough confirmed), minimum-WordPress (6.4) lane CI-covered, managed-host lane cleared by explicit maintainer waiver — all recorded in `docs/release-environment-log.md`.
+2. **Re-confirm version sync — ✅ done.** All five points at `4.5.0`; no drift (re-verified with the full gate run: unit, PHPStan L6, Psalm, PHPCS, metrics, i18n).
+3. **Bump `blueprint.json` — ✅ done** (PR #150): stable-demo install target now `archive/refs/tags/v4.5.0.zip`, merged after the tag was cut.
+4. **Cut the annotated tag — ✅ done.** `v4.5.0` (annotated, signed) on `70cddfe`; GitHub Release published, release-ZIP CI attaches the install asset.
+5. **Update this file — ✅ done** (this edit): `4.5.0` recorded as Latest tagged release / `v4.5.0` as latest git tag observed.
 6. **wordpress.org submission** remains independently on hold and is not gated by the GitHub tag.
 
 ## Current `main` release state
 
-- **Current `main` version:** `4.5.0` — version bump committed and staged for the next tag; **no `v4.5.0` tag cut yet** (latest tag remains `v4.2.2`).
+- **Current `main` version:** `4.5.0` (runtime constant) — released as **`v4.5.0`** (2026-07-05, `70cddfe`). `main` has since advanced past the tag with post-tag commits (see "Unreleased work beyond the tag" above); the version constant is unchanged because no newer tag exists.
 - **Runtime version constant:** `4.5.0` on `main`. `WP_SUDO_VERSION` is set in `wp-sudo.php` (header + constant), `tests/bootstrap.php`, and `phpstan-bootstrap.php`; `readme.txt` Stable tag is `4.5.0`. All five version-sync points are in sync at `4.5.0`.
 - **Current package metadata (on `main`):** `readme.txt` Stable tag `4.5.0` == header Version (no `stable_tag_mismatch`); `Requires at least 6.4`, `Requires PHP 8.2`, `Tested up to 7.0`. WordPress.org listing name: **"Sudo – Admin Action Gating"** (UI brand "Sudo"; slug/text-domain stay `wp-sudo` — lock the slug at submission).
 - **Last archived release checklist:** `docs/archive/release-3.0.0-checklist.md`
@@ -45,7 +46,16 @@ Perform in order when cutting the tag:
 
 ## Latest release contents
 
-`4.2.2` is a release-readiness refresh after Phase 13.1 gap closure:
+`4.5.0` (tagged 2026-07-05) is a recommended security update bundling the work since `v4.2.2`:
+
+- **Security hardening:** escalation-guard authority (the opt-in guard now requires the actor's promoting capability, not just a sudo session) and session-revocation token-binding (a stolen cookie can't revoke sessions).
+- **Session governance & admin UX:** native "Revoke sudo sessions" Users-list bulk action, dashboard revocation/escalation visibility, and an Access-tab capability-table readability/accessibility/i18n pass.
+- **Two Factor lifecycle bridge:** gates classic profile/user-edit provider lifecycle changes behind an active sudo session.
+- **Localization packaging:** WP-CLI-backed POT regenerate/verify commands and the committed release-grade `wp-sudo.pot`.
+
+See the `CHANGELOG.md` `4.5.0` section for the full itemized list.
+
+`4.2.2` was a release-readiness refresh after Phase 13.1 gap closure:
 
 - **Access tab polish:** Grant Capability now has a searchable administrator picker with tests while preserving the numeric `user_id` grant contract.
 - **Canonical metrics and screenshot refresh:** `docs/current-metrics.md` verifies cleanly and `.wordpress-org/screenshot-6.png` shows the searchable picker.
@@ -67,17 +77,17 @@ Perform in order when cutting the tag:
 
 `4.1.0` (tagged 2026-06-24) remains the security-hardening release that closed the coordinated-disclosure gate-completeness findings and introduced the opt-in admin-escalation guard.
 
-Canonical source for post-tag drift after `v4.2.2`: `git log v4.2.2..main --oneline`.
+Canonical source for post-tag drift after `v4.5.0`: `git log v4.5.0..main --oneline`.
 
-## Unreleased `main` work
+## `4.5.0` release contents (shipped)
 
-Work after `v4.2.2` is **substantial** — it spans two completed GSD
-milestones (v4.4.0 Two Factor Lifecycle Bridge and v4.5 Session Governance &
-Admin UX) plus security hardening, none of it yet cut as a **tagged** plugin
-release. The version constant is now bumped to `4.5.0` on `main` (staged; no
-`v4.5.0` tag exists yet), so the next tag would ship all of the below. Canonical
-drift source: `git log v4.2.2..main --oneline` (98 commits as of 2026-07-05; see
-the `CHANGELOG.md` `4.5.0` section for the curated feature list).
+The `v4.5.0` tag (2026-07-05) shipped the **substantial** body of work
+accumulated since `v4.2.2` — two completed GSD milestones (v4.4.0 Two Factor
+Lifecycle Bridge and v4.5 Session Governance & Admin UX) plus security
+hardening. All of it is now released. `main` and the tag are level, so there is
+no unreleased work beyond the tag. Canonical drift source for the release:
+`git log v4.2.2..v4.5.0 --oneline`; see the `CHANGELOG.md` `4.5.0` section for
+the curated feature list.
 
 **Security hardening (backward-compatible fixes):**
 
@@ -101,7 +111,7 @@ the `CHANGELOG.md` `4.5.0` section for the curated feature list).
 
 **Documentation (no runtime impact):** Patchstack 2FA compatibility runtime-validated offline against a licensed Pro 2.3.6 fixture and documented (not a shipped integration); SSO/passwordless auth boundary clarified; Two Factor ecosystem/integration docs and canonical metrics refreshed. Current suite: **986 unit tests / 3,003 assertions** (see `docs/current-metrics.md`).
 
-Canonical source for drift after the tag: `git log v4.2.2..main --oneline`.
+Canonical source for drift after the tag: `git log v4.5.0..main --oneline`.
 
 ### Release environment assurance
 
