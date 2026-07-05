@@ -21,7 +21,7 @@ This file is the canonical source for **current release state** in this reposito
 
 Perform in order when cutting the tag:
 
-1. **Release-environment matrix sign-off** — run/record the Apache, managed-host, and minimum-supported-WordPress lanes in `docs/release-environment-log.md` (the `v4.2.2` row is currently *Deferred*), or explicitly waive.
+1. **Release-environment matrix sign-off** — for `4.5.0`: the **Apache lane is completed** (real Apache 2.4.58 + mod_php 8.3.6 run, all six core sections pass, `Authorization`-header passthrough confirmed) and the **minimum-WordPress (6.4)** lane is CI-covered — both recorded in `docs/release-environment-log.md`. The **managed-host** lane is still outstanding: run it on a real managed host, or record an explicit maintainer waiver for that one lane, before tagging.
 2. **Re-confirm version sync** — the five points are already at `4.5.0`; verify none drifted.
 3. **Bump `blueprint.json`** — change the stable-demo install target from `archive/refs/tags/v4.2.2.zip` to `archive/refs/tags/v4.5.0.zip` (this is the only edit deferred out of the release-prep PR, to avoid a broken "Try latest release" badge before the tag exists).
 4. **Cut the annotated tag** `v4.5.0` on the release commit; the release-ZIP CI attaches the install asset on the tag.
