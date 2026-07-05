@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 4.5.1 - 2026-07-05
 
 - **Harmonized user identity across admin surfaces (UX):** the dashboard Session Activity widget and the Settings → Sudo Access tab now present users identically — the user's **full real name** is the primary/prominent line, the **username** is secondary (linked to the user-edit screen when the operator can edit that user), shown with an avatar and translated role chip(s). Previously the Access tab showed only the display name plus a `<code>`-styled login (no avatar, no role), while the widget led with the username; the two have been unified. A shared `WP_Sudo\User_Identity` helper (`primary_name()` / `role_labels()`) is the single source of truth so the surfaces cannot drift, and role names are localized via `translate_user_role()`. Also fixes a latent no-op: the widget avatar passed `get_avatar()` a non-existent `force` argument, so it honored the site's "Show Avatars" (Discussion) setting instead of always rendering — corrected to `force_display`, so sudo-governance avatars render regardless of that setting.
 

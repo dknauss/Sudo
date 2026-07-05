@@ -5,7 +5,7 @@ Tags:              reauthentication, access control, admin protection, multisite
 Requires at least: 6.4
 Tested up to:      7.0
 Requires PHP:      8.2
-Stable tag:        4.5.0
+Stable tag:        4.5.1
 License:           GPL-2.0-or-later
 License URI:       https://spdx.org/licenses/GPL-2.0-or-later.html
 
@@ -181,6 +181,10 @@ Extensibility: the action registry is filterable via wp_sudo_gated_actions. Audi
 9. Users list — Sudo Active view with the "Revoke sudo sessions" bulk action and per-user row action.
 
 == Changelog ==
+
+= 4.5.1 =
+* **Harmonized user identity (UX)** — the Session Activity dashboard widget and the Settings → Sudo Access tab now present users identically: full real name as the primary line, username secondary (linked to the user-edit screen when the operator can edit that user), with an avatar and translated role chip(s). A shared `WP_Sudo\User_Identity` helper keeps the two surfaces from drifting.
+* **Avatar rendering fix** — the widget avatar passed `get_avatar()` a non-existent `force` argument, so it silently honored the site's "Show Avatars" (Discussion) setting instead of always rendering; corrected to `force_display`.
 
 = 4.5.0 =
 * **Security — escalation-guard authority** — the opt-in admin-escalation guard now requires the acting user to hold the promoting authority (`promote_users` for administrator grants, super-admin for `grant_super_admin`) in addition to an active sudo session, closing a broken-access-control bypass where a low-privilege account with a sudo session could pass the backstop.
@@ -403,6 +407,9 @@ Extensibility: the action registry is filterable via wp_sudo_gated_actions. Audi
 See the plugin's `CHANGELOG.md` for all versions.
 
 == Upgrade Notice ==
+
+= 4.5.1 =
+UX release: unifies how users are shown on the dashboard widget and the Access tab (full name primary, username secondary, avatar, role chips) and fixes a widget avatar that failed to render when "Show Avatars" was off. No migration required.
 
 = 4.5.0 =
 Recommended security update: hardens the admin-escalation guard (requires the actor's promoting authority) and session revocation (requires a token-bound sudo session). Adds bulk session revocation, dashboard revocation visibility, and Access-tab a11y/i18n. No migration required.

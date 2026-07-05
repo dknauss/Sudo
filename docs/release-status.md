@@ -13,10 +13,10 @@ This file is the canonical source for **current release state** in this reposito
 
 ## Latest GitHub/tagged release
 
-- **Latest tagged release:** `4.5.0`
+- **Latest tagged release:** `4.5.0` (the `v4.5.1` tag is **staged but not yet cut** — see below).
 - **Latest git tag observed:** `v4.5.0` (annotated, cut 2026-07-05, on `70cddfe`).
 - **Previous tag:** `v4.2.2` (annotated, cut 2026-06-28).
-- **Unreleased work beyond the tag:** `main` has advanced past the `v4.5.0` tag (`70cddfe`) and is **not** level with it. Post-tag commits include packaging bookkeeping (the `blueprint.json` "Try latest release" target bump to `archive/refs/tags/v4.5.0.zip`, PR #150) and post-release follow-up work (e.g. the dashboard-widget/Access-tab user-identity harmonization, PR #154). None of it is part of the `v4.5.0` release, and the runtime version constant stays `4.5.0` because no newer tag has been cut. This set is volatile — `git log v4.5.0..main --oneline` is the authoritative current list.
+- **Unreleased work beyond the tag:** `main` is bumped to `4.5.1` across all five version-sync points, staged for a `v4.5.1` tag that has **not** been cut yet. Until it is, the latest actual tag remains `v4.5.0` and `main` is ahead of it. The `4.5.1` payload is the dashboard-widget/Access-tab user-identity harmonization (PR #154) plus the release bump; the exact commit set is `git log v4.5.0..main --oneline`.
 
 ### `v4.5.0` tag checklist (completed 2026-07-05)
 
@@ -29,11 +29,22 @@ All steps done; retained as the release record.
 5. **Update this file — ✅ done** (this edit): `4.5.0` recorded as Latest tagged release / `v4.5.0` as latest git tag observed.
 6. **wordpress.org submission** remains independently on hold and is not gated by the GitHub tag.
 
+### `v4.5.1` tag checklist (staged 2026-07-05, tag pending)
+
+The tree is release-ready; the annotated tag and GitHub Release are maintainer-owned and not yet done.
+
+1. **Release-environment matrix sign-off — ✅ carried over.** The `4.5.1` delta over the `v4.5.0` tag is PR #154's **admin-UI presentation** changes (dashboard widget + Access-tab rendering, `User_Identity` helper, admin CSS, `get_avatar` `force_display` fix) plus the version bump — admin-side rendering that does not touch the server/host/WordPress-floor dimensions the manual matrix exercises, and is CI-covered on the 6.4 floor. The completed `4.5.0` matrix (Apache completed, min-WP CI-covered, managed-host waived) therefore applies. Reuse rationale recorded in `docs/release-environment-log.md`.
+2. **Version sync — ✅ done.** All five points at `4.5.1` (`wp-sudo.php` header + constant, `tests/bootstrap.php`, `phpstan-bootstrap.php`, `readme.txt` Stable tag).
+3. **CHANGELOG + readme.txt — ✅ done.** `4.5.1` dated section in `CHANGELOG.md`; `readme.txt` Changelog and Upgrade Notice entries added.
+4. **Cut the annotated tag — ⏳ pending (maintainer).** Cut `v4.5.1` from the release commit; publish the GitHub Release.
+5. **Bump `blueprint.json` — ⏳ pending (post-tag).** Deliberately **not** bumped in this PR: the public "Try latest release" badges load `blueprint.json` from `main`, so pointing the install target at `archive/refs/tags/v4.5.1.zip` before the tag exists would make the public demo fetch a missing ZIP. It stays on `v4.5.0.zip` and is bumped to `v4.5.1.zip` **after** the tag is cut (the same post-tag ordering used for `4.5.0` via PR #150).
+6. **Update this file — ⏳ pending.** After the tag is cut, record `4.5.1` as Latest tagged release / `v4.5.1` as latest git tag observed.
+
 ## Current `main` release state
 
-- **Current `main` version:** `4.5.0` (runtime constant) — released as **`v4.5.0`** (2026-07-05, `70cddfe`). `main` has since advanced past the tag with post-tag commits (see "Unreleased work beyond the tag" above); the version constant is unchanged because no newer tag exists.
-- **Runtime version constant:** `4.5.0` on `main`. `WP_SUDO_VERSION` is set in `wp-sudo.php` (header + constant), `tests/bootstrap.php`, and `phpstan-bootstrap.php`; `readme.txt` Stable tag is `4.5.0`. All five version-sync points are in sync at `4.5.0`.
-- **Current package metadata (on `main`):** `readme.txt` Stable tag `4.5.0` == header Version (no `stable_tag_mismatch`); `Requires at least 6.4`, `Requires PHP 8.2`, `Tested up to 7.0`. WordPress.org listing name: **"Sudo – Admin Action Gating"** (UI brand "Sudo"; slug/text-domain stay `wp-sudo` — lock the slug at submission).
+- **Current `main` version:** `4.5.1` (runtime constant), staged for the `v4.5.1` tag (**not yet cut**). The latest actual tag is still `v4.5.0`; `main` is ahead of it by the `4.5.1` payload.
+- **Runtime version constant:** `4.5.1` on `main`. `WP_SUDO_VERSION` is set in `wp-sudo.php` (header + constant), `tests/bootstrap.php`, and `phpstan-bootstrap.php`; `readme.txt` Stable tag is `4.5.1`. All five version-sync points are in sync at `4.5.1`.
+- **Current package metadata (on `main`):** `readme.txt` Stable tag `4.5.1` == header Version (no `stable_tag_mismatch`); `Requires at least 6.4`, `Requires PHP 8.2`, `Tested up to 7.0`. WordPress.org listing name: **"Sudo – Admin Action Gating"** (UI brand "Sudo"; slug/text-domain stay `wp-sudo` — lock the slug at submission).
 - **Last archived release checklist:** `docs/archive/release-3.0.0-checklist.md`
 
 ## WordPress.org publication status
