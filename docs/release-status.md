@@ -97,8 +97,9 @@ Canonical source for post-tag drift after `v4.5.0`: `git log v4.5.0..main --onel
 The `v4.5.0` tag (2026-07-05) shipped the **substantial** body of work
 accumulated since `v4.2.2` — two completed GSD milestones (v4.4.0 Two Factor
 Lifecycle Bridge and v4.5 Session Governance & Admin UX) plus security
-hardening. All of it is now released. `main` and the tag are level, so there is
-no unreleased work beyond the tag. Canonical drift source for the release:
+hardening — released as of the `v4.5.0` tag. `main` has since **advanced past**
+`v4.5.0` (the staged `4.5.1` version bump plus post-tag docs/CI work), so there **is**
+unreleased work beyond the tag; see "Unreleased `main` work" below. Drift source:
 `git log v4.2.2..v4.5.0 --oneline`; see the `CHANGELOG.md` `4.5.0` section for
 the curated feature list.
 
@@ -128,7 +129,7 @@ Canonical source for drift after the tag: `git log v4.5.0..main --oneline`.
 
 ### Release environment assurance
 
-Phase 17 added [`docs/release-environment-log.md`](release-environment-log.md) as the record of record for release-grade manual environment matrix outcomes. The current `v4.2.2` package row is explicitly **Deferred**: Apache stack, managed WordPress host, and minimum-supported-WordPress lanes were not rerun in Phase 17 and each is owned by the Maintainer before the next public tag/publication decision, blocking unless explicitly waived.
+Phase 17 added [`docs/release-environment-log.md`](release-environment-log.md) as the record of record for release-grade manual environment matrix outcomes. For the current `4.5.0`/`4.5.1` package the environment-matrix gate is **cleared for tag**: the Apache lane is completed, the minimum-supported-WordPress (6.4) floor is CI-covered, and the managed-host lane is cleared by an explicit maintainer waiver (see the log). The historical `v4.2.2` row remains **Deferred**.
 
 Release readiness now distinguishes **Pre-tag/core** gates from **WordPress.org-only** gates. Pre-tag/core gates cover version sync, Composer validation commands, external-claim audit, changelog/readme/release-status sanity, package metadata, and the release environment matrix/log gate. WordPress.org-only gates cover the readme validator, clean-package Plugin Check, SVN layout/upload, listing assets, screenshot/caption parity, slug-lock decision, and final publication approval. WordPress.org submission/upload remains delayed/on hold.
 

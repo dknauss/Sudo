@@ -127,7 +127,7 @@ Recommended next multisite browser sequence:
 - **Local multisite drift**: Symlinked Local/Studio plugin installs can execute the plugin from the repo target path, not the public `wp-content/plugins/<slug>` path. Bootstrap URL logic must recover the public plugin basename from active plugin state, and browser regressions for that behavior remain local-only.
 - **Multisite browser scope**: Hosted Playwright CI still cannot prove network-admin-only stash/replay behavior. Local multisite regressions should target multisite-specific routing seams in priority order instead of adding broad duplicate coverage.
 - **Two Factor source discipline**: Third-party technical claims about upstream WordPress/two-factor internals must be refreshed from live source before implementation and cited in code/docs.
-- **Patchstack fixture boundary**: Patchstack Security 2FA compatibility remains manual/fixture-blocked until a paid Patchstack-enabled test environment exists; do not ship Patchstack bridge code or runtime support claims from source inspection alone.
+- **Patchstack boundary**: Patchstack Security 2FA core bridge path was runtime-validated offline against a licensed Pro 2.3.6 fixture (PR #145) — the fixture blocker is resolved. The remaining Patchstack work is the live login-form / profile-save / WooCommerce lifecycle runs and the bridge-vs-upstream decision; do not ship Patchstack bridge code or a runtime support claim until those lifecycle runs land.
 
 ## Key Decisions
 

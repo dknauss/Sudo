@@ -28,14 +28,16 @@ The `v4.2.2` package already exists, but Phase 17 did not rerun release-grade ma
 
 The `4.5.0` package is staged on `main` (version-synced; no `v4.5.0` tag cut yet).
 The **Apache lane is completed** (evidence below). The **managed-host** lane is
-still outstanding (it needs a real managed WordPress host, which the build sandbox
-cannot provide). The **minimum-WordPress (6.4)** lane is functionally covered by CI.
+**waived** for `4.5.0` by explicit maintainer waiver (see below) — it was not run
+because a real managed WordPress host is not reachable from the build sandbox;
+residual risk accepted. The **minimum-WordPress (6.4)** lane is functionally covered
+by CI (on the PHP 8.2 single-site lane — see the row below for the exact scope).
 
 | Environment lane | Status | Owner | Timing | Blocks next public tag/publication decision? | Notes |
 |------------------|--------|-------|--------|---------------------------------------------|-------|
 | Apache stack | **Completed** 2026-07-05 | Claude Code (remote build sandbox) | Done | No — completed | Real **Apache/2.4.58 + mod_php 8.3.6 + mod_rewrite** stack serving the merged 4.5.0 replica. All six core sections (1.1, 2.1, 2.9, 4.1, 5.2, 9.1) pass; the `mod_rewrite` pretty REST route and the `Authorization`-header App-Password passthrough both work under Apache (§5.2). Full evidence below. Note: this is Apache **in the build container**, not a Local-by-Flywheel/managed host. |
 | Managed WordPress host | Waived (maintainer) | Maintainer | Waived for `4.5.0` on 2026-07-05 | No — waived | Waived (see the managed-host waiver below). **Not** independently executed on a managed host — not reproducible in the build sandbox (no route to an external managed host). Residual risk accepted: managed-host object cache, mu-plugin, and filesystem-policy behavior not exercised. |
-| Minimum supported WordPress version (6.4) | Covered by CI — manual smoke optional | Maintainer | Optional before tag | No (CI-covered) | The automated Integration matrix runs the full suite on the **6.4 floor** (PHP 8.2/8.3, single-site and multisite), covering the functional dimension. A manual 6.4 browser smoke (sections 1.1, 2.1, 2.9, 4.1, 5.2, 9.1) remains optional. |
+| Minimum supported WordPress version (6.4) | Covered by CI — manual smoke optional | Maintainer | Optional before tag | No (CI-covered) | The automated Integration matrix runs the full suite on the **6.4 floor** on **PHP 8.2, single-site** (the only 6.4 lane in `.github/workflows/phpunit.yml`); multisite is exercised on the PHP 8.3 / WP 7.0 lane, **not** on 6.4. This covers the functional dimension on the floor; a manual 6.4 browser smoke (sections 1.1, 2.1, 2.9, 4.1, 5.2, 9.1) — and specifically 6.4 multisite — remains optional. |
 
 ### Completed lane evidence: Apache stack (2026-07-05)
 
@@ -91,7 +93,7 @@ The `4.5.1` package is staged on `main` (version-synced; no `v4.5.1` tag cut yet
 
 - **Decision:** The `4.5.0` environment matrix above is **reused** for `4.5.1`; no lane is re-run.
 - **What actually changed since the `v4.5.0` tag:** `git diff v4.5.0..<release-commit> -- includes/ bridges/ mu-plugin/ admin/ wp-sudo.php` shows PR #154 only — `includes/class-admin.php`, `includes/class-dashboard-widget.php`, new `includes/class-user-identity.php`, `admin/css/wp-sudo-admin.css`, and the version constant/header in `wp-sudo.php`. This is **admin-UI presentation code** (how a user is rendered on the dashboard widget and the Access tab) plus the `get_avatar()` `force`→`force_display` fix. It is *not* a version-only bump — there is a real code delta from the tagged `4.5.0` tree.
-- **Why the matrix still applies (not re-run):** the manual environment matrix exists to catch **server- and host-layer** differences — Apache URL-rewrite and `Authorization`-header passthrough for REST/App-Password auth, managed-host object cache / platform mu-plugins / filesystem policy, and the WordPress 6.4 floor. PR #154's changes are admin-side rendering with no new REST/rewrite/auth surface and no API newer than the 6.4 floor (`get_avatar`, `translate_user_role`, `wp_roles` all long predate 6.4). Those functional changes are exercised by the CI Integration matrix on the 6.4 floor (single-site and multisite). No environmental dimension the manual lanes test is affected by admin-markup changes, so a re-run would exercise nothing new.
+- **Why the matrix still applies (not re-run):** the manual environment matrix exists to catch **server- and host-layer** differences — Apache URL-rewrite and `Authorization`-header passthrough for REST/App-Password auth, managed-host object cache / platform mu-plugins / filesystem policy, and the WordPress 6.4 floor. PR #154's changes are admin-side rendering with no new REST/rewrite/auth surface and no API newer than the 6.4 floor (`get_avatar`, `translate_user_role`, `wp_roles` all long predate 6.4). Those functional changes are exercised by the CI Integration matrix on the 6.4 floor (PHP 8.2 single-site; multisite is covered on the PHP 8.3 / WP 7.0 lane). No environmental dimension the manual lanes test is affected by admin-markup changes, so a re-run would exercise nothing new.
 - **Owner / approver:** Maintainer (reuse rationale authored for review; the tag decision remains maintainer-owned).
 - **Scope:** Clears the environment-matrix gate for the `v4.5.1` tag by inheritance. Does **not** approve a WordPress.org upload/submission, which remains separately on hold.
 
