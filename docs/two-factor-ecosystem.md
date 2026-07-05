@@ -171,32 +171,47 @@ Here is how the major WordPress 2FA plugins store and validate credentials, and 
 
 ### Patchstack Security
 
-**Status:** Second-tier/manual-test target and bridgeable design target;
-fixture-blocked until a paid Patchstack-enabled runtime exists. Do not treat
-source inspection as a shipped support claim.
+**Status:** Second-tier/manual-test target and bridgeable design target.
+Source facts below are now **confirmed first-hand against the Patchstack Pro
+distribution, version 2.3.6** (`includes/login.php`, `includes/activation.php`),
+in addition to the earlier free-mode SVN inspection. Runtime behavior is still
+being validated in a local fixture (see "Runtime fixture" below) — do not treat
+this as a shipped/runtime-verified support claim until that work lands.
 
-Verified against WordPress.org SVN on 2026-06-29:
+Verified against WordPress.org SVN on 2026-06-29 and against Patchstack Pro
+2.3.6 source on 2026-07-05:
 
 | Aspect | Detail |
 |--------|--------|
-| Source | [`includes/login.php`](https://plugins.svn.wordpress.org/patchstack/trunk/includes/login.php) |
-| Repository evidence | Repository revision `3590474`; file last changed revision `3433693`, 2026-01-06 07:17:24 -0700. |
-| Feature flag | Plugin option `patchstack_login_2fa` enables the 2FA hooks. |
-| Paid-fixture caveat | `P_Login::__construct()` returns early when `patchstack_license_free` is `1`, before meaningful 2FA hook registration. Runtime behavior cannot be claimed without a paid Patchstack-enabled fixture. |
-| Detection | `get_user_option( 'webarx_2fa_enabled', $user_id )` |
-| Login field | `patchstack_2fa` |
-| Validation | `TokenAuth6238::verify( $secret, $code )` after `P_Login::tfa_get_secret( $user )` decrypts/generates the secret. |
-| Storage | `webarx_2fa_secretkey` plus `webarx_2fa_secretkey_nonce` user options. |
-| Profile lifecycle | `patchstack_2fa_enabled` is saved on `personal_options_update` / `edit_user_profile_update`; WooCommerce account forms have parallel handlers. |
+| Source | [`includes/login.php`](https://plugins.svn.wordpress.org/patchstack/trunk/includes/login.php) (trunk); Pro 2.3.6 `includes/login.php` confirms the same class and symbols. |
+| Repository evidence | Repository revision `3590474`; file last changed revision `3433693`, 2026-01-06 07:17:24 -0700. Pro distribution header: `Version: 2.3.6`. |
+| Feature flag | The `patchstack_login_2fa` option gates the 2FA hook block in `P_Login::__construct()` (login.php:47): `authenticate` → `tfa_authenticate` (pri 30), `login_form` → `tfa_login_form`, `personal_options_update` / `edit_user_profile_update` lifecycle, plus WooCommerce parallels. |
+| License gate (fixture note) | `P_Login::__construct()` returns early when the **stored option** `patchstack_license_free == 1` (login.php:29). This is a persisted option, not a live per-request license call: a fresh offline activation with no credentials sets it to `'1'` (activation.php:192), suppressing 2FA, but a fixture can `update_option( 'patchstack_license_free', '0' )` to register the full 2FA stack offline. The activation-time license/firewall API calls fail gracefully (empty token) without blocking 2FA. So a *paid license server* is not strictly required to exercise the 2FA path — only the two stored options. |
+| Detection | `get_user_option( 'webarx_2fa_enabled', $user->ID )` (login.php:108). |
+| Login field | `$_POST['patchstack_2fa']` (login.php:114). |
+| Validation | `TokenAuth6238::verify( $secret, trim( $_POST['patchstack_2fa'] ) )` where `$secret = P_Login::tfa_get_secret( $user )` (login.php:120-121). `tfa_get_secret()` is **private** and reads/decrypts the stored secret (libsodium). |
+| Storage | Secret encrypted across `webarx_2fa_secretkey` (cipher) plus `webarx_2fa_secretkey_nonce` (nonce) user options (login.php:222,232-235). |
+| Profile lifecycle | The `webarx_2fa_enabled` user option is written from the `$_POST['patchstack_2fa_enabled']` form field on `personal_options_update` / `edit_user_profile_update` (login.php:193,203); WooCommerce account forms have parallel handlers (`woocommerce_save_account_details_errors`, login.php:60). |
 
 Manual-test implications:
 
 - This target is outside WP Sudo's automatic `WordPress/two-factor`
   integration because it uses its own TOTP implementation and user-option keys.
-- Source inspection suggests a bridgeable design target because validation is
-  local TOTP rather than a hosted/cloud-only check.
+- It is a bridgeable design target: validation is local TOTP (RFC 6238) rather
+  than a hosted/cloud-only check. Detection for a bridge is trivial via the
+  public `webarx_2fa_enabled` user option; validation needs the plaintext
+  secret, which only the private `P_Login::tfa_get_secret()` exposes — a bridge
+  would call it via reflection or replicate the libsodium decrypt.
 - Keep Patchstack behind the upstream `WordPress/two-factor` lifecycle bridge
-  unless user demand and a paid fixture make manual runtime testing possible.
+  unless user demand and manual runtime testing justify a dedicated bridge.
+
+**Runtime fixture (in progress):** the paid-fixture blocker recorded in the
+original todo is surmountable offline — the license gate is a stored option, not
+a live call. A local WP replica with Patchstack Pro 2.3.6, `patchstack_license_free = 0`,
+and `patchstack_login_2fa = 1` is being used to confirm (1) the 2FA hooks
+register, (2) `TokenAuth6238::verify` validates a generated TOTP offline, and
+(3) a WP Sudo bridge shape. This section will be updated with the runtime
+outcome; the compatibility target remains manual-test until then.
 
 ### Wordfence Login Security
 
