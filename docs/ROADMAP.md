@@ -1163,26 +1163,35 @@ where factor-management actions can create credentials used to pass later sudo
 **Patchstack 2FA compatibility target**
 
 Patchstack Security includes its own paid-feature TOTP flow rather than using the
-upstream `WordPress/two-factor` provider API. Verified against WordPress.org SVN
-trunk revision 3589135 on 2026-06-28: the login integration is enabled by the
-`patchstack_login_2fa` option, stores per-user state in `webarx_2fa_enabled`,
-`webarx_2fa_secretkey`, and `webarx_2fa_secretkey_nonce`, collects the login code
-from `patchstack_2fa`, and validates with `TokenAuth6238::verify()` in
+upstream `WordPress/two-factor` provider API. Confirmed first-hand against
+Patchstack Pro 2.3.6 source (file last-changed SVN revision 3433693, 2026-01-06):
+the login integration is enabled by the `patchstack_login_2fa` option, stores
+per-user state in `webarx_2fa_enabled`, `webarx_2fa_secretkey`, and
+`webarx_2fa_secretkey_nonce`, collects the login code from `patchstack_2fa`, and
+validates with `TokenAuth6238::verify()` in
 [`includes/login.php`](https://plugins.svn.wordpress.org/patchstack/trunk/includes/login.php).
-The constructor returns early for free-license mode (`patchstack_license_free`),
-so end-to-end compatibility testing probably needs a paid Patchstack-enabled
-environment.
+2FA registration is limited to licensed Pro installs (the constructor returns
+early in free-license mode). The core bridge path is now **runtime-validated
+offline** against a legitimately licensed Pro 2.3.6 fixture; the live login-form
+challenge, `profile.php` save, and WooCommerce lifecycle remain manual-test. See
+[`docs/two-factor-ecosystem.md`](two-factor-ecosystem.md) → Patchstack for the
+full evidence.
 
 Recommended scope:
 
 - Track Patchstack as a **second-tier 2FA compatibility target**, behind the
   upstream Two Factor lifecycle bridge.
-- Start with documentation/manual compatibility testing: confirm WP Sudo's
-  challenge can delegate to a Patchstack bridge for TOTP validation without
-  reading/storing the secret directly.
-- If demand justifies a bridge, detect enrollment via `webarx_2fa_enabled` and
-  validate through Patchstack's own TOTP verifier instead of duplicating secret
-  handling.
+- Remaining manual compatibility testing: exercise the live login-form
+  challenge, the `profile.php` save flow, and the WooCommerce account-form
+  lifecycle (the core detection/validation path is already runtime-validated
+  offline).
+- If demand justifies a bridge, detect enrollment via the public
+  `webarx_2fa_enabled` user option and validate through Patchstack's own
+  `TokenAuth6238::verify()`. Verification needs the plaintext secret, which
+  Patchstack exposes only through the private `P_Login::tfa_get_secret()`, so a
+  bridge must reach it via reflection or replicate the libsodium decrypt of
+  `webarx_2fa_secretkey` / `_nonce` — validating "without reading the secret" is
+  not possible for this plugin's design.
 - Treat Patchstack profile 2FA enable/disable as a factor-lifecycle action that
   should be considered for gating in the same design pass as other 2FA lifecycle
   bridges.
