@@ -1,6 +1,6 @@
 # Roadmap: Past and Future Planning — Integration Tests, WP 7.0 Prep, Collaboration, TDD, and Core Design
 
-*Updated June 28, 2026*
+*Updated July 5, 2026*
 
 ## Table of Contents
 
@@ -78,6 +78,12 @@ and acceptance criteria.
 ~~**Connectors matcher and release verification path**~~ ✅ Done across the v4.x release line: the registry-aware matcher shipped, the package metadata now targets WP 7.0, and manual Connectors credential-gating checks live in [tests/MANUAL-TESTING.md](../tests/MANUAL-TESTING.md). Current release/package truth is [`docs/release-status.md`](release-status.md); do not duplicate volatile tag or version facts here.
 
 Remaining Connectors-adjacent backlog should be tracked as future feature work, not as WP 7.0 prep debt.
+
+### Short-term: Release Confidence and Sudo Fundamentals Baseline
+
+- **Release Confidence E2E workflow** — Add a manual release-grade GitHub Actions entrypoint that runs the existing high-confidence targets together without making nginx multisite or SQLite mandatory on every PR: Apache/wp-env full Playwright E2E, nginx + MariaDB smoke, nginx + MariaDB multisite smoke, and Playground SQLite smoke. See [`docs/release-e2e-confidence.md`](release-e2e-confidence.md).
+- **Psudo Lite / Sudo Lite reference baseline** — Preserve the original Psudo idea as a deliberately small page-level reauthentication reference, and define Sudo Lite as the minimal action-gating baseline. Use [`docs/sudo-lite/fundamentals-cross-check.md`](sudo-lite/fundamentals-cross-check.md) during WP Sudo reviews so the full plugin remains faithful to the simple invariants: fresh reauthentication, current-session binding, short trust windows, clear protected-action rules, safe redirects, and safe non-interactive failure behavior.
+- **Roadmap intent:** these lightweight references are not replacement products for WP Sudo. They are design anchors and audit tools for keeping the main project understandable and security-focused as coverage expands.
 
 ### Short-term: Testing Infrastructure
 
