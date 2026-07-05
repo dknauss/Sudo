@@ -24,7 +24,7 @@ Last activity: 2026-07-04 — Phase 25 shipped (PR #141); REVK manual verificati
 Branch: `claude/whats-next-dc6xeq` — all v4.5 follow-up work (PRs #139/#140/#141) developed and pushed here; branch restarts from main after each merge.
 Origin: session-revocation UI review on 2026-06-30 (`.planning/todos/done/2026-06-30-session-revocation-surfaces.md` — retired 2026-07-04).
 Product release state: Latest tagged plugin release remains `v4.2.2`; v4.5 is a GSD milestone and does not create a product release tag unless release metadata is intentionally bumped.
-Open threads: WordPress.org submission remains intentionally delayed/on hold; keep `docs/wporg-submission-checklist.md` ready. Patchstack paid-fixture/manual runtime testing remains fixture-blocked and out of runtime-claim scope. Public screenshot refresh (swap within the 9-slot budget, not add) is pending post-#141-merge because the v4.5 Users-list/widget surfaces are absent from the current set.
+Open threads: WordPress.org submission remains intentionally delayed/on hold; keep `docs/wporg-submission-checklist.md` ready. Patchstack 2FA compatibility is now runtime-validated as bridgeable offline against a legitimately licensed Pro 2.3.6 fixture (PR #145); the remaining Patchstack work is the live login-form / profile-save / WooCommerce lifecycle runs and the bridge-vs-upstream decision. Public screenshot refresh (swap within the 9-slot budget, not add) is pending because the v4.5 Users-list/widget surfaces are absent from the current set.
 Resume file: .planning/phases/24-session-revocation-ui/24-VERIFICATION.md (verified) and PR #141
 
 ## Project Reference
@@ -44,7 +44,7 @@ Canonical current facts:
 ## Active Priorities
 
 1. Keep WordPress.org readiness maintained while submission remains delayed/on hold.
-2. Keep Patchstack runtime testing as fixture-blocked/manual-test work until a paid fixture exists.
+2. Patchstack core bridge path is runtime-validated offline (PR #145); remaining Patchstack work is the live login-form / profile-save / WooCommerce lifecycle runs and the bridge-vs-upstream decision — no shipped support claim until those land.
 3. (Done) Phase 24 and Phase 25 pre-implementation design reviews were performed before TDD; Phase 25's review is reflected in the panel docblock and PR #141.
 
 ## Accumulated Context
@@ -54,7 +54,7 @@ Canonical current facts:
 - Phase 24 plan 03 complete 2026-07-01: Access-tab "Revoke Session" button/column removed and the orphaned wp_ajax_handle_revoke_session registration, AJAX wrapper, and dead JS handler deleted across 2 commits (941 tests green). REVK-04 now satisfied alongside REVK-01/02/03/05 (already Complete). Phase 24 was feature-complete (3/3 plans) with the automated gate green; the then-deferred manual browser verification was completed 2026-07-04 (see entry above).
 - Phase 24 plan 02 complete 2026-06-30: Users-list "Revoke sudo session" row action, revoke-all button + interstitial confirm, and centralized wp_admin_notice() result-code map shipped across 4 commits (943 tests green). REVK-01 now fully satisfied alongside REVK-02/03/05 (already Complete from plan 01).
 - v4.4.0 milestone completed 2026-06-30 (Phases 21–23 all complete). Archive: `.planning/milestones/v4.4.0-ROADMAP.md`.
-- Phase 23 context is complete in `.planning/phases/23-bridge-documentation-and-release-posture-closure/23-CONTEXT.md`; defaults captured: update Two Factor integration/ecosystem docs, refresh current metrics, add concise unreleased/current-main notes if warranted, preserve Patchstack fixture-blocked wording, and avoid version/tag/submission actions.
+- Phase 23 context is complete in `.planning/phases/23-bridge-documentation-and-release-posture-closure/23-CONTEXT.md`; defaults captured: update Two Factor integration/ecosystem docs, refresh current metrics, add concise unreleased/current-main notes if warranted, preserve Patchstack fixture-blocked wording (superseded 2026-07-05 by PR #145 — the Patchstack fixture blocker is now resolved), and avoid version/tag/submission actions.
 - Phase 22 has two verified execution plans: `22-01-PLAN.md` for design-reviewed TDD implementation and `22-02-PLAN.md` for required validation/scope-boundary checks.
 - Phase 22 verification passed in `.planning/phases/22-profile-provider-guard-implementation/22-VERIFICATION.md` with 9/9 must-haves verified.
 - Phase 22 plan 22-01 implemented `two_factor.profile_provider_lifecycle` in the optional Two Factor lifecycle bridge with RED/GREEN unit coverage; targeted bridge tests, `composer test`, `composer analyse`, and `composer lint` passed.
@@ -70,7 +70,7 @@ Canonical current facts:
 
 ### Pending Todos
 
-- Patchstack runtime testing remains pending: acquire a paid Patchstack-enabled fixture plus manual challenge/lifecycle runtime tests before making runtime support claims.
+- Patchstack runtime testing: the core detection/validation bridge path is runtime-validated offline against a legitimately licensed Pro 2.3.6 fixture (PR #145). Remaining: the live login-form challenge, `profile.php` save, and WooCommerce lifecycle runs, plus the decision on shipping a dedicated bridge vs. keeping Patchstack behind the upstream Two Factor lifecycle bridge — before any shipped Patchstack support claim.
 - Public screenshot refresh after PR #141 merges: the v4.5 Users-list surfaces (Sudo Active view, row action, "Revoke sudo sessions" bulk action) and the widget's "Revoked" pills are absent from the current 9-image set; refresh by SWAPPING within the 9-slot budget (maintainer directive 2026-07-04: 6-9 images max), keeping readme.txt captions and the README gallery in sync.
 
 (Resolved 2026-07-04: the REVK-01..05 manual browser verification and the Phase 25 design review, both formerly listed here — see 24-VERIFICATION.md and PR #141.)
@@ -85,10 +85,10 @@ Canonical current facts:
 - Access-tab capability-holder table loses the "Revoke Session" button in Phase 24; session revocation and capability administration become separate concerns.
 - (Revised by the Phase 25 design review, implemented in PR #141) The coverage panel KEEPS the raw `allcaps` predicate (recovery-remap immunity, viewer independence) and adds an `is_multisite()`-gated `is_super_admin()` exclusion mirroring `wp_sudo_can()`'s short-circuit — rather than switching wholesale to `wp_sudo_can()`, which would re-introduce the viewer-dependent recovery remap.
 - `Sudo_Session::is_active()` requires a cookie-bound token; the Users-list enumeration must use `_wp_sudo_expires > time()` meta query (browser-independent) — keep that distinction explicit in Phase 24 code.
-- v4.4.0 scope targeted upstream WordPress Two Factor profile-provider lifecycle changes; Patchstack remains fixture-blocked and out of implementation scope.
+- v4.4.0 scope targeted upstream WordPress Two Factor profile-provider lifecycle changes; Patchstack was out of v4.4.0 implementation scope. (Update 2026-07-05 via PR #145: the Patchstack fixture blocker is resolved — core bridge path runtime-validated offline against a licensed Pro 2.3.6 fixture; still not shipped.)
 - Keep the Two Factor profile lifecycle guard in the optional bridge and fail open when upstream lifecycle data cannot prove a meaningful change.
 - Document Two Factor integration as three distinct surfaces (challenge-time, REST lifecycle, classic profile-provider lifecycle) with the optional bridge serving surfaces 2 and 3.
-- Keep Patchstack fixture-blocked/manual-test-only in all docs; no runtime support claims added in Phase 23.
+- (Superseded 2026-07-05 by PR #145) Phase 23 kept Patchstack fixture-blocked/manual-test-only with no runtime claims. The fixture blocker is now resolved: the core bridge path is runtime-validated offline against a licensed Pro 2.3.6 fixture, while the live login/profile/WooCommerce flows remain manual-test and no shipped support is claimed.
 - Do not bump WP_SUDO_VERSION, plugin header Version, readme.txt Stable tag, or create a product git tag at any v4.5 phase; latest tagged release remains 4.2.2.
 - `Sudo_Session::revoke_all_active_sessions()` enumerates via a `_wp_sudo_expires > time()` (NUMERIC) meta_query, not the old meta-key-presence form, so revoke-all acts on exactly the live set the "Sudo Active (N)" count advertises (Phase 24 plan 01).
 - `Admin::revoke_session_core()` check order is cap -> self_target -> target_expired -> rate_limited -> success, with cap checked first so a capless caller can never distinguish target_expired from no_cap (Phase 24 plan 01).
@@ -114,4 +114,4 @@ Canonical current facts:
 ## Last Session
 
 - **Stopped at:** 2026-07-04 — v4.5 milestone work complete. PRs #139 (widget revocation visibility + i18n labels) and #140 (bulk-action revocation redesign with nonce interceptor, membership guards, badge invalidation, registry scrub) merged to main; manual REVK-01..05 browser verification completed with all PASS and recorded in 24-VERIFICATION.md (status: verified); Phase 25 (GCOV-01/02) implemented via design-reviewed TDD, reviewer-approved, and open as PR #141 (ready for review, CI green-trending, Codecov 100% patch).
-- **Next:** Merge PR #141 to close the v4.5 milestone, then archive it per GSD convention. Post-merge follow-ups: public screenshot refresh (swap within the 9-image budget), Patchstack fixture work when available; larger roadmap items per docs/ROADMAP.md (Gutenberg reauth UX design is the top major-feature track).
+- **Next:** Merge PR #141 to close the v4.5 milestone, then archive it per GSD convention. Post-merge follow-ups: public screenshot refresh (swap within the 9-image budget), Patchstack fixture work (core bridge path runtime-validated offline 2026-07-05, PR #145; live login/profile/WooCommerce lifecycle still manual-test); larger roadmap items per docs/ROADMAP.md (Gutenberg reauth UX design is the top major-feature track).

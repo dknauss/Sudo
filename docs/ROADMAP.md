@@ -1197,9 +1197,12 @@ Recommended scope:
   bridges.
 
 *Impact:* Medium. This broadens compatibility coverage for a security-plugin
-audience, but is less urgent than the upstream Two Factor lifecycle bridge because
-it may require a paid testing fixture and does not appear to expose recovery-code
-creation in the free SVN code path.
+audience, but is less urgent than the upstream Two Factor lifecycle bridge. The
+core detection/validation path is now runtime-validated offline against a
+legitimately licensed Pro 2.3.6 fixture; the remaining work is the live
+login-form challenge, `profile.php` save, and WooCommerce account-form lifecycle
+runs, plus the decision on shipping a dedicated bridge vs. keeping Patchstack
+behind the upstream Two Factor lifecycle bridge.
 
 ### Open — Medium Effort
 
