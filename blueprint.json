@@ -19,7 +19,7 @@
       "step": "installPlugin",
       "pluginData": {
         "resource": "url",
-        "url": "https://wordpress-playground-cors-proxy.net/?https://github.com/dknauss/Sudo/archive/refs/tags/v4.5.0.zip"
+        "url": "https://wordpress-playground-cors-proxy.net/?https://github.com/dknauss/Sudo/archive/refs/tags/v4.2.2.zip"
       },
       "options": {
         "activate": true

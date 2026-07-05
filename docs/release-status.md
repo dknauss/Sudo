@@ -15,7 +15,18 @@ This file is the canonical source for **current release state** in this reposito
 
 - **Latest tagged release:** `4.2.2`
 - **Latest git tag observed:** `v4.2.2` (annotated, cut 2026-06-28).
-- **Next release staged (not yet tagged):** `4.5.0` — the version bump is committed on `main` (all five version-sync points, CHANGELOG, readme, blueprint) but no `v4.5.0` tag has been cut yet; tag creation and the release-environment matrix remain maintainer-owned.
+- **Next release staged (not yet tagged):** `4.5.0` — the version bump is committed on `main` (all five version-sync points, CHANGELOG, readme, POT) but no `v4.5.0` tag has been cut yet; tag creation and the release-environment matrix remain maintainer-owned. Note: `blueprint.json`'s "Try latest release" target is intentionally left at `v4.2.2` and is bumped to `v4.5.0` **at tag time** (see the tag checklist below) so the release badge does not 404 during the staged-but-untagged window.
+
+### `v4.5.0` tag checklist (maintainer)
+
+Perform in order when cutting the tag:
+
+1. **Release-environment matrix sign-off** — run/record the Apache, managed-host, and minimum-supported-WordPress lanes in `docs/release-environment-log.md` (the `v4.2.2` row is currently *Deferred*), or explicitly waive.
+2. **Re-confirm version sync** — the five points are already at `4.5.0`; verify none drifted.
+3. **Bump `blueprint.json`** — change the stable-demo install target from `archive/refs/tags/v4.2.2.zip` to `archive/refs/tags/v4.5.0.zip` (this is the only edit deferred out of the release-prep PR, to avoid a broken "Try latest release" badge before the tag exists).
+4. **Cut the annotated tag** `v4.5.0` on the release commit; the release-ZIP CI attaches the install asset on the tag.
+5. **Update this file** — move `4.5.0` from "staged" to **Latest tagged release**, and set "Latest git tag observed" to `v4.5.0`.
+6. **wordpress.org submission** remains independently on hold and is not gated by the GitHub tag.
 
 ## Current `main` release state
 
