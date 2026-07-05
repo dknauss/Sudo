@@ -16,7 +16,7 @@ This file is the canonical source for **current release state** in this reposito
 - **Latest tagged release:** `4.5.0`
 - **Latest git tag observed:** `v4.5.0` (annotated, cut 2026-07-05, on `70cddfe`).
 - **Previous tag:** `v4.2.2` (annotated, cut 2026-06-28).
-- **Unreleased work beyond the tag:** none — `main` and the `v4.5.0` tag are level. `blueprint.json`'s "Try latest release" target was bumped to `archive/refs/tags/v4.5.0.zip` after the tag was cut (PR #150).
+- **Unreleased work beyond the tag:** `main` has advanced past the `v4.5.0` tag (`70cddfe`) and is **not** level with it. Post-tag commits include packaging bookkeeping (the `blueprint.json` "Try latest release" target bump to `archive/refs/tags/v4.5.0.zip`, PR #150) and post-release follow-up work (e.g. the dashboard-widget/Access-tab user-identity harmonization, PR #154). None of it is part of the `v4.5.0` release, and the runtime version constant stays `4.5.0` because no newer tag has been cut. This set is volatile — `git log v4.5.0..main --oneline` is the authoritative current list.
 
 ### `v4.5.0` tag checklist (completed 2026-07-05)
 
@@ -31,7 +31,7 @@ All steps done; retained as the release record.
 
 ## Current `main` release state
 
-- **Current `main` version:** `4.5.0` — **tagged as `v4.5.0`** (2026-07-05); `main` and the tag are level.
+- **Current `main` version:** `4.5.0` (runtime constant) — released as **`v4.5.0`** (2026-07-05, `70cddfe`). `main` has since advanced past the tag with post-tag commits (see "Unreleased work beyond the tag" above); the version constant is unchanged because no newer tag exists.
 - **Runtime version constant:** `4.5.0` on `main`. `WP_SUDO_VERSION` is set in `wp-sudo.php` (header + constant), `tests/bootstrap.php`, and `phpstan-bootstrap.php`; `readme.txt` Stable tag is `4.5.0`. All five version-sync points are in sync at `4.5.0`.
 - **Current package metadata (on `main`):** `readme.txt` Stable tag `4.5.0` == header Version (no `stable_tag_mismatch`); `Requires at least 6.4`, `Requires PHP 8.2`, `Tested up to 7.0`. WordPress.org listing name: **"Sudo – Admin Action Gating"** (UI brand "Sudo"; slug/text-domain stay `wp-sudo` — lock the slug at submission).
 - **Last archived release checklist:** `docs/archive/release-3.0.0-checklist.md`
