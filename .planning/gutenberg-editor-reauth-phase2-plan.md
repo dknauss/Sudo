@@ -146,9 +146,10 @@ green does **not** imply multisite green.
 
 - **Single-site:** Block Directory install/activate happy path (gated → modal → grant →
   auto re-dispatch → plugin active, editor state intact); AJAX 2FA grant path;
-  grace-window no-duplicate-snackbar; grant nonce present only on editor screens and
-  absent when session active; batched `sudo_required` surfaces the snackbar (no silent
-  no-op); headless branch stays `challenge_url`-free (C4).
+  grace-window no-duplicate-snackbar; grant nonce present on editor screens **including
+  when a session is active at page load** (revised C2 — the recovery path must survive
+  session expiry) and absent on non-editor screens; batched `sudo_required` surfaces the
+  snackbar (no silent no-op); headless branch stays `challenge_url`-free (C4).
 - **Multisite (network admin + a subsite editor):** the same grant→re-dispatch flow
   succeeds; the `challenge_url` routes to the correct (network vs. site) admin context;
   a network-only gated action (e.g. a super-admin-scoped operation) gates and grants

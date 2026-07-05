@@ -238,7 +238,7 @@ Key refutations (all code-grounded):
   **wrong** for the editor. The editor is a long-lived SPA and the short sudo session
   expires while it stays open, so the recovery handler must be loaded even if a session
   is active at page load, or a later gated action reopens the opaque 403. Safe to always
-  load because this nonce is a CSRF token, not authz (this Part 3.6), trivially mintable
+  load because this nonce is a CSRF token, not authz (see Part 3.6), trivially mintable
   by any same-origin script.
 - **C3 — first-party re-dispatch.** The re-fired request must carry the user's own
   `wp_rest` nonce so `is_rest_cookie_auth()` (`class-gate.php:451-466`) classifies it as
