@@ -77,7 +77,7 @@ See the `CHANGELOG.md` `4.5.0` section for the full itemized list.
 
 `4.1.0` (tagged 2026-06-24) remains the security-hardening release that closed the coordinated-disclosure gate-completeness findings and introduced the opt-in admin-escalation guard.
 
-Canonical source for post-tag drift after `v4.2.2`: `git log v4.2.2..main --oneline`.
+Canonical source for post-tag drift after `v4.5.0`: `git log v4.5.0..main --oneline`.
 
 ## `4.5.0` release contents (shipped)
 
@@ -111,7 +111,7 @@ the curated feature list.
 
 **Documentation (no runtime impact):** Patchstack 2FA compatibility runtime-validated offline against a licensed Pro 2.3.6 fixture and documented (not a shipped integration); SSO/passwordless auth boundary clarified; Two Factor ecosystem/integration docs and canonical metrics refreshed. Current suite: **986 unit tests / 3,003 assertions** (see `docs/current-metrics.md`).
 
-Canonical source for drift after the tag: `git log v4.2.2..main --oneline`.
+Canonical source for drift after the tag: `git log v4.5.0..main --oneline`.
 
 ### Release environment assurance
 
