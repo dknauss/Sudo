@@ -22,13 +22,14 @@ final class User_Identity {
 
 	/**
 	 * The user's primary display name: their full real name when available,
-	 * falling back to display_name, then to the login.
+	 * falling back to display_name, then to the login, and finally to a
+	 * `User <id>` string so the return is never empty.
 	 *
 	 * WP_User name meta (first_name/last_name) is lazily loaded and may be
 	 * absent, so every read is isset-guarded.
 	 *
 	 * @param \WP_User $user User object.
-	 * @return string Non-empty display string (the login as a last resort).
+	 * @return string Non-empty display string.
 	 */
 	public static function primary_name( \WP_User $user ): string {
 		$first = isset( $user->first_name ) && is_string( $user->first_name ) ? $user->first_name : '';
@@ -46,7 +47,13 @@ final class User_Identity {
 			return $display;
 		}
 
-		return $login;
+		if ( '' !== $login ) {
+			return $login;
+		}
+
+		// Guarantee a non-empty identity even for a user with no name or login
+		// (mirrors the dashboard widget's own 'User <id>' fallback).
+		return 'User ' . (int) $user->ID;
 	}
 
 	/**

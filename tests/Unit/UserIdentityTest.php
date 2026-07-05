@@ -49,6 +49,15 @@ final class UserIdentityTest extends TestCase {
 		$this->assertSame( 'No Meta', User_Identity::primary_name( $user ) );
 	}
 
+	public function test_primary_name_falls_back_to_user_id_when_name_and_login_empty(): void {
+		// A degenerate user with no name, display, or login must still yield a
+		// non-empty identity so the primary line never renders blank.
+		$user               = new \WP_User( 42, array() );
+		$user->user_login   = '';
+		$user->display_name = '';
+		$this->assertSame( 'User 42', User_Identity::primary_name( $user ) );
+	}
+
 	public function test_role_labels_returns_translated_names_one_per_role(): void {
 		Functions\when( 'wp_roles' )->alias(
 			static function () {
