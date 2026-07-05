@@ -11,7 +11,7 @@ Keep the executable smoke-test procedure in [`tests/MANUAL-TESTING.md`](../tests
 | Package/version | Date | Overall status | Summary | WordPress.org posture |
 |-----------------|------|----------------|---------|-----------------------|
 | `v4.2.2` | 2026-06-29 | Deferred | Release environment matrix was documented for future execution; lanes were not rerun in Phase 17. | Submission/upload remains delayed/on hold. |
-| `4.5.0` (staged, no tag yet) | 2026-07-05 | Apache lane **completed**; managed-host + min-WP outstanding | The **Apache lane is completed** against a real Apache 2.4.58 + mod_php 8.3.6 stack (all six core sections pass, including the `mod_rewrite`/`Authorization`-header App-Password check). The **managed-host** lane is still outstanding (needs a real managed host); the **minimum-WordPress (6.4)** lane is functionally covered by the CI Integration matrix with the manual browser smoke still optional. | Submission/upload remains delayed/on hold. |
+| `4.5.0` (staged, no tag yet) | 2026-07-05 | Matrix cleared for tag: Apache **completed**, min-WP **CI-covered**, managed-host **waived** | The **Apache lane is completed** against a real Apache 2.4.58 + mod_php 8.3.6 stack (all six core sections pass, including the `mod_rewrite`/`Authorization`-header App-Password check). The **minimum-WordPress (6.4)** lane is functionally covered by the CI Integration matrix. The **managed-host** lane is cleared by an explicit maintainer waiver (recorded below) with residual risk accepted. The environment-matrix gate for the `v4.5.0` tag is therefore satisfied. | Submission/upload remains delayed/on hold. |
 
 ## `v4.2.2` environment matrix
 
@@ -33,7 +33,7 @@ cannot provide). The **minimum-WordPress (6.4)** lane is functionally covered by
 | Environment lane | Status | Owner | Timing | Blocks next public tag/publication decision? | Notes |
 |------------------|--------|-------|--------|---------------------------------------------|-------|
 | Apache stack | **Completed** 2026-07-05 | Claude Code (remote build sandbox) | Done | No — completed | Real **Apache/2.4.58 + mod_php 8.3.6 + mod_rewrite** stack serving the merged 4.5.0 replica. All six core sections (1.1, 2.1, 2.9, 4.1, 5.2, 9.1) pass; the `mod_rewrite` pretty REST route and the `Authorization`-header App-Password passthrough both work under Apache (§5.2). Full evidence below. Note: this is Apache **in the build container**, not a Local-by-Flywheel/managed host. |
-| Managed WordPress host | Deferred | Maintainer | Before next public tag/publication decision | Yes unless explicitly waived | Run core smoke sections 1.1, 2.1, 2.9, 9.1, 10.1 on an approved staging/trial managed host; record plan/trial type, caching or security features enabled, and any blocked filesystem or mu-plugin operations. **Not** reproducible in the build sandbox (no route to an external managed host). |
+| Managed WordPress host | Waived (maintainer) | Maintainer | Waived for `4.5.0` on 2026-07-05 | No — waived | Waived (see the managed-host waiver below). **Not** independently executed on a managed host — not reproducible in the build sandbox (no route to an external managed host). Residual risk accepted: managed-host object cache, mu-plugin, and filesystem-policy behavior not exercised. |
 | Minimum supported WordPress version (6.4) | Covered by CI — manual smoke optional | Maintainer | Optional before tag | No (CI-covered) | The automated Integration matrix runs the full suite on the **6.4 floor** (PHP 8.2/8.3, single-site and multisite), covering the functional dimension. A manual 6.4 browser smoke (sections 1.1, 2.1, 2.9, 4.1, 5.2, 9.1) remains optional. |
 
 ### Completed lane evidence: Apache stack (2026-07-05)
@@ -53,6 +53,14 @@ cannot provide). The **minimum-WordPress (6.4)** lane is functionally covered by
   - §9.1 Three-option policy dropdowns — PASS (four surface dropdowns Disabled/Limited (default)/Unrestricted; session duration 15; tabs Settings/Gated Actions/Rule Tester/Access; renders correctly under Apache)
 - Rewrite/auth-header observation: `mod_rewrite` pretty REST routes resolve (`/wp-json/` → 200) and the Basic `Authorization` header for Application Passwords is passed through to PHP by mod_php (the §5.2 403-vs-401 contrast proves it). No `CGIPassAuth`/`SetEnvIf` workaround was required for mod_php.
 - Runner/owner: Claude Code (remote build sandbox).
+
+### Maintainer waiver: managed-host lane (2026-07-05)
+
+- **Decision:** The **managed WordPress host** lane is **waived** for the `4.5.0` release. This is an explicit maintainer waiver under the "Deferral and failure policy" below (a recorded waiver clears the lane for the next public tag/publication decision). It applies to this one lane only.
+- **Owner / approver:** Dan Knauss (maintainer).
+- **Why waived:** A real managed host is not reachable from the build sandbox, and provisioning one was out of scope for this release. The server-layer concerns that most often differ on managed hosts — URL rewriting and `Authorization`-header passthrough for REST/Application-Password auth — were exercised and passed on the **completed Apache lane** above; the WordPress **6.4 floor** and multisite are covered by the CI Integration matrix.
+- **Residual risk accepted:** managed-host-specific behavior not exercised — object cache (e.g. persistent Redis/Memcached), platform mu-plugins, and restrictive filesystem/security policies. Accepted for `4.5.0`; to be run on a real managed host at the next convenient opportunity.
+- **Scope:** Clears the environment-matrix gate for the `v4.5.0` tag. Does **not** approve a WordPress.org upload/submission, which remains separately on hold until the maintainer approves publication.
 
 ### Supporting evidence (non-lane): local smoke run
 

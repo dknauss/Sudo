@@ -15,13 +15,13 @@ This file is the canonical source for **current release state** in this reposito
 
 - **Latest tagged release:** `4.2.2`
 - **Latest git tag observed:** `v4.2.2` (annotated, cut 2026-06-28).
-- **Next release staged (not yet tagged):** `4.5.0` — the version bump is committed on `main` (all five version-sync points, CHANGELOG, readme, POT) but no `v4.5.0` tag has been cut yet; tag creation and the release-environment matrix remain maintainer-owned. Note: `blueprint.json`'s "Try latest release" target is intentionally left at `v4.2.2` and is bumped to `v4.5.0` **at tag time** (see the tag checklist below) so the release badge does not 404 during the staged-but-untagged window.
+- **Next release staged (not yet tagged):** `4.5.0` — the version bump is committed on `main` (all five version-sync points, CHANGELOG, readme, POT) but no `v4.5.0` tag has been cut yet; tag creation remains maintainer-owned. The release-environment matrix is **cleared** for `4.5.0` (Apache lane completed, 6.4 CI-covered, managed-host waived — see `docs/release-environment-log.md`). Note: `blueprint.json`'s "Try latest release" target is intentionally left at `v4.2.2` and is bumped to `v4.5.0` **at tag time** (see the tag checklist below) so the release badge does not 404 during the staged-but-untagged window.
 
 ### `v4.5.0` tag checklist (maintainer)
 
 Perform in order when cutting the tag:
 
-1. **Release-environment matrix sign-off** — for `4.5.0`: the **Apache lane is completed** (real Apache 2.4.58 + mod_php 8.3.6 run, all six core sections pass, `Authorization`-header passthrough confirmed) and the **minimum-WordPress (6.4)** lane is CI-covered — both recorded in `docs/release-environment-log.md`. The **managed-host** lane is still outstanding: run it on a real managed host, or record an explicit maintainer waiver for that one lane, before tagging.
+1. **Release-environment matrix sign-off — ✅ complete for `4.5.0`.** The **Apache lane is completed** (real Apache 2.4.58 + mod_php 8.3.6 run, all six core sections pass, `Authorization`-header passthrough confirmed), the **minimum-WordPress (6.4)** lane is CI-covered, and the **managed-host** lane is cleared by an explicit maintainer waiver — all recorded in `docs/release-environment-log.md`. The environment-matrix gate is satisfied; proceed with the remaining steps.
 2. **Re-confirm version sync** — the five points are already at `4.5.0`; verify none drifted.
 3. **Bump `blueprint.json`** — change the stable-demo install target from `archive/refs/tags/v4.2.2.zip` to `archive/refs/tags/v4.5.0.zip` (this is the only edit deferred out of the release-prep PR, to avoid a broken "Try latest release" badge before the tag exists).
 4. **Cut the annotated tag** `v4.5.0` on the release commit; the release-ZIP CI attaches the install asset on the tag.
