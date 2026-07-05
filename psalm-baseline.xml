@@ -237,11 +237,6 @@
       <code><![CDATA[add_action( 'wp_sudo_activated', array( self::class, 'flush_active_sessions_cache' ), 10, 0 )]]></code>
       <code><![CDATA[add_action( 'wp_sudo_deactivated', array( self::class, 'flush_active_sessions_cache' ), 10, 0 )]]></code>
     </HookNotFound>
-    <InvalidArgument>
-      <code><![CDATA[array(
-					'force' => true,
-				)]]></code>
-    </InvalidArgument>
     <UndefinedFunction>
       <code><![CDATA[wp_sudo_can( 'view_wp_sudo_activity' )]]></code>
     </UndefinedFunction>
