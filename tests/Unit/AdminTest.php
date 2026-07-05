@@ -3440,6 +3440,39 @@ class AdminTest extends TestCase {
 		$this->assertStringNotContainsString( '<code>msantos</code>', $output );
 	}
 
+	public function test_render_access_tab_user_cell_login_is_plain_span_when_edit_user_denied(): void {
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'esc_html_e' )->alias( static function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		Functions\when( 'esc_attr_e' )->alias( static function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		Functions\when( 'esc_attr' )->returnArg();
+		Functions\when( 'esc_url' )->returnArg();
+		Functions\when( 'wp_create_nonce' )->justReturn( 'test-nonce' );
+		$this->stub_access_user_cell();
+		// Deny the edit-user capability so the login renders unlinked.
+		Functions\when( 'current_user_can' )->justReturn( false );
+
+		$holder               = new \WP_User( 13, array( 'administrator' ) );
+		$holder->user_login   = 'msantos';
+		$holder->display_name = 'msantos';
+		$holder->first_name   = 'Maria';
+		$holder->last_name    = 'Santos';
+
+		Functions\when( 'get_users' )->alias(
+			static function ( array $args = array() ) use ( $holder ): array {
+				return 'manage_wp_sudo' === ( $args['capability'] ?? null ) ? array( $holder ) : array();
+			}
+		);
+
+		$admin = new Admin();
+		ob_start();
+		$admin->render_access_tab();
+		$output = ob_get_clean();
+
+		// Login shows as a non-linked span, not an anchor, and no edit URL leaks.
+		$this->assertStringContainsString( '<span class="wp-sudo-access-user-login">msantos</span>', $output );
+		$this->assertStringNotContainsString( 'user-edit.php?user_id=13', $output );
+	}
+
 	// -----------------------------------------------------------------
 	// AJAX registration: governance handlers
 	// -----------------------------------------------------------------

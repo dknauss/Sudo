@@ -722,6 +722,39 @@ class DashboardWidgetTest extends TestCase {
 	}
 
 	/**
+	 * Test the secondary username links to user-edit when the user has a real
+	 * name (so it is not the primary) and the operator may edit them.
+	 *
+	 * @return void
+	 */
+	public function testActiveSessionsLinkUsernameWhenEditAllowedAndUserHasRealName(): void {
+		$user               = new \WP_User( 14, [ 'administrator' ] );
+		$user->ID           = 14;
+		$user->user_login   = 'mariadev';
+		$user->display_name = 'Maria Santos'; // Real name is primary; username is a linked secondary.
+
+		$this->setUpRenderStubs(); // current_user_can() => true (edit allowed).
+		\WP_User_Query::$mock_total   = 1;
+		\WP_User_Query::$mock_results = [ $user ];
+		Functions\when( 'get_user_meta' )->justReturn( time() + 300 );
+		Functions\when( 'human_time_diff' )->justReturn( '5 mins' );
+		Functions\when( 'get_option' )->justReturn( [] );
+
+		ob_start();
+		Dashboard_Widget::render();
+		$output = ob_get_clean();
+
+		// Full name is the primary identity.
+		$this->assertStringContainsString( '<span class="wp-sudo-fullname">Maria Santos</span>', $output );
+		// Username is a linked secondary.
+		$this->assertStringContainsString( 'class="wp-sudo-username"', $output );
+		$this->assertStringContainsString( 'user-edit.php?user_id=14', $output );
+		$this->assertStringContainsString( '>mariadev</a>', $output );
+
+		$this->restoreWpdb();
+	}
+
+	/**
 	 * Test inline widget i18n JSON is encoded with explicit HTML-safe flags.
 	 *
 	 * @return void
