@@ -109,19 +109,21 @@ gated; the REST path never touches `Request_Stash`.
 - **GREEN:** `wp.element.createElement( wp.components.Modal, … )` — build-free. Snackbar
   (`core/notices`) is the trigger surface that opens the modal; it degrades to a plain
   message when `challenge_url` is absent (headless).
-- **⚠ 2FA rendering caveat (Codex PR #157 review — corrects an overstated SEV-1).**
-  `handle_ajax_2fa()` only *validates*; the provider *fields* are emitted server-side by
-  `Challenge::render_page()` via the `wp_sudo_render_two_factor_fields` render hook, which
-  the modal never runs. So AJAX 2FA is **not** universally reusable:
-  - **TOTP-style factors** (a plain code input) — the modal renders its own field with
-    `autocomplete="one-time-code"` + `inputmode="numeric"` (2FA bridge-guide rules, Part 7)
-    and posts to `handle_ajax_2fa`. Works in-modal.
-  - **Provider-ceremony factors** (WebAuthn/passkey, or any custom
-    `wp_sudo_render_two_factor_fields` output) — the modal **cannot** render these. Either
-    add a small server-rendered 2FA-partial endpoint the modal fetches and injects, **or**
-    route these users to the link-out fallback (full-page challenge). Decide per-factor at
-    task-design time; **default to link-out** if the partial endpoint is not built. Do not
-    ship the modal claiming universal 2FA support.
+- **⚠ 2FA rendering caveat (Codex PR #157/#158 review — corrects an overstated SEV-1).**
+  `handle_ajax_2fa()` only *validates*, and it delegates to `$provider->validate_authentication($user)`
+  (`class-challenge.php:607`) plus the `wp_sudo_validate_two_factor` filter (`:619`) — **both
+  read provider-specific `$_POST` field names** emitted by the provider's own render step
+  (`Challenge::render_page()` via the `wp_sudo_render_two_factor_fields` hook), which the
+  modal never runs. So AJAX 2FA is **not** reusable with a generic input — even for TOTP:
+  - A **generic** modal TOTP field (`one-time-code`) will **not** be read, because the
+    provider's `validate_authentication()` looks for its own field name (e.g. Two Factor's
+    `authcode`). Rendering a plain input and posting to `handle_ajax_2fa` **does not work**.
+  - The modal must therefore either (a) fetch a **server-rendered 2FA partial** (the exact
+    provider markup) and inject it, or (b) render **provider-exact field names** per factor.
+    For WebAuthn/passkey ceremonies (b) is infeasible → **link-out fallback**.
+  - **Default to the server-rendered partial or link-out**; do not claim any in-modal 2FA
+    works until the partial endpoint exists. Field-markup rules (Part 7) still apply to
+    whatever the partial renders (`autocomplete="one-time-code"`, `inputmode="numeric"`).
 
 ### Task 4 — Re-dispatch the original request on grant (C3)
 - **RED:** test that on `authenticated`, the exact original request is re-fired once,
@@ -151,12 +153,17 @@ green does **not** imply multisite green.
   session expiry) and absent on non-editor screens; batched `sudo_required` surfaces the
   snackbar (no silent no-op); headless branch stays `challenge_url`-free (C4).
 - **Multisite (network admin + a subsite editor):** the same grant→re-dispatch flow
-  succeeds; the `challenge_url` routes to the correct (network vs. site) admin context;
-  a network-only gated action (e.g. a super-admin-scoped operation) gates and grants
-  correctly; per-site session isolation holds (a grant on one site does not silently
-  satisfy a gated action on another beyond documented behavior). Run the integration
-  suite with the multisite bootstrap (`WP_TESTS_MULTISITE`/`WP_MULTISITE`) as well as
-  single-site.
+  succeeds on a subsite editor using the **existing editor-reachable REST route**
+  (`/wp/v2/plugins` install/activate — the only realistic surface per the inventory);
+  the `challenge_url` routes to the correct (network vs. site) admin context via the
+  referrer logic in `build_session_challenge_url()`; per-site session isolation holds
+  (a grant on one site does not silently satisfy a gated action on another beyond
+  documented behavior). **Do not** scope a `network.*` action into this lane — those
+  rules are `rest => null` (admin-only) and are not editor-reachable (surface inventory);
+  testing them here would drag in unrelated classic-network-admin coverage. Run the
+  integration suite with **`WP_MULTISITE=1 composer test:integration`** (the flag
+  `bin/run-integration-tests.sh` actually forwards — `WP_TESTS_MULTISITE` alone silently
+  runs single-site) as well as the single-site run.
 - Reuse the harness admin auth pattern per the repo's E2E convention; unit tests that
   branch on `is_multisite()` must cover **both** return values.
 

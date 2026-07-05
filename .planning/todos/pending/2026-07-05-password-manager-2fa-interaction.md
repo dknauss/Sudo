@@ -14,7 +14,8 @@ files:
 WP Sudo's reauthentication surfaces (the full-page `wp-sudo-challenge` screen and,
 if the Tier 2 block-editor feature ships, an in-editor modal) present a password
 field and, on 2FA sites, a second-factor step. How password managers interact with
-these surfaces is unverified, and at least one manager is known to be getting harder:
+these surfaces is unverified, and at least one manager is *reportedly* getting harder
+(unverified — see below):
 
 - **1Password is reportedly/anecdotally harder with two-factor lately — UNVERIFIED.**
   This is a hypothesis to reproduce, not a settled fact. Recent 1Password behavior
