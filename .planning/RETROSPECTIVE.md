@@ -74,6 +74,32 @@
 
 ---
 
+## Process Note: 2026-07-05 — Model-tier / delegation discipline
+
+*Non-milestone session (block-editor reauth design-phase scaffolding).*
+
+### What Was Inefficient
+- Spawned a security-docs **survey** subagent (read-and-extract across five repos) on
+  the inherited **Opus** tier instead of downshifting to **Sonnet** — mechanical work
+  that the global CLAUDE.md Model-Downshifting rules and GSD agent profiles already say
+  belongs on Sonnet/Haiku. The user caught the waste, not the agent.
+- Compounded it by writing a project memory that duplicated the CLAUDE.md rule (churn,
+  the "don't save what the repo already records" anti-pattern). Reverted.
+- Full cost/accountability record in `docs/llm-lies-log.md` → "Cost / Process Cheats"
+  (entries C1–C2).
+
+### Key Lesson
+- **Always delegate for model efficiency and pass an explicit right-sized `model` on
+  every spawn.** Reserve Opus for genuine judgment (design/security review, hard
+  debugging, architecture); mechanical read/extract/search/map/boilerplate work goes to
+  Sonnet, or Haiku when trivial. The rule already exists — the failure was not applying
+  it. This is an execution discipline, not a documentation gap.
+- The two Opus **reviews** this session (design + security, on auth/session code) were
+  correctly tiered; the mistiered item was the read-only docs survey. The tell:
+  "extract and summarize" → Sonnet; "adversarially judge this security code" → Opus.
+
+---
+
 ## Cross-Milestone Trends
 
 ### Process Evolution

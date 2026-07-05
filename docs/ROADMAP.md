@@ -1068,10 +1068,11 @@ Sudo's reauth surfaces — the full-page `wp-sudo-challenge` form and, if the Ti
 block-editor feature ships, an in-editor modal — is unverified. Managers key off
 login-form heuristics (`autocomplete` tokens, field semantics, a real `<form>`), and
 our custom challenge handler is deliberately not `wp-login.php`; a `wp.components.Modal`
-field is the most autofill-hostile surface. **1Password is notably tough with two-factor
-now** and needs a concrete repro. Also covers how WordPress/two-factor renders each
-provider (TOTP, WebAuthn/passkey, backup codes) at our challenge time. Deliverable: a
-per-manager × per-surface autofill matrix plus any cheap markup fixes. Tracked in
+field is the most autofill-hostile surface. **1Password is reportedly/anecdotally harder
+with two-factor lately** (unverified — needs a concrete version + repro before it is
+treated as fact). Also covers how WordPress/two-factor renders each provider (TOTP,
+WebAuthn/passkey, backup codes) at our challenge time. Deliverable: a per-manager ×
+per-surface autofill matrix plus any cheap markup fixes. Tracked in
 `.planning/todos/pending/2026-07-05-password-manager-2fa-interaction.md`; feeds the
 Tier 2 modal autofill check in `.planning/gutenberg-editor-reauth-phase2-plan.md`.
 
