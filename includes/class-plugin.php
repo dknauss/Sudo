@@ -133,6 +133,10 @@ class Plugin {
 		// Gate UI: disable action buttons on gated pages when no session.
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_gate_ui' ) );
 
+		// Block/site editor: surface a gated action's sudo_required 403 as an
+		// in-editor snackbar instead of an opaque dead-end (link-out to challenge).
+		add_action( 'enqueue_block_editor_assets', array( $this, 'enqueue_editor_reauth' ), 10, 0 );
+
 		// Login grant: a successful form login implicitly satisfies reauthentication.
 		// wp_login fires for browser-based logins only (not App Passwords / XML-RPC),
 		// so the session cookie set by activate() is guaranteed to reach the browser.
@@ -288,6 +292,46 @@ class Plugin {
 				'page' => $page,
 			)
 		);
+	}
+
+	/**
+	 * Enqueue the block/site-editor reauth handler.
+	 *
+	 * Loads a build-free `apiFetch` middleware that turns a gated action's
+	 * `sudo_required` REST rejection — the editor's opaque 403 dead-end when a
+	 * flow such as Block Directory plugin install/activate fires without an
+	 * active sudo session — into an in-editor snackbar that links out to the
+	 * challenge page (Increment 1: notify + link-out only, no in-editor grant).
+	 *
+	 * Loaded on every block/site-editor screen for logged-in users, INCLUDING
+	 * when a sudo session is active at page load. The editor is a long-lived SPA
+	 * and the short sudo session expires while it stays open, so the recovery
+	 * handler must already be present when a later gated action returns
+	 * sudo_required (condition C2, revised — see the design brief Part 3.6).
+	 * Unlike enqueue_shortcut(), it deliberately does NOT skip active sessions.
+	 *
+	 * No nonce is localized here: the link-out path grants the session on the
+	 * challenge page, not in-editor. The grant nonce arrives in Increment 2 with
+	 * the in-editor modal.
+	 *
+	 * @since 4.6.0
+	 *
+	 * @return void
+	 */
+	public function enqueue_editor_reauth(): void {
+		if ( ! get_current_user_id() ) {
+			return;
+		}
+
+		wp_enqueue_script(
+			'wp-sudo-editor-reauth',
+			WP_SUDO_PLUGIN_URL . 'admin/js/wp-sudo-editor-reauth.js',
+			array( 'wp-api-fetch', 'wp-data', 'wp-notices', 'wp-i18n' ),
+			WP_SUDO_VERSION,
+			true
+		);
+
+		wp_set_script_translations( 'wp-sudo-editor-reauth', 'wp-sudo' );
 	}
 
 	/**

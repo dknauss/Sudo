@@ -1835,3 +1835,11 @@ msgid "Found and cleaned %d expired sudo session token. This is normal — token
 msgid_plural "Found and cleaned %d expired sudo session tokens. This is normal — tokens expire naturally but are only cleaned on the next page load."
 msgstr[0] ""
 msgstr[1] ""
+
+#: admin/js/wp-sudo-editor-reauth.js:131
+msgid "Reauthenticate"
+msgstr ""
+
+#: admin/js/wp-sudo-editor-reauth.js:141
+msgid "This action requires reauthentication."
+msgstr ""
