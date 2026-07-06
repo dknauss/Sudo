@@ -568,8 +568,12 @@ callbacks that register for two arguments continue to work unchanged.
 
 By default WP Sudo does **not** send any notification for suspicious events — it
 fires the audit hooks above and surfaces state passively (Site Health tests, the
-Session Activity dashboard widget). The packaged Stream and WSAL bridges *log*
-these events; they do not *alert*. To get pushed a notification when something
+Session Activity dashboard widget). The packaged bridges *log* rather than
+*alert*, and their critical-hook coverage differs: the WSAL sensor bridge
+(`bridges/wp-sudo-wsal-sensor.php`) logs all of these, but the Stream bridge
+(`bridges/wp-sudo-stream-bridge.php`) currently records only `wp_sudo_lockout`
+and `wp_sudo_capability_tampered` from the critical set (not escalation, recovery
+mode, or dropped built-in rules). To get *pushed* a notification when something
 suspicious happens, subscribe to the high-severity hooks yourself. Drop this into
 `wp-content/mu-plugins/wp-sudo-critical-alerts.php`:
 
@@ -581,6 +585,17 @@ suspicious happens, subscribe to the high-severity hooks yourself. Drop this int
 defined( 'ABSPATH' ) || exit;
 
 function wp_sudo_critical_alert( string $subject, string $body ): void {
+	// Throttle: at most one alert per distinct subject per hour. Some hooks fire
+	// on every request while a condition persists — wp_sudo_recovery_mode_active
+	// (per admin-page load) and wp_sudo_gated_actions_missing_builtin_rules (once
+	// per request while a filter keeps a built-in rule removed) — so an
+	// unthrottled handler would flood the inbox for hours.
+	$throttle_key = 'wp_sudo_alert_' . md5( $subject );
+	if ( get_transient( $throttle_key ) ) {
+		return;
+	}
+	set_transient( $throttle_key, 1, HOUR_IN_SECONDS );
+
 	// To notify Slack/Teams/a webhook instead of email, swap wp_mail() for:
 	// wp_remote_post( 'https://hooks.slack.com/services/YOUR/WEBHOOK/PATH', array(
 	//     'headers' => array( 'Content-Type' => 'application/json' ),
@@ -627,13 +642,23 @@ add_action( 'wp_sudo_gated_actions_missing_builtin_rules', function ( array $mis
 		'A filter removed built-in rules: ' . implode( ', ', array_map( 'sanitize_text_field', $missing ) )
 	);
 }, 10, 1 );
+
+// Break-glass recovery mode is active (WP_SUDO_RECOVERY_MODE). Fires on every
+// Sudo admin-page load while active; the per-subject throttle in
+// wp_sudo_critical_alert() collapses it to one alert per hour.
+add_action( 'wp_sudo_recovery_mode_active', function ( int $user_id ): void {
+	wp_sudo_critical_alert(
+		'Recovery mode active',
+		sprintf( 'WP Sudo break-glass recovery mode is active (user #%d).', $user_id )
+	);
+}, 10, 1 );
 ```
 
-Note on `wp_sudo_recovery_mode_active`: it fires on **every** Sudo admin-page load
-while recovery mode is active, so alert on it only through a throttle (e.g. one
-notification per user per hour, mirroring the bundled Event_Recorder sampling) or
-you will flood the inbox. A first-party bridge that packages this wiring with
-per-event toggles and rate-limiting is on the roadmap (see
+The `wp_sudo_critical_alert()` helper throttles to one alert per distinct subject
+per hour — that is what makes it safe to wire the per-request
+`wp_sudo_recovery_mode_active` and `wp_sudo_gated_actions_missing_builtin_rules`
+hooks directly. A first-party bridge that packages this wiring with per-event
+toggles and finer-grained rate-limiting is on the roadmap (see
 [`docs/ROADMAP.md`](ROADMAP.md) → Security Bridge Coverage).
 
 ### Optional WSAL Sensor Bridge
