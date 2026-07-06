@@ -413,7 +413,7 @@ See the plugin's `CHANGELOG.md` for all versions.
 == Upgrade Notice ==
 
 = 4.6.0 =
-Feature release: adds in-editor reauthentication for the block editor (opaque 403 → "Reauthenticate" snackbar) and an optional critical-event alert bridge that pushes notifications on high-severity audit hooks. Also unifies user display across the dashboard widget and Access tab and fixes a widget avatar that failed to render when "Show Avatars" was off. No migration required; the alert bridge is opt-in.
+Feature release: in-editor block-editor reauthentication (opaque 403 → a Reauthenticate snackbar) plus an optional bridge that pushes alerts on high-severity audit events. Also unifies user display on the dashboard widget and Access tab. No migration; the alert bridge is opt-in.
 
 = 4.5.0 =
 Recommended security update: hardens the admin-escalation guard (requires the actor's promoting authority) and session revocation (requires a token-bound sudo session). Adds bulk session revocation, dashboard revocation visibility, and Access-tab a11y/i18n. No migration required.
