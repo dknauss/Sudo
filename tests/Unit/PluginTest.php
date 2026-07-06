@@ -614,7 +614,7 @@ class PluginTest extends TestCase {
 			->once()
 			->with(
 				'wp-sudo-editor-reauth',
-				\Mockery::type( 'string' ),
+				'wpSudoEditorReauth',
 				\Mockery::on(
 					function ( $data ) {
 						return is_array( $data )
