@@ -614,6 +614,14 @@ class PluginTest extends TestCase {
 
 		$_COOKIE[ Sudo_Session::TOKEN_COOKIE ] = $token;
 
+		// Guard the scenario: the arrangement above must be a genuinely active
+		// session, else this test silently degrades into a duplicate of the
+		// logged-in case and stops exercising C2 (enqueue even when active).
+		$this->assertTrue(
+			Sudo_Session::is_active( $user_id ),
+			'arranged state must be a genuinely active sudo session (guards C2)'
+		);
+
 		Functions\expect( 'wp_enqueue_script' )->once();
 
 		$plugin = new Plugin();
