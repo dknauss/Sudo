@@ -310,9 +310,18 @@ class Plugin {
 	 * sudo_required (condition C2, revised — see the design brief Part 3.6).
 	 * Unlike enqueue_shortcut(), it deliberately does NOT skip active sessions.
 	 *
-	 * No nonce is localized here: the link-out path grants the session on the
-	 * challenge page, not in-editor. The grant nonce arrives in Increment 2 with
-	 * the in-editor modal.
+	 * Localizes (Increment 2, Task 2) the grant nonce, the AJAX action names, and
+	 * the current-site `admin-ajax.php` URL so the in-editor modal can grant a sudo
+	 * session in place. The nonce is the single `Challenge::NONCE_ACTION`
+	 * (`wp_sudo_challenge`) — a CSRF token reused as-is, never broadened to
+	 * authorization (C1). It is localized on block/site-editor screens only, but
+	 * loaded even when a session is active (C2, same rationale as the enqueue).
+	 * `admin-ajax.php` is resolved via `admin_url()` (current site), never
+	 * `network_admin_url()` — a subsite editor must post its grant to its own
+	 * `admin-ajax.php`. Only the initial nonce value is minted here; when it goes
+	 * stale (editor open past the ~24 h lifetime) a fresh one is fetched at runtime
+	 * from the `Challenge::AJAX_REFRESH_NONCE_ACTION` endpoint (whose action name is
+	 * localized above, but not a nonce value).
 	 *
 	 * @since 4.6.0
 	 *
@@ -329,6 +338,18 @@ class Plugin {
 			array( 'wp-api-fetch', 'wp-data', 'wp-notices', 'wp-i18n' ),
 			WP_SUDO_VERSION,
 			true
+		);
+
+		wp_localize_script(
+			'wp-sudo-editor-reauth',
+			'wpSudoEditorReauth',
+			array(
+				'ajaxUrl'            => admin_url( 'admin-ajax.php' ),
+				'nonce'              => wp_create_nonce( Challenge::NONCE_ACTION ),
+				'authAction'         => Challenge::AJAX_AUTH_ACTION,
+				'twoFactorAction'    => Challenge::AJAX_2FA_ACTION,
+				'refreshNonceAction' => Challenge::AJAX_REFRESH_NONCE_ACTION,
+			)
 		);
 
 		wp_set_script_translations( 'wp-sudo-editor-reauth', 'wp-sudo' );

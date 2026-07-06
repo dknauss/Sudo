@@ -9,8 +9,8 @@ Verification environment: local workspace, PHP 8.x
 
 | Metric | Value | Verification |
 |---|---:|---|
-| Unit tests | 1,023 tests | `composer test:unit` |
-| Unit assertions | 3,090 assertions | `composer test:unit` |
+| Unit tests | 1,026 tests | `composer test:unit` |
+| Unit assertions | 3,101 assertions | `composer test:unit` |
 | Integration tests in suite | 208 test methods | `rg -c "function test" tests/Integration/*.php | awk -F: '{sum+=$2} END{print sum}'` |
 | Unit test files | 32 | `ls tests/Unit/*.php | wc -l` |
 | Integration test files | 28 | `ls tests/Integration/*.php | wc -l` |
@@ -19,11 +19,11 @@ Verification environment: local workspace, PHP 8.x
 
 | Metric | Value | Verification |
 |---|---:|---|
-| Production PHP lines (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 17,663 | `find ./includes ./wp-sudo.php ./uninstall.php ./mu-plugin ./bridges -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
-| Tests PHP lines (`tests/`) | 36,852 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
-| Production + tests PHP lines | 54,515 | sum of the two rows above |
-| Test-to-production ratio | 2.09:1 | `36852 / 17663` |
-| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`, `.claude/`) | 55,582 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" ! -path "*/.claude/*" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Production PHP lines (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 17,723 | `find ./includes ./wp-sudo.php ./uninstall.php ./mu-plugin ./bridges -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Tests PHP lines (`tests/`) | 36,942 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Production + tests PHP lines | 54,665 | sum of the two rows above |
+| Test-to-production ratio | 2.08:1 | `36942 / 17723` |
+| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`, `.claude/`) | 55,732 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" ! -path "*/.claude/*" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
 
 ## Footprint & Performance
 
@@ -105,6 +105,7 @@ Source: `.github/workflows/phpunit.yml`, `.github/workflows/e2e.yml`, `.github/w
 
 ## Verification Notes
 
+- `composer test:unit` passed on 2026-07-06 (unit totals in the Test Metrics table above). Block-editor reauth, **Increment 2, Task 2** (grant plumbing; PHP-only slice — modal/2FA/re-dispatch JS deferred to a wp-env session): `Plugin::enqueue_editor_reauth()` now localizes `wpSudoEditorReauth` (grant nonce = the single `Challenge::NONCE_ACTION` `wp_sudo_challenge`, C1; AJAX action names; current-site `admin_url('admin-ajax.php')`, never network-admin, so a subsite editor posts its grant locally — design-review obj. 6), loaded even when a session is active (C2). New AJAX endpoint `Challenge::handle_ajax_refresh_nonce()` (`wp_sudo_refresh_grant_nonce`) re-mints a fresh grant nonce for an editor open past the ~24 h nonce lifetime — the primary staleness fix, since `check_ajax_referer` hard-`wp_die`s and can't be caught client-side (design-review obj. 2); logged-in-only, grants nothing (+3 unit tests).
 - `composer test:unit` passed on 2026-07-05 (unit totals in the Test Metrics table above). Block-editor reauth, Increment 1 (link-out snackbar): `Plugin::enqueue_editor_reauth()` enqueues a build-free `apiFetch` middleware (`admin/js/wp-sudo-editor-reauth.js`) on every block/site-editor screen — including when a sudo session is active at page load (condition C2, revised: the long-lived editor SPA outlives the short session) — that turns a gated action's `sudo_required` REST 403 into an in-editor "Reauthenticate" snackbar linking out to the challenge page. Notify + link-out only (no in-editor grant/modal yet); message stays generic (no rule-label echo). The `challenge_url` is validated (same-origin http(s)) before it is offered — a missing, malformed, cross-origin, or `javascript:` URL degrades to a plain message with no action (the cookie-auth branch always carries a valid same-origin URL; the no-action path is a defensive safety net) (+3 unit tests; +5 E2E in `editor-reauth.spec.ts`).
 - `composer test:unit` passed on 2026-07-05 (`997 tests`, `3032 assertions`). Harmonized user identity across the dashboard Session Activity widget and the Settings → Sudo Access tab: both now lead with the user's **full real name** (primary), with the **username secondary** (linked to user-edit when permitted), an avatar, and translated role chip(s). A shared `WP_Sudo\User_Identity` helper (`primary_name()` / `role_labels()`) is the single source of truth so the two surfaces cannot drift; role names go through `translate_user_role()`. Also fixed a latent no-op: `get_avatar()`'s force key is `force_display`, not `force` (the widget's avatar previously honored the site "Show Avatars" setting instead of always rendering); the stale Psalm baseline entry for it was removed (+11 tests: 6 `UserIdentityTest`, 5 Access-tab/widget cell + permission-branch).
 - `composer test:unit` passed on 2026-07-05 (`986 tests`, `3003 assertions`). Access-tab capability-holder table: each capability now renders as its own `wp-sudo-cap-item` row showing the human-readable label instead of the raw slug, with the Revoke control paired directly to it (responsive at narrow widths, no orphaned links); the slug moves to a tooltip + `screen-reader-text` span, and the Grant Capability dropdown drops the parenthetical slug from its visible option text. The revoke JS now removes the whole capability item container rather than a position-dependent `<code>` sibling. Each Revoke button also carries a capability-specific `aria-label` ("Revoke <label> capability") so screen-reader users tabbing through otherwise-identical controls get the capability context, and `get_cap_label()` now returns its labels through the text domain so localized installs get translated capability names (the label is the primary visible text now that the slug is hidden) (+1 test).
