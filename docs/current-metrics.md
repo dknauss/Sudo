@@ -2,17 +2,17 @@
 
 This file is the single source of truth for current repository counts.
 
-Last verified: 2026-07-05
+Last verified: 2026-07-06
 Verification environment: local workspace, PHP 8.x
 
 ## Test Metrics
 
 | Metric | Value | Verification |
 |---|---:|---|
-| Unit tests | 1006 tests | `composer test:unit` |
-| Unit assertions | 3,059 assertions | `composer test:unit` |
+| Unit tests | 1012 tests | `composer test:unit` |
+| Unit assertions | 3,074 assertions | `composer test:unit` |
 | Integration tests in suite | 208 test methods | `rg -c "function test" tests/Integration/*.php | awk -F: '{sum+=$2} END{print sum}'` |
-| Unit test files | 31 | `ls tests/Unit/*.php | wc -l` |
+| Unit test files | 32 | `ls tests/Unit/*.php | wc -l` |
 | Integration test files | 28 | `ls tests/Integration/*.php | wc -l` |
 
 ## Size Metrics
@@ -20,10 +20,10 @@ Verification environment: local workspace, PHP 8.x
 | Metric | Value | Verification |
 |---|---:|---|
 | Production PHP lines (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 17,584 | `find ./includes ./wp-sudo.php ./uninstall.php ./mu-plugin ./bridges -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
-| Tests PHP lines (`tests/`) | 36,496 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
-| Production + tests PHP lines | 54,080 | sum of the two rows above |
-| Test-to-production ratio | 2.08:1 | `36496 / 17584` |
-| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`) | 55,015 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Tests PHP lines (`tests/`) | 36,660 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Production + tests PHP lines | 54,244 | sum of the two rows above |
+| Test-to-production ratio | 2.08:1 | `36660 / 17584` |
+| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`) | 55,311 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
 
 ## Footprint & Performance
 

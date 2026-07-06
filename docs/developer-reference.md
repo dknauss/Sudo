@@ -663,6 +663,19 @@ default email — send Slack/Teams/webhook via `wp_remote_post`, or capture the
 composed alert for inline display where outbound network is unavailable, e.g.
 WordPress Playground), and the additive `wp_sudo_critical_alert_dispatched` action.
 
+**Inline demo companion.** `bin/demo/wp-sudo-alert-inline-demo.php` is a
+demo-only realization of that Playground use case (it is not shipped for
+production — the `bin/` tree is demo/tooling, not part of the plugin runtime).
+Dropped into `mu-plugins/` alongside the bridge, it listens on the additive
+`wp_sudo_critical_alert_dispatched` action (never the replace-filter, so it
+cannot suppress real alert email), buffers each composed alert in a short-lived
+transient, and renders it as an admin notice on the next wp-admin load. Because
+it is a demo it also relaxes the bridge's dedupe/hourly-cap (both → 0) so a live
+walkthrough can re-trigger the same event and keep seeing it. The Playground
+`blueprint-main.json` copies both the bridge and this companion into
+`mu-plugins/` so "trigger a tamper/escalation/lockout → watch the alert fire" is
+visible without any outbound network.
+
 ### Future: External Audit Mode (v3.2 candidate)
 
 For operators who treat Stream or WSAL as their canonical audit destination,
