@@ -438,6 +438,7 @@ class Challenge {
 	public function handle_ajax_refresh_nonce(): void {
 		if ( ! get_current_user_id() ) {
 			wp_send_json_error( array( 'message' => __( 'Not logged in.', 'wp-sudo' ) ), 403 );
+			return; // wp_send_json_error exits in core; explicit for unambiguous flow.
 		}
 
 		wp_send_json_success( array( 'nonce' => wp_create_nonce( self::NONCE_ACTION ) ) );

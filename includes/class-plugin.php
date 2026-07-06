@@ -318,8 +318,10 @@ class Plugin {
 	 * loaded even when a session is active (C2, same rationale as the enqueue).
 	 * `admin-ajax.php` is resolved via `admin_url()` (current site), never
 	 * `network_admin_url()` — a subsite editor must post its grant to its own
-	 * `admin-ajax.php`. A stale nonce (editor open past the ~24 h lifetime) is
-	 * recovered via `Challenge::AJAX_REFRESH_NONCE_ACTION`, not localized here.
+	 * `admin-ajax.php`. Only the initial nonce value is minted here; when it goes
+	 * stale (editor open past the ~24 h lifetime) a fresh one is fetched at runtime
+	 * from the `Challenge::AJAX_REFRESH_NONCE_ACTION` endpoint (whose action name is
+	 * localized above, but not a nonce value).
 	 *
 	 * @since 4.6.0
 	 *

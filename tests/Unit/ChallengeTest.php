@@ -137,26 +137,13 @@ class ChallengeTest extends TestCase
 	public function test_handle_ajax_refresh_nonce_rejects_logged_out(): void
 	{
 		Functions\when('get_current_user_id')->justReturn(0);
+		Functions\expect('wp_send_json_error')->once();
+		// The explicit return after wp_send_json_error prevents fallthrough to the
+		// success path even when the error helper is a no-op mock (no nonce minted).
 		Functions\expect('wp_create_nonce')->never();
 		Functions\expect('wp_send_json_success')->never();
 
-		// wp_send_json_error dies in production; throw here to short-circuit and
-		// prove no nonce is minted for a logged-out request (mirrors the suite's
-		// early-exit pattern).
-		Functions\expect('wp_send_json_error')
-			->once()
-			->andReturnUsing(
-				function () {
-					throw new \RuntimeException('stop');
-				}
-			);
-
-		try {
-			$this->challenge->handle_ajax_refresh_nonce();
-			$this->fail('Expected wp_send_json_error to short-circuit.');
-		} catch (\RuntimeException $e) {
-			$this->assertSame('stop', $e->getMessage());
-		}
+		$this->challenge->handle_ajax_refresh_nonce();
 	}
 
 	/**
