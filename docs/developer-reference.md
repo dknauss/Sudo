@@ -582,7 +582,7 @@ defined( 'ABSPATH' ) || exit;
 
 function wp_sudo_critical_alert( string $subject, string $body ): void {
 	// To notify Slack/Teams/a webhook instead of email, swap wp_mail() for:
-	// wp_remote_post( 'https://hooks.slack.com/services/…', array(
+	// wp_remote_post( 'https://hooks.slack.com/services/YOUR/WEBHOOK/PATH', array(
 	//     'headers' => array( 'Content-Type' => 'application/json' ),
 	//     'body'    => wp_json_encode( array( 'text' => $subject . "\n" . $body ) ),
 	//     'timeout' => 5,
