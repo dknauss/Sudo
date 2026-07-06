@@ -51,7 +51,7 @@ class AlertInlineDemoTest extends TestCase {
 			}
 		);
 		Functions\when( 'set_transient' )->alias(
-			static function ( string $k, $v ) use ( &$store ): bool {
+			static function ( string $k, $v, $exp = 0 ) use ( &$store ): bool {
 				$store[ $k ] = $v;
 				return true;
 			}

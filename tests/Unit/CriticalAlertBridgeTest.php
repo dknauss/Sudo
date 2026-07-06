@@ -45,6 +45,7 @@ class CriticalAlertBridgeTest extends TestCase {
 		Functions\when( 'add_action' )->justReturn( true );
 		Functions\when( 'do_action' )->justReturn( null );
 		Functions\when( 'is_multisite' )->justReturn( (bool) ( $overrides['multisite'] ?? false ) );
+		Functions\when( 'is_super_admin' )->justReturn( (bool) ( $overrides['super_admin'] ?? false ) );
 		Functions\when( 'get_current_user_id' )->justReturn( (int) ( $overrides['current_user'] ?? 0 ) );
 		Functions\when( 'home_url' )->justReturn( 'https://example.test' );
 		Functions\when( 'network_home_url' )->justReturn( 'https://network.example.test' );
@@ -78,7 +79,7 @@ class CriticalAlertBridgeTest extends TestCase {
 			}
 		);
 		Functions\when( 'set_transient' )->alias(
-			static function ( string $k, $v ) use ( &$store ): bool {
+			static function ( string $k, $v, $exp = 0 ) use ( &$store ): bool {
 				$store[ $k ] = $v;
 				return true;
 			}
@@ -90,7 +91,7 @@ class CriticalAlertBridgeTest extends TestCase {
 			}
 		);
 		Functions\when( 'set_site_transient' )->alias(
-			static function ( string $k, $v ) use ( &$sstore ): bool {
+			static function ( string $k, $v, $exp = 0 ) use ( &$sstore ): bool {
 				$sstore[ $k ] = $v;
 				return true;
 			}
@@ -112,6 +113,13 @@ class CriticalAlertBridgeTest extends TestCase {
 		);
 
 		include __DIR__ . '/../../bridges/wp-sudo-critical-alert-bridge.php';
+
+		// Registration is deferred to plugins_loaded so regular plugins/themes
+		// can filter the enabled-event set before it is read.
+		$this->assertContains( 'plugins_loaded', $hooks );
+
+		// Fire the deferred registration and assert the audit-hook wiring.
+		wp_sudo_critical_alert_bridge_register();
 
 		$this->assertContains( 'wp_sudo_capability_tampered', $hooks );
 		$this->assertContains( 'wp_sudo_escalation_blocked', $hooks );
@@ -139,6 +147,7 @@ class CriticalAlertBridgeTest extends TestCase {
 		);
 
 		include __DIR__ . '/../../bridges/wp-sudo-critical-alert-bridge.php';
+		wp_sudo_critical_alert_bridge_register();
 
 		$this->assertContains( 'wp_sudo_recovery_mode_active', $hooks );
 	}
@@ -261,5 +270,108 @@ class CriticalAlertBridgeTest extends TestCase {
 			'site-admin@example.test',
 			wp_sudo_critical_alert_bridge_recipient( array( 'scope' => 'site' ) )
 		);
+	}
+
+	public function test_hourly_counter_preserves_window_start_across_increments(): void {
+		$this->boot();
+
+		wp_sudo_critical_alert_bridge_count( true, false );
+		$first = $this->transients['_wp_sudo_critical_alert_count'];
+		wp_sudo_critical_alert_bridge_count( true, false );
+		$second = $this->transients['_wp_sudo_critical_alert_count'];
+
+		$this->assertSame( 2, $second['count'] );
+		// The window opens once; increments must not push its start forward
+		// (which would let a slow trickle suppress alerts indefinitely).
+		$this->assertSame( $first['start'], $second['start'] );
+	}
+
+	public function test_hourly_counter_reports_zero_after_the_window_elapses(): void {
+		$this->boot();
+		// Seed an expired window (opened over an hour ago).
+		$this->transients['_wp_sudo_critical_alert_count'] = array(
+			'count' => 9,
+			'start' => time() - HOUR_IN_SECONDS - 1,
+		);
+
+		// A read past the window reports zero without persisting a write.
+		$this->assertSame( 0, wp_sudo_critical_alert_bridge_count( false, false ) );
+	}
+
+	public function test_network_scope_events_count_against_a_separate_network_counter(): void {
+		$this->boot( array( 'multisite' => true ) );
+
+		wp_sudo_critical_alert_bridge_count( true, true );
+		wp_sudo_critical_alert_bridge_count( true, false );
+
+		// Network events use a network transient, site events a per-site one, so
+		// no single recipient's mailbox is flooded and one busy site cannot
+		// starve another site's alerts.
+		$this->assertSame( 1, $this->site_transients['_wp_sudo_critical_alert_count']['count'] );
+		$this->assertSame( 1, $this->transients['_wp_sudo_critical_alert_count']['count'] );
+	}
+
+	public function test_overflow_digest_is_deduped_across_repeated_flushes(): void {
+		$this->boot( array( 'cap' => 1 ) );
+		$digests = 0;
+		Functions\when( 'wp_mail' )->alias(
+			static function ( string $to, string $subject ) use ( &$digests ): bool {
+				if ( false !== strpos( $subject, 'Additional critical events suppressed' ) ) {
+					++$digests;
+				}
+				return true;
+			}
+		);
+
+		// First flush: 'a' fills the cap, 'b' overflows → one digest.
+		wp_sudo_critical_alert_bridge_queue( 'add', array( 'key' => 'lockout', 'subject' => 's', 'body' => 'a', 'identity' => 'a', 'scope' => 'site' ) );
+		wp_sudo_critical_alert_bridge_queue( 'add', array( 'key' => 'lockout', 'subject' => 's', 'body' => 'b', 'identity' => 'b', 'scope' => 'site' ) );
+		wp_sudo_critical_alert_bridge_flush();
+
+		// Second flush in the same window overflows again but must NOT re-emit a
+		// digest — otherwise a per-request flood sends one digest per request.
+		wp_sudo_critical_alert_bridge_queue( 'add', array( 'key' => 'lockout', 'subject' => 's', 'body' => 'c', 'identity' => 'c', 'scope' => 'site' ) );
+		wp_sudo_critical_alert_bridge_flush();
+
+		$this->assertSame( 1, $digests );
+	}
+
+	public function test_escalation_super_admin_target_routes_to_network_on_multisite(): void {
+		$this->boot( array( 'multisite' => true, 'super_admin' => true, 'current_user' => 7 ) );
+
+		// Generic user.delete against a super-admin target is a network concern.
+		$event = wp_sudo_critical_alert_bridge_build_event( 'escalation_blocked', array( 42, 'user.delete', 'admin' ) );
+
+		$this->assertSame( 'network', $event['scope'] );
+	}
+
+	public function test_escalation_non_super_admin_target_stays_site_scope(): void {
+		$this->boot( array( 'multisite' => true, 'super_admin' => false ) );
+
+		$event = wp_sudo_critical_alert_bridge_build_event( 'escalation_blocked', array( 42, 'user.delete', 'admin' ) );
+
+		$this->assertSame( 'site', $event['scope'] );
+	}
+
+	public function test_missing_network_rules_route_to_network_on_multisite(): void {
+		$this->boot( array( 'multisite' => true ) );
+
+		$event = wp_sudo_critical_alert_bridge_build_event(
+			'missing_builtin_rules',
+			array( array( 'network.super_admin', 'plugin.activate' ) )
+		);
+
+		$this->assertSame( 'network', $event['scope'] );
+	}
+
+	public function test_missing_site_only_rules_stay_site_scope(): void {
+		$this->boot( array( 'multisite' => true ) );
+
+		$event = wp_sudo_critical_alert_bridge_build_event(
+			'missing_builtin_rules',
+			array( array( 'plugin.activate', 'user.delete' ) )
+		);
+
+		$this->assertSame( 'site', $event['scope'] );
 	}
 }

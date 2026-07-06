@@ -15,7 +15,7 @@
  *   (e.g. wp_sudo_escalation_blocked, right before the gate dies) is already
  *   answered before the mail is attempted.
  * - Throttled against floods. Every mapped event is deduped per identity for a
- *   window, and a bridge-wide hourly cap collapses an incident into a single
+ *   window, and a per-recipient hourly cap collapses an incident into a single
  *   "N more suppressed" summary. This matters because several of these hooks are
  *   attacker-driven at volume (lockout enumeration, per-request tamper), so an
  *   unthrottled bridge would be a mail/outbound-DoS amplifier.
@@ -27,7 +27,7 @@
  * - `wp_sudo_critical_alert_events`     — array of enabled event keys.
  * - `wp_sudo_critical_alert_recipient`  — ( string $email, array $event ).
  * - `wp_sudo_critical_alert_throttle`   — int seconds, per-event dedupe window.
- * - `wp_sudo_critical_alert_hourly_cap` — int max alerts/hour bridge-wide.
+ * - `wp_sudo_critical_alert_hourly_cap` — int max alerts/hour per recipient.
  * - `wp_sudo_critical_alert_dispatch`   — ( null|mixed $handled, array $event ):
  *       return non-null to REPLACE the default email (Slack/webhook/inline
  *       capture). Runs before the default email; a non-null return suppresses it.
@@ -183,8 +183,10 @@ if ( ! function_exists( 'wp_sudo_critical_alert_bridge_build_event' ) ) {
 						$actor > 0 ? '#' . $actor : 'unknown'
 					),
 					'identity' => $rule . ':' . $target,
-					// Super-admin grants are a network-scope concern.
-					'scope'    => 'user.super_admin' === $rule ? 'network' : 'site',
+					// A super-admin grant/deletion is a network-scope concern. On
+					// multisite a super-admin *target* routes to the network admin
+					// even under a generic user.delete/user.promote rule id.
+					'scope'    => ( 'user.super_admin' === $rule || ( is_multisite() && $target > 0 && is_super_admin( $target ) ) ) ? 'network' : 'site',
 				);
 
 			case 'lockout':
@@ -201,12 +203,18 @@ if ( ! function_exists( 'wp_sudo_critical_alert_bridge_build_event' ) ) {
 
 			case 'missing_builtin_rules':
 				$missing = isset( $args[0] ) && is_array( $args[0] ) ? array_map( 'strval', $args[0] ) : array();
+				// A removed network-scope rule (registry ids are network.*) concerns
+				// the network admin; site rules the site admin.
+				$missing_network = is_multisite() && (bool) array_filter(
+					$missing,
+					static fn( string $rule_id ): bool => str_starts_with( $rule_id, 'network' )
+				);
 				return array(
 					'key'      => $key,
 					'subject'  => 'Built-in gated rules missing',
 					'body'     => 'A filter removed built-in gated rules: ' . implode( ', ', $missing ),
 					'identity' => implode( ',', $missing ),
-					'scope'    => 'site',
+					'scope'    => $missing_network ? 'network' : 'site',
 				);
 
 			case 'recovery_mode':
@@ -249,29 +257,38 @@ if ( ! function_exists( 'wp_sudo_critical_alert_bridge_flush' ) ) {
 				continue;
 			}
 
-			// Bridge-wide hourly cap: collapse overflow into one summary.
-			if ( $cap > 0 && wp_sudo_critical_alert_bridge_count() >= $cap ) {
+			// Per-recipient hourly cap: network-scope events share a network-wide
+			// counter, site-scope events a per-site one, so no single mailbox is
+			// flooded and one busy site cannot starve another site's alerts.
+			$network = ( isset( $event['scope'] ) && 'network' === $event['scope'] ) && is_multisite();
+			if ( $cap > 0 && wp_sudo_critical_alert_bridge_count( false, $network ) >= $cap ) {
 				++$suppressed;
 				continue;
 			}
 
 			wp_sudo_critical_alert_bridge_dispatch( $event );
-			wp_sudo_critical_alert_bridge_count( true );
+			wp_sudo_critical_alert_bridge_count( true, $network );
 		}
 
 		if ( $suppressed > 0 ) {
-			wp_sudo_critical_alert_bridge_dispatch(
-				array(
-					'key'      => 'digest',
-					'subject'  => 'Additional critical events suppressed',
-					'body'     => sprintf(
-						'%d further critical event(s) were suppressed this hour by the alert cap. Review the Sudo dashboard widget and activity log.',
-						$suppressed
-					),
-					'identity' => 'digest',
-					'scope'    => 'network',
-				)
+			$digest = array(
+				'key'      => 'digest',
+				'subject'  => 'Additional critical events suppressed',
+				'body'     => sprintf(
+					'%d further critical event(s) were suppressed this hour by the alert cap. Review the Sudo dashboard widget and activity log.',
+					$suppressed
+				),
+				'identity' => 'digest',
+				'scope'    => 'network',
 			);
+
+			// Throttle the digest itself so a per-request flood cannot emit one
+			// digest per request. Never pass a non-positive window to reserve() (a
+			// 0 TTL is a *permanent* transient); with dedupe disabled (window <= 0,
+			// demo only) the digest intentionally flows every time.
+			if ( $window <= 0 || wp_sudo_critical_alert_bridge_reserve( $digest, $window ) ) {
+				wp_sudo_critical_alert_bridge_dispatch( $digest );
+			}
 		}
 	}
 }
@@ -289,7 +306,7 @@ if ( ! function_exists( 'wp_sudo_critical_alert_bridge_reserve' ) ) {
 	function wp_sudo_critical_alert_bridge_reserve( array $event, int $window ): bool {
 		$key     = isset( $event['key'] ) ? (string) $event['key'] : '';
 		$ident   = isset( $event['identity'] ) ? (string) $event['identity'] : '';
-		$name    = '_wp_sudo_critalert_' . $key . '_' . md5( $ident );
+		$name    = '_wp_sudo_critical_alert_' . $key . '_' . md5( $ident );
 		$network = ( isset( $event['scope'] ) && 'network' === $event['scope'] ) && is_multisite();
 
 		if ( $network ) {
@@ -310,22 +327,40 @@ if ( ! function_exists( 'wp_sudo_critical_alert_bridge_reserve' ) ) {
 
 if ( ! function_exists( 'wp_sudo_critical_alert_bridge_count' ) ) {
 	/**
-	 * Read (or, when $increment is true, bump) the bridge-wide hourly alert
-	 * counter used by the cap.
+	 * Read (or, when $increment is true, bump) the hourly alert counter used by
+	 * the cap. The window opens on the first alert and rolls over an hour later,
+	 * rather than being extended on every increment (which would let a slow
+	 * trickle suppress alerts long after any real hourly burst). Network-scope
+	 * events use a network-wide counter, site-scope events a per-site one, so the
+	 * cap protects each recipient mailbox independently.
 	 *
 	 * @param bool $increment Whether to increment the counter.
-	 * @return int Current count (after increment when applicable).
+	 * @param bool $network   Whether to use the network-wide counter (multisite).
+	 * @return int Current count within the active window (after increment).
 	 */
-	function wp_sudo_critical_alert_bridge_count( bool $increment = false ): int {
-		$name  = '_wp_sudo_critalert_count';
-		$count = (int) get_transient( $name );
+	function wp_sudo_critical_alert_bridge_count( bool $increment = false, bool $network = false ): int {
+		$name = '_wp_sudo_critical_alert_count';
+		$data = $network ? get_site_transient( $name ) : get_transient( $name );
 
-		if ( $increment ) {
-			++$count;
-			set_transient( $name, $count, HOUR_IN_SECONDS );
+		if ( ! is_array( $data ) || ! isset( $data['count'], $data['start'] ) ) {
+			$data = array( 'count' => 0, 'start' => 0 );
 		}
 
-		return $count;
+		// Roll the window over once a full hour has elapsed since it opened.
+		if ( time() - (int) $data['start'] >= HOUR_IN_SECONDS ) {
+			$data = array( 'count' => 0, 'start' => time() );
+		}
+
+		if ( $increment ) {
+			$data['count'] = (int) $data['count'] + 1;
+			if ( $network ) {
+				set_site_transient( $name, $data, HOUR_IN_SECONDS );
+			} else {
+				set_transient( $name, $data, HOUR_IN_SECONDS );
+			}
+		}
+
+		return (int) $data['count'];
 	}
 }
 
@@ -398,4 +433,4 @@ if ( ! function_exists( 'wp_sudo_critical_alert_bridge_recipient' ) ) {
 	}
 }
 
-wp_sudo_critical_alert_bridge_register();
+add_action( 'plugins_loaded', 'wp_sudo_critical_alert_bridge_register', 10, 0 );

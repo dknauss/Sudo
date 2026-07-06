@@ -645,15 +645,22 @@ Safety properties:
   security-blocking response — important because `wp_sudo_escalation_blocked`
   fires immediately before the gate dies.
 - **Throttled against floods.** Each event is deduped per identity for a window,
-  and a bridge-wide hourly cap collapses an incident into one "N more suppressed"
-  summary — several of these hooks are attacker-driven at volume (lockout
-  enumeration, per-request tamper), so an unthrottled bridge would amplify a
-  mail/outbound flood.
+  and a per-recipient hourly cap (network-scope events against a network-wide
+  counter, site events against a per-site one) collapses an incident into one "N
+  more suppressed" summary — itself throttled to one digest per window. Several
+  of these hooks are attacker-driven at volume (lockout enumeration, per-request
+  tamper), so an unthrottled bridge would amplify a mail/outbound flood.
+- **Filterable at the right time.** Registration is deferred to `plugins_loaded`,
+  so a regular plugin or theme can filter `wp_sudo_critical_alert_events` (e.g.
+  opt into `recovery_mode`, or drop a noisy default) from where WordPress code
+  normally adds filters, not only from an earlier-loading mu-plugin.
 - **Correct attribution.** `wp_sudo_escalation_blocked`'s first argument is the
   **target** being granted/deleted, not the actor; the alert states the target
   precisely and enriches with the current user as "Actor" separately.
 - **Multisite-aware recipient.** Super-admin-scope events default to the network
-  admin email; site events to the site admin email.
+  admin email; site events to the site admin email. On multisite this also covers
+  a super-admin *target* under a generic `user.delete`/`user.promote` rule and a
+  dropped `network.*` built-in rule, both of which route to the network admin.
 
 Filters/actions: `wp_sudo_critical_alert_events` (enabled keys),
 `wp_sudo_critical_alert_recipient` (`string $email, array $event`),
