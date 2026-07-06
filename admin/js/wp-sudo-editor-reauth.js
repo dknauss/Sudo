@@ -17,9 +17,14 @@
  *   in JS (multisite/network-admin routing is server-side and referrer-fragile).
  * - The rule label is never echoed: `plugin.activate`/`plugin.deactivate` share a
  *   route and the matched label can be wrong, so the message stays generic.
- * - When `challenge_url` is absent (headless / application-password sessions get
- *   `sudo_blocked` with no URL), the snackbar degrades to a plain message with no
- *   action — it must never fabricate a reauth affordance for a headless client.
+ * - The link-out is DEFENSIVE about the URL. Because this middleware fires on any
+ *   REST payload carrying `code: 'sudo_required'`, the `challenge_url` is offered
+ *   only when it is present AND a same-origin http(s) URL; a missing, malformed,
+ *   cross-origin, or `javascript:` URL degrades to a plain message with no action.
+ *   The URL is validated, never rewritten. (In practice the cookie-auth
+ *   `sudo_required` branch always carries a valid same-origin URL; headless /
+ *   application-password requests are blocked under a different code this
+ *   middleware ignores, so the no-URL path is a safety net, not a normal flow.)
  *
  * @package WP_Sudo
  */
@@ -40,12 +45,36 @@
 	var NOTICE_ID = 'wp-sudo-reauth-required';
 
 	/**
+	 * Accept a challenge URL only if it is a same-origin http(s) URL.
+	 *
+	 * The URL is server-emitted, but this middleware fires on any REST payload
+	 * carrying `code: 'sudo_required'`, so a buggy or hostile response must not be
+	 * able to drive window.open() to a `javascript:` URI or a cross-origin target.
+	 * The candidate is parsed against the current location purely to validate it;
+	 * the original string is what gets opened, so the URL is never rewritten.
+	 *
+	 * @param {string} url Candidate challenge_url from the error payload.
+	 * @return {boolean} True when the URL is safe to open.
+	 */
+	function isSafeChallengeUrl( url ) {
+		try {
+			var parsed = new URL( url, window.location.href );
+			return (
+				( 'https:' === parsed.protocol || 'http:' === parsed.protocol ) &&
+				parsed.origin === window.location.origin
+			);
+		} catch ( e ) {
+			return false;
+		}
+	}
+
+	/**
 	 * Classify a REST error / inner-response body as a sudo_required payload.
 	 *
-	 * Tri-state so callers can distinguish "not ours" from "ours but no URL":
+	 * Tri-state so callers can distinguish "not ours" from "ours but no usable URL":
 	 *   undefined → not a sudo_required payload (ignore).
-	 *   null      → sudo_required with no challenge_url (headless — plain message).
-	 *   string    → sudo_required with a challenge_url (offer the link-out action).
+	 *   null      → sudo_required with no safe challenge_url (plain message, no action).
+	 *   string    → sudo_required with a validated challenge_url (offer the link-out).
 	 *
 	 * @param {Object} payload A REST error object ({code, data}) or a batch inner body.
 	 * @return {(string|null|undefined)} See above.
@@ -55,7 +84,7 @@
 			return undefined;
 		}
 		var url = payload.data && payload.data.challenge_url;
-		return ( 'string' === typeof url && url ) ? url : null;
+		return ( 'string' === typeof url && url && isSafeChallengeUrl( url ) ) ? url : null;
 	}
 
 	/**

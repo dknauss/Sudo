@@ -10,9 +10,12 @@
  *              new tab; the message is generic (never echoes the rule label).
  *   EDITOR-02  A sudo_required nested in a /batch/v1 response envelope surfaces the
  *              snackbar (detect-and-surface only — no batch re-dispatch).
- *   EDITOR-03  A sudo_required with NO challenge_url (headless / app-password
- *              branch, C4) degrades to a plain message with NO action.
+ *   EDITOR-03  A sudo_required with NO challenge_url degrades to a plain message
+ *              with NO action (defensive missing-URL safety net).
  *   EDITOR-04  A normal REST error does NOT surface the snackbar.
+ *   EDITOR-05  A sudo_required whose challenge_url is unsafe (javascript: /
+ *              cross-origin) degrades to a plain message with NO action — the
+ *              middleware never opens an unvalidated URL.
  *
  * Method: EDITOR-01 exercises the full real chain (server → middleware). The
  * synthetic cases override window.fetch narrowly so apiFetch's own chain — and
@@ -29,9 +32,12 @@
  * clear any sudo cookie in beforeEach so a leaked session cannot mask a gated response.
  */
 import { test, expect } from '../fixtures/test';
+import type { Page } from '@playwright/test';
 
 const NOTICE_ID = 'wp-sudo-reauth-required';
 const GENERIC_MESSAGE = 'This action requires reauthentication.';
+
+type NoticeSnapshot = { content: string; actionLabels: string[] };
 
 test.describe( 'Block-editor reauth snackbar', () => {
 	test.beforeEach( async ( { page, context } ) => {
@@ -67,7 +73,7 @@ test.describe( 'Block-editor reauth snackbar', () => {
 	 * Read the current wp-sudo reauth notice from the core/notices store, or null.
 	 * Returns a serializable snapshot (onClick handlers are dropped by evaluate).
 	 */
-	async function readNotice( page ) {
+	async function readNotice( page: Page ): Promise< NoticeSnapshot | null > {
 		return page.evaluate( ( noticeId ) => {
 			const notices = ( window as any ).wp.data
 				.select( 'core/notices' )
@@ -83,6 +89,24 @@ test.describe( 'Block-editor reauth snackbar', () => {
 				),
 			};
 		}, NOTICE_ID );
+	}
+
+	/**
+	 * Poll until the reauth notice appears, then return its snapshot.
+	 *
+	 * The snackbar is created via a core/notices store dispatch, so reading it
+	 * synchronously right after the apiFetch call is race-prone under CI. Poll
+	 * for it instead of asserting on a single immediate read.
+	 */
+	async function waitForNotice( page: Page ): Promise< NoticeSnapshot > {
+		let snapshot: NoticeSnapshot | null = null;
+		await expect
+			.poll( async () => {
+				snapshot = await readNotice( page );
+				return snapshot !== null;
+			}, { timeout: 5_000, message: 'reauth snackbar must appear' } )
+			.toBe( true );
+		return snapshot as NoticeSnapshot;
 	}
 
 	test( 'EDITOR-01: real gated action surfaces a link-out snackbar', async ( {
@@ -114,13 +138,12 @@ test.describe( 'Block-editor reauth snackbar', () => {
 		expect( challengeUrl ).toContain( 'page=wp-sudo-challenge' );
 
 		// The middleware surfaced a generic, link-out snackbar.
-		const notice = await readNotice( page );
-		expect( notice, 'reauth snackbar must be present' ).not.toBeNull();
-		expect( notice!.content ).toBe( GENERIC_MESSAGE );
+		const notice = await waitForNotice( page );
+		expect( notice.content ).toBe( GENERIC_MESSAGE );
 		// SEV-3 / Q4: never echo the rule label.
-		expect( notice!.content.toLowerCase() ).not.toContain( 'activate' );
-		expect( notice!.content.toLowerCase() ).not.toContain( 'plugin' );
-		expect( notice!.actionLabels ).toEqual( [ 'Reauthenticate' ] );
+		expect( notice.content.toLowerCase() ).not.toContain( 'activate' );
+		expect( notice.content.toLowerCase() ).not.toContain( 'plugin' );
+		expect( notice.actionLabels ).toEqual( [ 'Reauthenticate' ] );
 
 		// The action opens the server's challenge_url in a NEW tab (editor preserved).
 		const action = page
@@ -186,12 +209,8 @@ test.describe( 'Block-editor reauth snackbar', () => {
 			}
 		} );
 
-		const notice = await readNotice( page );
-		expect(
-			notice,
-			'batched sudo_required must surface the snackbar (no silent no-op)'
-		).not.toBeNull();
-		expect( notice!.actionLabels ).toEqual( [ 'Reauthenticate' ] );
+		const notice = await waitForNotice( page );
+		expect( notice.actionLabels ).toEqual( [ 'Reauthenticate' ] );
 	} );
 
 	test( 'EDITOR-03: sudo_required without challenge_url degrades to a plain message', async ( {
@@ -229,14 +248,10 @@ test.describe( 'Block-editor reauth snackbar', () => {
 			}
 		} );
 
-		const notice = await readNotice( page );
-		expect(
-			notice,
-			'headless sudo_required still surfaces a message'
-		).not.toBeNull();
-		expect( notice!.content ).toBe( GENERIC_MESSAGE );
+		const notice = await waitForNotice( page );
+		expect( notice.content ).toBe( GENERIC_MESSAGE );
 		// C4-adjacent: no reauth affordance when there is no challenge_url.
-		expect( notice!.actionLabels ).toEqual( [] );
+		expect( notice.actionLabels ).toEqual( [] );
 	} );
 
 	test( 'EDITOR-04: a normal REST error does not surface the snackbar', async ( {
@@ -275,5 +290,53 @@ test.describe( 'Block-editor reauth snackbar', () => {
 			notice,
 			'a non-sudo error must not surface the reauth snackbar'
 		).toBeNull();
+	} );
+
+	test( 'EDITOR-05: an unsafe challenge_url degrades to a plain message', async ( {
+		page,
+	} ) => {
+		// A sudo_required carrying a javascript: URL must never reach window.open:
+		// the middleware validates the URL and drops the action, degrading to the
+		// same plain message as the no-URL case.
+		await page.evaluate( async () => {
+			const original = window.fetch;
+			window.fetch = async ( input: any, init?: any ) => {
+				const url = typeof input === 'string' ? input : input?.url ?? '';
+				if ( url.includes( '/wp/v2/plugins' ) ) {
+					return new Response(
+						JSON.stringify( {
+							code: 'sudo_required',
+							message: 'blocked',
+							data: {
+								status: 403,
+								// A hostile scheme the middleware must reject (never opened).
+								challenge_url: 'javascript:alert(document.domain)',
+							},
+						} ),
+						{
+							status: 403,
+							headers: { 'Content-Type': 'application/json' },
+						}
+					);
+				}
+				return original( input, init );
+			};
+			try {
+				await ( window as any ).wp.apiFetch( {
+					path: '/wp/v2/plugins/hello',
+					method: 'PUT',
+					data: { status: 'active' },
+				} );
+			} catch ( e ) {
+				// ignore
+			} finally {
+				window.fetch = original;
+			}
+		} );
+
+		const notice = await waitForNotice( page );
+		expect( notice.content ).toBe( GENERIC_MESSAGE );
+		// The unsafe URL is rejected: no link-out action is offered.
+		expect( notice.actionLabels ).toEqual( [] );
 	} );
 } );
