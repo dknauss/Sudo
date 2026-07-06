@@ -623,6 +623,66 @@ The bridge supports late Stream availability (mu-plugin loads before
 regular plugins) by deferring registration to `plugins_loaded` when
 needed. It remains inert when Stream APIs are unavailable.
 
+### Optional Critical-Event Alert Bridge
+
+WP Sudo ships an optional alert bridge at
+`bridges/wp-sudo-critical-alert-bridge.php`. Install it as an mu-plugin to be
+**notified** (not just logged) when a high-severity audit hook fires. It packages
+the hook-to-notification wiring so you don't have to write it by hand; unlike the
+Stream/WSAL bridges, which log every event, it pushes a message for the events
+that usually warrant a human look.
+
+Mapped events (default set): `wp_sudo_capability_tampered`,
+`wp_sudo_escalation_blocked`, `wp_sudo_lockout`, and
+`wp_sudo_gated_actions_missing_builtin_rules`. `wp_sudo_recovery_mode_active` is
+supported but **opt-in** (it fires on every Sudo admin-page load during a
+legitimate break-glass episode and would drown the urgent alerts).
+
+Safety properties:
+
+- **Deferred, never blocking.** Alerts are queued and dispatched on `shutdown`
+  (which fires even after the gate's `wp_die()`), so a slow send never delays the
+  security-blocking response — important because `wp_sudo_escalation_blocked`
+  fires immediately before the gate dies.
+- **Throttled against floods.** Each event is deduped per identity for a window,
+  and a per-recipient hourly cap (network-scope events against a network-wide
+  counter, site events against a per-site one) collapses an incident into one "N
+  more suppressed" summary — itself throttled to one digest per window. Several
+  of these hooks are attacker-driven at volume (lockout enumeration, per-request
+  tamper), so an unthrottled bridge would amplify a mail/outbound flood.
+- **Filterable at the right time.** Registration is deferred to `plugins_loaded`,
+  so a regular plugin or theme can filter `wp_sudo_critical_alert_events` (e.g.
+  opt into `recovery_mode`, or drop a noisy default) from where WordPress code
+  normally adds filters, not only from an earlier-loading mu-plugin.
+- **Correct attribution.** `wp_sudo_escalation_blocked`'s first argument is the
+  **target** being granted/deleted, not the actor; the alert states the target
+  precisely and enriches with the current user as "Actor" separately.
+- **Multisite-aware recipient.** Super-admin-scope events default to the network
+  admin email; site events to the site admin email. On multisite this also covers
+  a super-admin *target* under a generic `user.delete`/`user.promote` rule and a
+  dropped `network.*` built-in rule, both of which route to the network admin.
+
+Filters/actions: `wp_sudo_critical_alert_events` (enabled keys),
+`wp_sudo_critical_alert_recipient` (`string $email, array $event`),
+`wp_sudo_critical_alert_throttle` (int seconds), `wp_sudo_critical_alert_hourly_cap`
+(int), `wp_sudo_critical_alert_dispatch` (return non-null to **replace** the
+default email — send Slack/Teams/webhook via `wp_remote_post`, or capture the
+composed alert for inline display where outbound network is unavailable, e.g.
+WordPress Playground), and the additive `wp_sudo_critical_alert_dispatched` action.
+
+**Inline demo companion.** `bin/demo/wp-sudo-alert-inline-demo.php` is a
+demo-only realization of that Playground use case (it is not shipped for
+production — the `bin/` tree is demo/tooling, not part of the plugin runtime).
+Dropped into `mu-plugins/` alongside the bridge, it listens on the additive
+`wp_sudo_critical_alert_dispatched` action (never the replace-filter, so it
+cannot suppress real alert email), buffers each composed alert in a short-lived
+transient, and renders it as an admin notice on the next wp-admin load. Because
+it is a demo it also relaxes the bridge's dedupe/hourly-cap (both → 0) so a live
+walkthrough can re-trigger the same event and keep seeing it. The Playground
+`blueprint-main.json` copies both the bridge and this companion into
+`mu-plugins/` so "trigger a tamper/escalation/lockout → watch the alert fire" is
+visible without any outbound network.
+
 ### Future: External Audit Mode (v3.2 candidate)
 
 For operators who treat Stream or WSAL as their canonical audit destination,

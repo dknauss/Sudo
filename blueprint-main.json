@@ -42,6 +42,10 @@
     {
       "step": "runPHP",
       "code": "<?php require_once '/wordpress/wp-load.php'; foreach ( array( 'admin', 'carlosadmin', 'mariadev' ) as $login ) { $u = get_user_by( 'login', $login ); if ( $u ) { foreach ( array( 'manage_wp_sudo', 'view_wp_sudo_activity', 'export_wp_sudo_activity', 'revoke_wp_sudo_sessions' ) as $c ) { $u->add_cap( $c ); } } }"
+    },
+    {
+      "step": "runPHP",
+      "code": "<?php require_once '/wordpress/wp-load.php'; $mu = defined('WPMU_PLUGIN_DIR') ? WPMU_PLUGIN_DIR : WP_CONTENT_DIR . '/mu-plugins'; if ( ! is_dir( $mu ) ) { @mkdir( $mu, 0777, true ); } $found = glob( WP_PLUGIN_DIR . '/*/bridges/wp-sudo-critical-alert-bridge.php' ); if ( is_array( $found ) && ! empty( $found ) ) { $src = $found[0]; $root = dirname( dirname( $src ) ); @copy( $src, $mu . '/wp-sudo-critical-alert-bridge.php' ); $demo = $root . '/bin/demo/wp-sudo-alert-inline-demo.php'; if ( file_exists( $demo ) ) { @copy( $demo, $mu . '/wp-sudo-alert-inline-demo.php' ); } } echo 'Wired critical-alert bridge + inline alert demo into mu-plugins (when present).';"
     }
   ]
 }

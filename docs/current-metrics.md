@@ -2,28 +2,28 @@
 
 This file is the single source of truth for current repository counts.
 
-Last verified: 2026-07-05
+Last verified: 2026-07-06
 Verification environment: local workspace, PHP 8.x
 
 ## Test Metrics
 
 | Metric | Value | Verification |
 |---|---:|---|
-| Unit tests | 1,000 tests | `composer test:unit` |
-| Unit assertions | 3,037 assertions | `composer test:unit` |
+| Unit tests | 1,023 tests | `composer test:unit` |
+| Unit assertions | 3,090 assertions | `composer test:unit` |
 | Integration tests in suite | 208 test methods | `rg -c "function test" tests/Integration/*.php | awk -F: '{sum+=$2} END{print sum}'` |
-| Unit test files | 30 | `ls tests/Unit/*.php | wc -l` |
+| Unit test files | 32 | `ls tests/Unit/*.php | wc -l` |
 | Integration test files | 28 | `ls tests/Integration/*.php | wc -l` |
 
 ## Size Metrics
 
 | Metric | Value | Verification |
 |---|---:|---|
-| Production PHP lines (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 17,227 | `find ./includes ./wp-sudo.php ./uninstall.php ./mu-plugin ./bridges -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
-| Tests PHP lines (`tests/`) | 36,307 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
-| Production + tests PHP lines | 53,534 | sum of the two rows above |
-| Test-to-production ratio | 2.11:1 | `36307 / 17227` |
-| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`) | 54,469 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Production PHP lines (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 17,663 | `find ./includes ./wp-sudo.php ./uninstall.php ./mu-plugin ./bridges -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Tests PHP lines (`tests/`) | 36,848 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Production + tests PHP lines | 54,511 | sum of the two rows above |
+| Test-to-production ratio | 2.09:1 | `36848 / 17663` |
+| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`) | 55,578 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
 
 ## Footprint & Performance
 
