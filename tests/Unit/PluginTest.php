@@ -555,6 +555,74 @@ class PluginTest extends TestCase {
 	}
 
 	// -----------------------------------------------------------------
+	// enqueue_editor_reauth()
+	// -----------------------------------------------------------------
+
+	public function test_enqueue_editor_reauth_skips_anonymous(): void {
+		Functions\when( 'get_current_user_id' )->justReturn( 0 );
+
+		Functions\expect( 'wp_enqueue_script' )->never();
+
+		$plugin = new Plugin();
+		$plugin->enqueue_editor_reauth();
+	}
+
+	public function test_enqueue_editor_reauth_loads_for_logged_in_user(): void {
+		Functions\when( 'get_current_user_id' )->justReturn( 1 );
+
+		Functions\expect( 'wp_enqueue_script' )
+			->once()
+			->with(
+				'wp-sudo-editor-reauth',
+				\Mockery::type( 'string' ),
+				array( 'wp-api-fetch', 'wp-data', 'wp-notices', 'wp-i18n' ),
+				WP_SUDO_VERSION,
+				true
+			);
+
+		Functions\expect( 'wp_set_script_translations' )
+			->once()
+			->with( 'wp-sudo-editor-reauth', 'wp-sudo' );
+
+		$plugin = new Plugin();
+		$plugin->enqueue_editor_reauth();
+	}
+
+	/**
+	 * C2 (revised, design brief Part 3.6): the editor recovery handler MUST load
+	 * even when a sudo session is active at page load. The editor is a long-lived
+	 * SPA and the short sudo session expires while it stays open, so a later gated
+	 * action would return sudo_required with no handler present — reopening the
+	 * opaque 403 this feature fixes. This is the contract that distinguishes it
+	 * from enqueue_shortcut(), which deliberately skips when a session is active.
+	 */
+	public function test_enqueue_editor_reauth_loads_even_when_session_active(): void {
+		$user_id = 7;
+		$token   = 'editor-reauth-token';
+
+		Functions\when( 'get_current_user_id' )->justReturn( $user_id );
+		Functions\when( 'get_user_meta' )->alias( function ( $uid, $key, $single ) use ( $token ) {
+			if ( Sudo_Session::META_KEY === $key ) {
+				return time() + 600; // Active session.
+			}
+			if ( Sudo_Session::TOKEN_META_KEY === $key ) {
+				return hash( 'sha256', $token );
+			}
+			return '';
+		} );
+		Functions\when( 'wp_set_script_translations' )->justReturn( true );
+
+		$_COOKIE[ Sudo_Session::TOKEN_COOKIE ] = $token;
+
+		Functions\expect( 'wp_enqueue_script' )->once();
+
+		$plugin = new Plugin();
+		$plugin->enqueue_editor_reauth();
+
+		unset( $_COOKIE[ Sudo_Session::TOKEN_COOKIE ] );
+	}
+
+	// -----------------------------------------------------------------
 	// activate()
 	// -----------------------------------------------------------------
 
