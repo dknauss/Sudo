@@ -63,6 +63,23 @@ test.describe( 'Block-editor reauth snackbar', () => {
 			{ timeout: 30_000 }
 		);
 
+		// Dismiss the editor Welcome Guide. On a fresh CI user profile it opens
+		// automatically, and its modal screen-overlay intercepts pointer events —
+		// which blocks clicking the snackbar action in EDITOR-01. Clearing the
+		// preference unmounts the modal reactively (scope differs across WP
+		// versions, so set both). Then wait for any open overlay to detach.
+		await page.evaluate( () => {
+			const prefs = ( window as any ).wp?.data?.dispatch?.(
+				'core/preferences'
+			);
+			prefs?.set?.( 'core/edit-post', 'welcomeGuide', false );
+			prefs?.set?.( 'core', 'welcomeGuide', false );
+		} );
+		await page
+			.locator( '.components-modal__screen-overlay' )
+			.waitFor( { state: 'detached', timeout: 10_000 } )
+			.catch( () => {} );
+
 		// Confirm no active session (admin bar timer node absent = no session).
 		await expect(
 			page.locator( '#wp-admin-bar-wp-sudo-active' )
