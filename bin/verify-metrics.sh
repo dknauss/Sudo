@@ -66,7 +66,13 @@ ACTUAL_PROD_LINES="$(find "$REPO_ROOT/includes" "$REPO_ROOT/wp-sudo.php" "$REPO_
 ACTUAL_TEST_LINES="$(find "$REPO_ROOT/tests" -type f -name '*.php' -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}')"
 ACTUAL_TOTAL_LINES="$(( ACTUAL_PROD_LINES + ACTUAL_TEST_LINES ))"
 ACTUAL_RATIO="$(awk -v tests="$ACTUAL_TEST_LINES" -v prod="$ACTUAL_PROD_LINES" 'BEGIN { printf "%.2f", tests / prod }')"
-ACTUAL_REPO_PHP="$(find "$REPO_ROOT" -type f -name '*.php' ! -path '*/vendor/*' ! -path '*/vendor_test/*' ! -path '*/.tmp/*' ! -path '*/.git/*' -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}')"
+# Relative `find .` (not absolute `find "$REPO_ROOT"`) so the `! -path '*/.claude/*'`
+# exclusion anchors to the repo's own .claude/ directory. An absolute path would
+# itself contain `/.claude/` whenever this script runs from a worktree checked out
+# under .claude/worktrees/<name>/, which would exclude the entire tree. Excluding
+# .claude/ prevents double-counting a full worktree checkout (~55k PHP lines) that
+# lives there; CI runs on a clean checkout with no such worktree.
+ACTUAL_REPO_PHP="$(cd "$REPO_ROOT" && find . -type f -name '*.php' ! -path '*/vendor/*' ! -path '*/vendor_test/*' ! -path '*/.tmp/*' ! -path '*/.git/*' ! -path '*/.claude/*' -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}')"
 
 # Architectural facts (security-relevant counts). These use the same commands
 # documented in the metric rows, so the gate and the doc stay self-consistent.
@@ -95,7 +101,7 @@ DOC_PROD_LINES="$(metric_number 'Production PHP lines (`includes/`, `wp-sudo.php
 DOC_TEST_LINES="$(metric_number 'Tests PHP lines (`tests/`)')"
 DOC_TOTAL_LINES="$(metric_number 'Production + tests PHP lines')"
 DOC_RATIO="$(metric_number 'Test-to-production ratio')"
-DOC_REPO_PHP="$(metric_number 'Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`)')"
+DOC_REPO_PHP="$(metric_number 'Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`, `.claude/`)')"
 DOC_GATED_SINGLE="$(metric_number 'Gated rules (single-site)')"
 DOC_GATED_MULTI="$(metric_number 'Gated rules (multisite)')"
 DOC_GATED_TOTAL="$(metric_number 'Gated rules (total)')"

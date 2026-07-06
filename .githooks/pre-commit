@@ -35,6 +35,24 @@ fi
 
 APPROVAL_FILE="$REPO_ROOT/$REVIEWER_APPROVAL_FILE"
 
+# ── Merge detection ──────────────────────────────────────────────────────────
+# During a merge commit, MERGE_HEAD exists (a per-worktree ref). On a merge,
+# `git diff --cached` spans the ENTIRE incoming branch — already-reviewed code —
+# so the AI size gate (Step 2) false-positives on the base branch's insertions.
+# We exempt ONLY the size gate for merges; reviewer approval (Step 1) and the
+# test suite (Step 3) still run, since a merge resolution can contain authored code.
+#
+# Scope: only MERGE_HEAD is exempted. Squash merges (`git merge --squash`) create
+# no MERGE_HEAD and are intentionally still size-gated (a squash is one new
+# authored commit). Cherry-pick/revert/rebase are likewise still size-gated on
+# purpose — they stage a single commit's diff, not a whole base branch.
+# The `if` wrapper keeps `set -e` from aborting when MERGE_HEAD is absent: a
+# non-zero exit inside a condition context is not fatal.
+MERGE_IN_PROGRESS=""
+if git rev-parse -q --verify MERGE_HEAD >/dev/null 2>&1; then
+  MERGE_IN_PROGRESS=1
+fi
+
 # ── Staged file classification ───────────────────────────────────────────────
 # Docs-only = every staged file (lockfiles excluded) matches the text-only
 # pattern. Used to skip both the reviewer-approval check and the test suite.
@@ -80,8 +98,14 @@ else
 fi
 echo ""
 
-# ── Step 2: Commit size (AI commits only) ────────────────────────────────────
-if [ "$USER_COMMIT" != "1" ]; then
+# ── Step 2: Commit size (AI commits only; skipped on merges) ─────────────────
+if [ "$USER_COMMIT" != "1" ] && [ -n "$MERGE_IN_PROGRESS" ]; then
+  echo "2️⃣  Checking commit size..."
+  echo -e "   ${GREEN}ℹ️  Merge commit — skipping AI size gate${NC}"
+  echo "      (git diff --cached spans the whole incoming branch; reviewer"
+  echo "       approval and tests still apply to the merge resolution.)"
+  echo ""
+elif [ "$USER_COMMIT" != "1" ]; then
   echo "2️⃣  Checking commit size..."
 
   STAGED_FILE_COUNT=$(git diff --cached --name-only \
