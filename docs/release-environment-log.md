@@ -12,7 +12,8 @@ Keep the executable smoke-test procedure in [`tests/MANUAL-TESTING.md`](../tests
 |-----------------|------|----------------|---------|-----------------------|
 | `v4.2.2` | 2026-06-29 | Deferred | Release environment matrix was documented for future execution; lanes were not rerun in Phase 17. | Submission/upload remains delayed/on hold. |
 | `4.5.0` (staged, no tag yet) | 2026-07-05 | Matrix cleared for tag: Apache **completed**, min-WP **CI-covered**, managed-host **waived** | The **Apache lane is completed** against a real Apache 2.4.58 + mod_php 8.3.6 stack (all six core sections pass, including the `mod_rewrite`/`Authorization`-header App-Password check). The **minimum-WordPress (6.4)** lane is functionally covered by the CI Integration matrix. The **managed-host** lane is cleared by an explicit maintainer waiver (recorded below) with residual risk accepted. The environment-matrix gate for the `v4.5.0` tag is therefore satisfied. | Submission/upload remains delayed/on hold. |
-| `4.5.1` (staged, no tag yet) | 2026-07-05 | Cleared for tag: `4.5.0` matrix reused (admin-UI-only delta) | The `4.5.1` payload over the `v4.5.0` tag is PR #154 (admin-UI identity presentation on the dashboard widget + Access tab, new `User_Identity` helper, admin CSS) plus the version bump. Those changes are admin-side rendering only — they do not touch the environmental dimensions the manual matrix exercises (Apache URL-rewrite + `Authorization`-header passthrough, managed-host cache/mu-plugin/filesystem, WordPress 6.4 floor), and their behavior is covered by the CI Integration matrix. The `4.5.0` matrix therefore applies; no re-run is required. Rationale recorded below. | Submission/upload remains delayed/on hold. |
+| `4.5.1` (superseded) | 2026-07-05 | **Superseded by `4.6.0`** — clearance no longer applies | The staged `4.5.1` was re-scoped to `4.6.0` (minor) once the in-editor reauth work landed. Its "reuse the `4.5.0` matrix" clearance was valid only for the admin-UI-only `4.5.1` delta and does **not** carry to `4.6.0`, which adds a new feature. See the `4.6.0` row. | — |
+| `4.6.0` (staged, no tag yet) | 2026-07-06 | ⏳ **Not cleared — gate pending** | `4.6.0` adds block-editor in-editor reauthentication (admin JS + a logged-in-only `admin-ajax` nonce-refresh endpoint) plus the optional critical-alert bridge, so the `4.5.0` matrix is **not** auto-carried. Before the `v4.6.0` tag: run the full release-grade E2E (incl. the `editor-reauth` EDITOR-01 spec) and record a **conscious** reuse-or-rerun decision for the Apache / managed-host / min-WP lanes. See the `4.6.0` section below. | Submission/upload remains delayed/on hold. |
 
 ## `v4.2.2` environment matrix
 
@@ -87,15 +88,27 @@ version). It is recorded here because it exercises the merged 4.5.0 code end-to-
   - §10.1 Site Health all Limited — PASS ("All Sudo entry point policies are secure" under the Good/Passed section)
 - Runner: automated browser + curl session (Claude Code, remote build sandbox)
 
-## `4.5.1` environment matrix (reuse of `4.5.0`)
+## `4.5.1` environment matrix (SUPERSEDED by `4.6.0`)
 
-The `4.5.1` package is staged on `main` (version-synced; no `v4.5.1` tag cut yet).
+> **Superseded 2026-07-06.** The staged `4.5.1` was re-scoped to `4.6.0` (minor) after the in-editor reauth work landed. The reuse rationale below applied only to the admin-UI-only `4.5.1` delta; it does **not** clear `4.6.0`, which adds a new feature and requires the gate in the `4.6.0` section below. Retained for history.
+
+The `4.5.1` package was staged on `main` (version-synced; never tagged — re-scoped to `4.6.0`).
 
 - **Decision:** The `4.5.0` environment matrix above is **reused** for `4.5.1`; no lane is re-run.
 - **What actually changed since the `v4.5.0` tag:** `git diff v4.5.0..<release-commit> -- includes/ bridges/ mu-plugin/ admin/ wp-sudo.php` shows PR #154 only — `includes/class-admin.php`, `includes/class-dashboard-widget.php`, new `includes/class-user-identity.php`, `admin/css/wp-sudo-admin.css`, and the version constant/header in `wp-sudo.php`. This is **admin-UI presentation code** (how a user is rendered on the dashboard widget and the Access tab) plus the `get_avatar()` `force`→`force_display` fix. It is *not* a version-only bump — there is a real code delta from the tagged `4.5.0` tree.
 - **Why the matrix still applies (not re-run):** the manual environment matrix exists to catch **server- and host-layer** differences — Apache URL-rewrite and `Authorization`-header passthrough for REST/App-Password auth, managed-host object cache / platform mu-plugins / filesystem policy, and the WordPress 6.4 floor. PR #154's changes are admin-side rendering with no new REST/rewrite/auth surface and no API newer than the 6.4 floor (`get_avatar`, `translate_user_role`, `wp_roles` all long predate 6.4). Those functional changes are exercised by the CI Integration matrix on the 6.4 floor (PHP 8.2 single-site; multisite is covered on the PHP 8.3 / WP 7.0 lane). No environmental dimension the manual lanes test is affected by admin-markup changes, so a re-run would exercise nothing new.
 - **Owner / approver:** Maintainer (reuse rationale authored for review; the tag decision remains maintainer-owned).
 - **Scope:** Clears the environment-matrix gate for the `v4.5.1` tag by inheritance. Does **not** approve a WordPress.org upload/submission, which remains separately on hold.
+
+## `4.6.0` environment matrix (gate pending — NOT cleared)
+
+The `4.6.0` package is staged on `main` (version-synced; no `v4.6.0` tag cut yet). This is a **feature release**, so unlike the superseded `4.5.1` the `4.5.0` matrix is **not** auto-inherited.
+
+- **Status:** ⏳ **Not cleared.** The environment gate is a prerequisite to cutting the `v4.6.0` tag.
+- **What changed since the `v4.5.0` tag:** block-editor in-editor reauthentication (`admin/js/wp-sudo-editor-reauth.js` + the `wpSudoEditorReauth` localization and the `wp_sudo_refresh_grant_nonce` `admin-ajax` endpoint), the optional critical-event alert bridge + inline demo companion, and the admin user-identity harmonization (formerly the `4.5.1` payload).
+- **Required before tag:** run the full release-grade E2E (Apache/wp-env Playwright incl. the `editor-reauth` EDITOR-01 spec, nginx + MariaDB smoke, nginx multisite smoke, and Playground SQLite — see [`docs/release-e2e-confidence.md`](release-e2e-confidence.md)). Then make a **conscious** decision on the manual host/floor lanes (Apache / managed-host / min-WP) and record it here: the new surface is admin-side JS + an `admin-ajax` endpoint (not server-floor-sensitive), so reusing the `4.5.0` host matrix is defensible — but do not silently inherit it.
+- **Storage note (local matrix run):** the Docker / `wp-env` / Playwright + multisite lanes are disk-heavy; run them serially and prune Docker/`wp-env` volumes and images between lanes (`docker system prune`, `wp-env destroy`) so a full-matrix pass does not exhaust local storage.
+- **Owner / approver:** Maintainer.
 
 ## Required evidence for completed lanes
 

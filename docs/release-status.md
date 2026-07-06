@@ -31,7 +31,11 @@ All steps done; retained as the release record.
 
 ### `v4.6.0` tag checklist (staged 2026-07-06, tag pending)
 
-The tree is release-ready; the annotated tag and GitHub Release are maintainer-owned and not yet done.
+The tree is **code-complete and green in CI**, but this is a **feature release**, so the
+release-environment gate in item 1 is a **prerequisite to tagging** — do **not** cut
+`v4.6.0` until the full release-grade E2E has run and the host-matrix decision is
+recorded in `docs/release-environment-log.md`. The annotated tag and GitHub Release
+are maintainer-owned.
 
 1. **Release-environment matrix sign-off — ⏳ NOT auto-carried (re-scoped, feature release).** Unlike the superseded `4.5.1` (admin-UI presentation only, whose matrix was legitimately carried over from `4.5.0`), `4.6.0` adds a **new user-facing capability** — block-editor in-editor reauthentication (client JS + a logged-in-only `admin-ajax` nonce-refresh endpoint) — plus the optional critical-alert bridge. Before tagging, run the **full release-grade E2E** (the Release Confidence workflow: Apache/wp-env Playwright, nginx + MariaDB smoke, nginx multisite smoke, and Playground SQLite — see `docs/release-e2e-confidence.md`), which now includes the `editor-reauth` spec (EDITOR-01). The manual host/floor matrix (Apache / managed-host / min-WP) is a maintainer judgement: the new surface is admin-side JS + an `admin-ajax` endpoint, not server-floor-sensitive, so reusing the `4.5.0` host matrix is defensible — but confirm it **consciously** and record the decision in `docs/release-environment-log.md` rather than silently carrying it. **Storage note for the local matrix run:** the Docker / `wp-env` / Playwright + multisite lanes are disk-heavy; be parsimonious with Colima and env-VM disk allocation — prune stale `wp-env`/Docker volumes and images between lanes (`docker system prune`, `wp-env destroy`) so a full-matrix pass does not exhaust local storage.
 2. **Version sync — ✅ done.** All five points at `4.6.0` (`wp-sudo.php` header + constant, `tests/bootstrap.php`, `phpstan-bootstrap.php`, `readme.txt` Stable tag).
