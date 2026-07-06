@@ -591,12 +591,14 @@ into `wp-content/mu-plugins/wp-sudo-critical-alerts.php`:
 defined( 'ABSPATH' ) || exit;
 
 function wp_sudo_critical_alert( string $subject, string $body ): void {
-	// Throttle: at most one alert per distinct subject per hour. Some hooks fire
-	// on every request while a condition persists — wp_sudo_recovery_mode_active
-	// (per admin-page load) and wp_sudo_gated_actions_missing_builtin_rules (once
-	// per request while a filter keeps a built-in rule removed) — so an
-	// unthrottled handler would flood the inbox for hours.
-	$throttle_key = 'wp_sudo_alert_' . md5( $subject );
+	// Throttle: at most one alert per distinct event (subject + body) per hour.
+	// Some hooks fire on every request while a condition persists —
+	// wp_sudo_recovery_mode_active (per admin-page load) and
+	// wp_sudo_gated_actions_missing_builtin_rules (once per request while a filter
+	// keeps a built-in rule removed) — so an unthrottled handler would flood the
+	// inbox for hours. Keying on the body (which carries the target/user/IP) means
+	// dedupe collapses only true repeats, not distinct incidents of the same type.
+	$throttle_key = 'wp_sudo_alert_' . md5( $subject . '|' . $body );
 	if ( get_transient( $throttle_key ) ) {
 		return;
 	}
@@ -625,11 +627,20 @@ add_action( 'wp_sudo_capability_tampered', function ( string $role, string $capa
 }, 10, 2 );
 
 // Admin-escalation guard blocked a new administrator/super-admin grant (or an
-// administrator deletion) by an actor without the promoting authority or a sudo session.
+// administrator deletion) by an actor without the promoting authority or a sudo
+// session. arg[0] is the TARGET being granted/deleted, not the actor — enrich
+// with the current user so operators can see who attempted it.
 add_action( 'wp_sudo_escalation_blocked', function ( int $target_id, string $rule_id, string $surface ): void {
+	$actor = get_current_user_id();
 	wp_sudo_critical_alert(
 		'Admin escalation blocked',
-		sprintf( 'Blocked %s on user #%d via %s.', $rule_id, $target_id, $surface )
+		sprintf(
+			'Blocked %s targeting user #%d via %s. Actor: %s.',
+			$rule_id,
+			$target_id,
+			$surface,
+			$actor ? '#' . $actor : 'unknown'
+		)
 	);
 }, 10, 3 );
 
@@ -660,13 +671,20 @@ add_action( 'wp_sudo_recovery_mode_active', function ( int $user_id ): void {
 }, 10, 1 );
 ```
 
-The `wp_sudo_critical_alert()` helper throttles to one alert per distinct subject
+The `wp_sudo_critical_alert()` helper throttles to one alert per distinct event
 per hour — that is what makes it safe to wire the per-request
 `wp_sudo_recovery_mode_active` and `wp_sudo_gated_actions_missing_builtin_rules`
-hooks directly. If you'd rather not maintain this by hand, the packaged
-[Critical-Event Alert Bridge](#optional-critical-event-alert-bridge) below does the
-same wiring with per-event toggles, per-identity dedupe, and a per-recipient
-hourly cap.
+hooks directly.
+
+This snippet is deliberately minimal, so it makes two simplifications the packaged
+[Critical-Event Alert Bridge](#optional-critical-event-alert-bridge) below handles
+for you: it **sends synchronously** (the bridge queues and flushes on `shutdown`,
+so a slow SMTP/webhook send never delays the gate's blocking response — relevant
+because `wp_sudo_escalation_blocked` fires immediately before the gate dies), and
+it **always emails the site admin** (the bridge routes network-scope events —
+super-admin escalation, dropped `network.*` rules — to the network admin on
+multisite). If you need those, prefer the bridge; it also adds per-event toggles,
+per-identity dedupe, and a per-recipient hourly cap.
 
 ### Optional WSAL Sensor Bridge
 
