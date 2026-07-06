@@ -111,7 +111,6 @@ test.describe( 'Block-editor reauth snackbar', () => {
 
 	test( 'EDITOR-01: real gated action surfaces a link-out snackbar', async ( {
 		page,
-		context,
 	} ) => {
 		// Fire a real gated request. The route regex #^/wp/v2/plugins/[^/]+$#
 		// (PUT/PATCH) matches before the controller runs, so the gate intercepts
@@ -152,15 +151,28 @@ test.describe( 'Block-editor reauth snackbar', () => {
 			} )
 			.first();
 		await expect( action ).toBeVisible();
-		const [ popup ] = await Promise.all( [
-			context.waitForEvent( 'page' ),
-			action.click(),
-		] );
-		await popup.waitForLoadState( 'domcontentloaded' );
-		expect( popup.url() ).toContain( 'page=wp-sudo-challenge' );
+
+		// Spy on window.open rather than waiting for a real popup: the handler
+		// calls window.open(url, '_blank', 'noopener'), and a noopener popup does
+		// not reliably surface as a Playwright 'page' event under headless CI. The
+		// contract we care about — clicking Reauthenticate opens the server's
+		// challenge_url in a new tab — is verified deterministically by the spy.
+		await page.evaluate( () => {
+			( window as any ).__wpSudoOpened = [];
+			( window as any ).open = ( url: string, target?: string ) => {
+				( window as any ).__wpSudoOpened.push( { url, target } );
+				return null;
+			};
+		} );
+		await action.click();
+		const opened = await page.evaluate(
+			() => ( window as any ).__wpSudoOpened as Array< { url: string; target?: string } >
+		);
+		expect( opened ).toHaveLength( 1 );
+		expect( opened[ 0 ].url ).toContain( 'page=wp-sudo-challenge' );
+		expect( opened[ 0 ].target ).toBe( '_blank' );
 		// Editor tab did not navigate away.
 		expect( page.url() ).toContain( 'post-new.php' );
-		await popup.close();
 	} );
 
 	test( 'EDITOR-02: batched sudo_required surfaces the snackbar', async ( {
