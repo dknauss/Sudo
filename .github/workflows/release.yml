@@ -40,7 +40,7 @@ jobs:
           unzip -tq build/wp-sudo.zip
 
       - name: Create GitHub Release + attach ZIP
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: build/wp-sudo.zip
           generate_release_notes: true
