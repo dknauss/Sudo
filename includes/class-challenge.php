@@ -48,6 +48,20 @@ class Challenge {
 	public const AJAX_2FA_ACTION = 'wp_sudo_challenge_2fa';
 
 	/**
+	 * AJAX action name for re-minting a fresh grant nonce.
+	 *
+	 * The grant nonce localized into a long-lived editor at page load ages out
+	 * (~24 h). A block/site editor left open past that point would open the reauth
+	 * modal but then fail `check_ajax_referer()` on the stale nonce — recreating
+	 * the dead-end this feature removes. The editor calls this endpoint to obtain
+	 * a fresh `NONCE_ACTION` nonce before authenticating. It grants nothing; its
+	 * CSRF proof is the login cookie (the `wp_ajax_` hook is logged-in-only).
+	 *
+	 * @var string
+	 */
+	public const AJAX_REFRESH_NONCE_ACTION = 'wp_sudo_refresh_grant_nonce';
+
+	/**
 	 * Query arg used to show a notice after redirecting instead of replaying
 	 * a POST that contained redacted secret fields.
 	 *
@@ -94,6 +108,7 @@ class Challenge {
 
 		add_action( 'wp_ajax_' . self::AJAX_AUTH_ACTION, array( $this, 'handle_ajax_auth' ), 10, 0 );
 		add_action( 'wp_ajax_' . self::AJAX_2FA_ACTION, array( $this, 'handle_ajax_2fa' ), 10, 0 );
+		add_action( 'wp_ajax_' . self::AJAX_REFRESH_NONCE_ACTION, array( $this, 'handle_ajax_refresh_nonce' ), 10, 0 );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ), 10, 0 );
 		add_action( 'admin_notices', array( $this, 'render_redacted_replay_notice' ), 10, 0 );
 		add_action( 'network_admin_notices', array( $this, 'render_redacted_replay_notice' ), 10, 0 );
@@ -403,6 +418,30 @@ class Challenge {
 			</div>
 		</div>
 		<?php
+	}
+
+	/**
+	 * Re-mint a fresh grant nonce for a long-open editor (Increment 2, Task 2).
+	 *
+	 * The editor localizes the `NONCE_ACTION` grant nonce at page load; after it
+	 * ages out (~24 h) the reauth modal would otherwise dead-end on a stale-nonce
+	 * `check_ajax_referer()`. The editor calls this to obtain a fresh nonce first.
+	 *
+	 * Auth model: the `wp_ajax_` hook is logged-in-only; the explicit
+	 * `get_current_user_id()` guard makes that a hard requirement. No nonce is
+	 * verified here — this endpoint issues a CSRF token and changes no state, so
+	 * its CSRF proof is the login cookie, not a nonce (it cannot require the very
+	 * nonce it exists to refresh). It never grants a session.
+	 *
+	 * @return void
+	 */
+	public function handle_ajax_refresh_nonce(): void {
+		if ( ! get_current_user_id() ) {
+			wp_send_json_error( array( 'message' => __( 'Not logged in.', 'wp-sudo' ) ), 403 );
+			return; // wp_send_json_error exits in core; explicit for unambiguous flow.
+		}
+
+		wp_send_json_success( array( 'nonce' => wp_create_nonce( self::NONCE_ACTION ) ) );
 	}
 
 	/**

@@ -133,6 +133,10 @@ class Plugin {
 		// Gate UI: disable action buttons on gated pages when no session.
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_gate_ui' ) );
 
+		// Block/site editor: surface a gated action's sudo_required 403 as an
+		// in-editor snackbar instead of an opaque dead-end (link-out to challenge).
+		add_action( 'enqueue_block_editor_assets', array( $this, 'enqueue_editor_reauth' ), 10, 0 );
+
 		// Login grant: a successful form login implicitly satisfies reauthentication.
 		// wp_login fires for browser-based logins only (not App Passwords / XML-RPC),
 		// so the session cookie set by activate() is guaranteed to reach the browser.
@@ -288,6 +292,67 @@ class Plugin {
 				'page' => $page,
 			)
 		);
+	}
+
+	/**
+	 * Enqueue the block/site-editor reauth handler.
+	 *
+	 * Loads a build-free `apiFetch` middleware that turns a gated action's
+	 * `sudo_required` REST rejection — the editor's opaque 403 dead-end when a
+	 * flow such as Block Directory plugin install/activate fires without an
+	 * active sudo session — into an in-editor snackbar that links out to the
+	 * challenge page (Increment 1: notify + link-out only, no in-editor grant).
+	 *
+	 * Loaded on every block/site-editor screen for logged-in users, INCLUDING
+	 * when a sudo session is active at page load. The editor is a long-lived SPA
+	 * and the short sudo session expires while it stays open, so the recovery
+	 * handler must already be present when a later gated action returns
+	 * sudo_required (condition C2, revised — see the design brief Part 3.6).
+	 * Unlike enqueue_shortcut(), it deliberately does NOT skip active sessions.
+	 *
+	 * Localizes (Increment 2, Task 2) the grant nonce, the AJAX action names, and
+	 * the current-site `admin-ajax.php` URL so the in-editor modal can grant a sudo
+	 * session in place. The nonce is the single `Challenge::NONCE_ACTION`
+	 * (`wp_sudo_challenge`) — a CSRF token reused as-is, never broadened to
+	 * authorization (C1). It is localized on block/site-editor screens only, but
+	 * loaded even when a session is active (C2, same rationale as the enqueue).
+	 * `admin-ajax.php` is resolved via `admin_url()` (current site), never
+	 * `network_admin_url()` — a subsite editor must post its grant to its own
+	 * `admin-ajax.php`. Only the initial nonce value is minted here; when it goes
+	 * stale (editor open past the ~24 h lifetime) a fresh one is fetched at runtime
+	 * from the `Challenge::AJAX_REFRESH_NONCE_ACTION` endpoint (whose action name is
+	 * localized above, but not a nonce value).
+	 *
+	 * @since 4.6.0
+	 *
+	 * @return void
+	 */
+	public function enqueue_editor_reauth(): void {
+		if ( ! get_current_user_id() ) {
+			return;
+		}
+
+		wp_enqueue_script(
+			'wp-sudo-editor-reauth',
+			WP_SUDO_PLUGIN_URL . 'admin/js/wp-sudo-editor-reauth.js',
+			array( 'wp-api-fetch', 'wp-data', 'wp-notices', 'wp-i18n' ),
+			WP_SUDO_VERSION,
+			true
+		);
+
+		wp_localize_script(
+			'wp-sudo-editor-reauth',
+			'wpSudoEditorReauth',
+			array(
+				'ajaxUrl'            => admin_url( 'admin-ajax.php' ),
+				'nonce'              => wp_create_nonce( Challenge::NONCE_ACTION ),
+				'authAction'         => Challenge::AJAX_AUTH_ACTION,
+				'twoFactorAction'    => Challenge::AJAX_2FA_ACTION,
+				'refreshNonceAction' => Challenge::AJAX_REFRESH_NONCE_ACTION,
+			)
+		);
+
+		wp_set_script_translations( 'wp-sudo-editor-reauth', 'wp-sudo' );
 	}
 
 	/**

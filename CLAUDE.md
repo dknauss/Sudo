@@ -176,7 +176,7 @@ curl -s "https://plugins.svn.wordpress.org/all-in-one-wp-security-and-firewall/t
 curl -s "https://raw.githubusercontent.com/WordPress/two-factor/master/class-two-factor-core.php" | grep "function "
 
 # Project size (update readme.md table when line counts change significantly)
-find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/.git/*" -print0 | xargs -0 wc -l | tail -1          # total PHP
+find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/.git/*" ! -path "*/.claude/*" -print0 | xargs -0 wc -l | tail -1  # total PHP (excludes .claude/ worktree checkouts)
 find ./includes ./wp-sudo.php ./uninstall.php ./mu-plugin ./bridges -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1  # production
 find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1                                             # tests
 ```
