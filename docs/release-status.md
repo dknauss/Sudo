@@ -13,10 +13,10 @@ This file is the canonical source for **current release state** in this reposito
 
 ## Latest GitHub/tagged release
 
-- **Latest tagged release:** `4.5.0` (the `v4.6.0` tag is **staged but not yet cut** — see below).
-- **Latest git tag observed:** `v4.5.0` (annotated, cut 2026-07-05, on `70cddfe`).
-- **Previous tag:** `v4.2.2` (annotated, cut 2026-06-28).
-- **Unreleased work beyond the tag:** `main` is bumped to `4.6.0` across all five version-sync points, staged for a `v4.6.0` tag that has **not** been cut yet. Until it is, the latest actual tag remains `v4.5.0` and `main` is ahead of it. **The staged release was re-scoped `4.5.1` → `4.6.0` (MINOR)** after the block-editor in-editor reauthentication work (PRs #165, #168) landed on top of the original admin-UI-only `4.5.1` payload: a new user-facing capability, plus the optional critical-event alert bridge's documented public extension filters (#166), is a backward-compatible **addition**, not a patch (see `VERSIONING.md`). The `4.6.0` payload is: block-editor in-editor reauth (link-out increment), the optional critical-event alert bridge + inline demo companion, the admin-surface user-identity harmonization (PR #154), and the alerting/roadmap docs. The exact commit set is `git log v4.5.0..main --oneline`.
+- **Latest tagged release:** `4.6.0` (cut 2026-07-06).
+- **Latest git tag observed:** `v4.6.0` (annotated, cut 2026-07-06, on `9ef1880`). GitHub Release published; the release-ZIP CI attached the `wp-sudo.zip` install asset.
+- **Previous tag:** `v4.5.0` (annotated, signed, cut 2026-07-05, on `70cddfe`).
+- **`4.6.0` payload (released):** the staged release was re-scoped `4.5.1` → `4.6.0` (MINOR) after the block-editor in-editor reauthentication work (PRs #165, #168) landed on top of the original admin-UI-only `4.5.1` payload — a new user-facing capability, plus the optional critical-event alert bridge's documented public extension filters (#166), is a backward-compatible **addition**, not a patch (see `VERSIONING.md`). The `4.6.0` payload is: block-editor in-editor reauth (link-out increment), the optional critical-event alert bridge + inline demo companion, the admin-surface user-identity harmonization (PR #154), and the alerting/roadmap docs. The exact commit set is `git log v4.5.0..v4.6.0 --oneline`.
 
 ### `v4.5.0` tag checklist (completed 2026-07-05)
 
@@ -29,24 +29,25 @@ All steps done; retained as the release record.
 5. **Update this file — ✅ done** (this edit): `4.5.0` recorded as Latest tagged release / `v4.5.0` as latest git tag observed.
 6. **wordpress.org submission** remains independently on hold and is not gated by the GitHub tag.
 
-### `v4.6.0` tag checklist (staged 2026-07-06, tag pending)
+### `v4.6.0` tag checklist (completed 2026-07-06)
 
-The tree is **code-complete and green in CI**, and the release-environment gate
-(item 1) is now **satisfied**: the full release-grade E2E was run and cleared, with
+The tree was **code-complete and green in CI**, and the release-environment gate
+(item 1) was **satisfied**: the full release-grade E2E was run and cleared, with
 the new nginx-multisite *smoke* lane explicitly de-scoped as a tracked, non-regression
-follow-up (details in item 1 and `docs/release-environment-log.md`). The remaining
-steps (cut the annotated tag, post-tag `blueprint.json` bump) are **maintainer-owned**.
+follow-up (details in item 1 and `docs/release-environment-log.md`). The annotated
+tag was cut and the post-tag `blueprint.json` bump applied; all checklist items below
+are ✅ done.
 
 1. **Release-environment matrix sign-off — ✅ cleared, with the nginx-multisite *smoke* lane de-scoped.** The full release-grade E2E was run (2026-07-06, local + GitHub Release Confidence [run #28804948034](https://github.com/dknauss/Sudo/actions/runs/28804948034)): **Apache/wp-env full E2E, nginx + MariaDB smoke, and Playground SQLite smoke all pass**. The **nginx-multisite smoke** lane (MSTACK-01/02/03) failed on Playwright *element-not-stable / actionability* timeouts (`#submit`, `#wp-admin-bar-wp-sudo-active`) — a test-robustness/rendering issue on the heavier multisite stack, **not** a behavioral assertion failure and **not** a `4.6.0` regression (the lane is new — added by #155 after `v4.5.0` — and has never been green; nothing in the `4.6.0` payload touches `network/settings.php` or the admin-bar timer, and functional multisite behavior is covered by the CI Integration multisite lane). It is therefore **de-scoped** from the release-confidence gate (`continue-on-error` + excluded from the aggregate, both clearly marked in `release-confidence.yml`) and tracked for stabilization in `docs/ROADMAP.md` and `docs/release-environment-log.md`. The manual host/floor matrix (Apache / managed-host / min-WP) reuses the `4.5.0` matrix by conscious decision (recorded in the log): `4.6.0`'s new surface is admin-side JS + an `admin-ajax` endpoint, not server-floor-sensitive. **Storage note for the local matrix run:** the Docker / `wp-env` / Playwright + multisite lanes are disk-heavy; run them serially and prune stale `wp-env`/Docker volumes and images between lanes (`docker system prune`, `wp-env destroy`) so a full-matrix pass does not exhaust local storage.
 2. **Version sync — ✅ done.** All five points at `4.6.0` (`wp-sudo.php` header + constant, `tests/bootstrap.php`, `phpstan-bootstrap.php`, `readme.txt` Stable tag).
 3. **CHANGELOG + readme.txt — ✅ done.** `4.6.0` dated section in `CHANGELOG.md`; `readme.txt` Changelog and Upgrade Notice entries added.
-4. **Cut the annotated tag — ⏳ pending (maintainer).** Cut `v4.6.0` from the release commit; publish the GitHub Release.
-5. **Bump `blueprint.json` — ⏳ pending (post-tag).** Deliberately **not** bumped in this PR: the public "Try latest release" badges load `blueprint.json` from `main`, so pointing the install target at `archive/refs/tags/v4.6.0.zip` before the tag exists would make the public demo fetch a missing ZIP. It stays on `v4.5.0.zip` and is bumped to `v4.6.0.zip` **after** the tag is cut (the same post-tag ordering used for `4.5.0` via PR #150).
-6. **Update this file — ⏳ pending.** After the tag is cut, record `4.6.0` as Latest tagged release / `v4.6.0` as latest git tag observed.
+4. **Cut the annotated tag — ✅ done.** `v4.6.0` (annotated) on `9ef1880`; GitHub Release published ([releases/tag/v4.6.0](https://github.com/dknauss/Sudo/releases/tag/v4.6.0)); the release-ZIP CI attached the `wp-sudo.zip` install asset.
+5. **Bump `blueprint.json` — ✅ done (post-tag).** Stable-demo install target now `archive/refs/tags/v4.6.0.zip` (bumped after the tag was cut, so the public "Try latest release" demo — which loads `blueprint.json` from `main` — fetches a real ZIP).
+6. **Update this file — ✅ done** (this edit): `4.6.0` recorded as Latest tagged release / `v4.6.0` as latest git tag observed.
 
 ## Current `main` release state
 
-- **Current `main` version:** `4.6.0` (runtime constant), staged for the `v4.6.0` tag (**not yet cut**). The latest actual tag is still `v4.5.0`; `main` is ahead of it by the `4.6.0` payload. (Re-scoped from the earlier staged `4.5.1` once the in-editor reauth work landed — see above.)
+- **Current `main` version:** `4.6.0` (runtime constant), **released** as the `v4.6.0` tag (cut 2026-07-06, on `9ef1880`). `main` is at the tag. (Re-scoped from the earlier staged `4.5.1` once the in-editor reauth work landed — see above.)
 - **Runtime version constant:** `4.6.0` on `main`. `WP_SUDO_VERSION` is set in `wp-sudo.php` (header + constant), `tests/bootstrap.php`, and `phpstan-bootstrap.php`; `readme.txt` Stable tag is `4.6.0`. All five version-sync points are in sync at `4.6.0`.
 - **Current package metadata (on `main`):** `readme.txt` Stable tag `4.6.0` == header Version (no `stable_tag_mismatch`); `Requires at least 6.4`, `Requires PHP 8.2`, `Tested up to 7.0`. WordPress.org listing name: **"Sudo – Admin Action Gating"** (UI brand "Sudo"; slug/text-domain stay `wp-sudo` — lock the slug at submission).
 - **Last archived release checklist:** `docs/archive/release-3.0.0-checklist.md`
