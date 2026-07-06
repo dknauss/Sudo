@@ -564,6 +564,128 @@ do_action( 'wp_sudo_gated_actions_missing_builtin_rules', array $missing_builtin
 `wp_sudo_lockout` adds source IP as a third argument as of v2.13.0. Existing
 callbacks that register for two arguments continue to work unchanged.
 
+### Wiring critical audit hooks to alerts (email / Slack)
+
+By default WP Sudo does **not** send any notification for suspicious events — it
+fires the audit hooks above and surfaces state passively (Site Health tests, the
+Session Activity dashboard widget). The packaged log bridges *log* rather than
+*alert*, and their critical-hook coverage differs: the WSAL sensor bridge
+(`bridges/wp-sudo-wsal-sensor.php`) logs all of these, but the Stream bridge
+(`bridges/wp-sudo-stream-bridge.php`) currently records only `wp_sudo_lockout`
+and `wp_sudo_capability_tampered` from the critical set (not escalation, recovery
+mode, or dropped built-in rules).
+
+For a packaged, drop-in alerter, use the optional **Critical-Event Alert Bridge**
+([below](#optional-critical-event-alert-bridge)) — it wires these hooks to email
+(or Slack/webhook) with dedupe, a per-recipient hourly cap, and per-event toggles.
+The snippet here is the **hand-rolled equivalent**: reach for it when you want to
+own the wiring, customize the payload, or avoid adding another mu-plugin. To get
+*pushed* a notification, subscribe to the high-severity hooks yourself — drop this
+into `wp-content/mu-plugins/wp-sudo-critical-alerts.php`:
+
+```php
+<?php
+/**
+ * Alert on WP Sudo's critical / high-severity audit hooks.
+ */
+defined( 'ABSPATH' ) || exit;
+
+function wp_sudo_critical_alert( string $subject, string $body ): void {
+	// Throttle: at most one alert per distinct event (subject + body) per hour.
+	// Some hooks fire on every request while a condition persists —
+	// wp_sudo_recovery_mode_active (per admin-page load) and
+	// wp_sudo_gated_actions_missing_builtin_rules (once per request while a filter
+	// keeps a built-in rule removed) — so an unthrottled handler would flood the
+	// inbox for hours. Keying on the body (which carries the target/user/IP) means
+	// dedupe collapses only true repeats, not distinct incidents of the same type.
+	$throttle_key = 'wp_sudo_alert_' . md5( $subject . '|' . $body );
+	if ( get_transient( $throttle_key ) ) {
+		return;
+	}
+	set_transient( $throttle_key, 1, HOUR_IN_SECONDS );
+
+	// To notify Slack/Teams/a webhook instead of email, swap wp_mail() for:
+	// wp_remote_post( 'https://hooks.slack.com/services/YOUR/WEBHOOK/PATH', array(
+	//     'headers' => array( 'Content-Type' => 'application/json' ),
+	//     'body'    => wp_json_encode( array( 'text' => $subject . "\n" . $body ) ),
+	//     'timeout' => 5,
+	// ) );
+	wp_mail(
+		get_option( 'admin_email' ),
+		'[WP Sudo] ' . $subject,
+		$body . "\n\nSite: " . home_url() . "\nTime (UTC): " . gmdate( 'c' )
+	);
+}
+
+// Tamper canary: the Editor role regained a stripped capability (e.g. a direct
+// wp_user_roles DB edit). WP Sudo re-strips it and fires this at init priority 1.
+add_action( 'wp_sudo_capability_tampered', function ( string $role, string $capability ): void {
+	wp_sudo_critical_alert(
+		'Capability tamper detected',
+		sprintf( 'Role "%s" regained capability "%s"; WP Sudo re-stripped it.', $role, $capability )
+	);
+}, 10, 2 );
+
+// Admin-escalation guard blocked a new administrator/super-admin grant (or an
+// administrator deletion) by an actor without the promoting authority or a sudo
+// session. arg[0] is the TARGET being granted/deleted, not the actor — enrich
+// with the current user so operators can see who attempted it.
+add_action( 'wp_sudo_escalation_blocked', function ( int $target_id, string $rule_id, string $surface ): void {
+	$actor = get_current_user_id();
+	wp_sudo_critical_alert(
+		'Admin escalation blocked',
+		sprintf(
+			'Blocked %s targeting user #%d via %s. Actor: %s.',
+			$rule_id,
+			$target_id,
+			$surface,
+			$actor ? '#' . $actor : 'unknown'
+		)
+	);
+}, 10, 3 );
+
+// Rate-limit lockout: repeated failed reauthentication from an IP.
+add_action( 'wp_sudo_lockout', function ( int $user_id, int $attempts, string $ip ): void {
+	wp_sudo_critical_alert(
+		'Reauth lockout',
+		sprintf( 'User #%d locked out after %d failed attempts from %s.', $user_id, $attempts, $ip )
+	);
+}, 10, 3 );
+
+// A wp_sudo_gated_actions filter dropped built-in rules — gating silently weakened.
+add_action( 'wp_sudo_gated_actions_missing_builtin_rules', function ( array $missing ): void {
+	wp_sudo_critical_alert(
+		'Built-in gated rules missing',
+		'A filter removed built-in rules: ' . implode( ', ', array_map( 'sanitize_text_field', $missing ) )
+	);
+}, 10, 1 );
+
+// Break-glass recovery mode is active (WP_SUDO_RECOVERY_MODE). Fires on every
+// Sudo admin-page load while active; the per-subject throttle in
+// wp_sudo_critical_alert() collapses it to one alert per hour.
+add_action( 'wp_sudo_recovery_mode_active', function ( int $user_id ): void {
+	wp_sudo_critical_alert(
+		'Recovery mode active',
+		sprintf( 'WP Sudo break-glass recovery mode is active (user #%d).', $user_id )
+	);
+}, 10, 1 );
+```
+
+The `wp_sudo_critical_alert()` helper throttles to one alert per distinct event
+per hour — that is what makes it safe to wire the per-request
+`wp_sudo_recovery_mode_active` and `wp_sudo_gated_actions_missing_builtin_rules`
+hooks directly.
+
+This snippet is deliberately minimal, so it makes two simplifications the packaged
+[Critical-Event Alert Bridge](#optional-critical-event-alert-bridge) below handles
+for you: it **sends synchronously** (the bridge queues and flushes on `shutdown`,
+so a slow SMTP/webhook send never delays the gate's blocking response — relevant
+because `wp_sudo_escalation_blocked` fires immediately before the gate dies), and
+it **always emails the site admin** (the bridge routes network-scope events —
+super-admin escalation, dropped `network.*` rules — to the network admin on
+multisite). If you need those, prefer the bridge; it also adds per-event toggles,
+per-identity dedupe, and a per-recipient hourly cap.
+
 ### Optional WSAL Sensor Bridge
 
 WP Sudo ships an optional WSAL bridge at
