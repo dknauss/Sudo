@@ -568,14 +568,20 @@ callbacks that register for two arguments continue to work unchanged.
 
 By default WP Sudo does **not** send any notification for suspicious events — it
 fires the audit hooks above and surfaces state passively (Site Health tests, the
-Session Activity dashboard widget). The packaged bridges *log* rather than
+Session Activity dashboard widget). The packaged log bridges *log* rather than
 *alert*, and their critical-hook coverage differs: the WSAL sensor bridge
 (`bridges/wp-sudo-wsal-sensor.php`) logs all of these, but the Stream bridge
 (`bridges/wp-sudo-stream-bridge.php`) currently records only `wp_sudo_lockout`
 and `wp_sudo_capability_tampered` from the critical set (not escalation, recovery
-mode, or dropped built-in rules). To get *pushed* a notification when something
-suspicious happens, subscribe to the high-severity hooks yourself. Drop this into
-`wp-content/mu-plugins/wp-sudo-critical-alerts.php`:
+mode, or dropped built-in rules).
+
+For a packaged, drop-in alerter, use the optional **Critical-Event Alert Bridge**
+([below](#optional-critical-event-alert-bridge)) — it wires these hooks to email
+(or Slack/webhook) with dedupe, a per-recipient hourly cap, and per-event toggles.
+The snippet here is the **hand-rolled equivalent**: reach for it when you want to
+own the wiring, customize the payload, or avoid adding another mu-plugin. To get
+*pushed* a notification, subscribe to the high-severity hooks yourself — drop this
+into `wp-content/mu-plugins/wp-sudo-critical-alerts.php`:
 
 ```php
 <?php
@@ -657,9 +663,10 @@ add_action( 'wp_sudo_recovery_mode_active', function ( int $user_id ): void {
 The `wp_sudo_critical_alert()` helper throttles to one alert per distinct subject
 per hour — that is what makes it safe to wire the per-request
 `wp_sudo_recovery_mode_active` and `wp_sudo_gated_actions_missing_builtin_rules`
-hooks directly. A first-party bridge that packages this wiring with per-event
-toggles and finer-grained rate-limiting is on the roadmap (see
-[`docs/ROADMAP.md`](ROADMAP.md) → Security Bridge Coverage).
+hooks directly. If you'd rather not maintain this by hand, the packaged
+[Critical-Event Alert Bridge](#optional-critical-event-alert-bridge) below does the
+same wiring with per-event toggles, per-identity dedupe, and a per-recipient
+hourly cap.
 
 ### Optional WSAL Sensor Bridge
 
