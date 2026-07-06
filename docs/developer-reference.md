@@ -564,6 +564,78 @@ do_action( 'wp_sudo_gated_actions_missing_builtin_rules', array $missing_builtin
 `wp_sudo_lockout` adds source IP as a third argument as of v2.13.0. Existing
 callbacks that register for two arguments continue to work unchanged.
 
+### Wiring critical audit hooks to alerts (email / Slack)
+
+By default WP Sudo does **not** send any notification for suspicious events — it
+fires the audit hooks above and surfaces state passively (Site Health tests, the
+Session Activity dashboard widget). The packaged Stream and WSAL bridges *log*
+these events; they do not *alert*. To get pushed a notification when something
+suspicious happens, subscribe to the high-severity hooks yourself. Drop this into
+`wp-content/mu-plugins/wp-sudo-critical-alerts.php`:
+
+```php
+<?php
+/**
+ * Alert on WP Sudo's critical / high-severity audit hooks.
+ */
+defined( 'ABSPATH' ) || exit;
+
+function wp_sudo_critical_alert( string $subject, string $body ): void {
+	// To notify Slack/Teams/a webhook instead of email, swap wp_mail() for:
+	// wp_remote_post( 'https://hooks.slack.com/services/…', array(
+	//     'headers' => array( 'Content-Type' => 'application/json' ),
+	//     'body'    => wp_json_encode( array( 'text' => $subject . "\n" . $body ) ),
+	//     'timeout' => 5,
+	// ) );
+	wp_mail(
+		get_option( 'admin_email' ),
+		'[WP Sudo] ' . $subject,
+		$body . "\n\nSite: " . home_url() . "\nTime (UTC): " . gmdate( 'c' )
+	);
+}
+
+// Tamper canary: the Editor role regained a stripped capability (e.g. a direct
+// wp_user_roles DB edit). WP Sudo re-strips it and fires this at init priority 1.
+add_action( 'wp_sudo_capability_tampered', function ( string $role, string $capability ): void {
+	wp_sudo_critical_alert(
+		'Capability tamper detected',
+		sprintf( 'Role "%s" regained capability "%s"; WP Sudo re-stripped it.', $role, $capability )
+	);
+}, 10, 2 );
+
+// Admin-escalation guard blocked a new administrator/super-admin grant (or an
+// administrator deletion) by an actor without the promoting authority or a sudo session.
+add_action( 'wp_sudo_escalation_blocked', function ( int $target_id, string $rule_id, string $surface ): void {
+	wp_sudo_critical_alert(
+		'Admin escalation blocked',
+		sprintf( 'Blocked %s on user #%d via %s.', $rule_id, $target_id, $surface )
+	);
+}, 10, 3 );
+
+// Rate-limit lockout: repeated failed reauthentication from an IP.
+add_action( 'wp_sudo_lockout', function ( int $user_id, int $attempts, string $ip ): void {
+	wp_sudo_critical_alert(
+		'Reauth lockout',
+		sprintf( 'User #%d locked out after %d failed attempts from %s.', $user_id, $attempts, $ip )
+	);
+}, 10, 3 );
+
+// A wp_sudo_gated_actions filter dropped built-in rules — gating silently weakened.
+add_action( 'wp_sudo_gated_actions_missing_builtin_rules', function ( array $missing ): void {
+	wp_sudo_critical_alert(
+		'Built-in gated rules missing',
+		'A filter removed built-in rules: ' . implode( ', ', array_map( 'sanitize_text_field', $missing ) )
+	);
+}, 10, 1 );
+```
+
+Note on `wp_sudo_recovery_mode_active`: it fires on **every** Sudo admin-page load
+while recovery mode is active, so alert on it only through a throttle (e.g. one
+notification per user per hour, mirroring the bundled Event_Recorder sampling) or
+you will flood the inbox. A first-party bridge that packages this wiring with
+per-event toggles and rate-limiting is on the roadmap (see
+[`docs/ROADMAP.md`](ROADMAP.md) → Security Bridge Coverage).
+
 ### Optional WSAL Sensor Bridge
 
 WP Sudo ships an optional WSAL bridge at
