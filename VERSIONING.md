@@ -79,6 +79,25 @@ Given the surface above:
   hook, filter, function, or documented contract. Admin-UI change + bug fix →
   **patch**, even though it is user-visible. (Visible ≠ minor; the API contract, not
   the pixels, decides.)
+- **4.6.0 (MINOR)** — this release was re-scoped up from a staged `4.5.1`. The
+  headline is a *user-visible new capability* — block-editor in-editor
+  reauthentication (a `sudo_required` snackbar link-out plus a logged-in-only
+  `admin-ajax` nonce-refresh endpoint). That capability, taken alone, adds **no new
+  declared public-API entry** (it is admin JS + an internal `Challenge` endpoint), so
+  by the `4.5.1` rule above it would be *patch*-level — visible ≠ minor. What sets
+  the floor at **minor** is that the same release shipped the optional Critical-Event
+  Alert Bridge (#166), which adds **new documented public extension points** —
+  `wp_sudo_critical_alert_events`, `wp_sudo_critical_alert_recipient`,
+  `wp_sudo_critical_alert_throttle`, `wp_sudo_critical_alert_hourly_cap`,
+  `wp_sudo_critical_alert_dispatch` (filters) and `wp_sudo_critical_alert_dispatched`
+  (action), all documented in the developer reference. **Documented extension points
+  shipped in the product count toward the public API even when they live in an
+  optional `bridges/` mu-plugin** (that file carries its own `@version` for its
+  internal iteration, but adding brand-new documented hooks to what WP Sudo ships is
+  a backward-compatible API *addition*). New documented filters/action → **MINOR**.
+  Lesson: bump for the *declared-API addition*, not merely because a feature is
+  visible — the visible editor feature is the headline, the bridge hooks are the
+  contract reason.
 - **A new `wp_sudo_*` filter or `wp sudo` subcommand → MINOR.**
 - **Removing `sudo_can()` in favor of `wp_sudo_can()` (4.0.0) → MAJOR.**
 

@@ -5,7 +5,7 @@ Tags:              reauthentication, access control, admin protection, multisite
 Requires at least: 6.4
 Tested up to:      7.0
 Requires PHP:      8.2
-Stable tag:        4.5.1
+Stable tag:        4.6.0
 License:           GPL-2.0-or-later
 License URI:       https://spdx.org/licenses/GPL-2.0-or-later.html
 
@@ -184,7 +184,9 @@ Extensibility: the action registry is filterable via wp_sudo_gated_actions. Audi
 
 == Changelog ==
 
-= 4.5.1 =
+= 4.6.0 =
+* **In-editor reauthentication (block editor)** — a block-editor request blocked with `sudo_required` now shows an in-editor snackbar with a "Reauthenticate" action that opens the challenge page, instead of the editor dead-ending on an opaque 403; editor state is preserved. Supporting server plumbing (grant-config localization + a logged-in-only nonce-refresh AJAX endpoint) keeps a long-open editor able to reauthenticate. Link-out increment; the in-editor modal and automatic re-dispatch come later.
+* **Optional critical-event alert bridge** — new optional mu-plugin (`bridges/wp-sudo-critical-alert-bridge.php`) that pushes a notification (email out of the box; Slack/webhook via filter) when a high-severity audit hook fires — capability tamper, blocked escalation, lockout, dropped built-in rules (opt-in throttled recovery mode) — where the Stream/WSAL bridges only log. Deferred to `shutdown`, deduped, per-recipient capped; inert unless installed.
 * **Harmonized user identity (UX)** — the Session Activity dashboard widget and the Settings → Sudo Access tab now present users identically: full real name as the primary line, username secondary (linked to the user-edit screen when the operator can edit that user), with an avatar and translated role chip(s). A shared `WP_Sudo\User_Identity` helper keeps the two surfaces from drifting.
 * **Avatar rendering fix** — the widget avatar passed `get_avatar()` a non-existent `force` argument, so it silently honored the site's "Show Avatars" (Discussion) setting instead of always rendering; corrected to `force_display`.
 
@@ -410,8 +412,8 @@ See the plugin's `CHANGELOG.md` for all versions.
 
 == Upgrade Notice ==
 
-= 4.5.1 =
-UX release: unifies how users are shown on the dashboard widget and the Access tab (full name primary, username secondary, avatar, role chips) and fixes a widget avatar that failed to render when "Show Avatars" was off. No migration required.
+= 4.6.0 =
+Feature release: adds in-editor reauthentication for the block editor (opaque 403 → "Reauthenticate" snackbar) and an optional critical-event alert bridge that pushes notifications on high-severity audit hooks. Also unifies user display across the dashboard widget and Access tab and fixes a widget avatar that failed to render when "Show Avatars" was off. No migration required; the alert bridge is opt-in.
 
 = 4.5.0 =
 Recommended security update: hardens the admin-escalation guard (requires the actor's promoting authority) and session revocation (requires a token-bound sudo session). Adds bulk session revocation, dashboard revocation visibility, and Access-tab a11y/i18n. No migration required.
