@@ -569,6 +569,9 @@ class PluginTest extends TestCase {
 
 	public function test_enqueue_editor_reauth_loads_for_logged_in_user(): void {
 		Functions\when( 'get_current_user_id' )->justReturn( 1 );
+		Functions\when( 'admin_url' )->justReturn( 'http://example.test/wp-admin/admin-ajax.php' );
+		Functions\when( 'wp_create_nonce' )->justReturn( 'grant-nonce' );
+		Functions\when( 'wp_localize_script' )->justReturn( true );
 
 		Functions\expect( 'wp_enqueue_script' )
 			->once()
@@ -583,6 +586,46 @@ class PluginTest extends TestCase {
 		Functions\expect( 'wp_set_script_translations' )
 			->once()
 			->with( 'wp-sudo-editor-reauth', 'wp-sudo' );
+
+		$plugin = new Plugin();
+		$plugin->enqueue_editor_reauth();
+	}
+
+	/**
+	 * Increment 2 (Task 2): the editor script is localized with the grant nonce,
+	 * the AJAX action names, and the SUBSITE admin-ajax URL (never network-admin,
+	 * so a subsite editor posts to its own admin-ajax.php — design review obj. 6).
+	 * The single wp_sudo_challenge nonce is reused (C1); no new nonce action.
+	 */
+	public function test_enqueue_editor_reauth_localizes_grant_data(): void {
+		Functions\when( 'get_current_user_id' )->justReturn( 1 );
+		Functions\when( 'wp_enqueue_script' )->justReturn( true );
+		Functions\when( 'wp_set_script_translations' )->justReturn( true );
+
+		Functions\expect( 'admin_url' )
+			->once()
+			->with( 'admin-ajax.php' )
+			->andReturn( 'http://example.test/wp-admin/admin-ajax.php' );
+		Functions\expect( 'wp_create_nonce' )
+			->once()
+			->with( Challenge::NONCE_ACTION )
+			->andReturn( 'grant-nonce-abc' );
+		Functions\expect( 'wp_localize_script' )
+			->once()
+			->with(
+				'wp-sudo-editor-reauth',
+				\Mockery::type( 'string' ),
+				\Mockery::on(
+					function ( $data ) {
+						return is_array( $data )
+							&& 'grant-nonce-abc' === $data['nonce']
+							&& 'http://example.test/wp-admin/admin-ajax.php' === $data['ajaxUrl']
+							&& Challenge::AJAX_AUTH_ACTION === $data['authAction']
+							&& Challenge::AJAX_2FA_ACTION === $data['twoFactorAction']
+							&& Challenge::AJAX_REFRESH_NONCE_ACTION === $data['refreshNonceAction'];
+					}
+				)
+			);
 
 		$plugin = new Plugin();
 		$plugin->enqueue_editor_reauth();
@@ -611,6 +654,9 @@ class PluginTest extends TestCase {
 			return '';
 		} );
 		Functions\when( 'wp_set_script_translations' )->justReturn( true );
+		Functions\when( 'admin_url' )->justReturn( 'http://example.test/wp-admin/admin-ajax.php' );
+		Functions\when( 'wp_create_nonce' )->justReturn( 'grant-nonce' );
+		Functions\when( 'wp_localize_script' )->justReturn( true );
 
 		$_COOKIE[ Sudo_Session::TOKEN_COOKIE ] = $token;
 

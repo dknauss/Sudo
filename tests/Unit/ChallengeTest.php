@@ -66,6 +66,10 @@ class ChallengeTest extends TestCase
 			->once()
 			->with(array($this->challenge, 'handle_ajax_2fa'), \Mockery::any(), 0);
 
+		Actions\expectAdded('wp_ajax_' . Challenge::AJAX_REFRESH_NONCE_ACTION)
+			->once()
+			->with(array($this->challenge, 'handle_ajax_refresh_nonce'), \Mockery::any(), 0);
+
 		Actions\expectAdded('admin_enqueue_scripts')
 			->once()
 			->with(array($this->challenge, 'enqueue_assets'), \Mockery::any(), 0);
@@ -104,6 +108,55 @@ class ChallengeTest extends TestCase
 	{
 		$this->assertSame('wp_sudo_challenge_auth', Challenge::AJAX_AUTH_ACTION);
 		$this->assertSame('wp_sudo_challenge_2fa', Challenge::AJAX_2FA_ACTION);
+		$this->assertSame('wp_sudo_refresh_grant_nonce', Challenge::AJAX_REFRESH_NONCE_ACTION);
+	}
+
+	/**
+	 * The nonce-refresh endpoint returns a fresh grant nonce for a logged-in
+	 * user and performs no state change (it grants nothing). Lets a long-open
+	 * editor re-mint the wp_sudo_challenge CSRF nonce after the localized one
+	 * ages out, instead of dead-ending on a stale-nonce check_ajax_referer.
+	 */
+	public function test_handle_ajax_refresh_nonce_returns_fresh_nonce(): void
+	{
+		Functions\when('get_current_user_id')->justReturn(7);
+		Functions\expect('wp_create_nonce')
+			->once()
+			->with(Challenge::NONCE_ACTION)
+			->andReturn('fresh-nonce-123');
+		Functions\expect('wp_send_json_success')
+			->once()
+			->with(array('nonce' => 'fresh-nonce-123'));
+
+		$this->challenge->handle_ajax_refresh_nonce();
+	}
+
+	/**
+	 * The nonce-refresh endpoint rejects a request with no current user.
+	 */
+	public function test_handle_ajax_refresh_nonce_rejects_logged_out(): void
+	{
+		Functions\when('get_current_user_id')->justReturn(0);
+		Functions\expect('wp_create_nonce')->never();
+		Functions\expect('wp_send_json_success')->never();
+
+		// wp_send_json_error dies in production; throw here to short-circuit and
+		// prove no nonce is minted for a logged-out request (mirrors the suite's
+		// early-exit pattern).
+		Functions\expect('wp_send_json_error')
+			->once()
+			->andReturnUsing(
+				function () {
+					throw new \RuntimeException('stop');
+				}
+			);
+
+		try {
+			$this->challenge->handle_ajax_refresh_nonce();
+			$this->fail('Expected wp_send_json_error to short-circuit.');
+		} catch (\RuntimeException $e) {
+			$this->assertSame('stop', $e->getMessage());
+		}
 	}
 
 	/**
@@ -740,6 +793,10 @@ class ChallengeTest extends TestCase
 		Actions\expectAdded('wp_ajax_' . Challenge::AJAX_2FA_ACTION)
 			->once()
 			->with(array($this->challenge, 'handle_ajax_2fa'), \Mockery::any(), 0);
+
+		Actions\expectAdded('wp_ajax_' . Challenge::AJAX_REFRESH_NONCE_ACTION)
+			->once()
+			->with(array($this->challenge, 'handle_ajax_refresh_nonce'), \Mockery::any(), 0);
 
 		Actions\expectAdded('admin_enqueue_scripts')
 			->once()
