@@ -578,7 +578,7 @@ class PluginTest extends TestCase {
 			->with(
 				'wp-sudo-editor-reauth',
 				\Mockery::type( 'string' ),
-				array( 'wp-api-fetch', 'wp-data', 'wp-notices', 'wp-i18n' ),
+				array( 'wp-api-fetch', 'wp-data', 'wp-notices', 'wp-i18n', 'wp-element', 'wp-components' ),
 				WP_SUDO_VERSION,
 				true
 			);

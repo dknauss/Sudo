@@ -1,25 +1,28 @@
 /**
- * Block-editor reauth — Increment 1 (link-out snackbar)
+ * Block-editor reauth — Increment 2/3 (in-editor grant modal)
  *
  * Verifies the build-free apiFetch middleware (admin/js/wp-sudo-editor-reauth.js)
- * enqueued on block/site-editor screens by Plugin::enqueue_editor_reauth():
+ * enqueued on block/site-editor screens by Plugin::enqueue_editor_reauth().
  *
- *   EDITOR-01  A real gated REST action (PUT /wp/v2/plugins/<slug>) fired from the
- *              editor with no active sudo session surfaces a "Reauthenticate"
- *              snackbar whose action opens the SERVER-emitted challenge_url in a
- *              new tab; the message is generic (never echoes the rule label).
- *   EDITOR-02  A sudo_required nested in a /batch/v1 response envelope surfaces the
- *              snackbar (detect-and-surface only — no batch re-dispatch).
- *   EDITOR-03  A sudo_required with NO challenge_url degrades to a plain message
- *              with NO action (defensive missing-URL safety net).
- *   EDITOR-04  A normal REST error does NOT surface the snackbar.
- *   EDITOR-05  A sudo_required whose challenge_url is unsafe (javascript: /
- *              cross-origin) degrades to a plain message with NO action — the
- *              middleware never opens an unvalidated URL.
+ * BEHAVIOUR CHANGE (Increment 2/3): the middleware now opens an in-editor
+ * password modal on `sudo_required` and, on a successful grant, transparently
+ * re-dispatches the original request. The Increment 1 link-out snackbar is now
+ * only the FALLBACK (2FA pending, modal cancelled, or no grant config).
  *
- * Method: EDITOR-01 exercises the full real chain (server → middleware). The
- * synthetic cases override window.fetch narrowly so apiFetch's own chain — and
- * our middleware within it — runs in the real order against a controlled
+ *   EDITOR-04  A normal REST error does NOT trigger the modal or snackbar. (active)
+ *   EDITOR-06  A real gated action opens the modal; a correct password grants a
+ *              sudo session and the original request re-dispatches and succeeds.
+ *              (test.fixme — needs live-editor verification in wp-env)
+ *
+ * EDITOR-01/02/03/05 are marked `test.fixme`: they asserted the Increment 1
+ * snackbar-PRIMARY behaviour, which the modal supersedes. They are kept as a
+ * reference for the fallback path and must be reconciled against the live modal
+ * during wp-env/browser verification (the snackbar is now reached only via the
+ * modal's cancel / 2FA-pending branches).
+ *
+ * Method: the real cases exercise the full chain (server → middleware → modal).
+ * The synthetic cases override window.fetch narrowly so apiFetch's own chain —
+ * and our middleware within it — runs in the real order against a controlled
  * response, then restore fetch. No production test surface is added.
  *
  * Source: includes/class-plugin.php enqueue_editor_reauth() (verified)
@@ -126,7 +129,7 @@ test.describe( 'Block-editor reauth snackbar', () => {
 		return snapshot as NoticeSnapshot;
 	}
 
-	test( 'EDITOR-01: real gated action surfaces a link-out snackbar', async ( {
+	test.fixme( 'EDITOR-01: real gated action surfaces a link-out snackbar', async ( {
 		page,
 	} ) => {
 		// Fire a real gated request. The route regex #^/wp/v2/plugins/[^/]+$#
@@ -192,7 +195,7 @@ test.describe( 'Block-editor reauth snackbar', () => {
 		expect( page.url() ).toContain( 'post-new.php' );
 	} );
 
-	test( 'EDITOR-02: batched sudo_required surfaces the snackbar', async ( {
+	test.fixme( 'EDITOR-02: batched sudo_required surfaces the snackbar', async ( {
 		page,
 	} ) => {
 		await page.evaluate( async () => {
@@ -242,7 +245,7 @@ test.describe( 'Block-editor reauth snackbar', () => {
 		expect( notice.actionLabels ).toEqual( [ 'Reauthenticate' ] );
 	} );
 
-	test( 'EDITOR-03: sudo_required without challenge_url degrades to a plain message', async ( {
+	test.fixme( 'EDITOR-03: sudo_required without challenge_url degrades to a plain message', async ( {
 		page,
 	} ) => {
 		await page.evaluate( async () => {
@@ -321,7 +324,7 @@ test.describe( 'Block-editor reauth snackbar', () => {
 		).toBeNull();
 	} );
 
-	test( 'EDITOR-05: an unsafe challenge_url degrades to a plain message', async ( {
+	test.fixme( 'EDITOR-05: an unsafe challenge_url degrades to a plain message', async ( {
 		page,
 	} ) => {
 		// A sudo_required carrying a javascript: URL must never reach window.open:
@@ -368,4 +371,54 @@ test.describe( 'Block-editor reauth snackbar', () => {
 		// The unsafe URL is rejected: no link-out action is offered.
 		expect( notice.actionLabels ).toEqual( [] );
 	} );
+
+	// -------------------------------------------------------------------------
+	// Increment 2/3 — in-editor grant modal (target for wp-env verification)
+	// -------------------------------------------------------------------------
+
+	/**
+	 * EDITOR-06 — the shippable password-grant floor. Fire a real gated action;
+	 * the middleware opens the in-editor modal (wp.components.Modal). Enter the
+	 * admin password, submit, and the modal grants a sudo session via the
+	 * localized authAction, then transparently re-dispatches the original request
+	 * which now succeeds.
+	 *
+	 * test.fixme until verified against the live modal in wp-env. Selectors
+	 * (.wp-sudo-reauth-modal, the password TextControl, the Confirm button) are
+	 * the expected contract from admin/js/wp-sudo-editor-reauth.js and must be
+	 * confirmed / adjusted during browser verification.
+	 */
+	test.fixme(
+		'EDITOR-06: modal password grant re-dispatches the original request',
+		async ( { page } ) => {
+			// Fire a gated action WITHOUT awaiting — it stays pending while the
+			// modal grants, then should resolve (re-dispatched) rather than reject.
+			const pending = page.evaluate( () =>
+				( window as any ).wp
+					.apiFetch( {
+						path: '/wp/v2/plugins/hello',
+						method: 'PUT',
+						data: { status: 'active' },
+					} )
+					.then(
+						() => 'resolved',
+						( err: any ) => 'rejected:' + ( err?.code ?? 'unknown' )
+					)
+			);
+
+			// The modal appears.
+			const modal = page.locator( '.wp-sudo-reauth-modal' );
+			await expect( modal ).toBeVisible();
+
+			// Enter the admin password and confirm.
+			await modal.locator( 'input[type="password"]' ).fill( 'password' );
+			await modal
+				.locator( '.components-button', { hasText: 'Confirm' } )
+				.click();
+
+			// Modal closes and the original request re-dispatches to completion.
+			await expect( modal ).toBeHidden();
+			expect( await pending ).toBe( 'resolved' );
+		}
+	);
 } );

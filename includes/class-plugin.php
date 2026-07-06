@@ -335,7 +335,7 @@ class Plugin {
 		wp_enqueue_script(
 			'wp-sudo-editor-reauth',
 			WP_SUDO_PLUGIN_URL . 'admin/js/wp-sudo-editor-reauth.js',
-			array( 'wp-api-fetch', 'wp-data', 'wp-notices', 'wp-i18n' ),
+			array( 'wp-api-fetch', 'wp-data', 'wp-notices', 'wp-i18n', 'wp-element', 'wp-components' ),
 			WP_SUDO_VERSION,
 			true
 		);
