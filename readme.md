@@ -17,8 +17,21 @@ Require password confirmation before high-risk changes go through on your WordPr
 [![Type Coverage](https://shepherd.dev/github/dknauss/Sudo/coverage.svg)](https://shepherd.dev/github/dknauss/Sudo)
 [![Try latest release in Playground](https://img.shields.io/badge/Try%20release-Playground-3858e9?logo=wordpress&logoColor=white)](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint.json)
 [![Try main in Playground](https://img.shields.io/badge/Try%20main-Playground-23282d?logo=wordpress&logoColor=white)](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint-main.json)
+[![Try in-editor reauth in Playground](https://img.shields.io/badge/Try%20in--editor%20reauth-Playground-8a63d2?logo=wordpress&logoColor=white)](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Ffeat%2Fgutenberg-reauth-increment-3%2Fblueprint-editor-reauth.json)
 
 Playground demo credentials are `admin` / `password`. When Sudo asks for reauthentication, enter the same password: `password`.
+
+## In-editor reauthentication (Gutenberg — in development)
+
+When a gated action trips Sudo *inside the block editor* — for example, installing or activating a block from the inserter's Block Directory — reauthentication happens in place: a password modal opens over the editor, grants the sudo session, and transparently resumes the original request. No full-page redirect, and the editor state is preserved.
+
+[**Try the in-editor reauth demo in Playground →**](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Ffeat%2Fgutenberg-reauth-increment-3%2Fblueprint-editor-reauth.json) In the editor, open the inserter (**+**), search a Block-Directory block (e.g. *Icon Block*), and install it — the modal appears; enter `password` to continue.
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/dknauss/Sudo/feat/gutenberg-reauth-increment-3/assets/editor-reauth-modal.png" alt="WP Sudo &quot;Confirm your identity&quot; reauthentication modal open over the WordPress block editor." width="80%">
+</p>
+
+> This is unreleased work on the `feat/gutenberg-reauth-increment-3` branch; the demo installs the plugin from that branch. Password-only for now — accounts with two-factor fall back to the standard challenge page (2FA in the modal is planned).
 
 ## Screenshots
 
