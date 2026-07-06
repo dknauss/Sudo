@@ -1,7 +1,32 @@
+import type { Locator } from '@playwright/test';
 import { test, expect, activateSudoSession } from '../fixtures/test';
 
 const DEFAULT_PASSWORD = process.env.WP_PASSWORD ?? 'password';
 const RUN_MULTISITE_STACK_SMOKE = process.env.WP_SUDO_E2E_MULTISITE_STACK === '1';
+
+// Generous navigation budget for the heavier multisite nginx stack, whose
+// POST → redirect round-trips (settings save, reauth replay) run well past the
+// single-site default under CI load.
+const NAV_TIMEOUT = 30_000;
+
+/**
+ * Click that bypasses Playwright's actionability *stability* gate.
+ *
+ * On the heavier multisite nginx stack under CI load, elements resolve visible
+ * and enabled but their bounding boxes never satisfy the two-consecutive-frames
+ * "stable" check within the timeout — the admin-bar sudo countdown timer
+ * (`#wp-admin-bar-wp-sudo-active`, re-renders every second), the async MU-plugin
+ * status reflow above `#submit`, and even the challenge page's own late settling
+ * (`#wp-sudo-challenge-submit`) all defeat it, though a real user could click at
+ * any time. Every interactive click in this spec therefore goes through
+ * `forceClick`. `force: true` skips that gate (and still scrolls the element into
+ * view), so it is used rather than `scrollIntoViewIfNeeded()`, which would
+ * re-impose the same stability wait. Every call site immediately asserts the
+ * resulting navigation or value, so a mis-landed click fails loudly rather than
+ * passing silently.
+ */
+const forceClick = ( locator: Locator ): Promise<void> =>
+    locator.click( { force: true } );
 
 test.describe( 'WP Sudo multisite alternative stack smoke tests', () => {
     test.skip(
@@ -24,9 +49,9 @@ test.describe( 'WP Sudo multisite alternative stack smoke tests', () => {
         await Promise.all( [
             page.waitForURL( /\/wp-admin\/network\/plugins\.php(?:\?.*)?$/, {
                 waitUntil: 'load',
-                timeout: 10_000,
+                timeout: NAV_TIMEOUT,
             } ),
-            page.locator( '#wp-admin-bar-wp-sudo-active' ).click(),
+            forceClick( page.locator( '#wp-admin-bar-wp-sudo-active' ) ),
         ] );
 
         await expect( page.locator( '#wp-admin-bar-wp-sudo-active' ) ).not.toBeVisible();
@@ -38,8 +63,8 @@ test.describe( 'WP Sudo multisite alternative stack smoke tests', () => {
         await expect( challengeLink ).toBeVisible();
 
         await Promise.all( [
-            page.waitForURL( /page=wp-sudo-challenge/, { timeout: 10_000 } ),
-            challengeLink.click(),
+            page.waitForURL( /page=wp-sudo-challenge/, { timeout: NAV_TIMEOUT } ),
+            forceClick( challengeLink ),
         ] );
 
         await expect(
@@ -47,8 +72,10 @@ test.describe( 'WP Sudo multisite alternative stack smoke tests', () => {
         ).toHaveAttribute( 'href', networkPluginsUrl );
 
         await Promise.all( [
-            page.waitForURL( networkPluginsUrl, { timeout: 15_000 } ),
-            page.locator( '#wp-sudo-challenge-password-step a.button:has-text("Cancel")' ).click(),
+            page.waitForURL( networkPluginsUrl, { timeout: NAV_TIMEOUT } ),
+            forceClick(
+                page.locator( '#wp-sudo-challenge-password-step a.button:has-text("Cancel")' )
+            ),
         ] );
 
         await expect( page ).toHaveURL( networkPluginsUrl );
@@ -75,8 +102,8 @@ test.describe( 'WP Sudo multisite alternative stack smoke tests', () => {
         await sessionDuration.fill( updatedValue );
 
         await Promise.all( [
-            page.waitForURL( /page=wp-sudo-challenge/, { timeout: 15_000 } ),
-            page.locator( '#submit' ).click(),
+            page.waitForURL( /page=wp-sudo-challenge/, { timeout: NAV_TIMEOUT } ),
+            forceClick( page.locator( '#submit' ) ),
         ] );
 
         await page.waitForFunction(
@@ -87,9 +114,9 @@ test.describe( 'WP Sudo multisite alternative stack smoke tests', () => {
         await Promise.all( [
             page.waitForURL(
                 /\/wp-admin\/network\/settings\.php\?page=wp-sudo-settings(?:&updated=true)?$/,
-                { timeout: 15_000 }
+                { timeout: NAV_TIMEOUT }
             ),
-            page.click( '#wp-sudo-challenge-submit' ),
+            forceClick( page.locator( '#wp-sudo-challenge-submit' ) ),
         ] );
 
         await expect( sessionDuration ).toHaveValue( updatedValue );
@@ -98,9 +125,9 @@ test.describe( 'WP Sudo multisite alternative stack smoke tests', () => {
         await Promise.all( [
             page.waitForURL(
                 /\/wp-admin\/network\/settings\.php\?page=wp-sudo-settings(?:&updated=true)?$/,
-                { timeout: 15_000 }
+                { timeout: NAV_TIMEOUT }
             ),
-            page.locator( '#submit' ).click(),
+            forceClick( page.locator( '#submit' ) ),
         ] );
         await expect( sessionDuration ).toHaveValue( originalValue );
     } );
@@ -113,14 +140,14 @@ test.describe( 'WP Sudo multisite alternative stack smoke tests', () => {
         const applyPresetAndWait = async ( preset: string, expectedLabel: string ) => {
             await presetSelection.selectOption( preset );
 
-            await page.locator( '#submit' ).click();
+            await forceClick( page.locator( '#submit' ) );
 
             await Promise.race( [
                 page.waitForURL(
                     /\/wp-admin\/network\/settings\.php\?page=wp-sudo-settings(?:&updated=true)?$/,
-                    { timeout: 15_000 }
+                    { timeout: NAV_TIMEOUT }
                 ),
-                page.waitForURL( /page=wp-sudo-challenge/, { timeout: 15_000 } ),
+                page.waitForURL( /page=wp-sudo-challenge/, { timeout: NAV_TIMEOUT } ),
             ] );
 
             if ( /page=wp-sudo-challenge/.test( page.url() ) ) {
@@ -132,9 +159,9 @@ test.describe( 'WP Sudo multisite alternative stack smoke tests', () => {
                 await Promise.all( [
                     page.waitForURL(
                         /\/wp-admin\/network\/settings\.php\?page=wp-sudo-settings(?:&updated=true)?$/,
-                        { timeout: 15_000 }
+                        { timeout: NAV_TIMEOUT }
                     ),
-                    page.click( '#wp-sudo-challenge-submit' ),
+                    forceClick( page.locator( '#wp-sudo-challenge-submit' ) ),
                 ] );
             }
 

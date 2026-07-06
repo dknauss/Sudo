@@ -166,23 +166,20 @@ jobs:
         if: always()
         run: docker compose -f .github/docker/nginx-mariadb.compose.yml down -v
 
-  # TEMPORARILY DE-SCOPED from the release-confidence gate (2026-07-06).
-  # This lane is new (added in #155, after v4.5.0) and has never been green:
-  # MSTACK-01/02/03 fail on Playwright element-not-stable / actionability
-  # timeouts (#submit, #wp-admin-bar-wp-sudo-active) — a test-robustness /
-  # rendering issue on the heavier multisite stack, NOT a behavioral assertion
-  # failure, and unrelated to any shipped code (the v4.6.0 payload does not
-  # touch network settings.php or the admin-bar timer). Functional multisite
-  # behavior is covered by the CI Integration multisite lane. The lane still
-  # RUNS (failure stays visible) but does not block the gate. Re-enable by
-  # removing continue-on-error here AND restoring it to the aggregate loop
-  # below, once stabilized. Tracked in docs/ROADMAP.md and
-  # docs/release-environment-log.md.
+  # Re-scoped INTO the release-confidence gate (2026-07-06) after the multisite
+  # stack smoke spec was hardened. The earlier MSTACK-01/02/03 failures were
+  # Playwright actionability *stability* timeouts on the heavier multisite stack
+  # — the live admin-bar sudo countdown timer inside #wp-admin-bar-wp-sudo-active
+  # and the async MU-plugin status reflow above #submit keep an element's box
+  # from ever satisfying the two-frames stability check under CI load — plus slow
+  # POST → redirect round-trips. The spec now force-clicks those
+  # confirmed-visible/enabled targets and gives navigations a multisite-sized
+  # budget, while still asserting the result of every click, so a mis-landed
+  # click fails loudly. This lane once again gates the run.
   nginx-multisite-smoke:
-    name: "Nginx/MariaDB multisite smoke (de-scoped, informational)"
+    name: "Nginx/MariaDB multisite smoke"
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    continue-on-error: true
 
     steps:
       - name: Checkout
@@ -347,13 +344,11 @@ jobs:
     steps:
       - name: Check release-confidence jobs
         run: |
-          # nginx-multisite-smoke is DE-SCOPED from the pass/fail gate (see the
-          # comment on that job). It is reported below for visibility but does
-          # not fail this check. Re-add it to the loop when the lane is stable.
           failed=false
           for result in \
             "${{ needs['apache-wp-env-full-e2e'].result }}" \
             "${{ needs['nginx-smoke'].result }}" \
+            "${{ needs['nginx-multisite-smoke'].result }}" \
             "${{ needs['sqlite-smoke'].result }}"; do
             if [ "$result" != "success" ]; then
               failed=true
@@ -362,12 +357,12 @@ jobs:
 
           echo "Apache/wp-env full E2E: ${{ needs['apache-wp-env-full-e2e'].result }}"
           echo "Nginx/MariaDB smoke: ${{ needs['nginx-smoke'].result }}"
-          echo "Nginx/MariaDB multisite smoke (DE-SCOPED, informational): ${{ needs['nginx-multisite-smoke'].result }}"
+          echo "Nginx/MariaDB multisite smoke: ${{ needs['nginx-multisite-smoke'].result }}"
           echo "Playground SQLite smoke: ${{ needs['sqlite-smoke'].result }}"
 
           if [ "$failed" = "true" ]; then
-            echo "One or more GATING release-confidence E2E jobs failed or were cancelled."
+            echo "One or more release-confidence E2E jobs failed or were cancelled."
             exit 1
           fi
 
-          echo "Release-confidence E2E passed across the gating targets (Apache/wp-env, nginx, SQLite smoke); nginx multisite smoke is de-scoped/informational."
+          echo "Release-confidence E2E passed across all targets (Apache/wp-env, nginx, nginx multisite, SQLite smoke)."
