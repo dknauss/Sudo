@@ -115,6 +115,11 @@ plainly (the branch readme already does).
 
 ## Milestone B — 2FA in the modal
 
+**Design brief (reviewed):**
+[`gutenberg-editor-reauth-milestone-b-2fa-partial-brief.md`](gutenberg-editor-reauth-milestone-b-2fa-partial-brief.md)
+— the server-rendered-partial approach, provider capability/default-deny, the email
+render-send throttle finding, and the test strategy. Read it before starting B.
+
 **Goal:** TOTP / email-OTP / backup-code accounts complete 2FA **inside** the modal.
 WebAuthn/passkey stays link-out by nature (not a shortcut — inherent).
 
