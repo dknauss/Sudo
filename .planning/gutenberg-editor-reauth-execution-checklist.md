@@ -35,9 +35,11 @@ HERE" PR comment, `gutenberg-editor-reauth-milestone-plan.md`, and (for B)
 - [x] **E2E:** `editor-reauth.spec.ts` **EDITOR-08** — a `2fa_pending` grant response links out instead of granting; original request stays rejected. Studio 8/8.
 - [x] **GREEN:** all pass. Metrics synced (unit 1027, integration 210 methods, E2E 72).
 
-## Step 3 — Stale-nonce recovery
-- [ ] **RED:** an aged/expired `wp_sudo_challenge` grant nonce (overnight-tab scenario, not a nonce-valid tab) → `refreshNonceAction` re-mints and the grant then succeeds (or one retry-on-`check_ajax_referer`-failure path). Assert the recovery, not just the happy path.
-- [ ] **GREEN:** pass.
+## Step 3 — Stale-nonce recovery ✅ DONE (2026-07-14, codex-approved)
+**Outcome:** the overnight-tab recovery already holds in production — `handle_ajax_refresh_nonce()` is login-gated ONLY (it does **not** require the possibly-stale grant nonce) and re-mints a fresh `NONCE_ACTION` nonce; the client's `submit()` calls `refreshNonce()` before every `postPassword()`, so a stale localized nonce is replaced before the grant. Step 3 makes it a regression-guarded guarantee at both layers. Tests only, no production change.
+- [x] **integration (server nonce lifecycle):** new `tests/Integration/StaleNonceRecoveryTest.php` (3 methods) — **STALE-01** refresh re-mints a nonce that validates for `NONCE_ACTION` *without* a grant nonce present; **STALE-02** refresh is login-gated (logged-out → rejected); **STALE-03** end-to-end — a stale nonce is **rejected** by `handle_ajax_auth` (no session) and the freshly-refreshed nonce is then **accepted** and grants. Asserts the recovery *and* the failure mode it recovers from. Ran green via the Studio-seeded WP 7.0.1 core + MariaDB (full integration suite 218 tests, 0 failures).
+- [x] **E2E (client recovery):** `editor-reauth.spec.ts` **EDITOR-09** — poison the localized grant nonce to a stale value; the grant still succeeds and re-dispatches (refreshNonce recovered it), and the localized nonce is confirmed replaced (not a still-valid original). Studio 9/9.
+- [x] **GREEN:** all pass. Metrics synced (integration 213 methods / 29 files, E2E 73).
 
 ## Step 4 — REST re-dispatch boundaries
 - **Q2 (batch detect-and-surface) already landed in Step 1** (`ce1c67e`, EDITOR-02): batched `/batch/v1` `sudo_required` surfaces the snackbar, never opens the modal, never re-dispatches the envelope. Remaining here:

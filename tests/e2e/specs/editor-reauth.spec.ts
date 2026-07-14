@@ -641,4 +641,78 @@ test.describe( 'Block-editor reauth snackbar', () => {
 			window.fetch = ( window as any ).__wpSudoOrigFetch;
 		} );
 	} );
+
+	/**
+	 * EDITOR-09 — overnight-tab stale-nonce recovery (client side). The editor
+	 * localizes the grant nonce at page load (C1); a tab left open past the ~24h
+	 * nonce life holds a stale nonce that `handle_ajax_auth`'s check_ajax_referer
+	 * would reject. submit() defends against this by calling refreshNonce()
+	 * (login-gated refreshNonceAction — it does not require the stale nonce) to
+	 * re-mint cfg.nonce BEFORE postPassword(). Poison the localized nonce to a
+	 * stale value and assert the grant STILL succeeds and re-dispatches — proof
+	 * that the refresh recovered it. Without the refresh, the poisoned nonce would
+	 * fail server-side (asserted deterministically in the integration
+	 * StaleNonceRecoveryTest::test_stale_nonce_rejected_then_refreshed_nonce_grants).
+	 */
+	test( 'EDITOR-09: a stale localized grant nonce is recovered via refresh and grants', async ( {
+		page,
+	} ) => {
+		// Precondition: the refresh affordance must actually be wired (C1), else the
+		// "recovery" would be vacuous — a stale nonce that is never refreshed.
+		const cfg = await page.evaluate( () => {
+			const c = ( window as any ).wpSudoEditorReauth || {};
+			return {
+				hasRefresh: !! c.refreshNonceAction,
+				originalNonce: c.nonce,
+			};
+		} );
+		expect(
+			cfg.hasRefresh,
+			'refreshNonceAction must be localized for the recovery path to exist'
+		).toBe( true );
+
+		// Simulate the overnight-stale tab: replace the localized grant nonce with a
+		// value check_ajax_referer will reject.
+		await page.evaluate( () => {
+			( window as any ).wpSudoEditorReauth.nonce =
+				'stale-overnight-nonce-000000';
+		} );
+
+		// Fire a real gated action WITHOUT awaiting — it stays pending while the
+		// modal grants. Despite the poisoned nonce, refreshNonce() re-mints a valid
+		// one before the grant POST, so this should resolve (re-dispatched).
+		const pending = page.evaluate( () =>
+			( window as any ).wp
+				.apiFetch( {
+					path: '/wp/v2/plugins/hello',
+					method: 'PUT',
+					data: { status: 'active' },
+				} )
+				.then(
+					() => 'resolved',
+					( err: any ) => 'rejected:' + ( err?.code ?? 'unknown' )
+				)
+		);
+
+		const modal = page.locator( '.wp-sudo-reauth-modal' );
+		await expect( modal ).toBeVisible();
+
+		await modal.locator( 'input[type="password"]' ).fill( 'password' );
+		await modal
+			.locator( '.components-button', { hasText: 'Confirm' } )
+			.click();
+
+		// The grant succeeded and the original request re-dispatched — the stale
+		// nonce did not block it.
+		await expect( modal ).toBeHidden();
+		expect( await pending ).toBe( 'resolved' );
+
+		// The localized nonce was replaced by refreshNonce() (no longer the poisoned
+		// value), confirming the refresh — not a still-valid original — is what
+		// carried the grant.
+		const finalNonce = await page.evaluate(
+			() => ( window as any ).wpSudoEditorReauth.nonce
+		);
+		expect( finalNonce ).not.toBe( 'stale-overnight-nonce-000000' );
+	} );
 } );
