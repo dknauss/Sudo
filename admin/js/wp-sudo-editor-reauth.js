@@ -272,6 +272,13 @@
 				}
 				setBusy( false );
 				setError( res.message );
+			} ).catch( function () {
+				// Terminal safety net: a rejected transport or body-read (e.g. a
+				// failed r.text()) must never leave the modal stuck busy, because
+				// onRequestClose and Cancel are disabled while busy. Restore the
+				// form so the user can retry or cancel.
+				setBusy( false );
+				setError( __( 'Unexpected error. Please try again.', 'wp-sudo' ) );
 			} );
 		}
 
@@ -390,7 +397,12 @@
 	 * @return {(Promise|undefined)} A re-dispatch promise when granted, else undefined.
 	 */
 	function handleSudoRequired( challengeUrl, options ) {
-		if ( ! canGrant ) {
+		// C4: only offer a reauth affordance when the response carried a validated
+		// same-origin challenge_url (the interactive cookie-auth branch). A null
+		// challengeUrl means the headless/app-password branch omitted it, or an
+		// unsafe URL was rejected by isSafeChallengeUrl — surface a plain notice
+		// with no action, and never open the grant modal.
+		if ( ! canGrant || null === challengeUrl ) {
 			surface( challengeUrl );
 			return Promise.resolve( undefined );
 		}
@@ -414,11 +426,15 @@
 				if ( undefined === result ) {
 					return response;
 				}
-				// On grant, resolve with the re-dispatched result; otherwise keep
-				// the original batch response.
-				return handleSudoRequired( result, options ).then( function ( redispatched ) {
-					return undefined !== redispatched ? redispatched : response;
-				} );
+				// Q2: a batched sudo_required is detect-and-surface ONLY. No gated
+				// route is batchable in core today; if one becomes so, link out (or
+				// show a plain notice when there is no safe URL) rather than
+				// re-dispatching the whole /batch/v1 envelope — replaying it could
+				// repeat successful sibling mutations. Never open the grant modal
+				// for a batch. The original response is returned unchanged so the
+				// caller still observes the failure.
+				surface( result );
+				return response;
 			},
 			function ( error ) {
 				var result = sudoChallenge( error );

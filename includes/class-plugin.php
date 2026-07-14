@@ -300,8 +300,8 @@ class Plugin {
 	 * Loads a build-free `apiFetch` middleware that turns a gated action's
 	 * `sudo_required` REST rejection — the editor's opaque 403 dead-end when a
 	 * flow such as Block Directory plugin install/activate fires without an
-	 * active sudo session — into an in-editor snackbar that links out to the
-	 * challenge page (Increment 1: notify + link-out only, no in-editor grant).
+	 * active sudo session — into an in-editor password modal that grants a sudo
+	 * session in place, falling back to the Increment 1 link-out snackbar.
 	 *
 	 * Loaded on every block/site-editor screen for logged-in users, INCLUDING
 	 * when a sudo session is active at page load. The editor is a long-lived SPA

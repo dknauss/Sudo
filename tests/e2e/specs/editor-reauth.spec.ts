@@ -12,13 +12,22 @@
  *   EDITOR-04  A normal REST error does NOT trigger the modal or snackbar. (active)
  *   EDITOR-06  A real gated action opens the modal; a correct password grants a
  *              sudo session and the original request re-dispatches and succeeds.
- *              (test.fixme — needs live-editor verification in wp-env)
  *
- * EDITOR-01/02/03/05 are marked `test.fixme`: they asserted the Increment 1
- * snackbar-PRIMARY behaviour, which the modal supersedes. They are kept as a
- * reference for the fallback path and must be reconciled against the live modal
- * during wp-env/browser verification (the snackbar is now reached only via the
- * modal's cancel / 2FA-pending branches).
+ * EDITOR-01/02/03/05 originally asserted the Increment 1 snackbar-PRIMARY
+ * behaviour, which the modal now supersedes. They have been reconciled to the
+ * middleware's actual decision, which turns on the validated challenge_url:
+ *   - EDITOR-01: a real gated action carries a safe same-origin challenge_url,
+ *     so the modal opens (primary); cancelling drops to the link-out snackbar.
+ *   - EDITOR-02: a batched sudo_required is detect-and-surface ONLY (Q2) — it
+ *     links out via the snackbar; the modal never opens and the /batch/v1
+ *     envelope is never re-dispatched.
+ *   - EDITOR-03 / EDITOR-05: a sudo_required with no safe challenge_url (absent,
+ *     or an unsafe javascript: URL rejected by isSafeChallengeUrl) offers no
+ *     reauth affordance (C4) — a plain notice with no action and no modal.
+ * 02/03/05 inject synthetic sudo_required payloads to drive these branches
+ * deterministically. Step 4 layers the deeper Q3 concerns on top (single-flight
+ * modal, concurrent-rejection queue re-dispatching only the user-actioned
+ * request).
  *
  * Method: the real cases exercise the full chain (server → middleware → modal).
  * The synthetic cases override window.fetch narrowly so apiFetch's own chain —
@@ -129,32 +138,36 @@ test.describe( 'Block-editor reauth snackbar', () => {
 		return snapshot as NoticeSnapshot;
 	}
 
-	test.fixme( 'EDITOR-01: real gated action surfaces a link-out snackbar', async ( {
+	test( 'EDITOR-01: cancelling the modal falls back to a link-out snackbar', async ( {
 		page,
 	} ) => {
-		// Fire a real gated request. The route regex #^/wp/v2/plugins/[^/]+$#
-		// (PUT/PATCH) matches before the controller runs, so the gate intercepts
-		// with sudo_required + challenge_url regardless of the exact slug.
+		// Fire a real gated request WITHOUT awaiting. The route regex
+		// #^/wp/v2/plugins/[^/]+$# (PUT/PATCH) matches before the controller runs,
+		// so the gate intercepts with sudo_required + challenge_url regardless of
+		// the exact slug. The request stays pending behind the modal (primary path).
 		// Source: class-action-registry.php plugin.activate rule (verified)
-		const challengeUrl = await page.evaluate( async () => {
-			try {
-				await ( window as any ).wp.apiFetch( {
+		const pending = page.evaluate( () =>
+			( window as any ).wp
+				.apiFetch( {
 					path: '/wp/v2/plugins/hello',
 					method: 'PUT',
 					data: { status: 'active' },
-				} );
-				return null; // Should not resolve.
-			} catch ( err: any ) {
-				return err?.data?.challenge_url ?? null;
-			}
-		} );
+				} )
+				.then(
+					() => 'resolved',
+					( err: any ) => 'rejected:' + ( err?.code ?? 'unknown' )
+				)
+		);
 
-		// The server must have emitted a challenge_url on this cookie-auth branch.
-		expect(
-			challengeUrl,
-			'Gate must emit a challenge_url on the cookie-auth REST branch'
-		).toBeTruthy();
-		expect( challengeUrl ).toContain( 'page=wp-sudo-challenge' );
+		// The modal opens (Increment 2/3 primary path).
+		const modal = page.locator( '.wp-sudo-reauth-modal' );
+		await expect( modal ).toBeVisible();
+
+		// Cancelling drops to the Increment 1 link-out snackbar fallback.
+		await modal
+			.locator( '.components-button', { hasText: 'Cancel' } )
+			.click();
+		await expect( modal ).toBeHidden();
 
 		// The middleware surfaced a generic, link-out snackbar.
 		const notice = await waitForNotice( page );
@@ -189,17 +202,22 @@ test.describe( 'Block-editor reauth snackbar', () => {
 			() => ( window as any ).__wpSudoOpened as Array< { url: string; target?: string } >
 		);
 		expect( opened ).toHaveLength( 1 );
+		// The server emitted the challenge_url on the cookie-auth REST branch.
 		expect( opened[ 0 ].url ).toContain( 'page=wp-sudo-challenge' );
 		expect( opened[ 0 ].target ).toBe( '_blank' );
 		// Editor tab did not navigate away.
 		expect( page.url() ).toContain( 'post-new.php' );
+
+		// The original request rejected (no in-editor grant occurred).
+		expect( await pending ).toContain( 'rejected' );
 	} );
 
-	test.fixme( 'EDITOR-02: batched sudo_required surfaces the snackbar', async ( {
+	test( 'EDITOR-02: batched sudo_required is detected and surfaced — no modal, no replay', async ( {
 		page,
 	} ) => {
-		await page.evaluate( async () => {
-			const original = window.fetch;
+		// Inject a /batch/v1 envelope whose inner response is a sudo_required.
+		await page.evaluate( () => {
+			( window as any ).__wpSudoOrigFetch = window.fetch;
 			window.fetch = async ( input: any, init?: any ) => {
 				const url = typeof input === 'string' ? input : input?.url ?? '';
 				if ( url.includes( '/batch/v1' ) ) {
@@ -226,30 +244,46 @@ test.describe( 'Block-editor reauth snackbar', () => {
 						}
 					);
 				}
-				return original( input, init );
+				return ( window as any ).__wpSudoOrigFetch( input, init );
 			};
-			try {
-				await ( window as any ).wp.apiFetch( {
+		} );
+
+		// Q2 (detect-and-surface ONLY): the batched sudo_required is recognised
+		// and links out via the snackbar; the middleware must NOT open the grant
+		// modal and must NOT re-dispatch the envelope (which could repeat
+		// successful sibling mutations). The original batch response resolves.
+		const settled = await page.evaluate( () =>
+			( window as any ).wp
+				.apiFetch( {
 					path: '/batch/v1',
 					method: 'POST',
 					data: { requests: [] },
-				} );
-			} catch ( e ) {
-				// ignore
-			} finally {
-				window.fetch = original;
-			}
-		} );
+				} )
+				.then( () => 'resolved', () => 'rejected' )
+		);
 
+		// No grant modal for a batch.
+		await expect(
+			page.locator( '.wp-sudo-reauth-modal' )
+		).toHaveCount( 0 );
+
+		// Surfaced, not silently swallowed — link-out snackbar present.
 		const notice = await waitForNotice( page );
 		expect( notice.actionLabels ).toEqual( [ 'Reauthenticate' ] );
+
+		// The caller still observes the original (unreplayed) batch response.
+		expect( settled ).toBe( 'resolved' );
+
+		await page.evaluate( () => {
+			window.fetch = ( window as any ).__wpSudoOrigFetch;
+		} );
 	} );
 
-	test.fixme( 'EDITOR-03: sudo_required without challenge_url degrades to a plain message', async ( {
+	test( 'EDITOR-03: sudo_required without challenge_url degrades to a plain message', async ( {
 		page,
 	} ) => {
-		await page.evaluate( async () => {
-			const original = window.fetch;
+		await page.evaluate( () => {
+			( window as any ).__wpSudoOrigFetch = window.fetch;
 			window.fetch = async ( input: any, init?: any ) => {
 				const url = typeof input === 'string' ? input : input?.url ?? '';
 				if ( url.includes( '/wp/v2/plugins' ) ) {
@@ -265,25 +299,35 @@ test.describe( 'Block-editor reauth snackbar', () => {
 						}
 					);
 				}
-				return original( input, init );
+				return ( window as any ).__wpSudoOrigFetch( input, init );
 			};
-			try {
-				await ( window as any ).wp.apiFetch( {
+		} );
+
+		// C4: with no safe challenge_url the middleware offers no reauth
+		// affordance at all — no grant modal, just a plain dismissible notice.
+		const settled = await page.evaluate( () =>
+			( window as any ).wp
+				.apiFetch( {
 					path: '/wp/v2/plugins/hello',
 					method: 'PUT',
 					data: { status: 'active' },
-				} );
-			} catch ( e ) {
-				// ignore
-			} finally {
-				window.fetch = original;
-			}
-		} );
+				} )
+				.then( () => 'resolved', ( e: any ) => 'rejected:' + ( e?.code ?? 'unknown' ) )
+		);
+
+		await expect(
+			page.locator( '.wp-sudo-reauth-modal' )
+		).toHaveCount( 0 );
 
 		const notice = await waitForNotice( page );
 		expect( notice.content ).toBe( GENERIC_MESSAGE );
-		// C4-adjacent: no reauth affordance when there is no challenge_url.
 		expect( notice.actionLabels ).toEqual( [] );
+		// The original request is left rejected (no in-editor grant path).
+		expect( settled ).toContain( 'rejected' );
+
+		await page.evaluate( () => {
+			window.fetch = ( window as any ).__wpSudoOrigFetch;
+		} );
 	} );
 
 	test( 'EDITOR-04: a normal REST error does not surface the snackbar', async ( {
@@ -324,14 +368,14 @@ test.describe( 'Block-editor reauth snackbar', () => {
 		).toBeNull();
 	} );
 
-	test.fixme( 'EDITOR-05: an unsafe challenge_url degrades to a plain message', async ( {
+	test( 'EDITOR-05: an unsafe challenge_url degrades to a plain message', async ( {
 		page,
 	} ) => {
 		// A sudo_required carrying a javascript: URL must never reach window.open:
 		// the middleware validates the URL and drops the action, degrading to the
 		// same plain message as the no-URL case.
-		await page.evaluate( async () => {
-			const original = window.fetch;
+		await page.evaluate( () => {
+			( window as any ).__wpSudoOrigFetch = window.fetch;
 			window.fetch = async ( input: any, init?: any ) => {
 				const url = typeof input === 'string' ? input : input?.url ?? '';
 				if ( url.includes( '/wp/v2/plugins' ) ) {
@@ -351,29 +395,39 @@ test.describe( 'Block-editor reauth snackbar', () => {
 						}
 					);
 				}
-				return original( input, init );
+				return ( window as any ).__wpSudoOrigFetch( input, init );
 			};
-			try {
-				await ( window as any ).wp.apiFetch( {
+		} );
+
+		// The unsafe URL is rejected by isSafeChallengeUrl → the challenge resolves
+		// to null, so (C4) no reauth affordance is offered: no grant modal, no
+		// link-out action — the javascript: URL never reaches window.open.
+		const settled = await page.evaluate( () =>
+			( window as any ).wp
+				.apiFetch( {
 					path: '/wp/v2/plugins/hello',
 					method: 'PUT',
 					data: { status: 'active' },
-				} );
-			} catch ( e ) {
-				// ignore
-			} finally {
-				window.fetch = original;
-			}
-		} );
+				} )
+				.then( () => 'resolved', ( e: any ) => 'rejected:' + ( e?.code ?? 'unknown' ) )
+		);
+
+		await expect(
+			page.locator( '.wp-sudo-reauth-modal' )
+		).toHaveCount( 0 );
 
 		const notice = await waitForNotice( page );
 		expect( notice.content ).toBe( GENERIC_MESSAGE );
-		// The unsafe URL is rejected: no link-out action is offered.
 		expect( notice.actionLabels ).toEqual( [] );
+		expect( settled ).toContain( 'rejected' );
+
+		await page.evaluate( () => {
+			window.fetch = ( window as any ).__wpSudoOrigFetch;
+		} );
 	} );
 
 	// -------------------------------------------------------------------------
-	// Increment 2/3 — in-editor grant modal (target for wp-env verification)
+	// Increment 2/3 — in-editor grant modal
 	// -------------------------------------------------------------------------
 
 	/**
@@ -383,12 +437,11 @@ test.describe( 'Block-editor reauth snackbar', () => {
 	 * localized authAction, then transparently re-dispatches the original request
 	 * which now succeeds.
 	 *
-	 * test.fixme until verified against the live modal in wp-env. Selectors
-	 * (.wp-sudo-reauth-modal, the password TextControl, the Confirm button) are
-	 * the expected contract from admin/js/wp-sudo-editor-reauth.js and must be
-	 * confirmed / adjusted during browser verification.
+	 * Selectors (.wp-sudo-reauth-modal, the password TextControl, the Confirm
+	 * button) are the contract from admin/js/wp-sudo-editor-reauth.js, confirmed
+	 * green against a live WP Sudo editor session.
 	 */
-	test.fixme(
+	test(
 		'EDITOR-06: modal password grant re-dispatches the original request',
 		async ( { page } ) => {
 			// Fire a gated action WITHOUT awaiting — it stays pending while the
@@ -421,4 +474,85 @@ test.describe( 'Block-editor reauth snackbar', () => {
 			expect( await pending ).toBe( 'resolved' );
 		}
 	);
+
+	/**
+	 * EDITOR-07 — a rejected password submission must never trap the editor.
+	 * Force the grant POST's body-read to reject (the path that escapes
+	 * postPassword's own network handler); the modal's terminal .catch must clear
+	 * the busy state so the form shows an error and Confirm/Cancel work again, and
+	 * no re-dispatch happens (the original request stays rejected until the user
+	 * retries or cancels). Guards the robustness fix for the modal-lock defect.
+	 */
+	test( 'EDITOR-07: a rejected submission restores the modal and replays nothing', async ( {
+		page,
+	} ) => {
+		// Open the modal via a real gated action (carries a safe challenge_url).
+		const pending = page.evaluate( () =>
+			( window as any ).wp
+				.apiFetch( {
+					path: '/wp/v2/plugins/hello',
+					method: 'PUT',
+					data: { status: 'active' },
+				} )
+				.then(
+					() => 'resolved',
+					( err: any ) => 'rejected:' + ( err?.code ?? 'unknown' )
+				)
+		);
+
+		const modal = page.locator( '.wp-sudo-reauth-modal' );
+		await expect( modal ).toBeVisible();
+
+		// Make ONLY the grant POST (authAction) fail its body-read, so the submit
+		// promise rejects through to the terminal .catch. refreshNonce and the
+		// editor's own admin-ajax traffic pass through untouched.
+		await page.evaluate( () => {
+			( window as any ).__wpSudoOrigFetch = window.fetch;
+			const authAction = ( window as any ).wpSudoEditorReauth?.authAction;
+			window.fetch = ( ( input: any, init?: any ) => {
+				const url =
+					typeof input === 'string' ? input : input?.url ?? '';
+				if (
+					url.includes( 'admin-ajax.php' ) &&
+					init?.body instanceof FormData &&
+					init.body.get( 'action' ) === authAction
+				) {
+					return Promise.resolve( {
+						ok: true,
+						text: () => Promise.reject( new Error( 'boom' ) ),
+						json: () => Promise.reject( new Error( 'boom' ) ),
+					} as any );
+				}
+				return ( window as any ).__wpSudoOrigFetch( input, init );
+			} ) as any;
+		} );
+
+		await modal.locator( 'input[type="password"]' ).fill( 'password' );
+		await modal
+			.locator( '.components-button', { hasText: 'Confirm' } )
+			.click();
+
+		// The modal stays open and surfaces an error (busy cleared).
+		await expect( modal ).toBeVisible();
+		await expect( modal.locator( '.components-notice' ) ).toBeVisible();
+
+		// Confirm and Cancel are usable again (not stuck in the busy state).
+		await expect(
+			modal.locator( '.components-button', { hasText: 'Confirm' } )
+		).toBeEnabled();
+		const cancel = modal.locator( '.components-button', {
+			hasText: 'Cancel',
+		} );
+		await expect( cancel ).toBeEnabled();
+
+		// Cancel closes the modal; nothing was granted, so the original request
+		// stays rejected — it is never replayed.
+		await cancel.click();
+		await expect( modal ).toBeHidden();
+		expect( await pending ).toContain( 'rejected' );
+
+		await page.evaluate( () => {
+			window.fetch = ( window as any ).__wpSudoOrigFetch;
+		} );
+	} );
 } );

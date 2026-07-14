@@ -80,7 +80,7 @@ the count in prose without a verification command.
 | Audit hooks | 19 | `python3 - <<'PY'\nimport pathlib, re\nhooks = set()\nfor path in pathlib.Path('includes').glob('class-*.php'):\n    hooks.update(re.findall(r\"do_action\\(\\s*'([^']+)'\", path.read_text()))\nhooks.discard('wp_sudo_render_two_factor_fields')\nprint(len(hooks))\nPY` | v4.1.0 (wp_sudo_escalation_blocked) |
 | Settings fields (base) | 6 | 1 numeric (duration) + 1 preset chooser + 4 policy dropdowns (REST, CLI, Cron, XML-RPC) | v3.0.0 |
 | Settings fields (with WPGraphQL) | 7 | +1 conditional WPGraphQL policy dropdown | v3.0.0 |
-| E2E tests | 70 | `npx playwright test --config tests/e2e/playwright.config.ts --list` (verified 2026-07-06; incl. 5 `test.fixme` editor-modal tests pending wp-env verification) | v4.0.0 |
+| E2E tests | 71 | `npx playwright test --config tests/e2e/playwright.config.ts --list` (verified 2026-07-14; 7 active `editor-reauth.spec.ts` in-editor-modal tests — EDITOR-06 modal grant, EDITOR-01 modal-cancel→link-out fallback, EDITOR-02 batch detect-and-surface (Q2), EDITOR-03/05 no-safe-URL degradation (C4), EDITOR-07 rejected-submission recovery — verified green against a live WP Sudo env, no remaining `test.fixme`) | v4.0.0 |
 
 ### Files that reference these counts
 
