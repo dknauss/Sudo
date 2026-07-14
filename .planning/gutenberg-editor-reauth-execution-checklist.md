@@ -65,11 +65,11 @@ HERE" PR comment, `gutenberg-editor-reauth-milestone-plan.md`, and (for B)
 - [x] **Security-scoped review of the real diff** with the C1–C4 checklist named — **clean.** All items UPHELD (C1 single `wp_sudo_challenge` action; C2 editor-only localize + nonce+app-password treated headless; C3 `wp.apiFetch` re-dispatch; C4 no affordance without a safe same-origin `challenge_url`, `javascript:`/cross-origin rejected; 2FA-bypass; Q2 batch detect-only; Q3 owner-scoped; Q4 label only in the human message). No exploitable vulnerability. Two LOW residuals, no code change: (1) Q3 owner = first-to-reject is an unenforced assumption whose worst case is a *dropped* request, not a bypass (gated routes aren't hit by editor background traffic); (2) `return_url` open-redirect safety rides the challenge page's existing `wp_safe_redirect` (pre-existing, outside this diff).
 - [ ] `npm run test:e2e:local` (full 16-file suite) **and** `npm run test:e2e:local:multisite` — **DEFERRED to CI/wp-env (owner's call).** The feature's own spec `editor-reauth.spec.ts` is **12/12 green** on the live WP Sudo Studio env (single-site, `localhost:8881`); this branch touches only that spec + its middleware JS, so no other E2E spec can regress from it. The full single-site + multisite E2E sweep runs in the project's real E2E environment (wp-env / CI + a multisite browser env) before merge.
 
-## Step 8 — Un-draft Milestone A
-- [ ] **Pre-un-draft carryover from Step 1's codex review** (both flagged as PR-level, keep PR draft until resolved):
+## Step 8 — Un-draft Milestone A ✅ DONE (2026-07-14)
+- [x] **Pre-un-draft carryovers from Step 1's codex review** — both resolved:
   - ✅ **Q3 (#4)** single-flight/concurrent — DONE in Step 4 (owner-scoped re-dispatch; EDITOR-10/11).
-  - **`b86de6b` (#5/#6)** commit message lacks the required third-party source URL for its WordPress/two-factor claims. Amend to cite `github.com/WordPress/two-factor/blob/master/providers/class-two-factor-email.php` (claim verified: `authentication_page()` → `generate_and_email_token()` → `wp_mail()`). Needs a history rewrite + `--force-with-lease` push.
-- [ ] All Step 1–7 boxes checked → mark PR #178 ready for review; maintainer merges.
+  - ✅ **`b86de6b` (#5/#6)** commit message amended to cite `github.com/WordPress/two-factor/blob/master/providers/class-two-factor-email.php` — re-verified against the live source (2026-07-14): `authentication_page()` → `generate_and_email_token()` → `wp_mail()` (OTP sent on render). History rewrite via `filter-branch` (interactive rebase unavailable) rewording ONLY that commit (tree byte-identical, verified), force-pushed with `--force-with-lease` (`753ce24…289b53a`). Reworded commit is `074cfe2` on the remote.
+- [x] PR #178 marked **ready for review** (draft off, `[WIP]` dropped from title); maintainer merges. Un-draft summary posted as a PR comment naming the two remaining pre-merge items (CI full/multisite E2E sweep; the manual password-manager matrix).
 
 ---
 
