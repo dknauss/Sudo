@@ -9,9 +9,9 @@ Verification environment: local workspace, PHP 8.x
 
 | Metric | Value | Verification |
 |---|---:|---|
-| Unit tests | 1,026 tests | `composer test:unit` |
-| Unit assertions | 3,101 assertions | `composer test:unit` |
-| Integration tests in suite | 208 test methods | `rg -c "function test" tests/Integration/*.php | awk -F: '{sum+=$2} END{print sum}'` |
+| Unit tests | 1,027 tests | `composer test:unit` |
+| Unit assertions | 3,104 assertions | `composer test:unit` |
+| Integration tests in suite | 210 test methods | `rg -c "function test" tests/Integration/*.php | awk -F: '{sum+=$2} END{print sum}'` |
 | Unit test files | 32 | `ls tests/Unit/*.php | wc -l` |
 | Integration test files | 28 | `ls tests/Integration/*.php | wc -l` |
 
@@ -20,10 +20,10 @@ Verification environment: local workspace, PHP 8.x
 | Metric | Value | Verification |
 |---|---:|---|
 | Production PHP lines (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 17,723 | `find ./includes ./wp-sudo.php ./uninstall.php ./mu-plugin ./bridges -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
-| Tests PHP lines (`tests/`) | 36,942 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
-| Production + tests PHP lines | 54,665 | sum of the two rows above |
-| Test-to-production ratio | 2.08:1 | `36942 / 17723` |
-| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`, `.claude/`) | 55,732 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" ! -path "*/.claude/*" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Tests PHP lines (`tests/`) | 37,071 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Production + tests PHP lines | 54,794 | sum of the two rows above |
+| Test-to-production ratio | 2.09:1 | `37071 / 17723` |
+| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`, `.claude/`) | 55,861 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" ! -path "*/.claude/*" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
 
 ## Footprint & Performance
 
@@ -80,7 +80,7 @@ the count in prose without a verification command.
 | Audit hooks | 19 | `python3 - <<'PY'\nimport pathlib, re\nhooks = set()\nfor path in pathlib.Path('includes').glob('class-*.php'):\n    hooks.update(re.findall(r\"do_action\\(\\s*'([^']+)'\", path.read_text()))\nhooks.discard('wp_sudo_render_two_factor_fields')\nprint(len(hooks))\nPY` | v4.1.0 (wp_sudo_escalation_blocked) |
 | Settings fields (base) | 6 | 1 numeric (duration) + 1 preset chooser + 4 policy dropdowns (REST, CLI, Cron, XML-RPC) | v3.0.0 |
 | Settings fields (with WPGraphQL) | 7 | +1 conditional WPGraphQL policy dropdown | v3.0.0 |
-| E2E tests | 71 | `npx playwright test --config tests/e2e/playwright.config.ts --list` (verified 2026-07-14; 7 active `editor-reauth.spec.ts` in-editor-modal tests — EDITOR-06 modal grant, EDITOR-01 modal-cancel→link-out fallback, EDITOR-02 batch detect-and-surface (Q2), EDITOR-03/05 no-safe-URL degradation (C4), EDITOR-07 rejected-submission recovery — verified green against a live WP Sudo env, no remaining `test.fixme`) | v4.0.0 |
+| E2E tests | 72 | `npx playwright test --config tests/e2e/playwright.config.ts --list` (verified 2026-07-14; 8 active `editor-reauth.spec.ts` in-editor-modal tests — EDITOR-01 modal-cancel→link-out, EDITOR-02 batch detect-and-surface (Q2), EDITOR-03/05 no-safe-URL degradation (C4), EDITOR-06 modal grant, EDITOR-07 rejected-submission recovery, EDITOR-08 2fa_pending links-out (Step 2) — verified green against a live WP Sudo env, no remaining `test.fixme`) | v4.0.0 |
 
 ### Files that reference these counts
 

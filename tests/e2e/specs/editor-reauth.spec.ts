@@ -555,4 +555,90 @@ test.describe( 'Block-editor reauth snackbar', () => {
 			window.fetch = ( window as any ).__wpSudoOrigFetch;
 		} );
 	} );
+
+	/**
+	 * EDITOR-08 — a 2FA account's password step must NOT grant in-editor; it links
+	 * out to the full challenge page. The security invariant that `handle_ajax_auth`
+	 * returns `2fa_pending` (never `authenticated`) and mints no session for a 2FA
+	 * user is enforced server-side (SudoSessionTest unit + TwoFactorTest integration).
+	 * This test drives the client contract: given that `2fa_pending` response, the
+	 * modal resolves to the link-out fallback rather than granting. A synthetic
+	 * response makes it deterministic without provisioning a full TOTP account,
+	 * mirroring EDITOR-02/03/05.
+	 */
+	test( 'EDITOR-08: a 2fa_pending password response links out instead of granting', async ( {
+		page,
+	} ) => {
+		// Open the modal via a real gated action (safe challenge_url present).
+		const pending = page.evaluate( () =>
+			( window as any ).wp
+				.apiFetch( {
+					path: '/wp/v2/plugins/hello',
+					method: 'PUT',
+					data: { status: 'active' },
+				} )
+				.then(
+					() => 'resolved',
+					( err: any ) => 'rejected:' + ( err?.code ?? 'unknown' )
+				)
+		);
+
+		const modal = page.locator( '.wp-sudo-reauth-modal' );
+		await expect( modal ).toBeVisible();
+
+		// Make ONLY the grant POST (authAction) return `2fa_pending` — the server
+		// response a 2FA account gets — instead of `authenticated`. No session is
+		// granted. refreshNonce and other admin-ajax traffic pass through.
+		await page.evaluate( () => {
+			( window as any ).__wpSudoOrigFetch = window.fetch;
+			const authAction = ( window as any ).wpSudoEditorReauth?.authAction;
+			window.fetch = ( ( input: any, init?: any ) => {
+				const url =
+					typeof input === 'string' ? input : input?.url ?? '';
+				if (
+					url.includes( 'admin-ajax.php' ) &&
+					init?.body instanceof FormData &&
+					init.body.get( 'action' ) === authAction
+				) {
+					return Promise.resolve(
+						new Response(
+							JSON.stringify( {
+								success: true,
+								data: {
+									code: '2fa_pending',
+									expires_at:
+										Math.floor( Date.now() / 1000 ) + 300,
+								},
+							} ),
+							{
+								status: 200,
+								headers: {
+									'Content-Type': 'application/json',
+								},
+							}
+						)
+					);
+				}
+				return ( window as any ).__wpSudoOrigFetch( input, init );
+			} ) as any;
+		} );
+
+		await modal.locator( 'input[type="password"]' ).fill( 'password' );
+		await modal
+			.locator( '.components-button', { hasText: 'Confirm' } )
+			.click();
+
+		// No in-editor grant: the modal closes to the link-out snackbar so the
+		// user finishes 2FA on the full challenge page.
+		await expect( modal ).toBeHidden();
+		const notice = await waitForNotice( page );
+		expect( notice.actionLabels ).toEqual( [ 'Reauthenticate' ] );
+
+		// The original gated request was never granted/re-dispatched.
+		expect( await pending ).toContain( 'rejected' );
+
+		await page.evaluate( () => {
+			window.fetch = ( window as any ).__wpSudoOrigFetch;
+		} );
+	} );
 } );
