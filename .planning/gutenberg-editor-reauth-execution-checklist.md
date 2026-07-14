@@ -29,10 +29,11 @@ HERE" PR comment, `gutenberg-editor-reauth-milestone-plan.md`, and (for B)
 - [x] Reconciled **EDITOR-01/02/03/05** to the middleware's actual (corrected) decision keyed on the validated `challenge_url`: 01 modal→cancel→link-out; 02 batch detect-and-surface (no modal); 03/05 no-safe-URL → plain notice, no modal. Kept **EDITOR-04**. (Superseded the "modal-cancel for all" first attempt that codex rejected.)
 - [x] **GREEN:** targeted run `WP_BASE_URL=http://localhost:8881 WP_SUDO_SKIP_WP_ENV_CAP_SETUP=1 …editor-reauth.spec.ts` → **7 passed**. Metrics E2E count updated to 71.
 
-## Step 2 — 2FA-bypass invariant (THE security gate)
-- [ ] **RED (unit/integration):** a 2FA-enabled user's password-only path returns `2fa_pending` and **never** a granted session — assert `handle_ajax_auth` yields `2fa_pending` (not `authenticated`) and no `Sudo_Session` token is minted for a 2FA user on the password step.
-- [ ] **RED (E2E):** 2FA account → editor gated action → modal password → **no grant** → link-out to the full challenge page.
-- [ ] **GREEN:** both pass. This turns "password-only is safe" from a claim into an enforced guarantee; guards against a future bypass regression.
+## Step 2 — 2FA-bypass invariant (THE security gate) ✅ DONE (2026-07-14, commit `1c42898`, codex-approved)
+**Outcome:** invariant already held in production (`attempt_activation()` only calls `activate()` on the non-2FA path); Step 2 makes it an enforced, regression-guarded guarantee at all three layers. Tests only, no production change.
+- [x] **unit/integration:** `SudoSessionTest::test_attempt_activation_2fa_pending_mints_no_session` (2FA + correct password → `2fa_pending`, `update_user_meta` **never** called → no session/token). `TwoFactorTest` (real Two Factor plugin): `attempt_activation()` **and** `handle_ajax_auth()` yield `2fa_pending` (never `authenticated`) with `is_active()` false. Ran green locally via a **Studio-seeded WP 7.0.1 core + MariaDB** (full integration suite 215 tests, 0 failures — dodged the throttled wordpress.org core download by seeding `WP_CORE_DIR` from `~/Studio/sudo-test`).
+- [x] **E2E:** `editor-reauth.spec.ts` **EDITOR-08** — a `2fa_pending` grant response links out instead of granting; original request stays rejected. Studio 8/8.
+- [x] **GREEN:** all pass. Metrics synced (unit 1027, integration 210 methods, E2E 72).
 
 ## Step 3 — Stale-nonce recovery
 - [ ] **RED:** an aged/expired `wp_sudo_challenge` grant nonce (overnight-tab scenario, not a nonce-valid tab) → `refreshNonceAction` re-mints and the grant then succeeds (or one retry-on-`check_ajax_referer`-failure path). Assert the recovery, not just the happy path.
