@@ -1195,7 +1195,7 @@ msgid "The server returned an unexpected response. Check the browser console for
 msgstr ""
 
 #: includes/class-challenge.php:238
-#: admin/js/wp-sudo-editor-reauth.js:204
+#: admin/js/wp-sudo-editor-reauth.js:211
 msgid "Authentication failed."
 msgstr ""
 
@@ -1300,7 +1300,7 @@ msgid "Please wait %d seconds before trying again."
 msgstr ""
 
 #: includes/class-challenge.php:354
-#: admin/js/wp-sudo-editor-reauth.js:306
+#: admin/js/wp-sudo-editor-reauth.js:313
 msgid "Password"
 msgstr ""
 
@@ -1312,7 +1312,7 @@ msgstr ""
 #: includes/class-challenge.php:364
 #: includes/class-challenge.php:405
 #: includes/class-challenge.php:773
-#: admin/js/wp-sudo-editor-reauth.js:328
+#: admin/js/wp-sudo-editor-reauth.js:335
 msgid "Cancel"
 msgstr ""
 
@@ -1725,7 +1725,7 @@ msgstr ""
 
 #: includes/class-gate.php:2853
 #: includes/class-gate.php:2913
-#: admin/js/wp-sudo-editor-reauth.js:288
+#: admin/js/wp-sudo-editor-reauth.js:295
 msgid "Confirm your identity"
 msgstr ""
 
@@ -1844,30 +1844,30 @@ msgid_plural "Found and cleaned %d expired sudo session tokens. This is normal â
 msgstr[0] ""
 msgstr[1] ""
 
-#: admin/js/wp-sudo-editor-reauth.js:132
+#: admin/js/wp-sudo-editor-reauth.js:137
 msgid "Reauthenticate"
 msgstr ""
 
-#: admin/js/wp-sudo-editor-reauth.js:141
+#: admin/js/wp-sudo-editor-reauth.js:146
 msgid "This action requires reauthentication."
 msgstr ""
 
-#: admin/js/wp-sudo-editor-reauth.js:199
+#: admin/js/wp-sudo-editor-reauth.js:206
 msgid "Unexpected server response."
 msgstr ""
 
-#: admin/js/wp-sudo-editor-reauth.js:208
+#: admin/js/wp-sudo-editor-reauth.js:215
 msgid "Network error. Please try again."
 msgstr ""
 
-#: admin/js/wp-sudo-editor-reauth.js:281
+#: admin/js/wp-sudo-editor-reauth.js:288
 msgid "Unexpected error. Please try again."
 msgstr ""
 
-#: admin/js/wp-sudo-editor-reauth.js:302
+#: admin/js/wp-sudo-editor-reauth.js:309
 msgid "This action requires reauthentication. Enter your password to continue."
 msgstr ""
 
-#: admin/js/wp-sudo-editor-reauth.js:323
+#: admin/js/wp-sudo-editor-reauth.js:330
 msgid "Confirm"
 msgstr ""
