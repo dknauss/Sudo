@@ -715,4 +715,124 @@ test.describe( 'Block-editor reauth snackbar', () => {
 		);
 		expect( finalNonce ).not.toBe( 'stale-overnight-nonce-000000' );
 	} );
+
+	/**
+	 * EDITOR-10 — Q3 single-flight re-dispatch is OWNER-SCOPED. Concurrent
+	 * sudo_required rejections share ONE modal (single-flight), but on a grant
+	 * only the request that OPENED the modal (the owner — the user's actioned
+	 * request) is re-dispatched. A concurrent rejection that attached while the
+	 * modal was already open (a non-owner: a background/secondary gated request
+	 * the user did not action at that moment) must NOT be auto-replayed — it stays
+	 * rejected with its original error, so no surprise mutation fires. Prefer
+	 * under-replay (self-healing: the app can retry against the now-active session)
+	 * over over-replay (an unintended side effect the user never confirmed).
+	 *
+	 * Determinism: fire A and WAIT for the modal (A is unambiguously the owner),
+	 * then fire B — by then pendingGrant is non-null, so B is unambiguously a
+	 * non-owner. On the old replay-all code B would also re-dispatch and resolve;
+	 * owner-scoping makes B stay rejected.
+	 */
+	test( 'EDITOR-10: concurrent grant re-dispatches only the owner, not a background request', async ( {
+		page,
+	} ) => {
+		// A: the user-actioned gated request — fire WITHOUT awaiting; it opens the
+		// modal and becomes the single-flight owner.
+		const pendingOwner = page.evaluate( () =>
+			( window as any ).wp
+				.apiFetch( {
+					path: '/wp/v2/plugins/hello',
+					method: 'PUT',
+					data: { status: 'active' },
+				} )
+				.then(
+					() => 'resolved',
+					( err: any ) => 'rejected:' + ( err?.code ?? 'unknown' )
+				)
+		);
+
+		const modal = page.locator( '.wp-sudo-reauth-modal' );
+		await expect( modal ).toBeVisible();
+
+		// B: a second gated request that arrives WHILE the modal is open — it
+		// attaches to the same pending grant as a NON-owner.
+		const pendingNonOwner = page.evaluate( () =>
+			( window as any ).wp
+				.apiFetch( {
+					path: '/wp/v2/plugins/hello',
+					method: 'PUT',
+					data: { status: 'active' },
+				} )
+				.then(
+					() => 'resolved',
+					( err: any ) => 'rejected:' + ( err?.code ?? 'unknown' )
+				)
+		);
+
+		// Grant once.
+		await modal.locator( 'input[type="password"]' ).fill( 'password' );
+		await modal
+			.locator( '.components-button', { hasText: 'Confirm' } )
+			.click();
+		await expect( modal ).toBeHidden();
+
+		// The owner re-dispatched and resolved; the non-owner was NOT replayed and
+		// stays rejected with its original sudo_required error.
+		expect( await pendingOwner ).toBe( 'resolved' );
+		expect( await pendingNonOwner ).toBe( 'rejected:sudo_required' );
+	} );
+
+	/**
+	 * EDITOR-11 — the not-granted path stays shared for ALL concurrent callers.
+	 * Owner-scoping only narrows the GRANTED re-dispatch; when the grant is
+	 * declined (here: cancel), both the owner and the non-owner must still fall
+	 * back to the link-out snackbar and both original requests stay rejected.
+	 * Guards against the owner-scoping change accidentally suppressing the
+	 * non-owner's fallback surface.
+	 */
+	test( 'EDITOR-11: cancelling a shared modal links out and rejects every concurrent caller', async ( {
+		page,
+	} ) => {
+		const pendingOwner = page.evaluate( () =>
+			( window as any ).wp
+				.apiFetch( {
+					path: '/wp/v2/plugins/hello',
+					method: 'PUT',
+					data: { status: 'active' },
+				} )
+				.then(
+					() => 'resolved',
+					( err: any ) => 'rejected:' + ( err?.code ?? 'unknown' )
+				)
+		);
+
+		const modal = page.locator( '.wp-sudo-reauth-modal' );
+		await expect( modal ).toBeVisible();
+
+		const pendingNonOwner = page.evaluate( () =>
+			( window as any ).wp
+				.apiFetch( {
+					path: '/wp/v2/plugins/hello',
+					method: 'PUT',
+					data: { status: 'active' },
+				} )
+				.then(
+					() => 'resolved',
+					( err: any ) => 'rejected:' + ( err?.code ?? 'unknown' )
+				)
+		);
+
+		// Decline the single shared modal.
+		await modal
+			.locator( '.components-button', { hasText: 'Cancel' } )
+			.click();
+		await expect( modal ).toBeHidden();
+
+		// Both callers are rejected (nothing granted, nothing replayed).
+		expect( await pendingOwner ).toContain( 'rejected' );
+		expect( await pendingNonOwner ).toContain( 'rejected' );
+
+		// The shared fallback surfaced the link-out snackbar.
+		const notice = await waitForNotice( page );
+		expect( notice.actionLabels ).toEqual( [ 'Reauthenticate' ] );
+	} );
 } );

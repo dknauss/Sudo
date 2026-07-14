@@ -41,10 +41,10 @@ HERE" PR comment, `gutenberg-editor-reauth-milestone-plan.md`, and (for B)
 - [x] **E2E (client recovery):** `editor-reauth.spec.ts` **EDITOR-09** — poison the localized grant nonce to a stale value; the grant still succeeds and re-dispatches (refreshNonce recovered it), and the localized nonce is confirmed replaced (not a still-valid original). Studio 9/9.
 - [x] **GREEN:** all pass. Metrics synced (integration 213 methods / 29 files, E2E 73).
 
-## Step 4 — REST re-dispatch boundaries
-- **Q2 (batch detect-and-surface) already landed in Step 1** (`ce1c67e`, EDITOR-02): batched `/batch/v1` `sudo_required` surfaces the snackbar, never opens the modal, never re-dispatches the envelope. Remaining here:
-- [ ] **RED (Q3 — codex #4, THE open item):** single-flight (one modal/snackbar) + concurrent `sudo_required` rejections must **re-dispatch only the user-actioned request**, not every shared caller. Today all callers share `pendingGrant` then each re-fire their own `wp.apiFetch(options)` — replaying background requests the user never actioned. Fix + test the queue/debounce.
-- [ ] **GREEN:** pass.
+## Step 4 — REST re-dispatch boundaries ✅ DONE (2026-07-14)
+- **Q2 (batch detect-and-surface) already landed in Step 1** (`ce1c67e`, EDITOR-02): batched `/batch/v1` `sudo_required` surfaces the snackbar, never opens the modal, never re-dispatches the envelope.
+**Outcome (Q3):** re-dispatch is now **owner-scoped**. `requestGrant()` marks the caller that opens the modal (observed `pendingGrant === null`, captured synchronously per-caller) as the OWNER and returns `{ granted, isOwner }`; `handleSudoRequired()` re-dispatches via `wp.apiFetch(options)` ONLY for the owner. A concurrent non-owner rejection (a background/secondary gated request the user did not action) is left rejected with its original error — no auto-replay, and no link-out surface since the session is now active — so no unconfirmed mutation fires; it self-heals on a natural retry. The not-granted path (2FA/cancel) still surfaces the link-out to every waiting caller. Pre-Implementation Design Review done (owner-only endorsed over replay-all: for an intent-confirmation plugin, under-replay fails safe / self-heals, over-replay fires a surprise mutation). Header + `requestGrant()` docstrings updated to the owner-scoped contract.
+- [x] **RED → GREEN (Q3 — codex #4):** `editor-reauth.spec.ts` **EDITOR-10** (concurrent grant re-dispatches only the owner; the non-owner stays `rejected:sudo_required`) — verified RED on the old replay-all code (non-owner resolved), GREEN after the fix. **EDITOR-11** (cancelling a shared modal links out and rejects every concurrent caller — guards the shared not-granted fallback). Studio 11/11; lint 22/22; metrics E2E → 75.
 
 ## Step 5 — Degradation + headless regression (C4, Q4)
 - **C4 client behavior already landed in Step 1** (`ce1c67e`, EDITOR-03/05): rejection without a safe `challenge_url` (absent or unsafe) → plain message, no "Reauthenticate" action, no modal. Remaining here:
@@ -63,7 +63,7 @@ HERE" PR comment, `gutenberg-editor-reauth-milestone-plan.md`, and (for B)
 
 ## Step 8 — Un-draft Milestone A
 - [ ] **Pre-un-draft carryover from Step 1's codex review** (both flagged as PR-level, keep PR draft until resolved):
-  - **Q3 (#4)** single-flight/concurrent — must be done in Step 4.
+  - ✅ **Q3 (#4)** single-flight/concurrent — DONE in Step 4 (owner-scoped re-dispatch; EDITOR-10/11).
   - **`b86de6b` (#5/#6)** commit message lacks the required third-party source URL for its WordPress/two-factor claims. Amend to cite `github.com/WordPress/two-factor/blob/master/providers/class-two-factor-email.php` (claim verified: `authentication_page()` → `generate_and_email_token()` → `wp_mail()`). Needs a history rewrite + `--force-with-lease` push.
 - [ ] All Step 1–7 boxes checked → mark PR #178 ready for review; maintainer merges.
 

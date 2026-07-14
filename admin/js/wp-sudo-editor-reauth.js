@@ -15,9 +15,14 @@
  * - On `{ code: 'authenticated' }` the modal closes and the original request is
  *   re-dispatched via `apiFetch` (NOT raw fetch) so it carries the user's own
  *   first-party `wp_rest` nonce and re-passes the now-active session (C3).
- * - Single-flight: the first `sudo_required` opens ONE modal; concurrent gated
- *   rejections attach to the same pending-grant promise and all re-dispatch once
- *   the grant lands (no duplicate modals, no double install/activate).
+ * - Single-flight, owner-scoped re-dispatch: the first `sudo_required` opens ONE
+ *   modal and OWNS the grant; concurrent gated rejections attach to the same
+ *   pending-grant promise (no duplicate modals). On a grant ONLY the owner (the
+ *   request that opened the modal = the user's actioned request) is re-dispatched.
+ *   Concurrent non-owner rejections — background/secondary gated requests the user
+ *   did not action at that moment — are left rejected rather than replayed, so no
+ *   unconfirmed mutation fires (Q3). They self-heal on a natural retry against the
+ *   now-active session.
  *
  * Deferred to Task 4 (2FA): when the password step returns `2fa_pending`, or
  * when no grant config is present, this layer falls back to the Increment 1
@@ -169,7 +174,9 @@
 	);
 
 	// Single-flight: at most one grant modal at a time. Concurrent sudo_required
-	// rejections share this promise and all re-dispatch once it resolves.
+	// rejections share this promise, but re-dispatch is owner-scoped — only the
+	// caller that opened the modal re-fires on a grant; non-owners stay rejected
+	// (see requestGrant() / handleSudoRequired()).
 	var pendingGrant = null;
 
 	/**
@@ -367,18 +374,28 @@
 	}
 
 	/**
-	 * Ensure a single in-flight grant; concurrent callers share it.
+	 * Ensure a single in-flight grant; concurrent callers share it. The caller
+	 * that opens the modal (observed `pendingGrant === null`) is the OWNER; callers
+	 * that attach to an existing flight are non-owners. Ownership is captured
+	 * synchronously per-caller (JS is single-threaded, so the check-and-set is
+	 * race-free) so it rides each caller's OWN continuation, not the shared
+	 * promise's single resolution value.
 	 *
-	 * @return {Promise<boolean>} Resolves true when a session was granted in-editor.
+	 * @return {Promise<{granted: boolean, isOwner: boolean}>} granted is true when a
+	 *   session was granted in-editor; isOwner is true only for the modal-opening
+	 *   caller (the user's actioned request).
 	 */
 	function requestGrant() {
-		if ( ! pendingGrant ) {
+		var isOwner = ! pendingGrant;
+		if ( isOwner ) {
 			pendingGrant = openModal().then(
 				function ( granted ) { pendingGrant = null; return granted; },
 				function () { pendingGrant = null; return false; }
 			);
 		}
-		return pendingGrant;
+		return pendingGrant.then( function ( granted ) {
+			return { granted: granted, isOwner: isOwner };
+		} );
 	}
 
 	// ---------------------------------------------------------------------
@@ -406,14 +423,26 @@
 			surface( challengeUrl );
 			return Promise.resolve( undefined );
 		}
-		return requestGrant().then( function ( granted ) {
-			if ( granted && options ) {
-				// Re-dispatch through apiFetch so the user's own wp_rest nonce is
-				// attached and the now-active session is re-evaluated (C3). The
-				// resolved value is the successful response for the original caller.
-				return wp.apiFetch( options );
+		return requestGrant().then( function ( result ) {
+			if ( result.granted ) {
+				if ( result.isOwner && options ) {
+					// Owner (the request that opened the modal = the user's
+					// actioned request): re-dispatch through apiFetch so the
+					// user's own wp_rest nonce is attached and the now-active
+					// session is re-evaluated (C3). The resolved value is the
+					// successful response for the original caller.
+					return wp.apiFetch( options );
+				}
+				// Granted, but a NON-owner concurrent rejection (Q3): the session
+				// is now active, so there is nothing to link out to — and this is
+				// a request the user did not action at this moment, so it is NOT
+				// auto-replayed. Returning undefined leaves the caller's original
+				// sudo_required rejection in place; it self-heals on a natural
+				// retry against the active session. No surprise mutation fires.
+				return undefined;
 			}
-			// Not granted in-editor (2FA / cancel / no options) — offer link-out.
+			// Not granted in-editor (2FA / cancel) — offer the link-out fallback
+			// to every waiting caller.
 			surface( challengeUrl );
 			return undefined;
 		} );
