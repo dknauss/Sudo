@@ -18,9 +18,9 @@ HERE" PR comment, `gutenberg-editor-reauth-milestone-plan.md`, and (for B)
 
 ---
 
-## Step 0 — Rebase (no new tests; reconcile only)
-- [ ] `git fetch origin main && git rebase origin/main` on `feat/gutenberg-reauth-increment-3` (9 behind). Reconcile `admin/js/wp-sudo-editor-reauth.js` + `includes/class-plugin.php` against the shipped Increment-1/2 code on `main`.
-- [ ] `composer test:unit && composer lint && composer analyse && composer verify:metrics` green; force-push (`--force-with-lease`). Reviewer flag required (code touched by the rebase reconciliation).
+## Step 0 — Rebase (no new tests; reconcile only) ✅ DONE (2026-07-13)
+- [x] `git fetch origin main && git rebase origin/main` on `feat/gutenberg-reauth-increment-3` (was 9 behind). **Clean replay — no reconciliation needed:** `admin/js/wp-sudo-editor-reauth.js` + `includes/class-plugin.php` are byte-identical to the pre-rebase reviewed floor; the branch only absorbed main's already-merged Increment-1/2 commits.
+- [x] `composer test:unit` (1026) + `lint` + `analyse` (PHPStan+Psalm) + `verify:metrics` green; force-pushed (`--force-with-lease`, PR #178 head → `964d730`, no longer BEHIND). codex reviewed. _Note: first `test:unit` run errored `Class WP_Sudo\User_Identity not found` — stale Composer classmap (class added Jul 6, `dump-autoload` never re-run); fixed with `composer dump-autoload`. Untracked/local, affects `main` identically — run it after checkout if seen._
 
 ## Step 1 — Modal grant E2E floor (EDITOR-06)  ← the demo you already saw, now automated
 - [ ] **RED:** in `tests/e2e/specs/editor-reauth.spec.ts`, un-`fixme` **EDITOR-06** ("modal password grant re-dispatches the original request"). Drive a real gated action (Block Directory inserter → install/activate a block, e.g. *Icon Block*), assert the modal opens, enter `password`, assert grant + the original request completes + editor state intact.
