@@ -835,4 +835,52 @@ test.describe( 'Block-editor reauth snackbar', () => {
 		const notice = await waitForNotice( page );
 		expect( notice.actionLabels ).toEqual( [ 'Reauthenticate' ] );
 	} );
+
+	/**
+	 * EDITOR-12 — Q4: the in-editor grant modal shows only generic copy and never
+	 * echoes the server's action-specific rule label. The server's sudo_required
+	 * WP_Error MESSAGE does interpolate the label (block_rest() in class-gate.php —
+	 * here the plugin.activate rule's "Activate plugin") for non-editor REST
+	 * consumers, but the editor modal must not surface it: a generic prompt cannot
+	 * be socially engineered around a specific action and does not disclose what the
+	 * user was doing. EDITOR-01 already guards the snackbar surface; this guards the
+	 * modal surface. Open the modal via a real gated request and assert its body is
+	 * generic.
+	 */
+	test( 'EDITOR-12: the grant modal shows generic copy and never echoes the rule label', async ( {
+		page,
+	} ) => {
+		const pending = page.evaluate( () =>
+			( window as any ).wp
+				.apiFetch( {
+					path: '/wp/v2/plugins/hello',
+					method: 'PUT',
+					data: { status: 'active' },
+				} )
+				.then(
+					() => 'resolved',
+					( err: any ) => 'rejected:' + ( err?.code ?? 'unknown' )
+				)
+		);
+
+		const modal = page.locator( '.wp-sudo-reauth-modal' );
+		await expect( modal ).toBeVisible();
+
+		const text = ( await modal.innerText() ).toLowerCase();
+		// The generic reauth prompt is present...
+		expect( text ).toContain( 'reauthentication' );
+		// ...and the plugin.activate rule's label ("Activate plugin") never leaks —
+		// neither its tokens nor the server message's keyboard-shortcut hint.
+		expect( text ).not.toContain( 'activate' );
+		expect( text ).not.toContain( 'plugin' );
+		expect( text ).not.toContain( 'ctrl+shift+s' );
+		expect( text ).not.toContain( 'cmd+shift+s' );
+
+		// Leave nothing granted.
+		await modal
+			.locator( '.components-button', { hasText: 'Cancel' } )
+			.click();
+		await expect( modal ).toBeHidden();
+		expect( await pending ).toContain( 'rejected' );
+	} );
 } );
