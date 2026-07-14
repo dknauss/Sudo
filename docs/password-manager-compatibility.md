@@ -72,6 +72,48 @@ Fill each cell only with a concrete manager version + reproduction. Do not infer
 For each filled cell, state whether a miss is a **manager limitation** or a
 **fixable-markup** issue on our side, and link the repro.
 
+## Manual verification protocol
+
+Use a real browser profile with the password manager installed and unlocked by
+the human tester. Do not export, inspect, or paste vault contents into logs.
+
+For each manager/cell:
+
+1. Record manager name/version, browser/version, WordPress URL, WP Sudo commit,
+   and whether the WordPress account has Two Factor enabled.
+2. Start from a logged-in admin editor session with no active sudo session.
+3. Trigger a gated editor action that opens the in-editor modal.
+4. Observe whether the manager offers the correct WordPress credential in the
+   modal password field.
+5. Submit through the manager-assisted path and record whether the modal grants
+   and the original request re-dispatches.
+6. For the full-page challenge, open the challenge page from the fallback
+   snackbar and repeat the password observation there.
+7. For Two Factor, use an account with Two Factor enabled, enter the password
+   step, and observe whether the manager offers or fills the TOTP field rendered
+   by the Two Factor plugin on the full-page challenge. The in-editor modal is
+   expected to link out on `2fa_pending`; it does not render a TOTP field.
+8. Classify any miss as either `manager limitation`, `fixable markup`, or
+   `unclear`, with a short reproduction note.
+
+### 1Password with Two Factor repro target
+
+This is the priority manual pass because the original report was that the flow
+is harder with 1Password plus Two Factor:
+
+1. In Chrome, unlock 1Password and confirm it has the local WordPress admin
+   credential plus the account's TOTP.
+2. Log in to the Studio/local WordPress site as the Two Factor-enabled admin.
+3. From the editor, trigger a gated action. The modal should accept the password
+   step only long enough to receive `2fa_pending`, then close to the link-out
+   snackbar.
+4. Click `Reauthenticate` to open the full challenge page.
+5. On the full-page challenge, record whether 1Password offers the password
+   credential, then whether it offers the TOTP on the Two Factor field.
+6. Record whether the user can finish the challenge without manually copying
+   from 1Password. If not, note which field failed and whether an
+   `autocomplete="username"` hint would plausibly help the password step.
+
 ## References
 
 - Research todo: password-manager 2FA interaction item under `.planning/todos/pending/`
