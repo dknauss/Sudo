@@ -5,8 +5,8 @@ Status of password-manager autofill on WP Sudo's reauthentication surfaces.
 > **Verification boundary.** The *markup audit* below is factual and cited to
 > source (verifiable from the code). The *per-manager autofill matrix* is
 > **NOT** filled in: per this repo's verification rules (`CLAUDE.md` →
-> Verification Requirements; the research todo
-> `.planning/todos/pending/2026-07-05-password-manager-2fa-interaction.md`), a
+> Verification Requirements; the password-manager 2FA interaction research todo
+> under `.planning/todos/pending/`), a
 > specific manager's autofill/TOTP behavior must not be recorded as fact without a
 > concrete manager version + reproduction. Those cells require manual verification
 > on a machine with each manager installed — they are left as `pending`.
@@ -74,6 +74,6 @@ For each filled cell, state whether a miss is a **manager limitation** or a
 
 ## References
 
-- Research todo: `.planning/todos/pending/2026-07-05-password-manager-2fa-interaction.md`
+- Research todo: password-manager 2FA interaction item under `.planning/todos/pending/`
 - Two Factor rendering surfaces: `docs/two-factor-integration.md`
 - Modal risk-item: `gutenberg-editor-reauth-phase2-plan.md` (Task 3 autofill verification)
