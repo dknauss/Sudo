@@ -54,8 +54,9 @@ HERE" PR comment, `gutenberg-editor-reauth-milestone-plan.md`, and (for B)
 - [x] **client (E2E):** `editor-reauth.spec.ts` **EDITOR-12** — the grant modal body is generic ("reauthentication") and never contains the plugin.activate label tokens ("activate"/"plugin") nor the server message's keyboard-shortcut hint. Complements EDITOR-01 (snackbar surface). Studio green.
 - [x] **GREEN:** pass. Metrics synced (integration 214 methods, E2E 76).
 
-## Step 6 — Password-manager / autofill matrix
-- [ ] Manually verify the `createElement` modal password field against 1Password / Bitwarden / iCloud Keychain / browser built-ins; apply cheap markup fixes (field-markup rules, phase-2 Part 7). Record the matrix in the password-manager todo (`.planning/todos/pending/2026-07-05-password-manager-2fa-interaction.md`).
+## Step 6 — Password-manager / autofill matrix ⏸ AUTOMATABLE HALF DONE; MANUAL MATRIX PENDING USER (2026-07-14)
+- [x] **Markup audit (automatable):** recorded in `docs/password-manager-compatibility.md`. Both reauth surfaces (full-page challenge `class-challenge.php:351-367` and the `createElement` modal in `wp-sudo-editor-reauth.js`) already expose the standards-minimal password-autofill set — real `<form>`, `type=password`, `autocomplete="current-password"`, associated `<label>`, submit. The full-page TOTP `one-time-code` token comes from the Two Factor plugin's own field rendering; the modal has no 2FA step yet (Milestone B). The one gap is no `autocomplete="username"` hint field — a candidate cheap fix documented there but **deliberately not applied** (a change to a security surface whose payoff is unverified; the modal would also need `user_login` localized).
+- [ ] **Manual matrix (requires the user's password managers — cannot be automated here):** verify 1Password / Bitwarden / iCloud Keychain / browser built-ins / Dashlane × {full-page, modal} × {password, TOTP} autofill, and reproduce the 1Password-with-2FA report with a concrete version. Fill the pending matrix in `docs/password-manager-compatibility.md`. Per the repo verification rules, do not record any manager's behavior without a real repro.
 
 ## Step 7 — Full gate sweep (single-site AND multisite)
 - [ ] `npm run test:e2e:local` **and** `npm run test:e2e:local:multisite` green (the challenge-URL routing differs on multisite).
