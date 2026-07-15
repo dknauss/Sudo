@@ -18,10 +18,11 @@ Require password confirmation before high-risk changes go through on your WordPr
 [![Try latest release in Playground](https://img.shields.io/badge/Try%20release-Playground-3858e9?logo=wordpress&logoColor=white)](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint.json)
 [![Try main in Playground](https://img.shields.io/badge/Try%20main-Playground-23282d?logo=wordpress&logoColor=white)](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint-main.json)
 [![Try in-editor reauth in Playground](https://img.shields.io/badge/Try%20in--editor%20reauth-Playground-8a63d2?logo=wordpress&logoColor=white)](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint-editor-reauth.json)
+[![Try in-editor 2FA in Playground](https://img.shields.io/badge/Try%20in--editor%202FA-Playground-6c4bb6?logo=wordpress&logoColor=white)](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint-editor-2fa.json)
 
 Playground demo credentials are `admin` / `password`. When Sudo asks for reauthentication, enter the same password: `password`.
 
-## In-editor reauthentication (Gutenberg — Milestone A)
+## In-editor reauthentication (Gutenberg)
 
 When a gated action trips Sudo *inside the block editor* — for example, installing or activating a block from the inserter's Block Directory — reauthentication happens in place: a password modal opens over the editor, grants the sudo session, and transparently resumes the original request. No full-page redirect, and the editor state is preserved.
 
@@ -31,7 +32,9 @@ When a gated action trips Sudo *inside the block editor* — for example, instal
   <img src="https://raw.githubusercontent.com/dknauss/Sudo/main/assets/editor-reauth-modal.png" alt="WP Sudo &quot;Confirm your identity&quot; reauthentication modal open over the WordPress block editor." width="80%">
 </p>
 
-> This has merged to `main` (Milestone A) but is not yet in a tagged release; the demo installs the plugin from `main`. Password-only for now — accounts with two-factor skip the in-editor modal and use the standard challenge page (in-modal 2FA is planned for Milestone B).
+**Two-factor in the modal (Milestone B).** Accounts with a modal-capable Two Factor provider (TOTP, email, or backup codes) complete the second factor *inside the same modal*: after the password step, the modal injects the provider's own server-rendered field and validates it through the unchanged challenge validator — no full-page redirect. [**Try the in-editor 2FA demo in Playground →**](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint-editor-2fa.json) The demo admin has TOTP enabled; the editor notice shows the current code to enter after `password`.
+
+> Both milestones have merged to `main` but are not yet in a tagged release; the demos install the plugin from `main`. Accounts using a two-factor provider that isn't modal-capable still fall back to the standard full-page challenge.
 
 ## Screenshots
 

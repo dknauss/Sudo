@@ -59,6 +59,8 @@ readme.md
 # Playground/source-only artifacts.
 blueprint.json
 blueprint-main.json
+blueprint-editor-reauth.json
+blueprint-editor-2fa.json
 blueprint-recovery-mode.json
 blueprint-user-switching.json
 
