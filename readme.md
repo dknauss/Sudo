@@ -25,7 +25,7 @@ Playground demo credentials are `admin` / `password`. When Sudo asks for reauthe
 
 When a gated action trips Sudo *inside the block editor* — for example, installing or activating a block from the inserter's Block Directory — reauthentication happens in place: a password modal opens over the editor, grants the sudo session, and transparently resumes the original request. No full-page redirect, and the editor state is preserved.
 
-[**Try the in-editor reauth demo in Playground →**](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint-editor-reauth.json) In the editor, open the inserter (**+**), search a Block-Directory block (e.g. *Icon Block*), and install it — the modal appears; enter `password` to continue.
+[**Try the in-editor reauth demo in Playground →**](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint-editor-reauth.json) In the editor, open the inserter (**+**), search a Block-Directory block (e.g. *contact form*), and install it — the modal appears; enter `password` to continue.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/dknauss/Sudo/main/assets/editor-reauth-modal.png" alt="WP Sudo &quot;Confirm your identity&quot; reauthentication modal open over the WordPress block editor." width="80%">
