@@ -877,7 +877,13 @@ test.describe( 'Challenge flow', () => {
     } );
 
     /**
-     * CHAL-08: Provider-rendered hidden action/_wpnonce fields must not break the AJAX 2FA submit.
+     * CHAL-08: Provider-rendered hidden action/_wpnonce/_ajax_nonce fields must not break the AJAX 2FA submit.
+     *
+     * The submit handler deletes all three reserved names from the FormData before
+     * appending WP Sudo's own. `_ajax_nonce` is load-bearing: check_ajax_referer()
+     * reads $_REQUEST['_ajax_nonce'] BEFORE '_wpnonce', so a provider-emitted one
+     * that survived would take precedence over WP Sudo's appended nonce and fail
+     * verification — the flow below would then never redirect.
      */
     test( 'CHAL-08: provider hidden fields do not interfere with AJAX 2FA submit', async ( {
         page,
@@ -896,6 +902,11 @@ test.describe( 'Challenge flow', () => {
             await expect(
                 page.locator( '#wp-sudo-challenge-2fa-form input[name="_wpnonce"][value="e2e-provider-shadow-nonce"]' ),
                 'Test fixture must render a provider-style hidden nonce field for this regression'
+            ).toHaveCount( 1 );
+
+            await expect(
+                page.locator( '#wp-sudo-challenge-2fa-form input[name="_ajax_nonce"][value="e2e-provider-shadow-ajax-nonce"]' ),
+                'Test fixture must render a provider-style hidden _ajax_nonce field for this regression'
             ).toHaveCount( 1 );
 
             await page.fill( '#wp-sudo-e2e-two-factor-code', E2E_TWO_FACTOR_CODE );
