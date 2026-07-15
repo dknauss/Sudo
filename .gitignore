@@ -36,6 +36,8 @@ test-results/
 
 # Agent stuff (Claude / LLMs)
 .claude/
+.codex/
+.playwright-mcp/
 
 # VS Code workspace files and settings
 *.code-workspace
