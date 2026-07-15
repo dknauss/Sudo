@@ -1,0 +1,53 @@
+{
+    "$schema": "https://playground.wordpress.net/blueprint-schema.json",
+    "meta": {
+        "title": "WP Sudo — In-Editor Two-Factor Reauthentication Demo",
+        "author": "dknauss",
+        "description": "Demonstrates the block-editor (Gutenberg) sudo reauth modal completing a two-factor (TOTP) step in place: installing a block from the inserter trips WP Sudo's gate, the in-editor modal takes the password, then renders the real Two Factor TOTP field (Milestone B server-rendered provider partial) inside the same modal to grant the sudo session and resume the request."
+    },
+    "preferredVersions": {
+        "php": "8.2",
+        "wp": "latest"
+    },
+    "landingPage": "/wp-admin/post-new.php",
+    "steps": [
+        {
+            "step": "runPHP",
+            "code": "<?php require_once '/wordpress/wp-load.php'; $mu = defined('WPMU_PLUGIN_DIR') ? WPMU_PLUGIN_DIR : WP_CONTENT_DIR . '/mu-plugins'; if ( is_dir( $mu ) === false ) { mkdir( $mu, 0777, true ); } file_put_contents( $mu . '/wp-sudo-demo-editor-2fa.php', base64_decode('PD9waHAKLyoqCiAqIERlbW8tb25seSBoZWxwZXIgZm9yIHRoZSBXUCBTdWRvIGluLWVkaXRvciAyRkEgcmVhdXRoIGRlbW8uCiAqCiAqIFdQIFN1ZG8gZ3JhbnRzIGEgc3VkbyBzZXNzaW9uIGF1dG9tYXRpY2FsbHkgb24gYnJvd3NlciBsb2dpbiwgc28gYSBmcmVzaGx5CiAqIGxvZ2dlZC1pbiBhZG1pbiB3b3VsZCBuZXZlciBzZWUgdGhlIHJlYXV0aCBtb2RhbC4gVGhpcyBoZWxwZXIga2VlcHMgdGhlIGRlbW8KICogcmVsaWFibGUgYW5kIG1ha2VzIHRoZSB0d28tZmFjdG9yIHN0ZXAgc2VsZi1ndWlkaW5nOgogKiAgIDEuIFN1cHByZXNzIHRoZSBsb2dpbiBhdXRvLWdyYW50IHZpYSB0aGUgcGx1Z2luJ3Mgb3duIHB1YmxpYyBmaWx0ZXIuCiAqICAgMi4gT24gZWFjaCBibG9jay1lZGl0b3IgUEFHRSBsb2FkLCBmdWxseSBlbmQgYW55IGFjdGl2ZSBzZXNzaW9uIChjb3ZlcnMKICogICAgICBQbGF5Z3JvdW5kIHN0b3JhZ2UgcmV1c2UgLyByYWNlcykgc28gdGhlIGdhdGUgYWx3YXlzIGZpcmVzLgogKiAgIDMuIEluIHRoZSBlZGl0b3IsIG9wZW4gdGhlIGJsb2NrIGluc2VydGVyIGFuZCBzaG93IGEgZGlzbWlzc2libGUgbm90aWNlIHdpdGgKICogICAgICB0aGUgQ1VSUkVOVCBUT1RQIGNvZGUgc28gdGhlIHZpZXdlciBjYW4gY29tcGxldGUgdGhlIGluLWVkaXRvciB0d28tZmFjdG9yCiAqICAgICAgc3RlcC4gVGhlIFRPVFAgc2VjcmV0IGJlbG93IGlzIGEgdGhyb3dhd2F5IHNhbmRib3ggdmFsdWUgYW5kIGlzIHB1YmxpYyBieQogKiAgICAgIGRlc2lnbjsgbmV2ZXIgcmV1c2UgaXQgYW55d2hlcmUgcmVhbC4KICoKICogVGhlIG1vZGFsIGFkbWluLWFqYXggcGFzc3dvcmQgZ3JhbnQsIHRoZSBzZXJ2ZXItcmVuZGVyZWQgVHdvIEZhY3RvciBUT1RQCiAqIHBhcnRpYWwsIGFuZCB0aGUgYXBpRmV0Y2ggcmUtZGlzcGF0Y2ggb2YgdGhlIHJlc3VtZWQgYWN0aW9uIGFyZSBhbGwgdGhlCiAqIHBsdWdpbidzIG93biBjb2RlLCBzbyBhdXRoZW50aWNhdGluZyBoZXJlIGV4ZXJjaXNlcyB0aGUgcmVhbCBNaWxlc3RvbmUgQiBmbG93LgogKi8KYWRkX2ZpbHRlciggJ3dwX3N1ZG9fZ3JhbnRfc2Vzc2lvbl9vbl9sb2dpbicsICdfX3JldHVybl9mYWxzZScgKTsKCmFkZF9hY3Rpb24oCgknbG9hZC1wb3N0LW5ldy5waHAnLAoJc3RhdGljIGZ1bmN0aW9uICgpIHsKCQkkdSA9IHdwX2dldF9jdXJyZW50X3VzZXIoKTsKCQlpZiAoICEgJHUgfHwgISAkdS0+ZXhpc3RzKCkgKSB7CgkJCXJldHVybjsKCQl9CgkJLy8gUmVzZXQgVHdvIEZhY3RvcidzIFRPVFAgcmVwbGF5IG1hcmtlciBzbyBhIHNhbWUtdGljayByZXRyeSBhZnRlciBhbgoJCS8vIGVkaXRvciByZWxvYWQgaXMgbm90IHJlamVjdGVkIGFzIGEgcmV1c2VkIGNvZGUgKHRoZSBkZW1vIG5vdGljZSBjYW4KCQkvLyBzdGlsbCBzaG93IHRoZSBjdXJyZW50IGNvZGUgd2l0aGluIHRoZSBzYW1lIDMwcyB0aWNrKS4KCQlkZWxldGVfdXNlcl9tZXRhKCAoaW50KSAkdS0+SUQsICdfdHdvX2ZhY3Rvcl90b3RwX2xhc3Rfc3VjY2Vzc2Z1bF9sb2dpbicgKTsKCQlpZiAoIGNsYXNzX2V4aXN0cyggJ1xXUF9TdWRvXFN1ZG9fU2Vzc2lvbicgKSApIHsKCQkJXFdQX1N1ZG9cU3Vkb19TZXNzaW9uOjpkZWFjdGl2YXRlKCAoaW50KSAkdS0+SUQgKTsKCQl9Cgl9Cik7CgphZGRfYWN0aW9uKAoJJ2VucXVldWVfYmxvY2tfZWRpdG9yX2Fzc2V0cycsCglzdGF0aWMgZnVuY3Rpb24gKCkgewoJCWlmICggY2xhc3NfZXhpc3RzKCAnXFdQX1N1ZG9cU3Vkb19TZXNzaW9uJyApID09PSBmYWxzZSApIHsKCQkJcmV0dXJuOwoJCX0KCgkJJGNvZGUgPSAnJzsKCQlpZiAoIGNsYXNzX2V4aXN0cyggJ1xUd29fRmFjdG9yX1RvdHAnICkgJiYgbWV0aG9kX2V4aXN0cyggJ1xUd29fRmFjdG9yX1RvdHAnLCAnY2FsY190b3RwJyApICkgewoJCQkkY29kZSA9IChzdHJpbmcpIFxUd29fRmFjdG9yX1RvdHA6OmNhbGNfdG90cCggJ0pCU1dZM0RQRUhQSzNQWFAnICk7CgkJfQoKCQkkbm90aWNlICA9ICdXUCBTdWRvIDJGQSBkZW1vIOKAlCB0aGlzIGFkbWluIGhhcyBUT1RQIHR3by1mYWN0b3IgZW5hYmxlZC4gSW4gdGhlIG9wZW4gaW5zZXJ0ZXIsIHNlYXJjaCBhIGJsb2NrIChmb3IgZXhhbXBsZSAiY29udGFjdCBmb3JtIikgYW5kIGNsaWNrIEluc3RhbGw7IHdoZW4gV1AgU3VkbyBhc2tzIHlvdSB0byBjb25maXJtIHlvdXIgaWRlbnRpdHksIGVudGVyIHRoZSBwYXNzd29yZCAicGFzc3dvcmQiLCB0aGVuIHRoZSB0d28tZmFjdG9yIGNvZGUgc2hvd24gaGVyZS4nOwoJCSRub3RpY2UgLj0gJycgIT09ICRjb2RlID8gJyBDdXJyZW50IDJGQSBjb2RlOiAnIC4gJGNvZGUgLiAnICh2YWxpZCB+MiBtaW47IHJlbG9hZCB0aGUgZWRpdG9yIGlmIGl0IHN0b3BzIHdvcmtpbmcpLicgOiAnJzsKCQkkbm90aWNlIC49ICcgVGhlIHNhbmRib3ggdHdvLWZhY3RvciBzZWNyZXQgaXMgaW50ZW50aW9uYWxseSBwdWJsaWMuJzsKCgkJJGpzICA9ICd3aW5kb3cud3AgJiYgd3AuZG9tUmVhZHkgJiYgd3AuZG9tUmVhZHkoZnVuY3Rpb24oKXsnOwoJCSRqcyAuPSAndHJ5e3ZhciBvPXdwLmRhdGEmJndwLmRhdGEuZGlzcGF0Y2goImNvcmUvZWRpdG9yIik7JzsKCQkkanMgLj0gJ2lmKG8mJm8uc2V0SXNJbnNlcnRlck9wZW5lZCl7by5zZXRJc0luc2VydGVyT3BlbmVkKHRydWUpO30nOwoJCSRqcyAuPSAnZWxzZXt2YXIgcD13cC5kYXRhJiZ3cC5kYXRhLmRpc3BhdGNoKCJjb3JlL2VkaXQtcG9zdCIpO2lmKHAmJnAuc2V0SXNJbnNlcnRlck9wZW5lZCl7cC5zZXRJc0luc2VydGVyT3BlbmVkKHRydWUpO319fWNhdGNoKGUpe30nOwoJCSRqcyAuPSAndHJ5e3dwLmRhdGEuZGlzcGF0Y2goImNvcmUvbm90aWNlcyIpLmNyZWF0ZUluZm9Ob3RpY2UoJyAuIHdwX2pzb25fZW5jb2RlKCAkbm90aWNlICkgLiAnLHtpZDoid3Atc3Vkby1kZW1vLTJmYS1ndWlkYW5jZSIsaXNEaXNtaXNzaWJsZTp0cnVlfSk7fWNhdGNoKGUpe30nOwoJCSRqcyAuPSAnfSk7JzsKCQl3cF9hZGRfaW5saW5lX3NjcmlwdCggJ3dwLWVkaXQtcG9zdCcsICRqcywgJ2FmdGVyJyApOwoJfQopOwo=') ); echo 'wrote mu-plugin';"
+        },
+        {
+            "step": "runPHP",
+            "code": "<?php require_once '/wordpress/wp-load.php'; $user = get_user_by('login', 'admin'); if ($user) { wp_set_password('password', $user->ID); wp_set_current_user($user->ID); update_user_meta((int) $user->ID, '_two_factor_totp_key', 'JBSWY3DPEHPK3PXP'); update_user_meta((int) $user->ID, '_two_factor_enabled_providers', array('Two_Factor_Totp')); update_user_meta((int) $user->ID, '_two_factor_provider', 'Two_Factor_Totp'); } echo 'enrolled admin in TOTP';"
+        },
+        {
+            "step": "login",
+            "username": "admin",
+            "password": "password"
+        },
+        {
+            "step": "installPlugin",
+            "pluginData": {
+                "resource": "wordpress.org/plugins",
+                "slug": "two-factor"
+            },
+            "options": {
+                "activate": true
+            }
+        },
+        {
+            "step": "installPlugin",
+            "pluginData": {
+                "resource": "url",
+                "url": "https://wordpress-playground-cors-proxy.net/?https://github.com/dknauss/Sudo/archive/refs/heads/main.zip"
+            },
+            "options": {
+                "activate": true,
+                "targetFolderName": "wp-sudo"
+            }
+        },
+        {
+            "step": "runPHP",
+            "code": "<?php require_once '/wordpress/wp-load.php'; $admin = get_user_by('login', 'admin'); if ($admin) { foreach (array('_wp_sudo_expires','_wp_sudo_token','_wp_sudo_failed_attempts','_wp_sudo_lockout_until','_wp_sudo_failure_event','_wp_sudo_throttle_until') as $key) { delete_user_meta((int) $admin->ID, $key); } } echo 'Two Factor + WP Sudo active; admin has TOTP two-factor enabled and arrives with NO sudo session (every fresh editor load starts session-less). Admin password: password. Demo: open the block inserter (+), search a Block-Directory block (e.g. \"Contact Form 7\"), click to install it; the in-editor sudo modal appears; enter the password, then the two-factor code shown in the editor notice (or compute the current TOTP for secret JBSWY3DPEHPK3PXP) to grant the session and resume the request in place.';"
+        }
+    ]
+}
