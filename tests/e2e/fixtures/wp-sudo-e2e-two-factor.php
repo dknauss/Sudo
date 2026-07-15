@@ -111,6 +111,7 @@ add_action(
 		<?php if ( '1' === (string) get_user_meta( $user->ID, '_wp_sudo_e2e_two_factor_provider_hidden_fields', true ) ) : ?>
 			<input type="hidden" name="action" value="e2e_provider_shadow_action" />
 			<input type="hidden" name="_wpnonce" value="e2e-provider-shadow-nonce" />
+			<input type="hidden" name="_ajax_nonce" value="e2e-provider-shadow-ajax-nonce" />
 		<?php endif; ?>
 		<?php if ( '1' === (string) get_user_meta( $user->ID, '_wp_sudo_e2e_two_factor_use_provider', true ) ) : ?>
 			<input

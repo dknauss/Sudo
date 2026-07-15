@@ -194,10 +194,15 @@
 			var body = new FormData(twofaForm);
 
 			// The Two Factor provider's authentication_page() may render hidden
-			// fields named "action" and "_wpnonce". Delete them before setting
-			// ours so the AJAX request hits our handler, not the provider's.
+			// fields named "action", "_wpnonce", or "_ajax_nonce". Delete them
+			// before setting ours so the AJAX request hits our handler, not the
+			// provider's, and carries our nonce. `_ajax_nonce` is load-bearing:
+			// check_ajax_referer() reads $_REQUEST['_ajax_nonce'] BEFORE
+			// '_wpnonce', so a provider-emitted one would take precedence over the
+			// value we append and fail verification.
 			body.delete('action');
 			body.delete('_wpnonce');
+			body.delete('_ajax_nonce');
 			body.append('action', config.tfaAction);
 			body.append('_wpnonce', config.nonce);
 			if (config.stashKey) {
