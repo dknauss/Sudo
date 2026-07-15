@@ -1,0 +1,43 @@
+{
+  "$schema": "https://playground.wordpress.net/blueprint-schema.json",
+  "meta": {
+    "title": "WP Sudo — In-Editor Reauthentication Demo",
+    "author": "dknauss",
+    "description": "Demonstrates the block-editor (Gutenberg) sudo reauth modal: installing/activating a block from the inserter's Block Directory trips WP Sudo's gate and opens an in-editor password modal that grants a sudo session in place and transparently resumes the request."
+  },
+  "preferredVersions": {
+    "php": "8.2",
+    "wp": "latest"
+  },
+  "landingPage": "/wp-admin/post-new.php",
+  "steps": [
+    {
+      "step": "runPHP",
+      "code": "<?php require_once '/wordpress/wp-load.php'; $mu = defined('WPMU_PLUGIN_DIR') ? WPMU_PLUGIN_DIR : WP_CONTENT_DIR . '/mu-plugins'; if ( is_dir( $mu ) === false ) { mkdir( $mu, 0777, true ); } file_put_contents( $mu . '/wp-sudo-demo-editor-reauth.php', base64_decode('PD9waHAKLyoqCiAqIERlbW8tb25seSBoZWxwZXIgZm9yIHRoZSBXUCBTdWRvIGluLWVkaXRvciByZWF1dGggZGVtby4KICoKICogV1AgU3VkbyBncmFudHMgYSBzdWRvIHNlc3Npb24gYXV0b21hdGljYWxseSBvbiBicm93c2VyIGxvZ2luLCBzbyBhIGZyZXNobHkKICogbG9nZ2VkLWluIGFkbWluIHdvdWxkIG5ldmVyIHNlZSB0aGUgcmVhdXRoIG1vZGFsLiBUd28gZ3VhcmRzIG1ha2UgdGhlIG1vZGFsCiAqIHJlbGlhYmx5IGRlbW9uc3RyYWJsZToKICogICAxLiBTdXBwcmVzcyB0aGUgbG9naW4gYXV0by1ncmFudCB2aWEgdGhlIHBsdWdpbidzIG93biBwdWJsaWMgZmlsdGVyLgogKiAgIDIuIE9uIGVhY2ggYmxvY2stZWRpdG9yIFBBR0UgbG9hZCwgZnVsbHkgZW5kIGFueSBhY3RpdmUgc2Vzc2lvbiAoY292ZXJzCiAqICAgICAgUGxheWdyb3VuZCBzdG9yYWdlIHJldXNlIC8gcmFjZXMpLiBPbmx5IHRoZSBlZGl0b3IgcGFnZSBsb2FkIGlzIGhvb2tlZDsKICogICAgICB0aGUgbW9kYWwgYWRtaW4tYWpheCBwYXNzd29yZCBncmFudCBhbmQgdGhlIGFwaUZldGNoIHJlLWRpc3BhdGNoIG9mIHRoZQogKiAgICAgIHJlc3VtZWQgYWN0aW9uIGFyZSBsZWZ0IGFsb25lLCBzbyBhdXRoZW50aWNhdGluZyBzdGlsbCB3b3JrcyBub3JtYWxseS4KICovCmFkZF9maWx0ZXIoICd3cF9zdWRvX2dyYW50X3Nlc3Npb25fb25fbG9naW4nLCAnX19yZXR1cm5fZmFsc2UnICk7CmFkZF9hY3Rpb24oCgknbG9hZC1wb3N0LW5ldy5waHAnLAoJc3RhdGljIGZ1bmN0aW9uICgpIHsKCQlpZiAoIGNsYXNzX2V4aXN0cyggJ1xXUF9TdWRvXFN1ZG9fU2Vzc2lvbicgKSA9PT0gZmFsc2UgKSB7CgkJCXJldHVybjsKCQl9CgkJJHUgPSB3cF9nZXRfY3VycmVudF91c2VyKCk7CgkJaWYgKCAkdSAmJiAkdS0+ZXhpc3RzKCkgKSB7CgkJCVxXUF9TdWRvXFN1ZG9fU2Vzc2lvbjo6ZGVhY3RpdmF0ZSggKGludCkgJHUtPklEICk7CgkJfQoJfQopOwo=') ); echo 'wrote mu-plugin';"
+    },
+    {
+      "step": "runPHP",
+      "code": "<?php require_once '/wordpress/wp-load.php'; $user = get_user_by('login', 'admin'); if ($user) { wp_set_password('password', $user->ID); wp_set_current_user($user->ID); }"
+    },
+    {
+      "step": "login",
+      "username": "admin",
+      "password": "password"
+    },
+    {
+      "step": "installPlugin",
+      "pluginData": {
+        "resource": "url",
+        "url": "https://wordpress-playground-cors-proxy.net/?https://github.com/dknauss/Sudo/archive/refs/heads/feat/gutenberg-reauth-increment-3.zip"
+      },
+      "options": {
+        "activate": true,
+        "targetFolderName": "wp-sudo"
+      }
+    },
+    {
+      "step": "runPHP",
+      "code": "<?php require_once '/wordpress/wp-load.php'; $admin = get_user_by('login', 'admin'); if ($admin) { foreach (array('_wp_sudo_expires','_wp_sudo_token','_wp_sudo_failed_attempts','_wp_sudo_lockout_until','_wp_sudo_failure_event','_wp_sudo_throttle_until') as $key) { delete_user_meta((int) $admin->ID, $key); } } echo 'WP Sudo active; admin arrives with NO sudo session and every fresh editor load starts session-less. Admin password: password. Sudo challenge password: password. Demo: open the block inserter (+), search a Block-Directory block (e.g. \"Icon Block\" or \"Contact Form 7\"), and click to install/activate it, then the in-editor sudo password modal appears; enter password to grant a session and the request resumes transparently.';"
+    }
+  ]
+}

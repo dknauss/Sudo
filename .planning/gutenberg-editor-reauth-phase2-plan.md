@@ -1,14 +1,19 @@
 # Phase Plan — Block-Editor Reauth, Phase 2 (Transparent Modal)
 
-**Status:** Execution plan, not yet started. Derived from
+**Status:** Canonical **technical/task reference** for the transparent-modal work.
+Derived from
 [`gutenberg-editor-reauth-design-brief.md`](gutenberg-editor-reauth-design-brief.md)
 after: surface inventory, design review, security review (SAFE WITH STATED CONDITIONS,
 C1–C4), and the 2026-07-05 scope decision (**Tier 2 — transparent in-editor modal**).
 
-**Not scheduled.** Sits behind v4.5 (Session Governance) in the roadmap order. This
-plan exists so the feature is TDD-ready whenever prioritized. Each task below follows
-the repo's TDD discipline (RED in the working tree → GREEN commit) and the
-Pre-Implementation Design Review is already satisfied by the brief + two reviews.
+**A password-grant modal floor already exists** on branch
+`feat/gutenberg-reauth-increment-3` (unmerged, no PR). The work is now split into two
+shippable milestones — **A: password path**, then **B: 2FA in the modal** — with the
+scope/sequencing decision, current branch inventory, and per-milestone gates recorded
+in [`gutenberg-editor-reauth-milestone-plan.md`](gutenberg-editor-reauth-milestone-plan.md).
+Read that first for *what ships when*; this file for *how* (Tasks 1–7, C1–C4, Part 7).
+Each task follows the repo's TDD discipline (RED in the working tree → GREEN commit);
+the Pre-Implementation Design Review is satisfied by the brief + two reviews.
 
 ---
 

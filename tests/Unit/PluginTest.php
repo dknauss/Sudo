@@ -578,7 +578,7 @@ class PluginTest extends TestCase {
 			->with(
 				'wp-sudo-editor-reauth',
 				\Mockery::type( 'string' ),
-				array( 'wp-api-fetch', 'wp-data', 'wp-notices', 'wp-i18n' ),
+				array( 'wp-api-fetch', 'wp-data', 'wp-notices', 'wp-i18n', 'wp-element', 'wp-components' ),
 				WP_SUDO_VERSION,
 				true
 			);
@@ -629,6 +629,43 @@ class PluginTest extends TestCase {
 
 		$plugin = new Plugin();
 		$plugin->enqueue_editor_reauth();
+	}
+
+	/**
+	 * Option A (2FA modal-skip): the editor config carries a `hasTwoFactor` boolean
+	 * reflecting Sudo_Session::needs_two_factor(), so the middleware can skip the
+	 * password-only modal for 2FA accounts (they must link out to the full challenge
+	 * page — a Milestone-A modal can only yield 2fa_pending). UX-only; the server
+	 * stays authoritative on the 2fa_pending invariant.
+	 */
+	public function test_enqueue_editor_reauth_localizes_has_two_factor(): void {
+		Functions\when( 'get_current_user_id' )->justReturn( 1 );
+		Functions\when( 'admin_url' )->justReturn( 'http://example.test/wp-admin/admin-ajax.php' );
+		Functions\when( 'wp_create_nonce' )->justReturn( 'grant-nonce' );
+		Functions\when( 'wp_enqueue_script' )->justReturn( true );
+		Functions\when( 'wp_set_script_translations' )->justReturn( true );
+
+		$captured = array();
+		Functions\when( 'wp_localize_script' )->alias(
+			function ( $handle, $object, $data ) use ( &$captured ) {
+				$captured = $data;
+				return true;
+			}
+		);
+
+		// No 2FA configured (default mock provider is null) → hasTwoFactor false.
+		\Two_Factor_Core::$mock_provider = null;
+		( new Plugin() )->enqueue_editor_reauth();
+		$this->assertArrayHasKey( 'hasTwoFactor', $captured );
+		$this->assertFalse( $captured['hasTwoFactor'], 'Non-2FA user localizes hasTwoFactor false.' );
+
+		// 2FA configured (mock provider present → is_user_using_two_factor true) →
+		// hasTwoFactor true.
+		\Two_Factor_Core::$mock_provider = new \Two_Factor_Provider();
+		( new Plugin() )->enqueue_editor_reauth();
+		$this->assertTrue( $captured['hasTwoFactor'], '2FA user localizes hasTwoFactor true.' );
+
+		\Two_Factor_Core::$mock_provider = null;
 	}
 
 	/**

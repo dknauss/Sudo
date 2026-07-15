@@ -57,6 +57,18 @@ surface, any cheap markup fixes (`autocomplete="current-password"` /
 manager limitation vs. something we can fix. Feeds the Tier 2 modal design (Task 3
 autofill verification in the Phase 2 plan) and the general challenge-form UX.
 
+## Progress (2026-07-14)
+
+The **automatable half** (scope item 2, markup audit) is done and recorded in
+`docs/password-manager-compatibility.md`: both reauth surfaces (full-page challenge
+and the in-editor modal) already expose the standards-minimal password-autofill
+semantics (real `<form>`, `type=password`, `autocomplete="current-password"`,
+associated `<label>`, submit). The one common gap is no `autocomplete="username"`
+hint field — a candidate cheap fix documented there but deliberately NOT applied
+(unverified payoff on a security surface). The **per-manager matrix** (scope items
+1, 3, 4 — including the 1Password-with-2FA repro) still requires manual
+verification with each manager installed and is left as `pending` in that doc.
+
 ## Notes
 
 - This is research, not a committed feature. Do not make runtime support claims about a

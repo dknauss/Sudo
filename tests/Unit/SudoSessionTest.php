@@ -554,6 +554,42 @@ class SudoSessionTest extends TestCase
 		$this->assertGreaterThan(time(), $result['expires_at']);
 	}
 
+	/**
+	 * SECURITY — 2FA-bypass invariant (session layer). A 2FA user's correct
+	 * password must land in 2fa_pending and mint NO sudo session. activate()
+	 * writes the session expiry (_wp_sudo_expires) and token (_wp_sudo_token)
+	 * via update_user_meta(); on the 2FA path it must never run, so the password
+	 * step alone can never grant a 2FA user. This is what makes the password-only
+	 * in-editor modal safe for 2FA accounts (they link out to the full challenge).
+	 */
+	public function test_attempt_activation_2fa_pending_mints_no_session(): void
+	{
+		Functions\when('get_user_meta')->justReturn('');
+
+		$user = new \WP_User(1, array('editor'));
+		Functions\when('get_userdata')->justReturn($user);
+		Functions\when('wp_check_password')->justReturn(true);
+		Functions\when('delete_user_meta')->justReturn(true);
+		Functions\when('set_transient')->justReturn(true);
+		Functions\when('wp_generate_password')->justReturn('test-challenge-nonce');
+		Functions\when('is_ssl')->justReturn(false);
+		Functions\when('headers_sent')->justReturn(false);
+		Functions\when('setcookie')->justReturn(true);
+		Functions\when('get_transient')->justReturn(false);
+
+		// needs_two_factor() -> true via the wp_sudo_requires_two_factor filter.
+		Functions\when('apply_filters')->justReturn(true);
+
+		// The session-minting side effect — activate() writing the expiry/token
+		// user meta — must NEVER happen while 2FA is still pending.
+		Functions\expect('update_user_meta')->never();
+
+		$result = Sudo_Session::attempt_activation(1, 'correct-password');
+
+		$this->assertSame('2fa_pending', $result['code'], 'A 2FA user must land in 2fa_pending.');
+		$this->assertNotSame('success', $result['code'], 'A 2FA user must never reach success on the password step.');
+	}
+
 	public function test_attempt_activation_does_not_reset_failures_before_2fa_success(): void
 	{
 		Functions\when('get_user_meta')->justReturn('');

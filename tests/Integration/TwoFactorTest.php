@@ -14,6 +14,8 @@
 
 namespace WP_Sudo\Tests\Integration;
 
+use WP_Sudo\Challenge;
+use WP_Sudo\Request_Stash;
 use WP_Sudo\Sudo_Session;
 
 class TwoFactorTest extends TestCase {
@@ -89,6 +91,97 @@ class TwoFactorTest extends TestCase {
 		$this->assertSame( '2fa_pending', $result['code'] );
 		$this->assertArrayHasKey( 'expires_at', $result );
 		$this->assertGreaterThan( time(), $result['expires_at'] );
+	}
+
+	/**
+	 * SECURITY — 2FA-bypass invariant (session layer, real Two Factor). A real
+	 * TOTP-configured user's correct-password attempt_activation() returns
+	 * 2fa_pending and mints NO sudo session. The password step alone can never
+	 * grant a 2FA user — this is what makes the password-only in-editor modal
+	 * safe for 2FA accounts.
+	 */
+	public function test_attempt_activation_2fa_user_mints_no_session(): void {
+		$this->require_two_factor();
+
+		$password = 'correct-password';
+		$user     = $this->make_admin( $password );
+		wp_set_current_user( $user->ID );
+		$this->configure_totp_for_user( $user->ID );
+
+		$this->assertFalse(
+			Sudo_Session::is_active( $user->ID ),
+			'No sudo session should exist before the password attempt.'
+		);
+
+		$result = Sudo_Session::attempt_activation( $user->ID, $password );
+
+		$this->assertSame( '2fa_pending', $result['code'], 'A 2FA user must land in 2fa_pending.' );
+		$this->assertNotSame( 'success', $result['code'], 'A 2FA user must never reach success on the password step.' );
+		$this->assertFalse(
+			Sudo_Session::is_active( $user->ID ),
+			'attempt_activation() must not activate a session for a 2FA user (bypass invariant).'
+		);
+
+		Sudo_Session::clear_2fa_pending();
+	}
+
+	/**
+	 * SECURITY — 2FA-bypass invariant (AJAX layer, real Two Factor). The in-editor
+	 * modal's handler, handle_ajax_auth(), given a 2FA user's CORRECT password must
+	 * return JSON code '2fa_pending' (never 'authenticated') and leave no active
+	 * sudo session. Guards against a regression that would let the password-only
+	 * modal grant a 2FA user in place instead of linking out to the full challenge.
+	 */
+	public function test_handle_ajax_auth_2fa_user_yields_pending_and_no_session(): void {
+		$this->require_two_factor();
+
+		$password = 'correct-password';
+		$user     = $this->make_admin( $password );
+		wp_set_current_user( $user->ID );
+		$this->configure_totp_for_user( $user->ID );
+
+		$this->assertFalse( Sudo_Session::is_active( $user->ID ) );
+
+		$challenge = new Challenge( new Request_Stash() );
+
+		$_POST['password']       = $password;
+		$_POST['stash_key']      = '';
+		$_POST['_ajax_nonce']    = wp_create_nonce( Challenge::NONCE_ACTION );
+		$_REQUEST['_ajax_nonce'] = $_POST['_ajax_nonce'];
+		add_filter( 'wp_doing_ajax', '__return_true' );
+		add_filter( 'wp_die_ajax_handler', array( $this, 'get_wp_die_handler' ) );
+
+		ob_start();
+		try {
+			$challenge->handle_ajax_auth();
+			$this->fail( 'Expected WPDieException from wp_send_json_success.' );
+		} catch ( \WPDieException $e ) {
+			$this->addToAssertionCount( 1 );
+		} finally {
+			remove_filter( 'wp_die_ajax_handler', array( $this, 'get_wp_die_handler' ) );
+			remove_filter( 'wp_doing_ajax', '__return_true' );
+			$output = ob_get_clean();
+		}
+
+		$json = json_decode( $output, true );
+		$this->assertIsArray( $json, 'Output should be valid JSON.' );
+		$this->assertTrue( $json['success'], '2fa_pending is a success-shaped response.' );
+		$this->assertSame(
+			'2fa_pending',
+			$json['data']['code'] ?? null,
+			'A 2FA user must receive 2fa_pending, never authenticated.'
+		);
+		$this->assertNotSame(
+			'authenticated',
+			$json['data']['code'] ?? null,
+			'The password step must not authenticate a 2FA user.'
+		);
+		$this->assertFalse(
+			Sudo_Session::is_active( $user->ID ),
+			'No sudo session may be minted for a 2FA user at the AJAX auth layer (bypass invariant).'
+		);
+
+		Sudo_Session::clear_2fa_pending();
 	}
 
 	/**

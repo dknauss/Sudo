@@ -213,6 +213,45 @@ class RestGatingTest extends TestCase {
 		$this->assertSame( 'connectors.update_credentials', $result->get_error_data()['rule_id'] );
 	}
 
+	/**
+	 * Q4 (SEV-3) — server-side boundary. The cookie-auth sudo_required error
+	 * carries the human rule label ONLY in its human-readable message (for
+	 * non-editor REST consumers / the admin-notice fallback). The STRUCTURED data
+	 * the in-editor client consumes — rule_id (the machine id) and challenge_url —
+	 * must never embed the action-specific label, so the editor's generic prompt
+	 * cannot be undone by a client that reads those fields. This is the server half
+	 * of Q4 (the editor UI deliberately ignores the message and renders generic
+	 * copy); it guards against a future change that leaks the label into error data.
+	 */
+	public function test_cookie_auth_sudo_required_keeps_label_out_of_client_consumed_data(): void {
+		$user = $this->make_admin();
+		wp_set_current_user( $user->ID );
+
+		$request = new \WP_REST_Request( 'DELETE', '/wp/v2/plugins/hello' );
+		$request->set_header( 'X-WP-Nonce', wp_create_nonce( 'wp_rest' ) );
+
+		$result = $this->gate->intercept_rest( null, array(), $request );
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'sudo_required', $result->get_error_code() );
+
+		$label = __( 'Delete plugin', 'wp-sudo' );
+
+		// The human message DOES carry the label — it is available server-side.
+		$this->assertStringContainsString(
+			$label,
+			$result->get_error_message(),
+			'The server message carries the rule label for non-editor REST consumers.'
+		);
+
+		// The structured data the editor reads does NOT. rule_id is the machine id,
+		// and the challenge_url must not embed the human label.
+		$data = $result->get_error_data();
+		$this->assertSame( 'plugin.delete', $data['rule_id'] );
+		$this->assertStringNotContainsString( $label, (string) $data['rule_id'] );
+		$this->assertStringNotContainsString( $label, (string) $data['challenge_url'] );
+	}
+
 	// ─────────────────────────────────────────────────────────────────────
 	// App password tests (SURF-03)
 	// ─────────────────────────────────────────────────────────────────────
