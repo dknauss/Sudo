@@ -20,11 +20,11 @@ progress:
 
 Active track: **In-Editor Gutenberg Reauth** (own planning docs: `gutenberg-editor-reauth-milestone-plan.md`, `-execution-checklist.md`, `-milestone-b-2fa-partial-brief.md`).
 Milestone A: **complete and merged** (PR #178, 2026-07-07) — the full password-path reauth modal in the block editor. Checklist Steps 0–8 all done. Unreleased on `main` past the v4.6.0 tag.
-Milestone B: **not started** — in-modal 2FA. Reviewed brief + 7-step RED→GREEN TDD order sit at the bottom of `gutenberg-editor-reauth-execution-checklist.md`.
-Status: Milestone A shipped the modal grant + re-dispatch, the 2FA-bypass invariant (2FA users get `2fa_pending`, never a session), stale-nonce recovery, owner-scoped concurrent re-dispatch, degradation/no-safe-URL guards, and the 2FA double-prompt fix (2FA users link out once instead of entering a password twice). Follow-ups #180/#181 made the demo self-guiding; #182 filed the in-editor session-indicator research todo; #179 filed the MU-plugin lockdown research todo.
-Progress: [██████████] 100% of the prior GSD milestone (v4.5, Phases 24–25); In-Editor Reauth Milestone A checklist Steps 0–8 done, Milestone B not started.
-Last activity: 2026-07-15 — In-Editor Reauth Milestone A + follow-ups #179–#183 merged; this cleanup pass reconciled stale release facts across STATE/ROADMAP/PROJECT.
-Branch: `main` is current (no open PRs). Milestone A work was developed on `feat/gutenberg-reauth-increment-3` (PR #178, merged).
+Milestone B: **implemented — PR #185 (2026-07-15), open/in review.** In-modal 2FA: a shared `render_two_factor_fields` renderer, the `handle_ajax_2fa_partial` endpoint (pending-gated, default-deny provider allowlist, email shared send-throttle), and the client (fetch partial → inject into a non-form node + neutralize native submits → generic serialize → POST to the unchanged validator → owner re-dispatch). Q-B1 resolved to a private default-deny allowlist (no public filter in v1).
+Status: Milestone A shipped the modal grant + re-dispatch, the 2FA-bypass invariant (2FA users get `2fa_pending`, never a session), stale-nonce recovery, owner-scoped concurrent re-dispatch, degradation/no-safe-URL guards, and the 2FA double-prompt fix. Milestone B (PR #185) adds in-place OTP-family 2FA: pre-implementation design review + security-scoped pre-commit review (C1–C4 + the email render-send HIGH finding) both clean; gates green (unit 1028, lint, PHPStan+Psalm, integration 229 single-site AND multisite, editor E2E 17/17 vs live Studio). Filed research todos remain: #182 in-editor session-indicator, #179 MU-plugin lockdown.
+Progress: [██████████] 100% of the prior GSD milestone (v4.5); In-Editor Reauth Milestone A merged (Steps 0–8); Milestone B implemented (PR #185, awaiting merge).
+Last activity: 2026-07-15 — In-Editor Reauth **Milestone B implemented** (in-modal 2FA) on `feat/gutenberg-reauth-milestone-b-2fa`, opened as PR #185.
+Branch: `feat/gutenberg-reauth-milestone-b-2fa` (PR #185, open). Milestone A was developed on `feat/gutenberg-reauth-increment-3` (PR #178, merged).
 Origin: block-editor reauthentication UX track — see `gutenberg-editor-reauth-design-brief.md` and the phase-2 plan.
 Product release state: Latest tagged plugin release is **`v4.6.0`** (cut 2026-07-06; `main` is past it with Milestone A unreleased). Canonical: `docs/release-status.md`. v4.5 shipped as `v4.5.0` (2026-07-05) and was folded into `v4.6.0`.
 Open threads: WordPress.org submission remains intentionally delayed/on hold; keep `docs/wporg-submission-checklist.md` ready. Milestone A carries two deferred items — the manual password-manager × 2FA matrix (needs real managers; `docs/password-manager-compatibility.md`) and the full CI single-site+multisite E2E sweep (owner/CI). Patchstack 2FA is runtime-validated as bridgeable offline (licensed Pro 2.3.6 fixture); remaining Patchstack work is the live login-form / profile-save / WooCommerce lifecycle runs and the bridge-vs-upstream decision.
@@ -46,8 +46,8 @@ Canonical current facts:
 
 ## Active Priorities
 
-1. **In-Editor Reauth Milestone B (in-modal 2FA)** — the next build. Follow the reviewed brief (`gutenberg-editor-reauth-milestone-b-2fa-partial-brief.md`) and the 7-step TDD order in the execution checklist; do the mandatory pre-implementation design review before TDD.
-2. Milestone A deferred items (do when the environment allows): the manual password-manager × 2FA matrix (needs real password managers; fill `docs/password-manager-compatibility.md`) and the full CI single-site + multisite E2E sweep.
+1. **Merge Milestone B (PR #185)** and, pre-merge, run the full 16-file E2E sweep single-site + `WP_MULTISITE=1` in CI/wp-env (this branch's own `editor-reauth.spec.ts` is 17/17; no other spec can regress from a change scoped to that spec + its middleware).
+2. Milestone A/B deferred items (do when the environment allows): the manual password-manager × 2FA matrix (needs real password managers; fill `docs/password-manager-compatibility.md`). Note: in-modal email *resend* is intentionally not wired in v1 — a resend links out.
 3. Keep WordPress.org readiness maintained while submission remains delayed/on hold.
 4. Patchstack core bridge path is runtime-validated offline; remaining Patchstack work is the live login-form / profile-save / WooCommerce lifecycle runs and the bridge-vs-upstream decision — no shipped support claim until those land.
 5. Two research todos filed 2026-07-15 and awaiting answers before any implementation: in-editor session indicator (#182) and MU-plugin role/cap lockdown mode (#179).

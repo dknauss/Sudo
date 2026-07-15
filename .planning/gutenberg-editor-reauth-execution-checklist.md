@@ -74,12 +74,18 @@ HERE" PR comment, `gutenberg-editor-reauth-milestone-plan.md`, and (for B)
 
 ---
 
-## Milestone B (after A merges) — from the reviewed brief
-Follow `gutenberg-editor-reauth-milestone-b-2fa-partial-brief.md`. TDD order:
-1. **RED:** extract `render_two_factor_fields($user)`; assert `render_page()` output **byte-identical** (shared-renderer regression).
-2. **RED:** `handle_ajax_2fa_partial()` — 403 without/with expired `2fa_pending`; `link_out` for WebAuthn-primary, **no-provider (hook-only)**, and unknown providers; markup for TOTP-primary.
-3. **RED (the HIGH finding):** email-provider partial fetch is **single-flight + shares the `wp_sudo_resend_*` throttle** — no unbounded mail-send on re-fetch. (`Two_Factor_Email::authentication_page()` sends on render.)
-4. **RED:** `wp_sudo_render_two_factor_fields` behaves in the new admin-ajax fire context (script/screen-dependent callback → link-out or documented plain-field requirement).
-5. **RED (client):** serialize **all** injected-partial fields generically (no hardcoded `authcode`); handle the pending-expired 403 → link-out/restart (not "invalid code").
-6. **RED (E2E, single-site + `WP_MULTISITE=1`):** TOTP in-modal grant → re-dispatch; WebAuthn → link-out (no dead form); email resend + shared cap; multisite asserts the partial resolves the **same per-site `2fa_pending` transient** the password step wrote.
-7. Resolve **Q-B1** (default-deny `wp_sudo_2fa_modal_capable` filter vs. private curated map) in implementation review; security-scoped review of the new endpoint + email render-send behavior.
+## Milestone B — ✅ IMPLEMENTED (PR #185, 2026-07-15) — from the reviewed brief
+Followed `gutenberg-editor-reauth-milestone-b-2fa-partial-brief.md` (see its §9 for the
+implementation-review resolutions). Pre-implementation design review + security-scoped
+pre-commit review (C1–C4 + email render-send) both done. Gates: unit 1028, lint,
+PHPStan+Psalm, integration **229 single-site AND multisite** (0 failures), editor E2E
+**17/17** vs live Studio; metrics + POT synced. TDD order as executed:
+1. [x] extract `render_two_factor_fields($user)`; `render_page()` output **byte-identical** (containment guard). — `EditorTwoFactorPartialTest`.
+2. [x] `handle_ajax_2fa_partial()` — 403 without/with expired `2fa_pending`; `link_out` for hook-only (no provider) and non-capable (Dummy/WebAuthn/unknown); markup for TOTP-primary.
+3. [x] **HIGH finding:** email partial **shares the `wp_sudo_resend_<id>` throttle** and gates the SEND not the field (`will_send = !user_has_token || user_token_has_expired`; increments only on a real send; blocks only when `will_send && count>=3`) — no unbounded mail-send on re-fetch (token TTL 15m > 5m window).
+4. [x] `wp_sudo_render_two_factor_fields` fires in the admin-ajax partial context without breaking the endpoint (`test_partial_render_hook_fires_in_ajax_context`).
+5. [x] **client:** serialize **all** injected fields generically (no hardcoded `authcode`); inject into a NON-form node + neutralize native submits; pending-expired 403 → link-out/restart. — EDITOR-15/16/17.
+6. [x] **E2E:** EDITOR-15 (in-modal TOTP grant → re-dispatch), EDITOR-16 (`link_out` → snackbar), EDITOR-17 (pending-expired 403 → link out). Multisite per-site `2fa_pending` transient resolution is covered by the integration suite under `WP_TESTS_MULTISITE=1` (there is no network-admin block editor, so no multisite E2E for the modal).
+7. [x] **Q-B1** resolved → **private default-deny allowlist, NO public filter in v1** (`is_modal_capable_2fa`). Security-scoped review of the new endpoint + email render-send: clean.
+
+**Deferred (carried, owner/CI):** full 16-file E2E sweep single-site + `WP_MULTISITE=1` (this branch touches only `editor-reauth.spec.ts` + its middleware); the manual password-manager × 2FA matrix (Milestone A carryover). **Not in v1:** in-modal email *resend* (first fetch sends one code; a resend links out).

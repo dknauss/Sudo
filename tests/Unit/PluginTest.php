@@ -569,6 +569,7 @@ class PluginTest extends TestCase {
 
 	public function test_enqueue_editor_reauth_loads_for_logged_in_user(): void {
 		Functions\when( 'get_current_user_id' )->justReturn( 1 );
+		Functions\when( 'get_userdata' )->justReturn( new \WP_User( 1 ) );
 		Functions\when( 'admin_url' )->justReturn( 'http://example.test/wp-admin/admin-ajax.php' );
 		Functions\when( 'wp_create_nonce' )->justReturn( 'grant-nonce' );
 		Functions\when( 'wp_localize_script' )->justReturn( true );
@@ -599,6 +600,7 @@ class PluginTest extends TestCase {
 	 */
 	public function test_enqueue_editor_reauth_localizes_grant_data(): void {
 		Functions\when( 'get_current_user_id' )->justReturn( 1 );
+		Functions\when( 'get_userdata' )->justReturn( new \WP_User( 1 ) );
 		Functions\when( 'wp_enqueue_script' )->justReturn( true );
 		Functions\when( 'wp_set_script_translations' )->justReturn( true );
 
@@ -622,6 +624,7 @@ class PluginTest extends TestCase {
 							&& 'http://example.test/wp-admin/admin-ajax.php' === $data['ajaxUrl']
 							&& Challenge::AJAX_AUTH_ACTION === $data['authAction']
 							&& Challenge::AJAX_2FA_ACTION === $data['twoFactorAction']
+							&& Challenge::AJAX_2FA_PARTIAL_ACTION === $data['twoFactorPartialAction']
 							&& Challenge::AJAX_REFRESH_NONCE_ACTION === $data['refreshNonceAction'];
 					}
 				)
@@ -640,6 +643,7 @@ class PluginTest extends TestCase {
 	 */
 	public function test_enqueue_editor_reauth_localizes_has_two_factor(): void {
 		Functions\when( 'get_current_user_id' )->justReturn( 1 );
+		Functions\when( 'get_userdata' )->justReturn( new \WP_User( 1 ) );
 		Functions\when( 'admin_url' )->justReturn( 'http://example.test/wp-admin/admin-ajax.php' );
 		Functions\when( 'wp_create_nonce' )->justReturn( 'grant-nonce' );
 		Functions\when( 'wp_enqueue_script' )->justReturn( true );
@@ -658,12 +662,21 @@ class PluginTest extends TestCase {
 		( new Plugin() )->enqueue_editor_reauth();
 		$this->assertArrayHasKey( 'hasTwoFactor', $captured );
 		$this->assertFalse( $captured['hasTwoFactor'], 'Non-2FA user localizes hasTwoFactor false.' );
+		$this->assertFalse( $captured['twoFactorModalCapable'], 'No provider → not modal-capable.' );
 
-		// 2FA configured (mock provider present → is_user_using_two_factor true) →
-		// hasTwoFactor true.
+		// 2FA configured with a NON-allowlisted provider (base Two_Factor_Provider
+		// stands in for WebAuthn/unknown) → hasTwoFactor true, but NOT modal-capable
+		// (default-deny): the user still skips the modal and links out.
 		\Two_Factor_Core::$mock_provider = new \Two_Factor_Provider();
 		( new Plugin() )->enqueue_editor_reauth();
 		$this->assertTrue( $captured['hasTwoFactor'], '2FA user localizes hasTwoFactor true.' );
+		$this->assertFalse( $captured['twoFactorModalCapable'], 'Non-allowlisted provider → not modal-capable.' );
+
+		// 2FA configured with an allowlisted OTP provider (TOTP) → modal-capable.
+		\Two_Factor_Core::$mock_provider = new \Two_Factor_Totp();
+		( new Plugin() )->enqueue_editor_reauth();
+		$this->assertTrue( $captured['hasTwoFactor'], 'TOTP user localizes hasTwoFactor true.' );
+		$this->assertTrue( $captured['twoFactorModalCapable'], 'TOTP is modal-capable.' );
 
 		\Two_Factor_Core::$mock_provider = null;
 	}
@@ -681,6 +694,7 @@ class PluginTest extends TestCase {
 		$token   = 'editor-reauth-token';
 
 		Functions\when( 'get_current_user_id' )->justReturn( $user_id );
+		Functions\when( 'get_userdata' )->justReturn( new \WP_User( $user_id ) );
 		Functions\when( 'get_user_meta' )->alias( function ( $uid, $key, $single ) use ( $token ) {
 			if ( Sudo_Session::META_KEY === $key ) {
 				return time() + 600; // Active session.

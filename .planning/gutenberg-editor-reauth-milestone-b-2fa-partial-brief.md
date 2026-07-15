@@ -184,6 +184,48 @@ false**; script-ceremony providers ⇒ false. Safe default, explicit allowlist, 
 Confirm the default-deny stance and whether the public filter earns its API surface, or
 whether a private curated map (no public hook) is preferable for the first version.
 
+## 9. Implementation-review resolutions (2026-07-15, verified against live source)
+
+A pre-implementation design review of the concrete plan resolved the open items and
+caught two hazards. Decisions now locked:
+
+- **Q-B1 → private default-deny allowlist, NO public filter in v1.** Modal-capable iff
+  the primary provider `instanceof \Two_Factor_Totp | \Two_Factor_Email |
+  \Two_Factor_Backup_Codes` (three full `instanceof` clauses). Null/no-provider
+  (hook-only path), WebAuthn/U2F, `Two_Factor_Dummy`, and any third-party provider →
+  `link_out`. Simplicity First: a public `wp_sudo_2fa_modal_capable` filter does not
+  earn its permanent API surface yet; it stays an additive future option.
+- **Email throttle → gate the SEND, not the field (fixes an over-count lockout).**
+  `Two_Factor_Email::authentication_page()` sends only when
+  `! user_has_token($id) || user_token_has_expired($id)` (both **public**), and the token
+  TTL is **15 min** vs the `wp_sudo_resend_*` window of 5 min — so re-fetches inside the
+  window never re-send (no unbounded hole). The partial handler pre-computes
+  `$will_send`; increments the shared `wp_sudo_resend_<id>` counter **only on a real
+  send**, and only hard-blocks (`resend_throttled` 429, no render) when
+  `$will_send && count >= 3`. A valid-token reopen renders the field WITHOUT sending or
+  counting, so a user who already holds a code is never locked out of entering it.
+- **Injected partial must render OUTSIDE the modal `<form>` + neutralize native submits.**
+  The provider markup carries native `<input type="submit">` (email: "Verify" + "Resend
+  Code"). Inside Milestone A's `<form onSubmit>` a click/Enter could trigger a full-page
+  navigation that destroys editor state. Inject into a non-`<form>` contained node, drive
+  submission only via the React Confirm button, and disable/neutralize the injected
+  submits defensively. (`dangerouslySetInnerHTML` scripts stay inert — no XSS delta.)
+- **`twoFactorModalCapable` localized at page load** (same allowlist) replaces the
+  Milestone A `hasTwoFactor`-only skip with `hasTwoFactor && !twoFactorModalCapable`, so
+  non-capable 2FA users still link out pre-password (no double-prompt regression) while
+  capable users open the modal. Page-load classification is a benign UX hint only — the
+  server stays authoritative via the `2fa_pending` gate + the partial's own classification
+  (which returns `link_out` on any mismatch). **The client's `2fa_pending` handler always
+  fetches the partial regardless of the stale flag**, so a user who enrolls 2FA after page
+  load still resolves correctly.
+- **In-modal email resend is NOT wired in v1.** Generic serialization excludes the resend
+  submit, so `handle_ajax_2fa`'s resend path never fires from the modal; the first partial
+  fetch sends one code, and a user who needs a resend links out. The `2fa_resent` client
+  branch is kept only as a harmless defensive no-op, not advertised.
+- **TOTP login field is `authcode`** (verified `class-two-factor-totp.php:776-800` +
+  `validate_authentication` `:521`) — NOT the setup page's `two-factor-totp-authcode`.
+  Tests assert `authcode`; the client never hardcodes it (generic serialization).
+
 ## 8. References
 - Milestone plan: [`gutenberg-editor-reauth-milestone-plan.md`](gutenberg-editor-reauth-milestone-plan.md)
 - Phase-2 technical/C1–C4/Part 7: [`gutenberg-editor-reauth-phase2-plan.md`](gutenberg-editor-reauth-phase2-plan.md)
