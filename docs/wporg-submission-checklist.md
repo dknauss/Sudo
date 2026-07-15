@@ -44,6 +44,37 @@ These gates protect the GitHub/package release itself. They are required before 
 - [ ] **Changelog/readme/release-status sanity** — `CHANGELOG.md`, `readme.txt`, and
   [`docs/release-status.md`](release-status.md) agree on the intended version,
   release posture, and whether work is tagged or still unreleased on `main`.
+- [ ] **Public screenshot refresh gate** — if the release changes any public UI,
+  refresh or deliberately re-approve the README/readme/WordPress.org screenshot
+  set before tagging. The next pre-release pass must include a current screenshot
+  of the block-editor reauthentication UI (password modal over the editor, plus
+  the 2FA/link-out fallback if that path is materially visible). Run
+  `npm run screenshots` for the `.wordpress-org/` listing set, add any new
+  non-listing README assets deliberately, and update `readme.txt` screenshot
+  captions when the numbered listing set changes.
+- [ ] **Editor-triggered sudo coverage documented** — document which block/site
+  editor actions can actually trip a sudo challenge in the current release. Keep
+  the distinction explicit: the visible default demo path is Block Directory
+  plugin install/activate via `/wp/v2/plugins`; ordinary content/design saves
+  (posts, pages, templates, template parts, global styles, navigation, media,
+  widgets, fonts) are intentionally not gated. If new editor-reachable gated
+  routes are added, update the demo instructions and `docs/ui-ux-testing-prompts.md`
+  in the same release.
+- [ ] **Playground UI demo link checked** — provide or refresh a Playground link
+  that demonstrates the current front-end/block-editor reauthentication UI. The
+  demo must land on a screen where a reviewer can trigger the challenge without
+  extra setup, or the docs must state the one required action (for example:
+  open the block inserter, search a Block Directory block, then install/activate
+  it). Verify whether the Playground environment permits installing blocks from
+  the editor; if it does not, record the blocker and keep an alternate demo path
+  or screenshot.
+- [ ] **Multisite/network-admin demo posture decided** — because Playground can
+  stage multisite, decide before release whether to ship a dedicated multisite
+  Playground blueprint/link for the network-admin context. If shipped, it should
+  demonstrate a network-admin sudo challenge (for example a network plugin,
+  network theme, site-management, or network settings action) and be listed in
+  `CONTRIBUTING.md` and `docs/ui-ux-testing-prompts.md`. If deferred, record
+  the reason and rely on the multisite Playwright/integration release gates.
 - [ ] **Package metadata sanity** — `Tested up to` reflects the current latest stable
   WordPress release (see `docs/release-status.md` → *Package metadata rule*), and
   `License: GPLv2 or later` / `GPL-2.0-or-later` is consistent across

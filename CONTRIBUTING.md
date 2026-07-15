@@ -380,11 +380,19 @@ and are excluded from the distributed plugin ZIP (see [`.pressshipignore`](.pres
 |------|------|---------|----------------|---------------|
 | [`blueprint.json`](blueprint.json) | Public demo | "Try latest release" — stable-tag demo with the standard seed | `archive/refs/tags/vX.Y.Z.zip` (bumped at tag time) | readme.md / readme.txt badges |
 | [`blueprint-main.json`](blueprint-main.json) | Public demo | "Try main" — tracks the `main` branch | `archive/refs/heads/main.zip` | readme.md / readme.txt badges |
+| [`blueprint-editor-reauth.json`](blueprint-editor-reauth.json) | Public/reviewer scenario | In-editor reauthentication demo — opens the block editor without an active sudo session so Block Directory plugin install/activate can trigger the modal | release branch or `main` while the feature is unreleased; tag-pinned copy after release if kept as a public demo | readme.md while featured; [`docs/ui-ux-testing-prompts.md`](docs/ui-ux-testing-prompts.md) §6c |
 | [`blueprint-recovery-mode.json`](blueprint-recovery-mode.json) | Reviewer scenario | Break-glass `WP_SUDO_RECOVERY_MODE` demo | `main` | [`docs/ui-ux-testing-prompts.md`](docs/ui-ux-testing-prompts.md) §6a |
 | [`blueprint-user-switching.json`](blueprint-user-switching.json) | Reviewer scenario | Session-theft demo via the User Switching plugin | `main` | [`docs/ui-ux-testing-prompts.md`](docs/ui-ux-testing-prompts.md) §6b |
 | [`.github/playground/sqlite-stack-smoke.blueprint.json`](.github/playground/sqlite-stack-smoke.blueprint.json) | CI smoke | SQLite drop-in stack smoke used by the E2E-SQLite workflow | (CI-driven) | [`.github/workflows/e2e-sqlite.yml`](.github/workflows/e2e-sqlite.yml) |
 
-The two **public** blueprints are surfaced via the readme "Try in Playground" badges; the two **reviewer** blueprints stage hard-to-reach states for manual review (not linked from the readme by design); the **CI smoke** blueprint is owned by its workflow. When adding a new blueprint, add it to `.pressshipignore` and to this table.
+The two standard **public** blueprints are surfaced via the readme "Try in
+Playground" badges. Feature-specific public demos, such as the in-editor
+reauthentication blueprint, may be temporarily surfaced while the feature is new;
+before tagging a release, either tag-pin them like `blueprint.json` or clearly
+move them back to reviewer-only status. The **reviewer** blueprints stage
+hard-to-reach states for manual review (not linked from the readme by default);
+the **CI smoke** blueprint is owned by its workflow. When adding a new blueprint,
+add it to `.pressshipignore` and to this table.
 
 ### WordPress 7.0 Final Prep Checklist
 
@@ -424,6 +432,26 @@ Use this checklist for each later RC and again at GA:
 | Session expiry by time | ✅ wait out the configured duration (1–15 min) |
 | Two Factor plugin (TOTP) | ✅ installed automatically via blueprint |
 | `unfiltered_html` removed from Editor role | ✅ |
+| Block-editor reauthentication UI | ✅ use `blueprint-editor-reauth.json`; in the editor, open the inserter, search a Block Directory block, and install/activate it to trigger the password modal |
+
+### Editor-triggered sudo challenge scope
+
+The block/site editor middleware handles any cookie-authenticated REST response
+with `code: "sudo_required"`, but the default WordPress UI only exposes a small
+set of dangerous actions from inside editor screens.
+
+| Editor/admin action | Default visible editor UI? | Sudo behavior |
+|---|---:|---|
+| Install/activate a block from the Block Directory (`/wp/v2/plugins`) | Yes, in the block editor inserter when block installation is available | Gated; this is the primary Playground demo path for the in-editor modal |
+| Plugin deactivate/delete through REST (`/wp/v2/plugins/{plugin}`) | Not a normal block/site editor control | Gated if an editor-adjacent script or extension sends the request |
+| User create/delete/role/password changes through REST (`/wp/v2/users…`) | Not a normal block/site editor control | Gated if an editor-adjacent script or extension sends the request |
+| Application-password creation through REST (`/wp/v2/users/{id}/application-passwords`) | Not a normal block/site editor control | Gated if an editor-adjacent script or extension sends the request |
+| Critical settings or connector credential writes through REST (`/wp/v2/settings`) | Not a normal block/site editor control | Gated when the request contains a covered critical option or connector API-key field |
+| Posts, pages, templates, template parts, global styles, navigation, media, widgets, fonts, reusable blocks | Yes | Deliberately not gated; these are content/design operations, not sudo-trigger demos |
+
+For release demos, prefer the visible Block Directory path. If a future release
+adds a first-party visible editor control for another gated REST route, update
+this table, the release checklist, and the Playground instructions together.
 
 ### What won't work in Playground
 
@@ -433,7 +461,7 @@ Use this checklist for each later RC and again at GA:
 | REST / XML-RPC entry point policies | Network disabled in Playground |
 | Two Factor email / magic-link providers | PHP outbound network is off |
 | WebAuthn bridge (security key gating) | Browser WebAuthn API unavailable in Playground sandbox |
-| Multisite behaviour | Single-site only |
+| Multisite behaviour in the standard public demos | The default public blueprints are single-site; add a dedicated multisite blueprint/link when a release needs a network-admin demo |
 | State after refreshing Playground | Full reset on page reload |
 
 Transients and user meta persist across normal WP navigation within a session,

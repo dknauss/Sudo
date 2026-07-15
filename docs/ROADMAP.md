@@ -1116,6 +1116,29 @@ shapes. Tracked here so they are not forgotten:
    orthogonal (per-action re-prompt for the highest-risk grants, CSRF hardening) and
    trade UX for coverage; tracked, not scheduled.
 
+**Tentative: MU-plugin role/capability lockdown mode (research backlog).**
+Explore whether the optional MU-plugin should support a high-assurance mode that
+loads an operator-reviewed file manifest of trusted privileged principals and
+denies or repairs database-stored role/capability drift at runtime. This would be
+aimed at **database-only compromise or accidental role-editor drift**, where an
+attacker can mutate `wp_user_roles`, `{prefix}capabilities`, or multisite
+`site_admins` but cannot write PHP/files. It should be treated as an
+audit-first / enforce-later hardening feature, not a default behavior:
+
+- start with administrator, super-admin, and WP Sudo governance-cap holders;
+- explicitly account for per-user capabilities, role definitions, and multisite
+  super admins rather than only locking `wp_user_roles`;
+- provide a safe snapshot/generate workflow plus filesystem-only break-glass;
+- document blind spots: filesystem compromise, runtime grants via
+  `user_has_cap` / `map_meta_cap`, SSO/directory sync, role-management plugins,
+  and legitimate provisioning changes.
+
+Do not scope implementation until research answers whether enforcement should
+filter effective capabilities, rewrite stored state, or only alert; how false
+positives are avoided on sites with dynamic roles; and how recovery works if the
+manifest is stale. Research tracker:
+`.planning/todos/pending/2026-07-15-mu-role-cap-lockdown-mode.md`.
+
 Bridge coverage is also incomplete: the WSAL/Stream bridges do not yet map the
 4.1.0 `wp_sudo_escalation_blocked` event — adding it would let SIEM/audit tools
 alert on escalation blocks directly. See the bridge-coverage backlog below.

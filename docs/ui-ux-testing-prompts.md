@@ -359,7 +359,11 @@ Keep the URL from 5b, method DELETE:
 
 ## 6. Playground Scenario Links
 
-Two specialized [WordPress Playground](https://playground.wordpress.net/) blueprints stage hard-to-reach states deterministically, so a reviewer can exercise them without building the precondition by hand. Both install the plugin from the `main` branch (where the relevant features live) on top of the standard demo seed (users, sessions, sample audit events) defined in `blueprint-main.json`.
+[WordPress Playground](https://playground.wordpress.net/) blueprints stage
+hard-to-reach states deterministically, so a reviewer can exercise them without
+building the precondition by hand. The standard public demos install from the
+latest release tag or `main`; feature/reviewer scenarios may install from the
+branch under test until a release creates a tag-pinned copy.
 
 To launch, host the blueprint JSON at a public URL and open:
 `https://playground.wordpress.net/?blueprint-url=<RAW_URL>`
@@ -399,5 +403,76 @@ This blueprint installs the [User Switching](https://wordpress.org/plugins/user-
 - User Switching is *consensual admin impersonation*, not literal theft. It is a faithful proxy because the end state is identical — authenticated as a user whose password you do not hold — but it is not an exploit.
 - The **switch action itself is not gated** by default; it is not a built-in rule. The protection demonstrated is on the gated actions performed *as the switched-into user*, not on switching.
 - Playground is a single sandboxed origin, so genuine cross-browser cookie theft cannot be simulated — only the in-session identity swap.
+
+### 6c. In-editor reauthentication — `blueprint-editor-reauth.json`
+
+This blueprint lands on the block editor with the admin logged in but without an
+active sudo session. It exists to demonstrate the front-end/editor UI rather than
+the classic full-page challenge: a gated editor REST request opens the
+`Confirm your identity` password modal over the editor, grants the sudo session,
+and re-dispatches the original request without losing editor state.
+
+**Primary demo path:** use the block editor's Block Directory integration.
+
+- [ ] Open the block inserter (`+`) in the editor.
+- [ ] Search for a block that is not already installed, such as "Icon Block" or
+  another WordPress.org block plugin.
+- [ ] Click the result to install/activate it.
+- [ ] Confirm the WP Sudo modal appears over the editor.
+- [ ] Enter `password`.
+- [ ] Confirm the modal closes, the original install/activate request resumes,
+  and the editor tab remains on the post editor.
+- [ ] Confirm the admin-bar sudo countdown appears after the grant.
+- [ ] Capture or refresh a release screenshot of this modal before tagging a
+  release that promotes the feature.
+
+If Playground cannot install blocks from the Block Directory in the current
+WordPress/Playground build, record that as a demo-environment blocker and use a
+local wp-env/Studio browser run plus a screenshot instead. Do not rewrite the demo
+as a content save: ordinary post, template, navigation, global-style, media,
+widget, font, and reusable-block saves are intentionally not gated.
+
+#### Editor-triggerable gated-action inventory
+
+The editor middleware handles any cookie-authenticated REST response with
+`code: "sudo_required"`, but the visible default editor UI only exposes a small
+slice of WP Sudo's broader REST rule set.
+
+| Action family | Route/rule surface | Visible in default block/site editor? | Demo guidance |
+|---|---|---:|---|
+| Block Directory install/activate | `/wp/v2/plugins` (`plugin.install`, `plugin.activate`) | Yes, when block installation is available | Primary in-editor demo path |
+| Plugin deactivate/delete/update via REST | `/wp/v2/plugins/{plugin}` (`plugin.deactivate`, `plugin.delete`, plugin status writes) | No ordinary editor control | Only demo with an explicit editor-adjacent script/extension |
+| User create/delete/role/password changes | `/wp/v2/users…` (`user.*`) | No ordinary editor control | Covered by REST tests; not a normal editor UI demo |
+| Application-password creation | `/wp/v2/users/{id}/application-passwords` (`auth.app_password`) | No ordinary editor control | Covered by REST tests; not a normal editor UI demo |
+| Critical settings / connector credentials | `/wp/v2/settings` (`options.critical`, `connectors.update_credentials`) | No ordinary editor control | Covered by REST tests; not a normal editor UI demo |
+| Posts/pages/templates/global styles/navigation/media/widgets/fonts/reusable blocks | Core content/design routes | Yes | Deliberately not gated; do not use as a sudo demo |
+
+**Site editor note:** the same middleware is enqueued for block editor assets,
+including site-editor contexts, but default Site Editor design operations are
+content/design saves and should not trip Sudo. A Site Editor demo should only be
+added when there is a visible, default Site Editor path to a genuinely gated REST
+route or a dedicated extension scenario being reviewed.
+
+### 6d. Multisite/network-admin Playground demo — release decision point
+
+The standard public blueprints are single-site. Playground can stage multisite,
+so each pre-release pass should decide whether the release needs a dedicated
+multisite/network-admin demo blueprint in addition to the automated multisite
+integration and Playwright lanes.
+
+Candidate network-admin demo actions:
+
+- [ ] Network plugin activation/deactivation from Network Admin › Plugins.
+- [ ] Network theme enable/disable from Network Admin › Themes.
+- [ ] Site delete/deactivate/archive/spam from Network Admin › Sites.
+- [ ] Grant/revoke super-admin status.
+- [ ] Network settings save.
+
+If a multisite Playground blueprint is added, document its raw URL, landing page,
+credentials, and exact trigger action here and in `CONTRIBUTING.md`. The demo
+should make clear that network-admin rules are classic admin/network-admin
+surfaces, not block-editor surfaces. If the blueprint is deferred, record the
+reason in the release checklist and rely on `WP_MULTISITE=1` integration plus the
+multisite Playwright/release-confidence lanes for behavioral coverage.
 
 > **Note on 2FA in Playground:** the bundled Two Factor plugin installs and activates, but TOTP requires an authenticator secret and email codes are not delivered in the sandbox. Interactive 2FA reauth is the one scenario these links cannot fully exercise.
