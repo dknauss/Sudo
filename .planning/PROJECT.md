@@ -36,9 +36,9 @@ Milestone v4.5 — Session Governance & Admin UX is starting (defining requireme
 
 **Scope decisions (locked):** revocation surface = Users-list row action (not an Access-tab panel); network-wide revoke-all = UI button with confirmation; multisite coverage-panel fixes included in this milestone; research skipped (internal refactor of existing capability/UI code).
 
-**Product release state:** Latest tagged plugin release remains `4.2.2`; v4.5 is a GSD milestone and does not imply a product release tag or version bump until release metadata is intentionally changed.
+**Product release state:** Latest tagged plugin release is **`v4.6.0`** (cut 2026-07-06); `docs/release-status.md` is canonical. v4.5 shipped as `v4.5.0` (2026-07-05) and was folded into `v4.6.0`. (This section was written when v4.5 was a not-yet-released GSD milestone at `4.2.2`; that is no longer current.)
 
-**Next planning step:** Define v4.5 requirements and roadmap, then start Phase 24.
+**Next planning step (updated 2026-07-15):** v4.5 is complete and released. The active track is now In-Editor Gutenberg Reauth (Milestone A merged via PR #178; Milestone B / in-modal 2FA next) — see `.planning/STATE.md` and `gutenberg-editor-reauth-execution-checklist.md`.
 
 ## Requirements
 
@@ -143,4 +143,4 @@ Recommended next multisite browser sequence:
 | Coverage panel must measure effective `wp_sudo_can()` access, not raw `allcaps` | Keying on raw `allcaps['manage_wp_sudo']` produces multisite super-admin false positives because it bypasses the `is_super_admin()` short-circuit | Pending — v4.5 |
 
 ---
-*Last updated: 2026-06-30 — v4.5 Session Governance & Admin UX milestone started; product release metadata remains 4.2.2.*
+*Last updated: 2026-07-15 — release/milestone facts reconciled: v4.5 shipped (v4.5.0 → folded into v4.6.0); latest tag is v4.6.0; active track is now In-Editor Gutenberg Reauth (Milestone A merged, Milestone B next). (Originally created 2026-06-30 when the v4.5 milestone started and product metadata was 4.2.2.)*

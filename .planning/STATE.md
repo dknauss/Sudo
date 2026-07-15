@@ -1,12 +1,14 @@
 ---
 gsd_state_version: 1.0
-milestone: v4.5
-milestone_name: — Session Governance & Admin UX
-status: complete (v4.5 merged; follow-ups PR #143/#144 merged, PR #145 in review)
-stopped_at: "v4.5 milestone complete and merged: Phase 24 (Session Revocation UI) shipped via PR #131 and redesigned/hardened via PRs #139/#140; manual REVK-01..05 browser verification COMPLETED 2026-07-04 (24-VERIFICATION.md status: verified, all PASS); Phase 25 (Governance Coverage Panel Fix, GCOV-01/02) merged via PR #141 on 2026-07-04. Session follow-ups merged: PR #143 (public screenshot refresh) and PR #144 (Access-tab capability-table readability + accessible names + translatable labels). Patchstack 2FA compatibility runtime-validated offline against a licensed Pro 2.3.6 fixture and documented in PR #145 (in review)."
-last_updated: "2026-07-05"
-last_activity: 2026-07-05 — v4.5 closed (Phase 25 merged via PR #141, 2026-07-04); session follow-ups PR #143 (screenshot refresh) and PR #144 (Access-tab table a11y/i18n) merged; Patchstack 2FA runtime-validated offline and documented in PR #145 (in review)
+milestone: post-v4.5 — In-Editor Gutenberg Reauth (Milestone A shipped; Milestone B next)
+milestone_name: — In-Editor Reauth (tracked on `.planning/gutenberg-editor-reauth-*`, not the GSD phase counter)
+status: v4.5 (Session Governance & Admin UX) complete and RELEASED — tagged v4.5.0 (2026-07-05) and folded into v4.6.0 (2026-07-06). In-Editor Reauth Milestone A (password path, full modal) merged via PR #178 (2026-07-07) and is unreleased on `main` past the v4.6.0 tag; demo/readme/research follow-ups #179–#183 merged 2026-07-15. Milestone B (in-modal 2FA) is the next feature track.
+stopped_at: "In-Editor Reauth Milestone A complete and merged (PR #178, 2026-07-07): the full password-path modal in the block editor — modal grant + re-dispatch, the 2FA-bypass security invariant, stale-nonce recovery, owner-scoped concurrent re-dispatch, degradation guards, and the codex-flagged 2FA double-prompt fix (link out once). Execution checklist Steps 0–8 all done; two items deferred by design — the manual password-manager × 2FA matrix (needs real managers) and the full CI single-site+multisite E2E sweep (owner/CI). Follow-ups merged 2026-07-15: self-guiding demo (#180/#181), and two filed research todos — in-editor session indicator (#182) and MU-plugin role/cap lockdown mode (#179). Milestone B (in-modal 2FA) has a reviewed brief + 7-step TDD order in the execution checklist and is not yet started."
+last_updated: "2026-07-15"
+last_activity: 2026-07-15 — cleanup pass: reconciled stale STATE/ROADMAP/PROJECT release facts (latest tag is v4.6.0, not v4.2.2) after In-Editor Reauth Milestone A (PR #178) and follow-ups #179–#183 merged. v4.5 GSD milestone remains complete (Phases 24–25).
 progress:
+  gsd_milestone: v4.5 — complete (Phases 24–25; released in v4.5.0 / v4.6.0)
+  active_track: In-Editor Reauth — Milestone A merged (checklist Steps 0–8 done); Milestone B not started
   total_phases: 2
   completed_phases: 2
   total_plans: 3
@@ -16,16 +18,17 @@ progress:
 
 ## Current Position
 
-Phase: 25 — Governance Coverage Panel Fix (complete and merged via PR #141)
-Plan: n/a — Phase 25 executed as a single design-reviewed TDD pass (GCOV-01/02)
-Status: Both v4.5 phases are complete. Phase 24 (Session Revocation UI) merged via PR #131, then redesigned per maintainer UX feedback and security-hardened via PRs #139/#140 (widget revocation visibility; "Revoke sudo sessions" bulk action replacing the revoke-all button + interstitial; nonce-verified load-users.php interceptor; site-membership guards; Sudo Active badge-count invalidation; registry scrub). Manual browser verification of REVK-01..05 COMPLETED 2026-07-04 — all PASS; `24-VERIFICATION.md` status is `verified`. Phase 25 implemented, reviewer-approved, and merged via PR #141 (2026-07-04), closing the v4.5 milestone.
-Progress: [██████████] 100% of v4.5 (Phase 24 verified end-to-end incl. manual; Phase 25 complete and merged via PR #141)
-Last activity: 2026-07-04 — Phase 25 shipped (PR #141); REVK manual verification recorded; STATE consistency fixes
-Branch: `claude/whats-next-dc6xeq` — all v4.5 follow-up work (PRs #139/#140/#141) developed and pushed here; branch restarts from main after each merge.
-Origin: session-revocation UI review on 2026-06-30 (`.planning/todos/done/2026-06-30-session-revocation-surfaces.md` — retired 2026-07-04).
-Product release state: Latest tagged plugin release remains `v4.2.2`; v4.5 is a GSD milestone and does not create a product release tag unless release metadata is intentionally bumped.
-Open threads: WordPress.org submission remains intentionally delayed/on hold; keep `docs/wporg-submission-checklist.md` ready. Patchstack 2FA compatibility is now runtime-validated as bridgeable offline against a legitimately licensed Pro 2.3.6 fixture (PR #145); the remaining Patchstack work is the live login-form / profile-save / WooCommerce lifecycle runs and the bridge-vs-upstream decision. Public screenshot refresh completed via PR #143 (2026-07-05) — the v4.5 Access-tab, widget "Revoked"-pill, and Users-list "Revoke sudo sessions" surfaces were swapped into the 9-image set within budget.
-Resume file: .planning/phases/24-session-revocation-ui/24-VERIFICATION.md (verified) and PR #141
+Active track: **In-Editor Gutenberg Reauth** (own planning docs: `gutenberg-editor-reauth-milestone-plan.md`, `-execution-checklist.md`, `-milestone-b-2fa-partial-brief.md`).
+Milestone A: **complete and merged** (PR #178, 2026-07-07) — the full password-path reauth modal in the block editor. Checklist Steps 0–8 all done. Unreleased on `main` past the v4.6.0 tag.
+Milestone B: **not started** — in-modal 2FA. Reviewed brief + 7-step RED→GREEN TDD order sit at the bottom of `gutenberg-editor-reauth-execution-checklist.md`.
+Status: Milestone A shipped the modal grant + re-dispatch, the 2FA-bypass invariant (2FA users get `2fa_pending`, never a session), stale-nonce recovery, owner-scoped concurrent re-dispatch, degradation/no-safe-URL guards, and the 2FA double-prompt fix (2FA users link out once instead of entering a password twice). Follow-ups #180/#181 made the demo self-guiding; #182 filed the in-editor session-indicator research todo; #179 filed the MU-plugin lockdown research todo.
+Progress: [██████████] 100% of the prior GSD milestone (v4.5, Phases 24–25); In-Editor Reauth Milestone A checklist Steps 0–8 done, Milestone B not started.
+Last activity: 2026-07-15 — In-Editor Reauth Milestone A + follow-ups #179–#183 merged; this cleanup pass reconciled stale release facts across STATE/ROADMAP/PROJECT.
+Branch: `main` is current (no open PRs). Milestone A work was developed on `feat/gutenberg-reauth-increment-3` (PR #178, merged).
+Origin: block-editor reauthentication UX track — see `gutenberg-editor-reauth-design-brief.md` and the phase-2 plan.
+Product release state: Latest tagged plugin release is **`v4.6.0`** (cut 2026-07-06; `main` is past it with Milestone A unreleased). Canonical: `docs/release-status.md`. v4.5 shipped as `v4.5.0` (2026-07-05) and was folded into `v4.6.0`.
+Open threads: WordPress.org submission remains intentionally delayed/on hold; keep `docs/wporg-submission-checklist.md` ready. Milestone A carries two deferred items — the manual password-manager × 2FA matrix (needs real managers; `docs/password-manager-compatibility.md`) and the full CI single-site+multisite E2E sweep (owner/CI). Patchstack 2FA is runtime-validated as bridgeable offline (licensed Pro 2.3.6 fixture); remaining Patchstack work is the live login-form / profile-save / WooCommerce lifecycle runs and the bridge-vs-upstream decision.
+Resume file: `.planning/gutenberg-editor-reauth-execution-checklist.md` (Milestone A ✅ Steps 0–8; Milestone B section at the bottom is the next work) and PR #178.
 
 ## Project Reference
 
@@ -39,13 +42,15 @@ Canonical current facts:
 - `.planning/MILESTONES.md` — archived GSD milestone history.
 
 **Core value:** Every destructive admin action requires proof the person at the keyboard is still the authenticated user.
-**Current focus:** v4.5 — Session Governance & Admin UX. Latest tagged release is **4.2.2** (see `docs/release-status.md`). WordPress.org submission (`docs/wporg-submission-checklist.md`) is delayed/on hold, but readiness should be maintained.
+**Current focus:** In-Editor Gutenberg Reauth — Milestone A (password modal) shipped; Milestone B (in-modal 2FA) is next. Latest tagged release is **4.6.0** (see `docs/release-status.md`). WordPress.org submission (`docs/wporg-submission-checklist.md`) is delayed/on hold, but readiness should be maintained.
 
 ## Active Priorities
 
-1. Keep WordPress.org readiness maintained while submission remains delayed/on hold.
-2. Patchstack core bridge path is runtime-validated offline (PR #145); remaining Patchstack work is the live login-form / profile-save / WooCommerce lifecycle runs and the bridge-vs-upstream decision — no shipped support claim until those land.
-3. (Done) Phase 24 and Phase 25 pre-implementation design reviews were performed before TDD; Phase 25's review is reflected in the panel docblock and PR #141.
+1. **In-Editor Reauth Milestone B (in-modal 2FA)** — the next build. Follow the reviewed brief (`gutenberg-editor-reauth-milestone-b-2fa-partial-brief.md`) and the 7-step TDD order in the execution checklist; do the mandatory pre-implementation design review before TDD.
+2. Milestone A deferred items (do when the environment allows): the manual password-manager × 2FA matrix (needs real password managers; fill `docs/password-manager-compatibility.md`) and the full CI single-site + multisite E2E sweep.
+3. Keep WordPress.org readiness maintained while submission remains delayed/on hold.
+4. Patchstack core bridge path is runtime-validated offline; remaining Patchstack work is the live login-form / profile-save / WooCommerce lifecycle runs and the bridge-vs-upstream decision — no shipped support claim until those land.
+5. Two research todos filed 2026-07-15 and awaiting answers before any implementation: in-editor session indicator (#182) and MU-plugin role/cap lockdown mode (#179).
 
 ## Accumulated Context
 
@@ -89,7 +94,7 @@ Canonical current facts:
 - Keep the Two Factor profile lifecycle guard in the optional bridge and fail open when upstream lifecycle data cannot prove a meaningful change.
 - Document Two Factor integration as three distinct surfaces (challenge-time, REST lifecycle, classic profile-provider lifecycle) with the optional bridge serving surfaces 2 and 3.
 - (Superseded 2026-07-05 by PR #145) Phase 23 kept Patchstack fixture-blocked/manual-test-only with no runtime claims. The fixture blocker is now resolved: the core bridge path is runtime-validated offline against a licensed Pro 2.3.6 fixture, while the live login/profile/WooCommerce flows remain manual-test and no shipped support is claimed.
-- Do not bump WP_SUDO_VERSION, plugin header Version, readme.txt Stable tag, or create a product git tag at any v4.5 phase; latest tagged release remains 4.2.2.
+- (Superseded — was a v4.5-development directive: "do not bump WP_SUDO_VERSION or create a product tag at any v4.5 phase; latest tagged release remains 4.2.2." That held during v4.5 development but no longer applies: v4.5 shipped as `v4.5.0` (2026-07-05) and was folded into `v4.6.0` (2026-07-06). **Latest tagged release is now `v4.6.0`** — `docs/release-status.md` is canonical.)
 - `Sudo_Session::revoke_all_active_sessions()` enumerates via a `_wp_sudo_expires > time()` (NUMERIC) meta_query, not the old meta-key-presence form, so revoke-all acts on exactly the live set the "Sudo Active (N)" count advertises (Phase 24 plan 01).
 - `Admin::revoke_session_core()` check order is cap -> self_target -> target_expired -> rate_limited -> success, with cap checked first so a capless caller can never distinguish target_expired from no_cap (Phase 24 plan 01).
 - The bulk revoke-all enumerator stays gate-free (no cap/rate logic in `Sudo_Session`) so WP-CLI can call it un-gated; the UI revoke-all's own cap+rate wrapper is deferred to Phase 24 plan 02 (Phase 24 plan 01).
