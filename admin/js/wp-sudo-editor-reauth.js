@@ -423,6 +423,18 @@
 			surface( challengeUrl );
 			return Promise.resolve( undefined );
 		}
+		// A 2FA account cannot complete reauth in this password-only modal
+		// (Milestone A) — the password step would only return 2fa_pending and then
+		// link out, making the user type their password twice (once here, once on
+		// the challenge page, which starts on its own password form). Skip the modal
+		// for known-2FA users and link out directly, so they enter their password
+		// ONCE on the challenge page. Must sit AFTER the C4 guard above: `cfg` may be
+		// null (then `canGrant` is false and we already returned), so `cfg.hasTwoFactor`
+		// is only read when cfg is truthy. Milestone B (in-modal 2FA) removes this.
+		if ( cfg.hasTwoFactor ) {
+			surface( challengeUrl );
+			return Promise.resolve( undefined );
+		}
 		return requestGrant().then( function ( result ) {
 			if ( result.granted ) {
 				if ( result.isOwner && options ) {

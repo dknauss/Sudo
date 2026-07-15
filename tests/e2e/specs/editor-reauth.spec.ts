@@ -565,6 +565,14 @@ test.describe( 'Block-editor reauth snackbar', () => {
 	 * modal resolves to the link-out fallback rather than granting. A synthetic
 	 * response makes it deterministic without provisioning a full TOTP account,
 	 * mirroring EDITOR-02/03/05.
+	 *
+	 * NB (Option A / EDITOR-13): a *known*-2FA account no longer opens the modal at
+	 * all — it is skipped client-side (`hasTwoFactor`). This test uses the DEFAULT
+	 * admin storageState (not 2FA-enrolled, so `hasTwoFactor` is false) and a
+	 * synthetic `2fa_pending`, so it now models the **stale-flag fallback**: the
+	 * client believed the user had no 2FA, opened the modal, and the server returned
+	 * `2fa_pending` anyway (e.g. 2FA enrolled mid-session). The modal must still link
+	 * out — which is exactly this assertion.
 	 */
 	test( 'EDITOR-08: a 2fa_pending password response links out instead of granting', async ( {
 		page,
@@ -834,6 +842,104 @@ test.describe( 'Block-editor reauth snackbar', () => {
 		// The shared fallback surfaced the link-out snackbar.
 		const notice = await waitForNotice( page );
 		expect( notice.actionLabels ).toEqual( [ 'Reauthenticate' ] );
+	} );
+
+	/**
+	 * EDITOR-13 — a KNOWN-2FA account skips the modal and links out directly, so the
+	 * user enters their password ONCE on the full challenge page instead of twice.
+	 * The password-only modal cannot complete a 2FA reauth in Milestone A (it would
+	 * only yield `2fa_pending` and then link out), and the challenge page starts on
+	 * its own password form — so opening the modal for a 2FA user forces a second
+	 * password entry. The middleware skips the modal when the localized
+	 * `hasTwoFactor` flag is true. Simulate a 2FA account by setting that flag (no
+	 * TOTP provisioning needed; mirrors EDITOR-09's nonce poisoning). Milestone B
+	 * (in-modal 2FA) removes this skip.
+	 */
+	test( 'EDITOR-13: a 2FA account skips the modal and links out (single password entry)', async ( {
+		page,
+	} ) => {
+		await page.evaluate( () => {
+			( window as any ).wpSudoEditorReauth.hasTwoFactor = true;
+		} );
+
+		const settled = page.evaluate( () =>
+			( window as any ).wp
+				.apiFetch( {
+					path: '/wp/v2/plugins/hello',
+					method: 'PUT',
+					data: { status: 'active' },
+				} )
+				.then(
+					() => 'resolved',
+					( err: any ) => 'rejected:' + ( err?.code ?? 'unknown' )
+				)
+		);
+
+		// The link-out snackbar surfaces (proves the skip path ran)...
+		const notice = await waitForNotice( page );
+		expect( notice.actionLabels ).toEqual( [ 'Reauthenticate' ] );
+
+		// ...and the grant modal never opened.
+		await expect( page.locator( '.wp-sudo-reauth-modal' ) ).toHaveCount( 0 );
+
+		// The original request stays rejected (no in-editor grant for a 2FA user).
+		expect( await settled ).toContain( 'rejected' );
+	} );
+
+	/**
+	 * EDITOR-14 — the C4 no-safe-URL degradation still wins over the 2FA skip. A
+	 * 2FA account whose `sudo_required` carries no safe `challenge_url` must get the
+	 * plain, action-less notice (C4), NOT a link-out with a "Reauthenticate" action.
+	 * This guards the ordering: the C4 guard runs before the `hasTwoFactor` guard
+	 * (also required for null-safety — `cfg` may be null, which C4's `!canGrant`
+	 * covers). Set `hasTwoFactor` true AND inject a `sudo_required` with no
+	 * `challenge_url` (as EDITOR-03 does).
+	 */
+	test( 'EDITOR-14: a 2FA account with no safe challenge_url still degrades to a plain notice', async ( {
+		page,
+	} ) => {
+		await page.evaluate( () => {
+			( window as any ).wpSudoEditorReauth.hasTwoFactor = true;
+			( window as any ).__wpSudoOrigFetch = window.fetch;
+			window.fetch = async ( input: any, init?: any ) => {
+				const url = typeof input === 'string' ? input : input?.url ?? '';
+				if ( url.includes( '/wp/v2/plugins' ) ) {
+					return new Response(
+						JSON.stringify( {
+							code: 'sudo_required',
+							message: 'blocked',
+							data: { status: 403 },
+						} ),
+						{
+							status: 403,
+							headers: { 'Content-Type': 'application/json' },
+						}
+					);
+				}
+				return ( window as any ).__wpSudoOrigFetch( input, init );
+			};
+		} );
+
+		const settled = await page.evaluate( () =>
+			( window as any ).wp
+				.apiFetch( {
+					path: '/wp/v2/plugins/hello',
+					method: 'PUT',
+					data: { status: 'active' },
+				} )
+				.then( () => 'resolved', ( e: any ) => 'rejected:' + ( e?.code ?? 'unknown' ) )
+		);
+
+		// No modal, and a PLAIN notice with no action (C4 wins over the 2FA skip).
+		await expect( page.locator( '.wp-sudo-reauth-modal' ) ).toHaveCount( 0 );
+		const notice = await waitForNotice( page );
+		expect( notice.content ).toBe( GENERIC_MESSAGE );
+		expect( notice.actionLabels ).toEqual( [] );
+		expect( settled ).toContain( 'rejected' );
+
+		await page.evaluate( () => {
+			window.fetch = ( window as any ).__wpSudoOrigFetch;
+		} );
 	} );
 
 	/**

@@ -328,7 +328,8 @@ class Plugin {
 	 * @return void
 	 */
 	public function enqueue_editor_reauth(): void {
-		if ( ! get_current_user_id() ) {
+		$user_id = get_current_user_id();
+		if ( ! $user_id ) {
 			return;
 		}
 
@@ -349,6 +350,13 @@ class Plugin {
 				'authAction'         => Challenge::AJAX_AUTH_ACTION,
 				'twoFactorAction'    => Challenge::AJAX_2FA_ACTION,
 				'refreshNonceAction' => Challenge::AJAX_REFRESH_NONCE_ACTION,
+				// A 2FA account cannot complete reauth in the password-only modal
+				// (Milestone A) — the password step only yields 2fa_pending. The
+				// client uses this to skip the modal and link out directly, so a 2FA
+				// user enters their password ONCE on the challenge page instead of
+				// twice. UX-only; the server (Sudo_Session::attempt_activation) stays
+				// authoritative. Milestone B (in-modal 2FA) removes this skip.
+				'hasTwoFactor'       => Sudo_Session::needs_two_factor( $user_id ),
 			)
 		);
 
