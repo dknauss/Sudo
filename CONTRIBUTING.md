@@ -438,20 +438,19 @@ Use this checklist for each later RC and again at GA:
 
 The block/site editor middleware handles any cookie-authenticated REST response
 with `code: "sudo_required"`, but the default WordPress UI only exposes a small
-set of dangerous actions from inside editor screens.
+set of dangerous actions from inside editor screens — chiefly Block Directory
+install/activate (`/wp/v2/plugins`), which is the primary Playground demo path.
+Ordinary content/design saves (posts, pages, templates, global styles,
+navigation, media, widgets, fonts, reusable blocks) are deliberately **not**
+gated.
 
-| Editor/admin action | Default visible editor UI? | Sudo behavior |
-|---|---:|---|
-| Install/activate a block from the Block Directory (`/wp/v2/plugins`) | Yes, in the block editor inserter when block installation is available | Gated; this is the primary Playground demo path for the in-editor modal |
-| Plugin deactivate/delete through REST (`/wp/v2/plugins/{plugin}`) | Not a normal block/site editor control | Gated if an editor-adjacent script or extension sends the request |
-| User create/delete/role/password changes through REST (`/wp/v2/users…`) | Not a normal block/site editor control | Gated if an editor-adjacent script or extension sends the request |
-| Application-password creation through REST (`/wp/v2/users/{id}/application-passwords`) | Not a normal block/site editor control | Gated if an editor-adjacent script or extension sends the request |
-| Critical settings or connector credential writes through REST (`/wp/v2/settings`) | Not a normal block/site editor control | Gated when the request contains a covered critical option or connector API-key field |
-| Posts, pages, templates, template parts, global styles, navigation, media, widgets, fonts, reusable blocks | Yes | Deliberately not gated; these are content/design operations, not sudo-trigger demos |
-
-For release demos, prefer the visible Block Directory path. If a future release
-adds a first-party visible editor control for another gated REST route, update
-this table, the release checklist, and the Playground instructions together.
+The canonical, per-route inventory of which editor actions can trip a sudo
+challenge lives in
+[`docs/ui-ux-testing-prompts.md` §6c](docs/ui-ux-testing-prompts.md) (the
+*Editor-triggerable gated-action inventory*). Keep it as the single source; if a
+future release adds a first-party visible editor control for another gated REST
+route, update that inventory, this release checklist, and the Playground
+instructions together.
 
 ### What won't work in Playground
 

@@ -104,3 +104,41 @@ operators, not a generic firewall.
   listed with opt-out or allowlist mechanics.
 - The first implementation slice has tests for single-site, multisite, direct
   DB mutation, manifest drift, and recovery bypass behavior.
+
+## Reviewer notes (added during PR review, 2026-07-15)
+
+Sharpening the research before any design phase — these are the load-bearing
+tensions to resolve:
+
+- **Draw the boundary against the existing escalation guard.** `Gate::arm_escalation_guard`
+  (default-OFF, filter `wp_sudo_guard_escalation`) already blocks a hooked
+  administrator/super-admin grant by hooking the `{prefix}capabilities` meta write
+  and `grant_super_admin`. This lockdown mode's *unique* value is precisely the
+  path that guard misses: a direct `$wpdb` write to `wp_usermeta` / `wp_user_roles`
+  / multisite `site_admins` that never fires those hooks. The design must state how
+  the two compose — same manifest/allowlist? shared audit event? — so they don't
+  double-fire, disagree, or leave a gap between them.
+- **The "dangerous primitive caps" list mostly restates "all administrators."**
+  `manage_options`, `activate_plugins`, `install_plugins`, `promote_users`, etc.
+  are held by every administrator, so allowlisting their holders is nearly the same
+  set as the administrator allowlist. The primitive-cap layer only earns its keep
+  for **non-admin roles that have been granted these caps directly** (custom roles,
+  role-editor drift). Scope it to that case explicitly, or drop it as redundant.
+- **Deterministic testing is already tractable.** The integration harness
+  (`WP_UnitTestCase`, real WP + MySQL) can mutate `wp_user_roles` /
+  `{prefix}capabilities` / `site_admins` directly and assert detection, drift
+  repair, and break-glass — single-site and `WP_TESTS_MULTISITE=1`. This is how the
+  `wp_sudo_capability_tampered` canary is already exercised; the open testability
+  question is answerable with that pattern, not a blocker.
+- **Enforcement cost must be named.** A "deny effective capability" model that
+  filters `user_has_cap` / `map_meta_cap` runs on **every** capability check on
+  **every** request — a real hot path. Weigh that against "repair stored state"
+  (a one-shot DB rewrite that is operationally sharper and can lock out a
+  legitimately-provisioned admin). This reinforces the audit-only MVP: ship
+  detection + events first, and treat any enforce mode as a separate, later,
+  heavily-gated decision.
+- **Manifest lifecycle is an operational burden, not just a format.** Beyond the
+  file schema, define how the manifest is generated, reviewed, versioned, and kept
+  in sync across environments (dev/stage/prod), and how a snapshot is regenerated
+  safely after a legitimate change — otherwise the feature trades a compromise risk
+  for a self-inflicted lockout risk.

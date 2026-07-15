@@ -432,6 +432,13 @@ local wp-env/Studio browser run plus a screenshot instead. Do not rewrite the de
 as a content save: ordinary post, template, navigation, global-style, media,
 widget, font, and reusable-block saves are intentionally not gated.
 
+**Two-factor accounts:** the demo admin has no 2FA, so it exercises the in-editor
+modal. A **2FA-enrolled** account behaves differently by design (Milestone A): the
+middleware *skips* the modal and surfaces the "Reauthenticate" link-out snackbar
+instead, because the password-only modal cannot complete a second factor and would
+otherwise force a second password entry on the challenge page. To demo the 2FA
+path, expect the link-out, not the modal. In-modal 2FA is Milestone B.
+
 #### Editor-triggerable gated-action inventory
 
 The editor middleware handles any cookie-authenticated REST response with
