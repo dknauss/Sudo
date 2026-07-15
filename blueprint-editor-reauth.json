@@ -28,7 +28,7 @@
       "step": "installPlugin",
       "pluginData": {
         "resource": "url",
-        "url": "https://wordpress-playground-cors-proxy.net/?https://github.com/dknauss/Sudo/archive/refs/heads/feat/gutenberg-reauth-increment-3.zip"
+        "url": "https://wordpress-playground-cors-proxy.net/?https://github.com/dknauss/Sudo/archive/refs/heads/main.zip"
       },
       "options": {
         "activate": true,
