@@ -345,18 +345,22 @@ class Plugin {
 			'wp-sudo-editor-reauth',
 			'wpSudoEditorReauth',
 			array(
-				'ajaxUrl'            => admin_url( 'admin-ajax.php' ),
-				'nonce'              => wp_create_nonce( Challenge::NONCE_ACTION ),
-				'authAction'         => Challenge::AJAX_AUTH_ACTION,
-				'twoFactorAction'    => Challenge::AJAX_2FA_ACTION,
-				'refreshNonceAction' => Challenge::AJAX_REFRESH_NONCE_ACTION,
-				// A 2FA account cannot complete reauth in the password-only modal
-				// (Milestone A) — the password step only yields 2fa_pending. The
-				// client uses this to skip the modal and link out directly, so a 2FA
-				// user enters their password ONCE on the challenge page instead of
-				// twice. UX-only; the server (Sudo_Session::attempt_activation) stays
-				// authoritative. Milestone B (in-modal 2FA) removes this skip.
-				'hasTwoFactor'       => Sudo_Session::needs_two_factor( $user_id ),
+				'ajaxUrl'                => admin_url( 'admin-ajax.php' ),
+				'nonce'                  => wp_create_nonce( Challenge::NONCE_ACTION ),
+				'authAction'             => Challenge::AJAX_AUTH_ACTION,
+				'twoFactorAction'        => Challenge::AJAX_2FA_ACTION,
+				'twoFactorPartialAction' => Challenge::AJAX_2FA_PARTIAL_ACTION,
+				'refreshNonceAction'     => Challenge::AJAX_REFRESH_NONCE_ACTION,
+				// Milestone B (in-modal 2FA): a 2FA user opens the modal only when
+				// their primary provider is modal-capable (OTP family). The password
+				// step still yields 2fa_pending; the client then fetches the 2FA
+				// partial and hosts the second factor in place. A NON-capable 2FA user
+				// (WebAuthn/push/unknown/hook-only) still skips the modal and links out
+				// pre-password, so they enter their password ONCE on the challenge page
+				// (no double prompt). Both hints are UX-only; the server stays
+				// authoritative (attempt_activation + handle_ajax_2fa_partial re-classify).
+				'hasTwoFactor'           => Sudo_Session::needs_two_factor( $user_id ),
+				'twoFactorModalCapable'  => Challenge::is_user_2fa_modal_capable( $user_id ),
 			)
 		);
 

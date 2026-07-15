@@ -48,6 +48,18 @@ class Challenge {
 	public const AJAX_2FA_ACTION = 'wp_sudo_challenge_2fa';
 
 	/**
+	 * AJAX action name for the in-editor 2FA partial (Milestone B).
+	 *
+	 * Returns the primary provider's server-rendered 2FA fields so the in-editor
+	 * modal can host an OTP-family second factor in place. Gated on a valid
+	 * `2fa_pending` state; validation still happens in the unchanged
+	 * `handle_ajax_2fa`.
+	 *
+	 * @var string
+	 */
+	public const AJAX_2FA_PARTIAL_ACTION = 'wp_sudo_challenge_2fa_partial';
+
+	/**
 	 * AJAX action name for re-minting a fresh grant nonce.
 	 *
 	 * The grant nonce localized into a long-lived editor at page load ages out
@@ -108,6 +120,7 @@ class Challenge {
 
 		add_action( 'wp_ajax_' . self::AJAX_AUTH_ACTION, array( $this, 'handle_ajax_auth' ), 10, 0 );
 		add_action( 'wp_ajax_' . self::AJAX_2FA_ACTION, array( $this, 'handle_ajax_2fa' ), 10, 0 );
+		add_action( 'wp_ajax_' . self::AJAX_2FA_PARTIAL_ACTION, array( $this, 'handle_ajax_2fa_partial' ), 10, 0 );
 		add_action( 'wp_ajax_' . self::AJAX_REFRESH_NONCE_ACTION, array( $this, 'handle_ajax_refresh_nonce' ), 10, 0 );
 		add_action( 'admin_enqueue_scripts', array( $this, 'enqueue_assets' ), 10, 0 );
 		add_action( 'admin_notices', array( $this, 'render_redacted_replay_notice' ), 10, 0 );
@@ -381,21 +394,9 @@ class Challenge {
 					<form id="wp-sudo-challenge-2fa-form" method="post" aria-describedby="wp-sudo-challenge-2fa-error">
 						<?php
 						$user = get_userdata( $user_id );
-						if ( $user && class_exists( '\\Two_Factor_Core' ) ) {
-							$provider = \Two_Factor_Core::get_primary_provider_for_user( $user );
-							if ( $provider ) {
-								$provider->authentication_page( $user );
-							}
+						if ( $user instanceof \WP_User ) {
+							$this->render_two_factor_fields( $user );
 						}
-
-						/**
-						 * Render additional two-factor fields for challenge reauthentication.
-						 *
-						 * @since 2.0.0
-						 *
-						 * @param \WP_User $user The user authenticating.
-						 */
-						do_action( 'wp_sudo_render_two_factor_fields', $user );
 						?>
 						<p class="submit">
 							<button type="submit" class="button button-primary" id="wp-sudo-challenge-2fa-submit">
@@ -418,6 +419,180 @@ class Challenge {
 			</div>
 		</div>
 		<?php
+	}
+
+	/**
+	 * Render the primary provider's two-factor authentication fields.
+	 *
+	 * Shared between the full-page challenge (`render_page()`) and the in-editor
+	 * modal partial (`handle_ajax_2fa_partial()`) so the two surfaces can never
+	 * drift — the same markup a provider emits is the markup its
+	 * `validate_authentication()` reads back. Echoes the primary provider's own
+	 * `authentication_page()` output (its field names are provider-specific — e.g.
+	 * Two Factor TOTP's `authcode`) and fires the `wp_sudo_render_two_factor_fields`
+	 * extension hook. Callers place this inside their own `<form>` (full page) or a
+	 * contained non-form node (modal); it emits fields only, no form or submit.
+	 *
+	 * @since 4.7.0
+	 *
+	 * @param \WP_User $user The user authenticating.
+	 * @return void
+	 */
+	private function render_two_factor_fields( \WP_User $user ): void {
+		if ( class_exists( '\\Two_Factor_Core' ) ) {
+			$provider = \Two_Factor_Core::get_primary_provider_for_user( $user );
+			if ( $provider ) {
+				$provider->authentication_page( $user );
+			}
+		}
+
+		/**
+		 * Render additional two-factor fields for challenge reauthentication.
+		 *
+		 * @since 2.0.0
+		 *
+		 * @param \WP_User $user The user authenticating.
+		 */
+		do_action( 'wp_sudo_render_two_factor_fields', $user );
+	}
+
+	/**
+	 * Whether a Two Factor primary provider can host its second factor inside
+	 * the in-editor modal.
+	 *
+	 * Default-deny allowlist (Q-B1): only the built-in OTP-family providers emit
+	 * a plain field that works when injected as inert markup and validated by the
+	 * unchanged `handle_ajax_2fa`. WebAuthn / U2F (script ceremony), push / cloud
+	 * providers, the dev Dummy provider, any third-party provider, and the
+	 * hook-only path (no provider object at all → `null`) all fall back to the
+	 * full-page challenge link-out. No public filter in v1 — extend the allowlist
+	 * here if a plain-field provider should opt in. `instanceof` against an absent
+	 * class is safely false, so no `class_exists` guard is needed.
+	 *
+	 * @since 4.7.0
+	 *
+	 * @param mixed $provider The primary Two_Factor provider object, or null/false.
+	 * @return bool True when the provider is modal-capable.
+	 */
+	private static function is_modal_capable_2fa( $provider ): bool {
+		return $provider instanceof \Two_Factor_Totp
+			|| $provider instanceof \Two_Factor_Email
+			|| $provider instanceof \Two_Factor_Backup_Codes;
+	}
+
+	/**
+	 * Whether the given user's primary Two Factor provider is modal-capable.
+	 *
+	 * Localized into the editor at page load as the `twoFactorModalCapable` UX
+	 * hint so a non-capable 2FA user skips the modal and links out pre-password
+	 * (no double password prompt) while a capable user opens the modal. The
+	 * server stays authoritative — `handle_ajax_2fa_partial()` re-classifies after
+	 * the password step and returns `link_out` on any mismatch (e.g. the user
+	 * enrolled a different provider after page load).
+	 *
+	 * @since 4.7.0
+	 *
+	 * @param int $user_id The user ID.
+	 * @return bool
+	 */
+	public static function is_user_2fa_modal_capable( int $user_id ): bool {
+		if ( ! class_exists( '\\Two_Factor_Core' ) ) {
+			return false;
+		}
+		$user = get_userdata( $user_id );
+		if ( ! $user instanceof \WP_User ) {
+			return false;
+		}
+		return self::is_modal_capable_2fa( \Two_Factor_Core::get_primary_provider_for_user( $user ) );
+	}
+
+	/**
+	 * AJAX: return the primary provider's 2FA fields for the in-editor modal.
+	 *
+	 * Milestone B. Lets an OTP-family 2FA user reauthenticate in place instead of
+	 * linking out. The server never validates a generic code — validation
+	 * (`handle_ajax_2fa`, unchanged) reads provider-specific field names that only
+	 * the provider's own `authentication_page()` render emits — so the modal must
+	 * inject this server-rendered markup verbatim and POST it back.
+	 *
+	 * Security:
+	 * - `check_ajax_referer( NONCE_ACTION )` (CSRF) on a logged-in `wp_ajax_` hook.
+	 * - Gated on `Sudo_Session::get_2fa_pending()`: the pending state is set only by
+	 *   `attempt_activation()` after a correct password and is browser-bound via the
+	 *   challenge cookie. No/expired pending → 403. Uncircumventable — there is no
+	 *   path to a valid pending state without the password step.
+	 * - Renders only the CURRENT user's primary provider; not-modal-capable (or no
+	 *   classifiable provider) → `link_out`, never dead markup.
+	 * - Validation authority stays server-side in `handle_ajax_2fa`.
+	 *
+	 * @since 4.7.0
+	 *
+	 * @return void
+	 */
+	public function handle_ajax_2fa_partial(): void {
+		check_ajax_referer( self::NONCE_ACTION );
+
+		$user_id = get_current_user_id();
+		$user    = get_userdata( $user_id );
+
+		if ( ! $user ) {
+			wp_send_json_error( array( 'message' => __( 'Invalid request.', 'wp-sudo' ) ), 400 );
+		}
+
+		// Gate: never render 2FA fields without a valid password-step pending state.
+		if ( ! Sudo_Session::get_2fa_pending( $user_id ) ) {
+			wp_send_json_error(
+				array( 'message' => __( 'Your authentication session has expired. Please start over.', 'wp-sudo' ) ),
+				403
+			);
+		}
+
+		$provider = class_exists( '\\Two_Factor_Core' )
+			? \Two_Factor_Core::get_primary_provider_for_user( $user )
+			: null;
+
+		if ( ! self::is_modal_capable_2fa( $provider ) ) {
+			// WebAuthn / push / unknown / hook-only → the full-page challenge.
+			wp_send_json_success( array( 'code' => 'link_out' ) );
+		}
+
+		// The email provider is the one modal-capable provider whose render is
+		// state-changing: Two_Factor_Email::authentication_page() emails an OTP when
+		// no valid token exists. Share the SAME wp_sudo_resend_<id> throttle that
+		// handle_ajax_2fa's resend path uses, so partial render + validate-path
+		// resend are bounded by ONE counter. Gate the SEND, not the field: a render
+		// that would NOT send (the user still holds a valid token) never counts and
+		// is never blocked — so a user is never locked out of a code they already
+		// hold. Only a genuine would-send at/over the cap is refused (§3a HIGH).
+		if ( $provider instanceof \Two_Factor_Email ) {
+			$will_send = ! $provider->user_has_token( $user->ID ) || $provider->user_token_has_expired( $user->ID );
+			if ( $will_send ) {
+				$resend_key   = 'wp_sudo_resend_' . $user_id;
+				$resend_count = (int) get_transient( $resend_key );
+				if ( $resend_count >= 3 ) {
+					wp_send_json_error(
+						array(
+							'message' => __( 'Too many code requests. Please use your current code or wait.', 'wp-sudo' ),
+							'code'    => 'resend_throttled',
+						),
+						429
+					);
+				}
+				// The render below will send this code; count it against the throttle.
+				set_transient( $resend_key, $resend_count + 1, 5 * MINUTE_IN_SECONDS );
+			}
+		}
+
+		ob_start();
+		$this->render_two_factor_fields( $user );
+		$html = (string) ob_get_clean();
+
+		wp_send_json_success(
+			array(
+				'code' => 'partial',
+				'html' => $html,
+			)
+		);
 	}
 
 	/**
