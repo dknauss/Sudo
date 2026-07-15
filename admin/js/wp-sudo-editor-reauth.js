@@ -285,7 +285,12 @@
 	 * hardcode them — that would re-introduce the render/validate coupling Milestone
 	 * B removes. Submit/button/reset inputs are excluded (an unclicked submit is not
 	 * part of a normal form submission; the email "Resend Code" submit is thus never
-	 * auto-fired — in-modal resend is not wired in v1).
+	 * auto-fired — in-modal resend is not wired in v1). The reserved routing/CSRF/replay
+	 * names (`action`, `_wpnonce`, `_ajax_nonce`, `stash_key`) are excluded so a
+	 * provider- or hook-emitted hidden field of that name can never override WP Sudo's
+	 * own AJAX action/nonce (PHP keeps the last duplicate) or smuggle a stash_key into
+	 * this session-only flow — mirrors the full-page flow's `body.delete()` guard in
+	 * `wp-sudo-challenge.js`.
 	 *
 	 * @param {HTMLElement} container The injected-partial container node.
 	 * @return {Object} name → value map.
@@ -295,11 +300,12 @@
 		if ( ! container ) {
 			return fields;
 		}
+		var reserved = { action: true, _wpnonce: true, _ajax_nonce: true, stash_key: true };
 		var nodes = container.querySelectorAll( 'input, select, textarea' );
 		for ( var i = 0; i < nodes.length; i++ ) {
 			var node = nodes[ i ];
 			var name = node.getAttribute( 'name' );
-			if ( ! name ) {
+			if ( ! name || reserved[ name ] ) {
 				continue;
 			}
 			var type = ( node.getAttribute( 'type' ) || '' ).toLowerCase();
