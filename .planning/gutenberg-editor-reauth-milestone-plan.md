@@ -151,6 +151,10 @@ the OTP field).
   [`gutenberg-editor-reauth-design-brief.md`](gutenberg-editor-reauth-design-brief.md)
 - **Password-manager/2FA autofill backlog:**
   `todos/pending/2026-07-05-password-manager-2fa-interaction.md`
+- **In-editor sudo session-active indicator (Milestone-B-adjacent, research):**
+  `todos/pending/2026-07-15-in-editor-sudo-session-indicator.md` — the admin-bar
+  countdown is hidden in the full-screen editor, so a granted session is
+  invisible while editing.
 
 ## Sandbox note
 E2E / wp-env / browser / password-manager verification cannot run in the headless build
