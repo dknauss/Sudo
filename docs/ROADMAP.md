@@ -1,6 +1,6 @@
 # Roadmap: Past and Future Planning — Integration Tests, WP 7.0 Prep, Collaboration, TDD, and Core Design
 
-*Updated July 5, 2026*
+*Updated July 15, 2026*
 
 ## Table of Contents
 
@@ -89,7 +89,7 @@ Remaining Connectors-adjacent backlog should be tracked as future feature work, 
 
 ### Short-term: Testing Infrastructure
 
-~~**Playwright E2E test infrastructure**~~ ✅ Done — 61 tests in CI across challenge, admin UI, replay, policy, and multi-factor flows; browser coverage and alternate-stack smoke lanes are in place.
+~~**Playwright E2E test infrastructure**~~ ✅ Done — CI browser coverage across challenge, admin UI, replay, policy, multi-factor, and in-editor reauth flows; alternate-stack smoke lanes are in place. (Current E2E test count is canonical in `docs/current-metrics.md`.)
 
 ~~**Phase B: Apache + MariaDB CI job**~~ ✅ Done — covered by the named `wp-env` Playwright lane.
 
@@ -111,7 +111,7 @@ Remaining Connectors-adjacent backlog should be tracked as future feature work, 
 
 ### Medium-term: UX and Architecture Features (v3.1+)
 
-- **Gutenberg block editor integration** — Detect block editor context, queue reauthentication via `@wordpress/notices` snackbar instead of page redirect. Natural trigger for Playwright E2E tests.
+- **Gutenberg block editor integration** — ✅ **Milestone A shipped** (in-editor reauth, password path): a build-free `apiFetch` middleware turns a gated action's `sudo_required` REST 403 into an in-editor reauth **modal** (an earlier increment used a `@wordpress/notices` snackbar link-out; the modal supersedes it for cookie-auth). Milestone A merged via PR #178 (2026-07-07): modal grant + re-dispatch, the 2FA-bypass invariant, stale-nonce recovery, owner-scoped concurrent re-dispatch, degradation guards, and the 2FA double-prompt fix. **Milestone B (in-modal 2FA) is the next track** — reviewed brief in `.planning/gutenberg-editor-reauth-milestone-b-2fa-partial-brief.md`. E2E coverage lives in `tests/e2e/specs/editor-reauth.spec.ts`.
 - **Network policy hierarchy for multisite** — Super admins set minimum session duration and maximum entry-point policies; site admins can only tighten.
 - **Core Trac alignment: privileged-action confirmation + Multisite terminology** — Map Core Trac [#20140](https://core.trac.wordpress.org/ticket/20140), [#37593](https://core.trac.wordpress.org/ticket/37593), and [#39174](https://core.trac.wordpress.org/ticket/39174) to Sudo's product language and gated-rule catalog. Deliverables: confirm coverage for password/email/user/role changes; identify missing network-level actions; standardize docs on “network administrator” for ordinary Multisite authority, “super admin” only for Core's technical concept, and “break-glass recovery mode” / “sudo session” for Sudo's temporary elevation concepts. **Progress (2026-06-21, external PRs):** [#97](https://github.com/dknauss/Sudo/pull/97) standardized the docs on “break-glass recovery mode” and added explicit disambiguation from core's `WP_Recovery_Mode` (FAQ, security-model, readme.md, readme.txt); [#96](https://github.com/dknauss/Sudo/pull/96) renamed the dashboard event label Recovery→Break-glass to match. Remaining: the “network administrator” vs “super admin” terminology pass and the network-level gated-action coverage review.
 - **Session-store architecture follow-up** — Evaluate and likely implement a dedicated sudo-session table, with the current recommendation favoring an authoritative table plus usermeta shadow writes. See [`docs/session-store-evaluation.md`](session-store-evaluation.md).
@@ -229,10 +229,10 @@ The operator tooling tranche shipped in v2.12.0.
 This is a living document covering accumulated input and thinking about the strategic
 challenges and priorities for WP Sudo. 
 
-Current project state (as of June 14, 2026):
-- **Current release state is canonical in `docs/release-status.md`** — as of the June 28, 2026 docs refresh, the latest tagged release is 4.2.2 and the plugin is not currently published to the WordPress.org plugin repository. Publication is intentionally delayed/on hold, but the repository should remain submission-ready; `readme.txt` Stable tag is package/future-publication metadata until WordPress.org publication.
+Current project state (as of July 15, 2026):
+- **Current release state is canonical in `docs/release-status.md`** — as of 2026-07-15, the latest tagged release is `v4.6.0` (cut 2026-07-06) and the plugin is not currently published to the WordPress.org plugin repository. Publication is intentionally delayed/on hold, but the repository should remain submission-ready; `readme.txt` Stable tag is package/future-publication metadata until WordPress.org publication.
 - Current test and size counts are centralized in [`docs/current-metrics.md`](current-metrics.md).
-- CI pipeline: unit tests on PHP 8.0–8.4; integration tests on PHP 8.0/8.1/8.3; WordPress 6.2, 6.7, and 7.0 GA; single-site + multisite; MySQL 8.0 plus one MariaDB lane; PCOV coverage job; 61 Playwright E2E tests
+- CI pipeline: unit tests on PHP 8.0–8.4; integration tests on PHP 8.0/8.1/8.3; WordPress 6.2, 6.7, and 7.0 GA; single-site + multisite; MySQL 8.0 plus one MariaDB lane; PCOV coverage job; Playwright E2E suite (current test count in `docs/current-metrics.md`)
 - WordPress 7.0 GA shipped on May 20, 2026, and the forward lane is now pinned to the final 7.0 release. See `docs/release-status.md`.
 
 ---
@@ -596,7 +596,7 @@ Use this default order after the v3.4.0 release unless a real user need override
 
 - **Do next:** E2E explicit-group runtime monitoring, Plugin Check warning triage, and the next screenshot refresh when UI work changes public screens
 - **Small release-readiness hardening:** localization/translation packaging (POT generation, JS/CLI strings, translator comments, and an i18n check) before the next public packaging push
-- **Most important major feature track:** Gutenberg Block Editor reauthentication UX design, then implementation
+- **Most important major feature track:** Gutenberg Block Editor reauthentication — **Milestone A (in-editor password modal) shipped** (PR #178, 2026-07-07); the live continuation is **Milestone B (in-modal 2FA)**, per `.planning/gutenberg-editor-reauth-milestone-b-2fa-partial-brief.md`
 - **Plan next:** The Two Factor lifecycle bridge (gate recovery-code generation, TOTP setup/delete, and profile-form provider changes), Patchstack 2FA compatibility as a second-tier bridge/test target, the modest Sudo Activity screen MVP, audit-visibility warnings, multisite operator controls, and governance polish
 - **Do later if demand exists:** Network Policy Hierarchy for Multisite, Cross-Site Session Revocation, network-enforced Passed-event logging policy (super admins can require immutable Passed-event audit visibility across subsites), Security Administrator governance mode (dedicated `manage_wp_sudo` capability, settings/widget visibility scoped to that capability, optional strict-mode assignee workflow, and documented recovery path for misconfiguration)
 - **Keep as design backlog:** third-party bridge discovery mode, client-side modal challenge, per-session sudo isolation, REST sudo grant endpoint, SSO/SAML/OIDC framework

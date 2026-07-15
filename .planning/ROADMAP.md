@@ -1,8 +1,8 @@
 # GSD Roadmap Context
 
-> **Current routing note (2026-06-30):** Milestone v4.5 — Session Governance & Admin UX is active. Product release/package truth remains `../docs/release-status.md`; product roadmap truth remains `../docs/ROADMAP.md`. Latest tagged plugin release remains `v4.2.2`.
+> **Current routing note (updated 2026-07-15):** Milestone v4.5 — Session Governance & Admin UX is **complete and released** (shipped in `v4.5.0`, 2026-07-05; folded into `v4.6.0`, 2026-07-06). The **active track is now In-Editor Gutenberg Reauth** — Milestone A (password modal) merged via PR #178 (2026-07-07); Milestone B (in-modal 2FA) is next. That track runs on its own docs (`gutenberg-editor-reauth-milestone-plan.md` / `-execution-checklist.md` / `-milestone-b-2fa-partial-brief.md`), not this GSD roadmap. Product release/package truth remains `../docs/release-status.md` (latest tag **`v4.6.0`**); product roadmap truth remains `../docs/ROADMAP.md`; current position is `.planning/STATE.md`. The v4.5 detail below is retained as the milestone record.
 
-## Active Milestone: v4.5 — Session Governance & Admin UX
+## Completed Milestone: v4.5 — Session Governance & Admin UX (released in v4.5.0 / v4.6.0)
 
 **Goal:** Separate sudo-session revocation from capability administration with an active-session-keyed revocation surface, and correct the governance-coverage panel's multisite behavior.
 
@@ -13,7 +13,7 @@
 ## Phases
 
 - [x] **Phase 24: Session Revocation UI** — Add Users-list row action for per-user revocation and a UI-surfaced revoke-all with confirmation; remove the Access-tab "Revoke Session" button; provide clear feedback on every path including gated/no-session and missing-cap cases. (completed 2026-07-01)
-- [ ] **Phase 25: Governance Coverage Panel Fix** — Correct the panel's capability name on multisite and eliminate super-admin false positives by measuring effective `wp_sudo_can()` access instead of raw `allcaps`.
+- [x] **Phase 25: Governance Coverage Panel Fix** — Correct the panel's capability name on multisite and eliminate super-admin false positives by measuring effective `wp_sudo_can()` access instead of raw `allcaps`. (completed and merged via PR #141, 2026-07-04)
 
 ## Phase Details
 
