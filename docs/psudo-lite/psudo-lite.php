@@ -96,7 +96,7 @@ function psudo_lite_sanitize_settings( mixed $input ): array {
 		$settings['duration_minutes'] = absint( $input['duration_minutes'] );
 	}
 
-	if ( $settings['duration_minutes'] < 1 || $settings['duration_minutes'] > 30 ) {
+	if ( $settings['duration_minutes'] < 1 || $settings['duration_minutes'] > PSUDO_LITE_DEFAULT_MINUTES * 3 ) {
 		add_settings_error(
 			PSUDO_LITE_OPTION,
 			'psudo_lite_duration_minutes',
