@@ -63,6 +63,7 @@ blueprint-editor-reauth.json
 blueprint-editor-2fa.json
 blueprint-recovery-mode.json
 blueprint-user-switching.json
+blueprint-multisite.json
 
 # Empty-directory placeholders are not distributed.
 languages/.gitkeep
