@@ -185,6 +185,11 @@ Extensibility: the action registry is filterable via wp_sudo_gated_actions. Audi
 
 == Changelog ==
 
+= 4.7.0 =
+* **In-editor reauthentication modal (password path)** — completing the capability 4.6.0 deferred, a gated block-editor request now opens an in-place "Confirm your identity" password modal over the editor (instead of only linking out); it grants the sudo session and transparently re-dispatches the original request, preserving editor state. Falls back to the link-out snackbar when there is no safe in-editor path.
+* **In-editor two-factor (in-modal second factor)** — accounts with a modal-capable Two Factor provider (TOTP, email, or backup codes) complete the second factor inside the same modal, via the provider's own server-rendered field validated through the unchanged challenge validator — no full-page redirect. Providers without a modal-capable field still link out; the password step alone never grants a session to a 2FA-enrolled account.
+* **Full-page challenge fix** — strips the Two Factor provider's own `_ajax_nonce` before re-dispatch so a stale provider nonce can no longer collide with the challenge submission.
+
 = 4.6.0 =
 * **In-editor reauthentication (block editor)** — a block-editor request blocked with `sudo_required` now shows an in-editor snackbar with a "Reauthenticate" action that opens the challenge page, instead of the editor dead-ending on an opaque 403; editor state is preserved. This is the **link-out increment**: the shipped client only opens the challenge page. Server-side plumbing for the forthcoming in-editor modal (grant-config localization + a logged-in-only nonce-refresh AJAX endpoint) also lands but is not yet consumed by the client; the modal and automatic re-dispatch come later.
 * **Optional critical-event alert bridge** — new optional mu-plugin (`bridges/wp-sudo-critical-alert-bridge.php`) that pushes a notification (email out of the box; Slack/webhook via filter) when a high-severity audit hook fires — capability tamper, blocked escalation, lockout, dropped built-in rules (opt-in throttled recovery mode) — where the Stream/WSAL bridges only log. Deferred to `shutdown`, deduped, per-recipient capped; inert unless installed.
@@ -412,6 +417,9 @@ Extensibility: the action registry is filterable via wp_sudo_gated_actions. Audi
 See the plugin's `CHANGELOG.md` for all versions.
 
 == Upgrade Notice ==
+
+= 4.7.0 =
+Feature release: completes the in-editor reauthentication modal deferred from 4.6.0 — an in-place password modal over the block editor with automatic request re-dispatch, plus in-modal two-factor for modal-capable providers (TOTP, email, backup codes). No migration required.
 
 = 4.6.0 =
 Feature release: in-editor block-editor reauthentication (opaque 403 → a Reauthenticate snackbar) plus an optional bridge that pushes alerts on high-severity audit events. Also unifies user display on the dashboard widget and Access tab. No migration; the alert bridge is opt-in.

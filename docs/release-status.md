@@ -1,6 +1,6 @@
 # Release Status (Canonical Current State)
 
-Last verified: 2026-07-06
+Last verified: 2026-07-16
 
 This file is the canonical source for **current release state** in this repository:
 
@@ -13,9 +13,10 @@ This file is the canonical source for **current release state** in this reposito
 
 ## Latest GitHub/tagged release
 
-- **Latest tagged release:** `4.6.0` (cut 2026-07-06).
-- **Latest git tag observed:** `v4.6.0` (annotated, cut 2026-07-06, on `9ef1880`). GitHub Release published; the release-ZIP CI attached the `wp-sudo.zip` install asset.
-- **Previous tag:** `v4.5.0` (annotated, signed, cut 2026-07-05, on `70cddfe`).
+- **Latest tagged release:** `4.7.0` (cut 2026-07-16).
+- **Latest git tag observed:** `v4.7.0` (annotated, cut 2026-07-16, on `3cf7ee7`). GitHub Release published (by `github-actions[bot]` via `release.yml`); the release-ZIP CI attached the `wp-sudo.zip` install asset, and `releases/latest/download/wp-sudo.zip` now resolves to it.
+- **Previous tag:** `v4.6.0` (annotated, cut 2026-07-06, on `9ef1880`).
+- **`4.7.0` payload (released):** completion of the in-editor reauthentication modal that `4.6.0` explicitly deferred — Milestone A (in-place password modal over the block editor with owner-scoped request re-dispatch, PR #178) and Milestone B (in-modal second factor via a server-rendered provider partial validated through the unchanged challenge validator, PRs #185/#186), plus the demo/docs follow-ons (in-editor 2FA blueprint #187/#189/#192, multisite scenario blueprint #196/#197, 2FA modal screenshot #193). Released as **MINOR** by maintainer product-signaling override: by the strict `VERSIONING.md` test the payload is patch-level (block-editor JS + internal `Challenge` AJAX endpoints; no *new* declared-public-API entry — the 2FA render hook is pre-existing and documented), but finishing a headline deferred capability warranted a minor. The override is documented in `VERSIONING.md`'s worked examples. The exact commit set is `git log v4.6.0..v4.7.0 --oneline`.
 - **`4.6.0` payload (released):** the staged release was re-scoped `4.5.1` → `4.6.0` (MINOR) after the block-editor in-editor reauthentication work (PRs #165, #168) landed on top of the original admin-UI-only `4.5.1` payload — a new user-facing capability, plus the optional critical-event alert bridge's documented public extension filters (#166), is a backward-compatible **addition**, not a patch (see `VERSIONING.md`). The `4.6.0` payload is: block-editor in-editor reauth (link-out increment), the optional critical-event alert bridge + inline demo companion, the admin-surface user-identity harmonization (PR #154), and the alerting/roadmap docs. The exact commit set is `git log v4.5.0..v4.6.0 --oneline`.
 
 ### `v4.5.0` tag checklist (completed 2026-07-05)
@@ -45,11 +46,26 @@ are ✅ done.
 5. **Bump `blueprint.json` — ✅ done (post-tag).** Stable-demo install target now `archive/refs/tags/v4.6.0.zip` (bumped after the tag was cut, so the public "Try latest release" demo — which loads `blueprint.json` from `main` — fetches a real ZIP).
 6. **Update this file — ✅ done** (this edit): `4.6.0` recorded as Latest tagged release / `v4.6.0` as latest git tag observed.
 
+### `v4.7.0` tag checklist (completed 2026-07-16)
+
+The tree was **code-complete and green in CI** on the release commit. The tag was
+cut on the merged version-sync commit and the post-tag `blueprint.json` bump +
+this file update were applied as a phase-2 PR (matching the `v4.5.0`/`v4.6.0`
+sequencing). All items below are ✅ done.
+
+1. **CI gate — ✅ green on the release commit (PR #199).** Full required suite passed: Unit (PHP 8.2/8.3/8.4 + Coverage), Integration ×7 (incl. the `MS true` multisite lane), E2E Tests ×4, E2E Nginx Smoke, Psalm, Code Quality (PHPCS + PHPStan L6), and Plugin Check (PCP). Local pre-commit gate also green: `composer test:unit` (1028), PHPStan L6 no errors, Psalm 0, PHPCS 0.
+2. **Release-environment matrix — ✅ reused from `4.6.0` by conscious decision.** `4.7.0`'s new surface is block-editor JS plus an internal `admin-ajax` 2FA-partial endpoint (`wp_sudo_challenge_2fa_partial`) — the same class of admin-side, non-server-floor-sensitive change as `4.6.0`, which cleared the Apache/managed-host/min-WP matrix. No new server-facing behavior, so the `4.6.0` matrix outcome applies; multisite behavior stays covered by the green CI Integration multisite lane. The nginx-multisite *smoke* lane remains de-scoped (see the `v4.6.0` checklist item 1).
+3. **Version sync — ✅ done.** All five points at `4.7.0` (`wp-sudo.php` header + constant, `tests/bootstrap.php`, `phpstan-bootstrap.php`, `readme.txt` Stable tag). Pre-commit reviewer verified; a drafting confabulation in the `VERSIONING.md` worked example was caught and corrected before commit.
+4. **CHANGELOG — ✅ done.** `4.7.0` dated section in `CHANGELOG.md`; all symbol references verified against live source.
+5. **Cut the annotated tag — ✅ done.** `v4.7.0` (annotated) on `3cf7ee7`; `release.yml` verified tag==header version, built the ZIP, and published the GitHub Release with `wp-sudo.zip` attached ([releases/tag/v4.7.0](https://github.com/dknauss/Sudo/releases/tag/v4.7.0)).
+6. **Bump `blueprint.json` — ✅ done (post-tag).** Stable-demo install target now `archive/refs/tags/v4.7.0.zip` (bumped after the tag was cut; the tag ZIP URL was confirmed to resolve, so the public "Try latest release" demo fetches a real ZIP).
+7. **Update this file — ✅ done** (this edit): `4.7.0` recorded as Latest tagged release / `v4.7.0` as latest git tag observed.
+
 ## Current `main` release state
 
-- **Current `main` version:** `4.6.0` (runtime constant), **released** as the `v4.6.0` tag (cut 2026-07-06, on `9ef1880`). `main` is at the tag. (Re-scoped from the earlier staged `4.5.1` once the in-editor reauth work landed — see above.)
-- **Runtime version constant:** `4.6.0` on `main`. `WP_SUDO_VERSION` is set in `wp-sudo.php` (header + constant), `tests/bootstrap.php`, and `phpstan-bootstrap.php`; `readme.txt` Stable tag is `4.6.0`. All five version-sync points are in sync at `4.6.0`.
-- **Current package metadata (on `main`):** `readme.txt` Stable tag `4.6.0` == header Version (no `stable_tag_mismatch`); `Requires at least 6.4`, `Requires PHP 8.2`, `Tested up to 7.0`. WordPress.org listing name: **"Sudo – Admin Action Gating"** (UI brand "Sudo"; slug/text-domain stay `wp-sudo` — lock the slug at submission).
+- **Current `main` version:** `4.7.0` (runtime constant), **released** as the `v4.7.0` tag (cut 2026-07-16, on `3cf7ee7`). `main` is at the tag; nothing is unreleased past it. (`4.7.0` completes the in-editor reauth modal — password path + in-modal 2FA — that `4.6.0` deferred; see the payload note above.)
+- **Runtime version constant:** `4.7.0` on `main`. `WP_SUDO_VERSION` is set in `wp-sudo.php` (header + constant), `tests/bootstrap.php`, and `phpstan-bootstrap.php`; `readme.txt` Stable tag is `4.7.0`. All five version-sync points are in sync at `4.7.0`.
+- **Current package metadata (on `main`):** `readme.txt` Stable tag `4.7.0` == header Version (no `stable_tag_mismatch`); `Requires at least 6.4`, `Requires PHP 8.2`, `Tested up to 7.0`. WordPress.org listing name: **"Sudo – Admin Action Gating"** (UI brand "Sudo"; slug/text-domain stay `wp-sudo` — lock the slug at submission).
 - **Last archived release checklist:** `docs/archive/release-3.0.0-checklist.md`
 
 ## WordPress.org publication status
