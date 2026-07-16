@@ -98,6 +98,24 @@ Given the surface above:
   Lesson: bump for the *declared-API addition*, not merely because a feature is
   visible — the visible editor feature is the headline, the bridge hooks are the
   contract reason.
+- **4.7.0 (MINOR, maintainer override) — a deliberate exception to the rule above.**
+  The 4.7.0 payload completes the in-editor reauthentication modal that 4.6.0
+  explicitly deferred: the in-place password modal with request re-dispatch
+  (Milestone A) and the in-modal second factor (Milestone B). By the strict test
+  this would be **patch**-level — it is block-editor JS plus a new internal
+  `Challenge` AJAX endpoint (`wp_sudo_challenge_2fa_partial`), and it fires the
+  **pre-existing, already-documented** `wp_sudo_render_two_factor_fields` action
+  (in `docs/developer-reference.md`; a bridge-facing integration hook that predates
+  this release) from a new context — the in-modal AJAX partial. **No new entry was
+  added to `docs/developer-reference.md`, and no *new* symbol joins the declared
+  public API.**
+  It was nonetheless released as **MINOR** as a maintainer product-signaling
+  decision: finishing a headline, previously-deferred capability warranted a minor
+  rather than burying it in a patch. This is recorded here explicitly so the choice
+  reads as an intentional override, not versioning drift — the default rule stands
+  (visible ≠ minor; a completed internal-only feature is patch), and future
+  releases should not treat "it's a big visible feature" as minor-qualifying on its
+  own without a declared-API addition.
 - **A new `wp_sudo_*` filter or `wp sudo` subcommand → MINOR.**
 - **Removing `sudo_can()` in favor of `wp_sudo_can()` (4.0.0) → MAJOR.**
 
