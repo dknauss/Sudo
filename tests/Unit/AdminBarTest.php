@@ -108,7 +108,7 @@ class AdminBarTest extends TestCase {
 				\Mockery::on(
 					static function ( array $args ): bool {
 						return isset( $args[ Admin_Bar::DEACTIVATE_PARAM ], $args[ Admin_Bar::REDIRECT_PARAM ] )
-							&& '1' === $args[ Admin_Bar::DEACTIVATE_PARAM ]
+							&& '1' ==== $args[ Admin_Bar::DEACTIVATE_PARAM ]
 							&& rawurlencode( 'https://example.com/sample-page/' ) === $args[ Admin_Bar::REDIRECT_PARAM ];
 					}
 				),
