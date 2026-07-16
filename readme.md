@@ -33,7 +33,7 @@ Bringing two-factor authentication into the block editor with a convenient modal
 
 This is the intended low-friction user experience: when a gated action trips Sudo *inside the block editor* — for example, installing or activating a block from the inserter's Block Directory — reauthentication happens in place: a password modal opens over the editor, grants the sudo session, and transparently resumes the original request. No full-page redirect, and the editor state is preserved.
 
-[**Try the in-editor reauth demo in Playground →**](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint-editor-reauth.json) The demo opens with the block inserter already open and an on-screen prompt: search a Block-Directory block (e.g. *contact form*) and click **Install** — the modal appears; enter `password` to continue. Each editor reload starts session-less so the modal is always demonstrable.
+[**Try the in-editor reauth demo (no 2FA) in Playground →**](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint-editor-reauth.json) This demo opens with the block inserter already open and an on-screen prompt: search a Block-Directory block (e.g. *contact form*) and click **Install** — the modal appears; enter `password` to continue. Each editor reload starts session-less so the modal is always demonstrable. In this demo, there's no 2FA step — just the single-step password step-up reauth.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/dknauss/Sudo/main/assets/editor-reauth-modal.png" alt="WP Sudo &quot;Confirm your identity&quot; reauthentication modal open over the WordPress block editor." width="80%">
