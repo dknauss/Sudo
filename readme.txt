@@ -181,6 +181,7 @@ Extensibility: the action registry is filterable via wp_sudo_gated_actions. Audi
 7. Dashboard widget — active sessions, policy summary, and recent events including session revocations.
 8. Admin bar timer — live countdown while a sudo session is active.
 9. Users list — Sudo Active view with the "Revoke sudo sessions" bulk action and per-user row action.
+10. In-editor two-factor modal — the Two Factor authentication-code step injected into the block-editor reauthentication modal, after the password step.
 
 == Changelog ==
 

@@ -39,6 +39,10 @@ This is the intended low-friction user experience: when a gated action trips Sud
   <img src="https://raw.githubusercontent.com/dknauss/Sudo/main/assets/editor-reauth-modal.png" alt="WP Sudo &quot;Confirm your identity&quot; reauthentication modal open over the WordPress block editor." width="80%">
 </p>
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/dknauss/Sudo/main/assets/editor-2fa-modal.png" alt="The two-factor step of the WP Sudo reauthentication modal — a Two Factor authentication-code field injected into the same in-editor modal, shown over the WordPress block editor after the password step." width="80%">
+</p>
+
 ## Screenshots
 
 <table>
@@ -76,11 +80,11 @@ This is the intended low-friction user experience: when a gated action trips Sud
 </tr>
 <tr>
 <td><img src="https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-9.png" alt="Users list showing the Sudo Active view with the Revoke sudo sessions bulk action selected."></td>
-<td></td>
+<td><img src="https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-10.png" alt="The two-factor step of the in-editor reauthentication modal, showing a Two Factor authentication-code field over the block editor."></td>
 </tr>
 <tr>
 <td><strong>Users list revocation</strong></td>
-<td></td>
+<td><strong>In-editor 2FA modal</strong></td>
 </tr>
 </table>
 
