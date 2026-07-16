@@ -460,26 +460,57 @@ content/design saves and should not trip Sudo. A Site Editor demo should only be
 added when there is a visible, default Site Editor path to a genuinely gated REST
 route or a dedicated extension scenario being reviewed.
 
-### 6d. Multisite/network-admin Playground demo — release decision point
+### 6d. Multisite/network-admin demo — `blueprint-multisite.json`
 
-The standard public blueprints are single-site. Playground can stage multisite,
-so each pre-release pass should decide whether the release needs a dedicated
-multisite/network-admin demo blueprint in addition to the automated multisite
-integration and Playwright lanes.
+The standard public blueprints are single-site. This reviewer blueprint stages a
+**multisite network** so network-scoped governance is visible in a browser
+alongside the automated `WP_MULTISITE=1` integration and multisite Playwright
+lanes.
 
-Candidate network-admin demo actions:
+**Raw URL:** `https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint-multisite.json`
+**Credentials:** `admin` / `password` (super admin after conversion).
+**Landing page:** `/wp-admin/network/settings.php?page=wp-sudo-settings`.
 
-- [ ] Network plugin activation/deactivation from Network Admin › Plugins.
-- [ ] Network theme enable/disable from Network Admin › Themes.
-- [ ] Site delete/deactivate/archive/spam from Network Admin › Sites.
-- [ ] Grant/revoke super-admin status.
-- [ ] Network settings save.
+**How it works:** the blueprint runs the same standard demo seed as
+`blueprint-main.json` (same users, events, and `admin` / `password` credentials),
+then appends Playground's `enableMultisite` step to convert the single site to a
+subdirectory network — which also makes `admin` a **super admin** and re-activates
+the already-active plugins. A final `runPHP` step network-activates WP Sudo so its
+`network_admin_menu` submenu registers, and the blueprint lands on the **network**
+Sudo settings page.
 
-If a multisite Playground blueprint is added, document its raw URL, landing page,
-credentials, and exact trigger action here and in `CONTRIBUTING.md`. The demo
-should make clear that network-admin rules are classic admin/network-admin
-surfaces, not block-editor surfaces. If the blueprint is deferred, record the
-reason in the release checklist and rely on `WP_MULTISITE=1` integration plus the
-multisite Playwright/release-confidence lanes for behavioral coverage.
+> **Ordering note:** `enableMultisite` runs **last**, after install + seed. This
+> mirrors WordPress Playground's own e2e expectation (login → installPlugin →
+> enableMultisite) that the conversion re-activates plugins that were active before
+> it ran. `wp core multisite-convert` preserves the existing site as blog 1, so the
+> seeded users and events survive the conversion. Multisite requires the site be
+> served without a custom port — fine on playground.wordpress.net.
+
+- [ ] The blueprint lands on the **network** Sudo settings page (URL under
+  `/wp-admin/network/`, not `/wp-admin/options-general.php`). The Sudo submenu
+  appears under **Network Admin › Settings**.
+- [ ] The super admin can open and save the page. Governance access is granted by
+  the `wp_sudo_can()` multisite super-admin short-circuit
+  (`is_multisite() && is_super_admin()`), so `admin` reaches it **without** an
+  explicit `manage_wp_sudo` grant — confirm this is the observed behavior.
+- [ ] Saving the network settings writes a **network-wide** site option
+  (`update_site_option( 'wp_sudo_settings', … )`), not a per-site option — the saved
+  policy applies across the network.
+- [ ] The network-admin gated actions are **classic admin/network-admin surfaces**,
+  not block-editor surfaces. Candidate actions to exercise: network plugin
+  activate/deactivate (Network Admin › Plugins), network theme enable/disable
+  (Network Admin › Themes), site delete/deactivate/archive/spam (Network Admin ›
+  Sites), grant/revoke super-admin status, and the network settings save above.
+  Capabilities map to `manage_network_options` on these surfaces.
+- [ ] A regular administrator who is **not** a super admin (e.g. the seeded
+  `carlosadmin`) cannot reach the network admin at all — network settings are a
+  super-admin surface, independent of any per-site `manage_wp_sudo` grant.
+
+**Release decision point (process guidance):** each pre-release pass should still
+decide whether the shipping release surfaces this multisite demo publicly, or
+whether `WP_MULTISITE=1` integration plus the multisite Playwright/release-confidence
+lanes give sufficient behavioral coverage. If it is deferred as a public demo, keep
+it reviewer-only and record the reason in the release checklist. If it is promoted
+to a public demo, tag-pin its install source like `blueprint.json`.
 
 > **Note on 2FA in Playground:** the bundled Two Factor plugin installs and activates, but TOTP requires an authenticator secret and email codes are not delivered in the sandbox. Interactive 2FA reauth is the one scenario these links cannot fully exercise.
