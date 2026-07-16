@@ -15,26 +15,29 @@ Require password confirmation before high-risk changes go through on your WordPr
 [![CodeQL](https://github.com/dknauss/Sudo/actions/workflows/codeql.yml/badge.svg)](https://github.com/dknauss/Sudo/actions/workflows/codeql.yml)
 [![Codecov](https://codecov.io/gh/dknauss/Sudo/graph/badge.svg?branch=main)](https://codecov.io/gh/dknauss/Sudo)
 [![Type Coverage](https://shepherd.dev/github/dknauss/Sudo/coverage.svg)](https://shepherd.dev/github/dknauss/Sudo)
+
+## Instant Playground Demos
+
+There are four different demo scenarios you can try, linked to the badges below. The first two begin in the wp-admin interface: (1) the latest release, and (2) the latest pre-release development state merged into main. The last two demo scenarios begin in the block editor, where you are prompted to initiate a privileged action, like installing a block. Once you do that in (3), your account password must be entered to pass the reauth challenge that opens in a modal window. In (4), the two-factor plugin is installed and active, so the reauthorization challenge requires both your account password and a one-time passcode to pass a secondary 2FA challenge. In all scenarios, no privileged actions will be executed until the reauth requirements are met. Incorrect passwords and passcodes will result in a progressively lengthening delay that rate limits login retries. 
+
 [![Try latest release in Playground](https://img.shields.io/badge/Try%20release-Playground-3858e9?logo=wordpress&logoColor=white)](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint.json)
 [![Try main in Playground](https://img.shields.io/badge/Try%20main-Playground-23282d?logo=wordpress&logoColor=white)](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint-main.json)
 [![Try in-editor reauth in Playground](https://img.shields.io/badge/Try%20in--editor%20reauth-Playground-8a63d2?logo=wordpress&logoColor=white)](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint-editor-reauth.json)
 [![Try in-editor 2FA in Playground](https://img.shields.io/badge/Try%20in--editor%202FA-Playground-6c4bb6?logo=wordpress&logoColor=white)](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint-editor-2fa.json)
 
-Playground demo credentials are `admin` / `password`. When Sudo asks for reauthentication, enter the same password: `password`.
+Playground demo credentials are `admin` / `password`. When Sudo asks for reauthentication, enter the same password: `password`. A temporary time-based, one-time passcode for the 2FA challenge will be presented to you in a notification for demonstration purposes. 
 
-## In-editor reauthentication (Gutenberg)
+## In-editor reauthentication (Gutenberg, WordPress's site/block editor)
 
-When a gated action trips Sudo *inside the block editor* — for example, installing or activating a block from the inserter's Block Directory — reauthentication happens in place: a password modal opens over the editor, grants the sudo session, and transparently resumes the original request. No full-page redirect, and the editor state is preserved.
+Bringing two-factor authentication into the block editor with a convenient modal window and no refresh is a new feature for Sudo. User accounts with a modal-capable Two Factor provider (TOTP, email, or backup codes) complete the second factor inside the same modal used for their password re-entry. After the password step, the modal injects the 2FA provider's own server-rendered field and validates it through the unchanged challenge validator — there is no full-page redirect. [**Try the in-editor 2FA demo in Playground →**](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint-editor-2fa.json) The demo admin has TOTP enabled; the editor notice shows the current code to enter after `password` for testing purposes.
+
+This is the intended low-friction user experience: when a gated action trips Sudo *inside the block editor* — for example, installing or activating a block from the inserter's Block Directory — reauthentication happens in place: a password modal opens over the editor, grants the sudo session, and transparently resumes the original request. No full-page redirect, and the editor state is preserved.
 
 [**Try the in-editor reauth demo in Playground →**](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint-editor-reauth.json) The demo opens with the block inserter already open and an on-screen prompt: search a Block-Directory block (e.g. *contact form*) and click **Install** — the modal appears; enter `password` to continue. Each editor reload starts session-less so the modal is always demonstrable.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/dknauss/Sudo/main/assets/editor-reauth-modal.png" alt="WP Sudo &quot;Confirm your identity&quot; reauthentication modal open over the WordPress block editor." width="80%">
 </p>
-
-**Two-factor in the modal (Milestone B).** Accounts with a modal-capable Two Factor provider (TOTP, email, or backup codes) complete the second factor *inside the same modal*: after the password step, the modal injects the provider's own server-rendered field and validates it through the unchanged challenge validator — no full-page redirect. [**Try the in-editor 2FA demo in Playground →**](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint-editor-2fa.json) The demo admin has TOTP enabled; the editor notice shows the current code to enter after `password`.
-
-> Both milestones have merged to `main` but are not yet in a tagged release; the demos install the plugin from `main`. Accounts using a two-factor provider that isn't modal-capable still fall back to the standard full-page challenge.
 
 ## Screenshots
 
