@@ -5900,6 +5900,23 @@ class AdminTest extends TestCase {
 		$this->assertStringContainsString( 'Manage Sudo settings and policies', $output );
 	}
 
+	public function test_profile_note_uses_network_url_on_multisite(): void {
+		$this->stub_profile_note_render();
+		Functions\when( 'is_multisite' )->justReturn( true );
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
+
+		$user  = $this->make_profile_user( array( 'administrator' ), array( 'manage_wp_sudo' => true ) );
+		$admin = new Admin();
+
+		ob_start();
+		$admin->render_governance_capabilities_profile_note( $user );
+		$output = ob_get_clean();
+
+		// The Access-tab link resolves through the network admin on multisite.
+		$this->assertStringContainsString( '/wp-admin/network/', $output );
+		$this->assertStringContainsString( 'tab=access', $output );
+	}
+
 	public function test_register_adds_profile_capability_hooks(): void {
 		Filters\expectAdded( 'additional_capabilities_display' )->once();
 		Actions\expectAdded( 'show_user_profile' )->once();
