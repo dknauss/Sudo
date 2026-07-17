@@ -23,6 +23,129 @@ if ( ! defined( 'ABSPATH' ) ) {
 class Role_Audit {
 
 	/**
+	 * Collect the current privileged state from WordPress.
+	 *
+	 * @param array<string, mixed> $manifest Manifest whose `privileged_roles` keys
+	 *                                        name the roles whose definitions to hash.
+	 * @return array<string, mixed> Current state in the manifest's normalized shape.
+	 */
+	public static function collect_current_state( array $manifest ): array {
+		$blog_id = get_current_blog_id();
+
+		$administrators = array_map(
+			'intval',
+			get_users(
+				array(
+					'role'   => 'administrator',
+					'fields' => 'ID',
+				) 
+			) 
+		);
+
+		$governance = array();
+		foreach ( wp_sudo_governance_caps() as $cap ) {
+			$governance = array_merge(
+				$governance,
+				array_map(
+					'intval',
+					get_users(
+						array(
+							'capability' => $cap,
+							'fields'     => 'ID',
+						) 
+					) 
+				) 
+			);
+		}
+
+		sort( $administrators );
+		$governance = array_values( array_unique( $governance ) );
+		sort( $governance );
+
+		$state = array(
+			'sites'            => array(
+				$blog_id => array(
+					'administrators' => $administrators,
+					'governance'     => $governance,
+				),
+			),
+			'network'          => array( 'super_admins' => array() ),
+			'privileged_roles' => array(),
+		);
+
+		if ( is_multisite() ) {
+			$supers = array();
+			foreach ( get_super_admins() as $login ) {
+				$user = get_user_by( 'login', $login );
+				if ( $user instanceof \WP_User ) {
+					$supers[] = (int) $user->ID;
+				}
+			}
+			sort( $supers );
+			$state['network']['super_admins'] = $supers;
+		}
+
+		// Hash each role the manifest watches; a watched role that no longer exists
+		// is simply absent here, which diff() reports as drift.
+		$roles   = wp_roles();
+		$watched = is_array( $manifest['privileged_roles'] ?? null ) ? array_keys( $manifest['privileged_roles'] ) : array();
+		foreach ( $watched as $role ) {
+			$role = (string) $role;
+			if ( isset( $roles->roles[ $role ]['capabilities'] ) && is_array( $roles->roles[ $role ]['capabilities'] ) ) {
+				$state['privileged_roles'][ $role ] = self::hash_role_definition( $roles->roles[ $role ]['capabilities'] );
+			}
+		}
+
+		return $state;
+	}
+
+	/**
+	 * Evaluate current state against a manifest, firing the drift action on drift.
+	 *
+	 * @param array<string, mixed> $manifest Normalized manifest.
+	 * @return array<string, mixed> The drift report.
+	 */
+	public static function evaluate( array $manifest ): array {
+		$report = self::diff( $manifest, self::collect_current_state( $manifest ) );
+
+		if ( $report['has_drift'] ) {
+			/**
+			 * Fires when the audit sweep detects role/capability drift from the
+			 * trusted manifest.
+			 *
+			 * @since 4.8.0
+			 *
+			 * @param array<string, mixed> $report Drift report (unauthorized principals + role mismatches).
+			 */
+			do_action( 'wp_sudo_role_drift_detected', $report );
+		}
+
+		return $report;
+	}
+
+	/**
+	 * Load the configured manifest and run a sweep, or null when the feature is
+	 * disabled or the manifest is unreadable.
+	 *
+	 * @return array<string, mixed>|null The drift report, or null.
+	 */
+	public static function run_sweep(): ?array {
+		if ( ! Role_Manifest::is_enabled() ) {
+			return null;
+		}
+
+		$manifest = Role_Manifest::load();
+
+		if ( null === $manifest ) {
+			// Malformed/unreadable manifest: never fatal, never a false all-clear.
+			// The Site Health / CLI surfaces warn "manifest unreadable" (later slice).
+			return null;
+		}
+
+		return self::evaluate( $manifest );
+	}
+
+	/**
 	 * Hash a role's capability map, canonicalized so ordering and false-valued
 	 * capabilities do not produce spurious drift.
 	 *
