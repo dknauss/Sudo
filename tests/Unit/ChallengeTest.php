@@ -517,6 +517,177 @@ class ChallengeTest extends TestCase
 		unset($_POST['password'], $_POST['stash_key'], $_COOKIE[\WP_Sudo\Sudo_Session::TOKEN_COOKIE]);
 	}
 
+	// -----------------------------------------------------------------
+	// #182: authenticated grant responses carry `remaining` seconds so the
+	// in-editor indicator can re-seed its countdown after an in-place grant
+	// without a page reload or a new read endpoint. The three emitters of
+	// {code:'authenticated'} — session-only handle_ajax_auth, session-only
+	// handle_ajax_2fa, and complete_active_session_request — must all include
+	// it; the replay path (build_replay_response_data) must NOT.
+	// -----------------------------------------------------------------
+
+	/**
+	 * #182: session-only handle_ajax_auth success includes a positive `remaining`.
+	 */
+	public function test_handle_ajax_auth_authenticated_includes_remaining(): void
+	{
+		$_POST['password'] = 'correct-horse';
+		// No stash_key — session-only flow.
+
+		Functions\expect('check_ajax_referer')->once();
+		Functions\when('get_current_user_id')->justReturn(42);
+		Functions\when('__')->returnArg();
+
+		$user = new \WP_User(42);
+		$user->user_pass = 'hashed';
+		Functions\expect('get_userdata')->andReturn($user);
+		Functions\expect('wp_check_password')->once()->andReturn(true);
+
+		// Stateful meta so activate()'s write is visible to time_remaining():
+		// empty at is_active() entry (session inactive → attempt_activation runs),
+		// then the future expiry activate() stores becomes readable.
+		$meta = array();
+		Functions\when('update_user_meta')->alias(function ($uid, $key, $val) use (&$meta) {
+			$meta[$key] = $val;
+			return true;
+		});
+		Functions\when('get_user_meta')->alias(function ($uid, $key, $single = true) use (&$meta) {
+			return $meta[$key] ?? '';
+		});
+		Functions\when('delete_user_meta')->justReturn(true);
+		Functions\when('get_option')->justReturn(array());
+		Functions\when('apply_filters')->returnArg(2);
+		Functions\when('wp_generate_password')->justReturn('test-token-abc');
+		Functions\when('is_ssl')->justReturn(false);
+		Functions\when('setcookie')->justReturn(true);
+		Functions\when('get_transient')->justReturn(false);
+
+		$captured = null;
+		Functions\expect('wp_send_json_success')
+			->once()
+			->with(\Mockery::on(function ($data) use (&$captured) {
+				$captured = $data;
+				return is_array($data) && 'authenticated' === ($data['code'] ?? '');
+			}));
+
+		$this->stash->shouldNotReceive('exists');
+
+		$this->challenge->handle_ajax_auth();
+
+		$this->assertArrayHasKey('remaining', $captured, 'authenticated response must carry remaining.');
+		$this->assertIsInt($captured['remaining']);
+		$this->assertGreaterThan(0, $captured['remaining'], 'a just-granted session has positive remaining.');
+		$this->assertLessThanOrEqual(15 * 60, $captured['remaining'], 'remaining is bounded by the default 15-min duration.');
+
+		unset($_POST['password']);
+	}
+
+	/**
+	 * #182: complete_active_session_request (session already active at submit)
+	 * includes `remaining`.
+	 */
+	public function test_complete_active_session_request_includes_remaining(): void
+	{
+		$_POST['password'] = 'correct-horse';
+		$_POST['stash_key'] = 'expired-key';
+		$_COOKIE[\WP_Sudo\Sudo_Session::TOKEN_COOKIE] = 'browser-token';
+
+		Functions\expect('check_ajax_referer')->once();
+		Functions\when('get_current_user_id')->justReturn(42);
+		Functions\when('__')->returnArg();
+		Functions\when('sanitize_text_field')->returnArg();
+
+		$expires = time() + 300;
+		Functions\when('get_user_meta')->alias(function ($uid, $key, $single = true) use ($expires) {
+			if (\WP_Sudo\Sudo_Session::META_KEY === $key) {
+				return $expires;
+			}
+			if (\WP_Sudo\Sudo_Session::TOKEN_META_KEY === $key) {
+				return hash('sha256', 'browser-token');
+			}
+			return '';
+		});
+
+		$captured = null;
+		Functions\expect('wp_send_json_success')
+			->once()
+			->with(\Mockery::on(function ($data) use (&$captured) {
+				$captured = $data;
+				return is_array($data) && 'authenticated' === ($data['code'] ?? '');
+			}));
+		Functions\expect('wp_send_json_error')->never();
+
+		$this->stash->shouldReceive('exists')->once()->with('expired-key', 42)->andReturn(false);
+		$this->stash->shouldNotReceive('get');
+
+		$this->challenge->handle_ajax_auth();
+
+		$this->assertArrayHasKey('remaining', $captured, 'active-session completion must carry remaining.');
+		$this->assertIsInt($captured['remaining']);
+		$this->assertGreaterThan(0, $captured['remaining']);
+		$this->assertLessThanOrEqual(300, $captured['remaining']);
+
+		unset($_POST['password'], $_POST['stash_key'], $_COOKIE[\WP_Sudo\Sudo_Session::TOKEN_COOKIE]);
+	}
+
+	/**
+	 * #182: a GET-replay success (build_replay_response_data) must NOT carry
+	 * `remaining` — the editor modal never sends a stash_key, so the replay
+	 * path has no indicator consumer and the field must not widen that
+	 * security-sensitive response shape.
+	 */
+	public function test_replay_success_omits_remaining(): void
+	{
+		$_POST['password'] = 'correct-horse';
+		$_POST['stash_key'] = 'good-key';
+
+		Functions\expect('check_ajax_referer')->once();
+		Functions\when('get_current_user_id')->justReturn(42);
+		Functions\when('__')->returnArg();
+		Functions\when('sanitize_text_field')->returnArg();
+
+		$user = new \WP_User(42);
+		$user->user_pass = 'hashed';
+		Functions\expect('get_userdata')->andReturn($user);
+		Functions\expect('wp_check_password')->once()->andReturn(true);
+
+		Functions\when('get_user_meta')->justReturn('');
+		Functions\when('update_user_meta')->justReturn(true);
+		Functions\when('delete_user_meta')->justReturn(true);
+		Functions\when('get_option')->justReturn(array());
+		Functions\when('apply_filters')->returnArg(2);
+		Functions\when('wp_generate_password')->justReturn('test-token-abc');
+		Functions\when('is_ssl')->justReturn(false);
+		Functions\when('setcookie')->justReturn(true);
+		Functions\when('get_transient')->justReturn(false);
+		Functions\when('admin_url')->justReturn('https://example.com/wp-admin/');
+		Functions\when('wp_validate_redirect')->returnArg();
+
+		// Stash exists and replays as a GET → build_replay_response_data returns
+		// {code:'success', redirect:...}.
+		$this->stash->shouldReceive('exists')->once()->with('good-key', 42)->andReturn(true);
+		$this->stash->shouldReceive('get')->once()->with('good-key', 42)->andReturn(array(
+			'url' => 'https://example.com/wp-admin/plugins.php',
+			'method' => 'GET',
+			'rule_id' => 'test-rule',
+		));
+		$this->stash->shouldReceive('delete')->once();
+
+		$captured = null;
+		Functions\expect('wp_send_json_success')
+			->once()
+			->with(\Mockery::on(function ($data) use (&$captured) {
+				$captured = $data;
+				return is_array($data) && 'success' === ($data['code'] ?? '');
+			}));
+
+		$this->challenge->handle_ajax_auth();
+
+		$this->assertArrayNotHasKey('remaining', $captured, 'replay path must not carry remaining.');
+
+		unset($_POST['password'], $_POST['stash_key']);
+	}
+
 	/**
 	 * Test handle_ajax_2fa succeeds without stash_key (session-only flow).
 	 */
@@ -573,6 +744,68 @@ class ChallengeTest extends TestCase
 		$this->stash->shouldNotReceive('get');
 
 		$this->challenge->handle_ajax_2fa();
+	}
+
+	/**
+	 * #182: session-only handle_ajax_2fa success includes a positive `remaining`.
+	 */
+	public function test_handle_ajax_2fa_authenticated_includes_remaining(): void
+	{
+		$challenge_nonce = 'test-challenge-nonce-2fa-remaining';
+		$challenge_hash = hash('sha256', $challenge_nonce);
+		$_COOKIE[\WP_Sudo\Sudo_Session::CHALLENGE_COOKIE] = $challenge_nonce;
+
+		Functions\expect('check_ajax_referer')->once();
+		Functions\when('get_current_user_id')->justReturn(42);
+		Functions\expect('get_userdata')->once()->andReturn(new \WP_User(42));
+		Functions\when('__')->returnArg();
+		Functions\when('admin_url')->justReturn('https://example.com/wp-admin/');
+		Functions\when('sanitize_text_field')->returnArg();
+
+		Functions\expect('get_transient')
+			->once()
+			->with('wp_sudo_2fa_pending_' . $challenge_hash)
+			->andReturn(array(
+				'user_id' => 42,
+				'expires_at' => time() + 600,
+			));
+		Functions\when('apply_filters')->justReturn(true);
+		Functions\expect('delete_transient')->once()->with('wp_sudo_2fa_pending_' . $challenge_hash);
+
+		// Stateful meta so activate()'s expiry write is visible to time_remaining().
+		$meta = array();
+		Functions\when('update_user_meta')->alias(function ($uid, $key, $val) use (&$meta) {
+			$meta[$key] = $val;
+			return true;
+		});
+		Functions\when('get_user_meta')->alias(function ($uid, $key, $single = true) use (&$meta) {
+			return $meta[$key] ?? '';
+		});
+		Functions\when('delete_user_meta')->justReturn(true);
+		Functions\when('get_option')->justReturn(array());
+		Functions\when('wp_generate_password')->justReturn('test-token-abc');
+		Functions\when('is_ssl')->justReturn(false);
+		Functions\when('setcookie')->justReturn(true);
+		Functions\when('wp_send_json_error')->justReturn(null);
+
+		$captured = null;
+		Functions\expect('wp_send_json_success')
+			->once()
+			->with(\Mockery::on(function ($data) use (&$captured) {
+				$captured = $data;
+				return is_array($data) && 'authenticated' === ($data['code'] ?? '');
+			}));
+
+		$this->stash->shouldNotReceive('get');
+
+		$this->challenge->handle_ajax_2fa();
+
+		$this->assertArrayHasKey('remaining', $captured, '2FA authenticated response must carry remaining.');
+		$this->assertIsInt($captured['remaining']);
+		$this->assertGreaterThan(0, $captured['remaining']);
+		$this->assertLessThanOrEqual(15 * 60, $captured['remaining']);
+
+		unset($_COOKIE[\WP_Sudo\Sudo_Session::CHALLENGE_COOKIE]);
 	}
 
 	/**
