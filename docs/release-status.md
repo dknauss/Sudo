@@ -111,16 +111,18 @@ See the `CHANGELOG.md` `4.5.0` section for the full itemized list.
 
 `4.1.0` (tagged 2026-06-24) remains the security-hardening release that closed the coordinated-disclosure gate-completeness findings and introduced the opt-in admin-escalation guard.
 
-Canonical source for post-tag drift after `v4.5.0`: `git log v4.5.0..main --oneline`.
+Canonical source for post-tag drift after the latest tag (`v4.7.0`): `git log v4.7.0..main --oneline` (currently empty — `main` is at the tag).
 
 ## `4.5.0` release contents (shipped)
 
 The `v4.5.0` tag (2026-07-05) shipped the **substantial** body of work
 accumulated since `v4.2.2` — two completed GSD milestones (v4.4.0 Two Factor
 Lifecycle Bridge and v4.5 Session Governance & Admin UX) plus security
-hardening — released as of the `v4.5.0` tag. `main` has since **advanced past**
-`v4.5.0` (the staged `4.6.0` release plus post-tag docs/CI work), so there **is**
-unreleased work beyond the tag; see "Unreleased `main` work" below. Drift source:
+hardening. `main` has since progressed through `v4.6.0` (2026-07-06) and
+`v4.7.0` (2026-07-16) — both released — and is now **at the `v4.7.0` tag with
+nothing unreleased past it** (the canonical current state is "Latest
+GitHub/tagged release" and "Current `main` release state" above; this section is
+a historical record of the `4.5.0` payload). Drift source for this section:
 `git log v4.2.2..v4.5.0 --oneline`; see the `CHANGELOG.md` `4.5.0` section for
 the curated feature list.
 
@@ -144,7 +146,7 @@ the curated feature list.
 - **Playground demo fixes + release CI:** PR-preview installs fetch plugin archives via the CORS proxy; an install ZIP asset is built/attached on version tags.
 - **Localization packaging readiness:** WP-CLI-backed Composer commands for POT generation/verification and a committed `languages/wp-sudo.pot`.
 
-**Documentation (no runtime impact):** Patchstack 2FA compatibility runtime-validated offline against a licensed Pro 2.3.6 fixture and documented (not a shipped integration); SSO/passwordless auth boundary clarified; Two Factor ecosystem/integration docs and canonical metrics refreshed. Current suite: **986 unit tests / 3,003 assertions** (see `docs/current-metrics.md`).
+**Documentation (no runtime impact):** Patchstack 2FA compatibility runtime-validated offline against a licensed Pro 2.3.6 fixture and documented (not a shipped integration); SSO/passwordless auth boundary clarified; Two Factor ecosystem/integration docs and canonical metrics refreshed. Unit suite at `4.5.0`: **986 unit tests / 3,003 assertions** (for the current count see `docs/current-metrics.md`, the canonical source).
 
 Canonical source for drift after the tag: `git log v4.5.0..main --oneline`.
 
