@@ -5657,4 +5657,255 @@ class AdminTest extends TestCase {
 		$admin = new Admin();
 		$admin->add_network_settings_page();
 	}
+
+	// -----------------------------------------------------------------
+	// Profile page: governance-capability display
+	// -----------------------------------------------------------------
+
+	/**
+	 * Build a WP_Roles-like stub whose is_role() recognizes the given slugs.
+	 *
+	 * Mirrors core's user-edit.php, which classifies a cap key as a role via
+	 * $wp_roles->is_role(). Tests stub wp_roles() to return this so the
+	 * suppression callback can distinguish role slugs from granted caps.
+	 *
+	 * @param array<string> $role_slugs Known role slugs.
+	 * @return object
+	 */
+	private function make_roles_stub( array $role_slugs ): object {
+		return new class( $role_slugs ) {
+			/** @var array<string> */
+			private array $slugs;
+
+			/**
+			 * @param array<string> $slugs Known role slugs.
+			 */
+			public function __construct( array $slugs ) {
+				$this->slugs = $slugs;
+			}
+
+			/**
+			 * @param string $role Candidate role slug.
+			 */
+			public function is_role( $role ): bool {
+				return in_array( $role, $this->slugs, true );
+			}
+		};
+	}
+
+	/**
+	 * Build a WP_User whose caps/roles reflect direct grants plus role slugs.
+	 *
+	 * @param array<string>       $roles Role slugs held.
+	 * @param array<string, bool> $caps  Non-role capability => granted map.
+	 * @return \WP_User
+	 */
+	private function make_profile_user( array $roles, array $caps ): \WP_User {
+		$user        = new \WP_User( 7, $roles );
+		$user->roles = $roles;
+		// Core stores role slugs AND direct caps together in ->caps.
+		$combined = array();
+		foreach ( $roles as $role ) {
+			$combined[ $role ] = true;
+		}
+		$user->caps = array_merge( $combined, $caps );
+		return $user;
+	}
+
+	public function test_suppress_caps_display_hides_when_only_governance_caps(): void {
+		Functions\when( 'wp_roles' )->justReturn( $this->make_roles_stub( array( 'administrator' ) ) );
+
+		$user  = $this->make_profile_user(
+			array( 'administrator' ),
+			array(
+				'manage_wp_sudo'          => true,
+				'view_wp_sudo_activity'   => true,
+				'export_wp_sudo_activity' => true,
+				'revoke_wp_sudo_sessions' => true,
+			)
+		);
+		$admin = new Admin();
+
+		$this->assertFalse( $admin->suppress_governance_capabilities_display( true, $user ) );
+	}
+
+	public function test_suppress_caps_display_passes_through_when_foreign_cap_present(): void {
+		Functions\when( 'wp_roles' )->justReturn( $this->make_roles_stub( array( 'administrator' ) ) );
+
+		$user  = $this->make_profile_user(
+			array( 'administrator' ),
+			array(
+				'manage_wp_sudo' => true,
+				'some_other_cap' => true,
+			)
+		);
+		$admin = new Admin();
+
+		// A foreign additional cap means the section carries info we must not hide.
+		$this->assertTrue( $admin->suppress_governance_capabilities_display( true, $user ) );
+	}
+
+	public function test_suppress_caps_display_does_not_override_existing_false(): void {
+		Functions\when( 'wp_roles' )->justReturn( $this->make_roles_stub( array( 'administrator' ) ) );
+
+		$user  = $this->make_profile_user(
+			array( 'administrator' ),
+			array(
+				'manage_wp_sudo' => true,
+				'some_other_cap' => true,
+			)
+		);
+		$admin = new Admin();
+
+		// Another plugin already hid the section; pass its value through unchanged.
+		$this->assertFalse( $admin->suppress_governance_capabilities_display( false, $user ) );
+	}
+
+	public function test_suppress_caps_display_ignores_custom_role_slug(): void {
+		Functions\when( 'wp_roles' )->justReturn( $this->make_roles_stub( array( 'administrator', 'shop_manager' ) ) );
+
+		// User holds a second custom role; its slug must NOT count as a foreign cap.
+		$user  = $this->make_profile_user(
+			array( 'administrator', 'shop_manager' ),
+			array(
+				'manage_wp_sudo'        => true,
+				'view_wp_sudo_activity' => true,
+			)
+		);
+		$admin = new Admin();
+
+		$this->assertFalse( $admin->suppress_governance_capabilities_display( true, $user ) );
+	}
+
+	public function test_suppress_caps_display_keeps_denied_governance_cap_visible(): void {
+		Functions\when( 'wp_roles' )->justReturn( $this->make_roles_stub( array( 'administrator' ) ) );
+
+		// A denied (falsy) governance cap renders as "Denied: ..." in core; do not hide it.
+		$user  = $this->make_profile_user(
+			array( 'administrator' ),
+			array( 'manage_wp_sudo' => false )
+		);
+		$admin = new Admin();
+
+		$this->assertTrue( $admin->suppress_governance_capabilities_display( true, $user ) );
+	}
+
+	public function test_suppress_caps_display_passes_through_when_no_governance_caps(): void {
+		Functions\when( 'wp_roles' )->justReturn( $this->make_roles_stub( array( 'administrator' ) ) );
+
+		// Only a role slug, no additional caps at all — nothing of ours to hide.
+		$user  = $this->make_profile_user( array( 'administrator' ), array() );
+		$admin = new Admin();
+
+		$this->assertTrue( $admin->suppress_governance_capabilities_display( true, $user ) );
+	}
+
+	/**
+	 * Stub the escaping/i18n/URL functions the profile note renders through.
+	 *
+	 * @return void
+	 */
+	private function stub_profile_note_render(): void {
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'esc_html__' )->returnArg();
+		Functions\when( 'esc_url' )->returnArg();
+		Functions\when( 'esc_attr' )->returnArg();
+		Functions\when( 'esc_html_e' )->alias( function ( $text ) { echo $text; } ); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+		Functions\when( 'admin_url' )->alias( fn( $path = '' ) => 'https://example.com/wp-admin/' . ltrim( $path, '/' ) );
+		Functions\when( 'network_admin_url' )->alias( fn( $path = '' ) => 'https://example.com/wp-admin/network/' . ltrim( $path, '/' ) );
+		Functions\when( 'add_query_arg' )->alias( fn( array $args, string $url ) => $url . ( str_contains( $url, '?' ) ? '&' : '?' ) . http_build_query( $args ) );
+	}
+
+	public function test_profile_note_lists_granted_cap_labels(): void {
+		$this->stub_profile_note_render();
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
+
+		$user  = $this->make_profile_user(
+			array( 'administrator' ),
+			array(
+				'manage_wp_sudo'        => true,
+				'view_wp_sudo_activity' => true,
+			)
+		);
+		$admin = new Admin();
+
+		ob_start();
+		$admin->render_governance_capabilities_profile_note( $user );
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( 'Manage Sudo settings and policies', $output );
+		$this->assertStringContainsString( 'View sudo activity and sessions', $output );
+	}
+
+	public function test_profile_note_omits_caps_the_user_lacks(): void {
+		$this->stub_profile_note_render();
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
+
+		$user  = $this->make_profile_user(
+			array( 'administrator' ),
+			array( 'view_wp_sudo_activity' => true )
+		);
+		$admin = new Admin();
+
+		ob_start();
+		$admin->render_governance_capabilities_profile_note( $user );
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( 'View sudo activity and sessions', $output );
+		$this->assertStringNotContainsString( 'Manage Sudo settings and policies', $output );
+	}
+
+	public function test_profile_note_renders_nothing_without_governance_caps(): void {
+		$this->stub_profile_note_render();
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
+
+		$user  = $this->make_profile_user( array( 'administrator' ), array() );
+		$admin = new Admin();
+
+		ob_start();
+		$admin->render_governance_capabilities_profile_note( $user );
+		$output = ob_get_clean();
+
+		$this->assertSame( '', $output );
+	}
+
+	public function test_profile_note_links_to_access_tab_for_managers(): void {
+		$this->stub_profile_note_render();
+		Functions\when( 'wp_sudo_can' )->justReturn( true );
+
+		$user  = $this->make_profile_user( array( 'administrator' ), array( 'manage_wp_sudo' => true ) );
+		$admin = new Admin();
+
+		ob_start();
+		$admin->render_governance_capabilities_profile_note( $user );
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( 'tab=access', $output );
+		$this->assertStringContainsString( '<a href=', $output );
+	}
+
+	public function test_profile_note_omits_link_for_non_managers(): void {
+		$this->stub_profile_note_render();
+		Functions\when( 'wp_sudo_can' )->justReturn( false );
+
+		$user  = $this->make_profile_user( array( 'administrator' ), array( 'manage_wp_sudo' => true ) );
+		$admin = new Admin();
+
+		ob_start();
+		$admin->render_governance_capabilities_profile_note( $user );
+		$output = ob_get_clean();
+
+		$this->assertStringNotContainsString( '<a href=', $output );
+		// The capability is still named for the viewer.
+		$this->assertStringContainsString( 'Manage Sudo settings and policies', $output );
+	}
+
+	public function test_register_adds_profile_capability_hooks(): void {
+		Filters\expectAdded( 'additional_capabilities_display' )->once();
+		Actions\expectAdded( 'show_user_profile' )->once();
+		Actions\expectAdded( 'edit_user_profile' )->once();
+
+		$admin = new Admin();
+		$admin->register();
+	}
 }
