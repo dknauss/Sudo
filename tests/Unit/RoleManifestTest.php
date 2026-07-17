@@ -152,4 +152,47 @@ class RoleManifestTest extends TestCase {
 		$this->assertFalse( Role_Manifest::is_enabled() );
 		$this->assertNull( Role_Manifest::configured_path() );
 	}
+
+	// ---- build_document() / write() ----
+
+	public function test_build_document_wraps_state_with_version_and_timestamp(): void {
+		$state = array(
+			'sites'            => array( 1 => array( 'administrators' => array( 1 ), 'governance' => array( 1 ) ) ),
+			'network'          => array( 'super_admins' => array() ),
+			'privileged_roles' => array( 'administrator' => 'sha256:abc' ),
+		);
+
+		$doc = Role_Manifest::build_document( $state, '2026-07-17T00:00:00Z' );
+
+		$this->assertSame( 1, $doc['manifest_version'] );
+		$this->assertSame( '2026-07-17T00:00:00Z', $doc['generated'] );
+		$this->assertSame( $state['sites'], $doc['sites'] );
+		$this->assertSame( $state['network'], $doc['network'] );
+		$this->assertSame( $state['privileged_roles'], $doc['privileged_roles'] );
+	}
+
+	public function test_write_then_parse_round_trips(): void {
+		$state = array(
+			'sites'            => array( 1 => array( 'administrators' => array( 3, 7 ), 'governance' => array( 3 ) ) ),
+			'network'          => array( 'super_admins' => array() ),
+			'privileged_roles' => array( 'administrator' => 'sha256:def' ),
+		);
+		// wp_json_encode is a WordPress runtime function, absent in the unit env.
+		\Brain\Monkey\Functions\when( 'wp_json_encode' )->alias(
+			static function ( $data ) {
+				return json_encode( $data, JSON_PRETTY_PRINT ); // phpcs:ignore WordPress.WP.AlternativeFunctions.json_encode_json_encode
+			}
+		);
+
+		$doc  = Role_Manifest::build_document( $state, '2026-07-17T00:00:00Z' );
+		$path = tempnam( sys_get_temp_dir(), 'wpsudo-manifest-write-' );
+		$this->temp_files[] = $path;
+
+		$this->assertTrue( Role_Manifest::write( $path, $doc ) );
+
+		$loaded = Role_Manifest::load( $path );
+		$this->assertIsArray( $loaded );
+		$this->assertSame( array( 3, 7 ), $loaded['sites'][1]['administrators'] );
+		$this->assertSame( 'sha256:def', $loaded['privileged_roles']['administrator'] );
+	}
 }

@@ -68,6 +68,70 @@ class SiteHealthTest extends TestCase {
 		$this->assertCount( 5, $result['direct'] );
 	}
 
+	// ── test_role_manifest() (#179) ──────────────────────────────────
+
+	public function test_register_tests_omits_manifest_when_feature_disabled(): void {
+		Functions\when( '__' )->returnArg();
+		$this->assertFalse( defined( 'WP_SUDO_ROLE_MANIFEST' ), 'guard: constant must be undefined.' );
+
+		$result = $this->health->register_tests( array( 'direct' => array(), 'async' => array() ) );
+
+		$this->assertArrayNotHasKey( 'wp_sudo_role_manifest', $result['direct'] );
+	}
+
+	public function test_role_manifest_reports_unreadable_when_no_manifest(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'esc_html__' )->returnArg();
+		$this->assertFalse( defined( 'WP_SUDO_ROLE_MANIFEST' ), 'guard: constant must be undefined so load() returns null.' );
+
+		$result = $this->health->test_role_manifest();
+
+		$this->assertSame( 'recommended', $result['status'] );
+		$this->assertStringContainsString( 'unreadable', $result['label'] );
+		$this->assertSame( 'wp_sudo_role_manifest', $result['test'] );
+	}
+
+	public function test_format_role_manifest_result_clean_is_good(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'esc_html__' )->returnArg();
+
+		$result = $this->invoke_format( 'clean', array() );
+
+		$this->assertSame( 'good', $result['status'] );
+	}
+
+	public function test_format_role_manifest_result_drift_is_critical_with_counts(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'esc_html__' )->returnArg();
+
+		$report = array(
+			'has_drift' => true,
+			'sites'     => array( 1 => array( 'administrators' => array( 99 ), 'governance' => array( 5 ) ) ),
+			'network'   => array( 'super_admins' => array( 42 ) ),
+			'roles'     => array( 'administrator' => array( 'expected' => 'a', 'actual' => 'b' ) ),
+		);
+
+		$result = $this->invoke_format( 'drift', $report );
+
+		$this->assertSame( 'critical', $result['status'] );
+		// 3 unauthorized principals, 1 changed role definition.
+		$this->assertStringContainsString( '3', $result['description'] );
+		$this->assertStringContainsString( '1', $result['description'] );
+	}
+
+	/**
+	 * Invoke the private format_role_manifest_result() via reflection.
+	 *
+	 * @param string               $kind   Outcome kind.
+	 * @param array<string, mixed> $report Drift report.
+	 * @return array<string, mixed>
+	 */
+	private function invoke_format( string $kind, array $report ): array {
+		$method = new \ReflectionMethod( Site_Health::class, 'format_role_manifest_result' );
+		@$method->setAccessible( true ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		return $method->invoke( $this->health, $kind, $report );
+	}
+
 	// ── test_mu_plugin_status() ──────────────────────────────────────
 
 	public function test_mu_plugin_not_installed_returns_recommended_with_settings_link(): void {

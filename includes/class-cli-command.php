@@ -101,6 +101,109 @@ class CLI_Command {
 	}
 
 	/**
+	 * Generate or diff the role/capability lockdown manifest (#179).
+	 *
+	 * ## OPTIONS
+	 *
+	 * <action>
+	 * : Either `generate` (snapshot the current trusted state to the manifest
+	 * file) or `diff` (report drift of the current state from the manifest).
+	 *
+	 * [--path=<file>]
+	 * : Manifest file path. Defaults to the WP_SUDO_ROLE_MANIFEST constant.
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     wp sudo manifest generate --path=/etc/wp-sudo-manifest.json
+	 *     wp sudo manifest diff
+	 *
+	 * @param array<int, string>   $args       Positional args: [0] => action.
+	 * @param array<string, mixed> $assoc_args Assoc args.
+	 * @return void
+	 */
+	public function manifest( array $args, array $assoc_args ): void {
+		$action = $args[0] ?? '';
+		$path   = isset( $assoc_args['path'] ) && is_string( $assoc_args['path'] ) && '' !== $assoc_args['path']
+			? $assoc_args['path']
+			: Role_Manifest::configured_path();
+
+		if ( null === $path || '' === $path ) {
+			\WP_CLI::error( 'No manifest path. Pass --path=<file> or define WP_SUDO_ROLE_MANIFEST.' );
+			return;
+		}
+
+		if ( 'generate' === $action ) {
+			$this->manifest_generate( $path );
+			return;
+		}
+
+		if ( 'diff' === $action ) {
+			$this->manifest_diff( $path );
+			return;
+		}
+
+		\WP_CLI::error( sprintf( "Unknown manifest action '%s'. Use 'generate' or 'diff'.", (string) $action ) );
+	}
+
+	/**
+	 * Snapshot the current trusted state to the manifest file.
+	 *
+	 * @param string $path Destination path.
+	 * @return void
+	 */
+	private function manifest_generate( string $path ): void {
+		// Watch the administrator role definition by default.
+		$state    = Role_Audit::collect_current_state( array( 'privileged_roles' => array( 'administrator' => '' ) ) );
+		$document = Role_Manifest::build_document( $state, gmdate( 'c' ) );
+
+		if ( ! Role_Manifest::write( $path, $document ) ) {
+			\WP_CLI::error( sprintf( 'Failed to write manifest to %s', $path ) );
+			return;
+		}
+
+		\WP_CLI::success( sprintf( 'Wrote role/capability manifest to %s', $path ) );
+	}
+
+	/**
+	 * Report drift of the current state from the manifest (non-firing).
+	 *
+	 * @param string $path Manifest path.
+	 * @return void
+	 */
+	private function manifest_diff( string $path ): void {
+		$manifest = Role_Manifest::load( $path );
+
+		if ( null === $manifest ) {
+			\WP_CLI::error( sprintf( 'Manifest missing or unreadable: %s', $path ) );
+			return;
+		}
+
+		$report = Role_Audit::diff( $manifest, Role_Audit::collect_current_state( $manifest ) );
+
+		if ( ! $report['has_drift'] ) {
+			\WP_CLI::success( 'No role/capability drift from the manifest.' );
+			return;
+		}
+
+		foreach ( $report['sites'] as $blog_id => $entry ) {
+			foreach ( $entry['administrators'] as $uid ) {
+				\WP_CLI::log( sprintf( 'Unauthorized administrator: user %d (site %d)', $uid, $blog_id ) );
+			}
+			foreach ( $entry['governance'] as $uid ) {
+				\WP_CLI::log( sprintf( 'Unauthorized governance-cap holder: user %d (site %d)', $uid, $blog_id ) );
+			}
+		}
+		foreach ( $report['network']['super_admins'] as $uid ) {
+			\WP_CLI::log( sprintf( 'Unauthorized super admin: user %d', $uid ) );
+		}
+		foreach ( array_keys( $report['roles'] ) as $role ) {
+			\WP_CLI::log( sprintf( 'Privileged role definition changed: %s', $role ) );
+		}
+
+		\WP_CLI::error( 'Role/capability drift detected.' );
+	}
+
+	/**
 	 * Resolve target user ID from assoc args or CLI auth context.
 	 *
 	 * @param array<string, mixed> $assoc_args Command assoc args.

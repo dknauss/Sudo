@@ -128,6 +128,22 @@ class PluginTest extends TestCase {
 		$this->assertNull( $this->component( $plugin, 'admin' ) );
 	}
 
+	// -----------------------------------------------------------------
+	// sync_role_audit_cron() (#179)
+	// -----------------------------------------------------------------
+
+	public function test_sync_role_audit_cron_is_noop_when_feature_disabled(): void {
+		// Feature disabled (WP_SUDO_ROLE_MANIFEST undefined) → early return, no cron
+		// option read and no scheduling. Keeps the hot init() path clean.
+		$this->assertFalse( defined( 'WP_SUDO_ROLE_MANIFEST' ), 'guard: constant must be undefined.' );
+
+		Functions\expect( 'wp_next_scheduled' )->never();
+		Functions\expect( 'wp_schedule_event' )->never();
+		Functions\expect( 'wp_clear_scheduled_hook' )->never();
+
+		Plugin::sync_role_audit_cron();
+	}
+
 	/**
 	 * @runInSeparateProcess
 	 * @preserveGlobalState disabled
@@ -1227,6 +1243,7 @@ class PluginTest extends TestCase {
 		Functions\when( 'get_current_user_id' )->justReturn( 0 );
 		Functions\when( 'wp_create_nonce' )->justReturn( 'fake-nonce' );
 		Functions\when( 'admin_url' )->alias( fn( $path = '' ) => 'https://example.com/wp-admin/' . $path );
+		Functions\when( 'wp_next_scheduled' )->justReturn( false );
 	}
 
 	/**

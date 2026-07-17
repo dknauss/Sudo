@@ -114,6 +114,41 @@ class Role_Manifest {
 	}
 
 	/**
+	 * Wrap a collected state snapshot into a versioned manifest document.
+	 *
+	 * @param array<string, mixed> $state     Collected state (sites/network/privileged_roles).
+	 * @param string               $generated ISO-8601 generation timestamp (audit provenance).
+	 * @return array<string, mixed> The manifest document ready to serialize.
+	 */
+	public static function build_document( array $state, string $generated ): array {
+		return array(
+			'manifest_version' => self::VERSION,
+			'generated'        => $generated,
+			'sites'            => $state['sites'] ?? array(),
+			'network'          => $state['network'] ?? array( 'super_admins' => array() ),
+			'privileged_roles' => $state['privileged_roles'] ?? array(),
+		);
+	}
+
+	/**
+	 * Serialize and write a manifest document to a file as pretty JSON.
+	 *
+	 * @param string               $path     Absolute destination path.
+	 * @param array<string, mixed> $document Manifest document (see build_document()).
+	 * @return bool True on success.
+	 */
+	public static function write( string $path, array $document ): bool {
+		$json = wp_json_encode( $document, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES );
+
+		if ( ! is_string( $json ) ) {
+			return false;
+		}
+
+		// phpcs:ignore WordPress.WP.AlternativeFunctions.file_system_operations_file_put_contents, WordPressVIPMinimum.Functions.RestrictedFunctions.file_ops_file_put_contents -- Writing a local, operator-controlled config file (CLI/manual generate), not runtime request handling.
+		return false !== file_put_contents( $path, $json . "\n" );
+	}
+
+	/**
 	 * Normalize the per-site principal allowlists.
 	 *
 	 * @param mixed $sites Raw sites section.
