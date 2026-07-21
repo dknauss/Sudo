@@ -43,7 +43,7 @@ class Role_Audit {
 		);
 
 		$governance = array();
-		foreach ( wp_sudo_governance_caps() as $cap ) {
+		foreach ( Admin::GOVERNANCE_CAPS as $cap ) {
 			$governance = array_merge(
 				$governance,
 				array_map(
@@ -88,9 +88,13 @@ class Role_Audit {
 		// Hash each role the manifest watches; a watched role that no longer exists
 		// is simply absent here, which diff() reports as drift.
 		$roles   = wp_roles();
-		$watched = is_array( $manifest['privileged_roles'] ?? null ) ? array_keys( $manifest['privileged_roles'] ) : array();
+		$watched = is_array( $manifest['privileged_roles'] ?? null ) ? array_filter( array_keys( $manifest['privileged_roles'] ), 'is_string' ) : array();
+		/**
+		 * String role slugs watched by the manifest.
+		 *
+		 * @var array<string> $watched
+		 */
 		foreach ( $watched as $role ) {
-			$role = (string) $role;
 			if ( isset( $roles->roles[ $role ]['capabilities'] ) && is_array( $roles->roles[ $role ]['capabilities'] ) ) {
 				$state['privileged_roles'][ $role ] = self::hash_role_definition( $roles->roles[ $role ]['capabilities'] );
 			}
