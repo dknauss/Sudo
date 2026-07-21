@@ -2,28 +2,28 @@
 
 This file is the single source of truth for current repository counts.
 
-Last verified: 2026-07-15
+Last verified: 2026-07-21
 Verification environment: local workspace, PHP 8.x
 
 ## Test Metrics
 
 | Metric | Value | Verification |
 |---|---:|---|
-| Unit tests | 1,028 tests | `composer test:unit` |
-| Unit assertions | 3,111 assertions | `composer test:unit` |
-| Integration tests in suite | 224 test methods | `rg -c "function test" tests/Integration/*.php | awk -F: '{sum+=$2} END{print sum}'` |
-| Unit test files | 32 | `ls tests/Unit/*.php | wc -l` |
-| Integration test files | 30 | `ls tests/Integration/*.php | wc -l` |
+| Unit tests | 1,066 tests | `composer test:unit` |
+| Unit assertions | 3,205 assertions | `composer test:unit` |
+| Integration tests in suite | 234 test methods | `rg -c "function test" tests/Integration/*.php | awk -F: '{sum+=$2} END{print sum}'` |
+| Unit test files | 34 | `ls tests/Unit/*.php | wc -l` |
+| Integration test files | 31 | `ls tests/Integration/*.php | wc -l` |
 
 ## Size Metrics
 
 | Metric | Value | Verification |
 |---|---:|---|
-| Production PHP lines (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 17,910 | `find ./includes ./wp-sudo.php ./uninstall.php ./mu-plugin ./bridges -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
-| Tests PHP lines (`tests/`) | 37,717 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
-| Production + tests PHP lines | 55,627 | sum of the two rows above |
-| Test-to-production ratio | 2.11:1 | `37717 / 17910` |
-| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`, `.claude/`) | 56,768 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" ! -path "*/.claude/*" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Production PHP lines (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 18,662 | `find ./includes ./wp-sudo.php ./uninstall.php ./mu-plugin ./bridges -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Tests PHP lines (`tests/`) | 38,505 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Production + tests PHP lines | 57,167 | sum of the two rows above |
+| Test-to-production ratio | 2.06:1 | `38505 / 18662` |
+| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`, `.claude/`) | 58,308 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" ! -path "*/.claude/*" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
 
 ## Footprint & Performance
 
@@ -113,9 +113,10 @@ Source: `.github/workflows/phpunit.yml`, `.github/workflows/e2e.yml`, `.github/w
 - `composer test:unit` passed on 2026-07-04 (`982 tests`, `2986 assertions`). Session revocation moved from the Users-list toolbar button + admin-post interstitial to a native "Revoke sudo sessions" bulk action (one rate slot per batch, self-skip, per-user audit fires with the `users_list_bulk_action` reason); the Sudo Active badge count transient is now invalidated on session grant/teardown; the stale `wp_sudo_revoke_session` AJAX reference was scrubbed from the registry. External-review hardening: bulk handling moved behind a nonce-verified `load-users.php` interceptor (core does not nonce-check custom users.php bulk actions) and both revocation paths gained a current-site membership guard placed before the liveness check.
 - `composer test:unit` passed on 2026-07-04 (`968 tests`, `2948 assertions`). The Event_Recorder now subscribes to `wp_sudo_session_revoked` and stores `session_revoked` event rows, and the dashboard widget renders human-readable labels for `session_revoked` ("Revoked") and `escalation_blocked` ("Escalation") with distinct pill styling (+4 tests).
 - `composer test:unit` passed on 2026-07-01 (`956 tests`, `2888 assertions`). Phase 24 (Session Revocation UI) added the shared revoke-all/liveness methods, the factored revocation core, the Users-list row action + revoke-all interstitial + distinct result notices, and removed the Access-tab session-revoke button and the orphaned AJAX path. Follow-up fixes preserve the settings `tab` across a sudo reauth: on multisite network settings save, and single-site via a shared `wp_sudo_build_challenge_url()` helper that rawurlencodes the nested return_url across all challenge-URL builders + the admin-bar deactivate link (+11 tests, incl. a faithful add_query_arg test stub).
-- `composer lint` passed on 2026-06-30.
-- Static analysis passed on 2026-06-30 (PHPStan L6 `[OK] No errors`; Psalm `No errors found!`, baseline current).
-- `composer verify:metrics` passed on 2026-06-30 (after this update).
+- `composer test:unit` passed on 2026-07-21 (`1066 tests`, `3205 assertions`).
+- `composer lint` passed on 2026-07-21.
+- Static analysis passed on 2026-07-21 (PHPStan L6 `[OK] No errors`; Psalm `No errors found!`, baseline current).
+- `composer verify:metrics` passed on 2026-07-21 (after this update).
 - `npx playwright test --config tests/e2e/playwright.config.ts --list` reported `69 tests in 16 files` on 2026-07-05 after `editor-reauth.spec.ts` (Block-editor reauth, Increment 1 — 5 tests) was added.
 - Plugin Check CI passed on 2026-06-14 against a clean production dist; warning triage remains a follow-up.
 - `composer test:integration` passed locally on 2026-06-27: single-site `213 tests`, `728 assertions`, `14 skipped`, `0 failures`; multisite (`WP_MULTISITE=1 composer test:integration`) `213 tests`, `725 assertions`, `8 skipped`, `0 failures`.
