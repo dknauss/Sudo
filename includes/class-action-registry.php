@@ -317,8 +317,14 @@ class Action_Registry {
 				),
 				'ajax'     => null,
 				'rest'     => array(
-					'route'    => '#^/wp/v2/users/\d+$#',
-					'methods'  => array( 'PUT', 'PATCH' ),
+					// `/me` too: core registers /wp/v2/users/me as EDITABLE →
+					// update_current_item() → update_item(), so a role change via
+					// POST /wp/v2/users/me would otherwise slip a numeric-only regex.
+					'route'    => '#^/wp/v2/users/(?:\d+|me)$#',
+					// Core registers the users update route under WP_REST_Server::EDITABLE
+					// ('POST, PUT, PATCH'); POST must be gated too or a stolen cookie can
+					// change a user's role via POST /wp/v2/users/{id|me} ungated.
+					'methods'  => array( 'POST', 'PUT', 'PATCH' ),
 					'callback' => function ( $request ): bool {
 						$params = $request->get_params();
 						return isset( $params['roles'] );
@@ -368,7 +374,10 @@ class Action_Registry {
 				'ajax'     => null,
 				'rest'     => array(
 					'route'    => '#^/wp/v2/users/(?:\\d+|me)$#',
-					'methods'  => array( 'PUT', 'PATCH' ),
+					// Core registers the users update route under WP_REST_Server::EDITABLE
+					// ('POST, PUT, PATCH'); POST must be gated too or a stolen cookie can
+					// change a user's password via POST /wp/v2/users/{id|me} ungated.
+					'methods'  => array( 'POST', 'PUT', 'PATCH' ),
 					'callback' => function ( $request ): bool {
 						// Gate only when a password field is present in the request body.
 						// /wp/v2/users/{id} also handles role changes (covered by user.promote),
