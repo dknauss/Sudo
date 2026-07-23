@@ -1672,76 +1672,80 @@ msgstr ""
 msgid "An active sudo session would allow this matched request to proceed."
 msgstr ""
 
-#: includes/class-gate.php:1553
+#: includes/class-gate.php:1558
+msgid "Interactive admin request: gated, but this rule is non-replayable — after reauth the user re-submits the form."
+msgstr ""
+
+#: includes/class-gate.php:1561
 msgid "Interactive admin requests use challenge + stash/replay."
 msgstr ""
 
-#: includes/class-gate.php:1559
+#: includes/class-gate.php:1568
 msgid "AJAX requests are blocked in-place and must be retried after activating sudo."
 msgstr ""
 
-#: includes/class-gate.php:1565
+#: includes/class-gate.php:1574
 msgid "Cookie-authenticated REST requests receive sudo_required and can be retried after activating sudo."
 msgstr ""
 
-#: includes/class-gate.php:1572
+#: includes/class-gate.php:1581
 msgid "REST Application Password policy is Unrestricted, so Sudo would allow the matched request."
 msgstr ""
 
-#: includes/class-gate.php:1579
+#: includes/class-gate.php:1588
 msgid "REST Application Password policy is Disabled, so Sudo would reject the request at the surface level."
 msgstr ""
 
-#: includes/class-gate.php:1583
+#: includes/class-gate.php:1592
 msgid "REST Application Password policy is Limited, so gated requests are blocked until policy changes."
 msgstr ""
 
-#: includes/class-gate.php:1871
+#: includes/class-gate.php:1880
 msgid "This REST API operation is disabled by Sudo policy."
 msgstr ""
 
-#: includes/class-gate.php:1881
+#: includes/class-gate.php:1890
 msgid "This operation requires sudo and cannot be performed via Application Passwords."
 msgstr ""
 
-#: includes/class-gate.php:1936
+#: includes/class-gate.php:1945
 msgid "WPGraphQL is disabled by Sudo policy."
 msgstr ""
 
-#: includes/class-gate.php:1998
+#: includes/class-gate.php:2007
 msgid "This GraphQL mutation requires sudo. Activate a sudo session and try again."
 msgstr ""
 
 #. translators: 1: action label (e.g. "Delete plugin"), 2: keyboard shortcut
-#: includes/class-gate.php:2621
-#: includes/class-gate.php:2729
+#: includes/class-gate.php:2630
+#: includes/class-gate.php:2738
 #, php-format
 msgid "This action (%1$s) requires reauthentication. Press %2$s to start a sudo session, then try again."
 msgstr ""
 
-#: includes/class-gate.php:2701
+#: includes/class-gate.php:2710
 #: includes/class-public-api.php:143
 msgid "Unable to redirect to the sudo challenge page."
 msgstr ""
 
-#: includes/class-gate.php:2831
+#: includes/class-gate.php:2840
 msgid "a protected action"
 msgstr ""
 
 #. translators: 1: action label, 2: challenge page link, 3: keyboard shortcut
-#: includes/class-gate.php:2851
+#: includes/class-gate.php:2860
 #, php-format
 msgid "Your recent action (%1$s) was blocked because it requires reauthentication. %2$s to activate a sudo session, then try again. You can also press %3$s."
 msgstr ""
 
-#: includes/class-gate.php:2853
-#: includes/class-gate.php:2913
+#: includes/class-gate.php:2862
+#: includes/class-gate.php:2922
 #: admin/js/wp-sudo-editor-reauth.js:607
 msgid "Confirm your identity"
 msgstr ""
 
 #. translators: 1: challenge page link, 2: keyboard shortcut
-#: includes/class-gate.php:2912
+#: includes/class-gate.php:2921
 #, php-format
 msgid "Installing, activating, updating, and deleting themes and plugins requires an active sudo session. %1$s or press %2$s to start one."
 msgstr ""
