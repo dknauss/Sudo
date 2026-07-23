@@ -61,4 +61,21 @@ class CriticalSettingsRestGateTest extends TestCase {
 	public function test_ignores_non_critical_settings(): void {
 		$this->assertFalse( call_user_func( $this->rest_callback(), $this->request( array( 'title' => 'My Blog', 'description' => 'Just another site' ) ) ) );
 	}
+
+	/**
+	 * The REST aliases must honor wp_sudo_critical_options: narrowing the filter to
+	 * drop siteurl must ungate its REST alias `url` too (parity with the admin path).
+	 */
+	public function test_rest_aliases_respect_the_critical_options_filter(): void {
+		Functions\when( 'apply_filters' )->alias(
+			static function ( $tag, $value ) {
+				return 'wp_sudo_critical_options' === $tag ? array( 'admin_email' ) : $value;
+			}
+		);
+		$cb = $this->rest_callback();
+		// siteurl dropped from the filter → its alias `url` no longer gates.
+		$this->assertFalse( call_user_func( $cb, $this->request( array( 'url' => 'https://evil.test/' ) ) ) );
+		// admin_email retained → its alias `email` still gates.
+		$this->assertTrue( call_user_func( $cb, $this->request( array( 'email' => 'attacker@evil.test' ) ) ) );
+	}
 }

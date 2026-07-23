@@ -1180,6 +1180,21 @@ class Action_Registry {
 	 * @return string[]
 	 */
 	public static function critical_option_rest_keys(): array {
-		return array( 'url', 'email' );
+		// Derive the REST aliases from the FILTERED critical option list, so that
+		// narrowing `wp_sudo_critical_options` ungates an option on the REST path
+		// too — parity with the admin path (developer-reference.md: removing an
+		// entry ungates that option). Only siteurl/admin_email have a differing
+		// show_in_rest name; every other critical option keys by its raw name.
+		$aliases = array(
+			'siteurl'     => 'url',
+			'admin_email' => 'email',
+		);
+		$keys    = array();
+		foreach ( self::critical_option_names() as $opt ) {
+			if ( isset( $aliases[ $opt ] ) ) {
+				$keys[] = $aliases[ $opt ];
+			}
+		}
+		return $keys;
 	}
 }
