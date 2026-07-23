@@ -1,6 +1,6 @@
 # POC Patch Sketches: Recent-Auth Gate at the Core Chokepoints
 
-**Status:** Illustrative sketches, not tested against a core checkout. Companion to [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md). Function signatures follow current core; line anchors are approximate.
+**Status:** Illustrative sketches, not tested against a core checkout. Companion to [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md). Signatures verified against WordPress core: `wp_update_user` / `wp_insert_user` (returns `WP_Error`) and `wp_delete_user` (returns `bool`) in `wp-includes/user.php`; `wp_set_password` in `wp-includes/pluggable.php`; `WP_User::set_role` / `add_role` in `wp-includes/class-wp-user.php`; `wpmu_create_user` (returns `int|false`) in `wp-includes/ms-functions.php`; the users controller in `wp-includes/rest-api/endpoints/class-wp-rest-users-controller.php` (canonical: <https://github.com/WordPress/wordpress-develop/tree/trunk/src/wp-includes>). Line anchors are approximate.
 **Purpose:** Make the spec's central claim concrete — that gating a handful of *data-layer chokepoints* covers admin UI, REST, and programmatic callers in one insertion, using error paths those functions already return.
 
 The four pieces below are the minimum viable enforcement core:
@@ -14,7 +14,7 @@ The four pieces below are the minimum viable enforcement core:
 
 ## 1. Recent-auth window on `WP_Session_Tokens`
 
-The window lives *inside the login session record*, so `wp_logout()`, password change, and "log out everywhere" tear it down for free, and `destroy_all()` revokes it on the next request.
+The window lives *inside the login session record*, so `wp_logout()` and "log out everywhere" tear it down for free, and `destroy_all()` revokes it on the next request. **A password change does *not* clear it automatically** — `wp_set_password()` / `wp_update_user()` leave the token record intact — so the password path must call `wp_end_reauth_window()` explicitly (spec §4.2, acceptance criterion 3).
 
 ```php
 // wp-includes/user.php  (new functions)
@@ -120,10 +120,19 @@ final class WP_Action_Gate_Decision {
 		);
 	}
 	public function as_wp_error() {
+		// blocked / rate_limited are hard refusals, not challenges — distinct code,
+		// NO challenge_url, so adapters hard-block/log them instead of prompting.
+		if ( $this->blocked() ) {
+			return new WP_Error(
+				'sudo_action_' . $this->reason,   // sudo_action_blocked | sudo_action_rate_limited
+				__( 'This action cannot proceed right now.' ),
+				array( 'status' => 403, 'action' => $this->action_id, 'reason' => $this->reason )
+			);
+		}
 		return new WP_Error(
 			'sudo_reauth_required',
 			__( 'Please confirm your identity to continue.' ),
-			array( 'status' => 403, 'action' => $this->action_id, 'challenge_url' => $this->challenge_url() )
+			array( 'status' => 403, 'action' => $this->action_id, 'reason' => $this->reason, 'challenge_url' => $this->challenge_url() )
 		);
 	}
 }
@@ -217,8 +226,16 @@ function wp_map_user_changes_to_actions( $target_id, array $changed ) {
 	if ( in_array( 'user_pass', $changed, true ) )  { $map[] = $self ? 'core/change-own-password' : 'core/change-user-password'; }
 	if ( in_array( 'user_email', $changed, true ) ) { $map[] = $self ? 'core/change-own-email'    : 'core/change-user-email'; }
 	if ( in_array( 'role', $changed, true ) )       { $map[] = 'core/promote-user'; }
-	return array_values( array_filter( $map, 'wp_action_exists' ) );
+	// Return core IDs UNFILTERED — do NOT drop a built-in that failed to register,
+	// or the gate never reaches its `core/` fail-closed branch and the mutation
+	// proceeds ungated. wp_check_action_gate() decides registered vs. missing.
+	return array_values( $map );
 }
+```
+
+> **REST role-promotion caveat.** The `role` detector reads the scalar `role` merged into `wp_update_user()`, but the REST users controller applies requested roles *after* that call via `array_map( array( $user, 'add_role' ), $request['roles'] )`. So a REST `roles` promotion **bypasses this mapper** — it is caught instead by the §5.3 escalation guard on the `{prefix}capabilities` meta write (`update_user_metadata`). The chokepoint mapper covers admin-form and programmatic scalar-`role` changes; the capability-meta guard covers the REST path.
+
+```php
 
 /** True only when $new_role newly grants administrator/network-admin authority. */
 function wp_role_change_escalates( $target_id, $new_role ) {
@@ -231,7 +248,7 @@ function wp_role_change_escalates( $target_id, $new_role ) {
 }
 ```
 
-`wp_insert_user()` (create), `wp_delete_user()` (delete), and `activate_plugin()`/`delete_plugins()` take the identical three-line guard with their own action IDs. `grant_super_admin()` gates unconditionally.
+`wp_insert_user()` (create) and `activate_plugin()`/`delete_plugins()` take the identical three-line guard with their own action IDs. **`wp_delete_user()` cannot** — it returns `bool`, so a returned `WP_Error` is truthy and callers that check `if ( ! $result )` read it as a *successful* delete. Gate `core/delete-user` with a distinct adapter that intercepts **before** the delete (hook `delete_user`, or the REST `delete_item` permission callback) and short-circuits, rather than by return value. `grant_super_admin()` gates unconditionally.
 
 ---
 

@@ -85,9 +85,9 @@ Naming follows the Abilities API shape `namespace/action-name` (lowercase, hyphe
 |---|---|
 | `core/change-own-password` | `wp_update_user()` when `$user_id === get_current_user_id()` and `user_pass` changes |
 | `core/change-user-password` | `wp_update_user()` on another user, `user_pass` changes |
-| `core/change-own-email` | `wp_update_user()` self, `user_email` changes (+ `send_confirmation_on_profile_email`) |
+| `core/change-own-email` | profile self-email change — **gate the initiating request**, not only `wp_update_user()`: with confirmation enabled, `send_confirmation_on_profile_email()` writes `_new_email` and restores `$_POST['email']` to the old value *before* `wp_update_user()` runs, so the chokepoint sees no change; detect at `personal_options_update` / the REST self-update |
 | `core/change-user-email` | `wp_update_user()` other user, `user_email` changes |
-| `core/create-user` | `wp_insert_user()` / `wpmu_create_user()` |
+| `core/create-user` | `wp_insert_user()` (returns `WP_Error`); on multisite `wpmu_create_user()` returns `int\|false`, so the gate needs a distinct adapter there (REST multisite create checks `if ( ! $user_id )`) |
 | `core/delete-user` | `wp_delete_user()` / `wpmu_delete_user()` |
 | `core/promote-user` | role change granting administrator / network-admin authority (see §5.3) |
 | `core/activate-plugin` | `activate_plugin()` |
@@ -103,8 +103,8 @@ The account-change rows are the direct #20140 deliverable. The plugin/user rows 
 New helpers in `wp-includes/pluggable.php` / a new `wp-includes/user.php` block:
 
 ```php
-wp_start_reauth_window( int $user_id = 0, int $ttl = 0 ): bool;   // after a verified challenge
-wp_has_recent_auth( int $user_id = 0, string $scope = '' ): bool; // gate query
+wp_start_reauth_window( int $user_id = 0, string $scope = '' ): bool; // after a challenge; TTL comes from WP_REAUTH_WINDOW/filter, not an arg
+wp_has_recent_auth( int $user_id = 0, string $scope = '' ): bool;     // gate query (v1: pass no scope — flat freshness)
 wp_end_reauth_window( int $user_id = 0 ): void;                   // on logout / explicit drop
 ```
 
@@ -163,8 +163,8 @@ foreach ( wp_map_user_changes_to_actions( $user_id, $changed ) as $action_id ) {
         'target' => $user_id,
         'context'=> [ 'changed' => $changed ],
     ] );
-    if ( $gate->needs_challenge() ) {
-        return $gate->as_wp_error(); // WP_Error: sudo_reauth_required
+    if ( $gate->needs_challenge() || $gate->blocked() ) { // blocked() = rate_limited or fail-closed
+        return $gate->as_wp_error(); // a challenge, or a hard-block/rate-limit refusal — both stop the write
     }
 }
 ```
@@ -175,7 +175,7 @@ Why this is the right seam:
 - One insertion covers admin UI **and** REST **and** CLI **and** programmatic writes. This is what makes the defense complete rather than form-deep — the #20140 lesson made mechanical.
 - Self vs. other, password vs. email vs. role are all just fields in `$changed`, mapped to distinct action IDs by `wp_map_user_changes_to_actions()`.
 
-The interactive layer stays thin. `edit_user()` in `wp-admin/includes/user.php` inspects the returned `WP_Error`; if code is `sudo_reauth_required`, it **stashes** the submitted (allowlisted, secrets-redacted) POST and redirects to the challenge, which **replays** on success. That stash/replay is exactly `class-request-stash.php` + `class-challenge.php` and should port near-verbatim (GET ⇒ redirect, POST ⇒ self-submitting form; per-field allowlist; sensitive-suffix redaction; 5-min TTL; ≤5 stashes/user).
+The interactive layer stays thin. `edit_user()` in `wp-admin/includes/user.php` inspects the returned `WP_Error`; if code is `sudo_reauth_required`, it **stashes** the submitted (allowlisted, secrets-redacted) POST and redirects to the challenge, which **replays** on success. That stash/replay is exactly `class-request-stash.php` + `class-challenge.php` and should port near-verbatim (GET ⇒ redirect, POST ⇒ self-submitting form; per-field allowlist; sensitive-suffix redaction; 5-min TTL; ≤5 stashes/user). **Password (and other secret-bearing) changes are non-replayable** (`stash_no_replay`): the secret *is* the mutation, so a "secrets-redacted" replay would either drop the password (silent no-op) or persist/replay plaintext — those rules use reauth-then-resubmit, while non-secret changes (email, role, plugin actions) replay normally.
 
 ### 5.2 Surface adapters
 
@@ -210,7 +210,7 @@ Role changes are the subtlest path and need a dedicated guard, mirroring the plu
 | 3 | `wp-includes/user.php` | `wp_update_user()` | Detect consequential field changes; gate; return `WP_Error` (§5.1) |
 | 4 | `wp-includes/user.php` | `wp_insert_user()` | Gate `core/create-user` for admin-context inserts |
 | 5 | `wp-includes/user.php` | `wp_delete_user()` | Gate `core/delete-user` |
-| 6 | `wp-includes/capabilities.php` | `WP_User::set_role/add_role` + `map_meta_cap` | Escalation guard (§5.3) |
+| 6 | `wp-includes/class-wp-user.php` / `wp-includes/meta.php` | `WP_User::set_role`/`add_role`, `map_meta_cap`, **and `update_user_metadata` on the `{prefix}capabilities` key** | Escalation guard (§5.3); the meta hook catches the REST `add_role` path and any AJAX/plugin write to the caps meta directly |
 | 7 | `wp-includes/ms-functions.php` | `add_user_to_blog`, `grant_super_admin` | Multisite promotion gate |
 | 8 | `wp-includes/pluggable.php` | `wp_start/has/end_reauth_window` | Recent-auth window on `WP_Session_Tokens` (§4.2) |
 | 9 | `wp-includes/class-wp-session-tokens.php` | token record schema | Persist `reauth_at`, `reauth_scope`; clear on destroy |
