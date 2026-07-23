@@ -1,7 +1,7 @@
 # Core Implementation Spec: A Recent-Auth Gate for Consequential Actions
 
 **Status:** Draft engineering spec, not adopted by WordPress core.
-**Drafted:** 2026-07-23
+**Drafted:** July 2026
 **Companion to:** [`core-action-gate-proposal.md`](core-action-gate-proposal.md) (the *why* and phasing). This document is the *what to change in core*.
 **Relates to:** Core Trac [#20140](https://core.trac.wordpress.org/ticket/20140), [#37593](https://core.trac.wordpress.org/ticket/37593), [#39174](https://core.trac.wordpress.org/ticket/39174).
 **Prior art:** WP Sudo 4.7.0 — `includes/class-gate.php`, `class-sudo-session.php`, `class-action-registry.php`, `class-request-stash.php`, `class-challenge.php`.
