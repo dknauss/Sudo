@@ -2,7 +2,7 @@
 # This file is distributed under the GPL-2.0-or-later.
 msgid ""
 msgstr ""
-"Project-Id-Version: Sudo – Admin Action Gating 4.6.0\n"
+"Project-Id-Version: Sudo – Admin Action Gating 4.7.0\n"
 "Report-Msgid-Bugs-To: https://github.com/dknauss/Sudo/issues\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -143,86 +143,90 @@ msgstr ""
 msgid "Change user role"
 msgstr ""
 
-#: includes/class-action-registry.php:351
+#: includes/class-action-registry.php:355
 msgid "Change password"
 msgstr ""
 
-#: includes/class-action-registry.php:384
+#: includes/class-action-registry.php:390
+msgid "Change email address"
+msgstr ""
+
+#: includes/class-action-registry.php:441
 #: includes/class-gate.php:824
 msgid "Create new user"
 msgstr ""
 
-#: includes/class-action-registry.php:401
+#: includes/class-action-registry.php:458
 msgid "Create application password"
 msgstr ""
 
-#: includes/class-action-registry.php:425
+#: includes/class-action-registry.php:482
 msgid "Edit plugin file"
 msgstr ""
 
-#: includes/class-action-registry.php:441
+#: includes/class-action-registry.php:498
 msgid "Edit theme file"
 msgstr ""
 
-#: includes/class-action-registry.php:459
+#: includes/class-action-registry.php:516
 #: includes/class-gate.php:854
 msgid "Change critical site setting"
 msgstr ""
 
-#: includes/class-action-registry.php:496
+#: includes/class-action-registry.php:553
 msgid "Update connector credentials"
 msgstr ""
 
-#: includes/class-action-registry.php:513
-#: includes/class-action-registry.php:734
+#: includes/class-action-registry.php:570
+#: includes/class-action-registry.php:791
 #: includes/class-gate.php:873
 #: includes/class-gate.php:885
 msgid "Change Sudo settings"
 msgstr ""
 
-#: includes/class-action-registry.php:532
+#: includes/class-action-registry.php:589
 msgid "Change Sudo access controls"
 msgstr ""
 
-#: includes/class-action-registry.php:553
+#: includes/class-action-registry.php:610
 msgid "Update WordPress core"
 msgstr ""
 
-#: includes/class-action-registry.php:569
+#: includes/class-action-registry.php:626
 #: includes/class-gate.php:373
 #: includes/class-gate.php:898
 msgid "Export site data"
 msgstr ""
 
-#: includes/class-action-registry.php:607
+#: includes/class-action-registry.php:664
 msgid "Network enable theme"
 msgstr ""
 
-#: includes/class-action-registry.php:624
+#: includes/class-action-registry.php:681
 msgid "Network disable theme"
 msgstr ""
 
-#: includes/class-action-registry.php:641
+#: includes/class-action-registry.php:698
 msgid "Delete site"
 msgstr ""
 
-#: includes/class-action-registry.php:654
+#: includes/class-action-registry.php:711
 msgid "Deactivate site"
 msgstr ""
 
-#: includes/class-action-registry.php:667
+#: includes/class-action-registry.php:724
 msgid "Mark site as spam"
 msgstr ""
 
-#: includes/class-action-registry.php:680
+#: includes/class-action-registry.php:737
 msgid "Archive site"
 msgstr ""
 
-#: includes/class-action-registry.php:693
+#: includes/class-action-registry.php:750
 msgid "Grant or revoke super admin"
 msgstr ""
 
-#: includes/class-action-registry.php:713
+#: includes/class-action-registry.php:770
 msgid "Change network settings"
 msgstr ""
 
@@ -1196,7 +1200,7 @@ msgstr ""
 
 #: includes/class-challenge.php:251
 #: admin/js/wp-sudo-editor-reauth.js:215
-#: admin/js/wp-sudo-editor-reauth.js:370
+#: admin/js/wp-sudo-editor-reauth.js:376
 msgid "Authentication failed."
 msgstr ""
 
@@ -1301,7 +1305,7 @@ msgid "Please wait %d seconds before trying again."
 msgstr ""
 
 #: includes/class-challenge.php:367
-#: admin/js/wp-sudo-editor-reauth.js:576
+#: admin/js/wp-sudo-editor-reauth.js:582
 msgid "Password"
 msgstr ""
 
@@ -1313,7 +1317,7 @@ msgstr ""
 #: includes/class-challenge.php:377
 #: includes/class-challenge.php:406
 #: includes/class-challenge.php:948
-#: admin/js/wp-sudo-editor-reauth.js:525
+#: admin/js/wp-sudo-editor-reauth.js:531
 msgid "Cancel"
 msgstr ""
 
@@ -1732,7 +1736,7 @@ msgstr ""
 
 #: includes/class-gate.php:2853
 #: includes/class-gate.php:2913
-#: admin/js/wp-sudo-editor-reauth.js:601
+#: admin/js/wp-sudo-editor-reauth.js:607
 msgid "Confirm your identity"
 msgstr ""
 
@@ -1860,33 +1864,33 @@ msgid "This action requires reauthentication."
 msgstr ""
 
 #: admin/js/wp-sudo-editor-reauth.js:210
-#: admin/js/wp-sudo-editor-reauth.js:365
+#: admin/js/wp-sudo-editor-reauth.js:371
 msgid "Unexpected server response."
 msgstr ""
 
 #: admin/js/wp-sudo-editor-reauth.js:219
-#: admin/js/wp-sudo-editor-reauth.js:374
+#: admin/js/wp-sudo-editor-reauth.js:380
 msgid "Network error. Please try again."
 msgstr ""
 
-#: admin/js/wp-sudo-editor-reauth.js:476
-#: admin/js/wp-sudo-editor-reauth.js:514
+#: admin/js/wp-sudo-editor-reauth.js:482
+#: admin/js/wp-sudo-editor-reauth.js:520
 msgid "Unexpected error. Please try again."
 msgstr ""
 
-#: admin/js/wp-sudo-editor-reauth.js:500
+#: admin/js/wp-sudo-editor-reauth.js:506
 msgid "A new code was sent to your email."
 msgstr ""
 
-#: admin/js/wp-sudo-editor-reauth.js:539
+#: admin/js/wp-sudo-editor-reauth.js:545
 msgid "Enter your two-factor authentication code to continue."
 msgstr ""
 
-#: admin/js/wp-sudo-editor-reauth.js:560
-#: admin/js/wp-sudo-editor-reauth.js:591
+#: admin/js/wp-sudo-editor-reauth.js:566
+#: admin/js/wp-sudo-editor-reauth.js:597
 msgid "Confirm"
 msgstr ""
 
-#: admin/js/wp-sudo-editor-reauth.js:572
+#: admin/js/wp-sudo-editor-reauth.js:578
 msgid "This action requires reauthentication. Enter your password to continue."
 msgstr ""
