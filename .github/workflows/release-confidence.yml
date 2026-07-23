@@ -36,19 +36,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Start WordPress environment
-        run: npx wp-env start --config .wp-env.e2e.json
-
-      - name: Wait for WordPress to be ready
-        run: |
-          for i in $(seq 1 30); do
-            if curl -s -o /dev/null -w "%{http_code}" http://localhost:8889/wp-login.php | grep -q "200"; then
-              echo "WordPress is ready"
-              exit 0
-            fi
-            echo "Waiting for WordPress... (attempt $i)"
-            sleep 2
-          done
-          exit 1
+        run: bash bin/wp-env-up.sh .wp-env.e2e.json
 
       - name: Assert pinned WordPress beta version
         env:
