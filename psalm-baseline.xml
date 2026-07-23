@@ -208,6 +208,7 @@
       <code><![CDATA[wp_sudo_can( 'manage_wp_sudo' )]]></code>
       <code><![CDATA[wp_sudo_can( 'manage_wp_sudo' )]]></code>
       <code><![CDATA[wp_sudo_can( 'manage_wp_sudo' )]]></code>
+      <code><![CDATA[wp_sudo_can( 'manage_wp_sudo' )]]></code>
       <code><![CDATA[wp_sudo_can( 'revoke_wp_sudo_sessions' )]]></code>
       <code><![CDATA[wp_sudo_can( 'revoke_wp_sudo_sessions' )]]></code>
       <code><![CDATA[wp_sudo_can( 'revoke_wp_sudo_sessions' )]]></code>

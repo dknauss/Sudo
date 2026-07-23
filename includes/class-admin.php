@@ -393,6 +393,13 @@ class Admin {
 
 		// Users list screen: post-redirect result notice for the row-action and bulk-action handlers.
 		add_action( 'admin_notices', array( $this, 'render_revoke_result_notice' ), 10, 0 );
+
+		// Profile screens (own + editing another user): replace WordPress core's
+		// raw "Additional Capabilities" slug list for our governance caps with a
+		// readable, labeled note. Both exist on single-site and multisite.
+		add_filter( 'additional_capabilities_display', array( $this, 'suppress_governance_capabilities_display' ), 10, 2 );
+		add_action( 'show_user_profile', array( $this, 'render_governance_capabilities_profile_note' ), 10, 1 );
+		add_action( 'edit_user_profile', array( $this, 'render_governance_capabilities_profile_note' ), 10, 1 );
 	}
 
 	/**
@@ -1147,6 +1154,132 @@ class Admin {
 		array_unshift( $links, $settings_link );
 
 		return $links;
+	}
+
+	// -------------------------------------------------------------------------
+	// Profile screens: governance-capability display
+	// -------------------------------------------------------------------------
+
+	/**
+	 * Suppress WordPress core's "Additional Capabilities" section when it would
+	 * only list WP Sudo governance capabilities.
+	 *
+	 * WP Sudo grants its governance capabilities directly to users via
+	 * WP_User::add_cap() (activation, upgrade, the Access-tab grant handler).
+	 * Core's user-edit.php then renders those per-user caps as raw comma-joined
+	 * slugs under an "Additional Capabilities" heading — unattractive and
+	 * unexplained. This callback hides that raw section, but ONLY when every
+	 * additional (non-role) capability the profile user holds is a truthy
+	 * governance cap. render_governance_capabilities_profile_note() supplies the
+	 * readable replacement.
+	 *
+	 * The intervention is deliberately minimal:
+	 * - If the user has ANY foreign additional cap (another plugin/theme grant),
+	 *   the incoming value is returned unchanged so that section is never hidden.
+	 * - If a governance cap is explicitly DENIED (falsy), the incoming value is
+	 *   returned unchanged so core still renders "Denied: ...".
+	 * - Returning the incoming value (rather than forcing true) never overrides
+	 *   another plugin that already set the section to hidden.
+	 *
+	 * Non-role classification mirrors core exactly (wp_roles()->is_role()), so a
+	 * user's additional custom roles are not mistaken for foreign capabilities.
+	 *
+	 * @since 4.8.0
+	 *
+	 * @param bool     $display      Whether core will display the section.
+	 * @param \WP_User $profile_user The user whose profile is being shown.
+	 * @return bool Whether to display the section.
+	 */
+	public function suppress_governance_capabilities_display( $display, \WP_User $profile_user ) {
+		$roles          = wp_roles();
+		$has_governance = false;
+
+		foreach ( $profile_user->caps as $cap => $granted ) {
+			// Skip role slugs — core lists only non-role capabilities.
+			if ( $roles && $roles->is_role( (string) $cap ) ) {
+				continue;
+			}
+
+			// A non-role cap that is either foreign or an explicitly denied
+			// governance cap means the section carries information we must not
+			// hide — defer to whatever value core/other filters decided.
+			if ( ! $granted || ! in_array( $cap, self::GOVERNANCE_CAPS, true ) ) {
+				return $display;
+			}
+
+			$has_governance = true;
+		}
+
+		// Hide only when there is at least one governance cap to replace.
+		return $has_governance ? false : $display;
+	}
+
+	/**
+	 * Render a readable summary of the profile user's directly-granted WP Sudo
+	 * governance capabilities on their profile screen.
+	 *
+	 * Replaces the raw slug list suppressed by
+	 * suppress_governance_capabilities_display(). Reads the raw stored caps
+	 * (WP_User::caps) rather than an effective capability check, so the note
+	 * mirrors exactly what core would have shown and never claims effective
+	 * access a user does not hold via stored grants. A multisite super admin,
+	 * who passes wp_sudo_can() via the short-circuit without stored caps, is not
+	 * listed here — that is intentional and matches core's own render decision.
+	 *
+	 * The wording ("Directly granted") makes the read clear: these are stored
+	 * grants, not a claim of effective authority. The link to the Sudo Access
+	 * screen is shown only to a viewer who can actually reach it
+	 * (wp_sudo_can('manage_wp_sudo')); other viewers see plain informational text.
+	 *
+	 * @since 4.8.0
+	 *
+	 * @param \WP_User $profile_user The user whose profile is being shown.
+	 * @return void
+	 */
+	public function render_governance_capabilities_profile_note( \WP_User $profile_user ): void {
+		$granted = array();
+		foreach ( self::GOVERNANCE_CAPS as $cap ) {
+			if ( ! empty( $profile_user->caps[ $cap ] ) ) {
+				$granted[] = $cap;
+			}
+		}
+
+		if ( empty( $granted ) ) {
+			return;
+		}
+
+		?>
+		<h2><?php esc_html_e( 'Sudo capabilities', 'wp-sudo' ); ?></h2>
+		<table class="form-table" role="presentation">
+			<tr class="wp-sudo-governance-caps-wrap">
+				<th scope="row"><?php esc_html_e( 'Directly granted', 'wp-sudo' ); ?></th>
+				<td>
+					<ul class="wp-sudo-governance-caps" style="margin-top:0;">
+						<?php foreach ( $granted as $cap ) : ?>
+							<li><?php echo esc_html( self::get_cap_label( $cap ) ); ?></li>
+						<?php endforeach; ?>
+					</ul>
+					<p class="description">
+						<?php
+						if ( wp_sudo_can( 'manage_wp_sudo' ) ) {
+							$access_url = is_multisite()
+								? network_admin_url( 'settings.php?page=' . self::PAGE_SLUG )
+								: admin_url( 'options-general.php?page=' . self::PAGE_SLUG );
+							$access_url = add_query_arg( array( 'tab' => 'access' ), $access_url );
+							printf(
+								'<a href="%s">%s</a>',
+								esc_url( $access_url ),
+								esc_html__( 'Manage Sudo capabilities', 'wp-sudo' )
+							);
+						} else {
+							esc_html_e( 'These capabilities are managed by a Sudo manager.', 'wp-sudo' );
+						}
+						?>
+					</p>
+				</td>
+			</tr>
+		</table>
+		<?php
 	}
 
 	// -------------------------------------------------------------------------
