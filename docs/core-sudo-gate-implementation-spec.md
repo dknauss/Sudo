@@ -134,7 +134,7 @@ $gate->challenge_url( $return_to ); // string — browser interstitial URL, nonc
 $gate->as_wp_error();     // WP_Error 'sudo_reauth_required' with challenge data in $error_data
 ```
 
-`wp_check_action_gate()` returns *passed* when the action is unregistered, gating is globally off, or a valid window exists — so unguarded callers are never broken.
+`wp_check_action_gate()` returns *passed* when gating is globally off, a valid window exists, or an **unknown third-party** action is unregistered — so unguarded callers are never broken. But an unregistered **`core/`** action fails **closed** (`blocked`): a missing built-in means the catalog failed to load, and the guarded mutation must not silently proceed. The global `WP_DISABLE_ACTION_GATE` / `wp_action_gate_enabled` kill-switch is checked *before* that fail-closed branch, so an operator can still recover from a broken catalog load.
 
 ---
 
@@ -152,7 +152,7 @@ WP-CLI user update     ─┤
 programmatic callers   ─┘
 ```
 
-Insert the guard at the top of each backing function, *after* the existing capability checks and *before* the write:
+Insert the guard near the top of each backing function, **before the write**. Note these functions do not perform capability checks themselves — callers (`edit_user()`, the REST controller) authorize upstream — so the guard is a proof-of-intent layer *on top of* the caller's authorization, not an in-function cap check:
 
 ```php
 // wp-includes/user.php — inside wp_update_user( $userdata )
@@ -209,16 +209,16 @@ Role changes are the subtlest path and need a dedicated guard, mirroring the plu
 | 2 | `wp-includes/class-wp-consequential-actions.php` (new) | registry storage | Pure-data store + core catalog bootstrap on `init` |
 | 3 | `wp-includes/user.php` | `wp_update_user()` | Detect consequential field changes; gate; return `WP_Error` (§5.1) |
 | 4 | `wp-includes/user.php` | `wp_insert_user()` | Gate `core/create-user` for admin-context inserts |
-| 5 | `wp-includes/user.php` | `wp_delete_user()` | Gate `core/delete-user` |
+| 5 | `wp-admin/includes/user.php` | `wp_delete_user()` (**bool** return) | Gate `core/delete-user` via a **pre-delete adapter** (hook `delete_user` / REST `delete_item`), not a `WP_Error` return |
 | 6 | `wp-includes/class-wp-user.php` / `wp-includes/meta.php` | `WP_User::set_role`/`add_role`, `map_meta_cap`, **and `update_user_metadata` on the `{prefix}capabilities` key** | Escalation guard (§5.3); the meta hook catches the REST `add_role` path and any AJAX/plugin write to the caps meta directly |
-| 7 | `wp-includes/ms-functions.php` | `add_user_to_blog`, `grant_super_admin` | Multisite promotion gate |
+| 7 | `wp-includes/ms-functions.php` | `add_user_to_blog`, `grant_super_admin` (**bool/void** — no `WP_Error`) | Multisite promotion gate via a pre-grant adapter (hook `grant_super_admin` / `add_user_to_blog`), not a return value |
 | 8 | `wp-includes/pluggable.php` | `wp_start/has/end_reauth_window` | Recent-auth window on `WP_Session_Tokens` (§4.2) |
 | 9 | `wp-includes/class-wp-session-tokens.php` | token record schema | Persist `reauth_at`, `reauth_scope`; clear on destroy |
 | 10 | `wp-includes/gate.php` (new) | `wp_check_action_gate()` + decision class | Gate evaluation (§4.3) |
 | 11 | `wp-admin/includes/user.php` | `edit_user()` | Catch `sudo_reauth_required` → stash + redirect (§5.1) |
 | 12 | `wp-login.php` | new `action=reauth` | Challenge interstitial: password (+2FA hook), rate-limit, replay |
 | 13 | `wp-includes/rest-api/endpoints/class-wp-rest-users-controller.php` | update/create/delete | Surface `sudo_reauth_required` as 403 + challenge metadata |
-| 14 | `wp-admin/includes/plugin.php` | `activate_plugin`, `delete_plugins` | Gate plugin actions (§5.4) |
+| 14 | `wp-admin/includes/plugin.php` + `wp-admin/includes/class-plugin-upgrader.php` | `activate_plugin`, `delete_plugins`, **`Plugin_Upgrader::install()`** (`core/install-plugin`) | Gate plugin actions (§5.4) |
 | 15 | `wp-includes/request-stash.php` (new) | stash/replay | Port `class-request-stash.php` (allowlist, redaction, TTL, per-user cap) |
 | 16 | Site Health | new async test | Report registered actions + whether gating is enabled |
 
@@ -243,7 +243,7 @@ Explicitly deferred: WebAuthn ceremonies, external IdP redirects, multi-step TOT
 
 - **Default state.** Ship Phase 1 registry **always on** (inert; naming only). Ship Phase 2 gating **on for the core catalog by default**, because a security default that must be discovered protects almost no one — but make the window generous (15 min) and every consequential path stash-and-replay so the UX cost is one password prompt, not lost work. Provide `WP_DISABLE_ACTION_GATE` for emergencies and a per-action `wp_action_gate_enabled` filter.
 - **Config surface.** `WP_REAUTH_WINDOW` (ttl), `wp_reauth_window_ttl` / `wp_action_gate_enabled` / `wp_consequential_actions` (catalog) filters. Keep the plugin's `Disabled/Limited/Unrestricted` per-surface policy vocabulary **out** of core v1 (proposal §18-Q5); core v1 is binary per action.
-- **Back-compat.** Because enforcement returns existing `WP_Error` types from functions that already return them, non-updated callers degrade safely to "action refused with an actionable error," never a fatal or a silent pass. Programmatic callers that must bypass (migrations, trusted automation) call inside an explicit `wp_start_reauth_window()` or short-circuit `wp_action_gate_enabled`.
+- **Back-compat.** Because enforcement returns existing `WP_Error` types from functions that already return them, non-updated callers degrade safely to "action refused with an actionable error," never a fatal or a silent pass. Programmatic callers that must bypass (migrations; trusted automation under WP-CLI/cron, which have **no auth cookie or session token**, so `wp_start_reauth_window()` — a browser-session API — cannot help them) short-circuit via the `wp_action_gate_enabled` filter or a scoped constant, **not** the session-window API.
 - **Multisite terminology** (#37593/#39174): "network administrator" for ordinary network authority, "super admin" only for core's technical concept, "sudo mode" for the temporary window. No permanent role is introduced.
 
 ---

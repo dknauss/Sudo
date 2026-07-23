@@ -44,6 +44,8 @@ add_filter( 'wp_pre_insert_user_data', __NAMESPACE__ . '\\gate_chokepoint', 10, 
 add_filter( 'rest_pre_dispatch', __NAMESPACE__ . '\\gate_rest_users', 10, 3 );
 ```
 
+Caveat for **password** changes specifically: by `wp_pre_insert_user_data`, core has already hashed the new password into `$data['user_pass']` (`wp_insert_user()` hashes before applying the filter), so this hook is too late to cleanly gate a password change — it can block the DB write but not the hashing/side effects. Gate password changes earlier (the demo's `user_profile_update_errors` path, or the REST permission callback), and treat `wp_pre_insert_user_data` as an email/role/name backstop. This is exactly why the core spec gates *inside* `wp_update_user()` before the password-handling block rather than around it.
+
 Even just adding the **REST path** (`rest_pre_dispatch` matching `/wp/v2/users` write methods, re-using `triggered_actions()`) would let the Playground demo show the *same* takeover blocked over REST as well as the form — which is exactly the "one guard, every surface" claim. That's the single highest-value demo upgrade.
 
 > Note the core spec has an advantage the plugin lacks: core can return `WP_Error` from *inside* `wp_update_user()`, which the demo can't (it can only hook around it). So the demo will always be an approximation of the seam. Adding the REST hook is the closest a plugin can get to demonstrating chokepoint coverage, and it's enough to make the argument.

@@ -72,16 +72,24 @@ function wp_has_recent_auth( $user_id = 0, $scope = '' ) {
 
 function wp_end_reauth_window( $user_id = 0 ) {
 	$user_id = $user_id ? (int) $user_id : get_current_user_id();
-	$token   = wp_get_session_token();
-	if ( ! $user_id || ! $token ) {
+	if ( ! $user_id ) {
 		return;
 	}
 	$manager = WP_Session_Tokens::get_instance( $user_id );
-	$session = $manager->get( $token );
-	if ( $session ) {
+
+	// Interactive path (logout / explicit drop): clear the current request's token.
+	$token = wp_get_session_token();
+	if ( $token && ( $session = $manager->get( $token ) ) ) {
 		unset( $session['reauth_at'], $session['reauth_scope'] );
 		$manager->update( $token, $session );
 	}
+
+	// Password-change / reset path: the request may have NO session token for the
+	// target user (the lost-password flow is unauthenticated), so clearing only the
+	// current token is not enough — the window must be dropped on EVERY session of
+	// $user_id. WP_Session_Tokens has no public "update every session" method, so a
+	// core implementation adds one (strip reauth_* from each stored record) or, if
+	// forcing re-login there is acceptable, simply calls $manager->destroy_all().
 }
 ```
 
@@ -108,9 +116,11 @@ final class WP_Action_Gate_Decision {
 	public function challenge_url( $return_to = '' ) {
 		return add_query_arg(
 			array(
+				// add_query_arg() URL-encodes values itself (via _http_build_query),
+				// so pass RAW values — pre-encoding here would double-encode them.
 				'action'    => 'reauth',
-				'ca_action' => rawurlencode( $this->action_id ),
-				'redirect'  => rawurlencode( $return_to ?: wp_get_referer() ),
+				'ca_action' => $this->action_id,
+				'redirect'  => $return_to ?: wp_get_referer(),
 				// Bind the prompt to this actor + action so an external page cannot
 				// force an admin into an arbitrary reauth/replay. The challenge handler
 				// MUST wp_verify_nonce() this before showing the prompt or replaying.
@@ -143,27 +153,29 @@ final class WP_Action_Gate_Decision {
  * so unguarded callers are never broken.
  */
 function wp_check_action_gate( $action_id, array $args = array() ) {
-	// A built-in `core/` action that is not registered means the catalog failed to
-	// load (or loaded too late) — fail CLOSED, never silently allow the mutation.
-	// Unknown third-party actions were never gated, so they pass.
-	if ( ! wp_action_exists( $action_id ) ) {
-		return str_starts_with( $action_id, 'core/' )
-			? new WP_Action_Gate_Decision( $action_id, 'blocked' )
-			: new WP_Action_Gate_Decision( $action_id, 'passed' );
-	}
+	// The global kill-switch wins even over the fail-closed core/ branch, so an
+	// operator can recover from a bad rollout or a broken catalog load.
 	if ( ( defined( 'WP_DISABLE_ACTION_GATE' ) && WP_DISABLE_ACTION_GATE )
 		|| ! apply_filters( 'wp_action_gate_enabled', true, $action_id, $args ) ) {
 		return new WP_Action_Gate_Decision( $action_id, 'passed' );
 	}
-	$user_id = isset( $args['actor'] ) ? (int) $args['actor'] : get_current_user_id();
-	// v1 = flat freshness: do NOT pass the action scope (spec §4.2). See the
-	// scope-bound OPT-IN note in wp_has_recent_auth() to enable scoping later.
-
-	if ( wp_reauth_is_rate_limited( $user_id ) ) {                 // ported from Sudo lockout model
-		return new WP_Action_Gate_Decision( $action_id, 'rate_limited' );
+	// A built-in `core/` action that is not registered means the catalog failed to
+	// load (or loaded too late) — fail CLOSED. Unknown third-party actions pass.
+	// (0 === strpos, not str_starts_with: core still supports PHP 7.x.)
+	if ( ! wp_action_exists( $action_id ) ) {
+		return ( 0 === strpos( (string) $action_id, 'core/' ) )
+			? new WP_Action_Gate_Decision( $action_id, 'blocked' )
+			: new WP_Action_Gate_Decision( $action_id, 'passed' );
 	}
+	$user_id = isset( $args['actor'] ) ? (int) $args['actor'] : get_current_user_id();
+	// v1 = flat freshness: do NOT pass the action scope (spec §4.2). Check the
+	// recent-auth WINDOW before the lockout: a user who already holds a valid
+	// window should proceed even with recent failed attempts on other actions.
 	if ( wp_has_recent_auth( $user_id ) ) {           // flat freshness (no scope) for v1
 		return new WP_Action_Gate_Decision( $action_id, 'passed' );
+	}
+	if ( wp_reauth_is_rate_limited( $user_id ) ) {    // ported from Sudo lockout model
+		return new WP_Action_Gate_Decision( $action_id, 'rate_limited' );
 	}
 	return new WP_Action_Gate_Decision( $action_id, 'no_recent_auth' );
 }
