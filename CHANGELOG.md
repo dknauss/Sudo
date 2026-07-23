@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Security — REST writes to critical settings were ungated (fix):** the `options.critical` REST callback matched *raw* option names (`siteurl`, `admin_email`), but WordPress keys the `/wp/v2/settings` endpoint by each setting's `show_in_rest` name — so `siteurl` arrives as `url` and `admin_email` as `email`, and the callback never matched. A cookie-authenticated `POST /wp/v2/settings {"url":"https://evil/"}` could repoint the WordPress Address ungated, loading attacker-origin scripts same-origin in wp-admin (an XSS-as-RCE primitive). The callback now also matches the `show_in_rest` aliases (`Action_Registry::critical_option_rest_keys()`). Guarded by `tests/Unit/CriticalSettingsRestGateTest.php`.
+
 ## 4.7.0 - 2026-07-16
 
 - **In-editor reauthentication modal — password path (new):** completing the in-editor capability whose server-side plumbing shipped in 4.6.0, a gated block-editor REST request soft-blocked with `sudo_required` now opens an in-place **"Confirm your identity"** password modal over the editor instead of only linking out to the challenge page. The modal grants the sudo session and the original request is transparently re-dispatched — no full-page redirect, and editor state (unsaved content, open panels) is preserved. The `apiFetch` middleware owns the intercept; re-dispatch is owner-scoped so concurrent editor requests replay against the granting user only, with stale-nonce recovery (re-minting via the 4.6.0 `wp_sudo_refresh_grant_nonce` endpoint) and graceful degradation back to the link-out snackbar when there is no safe in-editor path. The security invariant is preserved: a two-factor-enrolled account never receives a session from the password step alone.
