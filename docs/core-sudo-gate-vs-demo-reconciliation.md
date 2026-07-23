@@ -35,9 +35,9 @@ For an MVP that's a defensible simplification — *except* that the whole point 
 
 ```php
 // In addition to the user_profile_update_errors hook, gate the chokepoint:
-add_filter( 'pre_insert_user_data', __NAMESPACE__ . '\\gate_chokepoint', 10, 4 );
+add_filter( 'wp_pre_insert_user_data', __NAMESPACE__ . '\\gate_chokepoint', 10, 4 );
 
-// pre_insert_user_data passes ( $data, $update, $user_id, $userdata ) since WP 4.9;
+// wp_pre_insert_user_data passes ( $data, $update, $user_id, $userdata ) since WP 4.9;
 // $user_id is null on insert. Returning WP_Error is NOT supported here, so instead
 // short-circuit with wp_die()/redirect for the demo, or (cleaner) hook the REST
 // permission callback for the users controller to show REST coverage:

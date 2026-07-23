@@ -110,7 +110,8 @@ wp_end_reauth_window( int $user_id = 0 ): void;                   // on logout /
 
 Mechanics:
 
-- On a successful challenge, write `reauth_at` (unix ts) and optional `reauth_scope` into the **current** session token's stored array (`WP_Session_Tokens::update`). Binding to the session token means the elevated window is destroyed automatically by `wp_logout()`, `WP_Session_Tokens::destroy()`, password change, and "log out everywhere."
+- On a successful challenge, write `reauth_at` (unix ts) and optional `reauth_scope` into the **current** session token's stored array (`WP_Session_Tokens::update`). Binding to the session token means the elevated window is destroyed automatically by `wp_logout()`, `WP_Session_Tokens::destroy()`, and "log out everywhere."
+- **A password change must clear the window explicitly** — the session-token binding does *not* cover it. `wp_update_user()` clears and immediately re-issues the auth cookie against the *same* token, and `wp_set_password()` doesn't touch session-token records, so `reauth_at` can survive a password change and violate the acceptance criterion that a password change invalidates the window. Hook `after_password_reset` and the password path of `wp_update_user()` / `wp_set_password()` to call `wp_end_reauth_window()` (or destroy the record).
 - `wp_has_recent_auth()` reads the *current request's* session token record and checks `reauth_at >= time() - $ttl`. Because it consults the session store (not just a cookie string), `destroy_all()` revokes the window on the next request — an improvement over the plugin's cookie-string bind, which is documented there as taking effect one request later.
 - Default TTL: **15 minutes**, filterable via `wp_reauth_window_ttl` and definable with `WP_REAUTH_WINDOW` in `wp-config.php`. A short **grace** (≈2 min, as in the plugin) prevents a multi-step form from re-challenging mid-flow.
 - Rate limiting / lockout on failed challenges: port the plugin's model (5 failures ⇒ 300s lockout, progressive delays, per-user and per-IP) into the challenge handler.
@@ -170,7 +171,7 @@ foreach ( wp_map_user_changes_to_actions( $user_id, $changed ) as $action_id ) {
 
 Why this is the right seam:
 
-- **`wp_update_user()` / `wp_insert_user()` / `wp_delete_user()` already return `WP_Error`**, and every caller — admin `edit_user()`, `WP_REST_Users_Controller::update_item()`, `WP_CLI\...\User`, plugin code — already handles that. So the challenge propagates through existing error paths with no new contract at the call sites.
+- **`wp_update_user()` and `wp_insert_user()` already return `WP_Error`**, and every caller — admin `edit_user()`, `WP_REST_Users_Controller::update_item()`, `WP_CLI\...\User`, plugin code — already handles that, so the challenge propagates through existing error paths with no new contract at *those* call sites. **`wp_delete_user()` is the exception — it returns `bool`** (the REST controller's `if ( ! $result )` would read a returned `WP_Error` as *success* → "200 deleted, nothing deleted"), so gating `core/delete-user` needs a distinct adapter or a return-contract change, not the uniform `WP_Error` path. (`WP_User::set_role()` returns `void` and `wp_set_password()` bypasses `wp_update_user()` — the spec must state enforcement **per chokepoint**, §5.1, rather than assume one `WP_Error` return everywhere.)
 - One insertion covers admin UI **and** REST **and** CLI **and** programmatic writes. This is what makes the defense complete rather than form-deep — the #20140 lesson made mechanical.
 - Self vs. other, password vs. email vs. role are all just fields in `$changed`, mapped to distinct action IDs by `wp_map_user_changes_to_actions()`.
 

@@ -59,8 +59,13 @@ function wp_has_recent_auth( $user_id = 0, $scope = '' ) {
 	$ttl = defined( 'WP_REAUTH_WINDOW' ) ? (int) WP_REAUTH_WINDOW : 15 * MINUTE_IN_SECONDS;
 	$ttl = (int) apply_filters( 'wp_reauth_window_ttl', $ttl, $user_id, $scope );
 
+	// Scope-bound check — OPT-IN only. v1 ships FLAT freshness (spec §4.2): callers
+	// pass no scope (see wp_check_action_gate below), so this block is inert. If you
+	// enable scoping, the challenge MUST stamp the SAME scope via
+	// wp_start_reauth_window( $id, $scope ) on success, or a scoped action loops
+	// forever (the window is opened with the default empty scope).
 	if ( '' !== $scope && ( $session['reauth_scope'] ?? '' ) !== $scope ) {
-		return false; // scope-bound check; drop this block for flat freshness (spec §4.2)
+		return false;
 	}
 	return ( time() - (int) $session['reauth_at'] ) <= $ttl;
 }
@@ -106,6 +111,10 @@ final class WP_Action_Gate_Decision {
 				'action'    => 'reauth',
 				'ca_action' => rawurlencode( $this->action_id ),
 				'redirect'  => rawurlencode( $return_to ?: wp_get_referer() ),
+				// Bind the prompt to this actor + action so an external page cannot
+				// force an admin into an arbitrary reauth/replay. The challenge handler
+				// MUST wp_verify_nonce() this before showing the prompt or replaying.
+				'_wpnonce'  => wp_create_nonce( 'reauth_' . $this->action_id ),
 			),
 			wp_login_url()
 		);
@@ -125,18 +134,26 @@ final class WP_Action_Gate_Decision {
  * so unguarded callers are never broken.
  */
 function wp_check_action_gate( $action_id, array $args = array() ) {
-	if ( ! wp_action_exists( $action_id )
-		|| ( defined( 'WP_DISABLE_ACTION_GATE' ) && WP_DISABLE_ACTION_GATE )
+	// A built-in `core/` action that is not registered means the catalog failed to
+	// load (or loaded too late) — fail CLOSED, never silently allow the mutation.
+	// Unknown third-party actions were never gated, so they pass.
+	if ( ! wp_action_exists( $action_id ) ) {
+		return str_starts_with( $action_id, 'core/' )
+			? new WP_Action_Gate_Decision( $action_id, 'blocked' )
+			: new WP_Action_Gate_Decision( $action_id, 'passed' );
+	}
+	if ( ( defined( 'WP_DISABLE_ACTION_GATE' ) && WP_DISABLE_ACTION_GATE )
 		|| ! apply_filters( 'wp_action_gate_enabled', true, $action_id, $args ) ) {
 		return new WP_Action_Gate_Decision( $action_id, 'passed' );
 	}
 	$user_id = isset( $args['actor'] ) ? (int) $args['actor'] : get_current_user_id();
-	$scope   = wp_get_action( $action_id )['scope'] ?? '';
+	// v1 = flat freshness: do NOT pass the action scope (spec §4.2). See the
+	// scope-bound OPT-IN note in wp_has_recent_auth() to enable scoping later.
 
 	if ( wp_reauth_is_rate_limited( $user_id ) ) {                 // ported from Sudo lockout model
 		return new WP_Action_Gate_Decision( $action_id, 'rate_limited' );
 	}
-	if ( wp_has_recent_auth( $user_id, $scope ) ) {
+	if ( wp_has_recent_auth( $user_id ) ) {           // flat freshness (no scope) for v1
 		return new WP_Action_Gate_Decision( $action_id, 'passed' );
 	}
 	return new WP_Action_Gate_Decision( $action_id, 'no_recent_auth' );
@@ -147,7 +164,7 @@ function wp_check_action_gate( $action_id, array $args = array() ) {
 
 ## 3. The chokepoint guard in `wp_update_user()`
 
-This is the whole #20140 account-change fix, at one seam. Placed after the existing user is resolved and merged, before `wp_insert_user()`.
+This is the whole #20140 account-change fix, at one seam. Placed as early as possible in `wp_update_user()` — after the target user is resolved but **before any password-handling side effects** (password hashing, reset-key clearing, `after_password_reset` / change-notification emails) and before `wp_insert_user()` — so a blocked no-recent-auth change fires none of those. (For flows that reach `wp_set_password()` directly, gate there too — it does not pass through `wp_update_user()`.)
 
 ```diff
 --- a/wp-includes/user.php
