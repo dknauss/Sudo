@@ -65,15 +65,15 @@ Because Tier 1 is gated, the attacker's real move is to **mint an account whose 
 | Create Application Password | `auth.app_password` | durable API credential; confirm REST `/users/<id>/application-passwords` coverage |
 | Delete user | `user.delete` | |
 | Grant super admin (multisite) | `network.super_admin` | |
-| **Change account email → password reset** | **— none —** | **the open door (§4)** |
+| Change account email → password reset | `user.change_email` (added by this change) | **was** the open door — now closed (§4) |
 
 ---
 
-## 4. Finding: account-email change is not gated
+## 4. Finding: account-email change was not gated — closed by this change
 
-`user.change_password` **deliberately narrows to password-only**: its admin callback returns true only when `pass1`/`pass2` is present, with a source comment noting that `profile.php`/`user-edit.php` handle "bio, email, role, etc." under the same `action=update`. There is **no `user.change_email` rule**, and `options.critical` matches only the **site** `admin_email`/`new_admin_email` option — not a user's per-account email.
+`user.change_password` **deliberately narrows to password-only**: its admin callback returns true only when `pass1`/`pass2` is present, with a source comment noting that `profile.php`/`user-edit.php` handle "bio, email, role, etc." under the same `action=update`. Before this change there was **no `user.change_email` rule**, and `options.critical` matches only the **site** `admin_email`/`new_admin_email` option — not a user's per-account email.
 
-So the following is currently **ungated**:
+So the following **was ungated** — the attack this rule (added below) closes:
 
 1. Cookie thief opens `user-edit.php` for another admin (or their own `profile.php`) and changes the **email** only (no password field) → the change commits with no challenge.
    - Editing *another* user's email via `user-edit.php` commits **immediately**, no confirmation.
