@@ -35,4 +35,16 @@ class UserMutationRestMethodTest extends TestCase {
 			$this->assertContains( 'POST', $rule['rest']['methods'], "$id must gate POST (EDITABLE includes it)" );
 		}
 	}
+
+	/**
+	 * Core registers /wp/v2/users/me as EDITABLE → update_current_item() →
+	 * update_item(), so a role change via POST /wp/v2/users/me must be gated too;
+	 * user.promote's route regex must match /me, not only a numeric id.
+	 */
+	public function test_promote_rule_route_covers_me(): void {
+		$rule = Action_Registry::find( 'user.promote' );
+		$this->assertNotNull( $rule );
+		$this->assertSame( 1, preg_match( $rule['rest']['route'], '/wp/v2/users/me' ), 'user.promote must match /wp/v2/users/me' );
+		$this->assertSame( 1, preg_match( $rule['rest']['route'], '/wp/v2/users/2' ), 'user.promote must still match a numeric id' );
+	}
 }
