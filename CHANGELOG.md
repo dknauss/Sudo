@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Security — REST `POST` to `/wp/v2/users` was ungated (fix):** the `user.change_password` and `user.promote` REST rules matched only `PUT`/`PATCH`, but WordPress registers the users update route under `WP_REST_Server::EDITABLE` (`POST, PUT, PATCH`). A cookie-authenticated `POST /wp/v2/users/{id}` could therefore change a user's password or role with no reauthentication — and no effect-level backstop covers account mutations, so nothing else caught it. Both rules now gate `POST` as well. Guarded by a regression test (`tests/Unit/UserMutationRestMethodTest.php`).
+
 ## 4.7.0 - 2026-07-16
 
 - **In-editor reauthentication modal — password path (new):** completing the in-editor capability whose server-side plumbing shipped in 4.6.0, a gated block-editor REST request soft-blocked with `sudo_required` now opens an in-place **"Confirm your identity"** password modal over the editor instead of only linking out to the challenge page. The modal grants the sudo session and the original request is transparently re-dispatched — no full-page redirect, and editor state (unsaved content, open panels) is preserved. The `apiFetch` middleware owns the intercept; re-dispatch is owner-scoped so concurrent editor requests replay against the granting user only, with stale-nonce recovery (re-minting via the 4.6.0 `wp_sudo_refresh_grant_nonce` endpoint) and graceful degradation back to the link-out snackbar when there is no safe in-editor path. The security invariant is preserved: a two-factor-enrolled account never receives a session from the password step alone.
