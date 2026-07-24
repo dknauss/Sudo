@@ -57,6 +57,7 @@ if ( ! function_exists( 'wp_sudo_critical_alert_bridge_event_map' ) ) {
 			'escalation_blocked'    => array( 'hook' => 'wp_sudo_escalation_blocked', 'args' => 3 ),
 			'lockout'               => array( 'hook' => 'wp_sudo_lockout', 'args' => 3 ),
 			'missing_builtin_rules' => array( 'hook' => 'wp_sudo_gated_actions_missing_builtin_rules', 'args' => 1 ),
+			'role_drift'            => array( 'hook' => 'wp_sudo_role_drift_detected', 'args' => 1 ),
 			'recovery_mode'         => array( 'hook' => 'wp_sudo_recovery_mode_active', 'args' => 1 ),
 		);
 	}
@@ -70,7 +71,7 @@ if ( ! function_exists( 'wp_sudo_critical_alert_bridge_enabled_events' ) ) {
 	 * @return string[]
 	 */
 	function wp_sudo_critical_alert_bridge_enabled_events(): array {
-		$default = array( 'capability_tampered', 'escalation_blocked', 'lockout', 'missing_builtin_rules' );
+		$default = array( 'capability_tampered', 'escalation_blocked', 'lockout', 'missing_builtin_rules', 'role_drift' );
 
 		$events = apply_filters( 'wp_sudo_critical_alert_events', $default );
 
@@ -215,6 +216,41 @@ if ( ! function_exists( 'wp_sudo_critical_alert_bridge_build_event' ) ) {
 					'body'     => 'A filter removed built-in gated rules: ' . implode( ', ', $missing ),
 					'identity' => implode( ',', $missing ),
 					'scope'    => $missing_network ? 'network' : 'site',
+				);
+
+			case 'role_drift':
+				$report     = isset( $args[0] ) && is_array( $args[0] ) ? $args[0] : array();
+				$principals = 0;
+				$sig        = array();
+				foreach ( ( is_array( $report['sites'] ?? null ) ? $report['sites'] : array() ) as $blog_id => $entry ) {
+					$admins = array_map( 'intval', (array) ( $entry['administrators'] ?? array() ) );
+					$gov    = array_map( 'intval', (array) ( $entry['governance'] ?? array() ) );
+					sort( $admins );
+					sort( $gov );
+					$principals += count( $admins ) + count( $gov );
+					$sig[]       = $blog_id . ':a=' . implode( ',', $admins ) . ':g=' . implode( ',', $gov );
+				}
+				$supers = array_map( 'intval', (array) ( $report['network']['super_admins'] ?? array() ) );
+				sort( $supers );
+				$principals += count( $supers );
+				$roles       = array_keys( is_array( $report['roles'] ?? null ) ? $report['roles'] : array() );
+				sort( $roles );
+				$sig[] = 's=' . implode( ',', $supers ) . ':r=' . implode( ',', $roles );
+				return array(
+					'key'      => $key,
+					'subject'  => 'Role/capability drift detected',
+					'body'     => sprintf(
+						'%d unauthorized privileged principal(s) and %d changed role definition(s) diverge from the trusted manifest%s. Review with "wp sudo manifest diff".',
+						$principals,
+						count( $roles ),
+						$roles ? ' (roles: ' . implode( ', ', $roles ) . ')' : ''
+					),
+					// Dedup on the drift signature: a persistent, unremediated drift
+					// must not re-alert on every (daily) sweep. It alerts once per
+					// throttle window, and again only when the drift set changes.
+					'identity' => 'role_drift:' . md5( implode( '|', $sig ) ),
+					// A drifted super-admin set is a network-scope concern.
+					'scope'    => empty( $supers ) ? 'site' : 'network',
 				);
 
 			case 'recovery_mode':
