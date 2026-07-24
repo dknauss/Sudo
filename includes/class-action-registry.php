@@ -544,10 +544,15 @@ class Action_Registry {
 					'route'    => '#^/wp/v2/settings$#',
 					'methods'  => array( 'PUT', 'PATCH', 'POST' ),
 					'callback' => function ( $request ): bool {
-						$params   = $request->get_params();
-						$critical = self::critical_option_names();
-						foreach ( $critical as $opt ) {
-							if ( array_key_exists( $opt, $params ) ) {
+						$params = $request->get_params();
+						// Core keys /wp/v2/settings by each setting's show_in_rest name,
+						// not the raw option name — so siteurl arrives as 'url' and
+						// admin_email as 'email'. Match both the raw names (harmless;
+						// future-proof) and those REST aliases, or a stolen cookie could
+						// repoint siteurl via POST /wp/v2/settings {"url":"..."} ungated.
+						$keys = array_merge( self::critical_option_names(), self::critical_option_rest_keys() );
+						foreach ( $keys as $key ) {
+							if ( array_key_exists( $key, $params ) ) {
 								return true;
 							}
 						}
@@ -1258,5 +1263,37 @@ class Action_Registry {
 				'users_can_register',
 			)
 		);
+	}
+
+	/**
+	 * REST parameter keys that map to critical options on /wp/v2/settings.
+	 *
+	 * WordPress keys the settings endpoint by each setting's `show_in_rest`
+	 * name, which differs from the raw option name for the two single-site
+	 * critical options core exposes there: `siteurl` → `url` and `admin_email`
+	 * → `email` (`register_initial_settings()`). The other critical options
+	 * (`home`, `new_admin_email`, `default_role`, `users_can_register`) are not
+	 * registered on the settings endpoint, so only these two REST aliases can
+	 * appear in a `/wp/v2/settings` body.
+	 *
+	 * @return string[]
+	 */
+	public static function critical_option_rest_keys(): array {
+		// Derive the REST aliases from the FILTERED critical option list, so that
+		// narrowing `wp_sudo_critical_options` ungates an option on the REST path
+		// too — parity with the admin path (developer-reference.md: removing an
+		// entry ungates that option). Only siteurl/admin_email have a differing
+		// show_in_rest name; every other critical option keys by its raw name.
+		$aliases = array(
+			'siteurl'     => 'url',
+			'admin_email' => 'email',
+		);
+		$keys    = array();
+		foreach ( self::critical_option_names() as $opt ) {
+			if ( isset( $aliases[ $opt ] ) ) {
+				$keys[] = $aliases[ $opt ];
+			}
+		}
+		return $keys;
 	}
 }
