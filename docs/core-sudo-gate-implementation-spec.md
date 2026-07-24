@@ -77,7 +77,7 @@ wp_get_actions();                             // array<string,array>
 wp_action_exists( $id );                      // bool
 ```
 
-Naming follows the Abilities API shape `namespace/action-name` (lowercase, hyphens, one slash) — see proposal §6. Actions are *not* forced into the Abilities object model; some map to abilities later, some wrap legacy flows.
+Naming follows the Abilities API shape `namespace/action-name` (lowercase, hyphens, one slash) — see proposal §6. Actions are *not* forced into the Abilities object model; some map to abilities later, some wrap legacy flows. Per [`core-actions-registry-vs-abilities-decision.md`](core-actions-registry-vs-abilities-decision.md), `wp_get_action(s)` is a **union** query surface: it returns these standalone entries *and* any registered ability carrying a `consequence` annotation, so the gate reads one surface and never branches on the source. The catalog below is registered as standalone entries because none of these operations are abilities today.
 
 **Initial core catalog** (small on purpose — proposal §8):
 
@@ -286,7 +286,7 @@ WP Sudo stops being a full sudo implementation and becomes (proposal §16): opin
 
 ## 12. Open questions (for core review)
 
-1. Registry-in-core vs. consequence-metadata layered on the **Abilities API** (which now exists and already provides namespacing + execution hooks). The lighter landing may be to *not* build a second registry — annotate abilities instead. Strongest fresh argument since the old #20140 comments; worth settling first.
+1. Registry-in-core vs. consequence-metadata layered on the **Abilities API** (which now exists and already provides namespacing + execution hooks). The lighter landing may be to *not* build a second registry — annotate abilities instead. Strongest fresh argument since the old #20140 comments; worth settling first. **Resolved (2026-07-24):** neither pure form — a thin consequence-annotation schema with a single source-blind query surface populated by standalone entries *and* consequence-annotated abilities. See [`core-actions-registry-vs-abilities-decision.md`](core-actions-registry-vs-abilities-decision.md). The public name for the annotation API remains open (§4.0 of the proposal).
 2. `WP_Session_Tokens` extension vs. a dedicated store (proposal §12).
 3. Flat recent-auth freshness vs. scope-bound windows for v1 (§4.2).
 4. Should `core/create-user` gate *all* inserts or only privileged-context ones (registration/import would otherwise trip it)?

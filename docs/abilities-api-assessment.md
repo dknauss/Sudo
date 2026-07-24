@@ -317,6 +317,12 @@ authentication is a new trust boundary.
 
 ## Recommendation
 
+> **Scope note:** This document assesses how the *shipping* WP Sudo plugin treats
+> the Abilities API at runtime. For the distinct question of how a proposed core
+> Actions API / Action Gate would relate to the Abilities API — aligning with its
+> namespacing and execution-hook pattern while treating it as adjacent prior art
+> rather than the vehicle — see [`core-action-gate-proposal.md`](core-action-gate-proposal.md) §6.
+
 **No Abilities-specific Gate changes are planned from this assessment alone.**
 
 The evaluated core abilities were read-only. The existing REST surface interception in
