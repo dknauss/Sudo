@@ -175,10 +175,13 @@ direct ability calls also gate MCP-mediated calls.
 
 ### WP-CLI `wp ability run` (CLI callers)
 
-For abilities executed via WP-CLI's `wp ability run` command, the existing CLI
-surface gating via function-level hooks in `register_function_hooks()` applies. A
-hook on the appropriate WordPress action that fires before the ability's
-`execute_callback` would be added to the function hook registration block.
+For abilities executed via WP-CLI's `wp ability run` command, gate at the **CLI
+surface before `WP_Ability::execute()` is invoked** — the existing CLI policy
+(function-level hooks in `register_function_hooks()`), a hard block, which is all
+a non-interactive surface can do. Do **not** rely on `wp_before_execute_ability`
+or any pre-`execute_callback` action: those fire *inside* `execute()` and their
+return is discarded (see "Direct PHP execution path" below), so they cannot stop
+the run.
 
 ### Direct PHP execution path: `WP_Ability::execute()`
 
@@ -357,8 +360,11 @@ but is not a concern until destructive abilities are registered.
    can only `wp_die()`/throw, never return a structured challenge. Treat these as
    **monitor/audit-only** until core adds a real pre-execute short-circuit — do
    **not** reimplement the ignored-return hook as a gate.
-4. For WP-CLI `wp ability run` with destructive abilities, add a function-level hook
-   in `Gate::register_function_hooks()` targeting the appropriate WordPress action.
+4. For WP-CLI `wp ability run` with destructive abilities, gate at the CLI surface
+   *before* `WP_Ability::execute()` runs — the existing CLI policy is a hard block
+   (`WP_CLI::error`/`wp_die`), all a non-interactive surface can do. Do **not** use
+   `wp_before_execute_ability`: it fires inside `execute()` and its return is
+   ignored, so it cannot stop the run.
 5. Before the next release that changes Connectors coverage, verify that the
    released Connectors settings page still writes credential changes through
    `/wp/v2/settings`, that connector setting names still follow the documented
