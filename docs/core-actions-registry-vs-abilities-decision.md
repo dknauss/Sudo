@@ -2,7 +2,7 @@
 
 **Status:** Draft decision memo, not adopted by WordPress core.
 **Drafted:** 2026-07-24
-**Resolves:** the "one blocking question" in [`core-sudo-gate-proposal-notes.md`](core-sudo-gate-proposal-notes.md) §1 and open question #1 in [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md) §12.
+**Resolves:** open question #1 (a new registry vs. consequence-metadata on the Abilities API) in [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md) §12 — the "one blocking question" that must be settled before the first patch.
 **Companion to:** [`core-action-gate-proposal.md`](core-action-gate-proposal.md) (§6 the *why*), [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md) (the *what to change*), [`abilities-api-assessment.md`](abilities-api-assessment.md) (runtime posture toward the Abilities API).
 **Grounding for Abilities-API facts:** [`abilities-api-assessment.md`](abilities-api-assessment.md), which cites official make.wordpress.org / developer.wordpress.org sources. No new external claims are introduced here; verify against those before quoting in a public post.
 
@@ -95,7 +95,6 @@ If accepted, the following should be reconciled (not done by this memo):
 
 - **`core-sudo-gate-implementation-spec.md` §12 Q1** — mark resolved; point to this memo. §4.1's "pure-data registry" description should note the union-with-abilities query surface.
 - **`core-action-gate-proposal.md` §6 / §4.0** — §6's "align but don't collapse" can cite this memo as the concrete resolution; the only residual is the §4.0 naming caveat (§18's open questions don't include the registry fork, so nothing there changes).
-- **`core-sudo-gate-proposal-notes.md` §1** — the "one blocking question" is answered; the Make/Core draft can stop hedging and state the union design in one sentence.
 
 ## Sub-questions this memo does *not* resolve (still for core review)
 

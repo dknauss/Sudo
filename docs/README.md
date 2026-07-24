@@ -31,7 +31,6 @@ source of truth for its topic; this index never restates content (see
 | *Why* should core have an action gate, and in what phases? | [`core-action-gate-proposal.md`](core-action-gate-proposal.md) |
 | *What* exactly would change in core (files, functions, APIs)? | [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md) |
 | What do the actual patches look like at the chokepoints? | [`core-sudo-gate-poc-patches.md`](core-sudo-gate-poc-patches.md) |
-| How do we advance Trac #20140 / write the Make/Core post? | [`core-sudo-gate-proposal-notes.md`](core-sudo-gate-proposal-notes.md) |
 | Should Layer 1 be a new registry or Abilities metadata? (decision) | [`core-actions-registry-vs-abilities-decision.md`](core-actions-registry-vs-abilities-decision.md) |
 | Does the `consequential-actions` MVP still argue the spec's thesis? | [`core-sudo-gate-vs-demo-reconciliation.md`](core-sudo-gate-vs-demo-reconciliation.md) |
 | How does WordPress core authentication actually work? | [`wordpress-core-authentication.md`](wordpress-core-authentication.md) |
