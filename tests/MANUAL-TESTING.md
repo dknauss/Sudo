@@ -727,7 +727,7 @@ curl -sk "YOUR_SITE_URL/wp-cron.php" -w "HTTP: %{http_code}, body: %{size_downlo
 ### 9.4 Gated Actions Table
 
 1. Scroll down on Settings > Sudo.
-2. **Expected:** A table listing all 35 gated rules grouped by
+2. **Expected:** A table listing all 36 gated rules grouped by
    category, showing which surfaces each action covers. When WPGraphQL
    is active, an additional GraphQL row appears at the bottom of the table.
 

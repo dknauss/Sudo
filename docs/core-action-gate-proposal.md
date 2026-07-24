@@ -156,6 +156,8 @@ Parts 4 and 5 (May 25) are the most directly relevant sections for this proposal
 
 This proposal agrees with Peralty’s runtime diagnosis while stopping well short of claiming that an Action Gate primitive is a substitute for the split he is proposing. If Peralty is right, then this proposal is not the answer to WordPress’s deepest trust problem. It is, at best, a backward-compatible hardening layer for consequential operations in the existing runtime — and, notably, one whose registry-first approach fits naturally within Peralty’s own declared-but-not-enforced Phase 1 model.
 
+A full read of the series sharpens the relationship. Part 2 (“The Kernel”) describes WP Next as a **PSR-15 middleware pipeline** over a PSR-11 container with **PSR-14 typed events**; Part 6 (“The Migration Plan”) lists the shared `wp-kernel`’s security services as **CSRF protection, OAuth, and a phased plugin-manifest model**. Across all six parts, **proof of intent for consequential operations is never raised** — not in the kernel, not in the admin (Part 3 states plainly that “Next’s admin is Classic’s admin”), not in the manifest phasing. This matters in two directions. The kernel supplies precisely the seam an Action Gate needs — request middleware and typed effect events — so under WP Next the gate is a natural PSR-15 middleware / event consumer rather than a bolt-on. And the seam is left empty: even the most detailed WP Next plan omits a proof-of-intent layer, which is the clearest evidence that this primitive is orthogonal to the split rather than subsumed by it.
+
 ### Joost de Valk: the strongest current refactor-without-split argument
 
 Joost de Valk’s [“WordPress needs to refactor, not redecorate”](https://joost.blog/wordpress-refactor-not-redecorate/) makes many of the same underlying architectural critiques as Peralty—especially around the plugin permission model, data model, and developer experience—but reaches a different conclusion. Instead of arguing for a split, de Valk argues for targeted, structural refactoring inside the existing project, citing precedents such as Yoast’s Indexables table and WooCommerce HPOS.
@@ -705,6 +707,8 @@ A small Actions API is exactly the sort of primitive core can introduce incremen
 ### If Peralty’s split / WP Next path is right
 
 The Actions API still matters as a semantic model. In a more isolated runtime, proof-of-intent remains relevant above capability grants, even if the implementation form changes.
+
+Concretely: even WP Next’s `wp-kernel` — a PSR-15 middleware pipeline with PSR-14 typed events (Part 2), whose enumerated security services are CSRF, OAuth, and plugin manifests (Part 6) — has **no proof-of-intent layer**. The Action Gate is exactly the middleware that fills that seam: a PSR-15 stage that consumes the Actions registry and, for selected consequential effects, demands fresh proof of human intent before the request proceeds. Manifests answer “is this plugin *allowed* to do this?”; the gate answers “is a human *intending* this right now?” — a distinct question WP Next’s own plan leaves open.
 
 ### If WordPress changes more slowly than either proposal hopes
 
