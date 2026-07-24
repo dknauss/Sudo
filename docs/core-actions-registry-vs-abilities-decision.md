@@ -77,7 +77,7 @@ Rows 1–4 are inert naming/observability — shippable alone, exactly the "Phas
 
 ### MVP status (verified 2026-07-24)
 
-The `dknauss/consequential-actions` demonstrator implements the **standalone (Option-A) shape**: an `actions()` catalog filtered by `consequential_actions`, with `namespace/action-name` IDs and **no** Abilities-API awareness (metadata was label-only through v0.2.0; enriched to the full `capabilities`/`category`/`consequence_class`/`scope`/`annotations` shape in v0.2.1). That is the right choice for a five-minute wedge — at MVP scale a union with abilities that have no consequential members would be pure overhead — so the recommendation here is **not** that the MVP model the union surface. It stays a faithful preview of a *standalone* Layer 1 entry, and the union-with-abilities query surface is the delta a core patch adds on top.
+The `dknauss/consequential-actions` demonstrator implements the **standalone (Option-A) shape**: an `actions()` catalog filtered by `consequential_actions`, with `namespace/action-name` IDs and **no** Abilities-API awareness (metadata was label-only through v0.2.0; enriched to the full `capabilities`/`category`/`consequence_class`/`scope`/`annotations` shape in v0.2.1, merged to `consequential-actions` `main` on 2026-07-24 via PR #2 — a `v0.2.1` release tag is still pending). That is the right choice for a five-minute wedge — at MVP scale a union with abilities that have no consequential members would be pure overhead — so the recommendation here is **not** that the MVP model the union surface. It stays a faithful preview of a *standalone* Layer 1 entry, and the union-with-abilities query surface is the delta a core patch adds on top.
 
 The canonical tracker for MVP-vs-design deltas is [`core-sudo-gate-vs-demo-reconciliation.md`](core-sudo-gate-vs-demo-reconciliation.md); this note only records the one thing that doc predates — the union refinement — and its conclusion (MVP stays standalone-shaped) so the two don't diverge.
 
@@ -89,12 +89,14 @@ Proposal §4.0 already flags that "action" collides with `do_action()`/`add_acti
 
 ---
 
-## What this changes in the existing docs
+## What this change already reconciles
 
-If accepted, the following should be reconciled (not done by this memo):
+The same change that adds this memo also applied these reconciliations:
 
-- **`core-sudo-gate-implementation-spec.md` §12 Q1** — mark resolved; point to this memo. §4.1's "pure-data registry" description should note the union-with-abilities query surface.
-- **`core-action-gate-proposal.md` §6 / §4.0** — §6's "align but don't collapse" can cite this memo as the concrete resolution; the only residual is the §4.0 naming caveat (§18's open questions don't include the registry fork, so nothing there changes).
+- **`core-sudo-gate-implementation-spec.md`** — §12 Q1 marked resolved (points here); §4.1 now describes the union-with-abilities query surface.
+- **`core-action-gate-proposal.md`** — §6's "align but don't collapse" now cites this memo as the concrete resolution.
+
+Remaining follow-up: the public *name* for the API (proposal §4.0 naming caveat) is still open; §18's open questions don't include the registry fork, so nothing there changes.
 
 ## Sub-questions this memo does *not* resolve (still for core review)
 
