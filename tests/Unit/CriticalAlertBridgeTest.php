@@ -125,6 +125,7 @@ class CriticalAlertBridgeTest extends TestCase {
 		$this->assertContains( 'wp_sudo_escalation_blocked', $hooks );
 		$this->assertContains( 'wp_sudo_lockout', $hooks );
 		$this->assertContains( 'wp_sudo_gated_actions_missing_builtin_rules', $hooks );
+		$this->assertContains( 'wp_sudo_role_drift_detected', $hooks );
 		$this->assertContains( 'shutdown', $hooks );
 		// recovery_mode is high-frequency and opt-in: not wired by default.
 		$this->assertNotContains( 'wp_sudo_recovery_mode_active', $hooks );
@@ -373,5 +374,59 @@ class CriticalAlertBridgeTest extends TestCase {
 		);
 
 		$this->assertSame( 'site', $event['scope'] );
+	}
+
+	public function test_role_drift_event_summarizes_counts_and_is_site_scoped(): void {
+		$this->boot();
+
+		$report = array(
+			'sites'   => array( 1 => array( 'administrators' => array( 99 ), 'governance' => array( 7, 8 ) ) ),
+			'network' => array( 'super_admins' => array() ),
+			'roles'   => array( 'editor' => array( 'expected' => 'a', 'actual' => 'b' ) ),
+		);
+		$event = wp_sudo_critical_alert_bridge_build_event( 'role_drift', array( $report ) );
+
+		$this->assertIsArray( $event );
+		$this->assertSame( 'Role/capability drift detected', $event['subject'] );
+		// 1 admin + 2 governance = 3 principals; 1 changed role.
+		$this->assertStringContainsString( '3 unauthorized privileged principal(s)', $event['body'] );
+		$this->assertStringContainsString( '1 changed role definition(s)', $event['body'] );
+		$this->assertStringContainsString( 'roles: editor', $event['body'] );
+		$this->assertSame( 'site', $event['scope'] );
+	}
+
+	public function test_role_drift_super_admin_set_is_network_scoped(): void {
+		$this->boot( array( 'multisite' => true ) );
+
+		$event = wp_sudo_critical_alert_bridge_build_event(
+			'role_drift',
+			array( array( 'network' => array( 'super_admins' => array( 42 ) ), 'roles' => array() ) )
+		);
+
+		$this->assertSame( 'network', $event['scope'] );
+	}
+
+	public function test_role_drift_identity_is_stable_for_the_same_drift_but_changes_with_it(): void {
+		$this->boot();
+
+		$a = wp_sudo_critical_alert_bridge_build_event( 'role_drift', array( array( 'sites' => array( 1 => array( 'administrators' => array( 99 ) ) ) ) ) );
+		$b = wp_sudo_critical_alert_bridge_build_event( 'role_drift', array( array( 'sites' => array( 1 => array( 'administrators' => array( 99 ) ) ) ) ) );
+		$c = wp_sudo_critical_alert_bridge_build_event( 'role_drift', array( array( 'sites' => array( 1 => array( 'administrators' => array( 99, 100 ) ) ) ) ) );
+
+		// Identical drift → identical identity (deduped across daily sweeps)...
+		$this->assertSame( $a['identity'], $b['identity'] );
+		// ...but a changed drift set produces a new identity (re-alerts).
+		$this->assertNotSame( $a['identity'], $c['identity'] );
+	}
+
+	public function test_role_drift_identity_changes_when_a_drifted_roles_hash_changes(): void {
+		$this->boot();
+
+		// Same role slug still drifted, but its actual definition changed again
+		// (new actual hash) — must NOT dedupe to the first alert.
+		$first  = wp_sudo_critical_alert_bridge_build_event( 'role_drift', array( array( 'roles' => array( 'editor' => array( 'expected' => 'sha256:base', 'actual' => 'sha256:one' ) ) ) ) );
+		$second = wp_sudo_critical_alert_bridge_build_event( 'role_drift', array( array( 'roles' => array( 'editor' => array( 'expected' => 'sha256:base', 'actual' => 'sha256:two' ) ) ) ) );
+
+		$this->assertNotSame( $first['identity'], $second['identity'] );
 	}
 }

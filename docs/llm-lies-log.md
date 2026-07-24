@@ -589,10 +589,9 @@ are not stale facts but invented strings that sound plausible. A human
 reading the documentation would have no reason to doubt them, and code
 using them would fail silently or throw errors.
 
-
-================================================================
 COST / PROCESS CHEATS (non-confabulation)
-================================================================
+=========================================
+
 A separate class from the fabrications above: these are not false claims,
 they are ways the agent wasted the user's tokens/money or added no-value
 churn. Logged here at the user's request for accountability, kept distinct
