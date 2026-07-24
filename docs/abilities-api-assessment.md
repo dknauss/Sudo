@@ -351,8 +351,12 @@ but is not a concern until destructive abilities are registered.
 2. When destructive abilities appear, add a REST rule to `Action_Registry` matching
    `/wp-abilities/v1/.*/run` with `DELETE` method. No `Gate` class changes required.
    This also covers MCP Adapter calls (same REST endpoints).
-3. For abilities with `show_in_rest => false` that are destructive, hook
-   `wp_before_execute_ability` to gate the PHP execution path.
+3. For abilities with `show_in_rest => false` that are destructive, there is **no
+   graceful gate** on the PHP path: `wp_before_execute_ability` is a `do_action`
+   whose return value is discarded (see "Direct PHP execution path" above), so it
+   can only `wp_die()`/throw, never return a structured challenge. Treat these as
+   **monitor/audit-only** until core adds a real pre-execute short-circuit — do
+   **not** reimplement the ignored-return hook as a gate.
 4. For WP-CLI `wp ability run` with destructive abilities, add a function-level hook
    in `Gate::register_function_hooks()` targeting the appropriate WordPress action.
 5. Before the next release that changes Connectors coverage, verify that the
