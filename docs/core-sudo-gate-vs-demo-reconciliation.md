@@ -2,13 +2,13 @@
 
 **Status:** Alignment review. Companion to [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md).
 **Original review:** `github.com/dknauss/consequential-actions` @ `v0.1.6` (commit `b71c15d`).
-**Updated 2026-07-24:** re-checked against `v0.2.0` (commit `e430974`) and `v0.2.1` (merged to `consequential-actions` `main` via PR #2 on 2026-07-24; a `v0.2.1` release tag is still pending). **All three contradictions below are now resolved** — see the status callout. This doc is retained as the record of what was fixed and why.
+**Updated July 2026:** re-checked against `v0.2.0` (commit `e430974`) and `v0.2.1` (merged to `consequential-actions` `main` via PR #2; a `v0.2.1` release tag is still pending). **All three contradictions below are now resolved** — see the status callout. This doc is retained as the record of what was fixed and why.
 
 **Purpose:** Make the public demo argue the spec's design, and surface the places where it once argued *against* it.
 
 The demo is explicitly a "wedge, not a product." It should not grow toward WP Sudo. But it *is* the runnable artifact linked from Trac #32, so its design choices read as "this is the shape being proposed to core." The two that contradicted the spec and comment #32 were fixed in v0.2.0; the registry-shape gap was closed in v0.2.1.
 
-> **Status callout (2026-07-24).**
+> **Status callout.**
 > - **§1 enforcement seam / REST coverage — RESOLVED in v0.2.0.** `gate_rest()` on `rest_pre_dispatch` now gates `/wp/v2/users` writes, so the takeover is blocked over REST as well as the form.
 > - **§2 force-logout framing — RESOLVED in v0.2.0.** README/readme.txt now frame the window as the recommended primitive and force-logout as a stricter opt-in, matching Trac #32.
 > - **§3 registry metadata shape — RESOLVED in v0.2.1** (merged to `consequential-actions` `main` via PR #2). Each `actions()` entry now carries `capabilities`, `category`, `consequence_class`, `scope`, `annotations`, per spec §4.1 — standalone shape only, no abilities-union (see [`core-actions-registry-vs-abilities-decision.md`](core-actions-registry-vs-abilities-decision.md)).

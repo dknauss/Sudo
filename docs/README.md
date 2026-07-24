@@ -4,8 +4,6 @@
 source of truth for its topic; this index never restates content (see
 [`llm-lies-log.md`](llm-lies-log.md) for why that discipline exists).*
 
-*Last updated: 2026-07-24.*
-
 ---
 
 ## Start here

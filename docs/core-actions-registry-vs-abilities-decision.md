@@ -1,7 +1,7 @@
 # Decision Memo: Consequential-Actions Registry vs. Abilities-API Metadata
 
 **Status:** Draft decision memo, not adopted by WordPress core.
-**Drafted:** 2026-07-24
+**Drafted:** July 2026
 **Resolves:** open question #1 (a new registry vs. consequence-metadata on the Abilities API) in [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md) §12 — the "one blocking question" that must be settled before the first patch.
 **Companion to:** [`core-action-gate-proposal.md`](core-action-gate-proposal.md) (§6 the *why*), [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md) (the *what to change*), [`abilities-api-assessment.md`](abilities-api-assessment.md) (runtime posture toward the Abilities API).
 **Grounding for Abilities-API facts:** [`abilities-api-assessment.md`](abilities-api-assessment.md), which cites official make.wordpress.org / developer.wordpress.org sources. No new external claims are introduced here; verify against those before quoting in a public post.
@@ -39,12 +39,12 @@ To make Option B work, core would first have to **register the entire consequent
 
 ### The strongest argument *for* B — and why it still doesn't flip the decision
 
-The best case for B is enforcement economy: `WP_Ability::execute()` already fires `wp_before_execute_ability` (abilities-api-assessment.md). *If* the catalog were abilities, the gate could hook that single seam instead of editing ~15 core functions (spec §6 change list). One hook vs. fifteen insertions is a real architectural pull.
+The apparent best case for B is *enforcement economy*: hook one ability-execution seam instead of editing ~15 core functions (spec §6 change list). One hook vs. fifteen insertions would be a real architectural pull — except the seam does not exist. `WP_Ability::execute()` fires `wp_before_execute_ability` via a plain `do_action()` and then calls `$this->do_execute( $input )` on the very next line, discarding anything the hook returned (verified against WordPress/abilities-api `includes/abilities-api/class-wp-ability.php`, `execute()` — https://github.com/WordPress/abilities-api/blob/trunk/includes/abilities-api/class-wp-ability.php). So `wp_before_execute_ability` is **observational** — an audit/telemetry point, not a gate: a callback cannot return a `WP_Error` or a challenge to stop the ability. The only way to prevent `do_execute()` from that hook is to `wp_die()` or throw — a blunt request-kill, not the structured challenge-and-replay a reauth gate needs. B therefore buys *no* clean enforcement seam at all.
 
-It does not flip the decision, for two reasons:
+Two further objections hold independently, even setting the (non-)seam aside:
 
-1. **It presupposes the abilitization that B can't cheaply deliver.** The economy only materializes *after* every mutation is an ability — the expensive precondition above.
-2. **Even then it would be less complete than the chokepoint model.** The spec deliberately gates the **data-layer function** every surface funnels through (§5.1), precisely so a *programmatic* caller — a plugin invoking `wp_update_user()` directly — is covered. Gating only `wp_before_execute_ability` would miss any mutation reached without going through the ability execution path, which is most of them today. The chokepoint model is strictly more complete regardless of whether the op is also an ability.
+1. **B presupposes abilitization it can't cheaply deliver.** Any per-ability enforcement only materializes *after* every mutation is an ability — the expensive precondition above.
+2. **The chokepoint model is strictly more complete.** The spec gates the **data-layer function** every surface funnels through (§5.1), so a *programmatic* caller — a plugin invoking `wp_update_user()` directly — is covered. Ability-execution hooks (even if they *could* gate) see only mutations routed through `WP_Ability::execute()`, which is almost none today.
 
 ## Why pure Option A is also wrong
 
@@ -59,6 +59,15 @@ Two independent registries with overlapping purpose is the drift surface this re
 | **Ops that are (or become) abilities** | The same `consequence` block attaches to the ability registration; no duplicate action entry. |
 | **The gate's view** | `wp_get_action( $id )` returns the merged record regardless of source; `wp_get_actions()` returns the union. The gate (spec §4.3) is written against this surface and is source-blind. |
 | **Naming** | Keep the Abilities `namespace/name` convention (proposal §6) so an ability and a standalone action share an ID space and can never collide-yet-differ. |
+
+### Collision and conflict behavior
+
+Two sources feeding one ID space needs an explicit rule, not just the assertion that IDs "can never collide-yet-differ":
+
+- **One ID, one record.** The union is a *lookup*, not a *merge*. `wp_get_action( $id )` resolves to exactly one record; it never silently merges a standalone entry and an ability that share an ID.
+- **An operation is registered in exactly one place.** If an operation is both an ability and consequential, its `consequence` block lives on the ability registration and **no** standalone action is registered for it (and vice versa). That single-registration rule is what makes collisions a registration-time error rather than a runtime ambiguity.
+- **Collisions fail loudly, at `init`, not at read time.** `wp_register_action()` registering an ID that already exists as a consequence-annotated ability (or the reverse) is a conflict: reject it with `_doing_it_wrong()` and keep the first registration, so a late/duplicate registration cannot silently shadow the canonical one. Detection happens when the catalog is assembled (`init`), so the error surfaces in development, not as a divergent gate decision in production.
+- **Precedence, if a host insists on allowing both.** Should a future core decision permit overlap rather than reject it, the **ability** is authoritative — it is the executable object, so its metadata is the one the gate must not disagree with. This memo's recommendation is to reject overlap outright; precedence is stated only so the fallback is unambiguous.
 
 This captures B's alignment benefit (one metadata vocabulary, one hook shape, one ID space, and automatic pickup of consequential abilities when they eventually exist) without paying B's precondition (no need to abilitize core's write path first), and without A's drift (no second source of truth for an operation that is an ability).
 
@@ -75,9 +84,9 @@ This is the point of settling the fork — the Phase 1 patch now has a definite 
 
 Rows 1–4 are inert naming/observability — shippable alone, exactly the "Phase 1 lands without the gate" property proposal §5 depends on. No abilitization required, no second-registry drift introduced, and consequential abilities are picked up for free if and when core adds them.
 
-### MVP status (verified 2026-07-24)
+### MVP status
 
-The `dknauss/consequential-actions` demonstrator implements the **standalone (Option-A) shape**: an `actions()` catalog filtered by `consequential_actions`, with `namespace/action-name` IDs and **no** Abilities-API awareness (metadata was label-only through v0.2.0; enriched to the full `capabilities`/`category`/`consequence_class`/`scope`/`annotations` shape in v0.2.1, merged to `consequential-actions` `main` on 2026-07-24 via PR #2 — a `v0.2.1` release tag is still pending). That is the right choice for a five-minute wedge — at MVP scale a union with abilities that have no consequential members would be pure overhead — so the recommendation here is **not** that the MVP model the union surface. It stays a faithful preview of a *standalone* Layer 1 entry, and the union-with-abilities query surface is the delta a core patch adds on top.
+The `dknauss/consequential-actions` demonstrator implements the **standalone (Option-A) shape**: an `actions()` catalog filtered by `consequential_actions`, with `namespace/action-name` IDs and **no** Abilities-API awareness (metadata was label-only through v0.2.0; enriched to the full `capabilities`/`category`/`consequence_class`/`scope`/`annotations` shape in v0.2.1, merged to `consequential-actions` `main` via PR #2 — a `v0.2.1` release tag is still pending). That is the right choice for a five-minute wedge — at MVP scale a union with abilities that have no consequential members would be pure overhead — so the recommendation here is **not** that the MVP model the union surface. It stays a faithful preview of a *standalone* Layer 1 entry, and the union-with-abilities query surface is the delta a core patch adds on top.
 
 The canonical tracker for MVP-vs-design deltas is [`core-sudo-gate-vs-demo-reconciliation.md`](core-sudo-gate-vs-demo-reconciliation.md); this note only records the one thing that doc predates — the union refinement — and its conclusion (MVP stays standalone-shaped) so the two don't diverge.
 
