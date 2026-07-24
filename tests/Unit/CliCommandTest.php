@@ -130,6 +130,10 @@ class CliCommandTest extends TestCase {
 	 * @return void
 	 */
 	private function stub_collect_state( array $admins, array $governance = array() ): void {
+		global $wpdb;
+		$wpdb = \Mockery::mock();
+		$wpdb->shouldReceive( 'get_blog_prefix' )->andReturn( 'wp_' );
+
 		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
 		Functions\when( 'is_multisite' )->justReturn( false );
 		Functions\when( 'get_users' )->alias(
@@ -140,8 +144,17 @@ class CliCommandTest extends TestCase {
 				return $admins;
 			}
 		);
+		Functions\when( 'wp_cache_delete' )->justReturn( true );
+		$role_defs = array( 'administrator' => array( 'capabilities' => array( 'read' => true, 'manage_options' => true ) ) );
+		// Role_Audit reads role definitions fresh from the {prefix}user_roles
+		// option (cache-bypassed), not wp_roles().
+		Functions\when( 'get_option' )->alias(
+			static function ( $key, $default_value = false ) use ( $role_defs ) {
+				return 'wp_user_roles' === $key ? $role_defs : $default_value;
+			}
+		);
 		$roles        = new \stdClass();
-		$roles->roles = array( 'administrator' => array( 'capabilities' => array( 'read' => true, 'manage_options' => true ) ) );
+		$roles->roles = $role_defs;
 		Functions\when( 'wp_roles' )->justReturn( $roles );
 		Functions\when( 'wp_json_encode' )->alias(
 			static function ( $data, $flags = 0 ) {
@@ -154,7 +167,7 @@ class CliCommandTest extends TestCase {
 		$this->expectException( \RuntimeException::class );
 		$this->expectExceptionMessage( "Unknown manifest action 'bogus'" );
 
-		( new CLI_Command() )->manifest( array( 'bogus' ), array( 'path' => '/tmp/x.json' ) );
+		( new CLI_Command() )->manifest( array( 'bogus' ), array( 'manifest-path' => '/tmp/x.json' ) );
 	}
 
 	public function test_manifest_missing_path_errors(): void {
@@ -170,7 +183,7 @@ class CliCommandTest extends TestCase {
 		$path = tempnam( sys_get_temp_dir(), 'wpsudo-cli-manifest-' );
 
 		try {
-			( new CLI_Command() )->manifest( array( 'generate' ), array( 'path' => $path ) );
+			( new CLI_Command() )->manifest( array( 'generate' ), array( 'manifest-path' => $path ) );
 
 			$this->assertSame( 'success', \WP_CLI::$messages[0]['type'] ?? null );
 			$decoded = json_decode( (string) file_get_contents( $path ), true );
@@ -188,10 +201,10 @@ class CliCommandTest extends TestCase {
 
 		try {
 			// Generate against the mocked state, then diff the same state → clean.
-			( new CLI_Command() )->manifest( array( 'generate' ), array( 'path' => $path ) );
+			( new CLI_Command() )->manifest( array( 'generate' ), array( 'manifest-path' => $path ) );
 			\WP_CLI::reset();
 
-			( new CLI_Command() )->manifest( array( 'diff' ), array( 'path' => $path ) );
+			( new CLI_Command() )->manifest( array( 'diff' ), array( 'manifest-path' => $path ) );
 
 			$this->assertSame( 'success', \WP_CLI::$messages[0]['type'] ?? null );
 			$this->assertStringContainsString( 'No role/capability drift', \WP_CLI::$messages[0]['message'] ?? '' );
@@ -205,7 +218,7 @@ class CliCommandTest extends TestCase {
 		// state that has an unauthorized administrator (99).
 		$this->stub_collect_state( array() );
 		$path = tempnam( sys_get_temp_dir(), 'wpsudo-cli-manifest-' );
-		( new CLI_Command() )->manifest( array( 'generate' ), array( 'path' => $path ) );
+		( new CLI_Command() )->manifest( array( 'generate' ), array( 'manifest-path' => $path ) );
 		\WP_CLI::reset();
 
 		$this->stub_collect_state( array( 99 ) );
@@ -214,7 +227,7 @@ class CliCommandTest extends TestCase {
 			$this->expectException( \RuntimeException::class );
 			$this->expectExceptionMessage( 'Role/capability drift detected' );
 
-			( new CLI_Command() )->manifest( array( 'diff' ), array( 'path' => $path ) );
+			( new CLI_Command() )->manifest( array( 'diff' ), array( 'manifest-path' => $path ) );
 		} finally {
 			unlink( $path );
 		}
@@ -224,7 +237,7 @@ class CliCommandTest extends TestCase {
 		$this->expectException( \RuntimeException::class );
 		$this->expectExceptionMessage( 'Manifest missing or unreadable' );
 
-		( new CLI_Command() )->manifest( array( 'diff' ), array( 'path' => '/no/such/wp-sudo-manifest.json' ) );
+		( new CLI_Command() )->manifest( array( 'diff' ), array( 'manifest-path' => '/no/such/wp-sudo-manifest.json' ) );
 	}
 
 	/**

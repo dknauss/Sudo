@@ -182,4 +182,32 @@ class RoleAuditSweepTest extends TestCase {
 		$this->assertFalse( defined( 'WP_SUDO_ROLE_MANIFEST' ) );
 		$this->assertNull( Role_Audit::run_sweep() );
 	}
+
+	public function test_detects_privileged_cap_added_to_non_admin_role(): void {
+		// The generate default watches EVERY role definition, not just
+		// administrator, so a privileged primitive granted to a non-admin role
+		// (the advertised role-definition-drift scenario) is caught (P1).
+		$manifest = Role_Audit::collect_current_state(
+			array( 'privileged_roles' => Role_Audit::default_watched_roles() )
+		);
+
+		// Sanity: the baseline watches editor, and it is clean to start.
+		$this->assertArrayHasKey( 'editor', $manifest['privileged_roles'] );
+		$this->assertFalse( Role_Audit::evaluate( $manifest )['has_drift'] );
+
+		// Escalate the non-admin editor role with a privileged primitive.
+		$editor = get_role( 'editor' );
+		$this->assertNotNull( $editor );
+		$editor->add_cap( 'manage_options' );
+
+		$report = Role_Audit::evaluate( $manifest );
+
+		$this->assertTrue( $report['has_drift'], 'a privileged cap added to editor must be detected.' );
+		$this->assertArrayHasKey( 'editor', $report['roles'] );
+		$this->assertNotSame(
+			$report['roles']['editor']['expected'],
+			$report['roles']['editor']['actual'],
+			'the editor role hash must diverge from the manifest after the cap grant.'
+		);
+	}
 }

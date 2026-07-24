@@ -109,13 +109,24 @@ class CLI_Command {
 	 * : Either `generate` (snapshot the current trusted state to the manifest
 	 * file) or `diff` (report drift of the current state from the manifest).
 	 *
-	 * [--path=<file>]
+	 * [--manifest-path=<file>]
 	 * : Manifest file path. Defaults to the WP_SUDO_ROLE_MANIFEST constant.
+	 *   (Named `--manifest-path`, not `--path`, because `--path` is a WP-CLI
+	 *   global parameter for the WordPress install directory and would be consumed
+	 *   before this command on a non-strict-args install.)
 	 *
 	 * ## EXAMPLES
 	 *
-	 *     wp sudo manifest generate --path=/etc/wp-sudo-manifest.json
+	 *     wp sudo manifest generate --manifest-path=/etc/wp-sudo-manifest.json
 	 *     wp sudo manifest diff
+	 *
+	 * ## NOTES
+	 *
+	 * Multisite scope (MVP): generate and diff audit only the current blog
+	 * (the one resolved from --url / the request context). Network-wide subsite
+	 * privilege drift is not yet swept in a single run — audit each site by
+	 * invoking the command per --url. A network-wide sweep is tracked as a
+	 * follow-up.
 	 *
 	 * @param array<int, string>   $args       Positional args: [0] => action.
 	 * @param array<string, mixed> $assoc_args Assoc args.
@@ -123,12 +134,12 @@ class CLI_Command {
 	 */
 	public function manifest( array $args, array $assoc_args ): void {
 		$action = $args[0] ?? '';
-		$path   = isset( $assoc_args['path'] ) && is_string( $assoc_args['path'] ) && '' !== $assoc_args['path']
-			? $assoc_args['path']
+		$path   = isset( $assoc_args['manifest-path'] ) && is_string( $assoc_args['manifest-path'] ) && '' !== $assoc_args['manifest-path']
+			? $assoc_args['manifest-path']
 			: Role_Manifest::configured_path();
 
 		if ( null === $path || '' === $path ) {
-			\WP_CLI::error( 'No manifest path. Pass --path=<file> or define WP_SUDO_ROLE_MANIFEST.' );
+			\WP_CLI::error( 'No manifest path. Pass --manifest-path=<file> or define WP_SUDO_ROLE_MANIFEST.' );
 			return;
 		}
 
@@ -152,8 +163,10 @@ class CLI_Command {
 	 * @return void
 	 */
 	private function manifest_generate( string $path ): void {
-		// Watch the administrator role definition by default.
-		$state    = Role_Audit::collect_current_state( array( 'privileged_roles' => array( 'administrator' => '' ) ) );
+		// Watch every role's definition, not just administrator, so a privileged
+		// primitive added to a non-admin role (e.g. manage_options on editor) is
+		// captured in the trusted baseline and surfaces as drift on later diffs.
+		$state    = Role_Audit::collect_current_state( array( 'privileged_roles' => Role_Audit::default_watched_roles() ) );
 		$document = Role_Manifest::build_document( $state, gmdate( 'c' ) );
 
 		if ( ! Role_Manifest::write( $path, $document ) ) {

@@ -36,10 +36,14 @@ class Role_Audit {
 			'intval',
 			get_users(
 				array(
-					'role'   => 'administrator',
-					'fields' => 'ID',
-				) 
-			) 
+					'role'          => 'administrator',
+					'fields'        => 'ID',
+					// Bypass the WP_User_Query cache: a raw $wpdb capability grant
+					// does not bump WordPress' user-query cache version, so a cached
+					// result could hide the exact drift this audit exists to detect.
+					'cache_results' => false,
+				)
+			)
 		);
 
 		$governance = array();
@@ -50,11 +54,12 @@ class Role_Audit {
 					'intval',
 					get_users(
 						array(
-							'capability' => $cap,
-							'fields'     => 'ID',
-						) 
-					) 
-				) 
+							'capability'    => $cap,
+							'fields'        => 'ID',
+							'cache_results' => false,
+						)
+					)
+				)
 			);
 		}
 
@@ -86,21 +91,66 @@ class Role_Audit {
 		}
 
 		// Hash each role the manifest watches; a watched role that no longer exists
-		// is simply absent here, which diff() reports as drift.
-		$roles   = wp_roles();
-		$watched = is_array( $manifest['privileged_roles'] ?? null ) ? array_filter( array_keys( $manifest['privileged_roles'] ), 'is_string' ) : array();
+		// is simply absent here, which diff() reports as drift. Read the role
+		// definitions fresh from the stored option rather than wp_roles(), which
+		// can be served stale from the object cache after a raw $wpdb edit.
+		$role_defs = self::current_role_definitions();
+		$watched   = is_array( $manifest['privileged_roles'] ?? null ) ? array_filter( array_keys( $manifest['privileged_roles'] ), 'is_string' ) : array();
 		/**
 		 * String role slugs watched by the manifest.
 		 *
 		 * @var array<string> $watched
 		 */
 		foreach ( $watched as $role ) {
-			if ( isset( $roles->roles[ $role ]['capabilities'] ) && is_array( $roles->roles[ $role ]['capabilities'] ) ) {
-				$state['privileged_roles'][ $role ] = self::hash_role_definition( $roles->roles[ $role ]['capabilities'] );
+			if ( isset( $role_defs[ $role ]['capabilities'] ) && is_array( $role_defs[ $role ]['capabilities'] ) ) {
+				$state['privileged_roles'][ $role ] = self::hash_role_definition( $role_defs[ $role ]['capabilities'] );
 			}
 		}
 
 		return $state;
+	}
+
+	/**
+	 * Read the stored role definitions fresh from the {prefix}user_roles option,
+	 * bypassing the options/object cache.
+	 *
+	 * The audit exists to catch out-of-band tampering — a direct $wpdb write to
+	 * the role option or a capability grant. Such writes do not invalidate
+	 * WordPress' caches, so wp_roles() (and a plain cached get_option) can serve a
+	 * stale capability map under a persistent object cache and the sweep would
+	 * report clean against the tampered-but-cached definition. Deleting both the
+	 * option's own cache key and the autoloaded `alloptions` blob forces get_option
+	 * to re-read from the database.
+	 *
+	 * @return array<string, array<string, mixed>> Role slug => role definition (capabilities, name).
+	 */
+	private static function current_role_definitions(): array {
+		global $wpdb;
+
+		$key = $wpdb->get_blog_prefix() . 'user_roles';
+		wp_cache_delete( $key, 'options' );
+		wp_cache_delete( 'alloptions', 'options' );
+
+		$roles = get_option( $key, array() );
+
+		return is_array( $roles ) ? $roles : array();
+	}
+
+	/**
+	 * The default set of roles to watch when generating a manifest: every role
+	 * currently defined on the site.
+	 *
+	 * Watching only `administrator` (the prior behavior) missed the core drift
+	 * scenario where a raw write adds a privileged primitive (e.g. `manage_options`
+	 * or `promote_users`) to an existing non-admin role such as `editor` — that
+	 * role's definition was never hashed, so `diff`, Site Health, and the cron
+	 * sweep all reported clean. Hashing every role's definition means any
+	 * role-definition change surfaces as drift for the operator to reconcile.
+	 *
+	 * @return array<string, string> Role slug => empty placeholder hash (keys are the watch-set).
+	 */
+	public static function default_watched_roles(): array {
+		return array_fill_keys( array_keys( self::current_role_definitions() ), '' );
 	}
 
 	/**

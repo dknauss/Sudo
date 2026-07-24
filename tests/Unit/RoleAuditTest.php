@@ -11,6 +11,7 @@
 
 namespace WP_Sudo\Tests\Unit;
 
+use Brain\Monkey\Functions;
 use WP_Sudo\Role_Audit;
 use WP_Sudo\Tests\TestCase;
 
@@ -166,5 +167,83 @@ class RoleAuditTest extends TestCase {
 		$report = Role_Audit::diff( $this->manifest(), $current );
 
 		$this->assertFalse( $report['has_drift'] );
+	}
+
+	// ---- default_watched_roles() (P1) + fresh, cache-bypassed reads (F3/F4) ----
+
+	public function test_default_watched_roles_includes_every_current_role(): void {
+		global $wpdb;
+		$wpdb = \Mockery::mock();
+		$wpdb->shouldReceive( 'get_blog_prefix' )->andReturn( 'wp_' );
+
+		Functions\when( 'wp_cache_delete' )->justReturn( true );
+		Functions\expect( 'get_option' )
+			->once()
+			->with( 'wp_user_roles', array() )
+			->andReturn(
+				array(
+					'administrator' => array( 'capabilities' => array( 'manage_options' => true ) ),
+					'editor'        => array( 'capabilities' => array( 'edit_others_posts' => true ) ),
+					'subscriber'    => array( 'capabilities' => array( 'read' => true ) ),
+				)
+			);
+
+		$this->assertSame(
+			array(
+				'administrator' => '',
+				'editor'        => '',
+				'subscriber'    => '',
+			),
+			Role_Audit::default_watched_roles(),
+			'generate must watch every role, not just administrator (P1).'
+		);
+	}
+
+	public function test_role_definitions_are_read_fresh_bypassing_the_object_cache(): void {
+		global $wpdb;
+		$wpdb = \Mockery::mock();
+		$wpdb->shouldReceive( 'get_blog_prefix' )->andReturn( 'wp_' );
+
+		$deleted = array();
+		Functions\when( 'wp_cache_delete' )->alias(
+			function ( $key, $group ) use ( &$deleted ) {
+				$deleted[] = $key . '/' . $group;
+				return true;
+			}
+		);
+		Functions\expect( 'get_option' )->once()->with( 'wp_user_roles', array() )->andReturn( array() );
+
+		Role_Audit::default_watched_roles();
+
+		// Both the option's own key and the autoloaded alloptions blob must be
+		// evicted so a raw {prefix}user_roles edit is actually re-read from the DB.
+		$this->assertContains( 'wp_user_roles/options', $deleted );
+		$this->assertContains( 'alloptions/options', $deleted );
+	}
+
+	public function test_collect_current_state_bypasses_the_user_query_cache(): void {
+		global $wpdb;
+		$wpdb = \Mockery::mock();
+		$wpdb->shouldReceive( 'get_blog_prefix' )->andReturn( 'wp_' );
+
+		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
+		Functions\when( 'is_multisite' )->justReturn( false );
+		Functions\when( 'wp_cache_delete' )->justReturn( true );
+		Functions\when( 'get_option' )->justReturn( array() );
+
+		// Every audit user query must disable the WP_User_Query cache so a raw
+		// $wpdb capability grant is not hidden by a stale cached result (F4).
+		Functions\expect( 'get_users' )
+			->atLeast()
+			->once()
+			->andReturnUsing(
+				function ( $args ) {
+					$this->assertArrayHasKey( 'cache_results', $args, 'audit get_users() must set cache_results.' );
+					$this->assertFalse( $args['cache_results'], 'audit get_users() must disable the query cache.' );
+					return array();
+				}
+			);
+
+		$this->assertIsArray( Role_Audit::collect_current_state( array( 'privileged_roles' => array() ) ) );
 	}
 }
