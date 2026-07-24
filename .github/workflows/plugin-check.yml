@@ -88,7 +88,9 @@ jobs:
           JSON
 
       - name: Start WordPress
-        run: wp-env start --config .tmp/plugin-check-wp-env.json
+        env:
+          WP_ENV_BIN: wp-env
+        run: bash bin/wp-env-up.sh .tmp/plugin-check-wp-env.json http://localhost:8880/wp-login.php
 
       - name: Install Plugin Check
         run: wp-env --config .tmp/plugin-check-wp-env.json run cli wp plugin install plugin-check --activate
