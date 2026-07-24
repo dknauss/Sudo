@@ -30,6 +30,7 @@ jobs:
             "docs/current-metrics.md"
             "docs/e2e-runtime-review.md"
             "docs/llm-lies-log.md"
+            "docs/password-change-reauth-research.md"
             "docs/release-status.md"
             "docs/security-test-results-4.8.0.md"
             "docs/release-environment-log.md"
