@@ -110,6 +110,21 @@ composer sbom                 # Regenerate CycloneDX SBOM (.sbom/bom.json)
 
 No build step. No production dependencies — only dev dependencies (PHPUnit 9.6, Brain\Monkey, Mockery, VIP WPCS, PHPStan, CycloneDX). `config.platform.php` is set to `8.1.99` so the lock file resolves packages compatible with PHP 8.1+ regardless of local PHP version.
 
+## WP-CLI and remote-site safety
+
+Operative rules (canonical full version in this repo's `AGENTS.md` → "WP-CLI and
+remote-site safety", and user-level `~/AGENTS.md`):
+
+- **Local testing:** `wp @studio <cmd>` or `studio wp <cmd>` — read/write on the
+  local Studio sandbox. Automated integration tests still use `composer
+  test:integration` (MySQL + WP test suite), not an alias.
+- **Remote / production aliases (any alias with an `ssh:` key): READ-ONLY by
+  default.** Reads (`get`/`list`/`SELECT`/`plugin list`) are fine; any write
+  needs explicit per-command approval with `--dry-run` shown first. Never print,
+  log, or store SSH keys or DB credentials.
+- **Never use WP-CLI to bypass this plugin's own gates** on a site you do not own
+  or lack explicit approval to modify.
+
 ## Documentation
 
 - `docs/security-model.md` — threat model, boundaries, environmental considerations.

@@ -1602,6 +1602,11 @@ trigger is Gutenberg integration, which would require browser-level testing anyw
 
 For multisite networks, WP Sudo's current dashboard widget operates at the per-site level only. Super admins managing large networks need cross-site visibility and control. This section outlines the multisite-specific feature roadmap.
 
+### Scheduled: Network-wide role/capability lockdown sweep ([#219](https://github.com/dknauss/Sudo/issues/219))
+
+**Priority: medium.** The 4.8.0 role/capability lockdown audit (#179) audits only the current blog: `Role_Audit::collect_current_state()` builds state for `get_current_blog_id()` and `diff()` iterates only that site, so subsite privilege drift is invisible to a single `wp sudo manifest diff` / Site Health / cron run. Scheduled for a multisite-focused cycle: walk the manifest sites (or all blogs via `switch_to_blog()`), compare every site in `diff()`, and keep the cache-bypass reads (`cache_results => false`, cache-busted `{prefix}user_roles`) per-blog. Consider a `--site=<id|url>` scope flag and batching for large networks. Tracked as a documented MVP limitation until then.
+
+
 ### Network Dashboard Widget
 
 **Problem:** The current `Dashboard_Widget` (`includes/class-dashboard-widget.php`) shows active sessions and recent events for the current site only. Super admins in the network admin dashboard have no aggregated view of sudo activity across all sites.
