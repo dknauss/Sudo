@@ -124,6 +124,7 @@ travels with the repo for agents that do not read the user-level file.
 
 ## Documentation
 
+- `docs/README.md` — **documentation index: which doc answers which question. Start here.**
 - `docs/security-model.md` — threat model, boundaries, environmental considerations.
 - `docs/developer-reference.md` — hook signatures, filters, custom rule structure.
 - `docs/FAQ.md` — all frequently asked questions.

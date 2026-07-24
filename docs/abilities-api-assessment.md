@@ -175,10 +175,19 @@ direct ability calls also gate MCP-mediated calls.
 
 ### WP-CLI `wp ability run` (CLI callers)
 
-For abilities executed via WP-CLI's `wp ability run` command, the existing CLI
-surface gating via function-level hooks in `register_function_hooks()` applies. A
-hook on the appropriate WordPress action that fires before the ability's
-`execute_callback` would be added to the function hook registration block.
+WP Sudo's CLI policy gates at the **effect level, not before dispatch**.
+`register_function_hooks()` hooks the underlying mutation functions
+(`activate_plugin`, `delete_plugins`, the user-change actions, etc.) and
+`wp_die()`s when one runs under Limited policy — the `activate_plugin` hook, for
+example, "fires inside `activate_plugin()`". So for `wp ability run`, a destructive
+ability is blocked **only if its callback calls one of those already-gated
+functions**, and the block fires *inside* the ability callback (during
+`do_execute()`), **not** before `WP_Ability::execute()`. There is no interception
+of the `wp ability run` dispatch itself: `wp_before_execute_ability` can't provide
+one (its return is discarded — see "Direct PHP execution path" below), and WP Sudo
+does not hook the CLI ability-run command. Gating an *arbitrary* destructive
+ability on the CLI path would require a dedicated `wp ability run` dispatch wrapper
+that runs before `execute()`, which WP Sudo does not currently have.
 
 ### Direct PHP execution path: `WP_Ability::execute()`
 
@@ -206,11 +215,19 @@ output. This is a capability check (authorization), not reauthentication.
 - `wp_before_execute_ability` — fires before the ability runs
 - `wp_after_execute_ability` — fires after the ability completes
 
-The `wp_before_execute_ability` hook is the interception point for WP Sudo. If
-a destructive ability is registered that plugins call via the PHP path (bypassing
-REST), WP Sudo can hook into `wp_before_execute_ability` to block execution when
-no sudo session is active — similar to the function-level hooks used for CLI,
-Cron, and XML-RPC surfaces in `Gate::register_function_hooks()`.
+**`wp_before_execute_ability` is an observation point, not a clean enforcement
+seam.** `WP_Ability::execute()` fires it via a plain `do_action()` and then calls
+`$this->do_execute( $input )` on the next line, discarding anything the hook
+returned (verified against WordPress/abilities-api
+`includes/abilities-api/class-wp-ability.php`, `execute()`:
+https://github.com/WordPress/abilities-api/blob/trunk/includes/abilities-api/class-wp-ability.php).
+A callback therefore **cannot** return a `WP_Error` to gate the ability — the
+return value is ignored and `do_execute()` runs regardless. The only way to stop
+execution from this hook is a hard `wp_die()` or a thrown exception, which is a
+blunt request-kill, not the structured challenge / stash-and-replay WP Sudo uses.
+So the PHP execution path has **no graceful interception point** in the current
+Abilities API; if a destructive ability ever needed gating, the reliable seam is
+the REST route (already covered by `intercept_rest()`), not this hook.
 
 ### When to add an `ability` surface type to Gate
 
@@ -223,21 +240,29 @@ list is met). However, the remaining conditions are not yet met:
    (`WP_Ability::execute()`)
 2. A destructive ability is registered that plugins are likely to call via the
    PHP path (not just REST)
-3. The `wp_before_execute_ability` hook proves to be a reliable interception point
-   (i.e., it fires consistently, cannot be bypassed, and provides enough context
-   to identify the ability being executed)
+3. A **graceful** interception mechanism for the PHP path exists. As established
+   above, `wp_before_execute_ability` is not one: it is a `do_action` whose return
+   value is ignored, so it can only observe, or crudely halt via `wp_die()` /
+   throw. A structured challenge on the PHP path would need a different core
+   affordance (e.g. a filterable pre-execute short-circuit) that does not exist today.
 
 Condition 2 is the practical trigger. Until destructive abilities exist, the PHP
 execution path is not a security concern — the three current core abilities are
 all read-only.
 
-**Implementation plan when conditions 2 and 3 are met:**
+**Implementation options if conditions 2 and 3 are ever met:**
 
-- Hook `wp_before_execute_ability` in `Gate::register()` (all surfaces, not just
-  non-interactive) to catch PHP-path execution regardless of the calling context
-- Check the ability ID against a list of gated ability IDs in `Action_Registry`
-- If the ability is gated and no sudo session is active, block with `wp_die()` or
-  return a `WP_Error` depending on context
+- Prefer the **REST seam** (`intercept_rest()`), which already gates ability
+  `/run` routes: `block_rest()` returns a `WP_Error` carrying a `challenge_url`.
+  Note REST does **not** stash-and-replay — the client must re-dispatch its own
+  request after reauth (only the browser/admin surface stashes and replays). This
+  still covers the REST-exposed and MCP-mediated calls that are the realistic
+  attack surface.
+- The PHP path (`WP_Ability::execute()` called directly in-process) has no
+  graceful seam: hooking `wp_before_execute_ability` can only `wp_die()` (returning
+  a `WP_Error` from it does **nothing** — the value is discarded), so it is a
+  last-resort hard block, not a reauth challenge. Treat it as monitor/audit-only
+  unless core adds a real pre-execute short-circuit.
 
 This does not require a new surface constant — the existing `admin` surface
 (or a new `ability` label for audit hooks) is sufficient.
@@ -317,6 +342,12 @@ authentication is a new trust boundary.
 
 ## Recommendation
 
+> **Scope note:** This document assesses how the *shipping* WP Sudo plugin treats
+> the Abilities API at runtime. For the distinct question of how a proposed core
+> Actions API / Action Gate would relate to the Abilities API — aligning with its
+> namespacing and execution-hook pattern while treating it as adjacent prior art
+> rather than the vehicle — see [`core-action-gate-proposal.md`](core-action-gate-proposal.md) §6.
+
 **No Abilities-specific Gate changes are planned from this assessment alone.**
 
 The evaluated core abilities were read-only. The existing REST surface interception in
@@ -332,10 +363,19 @@ but is not a concern until destructive abilities are registered.
 2. When destructive abilities appear, add a REST rule to `Action_Registry` matching
    `/wp-abilities/v1/.*/run` with `DELETE` method. No `Gate` class changes required.
    This also covers MCP Adapter calls (same REST endpoints).
-3. For abilities with `show_in_rest => false` that are destructive, hook
-   `wp_before_execute_ability` to gate the PHP execution path.
-4. For WP-CLI `wp ability run` with destructive abilities, add a function-level hook
-   in `Gate::register_function_hooks()` targeting the appropriate WordPress action.
+3. For abilities with `show_in_rest => false` that are destructive, there is **no
+   graceful gate** on the PHP path: `wp_before_execute_ability` is a `do_action`
+   whose return value is discarded (see "Direct PHP execution path" above), so it
+   can only `wp_die()`/throw, never return a structured challenge. Treat these as
+   **monitor/audit-only** until core adds a real pre-execute short-circuit — do
+   **not** reimplement the ignored-return hook as a gate.
+4. For WP-CLI `wp ability run` with destructive abilities: WP Sudo's CLI hooks
+   (`register_function_hooks()`) fire at the **effect level** — inside the ability
+   callback, when it calls an already-gated function such as `activate_plugin()` —
+   **not** before `WP_Ability::execute()`. That covers abilities that wrap a gated
+   effect; gating an *arbitrary* ability would need a dedicated `wp ability run`
+   dispatch wrapper (WP Sudo has none today). `wp_before_execute_ability` cannot
+   help (its return is ignored).
 5. Before the next release that changes Connectors coverage, verify that the
    released Connectors settings page still writes credential changes through
    `/wp/v2/settings`, that connector setting names still follow the documented

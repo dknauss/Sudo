@@ -222,6 +222,8 @@ This exempts only the `login` and `refreshJwtAuthToken` mutations — all other 
 
 The [Abilities API](https://developer.wordpress.org/apis/abilities-api/) (introduced in WordPress 6.9) registers its own REST namespace at `/wp-abilities/v1/`. It uses standard WordPress REST authentication, so Application Password–authenticated requests are governed by WP Sudo's **REST API (App Passwords)** policy — no special configuration is needed. In Disabled mode, all Abilities API requests via Application Passwords are blocked. In Limited mode, ability reads, and standard executions pass through as non-gated operations; site owners who want to require sudo for specific destructive ability executions can add custom rules via the `wp_sudo_gated_actions` filter.
 
+This describes how WP Sudo treats the Abilities API *at runtime today*. For the separate question of how a hypothetical core action-gating primitive would relate to the Abilities API — Abilities as adjacent prior art rather than the vehicle — see [`core-action-gate-proposal.md`](core-action-gate-proposal.md) §6, and [`abilities-api-assessment.md`](abilities-api-assessment.md) for the full runtime assessment.
+
 ## How does session binding work?
 
 When sudo is activated, a cryptographic token is stored in a secure httponly cookie, and its hash is saved in user meta. On every gated request, both must match. A stolen session cookie on a different browser will not have a valid sudo session. See [Security Model](security-model.md) for full details.
