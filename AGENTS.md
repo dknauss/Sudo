@@ -97,6 +97,31 @@ composer sbom                 # Regenerate CycloneDX SBOM (.sbom/bom.json)
 
 No build step. No production dependencies — only dev dependencies (PHPUnit 9.6, Brain\Monkey, Mockery, VIP WPCS, PHPStan, CycloneDX). `config.platform.php` is set to `8.1.99` so the lock file resolves packages compatible with PHP 8.1+ regardless of local PHP version.
 
+## WP-CLI and remote-site safety
+
+WP-CLI aliases are configured globally in `~/.wp-cli/config.yml`. Full rules
+live in the user-level `~/AGENTS.md`; they are restated here so the guardrail
+travels with the repo for agents that do not read the user-level file.
+
+- **Local testing** — for manual or live WP-CLI checks of this plugin against a
+  local WordPress install (e.g. the live security checklist in
+  `docs/security-manual-test-checklist.md`), use the `@studio` alias
+  (`wp @studio <cmd>`) or `studio wp <cmd>`. Both target a local Studio sandbox;
+  read and write freely there — e.g. `wp @studio plugin list`,
+  `wp @studio eval '...'`. Automated integration tests still use the MySQL + WP
+  test suite (`composer test:integration`), not an alias.
+- **Remote / production targets are READ-ONLY by default.** Any alias that
+  resolves to a remote host (has an `ssh:` key) is treated as production.
+  Read-only inspection (`get`/`list`/`SELECT`/`plugin list`/`core version`) is
+  allowed; any write — activate/deactivate, `option update/delete`, `db import`,
+  `search-replace`, `user`/`role` changes, `core update`, mutating `eval` —
+  requires explicit per-command user approval, with `--dry-run` shown first
+  where supported. Never print, log, or store SSH keys or DB credentials.
+- **Do not use WP-CLI to bypass this plugin's own gates.** WP Sudo intercepts
+  privileged operations; its CLI policy (`docs/developer-reference.md`) governs
+  what CLI may do. Never use WP-CLI to perform a gated action on a site you do
+  not own or lack explicit approval to modify.
+
 ## Documentation
 
 - `docs/security-model.md` — threat model, boundaries, environmental considerations.
