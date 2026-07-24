@@ -570,6 +570,7 @@ class PluginTest extends TestCase {
 	public function test_enqueue_editor_reauth_loads_for_logged_in_user(): void {
 		Functions\when( 'get_current_user_id' )->justReturn( 1 );
 		Functions\when( 'get_userdata' )->justReturn( new \WP_User( 1 ) );
+		Functions\when( 'get_user_meta' )->justReturn( '' ); // is_active() gate for localized `remaining` (#182).
 		Functions\when( 'admin_url' )->justReturn( 'http://example.test/wp-admin/admin-ajax.php' );
 		Functions\when( 'wp_create_nonce' )->justReturn( 'grant-nonce' );
 		Functions\when( 'wp_localize_script' )->justReturn( true );
@@ -601,6 +602,7 @@ class PluginTest extends TestCase {
 	public function test_enqueue_editor_reauth_localizes_grant_data(): void {
 		Functions\when( 'get_current_user_id' )->justReturn( 1 );
 		Functions\when( 'get_userdata' )->justReturn( new \WP_User( 1 ) );
+		Functions\when( 'get_user_meta' )->justReturn( '' ); // is_active() gate for localized `remaining` (#182).
 		Functions\when( 'wp_enqueue_script' )->justReturn( true );
 		Functions\when( 'wp_set_script_translations' )->justReturn( true );
 
@@ -644,6 +646,7 @@ class PluginTest extends TestCase {
 	public function test_enqueue_editor_reauth_localizes_has_two_factor(): void {
 		Functions\when( 'get_current_user_id' )->justReturn( 1 );
 		Functions\when( 'get_userdata' )->justReturn( new \WP_User( 1 ) );
+		Functions\when( 'get_user_meta' )->justReturn( '' ); // is_active() gate for localized `remaining` (#182).
 		Functions\when( 'admin_url' )->justReturn( 'http://example.test/wp-admin/admin-ajax.php' );
 		Functions\when( 'wp_create_nonce' )->justReturn( 'grant-nonce' );
 		Functions\when( 'wp_enqueue_script' )->justReturn( true );
@@ -729,6 +732,126 @@ class PluginTest extends TestCase {
 			// assertion above throws.
 			unset( $_COOKIE[ Sudo_Session::TOKEN_COOKIE ] );
 		}
+	}
+
+	/**
+	 * #182: page-load feed — the editor config carries `remaining` seconds so the
+	 * in-editor indicator can seed its countdown for a session that is already
+	 * active when the editor loads. Gated on Sudo_Session::is_active(): an active
+	 * session localizes the remaining seconds.
+	 */
+	public function test_enqueue_editor_reauth_localizes_remaining_when_active(): void
+	{
+		$user_id = 7;
+		$token   = 'editor-indicator-token';
+
+		Functions\when( 'get_current_user_id' )->justReturn( $user_id );
+		Functions\when( 'get_userdata' )->justReturn( new \WP_User( $user_id ) );
+		Functions\when( 'get_user_meta' )->alias( function ( $uid, $key, $single ) use ( $token ) {
+			if ( Sudo_Session::META_KEY === $key ) {
+				return time() + 420; // Active: 7 min left.
+			}
+			if ( Sudo_Session::TOKEN_META_KEY === $key ) {
+				return hash( 'sha256', $token );
+			}
+			return '';
+		} );
+		Functions\when( 'wp_enqueue_script' )->justReturn( true );
+		Functions\when( 'wp_set_script_translations' )->justReturn( true );
+		Functions\when( 'admin_url' )->justReturn( 'http://example.test/wp-admin/admin-ajax.php' );
+		Functions\when( 'wp_create_nonce' )->justReturn( 'grant-nonce' );
+
+		$captured = array();
+		Functions\when( 'wp_localize_script' )->alias(
+			function ( $handle, $object, $data ) use ( &$captured ) {
+				$captured = $data;
+				return true;
+			}
+		);
+
+		$_COOKIE[ Sudo_Session::TOKEN_COOKIE ] = $token;
+		try {
+			( new Plugin() )->enqueue_editor_reauth();
+		} finally {
+			unset( $_COOKIE[ Sudo_Session::TOKEN_COOKIE ] );
+		}
+
+		$this->assertArrayHasKey( 'remaining', $captured, 'active session localizes remaining.' );
+		$this->assertIsInt( $captured['remaining'] );
+		$this->assertGreaterThan( 0, $captured['remaining'] );
+		$this->assertLessThanOrEqual( 420, $captured['remaining'] );
+	}
+
+	/**
+	 * #182: no active session at load → `remaining` is 0 (indicator seeds inactive).
+	 */
+	public function test_enqueue_editor_reauth_localizes_zero_remaining_when_inactive(): void
+	{
+		Functions\when( 'get_current_user_id' )->justReturn( 7 );
+		Functions\when( 'get_userdata' )->justReturn( new \WP_User( 7 ) );
+		Functions\when( 'get_user_meta' )->justReturn( '' ); // No session meta.
+		Functions\when( 'wp_enqueue_script' )->justReturn( true );
+		Functions\when( 'wp_set_script_translations' )->justReturn( true );
+		Functions\when( 'admin_url' )->justReturn( 'http://example.test/wp-admin/admin-ajax.php' );
+		Functions\when( 'wp_create_nonce' )->justReturn( 'grant-nonce' );
+
+		$captured = array();
+		Functions\when( 'wp_localize_script' )->alias(
+			function ( $handle, $object, $data ) use ( &$captured ) {
+				$captured = $data;
+				return true;
+			}
+		);
+
+		( new Plugin() )->enqueue_editor_reauth();
+
+		$this->assertArrayHasKey( 'remaining', $captured );
+		$this->assertSame( 0, $captured['remaining'], 'no session → remaining is 0.' );
+	}
+
+	/**
+	 * #182: the gate is is_active(), NOT the raw expiry. A session bound to a
+	 * DIFFERENT browser leaves `_wp_sudo_expires` in the future but the token
+	 * cookie absent here, so time_remaining() would report a positive value.
+	 * is_active() verifies the token and returns false, so `remaining` must be 0
+	 * — the indicator must not show a live session for another browser's grant.
+	 */
+	public function test_enqueue_editor_reauth_localizes_zero_remaining_for_other_browser(): void
+	{
+		$user_id = 7;
+
+		Functions\when( 'get_current_user_id' )->justReturn( $user_id );
+		Functions\when( 'get_userdata' )->justReturn( new \WP_User( $user_id ) );
+		Functions\when( 'get_user_meta' )->alias( function ( $uid, $key, $single ) {
+			if ( Sudo_Session::META_KEY === $key ) {
+				return time() + 420; // Future expiry from another browser's session.
+			}
+			if ( Sudo_Session::TOKEN_META_KEY === $key ) {
+				return hash( 'sha256', 'the-other-browser-token' );
+			}
+			return '';
+		} );
+		Functions\when( 'wp_enqueue_script' )->justReturn( true );
+		Functions\when( 'wp_set_script_translations' )->justReturn( true );
+		Functions\when( 'admin_url' )->justReturn( 'http://example.test/wp-admin/admin-ajax.php' );
+		Functions\when( 'wp_create_nonce' )->justReturn( 'grant-nonce' );
+
+		$captured = array();
+		Functions\when( 'wp_localize_script' )->alias(
+			function ( $handle, $object, $data ) use ( &$captured ) {
+				$captured = $data;
+				return true;
+			}
+		);
+
+		// No TOKEN_COOKIE set for THIS browser → is_active() token check fails.
+		$this->assertFalse( Sudo_Session::is_active( $user_id ), 'guards the gate: session is not active in this browser.' );
+		Sudo_Session::reset_cache();
+
+		( new Plugin() )->enqueue_editor_reauth();
+
+		$this->assertArrayHasKey( 'remaining', $captured );
+		$this->assertSame( 0, $captured['remaining'], 'different-browser session → remaining 0 (is_active gate, not raw expiry).' );
 	}
 
 	// -----------------------------------------------------------------

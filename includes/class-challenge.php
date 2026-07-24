@@ -661,7 +661,13 @@ class Challenge {
 					$this->replay_stash( $user_id, $stash_key );
 				} else {
 					// Session-only flow — session is now active, user retries manually.
-					wp_send_json_success( array( 'code' => 'authenticated' ) );
+					// `remaining` seeds the in-editor indicator's countdown (#182).
+					wp_send_json_success(
+						array(
+							'code'      => 'authenticated',
+							'remaining' => Sudo_Session::time_remaining( $user_id ),
+						)
+					);
 				}
 				break; // replay_stash / wp_send_json_success terminate the request.
 
@@ -870,7 +876,13 @@ class Challenge {
 			$this->replay_stash( $user_id, $stash_key );
 		} else {
 			// Session-only flow — session is now active, user retries manually.
-			wp_send_json_success( array( 'code' => 'authenticated' ) );
+			// `remaining` seeds the in-editor indicator's countdown (#182).
+			wp_send_json_success(
+				array(
+					'code'      => 'authenticated',
+					'remaining' => Sudo_Session::time_remaining( $user_id ),
+				)
+			);
 		}
 	}
 
@@ -906,7 +918,13 @@ class Challenge {
 			return;
 		}
 
-		wp_send_json_success( array( 'code' => 'authenticated' ) );
+		// `remaining` seeds the in-editor indicator's countdown (#182).
+		wp_send_json_success(
+			array(
+				'code'      => 'authenticated',
+				'remaining' => Sudo_Session::time_remaining( $user_id ),
+			)
+		);
 	}
 
 	/**
