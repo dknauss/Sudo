@@ -418,4 +418,15 @@ class CriticalAlertBridgeTest extends TestCase {
 		// ...but a changed drift set produces a new identity (re-alerts).
 		$this->assertNotSame( $a['identity'], $c['identity'] );
 	}
+
+	public function test_role_drift_identity_changes_when_a_drifted_roles_hash_changes(): void {
+		$this->boot();
+
+		// Same role slug still drifted, but its actual definition changed again
+		// (new actual hash) — must NOT dedupe to the first alert.
+		$first  = wp_sudo_critical_alert_bridge_build_event( 'role_drift', array( array( 'roles' => array( 'editor' => array( 'expected' => 'sha256:base', 'actual' => 'sha256:one' ) ) ) ) );
+		$second = wp_sudo_critical_alert_bridge_build_event( 'role_drift', array( array( 'roles' => array( 'editor' => array( 'expected' => 'sha256:base', 'actual' => 'sha256:two' ) ) ) ) );
+
+		$this->assertNotSame( $first['identity'], $second['identity'] );
+	}
 }

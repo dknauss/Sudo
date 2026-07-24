@@ -233,9 +233,18 @@ if ( ! function_exists( 'wp_sudo_critical_alert_bridge_build_event' ) ) {
 				$supers = array_map( 'intval', (array) ( $report['network']['super_admins'] ?? array() ) );
 				sort( $supers );
 				$principals += count( $supers );
-				$roles       = array_keys( is_array( $report['roles'] ?? null ) ? $report['roles'] : array() );
+				$rolemap     = is_array( $report['roles'] ?? null ) ? $report['roles'] : array();
+				$roles       = array_keys( $rolemap );
 				sort( $roles );
-				$sig[] = 's=' . implode( ',', $supers ) . ':r=' . implode( ',', $roles );
+				// Signature carries each role's expected/actual hashes, not just the
+				// slug, so a further modification of an already-drifted role (same
+				// slug, new actual hash) produces a new identity and is not deduped.
+				$role_sig = array();
+				foreach ( $rolemap as $slug => $hashes ) {
+					$role_sig[] = $slug . '=' . ( is_array( $hashes ) ? (string) ( $hashes['expected'] ?? '' ) . '/' . (string) ( $hashes['actual'] ?? '' ) : '' );
+				}
+				sort( $role_sig );
+				$sig[] = 's=' . implode( ',', $supers ) . ':r=' . implode( ',', $role_sig );
 				return array(
 					'key'      => $key,
 					'subject'  => 'Role/capability drift detected',
