@@ -114,6 +114,20 @@ class Plugin {
 		// Cron: prune old event rows daily.
 		add_action( 'wp_sudo_prune_events', array( self::class, 'prune_events' ), 10, 0 );
 
+		// Cron: role/capability lockdown audit sweep (#179). Registered
+		// unconditionally — run_sweep() is inert unless a manifest is configured.
+		// Wrapped so the callback returns void (the sweep's report is not an action
+		// return value). The schedule is kept in sync with the opt-in constant below.
+		add_action(
+			'wp_sudo_role_audit_sweep',
+			static function (): void {
+				Role_Audit::run_sweep();
+			},
+			10,
+			0
+		);
+		self::sync_role_audit_cron();
+
 		// Users-list "Sudo Active (N)" badge: invalidate the count cache whenever
 		// a session starts or ends. Registered here, unconditionally — sessions
 		// are granted on wp_login and torn down via WP-CLI, both outside
@@ -627,6 +641,9 @@ class Plugin {
 		// Clear the daily prune cron event.
 		wp_clear_scheduled_hook( 'wp_sudo_prune_events' );
 
+		// Clear the role-audit sweep cron event (#179).
+		wp_clear_scheduled_hook( 'wp_sudo_role_audit_sweep' );
+
 		if ( is_multisite() ) {
 			delete_site_option( 'wp_sudo_activated' );
 		} else {
@@ -728,6 +745,31 @@ class Plugin {
 	public static function schedule_prune_cron(): void {
 		if ( ! wp_next_scheduled( 'wp_sudo_prune_events' ) ) {
 			wp_schedule_event( time(), 'daily', 'wp_sudo_prune_events' );
+		}
+	}
+
+	/**
+	 * Keep the daily role-audit sweep schedule in sync with the opt-in constant.
+	 *
+	 * Schedules the sweep when a manifest is configured (WP_SUDO_ROLE_MANIFEST),
+	 * and clears it when the constant is removed — so the feature leaves no
+	 * orphaned cron event behind once an operator disables it (#179).
+	 *
+	 * @since 4.8.0
+	 * @return void
+	 */
+	public static function sync_role_audit_cron(): void {
+		// Feature off (no manifest configured): nothing to schedule. An event left
+		// behind by a later constant-removal is harmless — run_sweep() is inert
+		// without a manifest — and is cleared on plugin deactivation. Checking this
+		// first keeps the hot init() path free of a cron-option read when the
+		// opt-in feature is not in use.
+		if ( ! Role_Manifest::is_enabled() ) {
+			return;
+		}
+
+		if ( ! wp_next_scheduled( 'wp_sudo_role_audit_sweep' ) ) {
+			wp_schedule_event( time(), 'daily', 'wp_sudo_role_audit_sweep' );
 		}
 	}
 

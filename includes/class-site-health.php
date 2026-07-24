@@ -65,7 +65,91 @@ class Site_Health {
 			'test'  => array( $this, 'test_gated_action_integrity' ),
 		);
 
+		// Role/capability lockdown audit — only when the operator has opted in by
+		// configuring a manifest (WP_SUDO_ROLE_MANIFEST). Inert otherwise (#179).
+		if ( Role_Manifest::is_enabled() ) {
+			$tests['direct']['wp_sudo_role_manifest'] = array(
+				'label' => __( 'Sudo Role/Capability Manifest', 'wp-sudo' ),
+				'test'  => array( $this, 'test_role_manifest' ),
+			);
+		}
+
 		return $tests;
+	}
+
+	/**
+	 * Test: role/capability manifest drift (#179).
+	 *
+	 * Compares current privileged state to the trusted manifest without firing the
+	 * audit event (Site Health is a read). Reports "unreadable" (misconfiguration),
+	 * "drift" (security), or "clean".
+	 *
+	 * @return array<string, mixed>
+	 */
+	public function test_role_manifest(): array {
+		$manifest = Role_Manifest::load();
+
+		if ( null === $manifest ) {
+			return $this->format_role_manifest_result( 'unreadable', array() );
+		}
+
+		$report = Role_Audit::diff( $manifest, Role_Audit::collect_current_state( $manifest ) );
+
+		return $this->format_role_manifest_result( $report['has_drift'] ? 'drift' : 'clean', $report );
+	}
+
+	/**
+	 * Build the Site Health result array for a manifest audit outcome.
+	 *
+	 * @param string               $kind   One of 'clean', 'drift', 'unreadable'.
+	 * @param array<string, mixed> $report Drift report (for 'drift').
+	 * @return array<string, mixed>
+	 */
+	private function format_role_manifest_result( string $kind, array $report ): array {
+		$badge = array(
+			'label' => __( 'Security', 'wp-sudo' ),
+			'color' => 'blue',
+		);
+
+		if ( 'unreadable' === $kind ) {
+			return array(
+				'label'       => __( 'Sudo role manifest is unreadable', 'wp-sudo' ),
+				'status'      => 'recommended',
+				'badge'       => $badge,
+				'description' => '<p>' . esc_html__( 'A role/capability manifest path is configured but the file is missing or invalid. The lockdown audit is inactive until it is regenerated with "wp sudo manifest generate".', 'wp-sudo' ) . '</p>',
+				'test'        => 'wp_sudo_role_manifest',
+			);
+		}
+
+		if ( 'drift' === $kind ) {
+			$count = 0;
+			foreach ( ( $report['sites'] ?? array() ) as $entry ) {
+				$count += count( $entry['administrators'] ?? array() ) + count( $entry['governance'] ?? array() );
+			}
+			$count += count( $report['network']['super_admins'] ?? array() );
+			$roles  = count( $report['roles'] ?? array() );
+
+			return array(
+				'label'       => __( 'Sudo detected role/capability drift', 'wp-sudo' ),
+				'status'      => 'critical',
+				'badge'       => $badge,
+				'description' => '<p>' . sprintf(
+					/* translators: 1: number of unauthorized principals, 2: number of drifted role definitions */
+					esc_html__( 'Stored privileged state has drifted from the trusted manifest: %1$d unauthorized principal(s) and %2$d changed role definition(s). Review with "wp sudo manifest diff", then remediate or re-baseline with "wp sudo manifest generate".', 'wp-sudo' ),
+					$count,
+					$roles
+				) . '</p>',
+				'test'        => 'wp_sudo_role_manifest',
+			);
+		}
+
+		return array(
+			'label'       => __( 'Sudo role/capability state matches the manifest', 'wp-sudo' ),
+			'status'      => 'good',
+			'badge'       => $badge,
+			'description' => '<p>' . esc_html__( 'All trusted administrators, super admins, governance-cap holders, and watched role definitions match the manifest. No drift detected.', 'wp-sudo' ) . '</p>',
+			'test'        => 'wp_sudo_role_manifest',
+		);
 	}
 
 	/**

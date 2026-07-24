@@ -536,6 +536,18 @@ do_action( 'wp_sudo_policy_preset_applied', int $user_id, string $preset_key, ar
 // Tamper detection.
 do_action( 'wp_sudo_capability_tampered', string $role, string $capability );
 
+// Role/capability lockdown audit (v4.8.0). Fires when the drift sweep detects
+// stored privileged state diverging from the file-backed trusted manifest — an
+// unauthorized administrator / super-admin / governance-cap holder (INCLUDING a
+// direct $wpdb write the escalation guard cannot see), or a redefinition of a
+// watched privileged role. Opt-in: inert unless WP_SUDO_ROLE_MANIFEST names a
+// manifest file (build one with `wp sudo manifest generate`). $report is the
+// Role_Audit::diff() structure: has_drift, per-site unauthorized administrators/
+// governance, network.super_admins, and roles (expected/actual hashes). The
+// bundled Event_Recorder stores this as a high-severity `role_drift_detected`
+// event (user_id 0 — the direct-write actor is unobservable).
+do_action( 'wp_sudo_role_drift_detected', array $report );
+
 // Governance access-model transitions (v3.2.0).
 do_action( 'wp_sudo_capability_granted', int $target_user_id, string $cap, int $granter_user_id, int $site_id );
 do_action( 'wp_sudo_capability_revoked', int $target_user_id, string $cap, int $revoker_user_id, int $site_id );

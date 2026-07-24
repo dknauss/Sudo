@@ -34,21 +34,21 @@ class EventRecorderFakeWpdb {
 	 *
 	 * @var list<InsertCall>
 	 */
-	public array $inserts = [];
+	public array $inserts = array();
 
 	/**
 	 * Captured query() calls (bulk writes land here).
 	 *
 	 * @var list<string>
 	 */
-	public array $queries = [];
+	public array $queries = array();
 
 	/**
 	 * Captured prepare() calls.
 	 *
 	 * @var list<array{query: string, args: list<mixed>}>
 	 */
-	public array $prepares = [];
+	public array $prepares = array();
 
 	/**
 	 * Simulated rows_affected returned by query().
@@ -65,10 +65,10 @@ class EventRecorderFakeWpdb {
 	 * @return int|false
 	 */
 	public function insert( string $table, array $data ) {
-		$this->inserts[] = [
+		$this->inserts[] = array(
 			'table' => $table,
 			'data'  => $data,
-		];
+		);
 		return 1;
 	}
 
@@ -84,18 +84,18 @@ class EventRecorderFakeWpdb {
 	/**
 	 * Mock prepare().
 	 *
-	 * @param string       $query Query with placeholders.
-	 * @param mixed ...$args      Parameters.
+	 * @param string $query Query with placeholders.
+	 * @param mixed  ...$args      Parameters.
 	 * @return string
 	 */
 	public function prepare( string $query, ...$args ): string {
 		if ( 1 === count( $args ) && is_array( $args[0] ) ) {
 			$args = array_values( $args[0] );
 		}
-		$this->prepares[] = [
+		$this->prepares[] = array(
 			'query' => $query,
 			'args'  => $args,
-		];
+		);
 		return $query;
 	}
 
@@ -119,11 +119,11 @@ class EventRecorderFakeWpdb {
 	 * @return array<int, object>
 	 */
 	public function get_results( string $query ): array {
-		return [
-			(object) [
+		return array(
+			(object) array(
 				'Field' => 'id',
-			],
-		];
+			),
+		);
 	}
 
 	/**
@@ -135,7 +135,6 @@ class EventRecorderFakeWpdb {
 	public function suppress_errors( bool $suppress ): bool {
 		return $suppress;
 	}
-
 }
 
 /**
@@ -168,39 +167,43 @@ class EventRecorderTest extends TestCase {
 		// Expect exactly these hooks to be registered.
 		Actions\expectAdded( 'wp_sudo_lockout' )
 			->once()
-			->with( [ Event_Recorder::class, 'on_lockout' ], 10, 3 );
+			->with( array( Event_Recorder::class, 'on_lockout' ), 10, 3 );
 
 		Actions\expectAdded( 'wp_sudo_action_gated' )
 			->once()
-			->with( [ Event_Recorder::class, 'on_action_gated' ], 10, 3 );
+			->with( array( Event_Recorder::class, 'on_action_gated' ), 10, 3 );
 
 		Actions\expectAdded( 'wp_sudo_action_blocked' )
 			->once()
-			->with( [ Event_Recorder::class, 'on_action_blocked' ], 10, 3 );
+			->with( array( Event_Recorder::class, 'on_action_blocked' ), 10, 3 );
 
 		Actions\expectAdded( 'wp_sudo_escalation_blocked' )
 			->once()
-			->with( [ Event_Recorder::class, 'on_escalation_blocked' ], 10, 3 );
+			->with( array( Event_Recorder::class, 'on_escalation_blocked' ), 10, 3 );
 
 		Actions\expectAdded( 'wp_sudo_action_allowed' )
 			->once()
-			->with( [ Event_Recorder::class, 'on_action_allowed' ], 10, 3 );
+			->with( array( Event_Recorder::class, 'on_action_allowed' ), 10, 3 );
 
 		Actions\expectAdded( 'wp_sudo_action_passed' )
 			->once()
-			->with( [ Event_Recorder::class, 'on_action_passed' ], 10, 3 );
+			->with( array( Event_Recorder::class, 'on_action_passed' ), 10, 3 );
 
 		Actions\expectAdded( 'wp_sudo_action_replayed' )
 			->once()
-			->with( [ Event_Recorder::class, 'on_action_replayed' ], 10, 2 );
+			->with( array( Event_Recorder::class, 'on_action_replayed' ), 10, 2 );
 
 		Actions\expectAdded( 'wp_sudo_recovery_mode_active' )
 			->once()
-			->with( [ Event_Recorder::class, 'on_recovery_mode_active' ], 10, 1 );
+			->with( array( Event_Recorder::class, 'on_recovery_mode_active' ), 10, 1 );
+
+		Actions\expectAdded( 'wp_sudo_role_drift_detected' )
+			->once()
+			->with( array( Event_Recorder::class, 'on_role_drift_detected' ), 10, 1 );
 
 		Actions\expectAdded( 'wp_sudo_session_revoked' )
 			->once()
-			->with( [ Event_Recorder::class, 'on_session_revoked' ], 10, 4 );
+			->with( array( Event_Recorder::class, 'on_session_revoked' ), 10, 4 );
 
 		new Event_Recorder();
 	}
@@ -244,7 +247,7 @@ class EventRecorderTest extends TestCase {
 	public function testHooksRegisteredAtDefaultPriority(): void {
 		// This is implicitly tested by testConstructorRegistersOnlyMvpHooks,
 		// but we make it explicit here for documentation.
-		$hooks_with_args = [
+		$hooks_with_args = array(
 			'wp_sudo_lockout'              => 3,
 			'wp_sudo_action_gated'         => 3,
 			'wp_sudo_action_blocked'       => 3,
@@ -254,7 +257,8 @@ class EventRecorderTest extends TestCase {
 			'wp_sudo_action_replayed'      => 2,
 			'wp_sudo_recovery_mode_active' => 1,
 			'wp_sudo_session_revoked'      => 4,
-		];
+			'wp_sudo_role_drift_detected'  => 1,
+		);
 
 		foreach ( $hooks_with_args as $hook => $accepted_args ) {
 			Actions\expectAdded( $hook )
@@ -282,20 +286,20 @@ class EventRecorderTest extends TestCase {
 	 */
 	public function testAcceptedArgsMatchHookSignatures(): void {
 		// Capture the actual add_action calls to verify accepted_args.
-		$captured = [];
+		$captured = array();
 
 		Functions\when( 'add_action' )->alias(
 			function ( $hook, $callback, $priority, $accepted_args ) use ( &$captured ) {
-				$captured[ $hook ] = [
+				$captured[ $hook ] = array(
 					'priority'      => $priority,
 					'accepted_args' => $accepted_args,
-				];
+				);
 			}
 		);
 
 		new Event_Recorder();
 
-		$expected_args = [
+		$expected_args = array(
 			'wp_sudo_lockout'              => 3,
 			'wp_sudo_action_gated'         => 3,
 			'wp_sudo_action_blocked'       => 3,
@@ -305,7 +309,8 @@ class EventRecorderTest extends TestCase {
 			'wp_sudo_action_replayed'      => 2,
 			'wp_sudo_recovery_mode_active' => 1,
 			'wp_sudo_session_revoked'      => 4,
-		];
+			'wp_sudo_role_drift_detected'  => 1,
+		);
 
 		foreach ( $expected_args as $hook => $expected ) {
 			$this->assertArrayHasKey( $hook, $captured, "Hook $hook should be registered" );
@@ -333,9 +338,9 @@ class EventRecorderTest extends TestCase {
 	 * @return void
 	 */
 	private function setUpFakeWpdb(): void {
-		$this->original_wpdb     = $GLOBALS['wpdb'] ?? null;
-		$this->fake_wpdb         = new EventRecorderFakeWpdb();
-		$GLOBALS['wpdb']         = $this->fake_wpdb;
+		$this->original_wpdb = $GLOBALS['wpdb'] ?? null;
+		$this->fake_wpdb     = new EventRecorderFakeWpdb();
+		$GLOBALS['wpdb']     = $this->fake_wpdb;
 
 		Functions\when( 'get_current_blog_id' )->justReturn( 1 );
 	}
@@ -440,6 +445,48 @@ class EventRecorderTest extends TestCase {
 
 		$context = is_string( $data['context'] ) ? json_decode( $data['context'], true ) : $data['context'];
 		$this->assertSame( 'high', $context['severity'] );
+
+		$this->restoreWpdb();
+	}
+
+	/**
+	 * Test on_role_drift_detected() records a high-severity audit event with a
+	 * summary of the drift (#179).
+	 *
+	 * @return void
+	 */
+	public function testOnRoleDriftDetectedInsertsHighSeverityEvent(): void {
+		$this->setUpFakeWpdb();
+
+		$report = array(
+			'has_drift' => true,
+			'sites'     => array(
+				1 => array(
+					'administrators' => array( 99 ),
+					'governance'     => array( 5 ),
+				),
+			),
+			'network'   => array( 'super_admins' => array( 42 ) ),
+			'roles'     => array(
+				'administrator' => array(
+					'expected' => 'sha256:a',
+					'actual'   => 'sha256:b',
+				),
+			),
+		);
+
+		Event_Recorder::on_role_drift_detected( $report );
+
+		$this->assertCount( 1, $this->fake_wpdb->inserts );
+
+		$data = $this->fake_wpdb->inserts[0]['data'];
+		$this->assertSame( 0, $data['user_id'], 'drift is a system-level event, not attributed to one user.' );
+		$this->assertSame( 'role_drift_detected', $data['event'] );
+
+		$context = is_string( $data['context'] ) ? json_decode( $data['context'], true ) : $data['context'];
+		$this->assertSame( 'high', $context['severity'] );
+		$this->assertSame( 3, $context['unauthorized_count'], '1 admin + 1 governance + 1 super admin.' );
+		$this->assertSame( array( 'administrator' ), $context['drifted_roles'] );
 
 		$this->restoreWpdb();
 	}
@@ -604,7 +651,7 @@ class EventRecorderTest extends TestCase {
 		Functions\when( 'get_transient' )->justReturn( false );
 		Functions\when( 'set_transient' )->alias(
 			function ( $key, $value, $ttl ) use ( &$set_args ) {
-				$set_args = [ $key, $value, $ttl ];
+				$set_args = array( $key, $value, $ttl );
 				return true;
 			}
 		);
@@ -655,7 +702,7 @@ class EventRecorderTest extends TestCase {
 
 		Actions\expectAdded( 'shutdown' )
 			->once()
-			->with( [ Event_Recorder::class, 'flush' ], \Mockery::type( 'int' ), 0 );
+			->with( array( Event_Recorder::class, 'flush' ), \Mockery::type( 'int' ), 0 );
 
 		Event_Recorder::arm_buffer();
 	}
@@ -671,7 +718,7 @@ class EventRecorderTest extends TestCase {
 
 		Actions\expectAdded( 'shutdown' )
 			->once()
-			->with( [ Event_Recorder::class, 'flush' ], \Mockery::type( 'int' ), 0 );
+			->with( array( Event_Recorder::class, 'flush' ), \Mockery::type( 'int' ), 0 );
 
 		Event_Recorder::arm_buffer();
 		Event_Recorder::arm_buffer();
@@ -793,5 +840,4 @@ class EventRecorderTest extends TestCase {
 
 		$this->restoreWpdb();
 	}
-
 }

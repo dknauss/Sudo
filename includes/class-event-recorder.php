@@ -44,6 +44,7 @@ class Event_Recorder {
 		'wp_sudo_action_replayed'      => 2, // user_id, rule_id.
 		'wp_sudo_recovery_mode_active' => 1, // user_id.
 		'wp_sudo_session_revoked'      => 4, // target_user_id, revoker_user_id, reason, site_id.
+		'wp_sudo_role_drift_detected'  => 1, // report (high-severity role/cap drift audit alarm).
 	);
 
 	/**
@@ -266,6 +267,46 @@ class Event_Recorder {
 				'rule_id' => $rule_id,
 				'surface' => $surface,
 				'context' => array( 'severity' => 'high' ),
+			)
+		);
+	}
+
+	/**
+	 * Handle wp_sudo_role_drift_detected event.
+	 *
+	 * Fired by the audit sweep when stored privileged state drifts from the
+	 * trusted manifest — an unauthorized administrator/super-admin/governance
+	 * grant (including a direct `$wpdb` write the escalation guard cannot see) or
+	 * a redefinition of a watched privileged role. Recorded as a distinct
+	 * high-severity `role_drift_detected` event with a compact summary so the
+	 * activity dashboard and external alerting can surface it apart from routine
+	 * denials. Attributed to user_id 0 — the drift is system-level, not tied to
+	 * one actor (the direct-write attacker is, by definition, not observable).
+	 *
+	 * @since 4.8.0
+	 *
+	 * @param array<string, mixed> $report Drift report from Role_Audit::diff().
+	 * @return void
+	 */
+	public static function on_role_drift_detected( array $report ): void {
+		$unauthorized = 0;
+		foreach ( ( $report['sites'] ?? array() ) as $site ) {
+			$unauthorized += is_array( $site['administrators'] ?? null ) ? count( $site['administrators'] ) : 0;
+			$unauthorized += is_array( $site['governance'] ?? null ) ? count( $site['governance'] ) : 0;
+		}
+		$unauthorized += is_array( $report['network']['super_admins'] ?? null ) ? count( $report['network']['super_admins'] ) : 0;
+
+		self::enqueue(
+			array(
+				'user_id' => 0,
+				'event'   => 'role_drift_detected',
+				'rule_id' => '',
+				'surface' => 'audit',
+				'context' => array(
+					'severity'           => 'high',
+					'unauthorized_count' => $unauthorized,
+					'drifted_roles'      => array_keys( is_array( $report['roles'] ?? null ) ? $report['roles'] : array() ),
+				),
 			)
 		);
 	}
