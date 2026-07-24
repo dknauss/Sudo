@@ -175,13 +175,19 @@ direct ability calls also gate MCP-mediated calls.
 
 ### WP-CLI `wp ability run` (CLI callers)
 
-For abilities executed via WP-CLI's `wp ability run` command, gate at the **CLI
-surface before `WP_Ability::execute()` is invoked** — the existing CLI policy
-(function-level hooks in `register_function_hooks()`), a hard block, which is all
-a non-interactive surface can do. Do **not** rely on `wp_before_execute_ability`
-or any pre-`execute_callback` action: those fire *inside* `execute()` and their
-return is discarded (see "Direct PHP execution path" below), so they cannot stop
-the run.
+WP Sudo's CLI policy gates at the **effect level, not before dispatch**.
+`register_function_hooks()` hooks the underlying mutation functions
+(`activate_plugin`, `delete_plugins`, the user-change actions, etc.) and
+`wp_die()`s when one runs under Limited policy — the `activate_plugin` hook, for
+example, "fires inside `activate_plugin()`". So for `wp ability run`, a destructive
+ability is blocked **only if its callback calls one of those already-gated
+functions**, and the block fires *inside* the ability callback (during
+`do_execute()`), **not** before `WP_Ability::execute()`. There is no interception
+of the `wp ability run` dispatch itself: `wp_before_execute_ability` can't provide
+one (its return is discarded — see "Direct PHP execution path" below), and WP Sudo
+does not hook the CLI ability-run command. Gating an *arbitrary* destructive
+ability on the CLI path would require a dedicated `wp ability run` dispatch wrapper
+that runs before `execute()`, which WP Sudo does not currently have.
 
 ### Direct PHP execution path: `WP_Ability::execute()`
 
@@ -360,11 +366,13 @@ but is not a concern until destructive abilities are registered.
    can only `wp_die()`/throw, never return a structured challenge. Treat these as
    **monitor/audit-only** until core adds a real pre-execute short-circuit — do
    **not** reimplement the ignored-return hook as a gate.
-4. For WP-CLI `wp ability run` with destructive abilities, gate at the CLI surface
-   *before* `WP_Ability::execute()` runs — the existing CLI policy is a hard block
-   (`WP_CLI::error`/`wp_die`), all a non-interactive surface can do. Do **not** use
-   `wp_before_execute_ability`: it fires inside `execute()` and its return is
-   ignored, so it cannot stop the run.
+4. For WP-CLI `wp ability run` with destructive abilities: WP Sudo's CLI hooks
+   (`register_function_hooks()`) fire at the **effect level** — inside the ability
+   callback, when it calls an already-gated function such as `activate_plugin()` —
+   **not** before `WP_Ability::execute()`. That covers abilities that wrap a gated
+   effect; gating an *arbitrary* ability would need a dedicated `wp ability run`
+   dispatch wrapper (WP Sudo has none today). `wp_before_execute_ability` cannot
+   help (its return is ignored).
 5. Before the next release that changes Connectors coverage, verify that the
    released Connectors settings page still writes credential changes through
    `/wp/v2/settings`, that connector setting names still follow the documented
