@@ -3,7 +3,8 @@
 Automated tests prove the plugin's **logic** (unit) and that it **runs across the
 matrix** (CI integration + E2E). This checklist is the **live end-to-end layer**
 they do not replace: verifying that the gate actually challenges in a real
-browser, that REST routes return `sudo_required`, and that the lockdown audit
+browser, that REST routes return a 403 sudo gate (`sudo_required` on the cookie
+surface, `sudo_blocked` via App Password), and that the lockdown audit
 behaves for an operator on a running site.
 
 Introduced for the 4.8.0 security work (`user.change_email`, REST `POST`
@@ -39,6 +40,18 @@ Legend: ☐ = to run · **[CLI]** WP-CLI only · **[REST]** HTTP client only ·
 
 > Tip: keep `wp-admin` open in one tab and a REST client (curl/Postman/`wp
 > rest`) in another so you can compare surfaces for the same mutation.
+
+> **Observed response codes (verified live on 4.8.0, WP 7.0.2).** A gated REST route
+> returns **HTTP 403** with one of two codes depending on the surface you drive:
+> - **`code: "sudo_blocked"`** — via an **Application Password** under a Limited/Disabled
+>   entry-point policy: a hard policy block, because an App Password cannot answer an
+>   interactive challenge. (This is the practical headless surface — see §0.)
+> - **`code: "sudo_required"`** — on the **cookie / interactive** surface: the challenge
+>   is offered rather than a hard block.
+>
+> Assert on **403 + the code for the surface you used**. The rows below say
+> "`sudo_required`" for the cookie surface; substitute `sudo_blocked` when driving via
+> an App Password.
 
 ---
 
