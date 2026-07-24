@@ -1548,9 +1548,18 @@ class Gate {
 		}
 
 		if ( 'admin' === $surface ) {
-			$result['decision']              = 'gate';
-			$result['stash_replay_eligible'] = true;
-			$result['notes'][]               = __( 'Interactive admin requests use challenge + stash/replay.', 'wp-sudo' );
+			$result['decision'] = 'gate';
+			// Derive replay eligibility from the matched rule's stash mode: rules
+			// marked stash_no_replay (profile email/password/role saves) are NOT
+			// replayed — after reauth the user re-submits the form.
+			$stash_mode = $matched_rule['stash']['post_mode'] ?? 'allowlist';
+			if ( 'none' === $stash_mode ) {
+				$result['stash_replay_eligible'] = false;
+				$result['notes'][]               = __( 'Interactive admin request: gated, but this rule is non-replayable — after reauth the user re-submits the form.', 'wp-sudo' );
+			} else {
+				$result['stash_replay_eligible'] = true;
+				$result['notes'][]               = __( 'Interactive admin requests use challenge + stash/replay.', 'wp-sudo' );
+			}
 			return $result;
 		}
 

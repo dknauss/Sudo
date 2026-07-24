@@ -317,8 +317,14 @@ class Action_Registry {
 				),
 				'ajax'     => null,
 				'rest'     => array(
-					'route'    => '#^/wp/v2/users/\d+$#',
-					'methods'  => array( 'PUT', 'PATCH' ),
+					// `/me` too: core registers /wp/v2/users/me as EDITABLE →
+					// update_current_item() → update_item(), so a role change via
+					// POST /wp/v2/users/me would otherwise slip a numeric-only regex.
+					'route'    => '#^/wp/v2/users/(?:\d+|me)$#',
+					// Core registers the users update route under WP_REST_Server::EDITABLE
+					// ('POST, PUT, PATCH'); POST must be gated too or a stolen cookie can
+					// change a user's role via POST /wp/v2/users/{id|me} ungated.
+					'methods'  => array( 'POST', 'PUT', 'PATCH' ),
 					'callback' => function ( $request ): bool {
 						$params = $request->get_params();
 						return isset( $params['roles'] );
@@ -343,7 +349,11 @@ class Action_Registry {
 				),
 				'ajax'     => null,
 				'rest'     => null,
-				'stash'    => self::stash_allowlist( array( 'user_id', 'role' ) ),
+				// Gated profile saves are non-replayable: after reauth the user
+				// re-submits the form. This is the honest, silent-drop-free choice —
+				// the profile form always submits empty pass1/pass2, which the stash
+				// redacts, so an allowlist could never losslessly auto-replay anyway.
+				'stash'    => self::stash_no_replay(),
 			),
 
 			array(
@@ -368,7 +378,10 @@ class Action_Registry {
 				'ajax'     => null,
 				'rest'     => array(
 					'route'    => '#^/wp/v2/users/(?:\\d+|me)$#',
-					'methods'  => array( 'PUT', 'PATCH' ),
+					// Core registers the users update route under WP_REST_Server::EDITABLE
+					// ('POST, PUT, PATCH'); POST must be gated too or a stolen cookie can
+					// change a user's password via POST /wp/v2/users/{id|me} ungated.
+					'methods'  => array( 'POST', 'PUT', 'PATCH' ),
 					'callback' => function ( $request ): bool {
 						// Gate only when a password field is present in the request body.
 						// /wp/v2/users/{id} also handles role changes (covered by user.promote),
@@ -376,7 +389,60 @@ class Action_Registry {
 						return array_key_exists( 'password', $request->get_params() );
 					},
 				),
-				'stash'    => self::stash_allowlist( array( 'user_id', 'pass1', 'pass2', 'pass1-text', 'pw_weak' ) ),
+				// Non-replayable: a password change is already blocked from replay by
+				// sensitive-field redaction, so this is the equivalent explicit choice.
+				'stash'    => self::stash_no_replay(),
+			),
+
+			array(
+				'id'       => 'user.change_email',
+				'label'    => __( 'Change email address', 'wp-sudo' ),
+				'category' => 'users',
+				'admin'    => array(
+					'pagenow'  => array( 'profile.php', 'user-edit.php' ),
+					'actions'  => array( 'update' ),
+					'method'   => 'POST',
+					'callback' => function (): bool {
+						// The email field is always present on a profile save, so gate
+						// only a real change. Target: user-edit.php carries user_id;
+						// profile.php edits the current user.
+						// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Gate routing; core verifies its nonce before this runs.
+						if ( ! isset( $_POST['email'] ) || ! is_string( $_POST['email'] ) ) {
+							return false;
+						}
+						// Resolve the edited user exactly as core does: profile.php always
+						// edits the current user (IS_PROFILE_PAGE) regardless of any user_id
+						// param; user-edit.php uses $_REQUEST['user_id'] (query or body).
+						// Reading only $_POST['user_id'] would desync from a crafted
+						// user-edit.php?user_id=<victim> whose id is absent from the body.
+						$is_profile = isset( $GLOBALS['pagenow'] ) && 'profile.php' === $GLOBALS['pagenow'];
+						// phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Gate routing; core verifies its nonce first.
+						$req_user   = ( ! $is_profile && isset( $_REQUEST['user_id'] ) && is_numeric( $_REQUEST['user_id'] ) ) ? (int) $_REQUEST['user_id'] : 0;
+						$target     = $req_user > 0 ? $req_user : (int) get_current_user_id();
+						// phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Normalized in helper.
+						return self::email_change_differs( (string) wp_unslash( $_POST['email'] ), $target );
+					},
+				),
+				'ajax'     => null,
+				'rest'     => array(
+					'route'    => '#^/wp/v2/users/(?:\\d+|me)$#',
+					// Core registers the users update route under WP_REST_Server::EDITABLE
+					// ('POST, PUT, PATCH'); POST must be gated too or it bypasses the rule.
+					'methods'  => array( 'POST', 'PUT', 'PATCH' ),
+					'callback' => function ( $request ): bool {
+						$params = $request->get_params();
+						if ( ! array_key_exists( 'email', $params ) || ! is_string( $params['email'] ) ) {
+							return false;
+						}
+						$route  = (string) $request->get_route();
+						$target = preg_match( '#/wp/v2/users/(\\d+)$#', $route, $m )
+							? (int) $m[1]
+							: (int) get_current_user_id();
+						return self::email_change_differs( (string) $params['email'], $target );
+					},
+				),
+				// Non-replayable: reauth, then re-submit (see the profile rules above).
+				'stash'    => self::stash_no_replay(),
 			),
 
 			array(
@@ -478,10 +544,15 @@ class Action_Registry {
 					'route'    => '#^/wp/v2/settings$#',
 					'methods'  => array( 'PUT', 'PATCH', 'POST' ),
 					'callback' => function ( $request ): bool {
-						$params   = $request->get_params();
-						$critical = self::critical_option_names();
-						foreach ( $critical as $opt ) {
-							if ( array_key_exists( $opt, $params ) ) {
+						$params = $request->get_params();
+						// Core keys /wp/v2/settings by each setting's show_in_rest name,
+						// not the raw option name — so siteurl arrives as 'url' and
+						// admin_email as 'email'. Match both the raw names (harmless;
+						// future-proof) and those REST aliases, or a stolen cookie could
+						// repoint siteurl via POST /wp/v2/settings {"url":"..."} ungated.
+						$keys = array_merge( self::critical_option_names(), self::critical_option_rest_keys() );
+						foreach ( $keys as $key ) {
+							if ( array_key_exists( $key, $params ) ) {
 								return true;
 							}
 						}
@@ -767,6 +838,39 @@ class Action_Registry {
 		return array(
 			'post_mode' => 'none',
 		);
+	}
+
+	/**
+	 * Whether a submitted email differs from a target user's stored email.
+	 *
+	 * Backs the user.change_email rule. The email field is always present and
+	 * pre-filled on a profile save, so gating on presence alone would challenge
+	 * every save; this compares (sanitized, case-insensitive) against the stored
+	 * address so only a real change is gated.
+	 *
+	 * Fails CLOSED: when an email IS submitted but the target user or their
+	 * stored address cannot be read, returns true (gate) rather than assuming
+	 * "no change". Returns false only when no usable email was submitted or it
+	 * equals the stored address. Side-effect-free (reads user data only), so it
+	 * is safe under the diagnostic request simulator.
+	 *
+	 * @param string $submitted_raw Raw submitted email (possibly slashed).
+	 * @param int    $target_id     User whose stored email to compare against.
+	 * @return bool
+	 */
+	private static function email_change_differs( string $submitted_raw, int $target_id ): bool {
+		$submitted = sanitize_email( $submitted_raw );
+		if ( '' === $submitted ) {
+			return false;
+		}
+		if ( $target_id <= 0 ) {
+			return true;
+		}
+		$user = get_userdata( $target_id );
+		if ( ! $user || ! isset( $user->user_email ) ) {
+			return true;
+		}
+		return strtolower( $submitted ) !== strtolower( (string) $user->user_email );
 	}
 
 	/**
@@ -1159,5 +1263,37 @@ class Action_Registry {
 				'users_can_register',
 			)
 		);
+	}
+
+	/**
+	 * REST parameter keys that map to critical options on /wp/v2/settings.
+	 *
+	 * WordPress keys the settings endpoint by each setting's `show_in_rest`
+	 * name, which differs from the raw option name for the two single-site
+	 * critical options core exposes there: `siteurl` → `url` and `admin_email`
+	 * → `email` (`register_initial_settings()`). The other critical options
+	 * (`home`, `new_admin_email`, `default_role`, `users_can_register`) are not
+	 * registered on the settings endpoint, so only these two REST aliases can
+	 * appear in a `/wp/v2/settings` body.
+	 *
+	 * @return string[]
+	 */
+	public static function critical_option_rest_keys(): array {
+		// Derive the REST aliases from the FILTERED critical option list, so that
+		// narrowing `wp_sudo_critical_options` ungates an option on the REST path
+		// too — parity with the admin path (developer-reference.md: removing an
+		// entry ungates that option). Only siteurl/admin_email have a differing
+		// show_in_rest name; every other critical option keys by its raw name.
+		$aliases = array(
+			'siteurl'     => 'url',
+			'admin_email' => 'email',
+		);
+		$keys    = array();
+		foreach ( self::critical_option_names() as $opt ) {
+			if ( isset( $aliases[ $opt ] ) ) {
+				$keys[] = $aliases[ $opt ];
+			}
+		}
+		return $keys;
 	}
 }

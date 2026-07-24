@@ -375,6 +375,12 @@ class Plugin {
 				// authoritative (attempt_activation + handle_ajax_2fa_partial re-classify).
 				'hasTwoFactor'           => Sudo_Session::needs_two_factor( $user_id ),
 				'twoFactorModalCapable'  => Challenge::is_user_2fa_modal_capable( $user_id ),
+				// #182 (in-editor session indicator): seconds left in an already-active
+				// session so the indicator can seed its client-side countdown at page
+				// load with no read endpoint and no polling. Gated on is_active() — NOT
+				// the raw expiry — because time_remaining() does not verify the browser
+				// token, so a session bound to a different browser must localize 0 here.
+				'remaining'              => Sudo_Session::is_active( $user_id ) ? Sudo_Session::time_remaining( $user_id ) : 0,
 			)
 		);
 

@@ -2667,6 +2667,30 @@ class GateTest extends TestCase {
 	}
 
 	/**
+	 * Test the diagnostic reports a non-replayable admin rule (stash_no_replay)
+	 * as NOT replay-eligible — it must not claim challenge+stash/replay for rules
+	 * that require reauth-then-resubmit (profile email/password/role saves).
+	 */
+	public function test_evaluate_diagnostic_request_reports_non_replayable_rule(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		$result = $this->gate->evaluate_diagnostic_request(
+			array(
+				'surface'          => 'admin',
+				'method'           => 'POST',
+				'url'              => 'https://example.com/wp-admin/update.php?action=upload-plugin',
+				'is_authenticated' => true,
+				'has_active_sudo'  => false,
+			)
+		);
+
+		$this->assertSame( 'plugin.upload', $result['matched_rule_id'] );
+		$this->assertSame( 'gate', $result['decision'] );
+		$this->assertFalse( $result['stash_replay_eligible'], 'stash_no_replay rules are not replay-eligible' );
+	}
+
+	/**
 	 * Test diagnostic evaluation reports AJAX requests as soft-blocked.
 	 */
 	public function test_evaluate_diagnostic_request_reports_ajax_soft_block(): void {
