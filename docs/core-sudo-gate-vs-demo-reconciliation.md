@@ -80,7 +80,7 @@ The technical point the README makes in force-logout's favor — that a fresh lo
 
 The demo's `actions()` returns `[ 'id' => [ 'label' => ... ] ]`. The spec's registry carries `capabilities`, `category`, `consequence_class`, `scope`, and `annotations`. Aligning the demo's array shape to the spec's (even if most fields are unused in the MVP) makes the demo a faithful preview of the Layer 1 API and lets the same catalog literal be lifted toward a core proposal. Cheap, and it makes the "this is what registration looks like" story consistent across demo, spec, and any Make/Core post.
 
-Scope note (post-dating this review): [`core-actions-registry-vs-abilities-decision.md`](core-actions-registry-vs-abilities-decision.md) refined the core Layer 1 into a *union* query surface that also reads consequence-annotated abilities. The MVP should **not** model that union — at wedge scale it is pure overhead, and there are no consequential core abilities to read. Align the array to the `consequence` metadata *shape* only (standalone entries); the union stays a core-patch delta.
+Scope note (post-dating this review): [`core-actions-registry-vs-abilities-decision.md`](core-actions-registry-vs-abilities-decision.md) settled the core Layer 1 as a **standalone** registry, Abilities-aligned in ID convention, with reading consequence-annotated abilities as a deferred extension (nothing populates the ability side yet). So the MVP's standalone `actions()` shape is the faithful preview — align the array to the `consequence` metadata *shape* only; there is no union for the MVP to model.
 
 ---
 

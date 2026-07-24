@@ -4,17 +4,15 @@
 **Drafted:** July 2026
 **Resolves:** open question #1 (a new registry vs. consequence-metadata on the Abilities API) in [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md) §12 — the "one blocking question" that must be settled before the first patch.
 **Companion to:** [`core-action-gate-proposal.md`](core-action-gate-proposal.md) (§6 the *why*), [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md) (the *what to change*), [`abilities-api-assessment.md`](abilities-api-assessment.md) (runtime posture toward the Abilities API).
-**Grounding for Abilities-API facts:** [`abilities-api-assessment.md`](abilities-api-assessment.md), which cites official make.wordpress.org / developer.wordpress.org sources. No new external claims are introduced here; verify against those before quoting in a public post.
+**Grounding for Abilities-API facts:** most are grounded in [`abilities-api-assessment.md`](abilities-api-assessment.md), which cites official make.wordpress.org / developer.wordpress.org sources. This memo adds **one** directly-verified claim of its own — the behavior of `WP_Ability::execute()` and its `wp_before_execute_ability` hook, verified against WordPress/abilities-api `class-wp-ability.php` and linked inline where used. Verify all of these against live source before quoting in a public post.
 
 ---
 
 ## The decision, up front
 
-**Build a thin, Abilities-aware consequence-annotation layer — not a second general-purpose registry, and not "abilities only."**
+**Ship a standalone consequential-actions registry now — small, pure-data, backed by the plain core functions the gate already protects. Keep it Abilities-*aligned* (reuse the `namespace/name` ID convention) so that *if and when* core grows consequential abilities, the same getters can be extended to also read their `consequence` annotations. That union is a documented future extension, not part of the first patch: nothing populates the ability side today.**
 
-Concretely: Phase 1 ships a small consequence-metadata schema plus a query surface (`wp_get_actions()` / `wp_get_action()`) whose results are a **union** of (a) standalone entries for consequential operations backed by plain core functions, and (b) any registered ability that carries a `consequence` annotation. The gate (Phase 2) reads from that one query surface and never cares which source an entry came from.
-
-This rejects the binary the open questions pose. It is the "align with Abilities but don't collapse into it" position of proposal §6, made concrete enough to write the first patch.
+This still rejects the binary the open questions pose. It is not "abilities-only" (Option B, which cannot work — see below), and it is not a registry deliberately *incompatible* with Abilities (a needlessly divergent Option A). It is **Option A done Abilities-aligned**, with union-readiness as a cheap forward option rather than upfront machinery — which is what actually makes the first patch small and landable.
 
 ---
 
@@ -46,30 +44,28 @@ Two further objections hold independently, even setting the (non-)seam aside:
 1. **B presupposes abilitization it can't cheaply deliver.** Any per-ability enforcement only materializes *after* every mutation is an ability — the expensive precondition above.
 2. **The chokepoint model is strictly more complete.** The spec gates the **data-layer function** every surface funnels through (§5.1), so a *programmatic* caller — a plugin invoking `wp_update_user()` directly — is covered. Ability-execution hooks (even if they *could* gate) see only mutations routed through `WP_Ability::execute()`, which is almost none today.
 
-## Why pure Option A is also wrong
+## The decision: a standalone registry, Abilities-aligned, union-ready
 
-Two independent registries with overlapping purpose is the drift surface this repo's culture explicitly fights (`llm-lies-log.md`, the single-source `current-metrics.md` pattern). If some operation later becomes an ability *and* is consequential, a standalone-registry-only design forces a duplicate entry that can silently disagree with the ability. Proposal §6 already commits to reusing Abilities' namespacing and hook shape; a pure parallel registry that merely *looks* like Abilities without being able to consume ability annotations throws that alignment away.
-
-## The recommended shape (Option C): one query surface, two sources
+Phase 1 is a standalone registry. This is essentially **Option A**, and it is the right starting point — not a compromise:
 
 | Concern | Design |
 |---|---|
-| **Metadata schema** | A `consequence` block — `consequence_class`, `scope`, `annotations.requires_recent_auth`, etc. (spec §4.1) — defined **once**, usable in either place. |
-| **Plain-core-function ops** (today's whole catalog) | Registered as standalone consequential-action entries. This is what Phase 1 actually ships. |
-| **Ops that are (or become) abilities** | The same `consequence` block attaches to the ability registration; no duplicate action entry. |
-| **The gate's view** | `wp_get_action( $id )` returns the merged record regardless of source; `wp_get_actions()` returns the union. The gate (spec §4.3) is written against this surface and is source-blind. |
-| **Naming** | Keep the Abilities `namespace/name` convention (proposal §6) so an ability and a standalone action share an ID space and can never collide-yet-differ. |
+| **Metadata schema** | A `consequence` block — `consequence_class`, `scope`, `annotations.requires_recent_auth`, etc. (spec §4.1) — defined once. |
+| **What Phase 1 registers** | The plain-core-function catalog (spec §4.1) as standalone entries. This is the whole of Phase 1. |
+| **Naming** | Reuse the Abilities `namespace/name` convention (proposal §6) — the one cheap thing that keeps a future union possible. |
+| **The gate's view** | `wp_get_action( $id )` / `wp_get_actions()` over the standalone entries; the gate (spec §4.3) is written against that surface. |
 
-### Collision and conflict behavior
+The only thing separating this from a *needlessly* divergent second registry is the shared ID convention. That is the whole point of "Abilities-aligned": an operation that later becomes a consequential ability gets its `consequence` block on the ability, and the same getters can be taught to read it — instead of a duplicate standalone entry that could drift. Alignment is a one-line naming choice, not a subsystem.
 
-Two sources feeding one ID space needs an explicit rule, not just the assertion that IDs "can never collide-yet-differ":
+### Future extension: reading consequence-annotated abilities (explicitly *not* Phase 1)
 
-- **One ID, one record.** The union is a *lookup*, not a *merge*. `wp_get_action( $id )` resolves to exactly one record; it never silently merges a standalone entry and an ability that share an ID.
-- **An operation is registered in exactly one place.** If an operation is both an ability and consequential, its `consequence` block lives on the ability registration and **no** standalone action is registered for it (and vice versa). That single-registration rule is what makes collisions a registration-time error rather than a runtime ambiguity.
-- **Collisions fail loudly, at `init`, not at read time.** `wp_register_action()` registering an ID that already exists as a consequence-annotated ability (or the reverse) is a conflict: reject it with `_doing_it_wrong()` and keep the first registration, so a late/duplicate registration cannot silently shadow the canonical one. Detection happens when the catalog is assembled (`init`), so the error surfaces in development, not as a divergent gate decision in production.
-- **Precedence, if a host insists on allowing both.** Should a future core decision permit overlap rather than reject it, the **ability** is authoritative — it is the executable object, so its metadata is the one the gate must not disagree with. This memo's recommendation is to reject overlap outright; precedence is stated only so the fallback is unambiguous.
+If core ever registers consequential abilities, `wp_get_actions()` can be extended to *also* return abilities that carry a `consequence` annotation — one source-blind lookup, no duplicate entries. This is deliberately deferred, for concrete reasons:
 
-This captures B's alignment benefit (one metadata vocabulary, one hook shape, one ID space, and automatic pickup of consequential abilities when they eventually exist) without paying B's precondition (no need to abilitize core's write path first), and without A's drift (no second source of truth for an operation that is an ability).
+- **There is nothing to union today.** Core has three read-only abilities; none are consequential (§ above). The ability side of the union has zero members, so building it now is machinery ahead of need — exactly the over-engineering this repo's `Simplicity First` rule warns against.
+- **It is not an enforcement mechanism.** Per the verified note above, the gate cannot enforce at `wp_before_execute_ability`; it enforces at the data-layer chokepoint / REST regardless of where a registry entry came from. So a consequence-annotated ability entry buys **naming, audit, and REST-layer gating — not PHP-path enforcement.** That keeps the extension firmly a Layer-1 (taxonomy) convenience, never load-bearing for the gate.
+- **Its only hard rule is trivial and can wait.** If the extension is ever built: **one ID resolves to one record.** An operation is registered in exactly one place — standalone *or* ability, never both — and a duplicate ID is rejected at `init` with `_doing_it_wrong()` (ability authoritative if a host ever permits overlap). That one sentence is the entire collision contract, and it need not exist until the ability side does.
+
+So the recommendation is Option A now, with the shared ID convention as the cheap hook that leaves this extension available later — not a two-source union stood up before it has a second source.
 
 ---
 
@@ -78,23 +74,23 @@ This captures B's alignment benefit (one metadata vocabulary, one hook shape, on
 This is the point of settling the fork — the Phase 1 patch now has a definite shape:
 
 1. **Define the `consequence` metadata schema** (pure data; the fields in spec §4.1).
-2. **Ship `wp_register_action()` / `wp_get_action()` / `wp_get_actions()` / `wp_action_exists()`** where the getters return the **union** of standalone entries and consequence-annotated abilities. Reading abilities is a query against the existing Abilities registry — not a second copy.
+2. **Ship `wp_register_action()` / `wp_get_action()` / `wp_get_actions()` / `wp_action_exists()`** over the standalone entries. (The getters are the seam where a future ability-reading extension would hook — but Phase 1 reads standalone entries only.)
 3. **Register the small core catalog** as standalone entries (because none are abilities today).
 4. **Ship the Site Health consumer** (spec §6 row 16) to demonstrate value before any enforcement.
 
-Rows 1–4 are inert naming/observability — shippable alone, exactly the "Phase 1 lands without the gate" property proposal §5 depends on. No abilitization required, no second-registry drift introduced, and consequential abilities are picked up for free if and when core adds them.
+Rows 1–4 are inert naming/observability — shippable alone, exactly the "Phase 1 lands without the gate" property proposal §5 depends on. No abilitization required, no second registry, and the shared ID convention leaves the ability-reading extension available as a cheap later addition.
 
 ### MVP status
 
-The `dknauss/consequential-actions` demonstrator implements the **standalone (Option-A) shape**: an `actions()` catalog filtered by `consequential_actions`, with `namespace/action-name` IDs and **no** Abilities-API awareness (metadata was label-only through v0.2.0; enriched to the full `capabilities`/`category`/`consequence_class`/`scope`/`annotations` shape in v0.2.1, merged to `consequential-actions` `main` via PR #2 — a `v0.2.1` release tag is still pending). That is the right choice for a five-minute wedge — at MVP scale a union with abilities that have no consequential members would be pure overhead — so the recommendation here is **not** that the MVP model the union surface. It stays a faithful preview of a *standalone* Layer 1 entry, and the union-with-abilities query surface is the delta a core patch adds on top.
+The `dknauss/consequential-actions` demonstrator implements the **standalone (Option-A) shape**: an `actions()` catalog filtered by `consequential_actions`, with `namespace/action-name` IDs and **no** Abilities-API awareness (metadata was label-only through v0.2.0; enriched to the full `capabilities`/`category`/`consequence_class`/`scope`/`annotations` shape in v0.2.1, merged to `consequential-actions` `main` via PR #2 — a `v0.2.1` release tag is still pending). That is exactly the shape this memo recommends for core too — a standalone registry — so the MVP is a faithful preview, not a simplification of some richer target. The ability-reading extension is a deferred core option, not something the MVP is missing.
 
-The canonical tracker for MVP-vs-design deltas is [`core-sudo-gate-vs-demo-reconciliation.md`](core-sudo-gate-vs-demo-reconciliation.md); this note only records the one thing that doc predates — the union refinement — and its conclusion (MVP stays standalone-shaped) so the two don't diverge.
+The canonical tracker for MVP-vs-design deltas is [`core-sudo-gate-vs-demo-reconciliation.md`](core-sudo-gate-vs-demo-reconciliation.md).
 
 ---
 
 ## Naming caveat (do not reopen the hook collision)
 
-Proposal §4.0 already flags that "action" collides with `do_action()`/`add_action()`. This decision does not resolve the public name; it only fixes the *architecture*. When the name is chosen, prefer one that reads as "consequential operation" (e.g. `wp_register_consequential_action`, or a `consequence` sub-API of the Abilities registration) over a bare "Actions API," so the union design above isn't mistaken for a third hook system. Track this as still-open; it is cosmetic relative to the architectural decision made here.
+Proposal §4.0 already flags that "action" collides with `do_action()`/`add_action()`. This decision does not resolve the public name; it only fixes the *architecture*. When the name is chosen, prefer one that reads as "consequential operation" (e.g. `wp_register_consequential_action`, or a `consequence` sub-API of the Abilities registration) over a bare "Actions API," so the registry isn't mistaken for a third hook system. Track this as still-open; it is cosmetic relative to the architectural decision made here.
 
 ---
 
@@ -102,7 +98,7 @@ Proposal §4.0 already flags that "action" collides with `do_action()`/`add_acti
 
 The same change that adds this memo also applied these reconciliations:
 
-- **`core-sudo-gate-implementation-spec.md`** — §12 Q1 marked resolved (points here); §4.1 now describes the union-with-abilities query surface.
+- **`core-sudo-gate-implementation-spec.md`** — §12 Q1 marked resolved (points here); §4.1 describes the standalone registry with the ability-reading extension noted as a deferred option.
 - **`core-action-gate-proposal.md`** — §6's "align but don't collapse" now cites this memo as the concrete resolution.
 
 Remaining follow-up: the public *name* for the API (proposal §4.0 naming caveat) is still open; §18's open questions don't include the registry fork, so nothing there changes.
@@ -121,4 +117,4 @@ These are genuinely independent of the registry fork and remain open (spec §12)
 
 ## One-line summary
 
-Not "new registry vs. abilities metadata" — **one consequence-metadata vocabulary and one source-blind query surface, populated by standalone entries today and by consequence-annotated abilities whenever core has them.** It lands as pure naming in Phase 1 with no dependency on abilitizing core's write path, and the gate never has to know the difference.
+Not "new registry vs. abilities metadata" — **a standalone, Abilities-*aligned* consequential-actions registry now, with reading consequence-annotated abilities left as a cheap, deferred extension (there is nothing to union yet, and the gate enforces at the chokepoint regardless of an entry's source).** It lands as pure naming in Phase 1 with no dependency on abilitizing core's write path.

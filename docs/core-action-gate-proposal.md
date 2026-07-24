@@ -344,7 +344,7 @@ Some future consequential actions may map one-to-one to abilities. Others may wr
 
 If WordPress later decides that the Abilities API can absorb this entire use case cleanly, then this proposal should collapse into that direction rather than create needless duplication. But today, the safer position is to acknowledge that Abilities are adjacent prior art, not yet a complete substitute.
 
-The concrete resolution of "align but don't collapse" is a single consequence-metadata schema exposed through one source-blind query surface, populated by standalone entries for plain-core-function operations *and* by consequence-annotated abilities — not a second parallel registry, and not "abilities only." See [`core-actions-registry-vs-abilities-decision.md`](core-actions-registry-vs-abilities-decision.md) for the decision and why the pure forms of both options fail. (The public *name* for the API is still open — see §4.0.)
+The concrete resolution of "align but don't collapse" is a **standalone** consequential-actions registry, Abilities-*aligned* only in its `namespace/name` ID convention so that reading consequence-annotated abilities stays a cheap *future* extension — not "abilities only," and not a registry needlessly incompatible with Abilities. The two-source union is deferred, not built up front: nothing populates the ability side today, and the gate enforces at the chokepoint regardless of an entry's source. See [`core-actions-registry-vs-abilities-decision.md`](core-actions-registry-vs-abilities-decision.md) for the decision and why the pure forms of both options fail. (The public *name* for the API is still open — see §4.0.)
 
 ---
 
