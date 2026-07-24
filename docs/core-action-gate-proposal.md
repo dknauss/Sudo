@@ -344,6 +344,8 @@ Some future consequential actions may map one-to-one to abilities. Others may wr
 
 If WordPress later decides that the Abilities API can absorb this entire use case cleanly, then this proposal should collapse into that direction rather than create needless duplication. But today, the safer position is to acknowledge that Abilities are adjacent prior art, not yet a complete substitute.
 
+The concrete resolution of "align but don't collapse" is a **standalone** consequential-actions registry, Abilities-*aligned* only in its `namespace/name` ID convention so that reading consequence-annotated abilities stays a cheap *future* extension — not "abilities only," and not a registry needlessly incompatible with Abilities. The two-source union is deferred, not built up front: nothing populates the ability side today, and the gate enforces at the chokepoint regardless of an entry's source. See [`core-actions-registry-vs-abilities-decision.md`](core-actions-registry-vs-abilities-decision.md) for the decision and why the pure forms of both options fail. (The public *name* for the API is still open — see §4.0.)
+
 ---
 
 ## 7. Mock Actions API
@@ -709,6 +711,8 @@ A small Actions API is exactly the sort of primitive core can introduce incremen
 The Actions API still matters as a semantic model. In a more isolated runtime, proof-of-intent remains relevant above capability grants, even if the implementation form changes.
 
 Concretely: even WP Next’s `wp-kernel` — a PSR-15 middleware pipeline with PSR-14 typed events (Part 2), whose enumerated security services are CSRF, OAuth, and plugin manifests (Part 6) — has **no proof-of-intent layer**. The Action Gate is exactly the middleware that fills that seam: a PSR-15 stage that consumes the Actions registry and, for selected consequential effects, demands fresh proof of human intent before the request proceeds. Manifests answer “is this plugin *allowed* to do this?”; the gate answers “is a human *intending* this right now?” — a distinct question WP Next’s own plan leaves open.
+
+The WP 7.0 Connectors credential-write path is the concrete, in-repo instance of that distinction. A manifest entry declaring “this plugin may write settings” authorizes the *class* of operation; it says nothing about whether a human is intentionally replacing an AI-provider API key *now*. Yet a single `POST /wp/v2/settings` swapping a `connectors_*_api_key` option is exactly the stolen-session abuse of a legitimate operation this proposal’s threat model targets (§2.1, §2.3) — a credential-integrity failure reachable with no filesystem access and no code execution. WP Sudo already gates this path in production via the `connectors.update_credentials` rule (the proposal’s Phase-1 `core/update-connector-credentials` catalog entry, §8), verified against WordPress 7.0 GA (2026-06-15). It is therefore the clearest available demonstration that a proof-of-intent gate remains load-bearing *even after* a manifest system ships. Sources for the third-party Connectors claims here (the `/wp/v2/settings` route, the `connectors_*_api_key` option-name pattern, and GA verification): the official [Connectors API dev note](https://make.wordpress.org/core/2026/03/18/introducing-the-connectors-api-in-wordpress-7-0/) and WordPress core `src/wp-includes/connectors.php`, analyzed in full in [`connectors-api-reference.md`](connectors-api-reference.md) Part II.
 
 ### If WordPress changes more slowly than either proposal hopes
 

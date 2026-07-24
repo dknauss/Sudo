@@ -127,6 +127,7 @@ remote-site safety", and user-level `~/AGENTS.md`):
 
 ## Documentation
 
+- `docs/README.md` — **documentation index: which doc answers which question. Start here.**
 - `docs/security-model.md` — threat model, boundaries, environmental considerations.
 - `docs/security-audit-methodology.md` — **mandatory** security-audit process: "reason about the target first" before any sink-oriented scan. Required whenever auditing the gate, session, or any component that enforces, gates, binds, or issues a security decision.
 - `docs/developer-reference.md` — hook signatures, filters, custom rule structure.
