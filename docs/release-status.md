@@ -16,7 +16,7 @@ This file is the canonical source for **current release state** in this reposito
 - **Latest tagged release:** `4.8.0` (cut 2026-07-23).
 - **Latest git tag observed:** `v4.8.0` (annotated, cut 2026-07-23, on `10587a4`, version-sync commit for PR #221). GitHub Release published via `release.yml`; the release-ZIP CI attached the `wp-sudo.zip` install asset.
 - **Previous tag:** `v4.7.0` (annotated, cut 2026-07-16, on `3cf7ee7`).
-- **`4.8.0` payload (released):** a **security-hardening** release plus one new opt-in integrity feature. Security fixes (backward-compatible): REST `POST` to `/wp/v2/users/{id|me}` was ungated for `user.change_email` / `user.promote` because the rules matched only `PUT`/`PATCH` while core registers the route under `WP_REST_Server::EDITABLE` (POST included) — now gated (#213/#214); REST writes to critical settings were ungated because the callback matched raw option names (`siteurl`/`admin_email`) while `/wp/v2/settings` keys by `show_in_rest` aliases (`url`/`email`) — now matches the aliases (#215); a new `user.change_email` rule gates account email changes (the password-reset-takeover pivot) on profile surfaces and REST, stashing profile account-mutation POSTs **non-replayably** (#214). New (opt-in, default-off): a **role/capability lockdown audit MVP** that detects privileged-state drift from a file-backed trusted manifest — including direct `$wpdb` writes the escalation guard cannot see — via `wp sudo manifest generate|diff`, Site Health, or a scheduled sweep firing `wp_sudo_role_drift_detected` (#206). Plus readable governance capabilities on the user profile (#205). Live end-to-end security verification is recorded in [`docs/security-test-results-4.8.0.md`](security-test-results-4.8.0.md). The exact commit set is `git log v4.7.0..v4.8.0 --oneline`.
+- **`4.8.0` payload (released):** a **security-hardening** release plus one new opt-in integrity feature. Security fixes (backward-compatible): the **pre-existing** `user.change_password` / `user.promote` REST rules matched only `PUT`/`PATCH`, so a `POST` to `/wp/v2/users/{id|me}` was ungated (core registers the route under `WP_REST_Server::EDITABLE`, which includes `POST`) — both rules now gate `POST` too (#213); a **new** `user.change_email` rule gates account email changes (the password-reset-takeover pivot) on the profile surfaces and the REST users routes for `POST`/`PUT`/`PATCH`, stashing profile account-mutation POSTs **non-replayably** (#214); REST writes to critical settings were ungated because the callback matched raw option names (`siteurl`/`admin_email`) while `/wp/v2/settings` keys by `show_in_rest` aliases (`url`/`email`) — now matches the aliases (#215). New (opt-in, default-off): a **role/capability lockdown audit MVP** that detects privileged-state drift from a file-backed trusted manifest — including direct `$wpdb` writes the escalation guard cannot see — via `wp sudo manifest generate|diff`, Site Health, or a scheduled sweep firing `wp_sudo_role_drift_detected` (#206). Plus readable governance capabilities on the user profile (#205). Live end-to-end security verification is recorded in [`docs/security-test-results-4.8.0.md`](security-test-results-4.8.0.md). The exact commit set is `git log v4.7.0..v4.8.0 --oneline`.
 - **`4.7.0` payload (released):** completion of the in-editor reauthentication modal that `4.6.0` explicitly deferred — Milestone A (in-place password modal over the block editor with owner-scoped request re-dispatch, PR #178) and Milestone B (in-modal second factor via a server-rendered provider partial validated through the unchanged challenge validator, PRs #185/#186), plus the demo/docs follow-ons (in-editor 2FA blueprint #187/#189/#192, multisite scenario blueprint #196/#197, 2FA modal screenshot #193). Released as **MINOR** by maintainer product-signaling override: by the strict `VERSIONING.md` test the payload is patch-level (block-editor JS + internal `Challenge` AJAX endpoints; no *new* declared-public-API entry — the 2FA render hook is pre-existing and documented), but finishing a headline deferred capability warranted a minor. The override is documented in `VERSIONING.md`'s worked examples. The exact commit set is `git log v4.6.0..v4.7.0 --oneline`.
 - **`4.6.0` payload (released):** the staged release was re-scoped `4.5.1` → `4.6.0` (MINOR) after the block-editor in-editor reauthentication work (PRs #165, #168) landed on top of the original admin-UI-only `4.5.1` payload — a new user-facing capability, plus the optional critical-event alert bridge's documented public extension filters (#166), is a backward-compatible **addition**, not a patch (see `VERSIONING.md`). The `4.6.0` payload is: block-editor in-editor reauth (link-out increment), the optional critical-event alert bridge + inline demo companion, the admin-surface user-identity harmonization (PR #154), and the alerting/roadmap docs. The exact commit set is `git log v4.5.0..v4.6.0 --oneline`.
 
@@ -55,7 +55,7 @@ this file update were applied as a phase-2 PR (matching the `v4.5.0`/`v4.6.0`
 sequencing). All items below are ✅ done.
 
 1. **CI gate — ✅ green on the release commit (PR #199).** Full required suite passed: Unit (PHP 8.2/8.3/8.4 + Coverage), Integration ×7 (incl. the `MS true` multisite lane), E2E Tests ×4, E2E Nginx Smoke, Psalm, Code Quality (PHPCS + PHPStan L6), and Plugin Check (PCP). Local pre-commit gate also green: `composer test:unit` (1028), PHPStan L6 no errors, Psalm 0, PHPCS 0.
-2. **Release-environment matrix — ✅ reused from `4.6.0` by conscious decision.** `4.7.0`'s new surface is block-editor JS plus an internal `admin-ajax` 2FA-partial endpoint (`wp_sudo_challenge_2fa_partial`) — the same class of admin-side, non-server-floor-sensitive change as `4.6.0`, which cleared the Apache/managed-host/min-WP matrix. No new server-facing behavior, so the `4.6.0` matrix outcome applies; multisite behavior stays covered by the green CI Integration multisite lane. The nginx-multisite *smoke* lane remains de-scoped (see the `v4.6.0` checklist item 1).
+2. **Release-environment matrix — ✅ reused from `4.6.0` by conscious decision.** `4.7.0`'s new surface is block-editor JS plus an internal `admin-ajax` 2FA-partial endpoint (`wp_sudo_challenge_2fa_partial`) — the same class of admin-side, non-server-floor-sensitive change as `4.6.0`, which cleared the Apache/managed-host/min-WP matrix. No new server-facing behavior, so the `4.6.0` matrix outcome applies; multisite behavior stays covered by the green CI Integration multisite lane. The nginx-multisite *smoke* lane, de-scoped at `4.6.0` tag time, was **re-hardened and restored to the release-confidence gate post-`4.6.0` (2026-07-06)** — see the `4.6.0` section of [`docs/release-environment-log.md`](release-environment-log.md); it is not de-scoped as of `4.7.0`.
 3. **Version sync — ✅ done.** All five points at `4.7.0` (`wp-sudo.php` header + constant, `tests/bootstrap.php`, `phpstan-bootstrap.php`, `readme.txt` Stable tag). Pre-commit reviewer verified; a drafting confabulation in the `VERSIONING.md` worked example was caught and corrected before commit.
 4. **CHANGELOG — ✅ done.** `4.7.0` dated section in `CHANGELOG.md`; all symbol references verified against live source.
 5. **Cut the annotated tag — ✅ done.** `v4.7.0` (annotated) on `3cf7ee7`; `release.yml` verified tag==header version, built the ZIP, and published the GitHub Release with `wp-sudo.zip` attached ([releases/tag/v4.7.0](https://github.com/dknauss/Sudo/releases/tag/v4.7.0)).
@@ -67,7 +67,8 @@ sequencing). All items below are ✅ done.
 The tree was **code-complete and green in CI** on the release commit. As with the
 `4.5.0`–`4.7.0` sequence, the version-sync + `blueprint.json` bump landed with the
 tag (PR #221); this file's update was applied as a follow-on reconciliation. All
-items below are ✅ done.
+items below are ✅ done **except item 2** (the release-environment-matrix decision),
+which is a ⚠️ **retroactive gap still open** for a maintainer reuse-or-rerun call.
 
 1. **CI gate — ✅ green (PR #221 version-sync commit).** Full required suite passed; local pre-commit gate green: `composer test:unit` (1111 tests), PHPStan L6 no errors, Psalm 0, PHPCS 0.
 2. **Release-environment matrix — ⚠️ decision not recorded at tag time (retroactive gap).** Unlike `4.6.0`/`4.7.0` (admin-side JS + `admin-ajax` only), `4.8.0` changed **server-facing REST routing/method matching** (the gates now match `POST` and `show_in_rest` aliases on `/wp/v2/users` and `/wp/v2/settings`) — the class of change the manual Apache/managed-host/min-WP matrix exists to catch, so a blind reuse of the `4.6.0`/`4.5.0` matrix is **not** obviously justified. Live end-to-end security verification of the new REST gates **was** performed and recorded ([`docs/security-test-results-4.8.0.md`](security-test-results-4.8.0.md): WordPress Studio / WP 7.0.2 / PHP 8.5.8 / SQLite, headless WP-CLI + App-Password/cookie REST, plus a Redis backend for the cache-bypass rows), but that is a **functional** security pass, **not** the Apache/managed-host/min-WP environment matrix. A conscious reuse-or-rerun decision for those lanes is flagged for the maintainer in [`docs/release-environment-log.md`](release-environment-log.md); the tag was already cut, so this is recorded as a retroactive reconciliation item, not a pre-tag block.
@@ -135,11 +136,11 @@ Canonical source for post-tag drift after the latest tag (`v4.8.0`): `git log v4
 The `v4.5.0` tag (2026-07-05) shipped the **substantial** body of work
 accumulated since `v4.2.2` — two completed GSD milestones (v4.4.0 Two Factor
 Lifecycle Bridge and v4.5 Session Governance & Admin UX) plus security
-hardening. `main` has since progressed through `v4.6.0` (2026-07-06) and
-`v4.7.0` (2026-07-16) — both released — and is now **at the `v4.7.0` tag with
-nothing unreleased past it** (the canonical current state is "Latest
-GitHub/tagged release" and "Current `main` release state" above; this section is
-a historical record of the `4.5.0` payload). Drift source for this section:
+hardening. `main` has since progressed through `v4.6.0` (2026-07-06),
+`v4.7.0` (2026-07-16), and `v4.8.0` (2026-07-23) — all released — and now carries
+some unreleased post-`v4.8.0` work (the canonical current state is "Latest
+GitHub/tagged release" and "Current `main` release state" above, which are
+authoritative; this section is only a historical record of the `4.5.0` payload). Drift source for this section:
 `git log v4.2.2..v4.5.0 --oneline`; see the `CHANGELOG.md` `4.5.0` section for
 the curated feature list.
 
@@ -184,7 +185,7 @@ Phase 18 added [`docs/e2e-runtime-review.md`](e2e-runtime-review.md) as the dura
 ### Latest stable WordPress release
 
 - **Latest stable major/minor branch:** `7.0`
-- **Latest stable patch release observed:** `7.0` GA (released May 20, 2026; verified as latest stable on June 14, 2026)
+- **Latest stable patch release observed:** `7.0.2` (verified as the latest stable via `api.wordpress.org/core/version-check` on 2026-07-24; the `7.0` line went GA on May 20, 2026, with `7.0.2` the current patch — matching the WP 7.0.2 environment recorded in `docs/security-test-results-4.8.0.md`)
 
 ### Forward lane used by this repository
 
@@ -200,7 +201,7 @@ Phase 18 added [`docs/e2e-runtime-review.md`](e2e-runtime-review.md) as the dura
 
 WordPress 7.0 is now the latest stable release for package compatibility metadata:
 
-- keep `readme.txt` **Tested up to** at `7.0`
+- keep `readme.txt` **Tested up to** at `7.0` (this field tracks the major/minor branch, not the patch — the `7.0` line is currently patched to `7.0.2`)
 - keep README support badges aligned with the `7.0` line
 - CI forward lane is already `7.0` GA; no further lane change needed until 7.1 development opens
 

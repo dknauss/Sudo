@@ -104,7 +104,7 @@ The `4.5.1` package was staged on `main` (version-synced; never tagged — re-sc
 
 ## `4.6.0` environment matrix (✅ cleared — nginx-multisite smoke de-scoped)
 
-The `4.6.0` package is staged on `main` (version-synced; no `v4.6.0` tag cut yet). This is a **feature release**, so unlike the superseded `4.5.1` the `4.5.0` matrix is **not** auto-inherited.
+The `4.6.0` package was **tagged `v4.6.0` (2026-07-06)**; this section is retained as the record of the gate decision made before that tag. This is a **feature release**, so unlike the superseded `4.5.1` the `4.5.0` matrix is **not** auto-inherited.
 
 - **Status:** ✅ **Cleared for tag, with the nginx-multisite *smoke* lane de-scoped** (see decision below).
 - **What changed since the `v4.5.0` tag:** block-editor in-editor reauthentication (`admin/js/wp-sudo-editor-reauth.js` + the `wpSudoEditorReauth` localization and the `wp_sudo_refresh_grant_nonce` `admin-ajax` endpoint), the optional critical-event alert bridge + inline demo companion, and the admin user-identity harmonization (formerly the `4.5.1` payload).
