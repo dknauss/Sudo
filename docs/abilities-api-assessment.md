@@ -253,8 +253,11 @@ all read-only.
 **Implementation options if conditions 2 and 3 are ever met:**
 
 - Prefer the **REST seam** (`intercept_rest()`), which already gates ability
-  `/run` routes with a proper `WP_Error`/redirect and stash-replay — this covers
-  the REST-exposed and MCP-mediated calls that are the realistic attack surface.
+  `/run` routes: `block_rest()` returns a `WP_Error` carrying a `challenge_url`.
+  Note REST does **not** stash-and-replay — the client must re-dispatch its own
+  request after reauth (only the browser/admin surface stashes and replays). This
+  still covers the REST-exposed and MCP-mediated calls that are the realistic
+  attack surface.
 - The PHP path (`WP_Ability::execute()` called directly in-process) has no
   graceful seam: hooking `wp_before_execute_ability` can only `wp_die()` (returning
   a `WP_Error` from it does **nothing** — the value is discarded), so it is a
