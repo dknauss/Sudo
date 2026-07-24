@@ -76,13 +76,20 @@ For each filled cell, state whether a miss is a **manager limitation** or a
 
 ### Verified results — iCloud Keychain (2026-07-24)
 
-- **Manager / environment:** iCloud Passwords Chrome extension on macOS (exact
-  extension/macOS version not captured — a minor gap to tighten on a rerun),
-  Google Chrome. **Site:** local WordPress Studio at `http://localhost:8881`,
-  **WP Sudo 4.8.0**, WordPress 7.0.2 / PHP 8.5.8, admin account with **no** Two
-  Factor enabled. Observed by the human tester on the real screen (the native
-  autofill popup renders in a compositor layer that automation screenshots
-  capture as blank).
+- **Manager / environment:** iCloud Passwords Chrome extension (ships with the OS;
+  exact extension version not exposed to page scripts — not captured) on **macOS 26**,
+  **Google Chrome 150** (both read from the live browser: `navigator.userAgent` +
+  `userAgentData` high-entropy `platformVersion`). **Site:** local WordPress Studio
+  at `http://localhost:8881`, **WP Sudo 4.8.0**, WordPress 7.0.2 / PHP 8.5.8, admin
+  account with **no** Two Factor enabled. Observed by the human tester on the real
+  screen (the native autofill popup renders in a compositor layer that automation
+  screenshots capture as blank).
+- **Coverage status (partial):** the cells record that iCloud Keychain **offers**
+  autofill on both password surfaces (the primary markup-compatibility question).
+  NOT yet verified: the full **offer → accept-fill → submit → sudo grant** chain
+  end-to-end (requires the human tester's Touch ID acceptance at the machine), and
+  the **Full-page TOTP** cell (needs a Two Factor-enabled account with the secret
+  stored in iCloud). Both are pending a live tester session at the test machine.
 - **Full-page challenge — password → OFFERS.** On focusing
   `#wp-sudo-challenge-password` (real `<form method=post>`, `type=password`,
   `autocomplete="current-password"`, associated "Password" label), iCloud
