@@ -532,6 +532,33 @@ Repos:   wp-sudo, wordpress-2fa-ecosystem
            feedback-verify-against-committed-ref: check `git show <ref>:<path>` / the PR's
            merged commit, never a working-tree grep or an assumed branch head.
 
+32. CONFABULATED REST BACKSTOP COVERAGE — critical-option writes
+   Files:  Automated Codex review on PR #215, CHANGELOG.md discussion.
+   Claim:  The existing REST backstop already caught a missed
+           `POST /wp/v2/settings` write through
+           `pre_update_option_{$opt}`, so the changelog overstated the
+           `siteurl`/`admin_email` alias bug as genuinely ungated.
+   Reality: `pre_update_option_{$opt}` is registered only by
+           Gate::register_function_hooks(), whose callers are gate_cli(),
+           gate_cron(), and gate_xmlrpc(). REST instead arms
+           register_rest_backstop() -> arm_effect_guards(), which covers
+           selected destructive effects but no option writes. The
+           enumerated REST matcher was therefore the only WP Sudo gate for
+           cookie-authenticated `/wp/v2/settings` writes. Missing the
+           `siteurl` -> `url` and `admin_email` -> `email` aliases left
+           those writes genuinely ungated.
+   Source:  includes/class-gate.php on PR #215 (register_rest_backstop,
+           arm_effect_guards, register_function_hooks, and all callers),
+           verified 2026-07-23; Codex review and maintainer rebuttal:
+           https://github.com/dknauss/Sudo/pull/215#discussion_r3642254716
+   Notes:  The proposed changelog dilution was reverted before commit. PR
+           #215 retained the accurate vulnerability wording and updated the
+           attack tree to state that #215 closes the gap, with the
+           CLI/cron/XML-RPC-only backstop boundary made explicit in commit
+           e7f728b. Root cause: inferred shared backstop coverage from a
+           plausible hook name without tracing registration to its
+           surface-specific callers.
+
 ROOT CAUSE
 ----------
 All errors have stemmed from patterns that boil down to *not checking the 
