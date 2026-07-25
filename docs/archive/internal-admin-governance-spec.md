@@ -273,4 +273,4 @@ Questions left open in the original draft, now resolved:
 
 ## Roadmap linkage
 
-This document is the implementation spec for roadmap section **11.2 Internal Admin Least-Privilege and Governance** in [`docs/ROADMAP.md`](../ROADMAP.md).
+This document is the implementation spec for the **Internal Admin Least-Privilege and Governance** work (formerly roadmap §11.2; that backlog now lives in GitHub issues — see the [`ROADMAP.md`](../ROADMAP.md) Backlog section, e.g. [#242](https://github.com/dknauss/Sudo/issues/242)).
