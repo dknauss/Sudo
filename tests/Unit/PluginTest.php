@@ -605,8 +605,58 @@ class PluginTest extends TestCase {
 			->once()
 			->with( 'wp-sudo-editor-reauth', 'wp-sudo' );
 
+		// #262: the in-editor session indicator is enqueued alongside the reauth
+		// modal on the same block/site-editor hook.
+		Functions\expect( 'wp_enqueue_script' )
+			->once()
+			->with(
+				'wp-sudo-session-indicator',
+				\Mockery::type( 'string' ),
+				array( 'wp-element', 'wp-data', 'wp-notices', 'wp-i18n', 'wp-plugins', 'wp-editor', 'wp-dom-ready' ),
+				WP_SUDO_VERSION,
+				true
+			);
+		Functions\expect( 'wp_set_script_translations' )
+			->once()
+			->with( 'wp-sudo-session-indicator', 'wp-sudo' );
+
 		$plugin = new Plugin();
 		$plugin->enqueue_editor_reauth();
+	}
+
+	/**
+	 * #262 (in-editor session indicator): enqueue_editor_reauth() registers the
+	 * session-status indicator module as a SEPARATE handle from the reauth modal.
+	 * The indicator reads the existing wpSudoEditorReauth global (no separate
+	 * wp_localize_script) and declares the editor-slot deps for the
+	 * feature-detected PluginSidebar (Part B, 6.6+) plus wp-notices/wp-dom-ready
+	 * for the announce-once snackbar and its domReady-deferred page-load feed.
+	 */
+	public function test_enqueue_editor_reauth_registers_session_indicator(): void {
+		Functions\when( 'get_current_user_id' )->justReturn( 1 );
+		Functions\when( 'get_userdata' )->justReturn( new \WP_User( 1 ) );
+		Functions\when( 'get_user_meta' )->justReturn( '' ); // is_active() gate for localized `remaining` (#182).
+		Functions\when( 'admin_url' )->justReturn( 'http://example.test/wp-admin/admin-ajax.php' );
+		Functions\when( 'wp_create_nonce' )->justReturn( 'grant-nonce' );
+		Functions\when( 'wp_localize_script' )->justReturn( true );
+		Functions\when( 'wp_set_script_translations' )->justReturn( true );
+
+		// The reauth modal handle is also enqueued in the same call; match it
+		// loosely so this test focuses on the indicator registration.
+		Functions\expect( 'wp_enqueue_script' )
+			->once()
+			->with( 'wp-sudo-editor-reauth', \Mockery::any(), \Mockery::any(), \Mockery::any(), \Mockery::any() );
+		Functions\expect( 'wp_enqueue_script' )
+			->once()
+			->with(
+				'wp-sudo-session-indicator',
+				\Mockery::type( 'string' ),
+				array( 'wp-element', 'wp-data', 'wp-notices', 'wp-i18n', 'wp-plugins', 'wp-editor', 'wp-dom-ready' ),
+				WP_SUDO_VERSION,
+				true
+			);
+
+		( new Plugin() )->enqueue_editor_reauth();
 	}
 
 	/**
@@ -739,7 +789,9 @@ class PluginTest extends TestCase {
 				'arranged state must be a genuinely active sudo session (guards C2)'
 			);
 
-			Functions\expect( 'wp_enqueue_script' )->once();
+			// #262: two handles now enqueue here — the reauth modal and the
+			// session-status indicator — both must load even when a session is active.
+			Functions\expect( 'wp_enqueue_script' )->twice();
 
 			$plugin = new Plugin();
 			$plugin->enqueue_editor_reauth();
