@@ -70,7 +70,7 @@ wp_register_action( 'core/change-user-password', [
     // would carry as its `consequence` annotation, so one source-blind getter can
     // read standalone entries and annotated abilities without reshaping (decision memo).
     'consequence'  => [
-        'class'       => 'account-takeover',   // privilege-escalation | account-takeover | code-execution | destructive
+        'class'       => 'account-takeover',   // privilege-escalation | account-takeover | code-execution | destructive | external-credential-mutation
         'scope'       => 'users',              // reauth reuse grouping for the gate
         'annotations' => [
             'destructive'          => false,
@@ -103,8 +103,9 @@ Naming follows the Abilities API shape `namespace/action-name` (lowercase, hyphe
 | `core/install-theme` | `Theme_Upgrader::install()` |
 | `core/switch-theme` | `switch_theme()` |
 | `core/delete-theme` | `delete_theme()` |
+| `core/update-connector-credentials` | `/wp/v2/settings` write of a `connectors_*_api_key` value — the WP 7.0 Connectors **credential-integrity** threat; an options / REST-settings write chokepoint (proposal §2.3, §8) |
 
-The account-change rows are the direct #20140 deliverable. The plugin/theme/user rows close the bypass paths that make field-only gating theater: installing a malicious theme or switching to one is a code-execution path equivalent to the plugin routes, so gating plugins but not themes would just relocate the "install a backdoor" bypass. (The built-in plugin/theme **file editor** — `edit_plugins`/`edit_themes` — is a still-more-direct code-execution path; it is left out of the v1 catalog because it is commonly disabled via `DISALLOW_FILE_EDIT` and warrants its own treatment, not because it is less dangerous.)
+The account-change rows are the direct #20140 deliverable. The plugin/theme/user rows close the bypass paths that make field-only gating theater: installing a malicious theme or switching to one is a code-execution path equivalent to the plugin routes, so gating plugins but not themes would just relocate the "install a backdoor" bypass. The connector-credentials row extends the same proof-of-intent boundary to a credential-**integrity** threat: a `/wp/v2/settings` write swapping an AI-provider API key is a stolen-session abuse of a legitimate operation, reachable with no filesystem access and no code execution (proposal §2.3) — WP Sudo already gates it in production via its `connectors.update_credentials` rule. (The built-in plugin/theme **file editor** — `edit_plugins`/`edit_themes` — is a still-more-direct code-execution path; it is left out of the v1 catalog because it is commonly disabled via `DISALLOW_FILE_EDIT` and warrants its own treatment, not because it is less dangerous.)
 
 ### 4.2 Recent-auth window, built on `WP_Session_Tokens`
 

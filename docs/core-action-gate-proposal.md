@@ -87,10 +87,10 @@ If a session cookie is stolen, inherited, or reused on an unlocked device, an at
 
 Some operations are simply more dangerous than others even when performed by authorized users. Examples include:
 
-- activating, installing, or deleting plugins
+- activating, installing, or deleting plugins **or themes**
 - promoting users to administrator
 - deleting users
-- editing code-bearing sources
+- editing code-bearing sources (the plugin/theme file editor — in scope as a *threat*, though deferred from the v1 gate catalog because it is commonly disabled via `DISALLOW_FILE_EDIT`; see the implementation spec §4.1)
 - rotating external credentials
 
 These operations are infrequent, high-impact, and amenable to a deliberate confirmation or recent-auth check.
@@ -133,6 +133,10 @@ This proposal does not attempt to classify malicious requests, inspect payloads 
 #### 2.8 Authentication replacement
 
 The proposal does not introduce a new login system. Any future gate layer would build on existing authenticated identities and existing session infrastructure, adding a fresh proof-of-intent requirement for selected operations rather than replacing WordPress login.
+
+#### 2.9 Audit logging, monitoring, and SIEM
+
+The Actions API gives audit and monitoring tools a shared vocabulary and consistent before/after events to consume (§2.4, §9.1) — but core itself does not become an audit log, event monitor, or SIEM. It **enforces** and **names**; it does not observe, correlate, retain, or alert on activity. Collecting, storing, and analyzing that stream is a separate concern that plugins and hosts provide (the implementation spec makes this an explicit core non-goal, §1). Bundling observability into core would be a much larger, separately contested project and is deliberately excluded here.
 
 ### The core boundary claim
 
@@ -318,7 +322,7 @@ An action registration may carry multiple layers of meaning, and those layers sh
 - **label** — human-readable text
 - **capabilities** — expected capability checks for the operation
 - **category** — broad grouping such as plugin management or user management
-- **consequence class** — a risk-oriented classification such as code execution, privilege escalation, destructive deletion, or external credential mutation
+- **consequence class** — a risk-oriented classification: code execution, privilege escalation, account takeover, destructive deletion, or external credential mutation (the same five-value set as the implementation spec §4.1 enum)
 - **scope** — a grouping that a future gate layer may use when deciding how proof-of-intent is reused
 - **annotations** — optional booleans or strings such as `destructive`, `requires_recent_auth`, or `consent_required`
 
@@ -453,6 +457,9 @@ These criteria are intentionally narrower than “anything security-sensitive.�
 | `core/activate-plugin` | `activate_plugin()`, plugin activation flows |
 | `core/install-plugin` | plugin upload and installer flows |
 | `core/delete-plugin` | `delete_plugins()` |
+| `core/install-theme` | theme upload and installer flows (`Theme_Upgrader::install()`) |
+| `core/switch-theme` | `switch_theme()`, theme activation flows |
+| `core/delete-theme` | `delete_theme()` |
 | `core/update-connector-credentials` | `/wp/v2/settings` writes containing `connectors_*_api_key` |
 
 The account-change entries reflect the long-running discussion in
