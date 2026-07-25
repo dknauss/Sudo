@@ -200,13 +200,20 @@ The decision object never encodes transport. Business functions return errors; a
 
 Role changes are the subtlest path and need a dedicated guard, mirroring the plugin's `arm_escalation_guard()` / `newly_grants_administrator()`:
 
-- Hook the capability-meta write, not just `set_role`. Promotion can arrive via `WP_User::set_role()`, `add_role()`, direct `wp_capabilities` usermeta writes, or `add_user_to_blog()` on multisite. Compare **new effective caps vs. current** and gate only when the delta **newly grants administrator / network-administrator authority** — so demotions and lateral moves aren't challenged.
+- Hook the capability-meta write, not just `set_role`. Promotion can arrive via `WP_User::set_role()`, `add_role()`, `update_user_meta()` writes to `wp_capabilities`, or `add_user_to_blog()` on multisite. Compare **new effective caps vs. current** and gate only when the delta **newly grants administrator / network-administrator authority** — so demotions and lateral moves aren't challenged. This hook covers `update_user_meta`-level writes (the REST `add_role` path, plugin/AJAX caps writes); a **raw `$wpdb` write** to the caps meta fires no hook and is out of the gate's reach — an in-process write, out of scope per §2, and *detecting* it is a non-core concern (§1). (WP Sudo closes that gap in the plugin layer with its lockdown-audit detection; core does not.)
 - Enforce at `map_meta_cap` for `promote_user`/`edit_user` **and** at the `wp_update_user`/`set_role` chokepoint, so a REST role change and an admin-UI role change hit the same guard.
 - Multisite: gate `grant_super_admin()` unconditionally (highest-consequence promotion).
 
 ### 5.4 Plugin/theme actions
 
-`activate_plugin()`, `delete_plugins()`, and `Plugin_Upgrader::install()` get the same top-of-function guard returning `WP_Error`. The bulk/AJAX plugin surfaces already thread `WP_Error`, so the interactive adapter stashes and challenges as above. This is the second half of closing the "admin can just install a backdoor" objection that stalled #20140 for a decade.
+`activate_plugin()`, `delete_plugins()`, `Plugin_Upgrader::install()`, and the theme installer `Theme_Upgrader::install()` return `bool|WP_Error`, so they take the same top-of-function guard returning `WP_Error`; the bulk/AJAX plugin surfaces already thread `WP_Error`, so the interactive adapter stashes and challenges as above.
+
+**Two theme chokepoints do not fit the `WP_Error` return path** and need pre-op adapters instead — the §5.1 per-chokepoint rule, not a uniform return:
+
+- `core/switch-theme` → `switch_theme()` returns **void**, so gate it *before* the switch (like `set_role`), not by return value.
+- `core/delete-theme` → `delete_theme()` returns a mix of `false` / `null` / `WP_Error` / `true`, so a returned `WP_Error` is ambiguous to callers (like `wp_delete_user`) — gate it via a **pre-delete adapter**.
+
+This is the second half of closing the "admin can just install a backdoor" objection that stalled #20140 for a decade — and it now covers the **theme** routes, not only plugins, so gating one but not the other cannot just relocate the bypass (§4.1).
 
 ---
 
