@@ -65,6 +65,11 @@ class Site_Health {
 			'test'  => array( $this, 'test_gated_action_integrity' ),
 		);
 
+		$tests['direct']['wp_sudo_recovery_mode'] = array(
+			'label' => __( 'Sudo Break-Glass Recovery Mode', 'wp-sudo' ),
+			'test'  => array( $this, 'test_recovery_mode' ),
+		);
+
 		// Role/capability lockdown audit — only when the operator has opted in by
 		// configuring a manifest (WP_SUDO_ROLE_MANIFEST). Inert otherwise (#179).
 		if ( Role_Manifest::is_enabled() ) {
@@ -363,6 +368,66 @@ class Site_Health {
 				$count
 			) . '</p>',
 			'test'        => 'wp_sudo_stale_sessions',
+		);
+	}
+
+	/**
+	 * Test: break-glass recovery mode is active (#240).
+	 *
+	 * Recovery mode (WP_SUDO_RECOVERY_MODE) deliberately relaxes the governance
+	 * capability model and is meant to be removed as soon as normal access is
+	 * restored. A forgotten constant leaves the model weakened with only an
+	 * in-admin notice (visible only while on a Sudo screen) to signal it. This
+	 * pull-based test surfaces the state as a Site Health critical status.
+	 *
+	 * The target is reported (login + ID) so the operator can confirm scope; a
+	 * scoped-but-unresolvable value (typo'd login/ID) is called out because it
+	 * grants nobody. The value appears in the status result only — never in
+	 * debug_information (which operators paste into public support forums).
+	 *
+	 * @return array<string, mixed>
+	 */
+	public function test_recovery_mode(): array {
+		$badge = array(
+			'label' => __( 'Security', 'wp-sudo' ),
+			'color' => 'red',
+		);
+
+		if ( ! wp_sudo_is_recovery_mode() ) {
+			return array(
+				'label'       => __( 'Break-glass recovery mode is not active', 'wp-sudo' ),
+				'status'      => 'good',
+				'badge'       => $badge,
+				'description' => '<p>' . __( 'WP Sudo break-glass recovery mode (WP_SUDO_RECOVERY_MODE) is not defined. The governance capability model is fully in force.', 'wp-sudo' ) . '</p>',
+				'test'        => 'wp_sudo_recovery_mode',
+			);
+		}
+
+		if ( wp_sudo_recovery_mode_is_unscoped() ) {
+			$scope = __( 'It is unscoped: while it stays defined, any user who still holds administrator authority (network administrator on multisite) regains full Sudo governance access.', 'wp-sudo' );
+		} else {
+			$target = wp_sudo_recovery_mode_user();
+
+			if ( null === $target ) {
+				$scope = __( 'It is scoped to a value that does not resolve to any existing user, so no one is granted access — check WP_SUDO_RECOVERY_MODE for a typo.', 'wp-sudo' );
+			} else {
+				$user  = get_userdata( $target );
+				$login = ( $user && isset( $user->user_login ) ) ? (string) $user->user_login : (string) $target;
+				$scope = sprintf(
+					/* translators: 1: user login, 2: user ID */
+					__( 'It is scoped to the user "%1$s" (ID %2$d), who alone regains Sudo governance access while it stays defined.', 'wp-sudo' ),
+					esc_html( $login ),
+					$target
+				);
+			}
+		}
+
+		return array(
+			'label'       => __( 'Break-glass recovery mode is active', 'wp-sudo' ),
+			'status'      => 'critical',
+			'badge'       => $badge,
+			'description' => '<p>' . $scope . '</p><p>' . __( 'Remove WP_SUDO_RECOVERY_MODE from wp-config.php as soon as normal access is restored — leaving it enabled weakens the governance model.', 'wp-sudo' ) . '</p>',
+			'test'        => 'wp_sudo_recovery_mode',
 		);
 	}
 

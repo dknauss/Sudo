@@ -5535,10 +5535,11 @@ class AdminTest extends TestCase {
 	// render_recovery_mode_notice() / maybe_record_recovery_mode_usage()
 	// -----------------------------------------------------------------
 
-	public function test_recovery_mode_notice_renders_warning_when_active(): void {
+	public function test_recovery_mode_notice_renders_warning_when_active_unscoped(): void {
 		Functions\when( '__' )->returnArg();
 		Functions\when( 'esc_html' )->returnArg();
 		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( true );
+		Functions\when( 'wp_sudo_recovery_mode_is_unscoped' )->justReturn( true );
 
 		$admin = new Admin();
 
@@ -5553,13 +5554,60 @@ class AdminTest extends TestCase {
 		// Permanent notice: must NOT be dismissible.
 		$this->assertStringNotContainsString( 'is-dismissible', $output );
 
-		// Accuracy: the break-glass gate is capability-based, not role-based, and
-		// keys on manage_network_options under multisite. The warning must not
-		// understate the blast radius by implying only "administrators" qualify.
+		// Accuracy: the UNSCOPED break-glass gate is capability-based, not
+		// role-based, and keys on manage_network_options under multisite. The
+		// warning must not understate the blast radius by implying only
+		// "administrators" qualify.
 		$this->assertStringContainsString( 'manage_options', $output );
 		$this->assertStringContainsString( 'manage_network_options', $output );
 		$this->assertStringContainsString( 'regardless of role', $output );
 		$this->assertStringNotContainsString( 'any administrator who holds', $output );
+	}
+
+	public function test_recovery_mode_notice_names_scoped_target_when_resolved(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( true );
+		Functions\when( 'wp_sudo_recovery_mode_is_unscoped' )->justReturn( false );
+		Functions\when( 'wp_sudo_recovery_mode_user' )->justReturn( 12 );
+
+		$user             = new \stdClass();
+		$user->user_login = 'jane';
+		Functions\when( 'get_userdata' )->justReturn( $user );
+
+		$admin = new Admin();
+
+		ob_start();
+		$method = new \ReflectionMethod( Admin::class, 'render_recovery_mode_notice' );
+		@$method->setAccessible( true ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		$method->invoke( $admin );
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( 'notice-warning', $output );
+		// Scoped copy names the single target and must NOT claim any admin qualifies.
+		$this->assertStringContainsString( 'jane', $output );
+		$this->assertStringNotContainsString( 'regardless of role', $output );
+	}
+
+	public function test_recovery_mode_notice_flags_unresolvable_scoped_target(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( true );
+		Functions\when( 'wp_sudo_recovery_mode_is_unscoped' )->justReturn( false );
+		Functions\when( 'wp_sudo_recovery_mode_user' )->justReturn( null );
+
+		$admin = new Admin();
+
+		ob_start();
+		$method = new \ReflectionMethod( Admin::class, 'render_recovery_mode_notice' );
+		@$method->setAccessible( true ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		$method->invoke( $admin );
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( 'notice-warning', $output );
+		// Fail-closed: an unresolvable target grants nobody; say so instead of
+		// implying access was granted.
+		$this->assertStringContainsString( 'no one', strtolower( $output ) );
 	}
 
 	public function test_recovery_mode_notice_renders_nothing_when_inactive(): void {

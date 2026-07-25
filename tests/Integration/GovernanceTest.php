@@ -359,4 +359,116 @@ class GovernanceTest extends TestCase {
 			'A user holding a stored manage_wp_sudo cap MUST be excluded from drift.'
 		);
 	}
+
+	/**
+	 * #240: a SCOPED recovery constant (a user login) grants break-glass to that
+	 * one user only — a different manage_options holder is denied.
+	 *
+	 * Verifies real get_user_by('login') resolution, which the unit suite cannot
+	 * exercise (the constant is undefined there). Constant + separate-process
+	 * strategy per test_recovery_mode_is_sole_break_glass().
+	 *
+	 * @runInSeparateProcess
+	 * @preserveGlobalState disabled
+	 */
+	public function test_scoped_recovery_by_login_grants_only_target(): void {
+		// Create the target first so we can scope the constant to its real login.
+		$target = $this->make_admin();
+		$target->remove_cap( 'manage_wp_sudo' );
+		if ( is_multisite() ) {
+			$target->add_cap( 'manage_network_options' );
+		}
+
+		if ( ! defined( 'WP_SUDO_RECOVERY_MODE' ) ) {
+			define( 'WP_SUDO_RECOVERY_MODE', $target->user_login );
+		}
+
+		// Scoped, not unscoped, and resolves to the target's ID.
+		$this->assertTrue( wp_sudo_is_recovery_mode() );
+		$this->assertFalse( wp_sudo_recovery_mode_is_unscoped(), 'A login-scoped constant is not unscoped.' );
+		$this->assertSame( (int) $target->ID, wp_sudo_recovery_mode_user(), 'Login must resolve to the target user ID.' );
+
+		// The target regains break-glass access.
+		$this->assertTrue(
+			wp_sudo_can( 'manage_wp_sudo', $target->ID ),
+			'Scoped recovery must grant the named target.'
+		);
+
+		// A DIFFERENT administrator (also a manage_options holder, no manage_wp_sudo)
+		// is denied — scoping contains the blast radius to the named user only.
+		$other = $this->make_admin();
+		$other->remove_cap( 'manage_wp_sudo' );
+		if ( is_multisite() ) {
+			$other->add_cap( 'manage_network_options' );
+		}
+		$this->assertFalse(
+			wp_sudo_can( 'manage_wp_sudo', $other->ID ),
+			'Scoped recovery must NOT grant an admin other than the named target.'
+		);
+	}
+
+	/**
+	 * #240: a SCOPED recovery constant given as an integer resolves as a user ID.
+	 *
+	 * @runInSeparateProcess
+	 * @preserveGlobalState disabled
+	 */
+	public function test_scoped_recovery_by_id_grants_only_target(): void {
+		$target = $this->make_admin();
+		$target->remove_cap( 'manage_wp_sudo' );
+		if ( is_multisite() ) {
+			$target->add_cap( 'manage_network_options' );
+		}
+
+		if ( ! defined( 'WP_SUDO_RECOVERY_MODE' ) ) {
+			define( 'WP_SUDO_RECOVERY_MODE', (int) $target->ID );
+		}
+
+		$this->assertFalse( wp_sudo_recovery_mode_is_unscoped(), 'An integer ID constant is not unscoped.' );
+		$this->assertSame( (int) $target->ID, wp_sudo_recovery_mode_user(), 'Integer must resolve as a user ID.' );
+		$this->assertTrue(
+			wp_sudo_can( 'manage_wp_sudo', $target->ID ),
+			'ID-scoped recovery must grant the named target.'
+		);
+
+		$other = $this->make_admin();
+		$other->remove_cap( 'manage_wp_sudo' );
+		if ( is_multisite() ) {
+			$other->add_cap( 'manage_network_options' );
+		}
+		$this->assertFalse(
+			wp_sudo_can( 'manage_wp_sudo', $other->ID ),
+			'ID-scoped recovery must NOT grant a non-target admin.'
+		);
+	}
+
+	/**
+	 * #240 (B1 fail-closed): a SCOPED constant that resolves to no user grants
+	 * NOBODY. An unresolvable target must never fall back to the unscoped
+	 * "any admin" grant.
+	 *
+	 * @runInSeparateProcess
+	 * @preserveGlobalState disabled
+	 */
+	public function test_scoped_recovery_unresolvable_grants_nobody(): void {
+		if ( ! defined( 'WP_SUDO_RECOVERY_MODE' ) ) {
+			define( 'WP_SUDO_RECOVERY_MODE', 'no_such_login_240_xyz' );
+		}
+
+		$this->assertTrue( wp_sudo_is_recovery_mode(), 'A non-empty string is truthy — recovery is active.' );
+		$this->assertFalse( wp_sudo_recovery_mode_is_unscoped(), 'A string constant is not unscoped.' );
+		$this->assertNull( wp_sudo_recovery_mode_user(), 'An unknown login must resolve to null.' );
+
+		// A real admin (manage_options holder) is still denied — fail-closed.
+		$admin = $this->make_admin();
+		$admin->remove_cap( 'manage_wp_sudo' );
+		if ( is_multisite() ) {
+			$admin->add_cap( 'manage_network_options' );
+		}
+		wp_set_current_user( $admin->ID );
+		$this->assertFalse(
+			wp_sudo_can( 'manage_wp_sudo', $admin->ID ),
+			'An unresolvable scoped target must grant nobody, not fall back to any-admin.'
+		);
+	}
 }

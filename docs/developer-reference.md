@@ -267,8 +267,9 @@ of:
 - `revoke_wp_sudo_sessions` — force-revoke other users' active sudo sessions.
 
 Decision order: multisite super admins always pass; break-glass recovery mode
-(`WP_SUDO_RECOVERY_MODE`) grants `manage_wp_sudo` to the current user only; then
-the strict cap check runs — `user_can( $user_id, $cap )`.
+(`WP_SUDO_RECOVERY_MODE`) grants `manage_wp_sudo` to the user the recovery scope
+matches (see `wp_sudo_user_matches_recovery()`); then the strict cap check runs —
+`user_can( $user_id, $cap )`.
 
 > Since 4.0.0, governance is always strict. The `compatibility` mode and the
 > `sudo_can()` alias were removed — see [Migrating to 4.0](#migrating-to-40).
@@ -276,9 +277,36 @@ the strict cap check runs — `user_can( $user_id, $cap )`.
 ### `wp_sudo_is_recovery_mode(): bool`
 
 Returns `true` when `WP_SUDO_RECOVERY_MODE` is defined and truthy in
-`wp-config.php`. Break-glass escape hatch for the "last manager locked out"
-scenario; leaving it enabled permanently effectively bypasses the governance
-model.
+`wp-config.php` — deliberately a **loose** truthy test, so a scoped value (a
+login string or a positive user ID) also reports active. Break-glass escape
+hatch for the "last manager locked out" scenario; leaving it enabled permanently
+effectively bypasses the governance model.
+
+### `wp_sudo_recovery_mode_is_unscoped(): bool`
+
+*(Since 5.0.0)* Returns `true` only for the legacy **unscoped** form, using a
+strict `=== true` comparison. `define( 'WP_SUDO_RECOVERY_MODE', 1 )` is therefore
+**scoped** (user ID 1), not unscoped — the strict test prevents a `1 == true`
+loose-comparison footgun that would grant every administrator.
+
+### `wp_sudo_recovery_mode_user(): ?int`
+
+*(Since 5.0.0)* Resolves a **scoped** `WP_SUDO_RECOVERY_MODE` value to a user ID:
+an integer is looked up as a user ID, any other value as a login
+(`get_user_by`). Returns `null` when the constant is undefined, unscoped
+(boolean `true`), empty, or resolves to no existing user (a typo). Performs only
+a user lookup — no capability checks — so it cannot re-enter `map_meta_cap`.
+
+### `wp_sudo_user_matches_recovery( int $user_id ): bool`
+
+*(Since 5.0.0)* The single seam both governance callers use to decide whether the
+break-glass grant applies to a user. Three explicit states: inactive → nobody;
+**unscoped** (`true`) → the current user only (preserving the pre-scoping
+contract); **scoped** → only the resolved target, and an unresolvable target
+matches **nobody** (fail-closed — never falls back to "any admin"). Scope
+membership only; the caller still applies the role gate (`manage_options` /
+`manage_network_options`), so a scoped target who lost admin rights is still
+denied.
 
 ### Capability-model audit (4.0.0)
 
@@ -375,16 +403,24 @@ break-glass path for a locked-out administrator.
 
 If every holder of `manage_wp_sudo` is removed — for example, the capability was
 accidentally revoked from the only administrator who had it — no one can reach the
-Sudo settings page to re-grant it. `WP_SUDO_RECOVERY_MODE` is the way out:
+Sudo settings page to re-grant it. `WP_SUDO_RECOVERY_MODE` is the way out. Prefer
+the **scoped** form, which limits recovery to one named user:
 
-1. Add `define( 'WP_SUDO_RECOVERY_MODE', true );` to `wp-config.php`.
-2. Log in (or reload) as an administrator who holds WordPress's `manage_options`
-   capability (any standard single-site admin). On multisite, the account must hold
-   `manage_network_options` (super admin).
+1. Add `define( 'WP_SUDO_RECOVERY_MODE', '<login>' );` (or a numeric user ID) to
+   `wp-config.php`. The legacy `define( 'WP_SUDO_RECOVERY_MODE', true );` grants
+   the current user instead and re-opens governance to every `manage_options`
+   holder — use the scoped form unless you specifically need that. (Note
+   `define( ..., 1 )` means user ID 1, not "on".)
+2. Log in (or reload) as the target user, who must hold WordPress's
+   `manage_options` capability (any standard single-site admin). On multisite, the
+   account must hold `manage_network_options` (super admin). A scoped value that
+   matches no existing user grants nobody — fix the login/ID if access is not
+   restored.
 3. Navigate to **Settings → Sudo → Access** and grant `manage_wp_sudo` to the
    intended user(s).
-4. Remove `define( 'WP_SUDO_RECOVERY_MODE', true );` from `wp-config.php`
-   immediately after access is restored.
+4. Remove the `define( 'WP_SUDO_RECOVERY_MODE', ... );` line from `wp-config.php`
+   immediately after access is restored. (Site Health shows a **critical** status
+   until you do.)
 
 **Why it works.** While the constant is defined, `wp_sudo_can( 'manage_wp_sudo' )`
 returns `true` for the current user — but only if they also hold `manage_options`
@@ -867,7 +903,7 @@ break-glass / environment switches.
 | Constant | Effect | Since |
 |---|---|---|
 | `WP_SUDO_ALLOW_ESCALATION` | Define `true` to bypass the admin-escalation guard entirely. Checked **first**, before any session or capability read, so deployment, migration, and sole-admin recovery flows are never hard-blocked by the guard. Constant form of the `wp_sudo_allow_escalation` filter. | 4.1.0 |
-| `WP_SUDO_RECOVERY_MODE` | Break-glass recovery. While defined, any user holding `manage_options` (`manage_network_options` on multisite) regains full Sudo governance access regardless of role — the escape hatch for a misconfigured/last-manager lockout. Weakens the governance model while set; remove as soon as normal access is restored. See [`wp_sudo_is_recovery_mode()`](#wp_sudo_is_recovery_mode-bool). | 3.4.0 |
+| `WP_SUDO_RECOVERY_MODE` | Break-glass recovery — the escape hatch for a misconfigured/last-manager lockout. **Scoped** (`<user_id_or_login>`, since 5.0.0) grants only that one named user; an unresolvable value grants nobody (fail-closed). **Unscoped** (strictly `true`) grants the current user and re-opens governance to every `manage_options` (`manage_network_options` on multisite) holder regardless of role — note `1` means user ID 1, not "on". Weakens the governance model while set; a Site Health critical status flags it — remove as soon as normal access is restored. See [`wp_sudo_is_recovery_mode()`](#wp_sudo_is_recovery_mode-bool), [`wp_sudo_recovery_mode_user()`](#wp_sudo_recovery_mode_user-int). | 3.4.0; scoped 5.0.0 |
 | `WP_SUDO_DISABLE_PASSED_EVENT_LOGGING` | Define `true` to stop recording `action_passed` dashboard events (reduced audit visibility for actions performed during an active sudo session). Checked **before** the `wp_sudo_log_passed_events_enabled` filter, which can still override per-request. | 3.0.0 |
 
 Internal/structural constants (`WP_SUDO_VERSION`, `WP_SUDO_PLUGIN_DIR`,

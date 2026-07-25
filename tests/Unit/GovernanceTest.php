@@ -57,7 +57,9 @@ class GovernanceTest extends TestCase {
 	}
 
 	public function test_map_governance_meta_cap_recovery_mode_maps_manage_wp_sudo_to_manage_options_single_site(): void {
-		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( true );
+		// The recovery decision now lives in the wp_sudo_user_matches_recovery()
+		// seam; a matched user maps manage_wp_sudo to the admin primitive cap.
+		Functions\when( 'wp_sudo_user_matches_recovery' )->justReturn( true );
 		Functions\when( 'is_multisite' )->justReturn( false );
 
 		// Recovery mode delegates the role check to core by mapping the meta cap
@@ -69,7 +71,7 @@ class GovernanceTest extends TestCase {
 	}
 
 	public function test_map_governance_meta_cap_recovery_mode_maps_manage_wp_sudo_to_manage_network_options_multisite(): void {
-		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( true );
+		Functions\when( 'wp_sudo_user_matches_recovery' )->justReturn( true );
 		Functions\when( 'is_multisite' )->justReturn( true );
 
 		$this->assertSame(
@@ -78,11 +80,10 @@ class GovernanceTest extends TestCase {
 		);
 	}
 
-	public function test_map_governance_meta_cap_recovery_mode_ignores_non_current_user(): void {
-		// Current user is 0 (TestCase default); target user 99 is not current,
-		// so the recovery branch must not apply — falls through to strict mode.
-		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( true );
-		Functions\when( 'get_option' )->justReturn( 'strict' );
+	public function test_map_governance_meta_cap_recovery_mode_ignores_unmatched_user(): void {
+		// A user the recovery seam does not match (wrong user, or scoped to
+		// someone else) must not get the mapping — falls through to strict mode.
+		Functions\when( 'wp_sudo_user_matches_recovery' )->justReturn( false );
 
 		$this->assertSame(
 			array( 'manage_wp_sudo' ),
@@ -91,8 +92,10 @@ class GovernanceTest extends TestCase {
 	}
 
 	public function test_map_governance_meta_cap_recovery_mode_does_not_grant_other_caps(): void {
-		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( true );
-		Functions\when( 'get_option' )->justReturn( 'strict' );
+		// Even a recovery-matched user only gets manage_wp_sudo mapped; other
+		// governance caps fall through to strict (the seam is never consulted
+		// for them, so leaving it matched proves the cap gate short-circuits).
+		Functions\when( 'wp_sudo_user_matches_recovery' )->justReturn( true );
 
 		$this->assertSame(
 			array( 'view_wp_sudo_activity' ),
@@ -234,11 +237,10 @@ class GovernanceTest extends TestCase {
 	 * Recovery mode grants manage_wp_sudo to the current user only when they
 	 * still hold manage_options (single-site).
 	 */
-	public function test_sudo_can_recovery_mode_grants_manage_wp_sudo_to_current_admin(): void {
-		// TestCase stubs get_current_user_id → 0; use user 0 explicitly.
+	public function test_sudo_can_recovery_mode_grants_manage_wp_sudo_to_matched_admin(): void {
+		// A recovery-matched user still must pass the role gate (manage_options).
 		Functions\when( 'is_multisite' )->justReturn( false );
-		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( true );
-		// The role gate checks manage_options; the cap check itself is not reached.
+		Functions\when( 'wp_sudo_user_matches_recovery' )->justReturn( true );
 		Functions\expect( 'user_can' )
 			->once()
 			->with( 0, 'manage_options' )
@@ -248,13 +250,13 @@ class GovernanceTest extends TestCase {
 	}
 
 	/**
-	 * Recovery mode does NOT grant manage_wp_sudo to a current user who lacks
+	 * Recovery mode does NOT grant manage_wp_sudo to a matched user who lacks
 	 * site-admin authority — a subscriber/editor gains nothing. The role gate
 	 * fails, then the strict cap check also fails.
 	 */
 	public function test_sudo_can_recovery_mode_does_not_grant_to_non_admin(): void {
 		Functions\when( 'is_multisite' )->justReturn( false );
-		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( true );
+		Functions\when( 'wp_sudo_user_matches_recovery' )->justReturn( true );
 		Functions\when( 'get_option' )->justReturn( 'strict' );
 		// manage_options (role gate) → false; manage_wp_sudo (strict) → false.
 		Functions\when( 'user_can' )->justReturn( false );
@@ -269,7 +271,7 @@ class GovernanceTest extends TestCase {
 	public function test_sudo_can_recovery_mode_role_gate_uses_network_cap_on_multisite(): void {
 		Functions\when( 'is_multisite' )->justReturn( true );
 		Functions\when( 'is_super_admin' )->justReturn( false );
-		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( true );
+		Functions\when( 'wp_sudo_user_matches_recovery' )->justReturn( true );
 		Functions\expect( 'user_can' )
 			->once()
 			->with( 0, 'manage_network_options' )
@@ -283,7 +285,7 @@ class GovernanceTest extends TestCase {
 	 */
 	public function test_sudo_can_recovery_mode_does_not_bypass_other_caps(): void {
 		Functions\when( 'is_multisite' )->justReturn( false );
-		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( true );
+		Functions\when( 'wp_sudo_user_matches_recovery' )->justReturn( true );
 		Functions\when( 'get_option' )->justReturn( 'strict' );
 		Functions\when( 'user_can' )->justReturn( false );
 
@@ -292,17 +294,108 @@ class GovernanceTest extends TestCase {
 	}
 
 	/**
-	 * Recovery mode does NOT bypass checks for a different user (not current).
+	 * Recovery mode does NOT apply to a user the seam does not match (wrong or
+	 * out-of-scope user). The role gate is never reached; strict check decides.
 	 */
-	public function test_sudo_can_recovery_mode_does_not_apply_to_other_users(): void {
-		// Current user is 0 (TestCase default), target user is 99.
+	public function test_sudo_can_recovery_mode_does_not_apply_to_unmatched_users(): void {
 		Functions\when( 'is_multisite' )->justReturn( false );
-		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( true );
+		Functions\when( 'wp_sudo_user_matches_recovery' )->justReturn( false );
 		Functions\when( 'get_option' )->justReturn( 'strict' );
 		Functions\when( 'user_can' )->justReturn( false );
 
-		// user 99 ≠ current user 0 → recovery mode does not apply.
 		$this->assertFalse( wp_sudo_can( 'manage_wp_sudo', 99 ) );
+	}
+
+	// ----------------------------------------------------------------
+	// wp_sudo_user_matches_recovery() — the three-state grant seam (#240)
+	// ----------------------------------------------------------------
+
+	/**
+	 * Inactive recovery matches no user.
+	 */
+	public function test_user_matches_recovery_false_when_inactive(): void {
+		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( false );
+
+		$this->assertFalse( wp_sudo_user_matches_recovery( 5 ) );
+	}
+
+	/**
+	 * Unscoped recovery (legacy boolean true) matches the CURRENT user only,
+	 * preserving the pre-scoping contract.
+	 */
+	public function test_user_matches_recovery_unscoped_matches_current_user(): void {
+		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( true );
+		Functions\when( 'wp_sudo_recovery_mode_is_unscoped' )->justReturn( true );
+		Functions\when( 'get_current_user_id' )->justReturn( 7 );
+
+		$this->assertTrue( wp_sudo_user_matches_recovery( 7 ) );
+	}
+
+	public function test_user_matches_recovery_unscoped_rejects_other_user(): void {
+		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( true );
+		Functions\when( 'wp_sudo_recovery_mode_is_unscoped' )->justReturn( true );
+		Functions\when( 'get_current_user_id' )->justReturn( 7 );
+
+		$this->assertFalse( wp_sudo_user_matches_recovery( 8 ) );
+	}
+
+	/**
+	 * Scoped recovery matches only the resolved target user, regardless of who
+	 * the current user is.
+	 */
+	public function test_user_matches_recovery_scoped_matches_target(): void {
+		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( true );
+		Functions\when( 'wp_sudo_recovery_mode_is_unscoped' )->justReturn( false );
+		Functions\when( 'wp_sudo_recovery_mode_user' )->justReturn( 12 );
+
+		$this->assertTrue( wp_sudo_user_matches_recovery( 12 ) );
+	}
+
+	public function test_user_matches_recovery_scoped_rejects_non_target(): void {
+		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( true );
+		Functions\when( 'wp_sudo_recovery_mode_is_unscoped' )->justReturn( false );
+		Functions\when( 'wp_sudo_recovery_mode_user' )->justReturn( 12 );
+
+		$this->assertFalse( wp_sudo_user_matches_recovery( 13 ) );
+	}
+
+	/**
+	 * B1 fail-closed: a scoped-but-unresolvable target (typo'd login/ID →
+	 * wp_sudo_recovery_mode_user() returns null) must grant NOBODY. A null
+	 * target must never be read as "unscoped / any admin".
+	 */
+	public function test_user_matches_recovery_scoped_unresolvable_matches_nobody(): void {
+		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( true );
+		Functions\when( 'wp_sudo_recovery_mode_is_unscoped' )->justReturn( false );
+		Functions\when( 'wp_sudo_recovery_mode_user' )->justReturn( null );
+
+		$this->assertFalse( wp_sudo_user_matches_recovery( 0 ) );
+		$this->assertFalse( wp_sudo_user_matches_recovery( 1 ) );
+		$this->assertFalse( wp_sudo_user_matches_recovery( 12 ) );
+	}
+
+	// ----------------------------------------------------------------
+	// Constant-reading helpers — undefined-constant guards (#240)
+	// ----------------------------------------------------------------
+
+	/**
+	 * With the constant undefined (the unit-test environment), the unscoped
+	 * predicate is false. Value resolution is covered in integration tests.
+	 */
+	public function test_recovery_mode_is_unscoped_false_when_constant_undefined(): void {
+		$this->assertFalse( defined( 'WP_SUDO_RECOVERY_MODE' ), 'guard: constant must be undefined.' );
+
+		$this->assertFalse( wp_sudo_recovery_mode_is_unscoped() );
+	}
+
+	/**
+	 * With the constant undefined, the scoped-target resolver returns null and
+	 * never attempts a user lookup.
+	 */
+	public function test_recovery_mode_user_null_when_constant_undefined(): void {
+		$this->assertFalse( defined( 'WP_SUDO_RECOVERY_MODE' ), 'guard: constant must be undefined.' );
+
+		$this->assertNull( wp_sudo_recovery_mode_user() );
 	}
 
 	// ----------------------------------------------------------------
