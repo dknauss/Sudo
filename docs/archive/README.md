@@ -19,3 +19,4 @@ Archived files:
 - [phase3-stash-minimization-spec.md](phase3-stash-minimization-spec.md) — implemented Phase 3 request-stash minimization record.
 - [project-introduction.md](project-introduction.md) — longer conceptual README introduction preserved as background.
 - [release-3.0.0-checklist.md](release-3.0.0-checklist.md) — historical v3.0.0 release checklist.
+- [wp-7.0-prep.md](wp-7.0-prep.md) — completed WordPress 7.0 preparation/verification record (was ROADMAP §2).
