@@ -49,9 +49,9 @@ These are the load-bearing choices, each validated in WP Sudo production:
 1. **Gate the effect, not the form field.** Gating one password input is security theater — a hijacked session skips the form and calls the mutation directly (create a new admin, change email + reset, use the installer). Enforcement must sit at the **data-layer chokepoint every surface funnels through**, so browser, REST, and programmatic callers are covered by one guard. (§5.)
 2. **Role-agnostic.** Any logged-in user attempting a gated action is challenged; the gate never reasons about roles. Capability checks remain core's job and run unchanged.
 3. **Recent-auth window ("sudo mode"), not forced re-login.** Terminating the session on every sensitive change is heavier than the problem needs. The primitive is a short, revocable elevated window — the GitHub sudo-mode pattern, and the model jeremyfelt/johnjamesjacoby sketched in #37593/#39174. This walks back the "terminate session" idea floated earlier in #20140.
-4. **Registry separate from gate.** A queryable catalog of consequential actions (Phase 1) has standalone value for audit, Site Health, and UI, and is far more landable than a challenge framework. The gate (Phase 2) is a *consumer* of it.
+4. **Registry separate from gate.** A queryable catalog of consequential actions (Phase 1) has standalone value for auditability, Site Health, and UI, and is far more landable than a challenge framework. The gate (Phase 2) is a *consumer* of it.
 5. **Fail closed for core actions.** If a built-in consequential action cannot be evaluated (malformed matcher, storage error), the mutation is refused, not allowed.
-6. **Transport-agnostic decision, transport-specific rendering.** The chokepoint returns a decision (as a `WP_Error` in practice, §5.2). Each surface adapter decides how to present it: browser redirects to a challenge, REST emits a 403 with challenge metadata, CLI prints an instruction.
+6. **Transport-agnostic decision, transport-specific rendering.** The chokepoint returns a decision (as a `WP_Error` in practice, §5.2). Each surface adapter decides how to present it: browser redirects to a challenge, REST emits a 403 with challenge metadata, and non-interactive surfaces (CLI/cron/XML-RPC/App-Password REST) return a blocking error and log — no interactive reauth is possible there in Phase 1 (§5.2, §9).
 
 ---
 
