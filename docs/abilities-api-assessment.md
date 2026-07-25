@@ -101,7 +101,7 @@ would add no additional security value by intercepting them.
 
 ### Current Gate surfaces: no `ability` surface type
 
-The Gate class (`includes/class-gate.php`) currently recognizes seven surfaces:
+The Gate class (`includes/class-gate.php`) currently recognizes seven surfaces (see docs/current-metrics.md, Request surfaces):
 
 | Surface | Interception point |
 |---------|--------------------|
@@ -303,8 +303,7 @@ settings that WP Sudo already gates. Current `main` now ships a built-in REST
 rule, `connectors.update_credentials`, that matches:
 
 - `POST` / `PUT` / `PATCH` to `/wp/v2/settings`
-- only when request params include connector-style credential setting names
-  matching `connectors_[a-z0-9_]+_api_key`
+- only when request params include a connector credential `setting_name` — matched two ways by `Action_Registry::is_connector_api_key_setting_name()`: **Tier 1**, any WP 7.0 Connectors-registry setting whose `authentication.method === 'api_key'` (covers non-regex names like Akismet's `wordpress_api_key`); **Tier 2**, the regex fallback `connectors_[a-z0-9_]+_api_key`
 
 This is intentionally narrower than gating all REST settings writes. It closes
 the write-only key replacement path for database-backed connector credentials
@@ -312,8 +311,7 @@ without interfering with unrelated settings updates.
 
 **Current source-grounded understanding:** the official dev note exists, and core
 routes connector credential writes through the standard REST settings endpoint
-rather than a bespoke admin form action. The remaining task is GA parity
-verification, not first implementation: confirm the released route, setting-name
+rather than a bespoke admin form action. Route + setting-name existence were verified against WordPress 7.0 GA (2026-06-15; see the `class-action-registry.php` comment and `core-action-gate-proposal.md` §17). Residual work is per-release re-verification: confirm the released route, setting-name
 pattern, and masking/validation behavior still match the current analysis in
 `connectors-api-reference.md`.
 
@@ -378,8 +376,7 @@ but is not a concern until destructive abilities are registered.
    help (its return is ignored).
 5. Before the next release that changes Connectors coverage, verify that the
    released Connectors settings page still writes credential changes through
-   `/wp/v2/settings`, that connector setting names still follow the documented
-   `connectors_*_api_key` pattern, and that the built-in
+   `/wp/v2/settings`, that connector credential setting names are still gated — both the Connectors-registry `api_key` setting names (Tier 1) and the `connectors_*_api_key` regex fallback (Tier 2) — and that the built-in
    `connectors.update_credentials` rule remains accurate.
 6. Monitor Make Core and Trac for any proposal to introduce persistent AI agent
    sessions or long-lived agent tokens — this would require a new WP Sudo policy tier.

@@ -69,7 +69,7 @@ and acceptance criteria.
 
 ### Short-term: Security Bridge Coverage
 
-- **Two Factor lifecycle bridge** — Gate upstream Two Factor recovery-code generation, TOTP setup/deletion, and profile-form provider changes behind WP Sudo. This is a concrete factor-lifecycle gap: WP Sudo can require password + 2FA for sudo, but currently does not gate creation or replacement of the recovery codes that can satisfy that 2FA step later. See §11 Feature Backlog for verified source notes and implementation scope.
+- **Two Factor lifecycle bridge** — ✅ **Shipped** as `bridges/wp-sudo-two-factor-lifecycle-bridge.php`: gates upstream Two Factor recovery-code generation, TOTP setup/deletion, and profile-form provider changes behind WP Sudo. See §11 for the source-verification notes (retained as history).
 - ~~**Critical-event alerting bridge**~~ ✅ **Shipped on `main`** (#166) — `bridges/wp-sudo-critical-alert-bridge.php`, an optional mu-plugin (same inert-when-unavailable pattern as the existing bridges) that **pushes** a notification when a critical / high-severity hook fires, complementing the log-only Stream/WSAL bridges. It wires `wp_sudo_capability_tampered`, `wp_sudo_escalation_blocked`, `wp_sudo_lockout`, and `wp_sudo_gated_actions_missing_builtin_rules` — plus opt-in, throttled `wp_sudo_recovery_mode_active` — to `wp_mail` out of the box, with the `wp_sudo_critical_alert_dispatch` filter to send Slack/Teams/webhook via `wp_remote_post` (or capture for inline display where outbound network is unavailable, e.g. Playground). Includes per-event toggles (`wp_sudo_critical_alert_events`), a per-identity dedupe window, and a per-recipient hourly cap so an incident cannot flood the channel. See [`developer-reference.md`](developer-reference.md) → "Optional Critical-Event Alert Bridge". Distinct from the planned External Audit Mode (which changes the audit *destination*, not alerting).
 
 ### Completed: Post-WP 7.0 Connectors Work
@@ -111,7 +111,7 @@ Remaining Connectors-adjacent backlog should be tracked as future feature work, 
 
 ### Medium-term: UX and Architecture Features (v3.1+)
 
-- **Gutenberg block editor integration** — ✅ **Milestone A shipped** (in-editor reauth, password path): a build-free `apiFetch` middleware turns a gated action's `sudo_required` REST 403 into an in-editor reauth **modal** (an earlier increment used a `@wordpress/notices` snackbar link-out; the modal supersedes it for cookie-auth). Milestone A merged via PR #178 (2026-07-07): modal grant + re-dispatch, the 2FA-bypass invariant, stale-nonce recovery, owner-scoped concurrent re-dispatch, degradation guards, and the 2FA double-prompt fix. **Milestone B (in-modal 2FA) is the next track** — reviewed brief in `.planning/gutenberg-editor-reauth-milestone-b-2fa-partial-brief.md`. E2E coverage lives in `tests/e2e/specs/editor-reauth.spec.ts`.
+- **Gutenberg block editor integration** — ✅ **Milestone A shipped** (in-editor reauth, password path): a build-free `apiFetch` middleware turns a gated action's `sudo_required` REST 403 into an in-editor reauth **modal** (an earlier increment used a `@wordpress/notices` snackbar link-out; the modal supersedes it for cookie-auth). Milestone A merged via PR #178 (2026-07-07): modal grant + re-dispatch, the 2FA-bypass invariant, stale-nonce recovery, owner-scoped concurrent re-dispatch, degradation guards, and the 2FA double-prompt fix. **Milestone B (in-modal 2FA) shipped in v4.7.0** (PRs #185/#186) — reviewed brief in `.planning/gutenberg-editor-reauth-milestone-b-2fa-partial-brief.md`. E2E coverage lives in `tests/e2e/specs/editor-reauth.spec.ts`.
 - **Network policy hierarchy for multisite** — Super admins set minimum session duration and maximum entry-point policies; site admins can only tighten.
 - **Core Trac alignment: privileged-action confirmation + Multisite terminology** — Map Core Trac [#20140](https://core.trac.wordpress.org/ticket/20140), [#37593](https://core.trac.wordpress.org/ticket/37593), and [#39174](https://core.trac.wordpress.org/ticket/39174) to Sudo's product language and gated-rule catalog. Deliverables: confirm coverage for password/email/user/role changes; identify missing network-level actions; standardize docs on “network administrator” for ordinary Multisite authority, “super admin” only for Core's technical concept, and “break-glass recovery mode” / “sudo session” for Sudo's temporary elevation concepts. **Progress (2026-06-21, external PRs):** [#97](https://github.com/dknauss/Sudo/pull/97) standardized the docs on “break-glass recovery mode” and added explicit disambiguation from core's `WP_Recovery_Mode` (FAQ, security-model, readme.md, readme.txt); [#96](https://github.com/dknauss/Sudo/pull/96) renamed the dashboard event label Recovery→Break-glass to match. Remaining: the “network administrator” vs “super admin” terminology pass and the network-level gated-action coverage review.
 - **Session-store architecture follow-up** — Evaluate and likely implement a dedicated sudo-session table, with the current recommendation favoring an authoritative table plus usermeta shadow writes. See [`docs/session-store-evaluation.md`](session-store-evaluation.md).
@@ -189,7 +189,7 @@ The operator tooling tranche shipped in v2.12.0.
 - ~~Action Registry schema validation~~ — `normalize_filtered_rules()` validates and normalizes `wp_sudo_gated_actions` filter output; malformed rules dropped fail-closed.
 - ~~MU loader resilience~~ — basename/path resolution uses explicit fallback chain (`WP_SUDO_PLUGIN_BASENAME` → derived → canonical); diagnostic action on unresolved paths.
 - ~~WPGraphQL persisted-query strategy~~ — `wp_sudo_wpgraphql_classification` filter enables external mutation classification for persisted-query setups; `str_contains` heuristic preserved as fallback.
-- ~~WSAL sensor bridge~~ — `bridges/wp-sudo-wsal-sensor.php` maps 11 audit hooks to structured WSAL events (IDs 1900001–1900011); inert when WSAL absent. (The audit-hook total has since grown — see `docs/current-metrics.md`; newer hooks like `wp_sudo_escalation_blocked` are not yet bridged.)
+- ~~WSAL sensor bridge~~ — `bridges/wp-sudo-wsal-sensor.php` maps 11 audit hooks to structured WSAL events (IDs 1900001–1900011); inert when WSAL absent. (The sensor now maps additional hooks, including `wp_sudo_escalation_blocked` (1900012) and `wp_sudo_session_revoked` (1900013) — see `docs/current-metrics.md` for the audit-hook total; the **Stream** bridge still lacks these.)
 
 ### ✓ Completed in v2.10.0
 
@@ -220,7 +220,7 @@ The operator tooling tranche shipped in v2.12.0.
 
 ### ✓ CI Matrix — ~~Phase A~~ ✅ Done v2.9.2
 
-- PHP 8.0–8.4 for unit tests; targeted integration coverage for WordPress 6.2, 6.7, and 7.0 GA; single-site + multisite + PCOV coverage
+- PHP 8.2–8.4 for unit tests; targeted integration coverage for WordPress 6.2, 6.7, and 7.0 GA; single-site + multisite + PCOV coverage
 
 ---
 
@@ -230,9 +230,9 @@ This is a living document covering accumulated input and thinking about the stra
 challenges and priorities for WP Sudo. 
 
 Current project state (as of July 15, 2026):
-- **Current release state is canonical in `docs/release-status.md`** — as of 2026-07-15, the latest tagged release is `v4.6.0` (cut 2026-07-06) and the plugin is not currently published to the WordPress.org plugin repository. Publication is intentionally delayed/on hold, but the repository should remain submission-ready; `readme.txt` Stable tag is package/future-publication metadata until WordPress.org publication.
+- **Current release state is canonical in `docs/release-status.md`** — the latest tagged release is recorded in `docs/release-status.md` and the plugin is not currently published to the WordPress.org plugin repository. Publication is intentionally delayed/on hold, but the repository should remain submission-ready; `readme.txt` Stable tag is package/future-publication metadata until WordPress.org publication.
 - Current test and size counts are centralized in [`docs/current-metrics.md`](current-metrics.md).
-- CI pipeline: unit tests on PHP 8.0–8.4; integration tests on PHP 8.0/8.1/8.3; WordPress 6.2, 6.7, and 7.0 GA; single-site + multisite; MySQL 8.0 plus one MariaDB lane; PCOV coverage job; Playwright E2E suite (current test count in `docs/current-metrics.md`)
+- CI pipeline: unit tests on PHP 8.2–8.4; integration tests on PHP 8.2/8.3; WordPress 6.2, 6.7, and 7.0 GA; single-site + multisite; MySQL 8.0 plus one MariaDB lane; PCOV coverage job; Playwright E2E suite (current test count in `docs/current-metrics.md`)
 - WordPress 7.0 GA shipped on May 20, 2026, and the forward lane is now pinned to the final 7.0 release. See `docs/release-status.md`.
 
 ---
@@ -241,7 +241,7 @@ Current project state (as of July 15, 2026):
 
 > **Status: Complete.** The integration test suite shipped in v2.4.0 (55 tests) and
 > expanded in v2.4.1 (73 tests). CI now runs targeted compatibility lanes across
-> PHP 8.0/8.1/8.3 and WordPress 6.2, 6.7, and 7.0 GA with single-site +
+> PHP 8.2/8.3 and WordPress 6.2, 6.7, and 7.0 GA with single-site +
 > multisite coverage. The analysis below is preserved for context on what drove
 > the test design.
 
@@ -315,7 +315,7 @@ These gaps have been closed by the integration suite:
 
 | Change | Impact | Action needed |
 |--------|--------|---------------|
-| **PHP minimum raised to 7.4** (dropping 7.2/7.3) | WP Sudo requires PHP 8.0+. No impact. | None. Already ahead of the curve. |
+| **PHP minimum raised to 7.4** (dropping 7.2/7.3) | WP Sudo requires PHP 8.2+. No impact. | None. Already ahead of the curve. |
 | **Always-iframed post editor** | All blocks render in iframe. WP Sudo's admin UI gating does not touch the block editor — it intercepts `admin_init` actions, not editor saves. | **Low risk.** Verify the challenge page CSS still works inside the admin chrome. |
 | **Admin visual refresh** (DataViews, design tokens, Trac #64308) | Settings → Sudo page uses standard `settings_fields()` / `do_settings_sections()`. If WP 7.0 reskins these, our page gets the new look for free. | ✅ Completed against WP 7.0 pre-release and GA builds; continue ordinary visual checks before future compatibility bumps. |
 | **Fragment Notes + @ mentions** | Extends 6.9 Notes (block-level comments). No auth surface — notes are post meta. | No impact on WP Sudo. |
@@ -652,7 +652,7 @@ Local by Flywheel sites. Gaps remain in CI and broader hosting diversity.
 | Dimension | Current coverage | Gap |
 |-----------|-----------------|-----|
 | **Web server** | Apache + MariaDB (`wp-env` Playwright CI), nginx + php-fpm + MariaDB (stack-smoke CI), nginx + SQLite (Studio local), nginx/Apache + MySQL (Local manual) | full browser suite still runs only on the default Apache stack |
-| **PHP version** | 8.0–8.4 (unit CI), 8.0/8.1/8.3 (integration CI), 8.2 (Studio/wp-env local) | 8.2 and 8.4 are still missing from integration CI |
+| **PHP version** | 8.2–8.4 (unit CI), 8.2/8.3 (integration CI), 8.2 (Studio/wp-env local) | 8.4 is not in integration CI |
 | **Database** | MySQL 8.0 (integration CI), MariaDB LTS (`wp-env` CI + one integration lane + WP 6.4 / 6.5 compat-sweep lanes), SQLite (Playground stack-smoke CI + Studio local) | broader MariaDB/version overlap, MySQL 5.7 legacy hosts |
 | **WordPress version** | 6.2 support-floor lane, 6.3–6.6 scheduled compat sweep, 6.7 stable lane, 7.0 forward lane | 6.3–6.6 are not part of required push/PR CI yet |
 | **OS** | macOS (dev), Ubuntu 24.04 (CI) | Windows (if any WP-CLI or path handling is OS-sensitive) |
@@ -678,7 +678,7 @@ Local by Flywheel sites. Gaps remain in CI and broader hosting diversity.
 
 **Phase A: Expand CI matrix** ✅ Done v2.9.2, extended in v2.14.x
 
-CI matrix now covers PHP 8.0–8.4 for unit tests, a 6.2 support-floor integration lane on PHP 8.0, stable/forward integration lanes on PHP 8.1 and 8.3 for WordPress 6.7 and 7.0, one dedicated MariaDB lane, and a scheduled WordPress 6.3–6.6 compatibility sweep on PHP 8.1 with additional WordPress 6.4 and 6.5 MariaDB overlap lanes.
+CI matrix now covers PHP 8.2–8.4 for unit tests, integration lanes on PHP 8.2 and 8.3 for WordPress 6.2/6.7/7.0, one dedicated MariaDB lane, and a scheduled WordPress 6.3–6.6 compatibility sweep on PHP 8.1 with additional WordPress 6.4 and 6.5 MariaDB overlap lanes.
 
 **Phase B: Apache + MariaDB CI job** ✅ Covered by Playwright `wp-env`
 
@@ -780,7 +780,7 @@ regression in the session token comparison or rate limiting logic?"
 
 **Why not now:**
 - Infection re-runs the full test suite for every mutant. With the current suite
-  (794 unit + 182 integration tests; see `docs/current-metrics.md`), a full Infection run would take 10–30 minutes
+  (see `docs/current-metrics.md` for the current suite size), a full Infection run would take 10–30 minutes
   locally. That's acceptable for a pre-release check, not for CI on every push.
 - The more valuable immediate gap is environment diversity: knowing the tests pass
   on Apache/MariaDB and WP 6.2–6.9 is higher confidence signal than mutation score
@@ -1056,7 +1056,7 @@ SBOM, accessibility roadmap) are documented in the [CHANGELOG](../CHANGELOG.md).
 
 ### ✓ Shipped
 
-**~~WP Activity Log (WSAL) Sensor Extension~~** — shipped v2.11.0 as `bridges/wp-sudo-wsal-sensor.php`. It maps 11 audit hooks to WSAL events (IDs 1900001–1900011); the audit-hook total has since grown (see `docs/current-metrics.md`), so newer hooks such as the 4.1.0 `wp_sudo_escalation_blocked` are not yet mapped (tracked under Escalation guard follow-ups). Inert when WSAL absent.
+**~~WP Activity Log (WSAL) Sensor Extension~~** — shipped v2.11.0 as `bridges/wp-sudo-wsal-sensor.php`. It maps audit hooks to WSAL events (IDs 1900001–1900013), including `wp_sudo_escalation_blocked` (1900012) and `wp_sudo_session_revoked` (1900013); the **Stream** bridge still lacks the newer hooks. Inert when WSAL absent.
 **~~Stream bridge~~** — implemented on `main` for v2.12.0 as `bridges/wp-sudo-stream-bridge.php`. Optional mu-plugin mapping for those 11 audit hooks (same coverage caveat as the WSAL bridge).
 **~~WP-CLI `wp sudo` commands~~** — implemented on `main` for v2.12.0 (`status`, `revoke --user`, `revoke --all`).
 **~~Public `wp_sudo_check()` / `wp_sudo_require()` API~~** — implemented on `main` for v2.12.0 for third-party action gating integrations.
@@ -1116,7 +1116,7 @@ shapes. Tracked here so they are not forgotten:
    orthogonal (per-action re-prompt for the highest-risk grants, CSRF hardening) and
    trade UX for coverage; tracked, not scheduled.
 
-**Tentative: MU-plugin role/capability lockdown mode (research backlog).**
+**✅ MVP shipped in v4.8.0: role/capability lockdown audit** (`includes/class-role-audit.php` + `class-role-manifest.php`; `wp sudo manifest generate|diff`, Site Health, `wp_sudo_role_drift_detected`, #206). The remaining open item is the network-wide multisite sweep (#219). *(Original research notes retained below as history.)*
 Explore whether the optional MU-plugin should support a high-assurance mode that
 loads an operator-reviewed file manifest of trusted privileged principals and
 denies or repairs database-stored role/capability drift at runtime. This would be
@@ -1139,11 +1139,11 @@ positives are avoided on sites with dynamic roles; and how recovery works if the
 manifest is stale. Research tracker:
 `.planning/todos/pending/2026-07-15-mu-role-cap-lockdown-mode.md`.
 
-Bridge coverage is also incomplete: the WSAL/Stream bridges do not yet map the
-4.1.0 `wp_sudo_escalation_blocked` event — adding it would let SIEM/audit tools
+Bridge coverage is partial: the **Stream** bridge does not yet map the
+4.1.0 `wp_sudo_escalation_blocked` event (the WSAL sensor now maps it — 1900012) — adding it would let SIEM/audit tools
 alert on escalation blocks directly. See the bridge-coverage backlog below.
 
-### Open — High Priority Security Bridge Coverage
+### ✅ Shipped: Two Factor lifecycle bridge (source notes retained as history)
 
 **Two Factor lifecycle bridge**
 
@@ -1253,7 +1253,7 @@ behind the upstream Two Factor lifecycle bridge.
 
 ### Open — Medium Effort
 
-**Session Activity Dashboard Widget**
+**Session Activity Dashboard Widget** — ✅ **Shipped in v3.0.0** (`includes/class-dashboard-widget.php` + `class-event-store.php`, `wpsudo_events` table); spec retained below as history.
 
 Admin dashboard widget showing active sudo sessions (count + user list), recent
 gated operations (last 24 h from audit hooks), and policy summary. On multisite,
@@ -1369,7 +1369,7 @@ turning WP Sudo into a generic plugin firewall.
 
 ### Open — High Effort
 
-**Gutenberg Block Editor Integration**
+**Gutenberg Block Editor Integration** — ✅ **Shipped** (Milestone A in-editor reauth modal + Milestone B in-modal 2FA, v4.6.0/v4.7.0); the snackbar approach below is superseded, retained as history.
 
 Detect block editor context and queue the reauthentication requirement instead of
 interrupting save. Show a snackbar-style notice using the `@wordpress/notices`

@@ -34,7 +34,7 @@ control. TOTP autofill keys off `autocomplete="one-time-code"`.
 | `autocomplete="current-password"` | Yes (`class-challenge.php:357`) | Yes — `autoComplete: 'current-password'` |
 | Associated `<label>` | Yes — `<label for="wp-sudo-challenge-password">` (`class-challenge.php:353`) | Yes — `TextControl` label "Password" (WP associates `htmlFor`/`id`) |
 | `autocomplete="username"` hint field | **No** | **No** |
-| TOTP `autocomplete="one-time-code"` | Provided by the **Two Factor plugin's own** field rendering at our challenge time (`Two_Factor_Core::…->authentication_page()`, `class-challenge.php:387`), not by us | N/A — the modal has no 2FA step yet (Milestone B; a `2fa_pending` password response links out to the full-page challenge) |
+| TOTP `autocomplete="one-time-code"` | Provided by the **Two Factor plugin's own** field rendering at our challenge time (`Two_Factor_Core::…->authentication_page()`, `class-challenge.php:387`), not by us | Modal-capable providers (TOTP/email/backup codes) complete the second factor **in place** since v4.7.0 — the provider's server-rendered field is fetched via `handle_ajax_2fa_partial()` and validated through the existing challenge path; link-out remains the fallback for non-modal-capable providers. |
 
 **Takeaway:** both surfaces already expose the standards-minimal set for *password*
 autofill (real form + `type=password` + `current-password` + label + submit). The

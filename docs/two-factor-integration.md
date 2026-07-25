@@ -136,7 +136,7 @@ The server (`Challenge::handle_ajax_2fa()`) then:
 
 ## How Built-In Two Factor Support Works
 
-WP Sudo has zero-configuration support for the [Two Factor](https://wordpress.org/plugins/two-factor/) plugin. The integration uses three methods from `Two_Factor_Core`:
+WP Sudo has zero-configuration support for the [Two Factor](https://wordpress.org/plugins/two-factor/) plugin. The integration uses two `Two_Factor_Core` static methods plus three provider instance methods:
 
 | Method | Where Called | Purpose |
 |--------|-------------|---------|
@@ -208,7 +208,7 @@ do_action( 'wp_sudo_render_two_factor_fields', WP_User $user )
 **Notes:**
 - Fires after the built-in Two Factor provider rendering (if present).
 - Your fields will be collected as `FormData` and submitted via AJAX.
-- Do **not** render your own submit button -- WP Sudo provides "Verify & Continue".
+- Do **not** render your own submit button -- WP Sudo provides "Confirm & Continue".
 - Do **not** add `action` or `_wpnonce` hidden fields -- the JavaScript strips and replaces them.
 
 ### 3. `wp_sudo_validate_two_factor` (filter)
@@ -314,7 +314,7 @@ add_filter( 'wp_sudo_validate_two_factor', function ( bool $valid, WP_User $user
 
 ### Things to Avoid
 
-- **Do not render a submit button.** WP Sudo provides "Verify & Continue".
+- **Do not render a submit button.** WP Sudo provides "Confirm & Continue".
 - **Do not add `action` or `_wpnonce` hidden fields.** The JavaScript strips them and adds WP Sudo's own values. If you add them, they will be silently removed.
 - **Do not add your own form element.** Your fields render inside WP Sudo's `<form>`.
 - **Do not handle nonce verification.** WP Sudo calls `check_ajax_referer()` before your filter runs.
@@ -328,7 +328,7 @@ If your 2FA method uses WebAuthn (browser-based passkey ceremonies), you'll need
 2. Render a hidden input in `wp_sudo_render_two_factor_fields` that your JS populates with the attestation/assertion response.
 3. Validate the response server-side in `wp_sudo_validate_two_factor`.
 
-The Two Factor plugin's WebAuthn provider already works this way through `authentication_page()`, so the pattern is proven.
+The third-party Two Factor Provider for WebAuthn plugin renders its passkey ceremony through `authentication_page()` this way, so the pattern is proven. (Upstream Two Factor bundles only Email, TOTP, Backup Codes, and Dummy — not WebAuthn.)
 
 #### Gating WebAuthn Key Registration
 

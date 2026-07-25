@@ -3,7 +3,7 @@
 Structured checklists for evaluating the three UI surfaces of WP Sudo:
 
 1. **Challenge Page**: Interstitial reauthentication (password step, optional 2FA step, lockout countdown, request replay, Escape key navigation)
-2. **Settings Page**: Settings › Sudo (tabbed: Settings, Gated Actions, Rule Tester; session duration, policy dropdown presets, 5 entry point policy dropdowns, MU-plugin status section, gated actions table, 6 help tabs)
+2. **Settings Page**: Settings › Sudo (tabbed: Settings, Gated Actions, Rule Tester, Access; session duration, policy dropdown presets, 5 entry point policy dropdowns, MU-plugin status section, gated actions table, 6 help tabs)
 3. **Admin Bar Timer**: Live M:SS countdown during active sessions, turns red at 60s, click to deactivate, keyboard shortcut Cmd/Ctrl+Shift+S
 
 Each section uses `- [ ]` checkboxes so the document works as a runnable checklist.
@@ -262,7 +262,7 @@ These are quick checks beyond a full WCAG audit. For the resolved accessibility 
 - [ ] If 2FA is required, verify focus moves to the first 2FA input. Tab through any additional fields and submit with Enter.
 - [ ] Verify the replay/redirect happens without needing mouse interaction.
 - [ ] On the challenge page, verify Tab order: password field, "Confirm & Continue" button, "Cancel" link. No focus traps.
-- [ ] On the 2FA step, verify Tab order: 2FA input(s), "Verify & Continue" button, "Cancel" link. No focus traps.
+- [ ] On the 2FA step, verify Tab order: 2FA input(s), "Confirm & Continue" button, "Cancel" link. No focus traps.
 - [ ] Verify Escape key works as documented (announces and navigates).
 - [ ] On the settings page, verify Cmd/Ctrl+Shift+S opens the challenge page from any focusable element.
 

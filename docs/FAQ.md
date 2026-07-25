@@ -42,7 +42,7 @@ The practical implication: WP Sudo raises the cost of exploiting a compromised s
 
 ## What about plugins that define their own capabilities, roles, or mutation endpoints?
 
-WP Sudo only gates the specific operations it knows about — the 35 built-in rules covering standard WordPress admin, AJAX, and REST surfaces. If a plugin defines its own `my_plugin_delete_user` AJAX action that directly performs user deletion, registers a custom REST endpoint that sets user roles, or operates through a capability like `custom_manage_users` rather than WordPress core's `edit_users`, WP Sudo knows nothing about those paths.
+WP Sudo only gates the specific operations it knows about — the built-in rules (see docs/current-metrics.md for the current total) covering standard WordPress admin, AJAX, and REST surfaces. If a plugin defines its own `my_plugin_delete_user` AJAX action that directly performs user deletion, registers a custom REST endpoint that sets user roles, or operates through a capability like `custom_manage_users` rather than WordPress core's `edit_users`, WP Sudo knows nothing about those paths.
 
 There is no automatic coverage for plugin-invented surfaces. The `wp_sudo_gated_actions` filter lets operators and developers add custom rules for known plugin paths, but that requires explicit integration per plugin. WP Sudo is hook-based, not schema-based — it gates known WordPress API surfaces; it cannot discover ungated surfaces it has not been explicitly told about.
 
