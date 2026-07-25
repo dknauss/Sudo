@@ -60,7 +60,7 @@ Source review date: **July 25, 2026** (Fortress characterization re-verified aga
 - This is a comparative analysis, not an implementation guide.
 - Proposed model analysis is conceptual and intentionally avoids runbook-level details.
 - Statements marked `Inference:` are reasoned conclusions where source documents do not specify exact behavior.
-- Findings are constrained to the referenced documents and code paths reviewed on March 3, 2026.
+- Findings are constrained to the referenced documents and code paths, reviewed on the dates noted: the WP Sudo and proposed-model characterizations from the **March 3, 2026** baseline review; the **Fortress** characterization and its four added sources (installation, configuration reference, license, GridPane KB) from the **July 25, 2026** re-verification. Fortress's runtime source is license-gated and not public, so its characterization is scoped to those public docs/license/KB, not to reading the enforcement code.
 
 ## References
 
