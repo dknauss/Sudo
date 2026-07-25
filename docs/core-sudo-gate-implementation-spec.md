@@ -311,3 +311,16 @@ Seen from the other side, once core owns the primitive this posture layer become
 3. Flat recent-auth freshness vs. scope-bound windows for v1 (§4.2) — flat freshness makes the window **network-wide on multisite**; scope-bound windows are also the per-site-scoping lever.
 4. Should `core/create-user` gate *all* inserts or only privileged-context ones (registration/import would otherwise trip it)?
 5. Default-on vs. default-off for Phase 2 gating (§8) — the single biggest adoption/impact tradeoff.
+
+---
+
+## Acknowledgments
+
+This spec builds on prior art, tickets, and input from people across the WordPress community. Named here for their relevant work; any errors are the authors', not theirs.
+
+- **John James Jacoby** and **Jeremy Felt** — the sudo-mode / recent-auth window sketches in [#37593](https://core.trac.wordpress.org/ticket/37593) and [#39174](https://core.trac.wordpress.org/ticket/39174) that this design's "short elevated window, not forced re-login" primitive follows (§3, §4.2).
+- **John Blackbourn** ([@johnbillion](https://github.com/johnbillion)) — owner of [#16470](https://core.trac.wordpress.org/ticket/16470) (single-site email-change confirmation), whose `send_confirmation_on_profile_email()` flow the email-change chokepoint must accommodate (§4.1), and long-running WordPress core security work.
+- **Timothy Jacobs** (@TimothyBlynJacobs) — the WordPress REST API architecture this spec's cookie-REST enforcement and controller surfacing build on (§5.2, §6 row 13).
+- **Tim Nash** — WordPress security guidance informing the threat model and the "gate the effect, not the field" framing (§2, §3).
+- **Calvin Alkan** (Snicco / Fortress) — Fortress's server-side session-hardening and sudo-mode prior art (see [`sudo-architecture-comparison-matrix.md`](sudo-architecture-comparison-matrix.md)), and the scoping challenge that sharpened the core/plugin boundary and the not-a-SIEM non-goal (§1, §11).
+- The WordPress core contributors on the cited Trac tickets ([#20140](https://core.trac.wordpress.org/ticket/20140), #37593, #39174, #16470) and the maintainers of the surveyed protection layers.
