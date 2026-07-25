@@ -356,16 +356,18 @@ The concrete resolution of "align but don't collapse" is a **standalone** conseq
 wp_register_action(
 	'core/activate-plugin',
 	[
-		'label'             => __( 'Activate a plugin' ),
-		'description'       => __( 'Enable plugin code that runs with site privileges.' ),
-		'capabilities'      => [ 'activate_plugins' ],
-		'category'          => 'plugin-management',
-		'consequence_class' => 'code-execution',
-		'scope'             => 'plugins',
-		'annotations'       => [
-			'destructive'          => false,
-			'requires_recent_auth' => true,
-			'consent_required'     => false,
+		'label'        => __( 'Activate a plugin' ),
+		'description'  => __( 'Enable plugin code that runs with site privileges.' ),
+		'capabilities' => [ 'activate_plugins' ],
+		'category'     => 'plugin-management',
+		'consequence'  => [
+			'class'       => 'code-execution',
+			'scope'       => 'plugins',
+			'annotations' => [
+				'destructive'          => false,
+				'requires_recent_auth' => true,
+				'consent_required'     => false,
+			],
 		],
 	]
 );

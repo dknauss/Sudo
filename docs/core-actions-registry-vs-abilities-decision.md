@@ -55,7 +55,7 @@ Phase 1 is a standalone registry. This is essentially **Option A**, and it is th
 | **Naming** | Reuse the Abilities `namespace/name` convention (proposal §6) — the one cheap thing that keeps a future union possible. |
 | **The gate's view** | `wp_get_action( $id )` / `wp_get_actions()` over the standalone entries; the gate (spec §4.3) is written against that surface. |
 
-The only thing separating this from a *needlessly* divergent second registry is the shared ID convention. That is the whole point of "Abilities-aligned": an operation that later becomes a consequential ability gets its `consequence` block on the ability, and the same getters can be taught to read it — instead of a duplicate standalone entry that could drift. Alignment is a one-line naming choice, not a subsystem.
+Two deliberate choices keep this from being a *needlessly* divergent second registry: the shared **ID convention** and the shared **nested `consequence` block shape**. That is the whole point of "Abilities-aligned": an operation that later becomes a consequential ability gets *that same* `consequence` block as its annotation, and the same getters can be taught to read it — instead of a duplicate standalone entry that could drift. Alignment is two cheap shape choices (ID convention + consequence block), not a subsystem — and, since nesting, no longer merely a one-line naming choice.
 
 ### Future extension: reading consequence-annotated abilities (explicitly *not* Phase 1)
 

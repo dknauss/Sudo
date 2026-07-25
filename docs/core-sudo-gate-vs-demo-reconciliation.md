@@ -2,7 +2,7 @@
 
 **Status:** Alignment review. Companion to [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md).
 **Original review:** `github.com/dknauss/consequential-actions` @ `v0.1.6` (commit `b71c15d`).
-**Updated July 2026:** re-checked against `v0.2.0` (commit `e430974`) and `v0.2.1` (merged to `consequential-actions` `main` via PR #2; a `v0.2.1` release tag is still pending). **All three contradictions below are now resolved** — see the status callout. This doc is retained as the record of what was fixed and why.
+**Updated July 2026:** re-checked against `v0.2.0` (commit `e430974`) and `v0.2.1` (merged to `consequential-actions` `main` via PR #2; a `v0.2.1` release tag is still pending). **All three original contradictions below are now resolved** — see the status callout. One **follow-on field-shape delta** opened in July 2026 when core nested its schema (flat vs. nested `consequence` block, §3 — open). This doc is retained as the record of what was fixed and why.
 
 **Purpose:** Make the public demo argue the spec's design, and surface the places where it once argued *against* it.
 
@@ -11,7 +11,7 @@ The demo is explicitly a "wedge, not a product." It should not grow toward WP Su
 > **Status callout.**
 > - **§1 enforcement seam / REST coverage — RESOLVED in v0.2.0.** `gate_rest()` on `rest_pre_dispatch` now gates `/wp/v2/users` writes, so the takeover is blocked over REST as well as the form.
 > - **§2 force-logout framing — RESOLVED in v0.2.0.** README/readme.txt now frame the window as the recommended primitive and force-logout as a stricter opt-in, matching Trac #32.
-> - **§3 registry metadata shape — RESOLVED in v0.2.1** (merged to `consequential-actions` `main` via PR #2). Each `actions()` entry now carries `capabilities`, `category`, `consequence_class`, `scope`, `annotations`, per spec §4.1 — standalone shape only, no abilities-union (see [`core-actions-registry-vs-abilities-decision.md`](core-actions-registry-vs-abilities-decision.md)).
+> - **§3 registry metadata shape — fields RESOLVED in v0.2.1** (merged to `consequential-actions` `main` via PR #2): each `actions()` entry carries `capabilities`, `category`, `consequence_class`, `scope`, `annotations` — standalone shape, no abilities-union. **Follow-on delta (open):** core spec §4.1 later **nested** those under a `consequence` block; the demo is still flat. A field-shape delta, not a model difference (see §3 and [`core-actions-registry-vs-abilities-decision.md`](core-actions-registry-vs-abilities-decision.md)).
 > - **§4 `core/delete-user`** remains a deliberate skip: the MVP has no deletion detector, so a naming-only entry the demo never gates would muddy the "these are the gated actions" story. Left out on purpose.
 >
 > The rows and sections below are the original findings, retained for the record; verdicts are annotated inline.
@@ -26,7 +26,7 @@ The demo is explicitly a "wedge, not a product." It should not grow toward WP Su
 | **Surface coverage** | ~~Admin UI only~~ → **v0.2.0** admin UI + cookie/App-Password REST | Admin UI + cookie-REST + programmatic via one chokepoint | ⚠️ **Cookie-REST aligned; App Passwords diverge.** The demo *challenges* App-Password REST callers (resend the login password); spec §9/§14 **defers** App Passwords as a non-interactive surface with a **hard block-and-log** posture. Reconcile before submission — demanding the account login password over an API-credential channel is neither block-and-log nor a coherent App-Password story. Programmatic still form/REST-hook-bound. |
 | **Recent-auth store** | Per-user **transient** flag, not session-bound (README admits it) | `WP_Session_Tokens` record, revoked on logout | Expected MVP gap; acceptable for a demo |
 | **Force-logout framing** | ~~"the **stronger** answer"~~ → **v0.2.0** "a stricter opt-in; the window is the primitive" | Window is the right primitive; forced re-login "heavier than the problem needs" | ✅ **Resolved (v0.2.0)** — matches #32; §2 |
-| **Registry** | ~~`actions()` — 6 IDs, **label-only**~~ → **v0.2.1** id, caps, category, consequence_class, scope, annotations | `wp_register_action()` — same fields | ✅ **Resolved (v0.2.1, merged)** — standalone shape, no abilities-union; §3 |
+| **Registry** | ~~`actions()` — 6 IDs, **label-only**~~ → **v0.2.1** id, caps, category, consequence_class, scope, annotations (flat) | `wp_register_action()` — same fields, **nested** under a `consequence` block (§4.1) | ✅ **Fields resolved (v0.2.1)**; ⚠️ **nesting delta open** — core nests, demo still flat; §3 |
 | **Catalog** | 6 account actions | + `delete-user`, `activate/install/delete-plugin`, `update-connector-credentials` | Demo scope-limits to account-takeover on purpose; fine |
 | **Promotion detection** | `role_change_escalates()` — by capability (fixed in `b71c15d`) | `wp_role_change_escalates()` — by capability delta | ✅ **Already aligned** |
 | **Credential checked** | Always the actor's own password | Always the actor's own | ✅ Aligned (the #20140 correctness point) |
@@ -90,7 +90,7 @@ Scope note (post-dating this review): [`core-actions-registry-vs-abilities-decis
 
 1. ✅ **Done (v0.2.0).** REST coverage (`gate_rest()` on `rest_pre_dispatch` for `/wp/v2/users` writes, re-using the REST detector `triggered_actions_rest()`). *(§1)*
 2. ✅ **Done (v0.2.0).** Force-logout reframed in README/readme.txt to "a stricter opt-in," with the window named as the recommended/proposed primitive. *(§2)*
-3. ✅ **Done (v0.2.1, merged to `consequential-actions` `main` via PR #2).** Registry array aligned to the spec's metadata fields — standalone shape, no abilities-union. *(§3)*
+3. ✅ **Fields done (v0.2.1, merged to `consequential-actions` `main` via PR #2)** — registry array carries the spec's metadata fields, standalone shape. ⚠️ **Open follow-on:** wrap them in a nested `consequence` block to match core §4.1 (flat → nested). *(§3)*
 4. **Deliberately skipped.** `core/delete-user` — the MVP has no deletion detector, so a naming-only entry the demo never gates would muddy the "these are the gated actions" story. Revisit only if a deletion demo path is added.
 
 Remaining open item (from §1, still not done): **exercise REST in the live one-click Playground walkthrough** (curl the same takeover, watch it 403). The code path is gated as of v0.2.0; the *scripted demo* still only walks the form takeover.
