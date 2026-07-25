@@ -1,241 +1,96 @@
-# Roadmap: Past and Future Planning — Integration Tests, WP 7.0 Prep, Collaboration, TDD, and Core Design
+---
+status: current
+applies_to: 4.8.x
+last_verified: 2026-07-25
+canonical_for: forward roadmap (Now / Next / Later / Non-goals)
+---
 
-*Updated July 15, 2026*
+# Roadmap
 
-## Table of Contents
+Forward-looking only. Shipped work lives in [`CHANGELOG.md`](../CHANGELOG.md); open
+work is tracked as GitHub issues; design analyses live in their own docs. Current
+release state is canonical in [`release-status.md`](release-status.md). Nothing is in
+flight right now — `main` is clean with no open PRs.
 
-- **[Planned Development Timeline](#planned-development-timeline)** — Immediate, short-term, medium-term, and later work phases
-- **[Context](#context)** — current state, CI matrix, and WP 7.0 status (counts in `docs/current-metrics.md`)
-- **[1. Integration Tests](#1-integration-tests--scope-and-value)** — Current integration coverage, coverage analysis, remaining gaps
-- **[2. WordPress 7.0 Prep](#2-wordpress-70-prep)** — WP 7.0 GA shipped May 20, 2026; package metadata and Connectors gating work have shipped; see `docs/release-status.md` for current release state
-- **[3. Collaboration & Sudo](#3-collaboration-and-sudo--multi-user-editing-scenarios)** — Multi-user editing, conflict resolution
-- **[4. Context Collapse & TDD](#4-context-collapse-and-tdd)** — LLM confabulation defense, test-driven development
-- **[Recommended Next Steps](#recommended-next-steps-priority-order)** — Immediate, short-term, medium-term priorities
-- **[Archived Execution Record (v3.1–v3.3)](#archived-execution-record-v31v33)** — historical audit/remediation record; current priorities live in this roadmap and `.planning/STATE.md`
-- **[5. Environment Diversity Testing](#5-environment-diversity-testing-future-milestone)** — Apache, PHP 8.0, MariaDB, backward compat
-- **[6. Coverage Tooling](#6-coverage-tooling-baseline-established)** — PCOV baseline established, full matrix deferred
-- **[7. Mutation Testing](#7-mutation-testing-deferred-to-post-environment-diversity)** — Deferred until integration suite is fast enough
-- **[8. Exit Path Testing](#8-exit-path-testing)** — `@runInSeparateProcess` for security-critical exit/die paths
-- **[9. Code Review Findings](#9-code-review-findings-gpt-53-codex-verified-addendum)** — Triaged findings from line-verified code review
-- **[10. Core Sudo Design](#10-core-sudo-design)** — Already achieved (13), to implement (6), to consider (4), discarded (5)
-- **[11. Feature Backlog](#11-feature-backlog)** — Two Factor lifecycle bridge, bridge discovery mode, Gutenberg, multisite/network policy, SBOM/testing follow-ups
-- **[11.1 Multisite Network Admin Tools](#111-multisite-network-admin-tools)** — Network dashboard widget, super admin widget visibility controls, cross-site activity aggregation
-- **[11.2 Internal Admin Least-Privilege & Governance](#112-internal-admin-least-privilege--governance)** — dedicated Sudo capabilities, explicit grants, migration-safe rollout
-- **[12. Security Hardening Sprint](#12-security-hardening-sprint)** — Completed hardening sprint plus post-v3.1.3 review remediation phases
-- **[Appendix A: Accessibility](#appendix-a-accessibility-roadmap)** — 15 resolved WCAG items (v2.2.0–v2.3.1)
+## Now
+
+- **Network-wide role/capability lockdown sweep** ([#219](https://github.com/dknauss/Sudo/issues/219)) —
+  the 4.8.0 lockdown audit covers only the current blog
+  (`Role_Audit::collect_current_state()` uses `get_current_blog_id()`; `diff()`
+  iterates a single site), so subsite privilege drift is invisible to one
+  `wp sudo manifest diff` / Site Health / cron run. Walk the network (manifest sites,
+  or all blogs via `switch_to_blog()`), keep the cache-bypass reads per-blog, and
+  consider a `--site=<id|url>` scope flag with batching for large networks.
+  Priority: medium; documented MVP limitation until shipped.
+
+## Next
+
+- **Session-store architecture** — evaluate and likely implement a dedicated
+  sudo-session table (authoritative table + usermeta shadow writes). Design:
+  [`session-store-evaluation.md`](session-store-evaluation.md).
+- **Sudo Activity screen + export surface** — a dedicated list-table Activity admin
+  screen (search, sortable columns, CSV export with capability + nonce checks) that
+  gives the reserved `export_wp_sudo_activity` capability a UI surface. Keep it lean
+  (recent events, short retention) and prepare it for External Audit Mode delegation.
+  Include audit-visibility integrity warnings (flag when local passed-event logging is
+  disabled or delegated coverage is missing).
+- **Multisite terminology + coverage pass** — remaining Core-Trac-alignment work:
+  standardize "network administrator" vs. "super admin"; review network-level
+  gated-action coverage. Maps to Trac [#20140](https://core.trac.wordpress.org/ticket/20140).
+- **Scoped single-user recovery form** — `define( 'WP_SUDO_RECOVERY_MODE', <user> )`,
+  the open follow-up to the hardened break-glass (Phase R3).
+- **Test-scaffolding hardening** — blueprint rot-guard smoke lane (do first),
+  tag-pinned blueprint copies at each release, and run the release environment matrix
+  every release.
+
+## Later (need design work)
+
+- **Client-side modal challenge** (GitHub-style inline reauth) — explicitly deferred:
+  design-heavy, no security gain over stash → challenge → replay. If built, re-evaluate
+  the password-first OS-autofill decision (see
+  [`security-model.md`](security-model.md#reauthentication-flow-password-first-design-rationale)).
+- **REST sudo-grant endpoint** (`POST /wp/v2/sudo`) for headless clients.
+- **Per-session / device sudo isolation** via `WP_Session_Tokens` — deferred:
+  architectural, not a hardening item.
+- **SSO / SAML / OIDC provider framework** — a provider interface parallel to the 2FA hooks.
+- **Third-party bridge discovery mode** — a report-only scanner for plugin
+  AJAX / admin-post / REST entry points (not a generic hook firewall).
+- **Network admin tools** — cross-site session widget, super-admin visibility
+  controls, cross-site session revocation, and a network policy hierarchy (site admins
+  can only tighten).
+- **Abilities API / MCP** — monitor-only; add a REST rule to `Action_Registry` when a
+  destructive core ability (`DELETE` on `/run`) appears. Analysis:
+  [`abilities-api-assessment.md`](abilities-api-assessment.md).
+- **Internal admin least-privilege governance** — see
+  [`archive/internal-admin-governance-spec.md`](archive/internal-admin-governance-spec.md).
+- **Request-stash conservative pattern redaction** — broaden beyond the suffix list
+  (camelCase secrets such as `clientSecret`); a future option, not an open gap.
+- **Environment-diversity and mutation testing** — deferred testing milestones.
+- **WordPress core recent-auth gate proposal** — the strategic core work
+  ([`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md) and
+  companions; Trac #20140).
+
+## Non-goals / Declined
+
+- **Session extension without reauth** — undermines the time-bounded trust model.
+- **Passkey / WebAuthn as a standalone reauth factor** — declined 2026-02-28; OS
+  biometric autofill already covers the UX. (Key registration/deletion *gating* is a
+  separate concern, shipped via the WebAuthn bridge.)
+- **`compatibility` governance mode** — removed in v4.0.0; not returning.
+- **`enforce_editor_unfiltered_html` relocation / REST early-exit micro-opts** — no
+  measured benefit; relocation would add a front-end detection gap.
 
 ---
 
-## Planned Development Timeline
+## Reference (pending relocation)
 
-### Open: Security Review Remediation (post-v3.1.3)
-
-A June 7, 2026 deep security review found two implementation weaknesses and two
-design hardening opportunities. Two are shipped; two remain open:
-
-- ~~**2FA failure counters**~~ ✅ Shipped in v3.2.0 — failure counters now reset
-  only after full sudo activation succeeds; bad 2FA attempts continue accumulating
-  toward lockout across repeated password-success / bad-2FA cycles.
-- ~~**WPGraphQL Limited mode encoding bypass**~~ ✅ Shipped in v3.2.0 — JSON bodies,
-  GET/form `query` params, multipart `operations`, batched payloads, parser edge cases,
-  and persisted-operation fail-safe are covered by unit tests.
-- **Request stash redaction — suffix-based (shipped v2.11.0):** Stash redaction is
-  exact-match **plus suffix-based**, not exact-key only. `Request_Stash::is_sensitive_key()`
-  (`includes/class-request-stash.php`) lowercases each field name and matches it against an
-  exact list (`sensitive_field_keys()`) and 28 secret-value suffixes (`SENSITIVE_KEY_SUFFIXES`,
-  `@since 2.11.0`) via `str_ends_with`. Residual: camelCase provider names whose lowercased
-  form ends in no listed suffix — e.g. `clientSecret`, `refreshToken`, `authorization` — are
-  still not redacted, because the list omits bare `secret`/`token` to avoid false positives
-  (e.g. matching `page` → `password`). Broadening to conservative pattern-based redaction plus
-  custom-rule non-replay metadata was intentionally OUT OF SCOPE for v4.0.0 (REQUIREMENTS);
-  tracked here as a future option, not an open gap.
-- ~~**Governance evolution**~~ ✅ Shipped in v3.2.0 — Dedicated `manage_wp_sudo`,
-  `view_wp_sudo_activity`, `export_wp_sudo_activity`, and `revoke_wp_sudo_sessions`
-  capabilities replace broad `manage_options` governance.
-- ~~**Recovery mode is uncontained**~~ ✅ Contained June 13, 2026 *(found June 13, 2026)*
-  — `WP_SUDO_RECOVERY_MODE` previously granted the master `manage_wp_sudo`
-  capability to **any** logged-in user (no role gate), with no on-screen notice and
-  no audit event while active. The security model and FAQ had also claimed a
-  non-dismissible notice and a `governance.recovery_mode` audit event that were
-  never implemented (see `docs/llm-lies-log.md` #20). Fixed: the grant in both
-  `wp_sudo_can()` and `wp_sudo_map_governance_meta_cap()` is role-gated to
-  `manage_options` / `manage_network_options`; a permanent non-dismissible notice
-  renders on the Sudo settings screen; and a new `wp_sudo_recovery_mode_active`
-  audit hook fires (stored as a sampled `recovery_mode` event). Remaining
-  follow-up: a scoped single-user recovery form (see §12.1 Phase R3).
-
-See [§12.1](#121-post-v313-security-review-remediation-open) for the phased plan
-and acceptance criteria.
-
-### Short-term: Security Bridge Coverage
-
-- **Two Factor lifecycle bridge** — ✅ **Shipped** as `bridges/wp-sudo-two-factor-lifecycle-bridge.php`: gates upstream Two Factor recovery-code generation, TOTP setup/deletion, and profile-form provider changes behind WP Sudo. See §11 for the source-verification notes (retained as history).
-- ~~**Critical-event alerting bridge**~~ ✅ **Shipped on `main`** (#166) — `bridges/wp-sudo-critical-alert-bridge.php`, an optional mu-plugin (same inert-when-unavailable pattern as the existing bridges) that **pushes** a notification when a critical / high-severity hook fires, complementing the log-only Stream/WSAL bridges. It wires `wp_sudo_capability_tampered`, `wp_sudo_escalation_blocked`, `wp_sudo_lockout`, and `wp_sudo_gated_actions_missing_builtin_rules` — plus opt-in, throttled `wp_sudo_recovery_mode_active` — to `wp_mail` out of the box, with the `wp_sudo_critical_alert_dispatch` filter to send Slack/Teams/webhook via `wp_remote_post` (or capture for inline display where outbound network is unavailable, e.g. Playground). Includes per-event toggles (`wp_sudo_critical_alert_events`), a per-identity dedupe window, and a per-recipient hourly cap so an incident cannot flood the channel. See [`developer-reference.md`](developer-reference.md) → "Optional Critical-Event Alert Bridge". Distinct from the planned External Audit Mode (which changes the audit *destination*, not alerting).
-
-### Completed: Post-WP 7.0 Connectors Work
-
-~~**Update "Tested up to"**~~ ✅ Done; `readme.txt` advertises WordPress 7.0. WP 7.0 GA shipped May 20, 2026.
-
-~~**Connectors matcher and release verification path**~~ ✅ Done across the v4.x release line: the registry-aware matcher shipped, the package metadata now targets WP 7.0, and manual Connectors credential-gating checks live in [tests/MANUAL-TESTING.md](../tests/MANUAL-TESTING.md). Current release/package truth is [`docs/release-status.md`](release-status.md); do not duplicate volatile tag or version facts here.
-
-Remaining Connectors-adjacent backlog should be tracked as future feature work, not as WP 7.0 prep debt.
-
-### Short-term: Release Confidence and Sudo Fundamentals Baseline
-
-- **Release Confidence E2E workflow** — Add a manual release-grade GitHub Actions entrypoint that runs the existing high-confidence targets together without making nginx multisite or SQLite mandatory on every PR: Apache/wp-env full Playwright E2E, nginx + MariaDB smoke, nginx + MariaDB multisite smoke, and Playground SQLite smoke. See [`docs/release-e2e-confidence.md`](release-e2e-confidence.md). *(Shipped in #155.)*
-- **Stabilize the nginx-multisite release-confidence smoke lane — hardened, re-scoped into the gate.** The `nginx-multisite-smoke` job (MSTACK-01/02/03 in `tests/e2e/specs/multisite-stack-smoke.spec.ts`) had never been green: it failed on Playwright *element-not-stable / actionability* timeouts (`#submit`, `#wp-admin-bar-wp-sudo-active`) on the heavier multisite stack — a test-robustness/rendering issue, not a behavioral or `4.6.0`-related failure. The failing run's trace (run #28804948034, `release-confidence-nginx-multisite-report`) confirmed the leading hypothesis: `#wp-admin-bar-wp-sudo-active` wraps the live sudo countdown timer (re-renders every second) and `#submit` sits below an async MU-plugin status check that reflows the form, so on a loaded runner neither box ever satisfies Playwright's two-consecutive-frames stability check even though a real user could click at any time; the reauth POST → redirect round-trips were also slower than the single-site default budget. Fix (shipped): a `forceClick` helper (`scrollIntoViewIfNeeded()` + `click({ force: true })`) for those confirmed-visible/enabled targets, a multisite-sized `NAV_TIMEOUT` for the navigations, and the `continue-on-error` / aggregate exclusion removed so the lane once again gates `release-confidence.yml`. Each forced click still asserts its result, so a mis-landed click fails loudly. **Verify** with a manual `release-confidence.yml` dispatch (or local `npm run test:e2e:multisite:stack-smoke`) before relying on the restored gate.
-- **Psudo Lite / Sudo Lite reference baseline** — Preserve the original Psudo idea as a deliberately small page-level reauthentication reference, and define Sudo Lite as the minimal action-gating baseline. Use [`docs/sudo-lite/fundamentals-cross-check.md`](sudo-lite/fundamentals-cross-check.md) during WP Sudo reviews so the full plugin remains faithful to the simple invariants: fresh reauthentication, current-session binding, short trust windows, clear protected-action rules, safe redirects, and safe non-interactive failure behavior.
-- **Roadmap intent:** these lightweight references are not replacement products for WP Sudo. They are design anchors and audit tools for keeping the main project understandable and security-focused as coverage expands.
-
-### Short-term: Testing Infrastructure
-
-~~**Playwright E2E test infrastructure**~~ ✅ Done — CI browser coverage across challenge, admin UI, replay, policy, multi-factor, and in-editor reauth flows; alternate-stack smoke lanes are in place. (Current E2E test count is canonical in `docs/current-metrics.md`.)
-
-~~**Phase B: Apache + MariaDB CI job**~~ ✅ Done — covered by the named `wp-env` Playwright lane.
-
-- ~~**Phase C: Manual testing checklist for managed hosts**~~ ✅ Substantially delivered by external PR [#98](https://github.com/dknauss/Sudo/pull/98) (merged 2026-06-21): `tests/MANUAL-TESTING.md` now has a "Release Environment Matrix Checklist" covering an Apache lane, a managed-WordPress-host lane (Pressable / WP Engine / Cloudways), and a minimum-supported-WordPress lane, with per-lane core-smoke section refs and the WP floor sourced from `docs/release-status.md` (not hardcoded). Maps to GSD Phase 15 (ENV-01…03). Remaining: run the matrix at each release.
-
-- **Phase D: Scenario blueprints for manual review** — Grow the staged-state Playground blueprints (`blueprint-recovery-mode.json`, `blueprint-user-switching.json`) only where the state is hard to reproduce by hand *and* review is visual/UX rather than behavioral (behavioral cases stay in the unit/integration/Playwright suites). Candidates, in priority order:
-  - **Lockout state** — pre-seed failed attempts so the challenge page loads already locked-out with a live countdown. Hard to stage manually (needs 5 rapid failures); the countdown UI is the thing under review.
-  - **Multisite network-admin** — super-admin dashboard widget plus network settings. Multisite is painful to stand up locally; pairs with the medium-term [Multisite Network Admin Tools](#medium-term-multisite-network-admin-tools-v31).
-  - **2FA challenge UI** — *partial value only:* Playground cannot deliver TOTP/email codes, so only the password step and the 2FA step's rendering are reviewable, not the full flow. Scope to a UI-render check, not an end-to-end flow.
-  - **Scoped single-user recovery** — *deferred:* build alongside Phase R3's `define( 'WP_SUDO_RECOVERY_MODE', <user_id_or_login> )` form, not before the feature exists.
-  - **Rot guard (do this first):** these blueprints install from `main.zip` and break silently when an option key or admin URL changes. Add a headless boot-smoke CI lane via `@wp-playground/cli` that loads each blueprint and asserts the landing page renders, reusing the `.github/playground/sqlite-stack-smoke.blueprint.json` pattern. Land the smoke lane before expanding the blueprint set so new scenarios are covered from day one.
-  - **Tag-pinned copies at release (release-task):** the current `blueprint-recovery-mode.json` and `blueprint-user-switching.json` install from `main.zip`, so they track a moving branch and only demo correctly while the feature lives on `main`. At each release, add tag-pinned copies that install from the release zip (e.g. `…/refs/tags/vX.Y.Z.zip`), mirroring the existing `blueprint.json` (tag-pinned) vs `blueprint-main.json` (`main`) split, so published/demo links stay reproducible against a fixed version. Add this to the release checklist alongside the existing blueprint-version steps.
-
-### Medium-term: Multisite Network Admin Tools (v3.1+)
-
-- **Network Dashboard Widget** — Cross-site session visibility and event aggregation for super admins (see §11.1)
-- **Super Admin Widget Visibility Controls** — Network-level setting to restrict dashboard widget to super admins only
-- **Cross-Site Session Revocation** — Network-wide session revocation for incident response
-
-### Medium-term: UX and Architecture Features (v3.1+)
-
-- **Gutenberg block editor integration** — ✅ **Milestone A shipped** (in-editor reauth, password path): a build-free `apiFetch` middleware turns a gated action's `sudo_required` REST 403 into an in-editor reauth **modal** (an earlier increment used a `@wordpress/notices` snackbar link-out; the modal supersedes it for cookie-auth). Milestone A merged via PR #178 (2026-07-07): modal grant + re-dispatch, the 2FA-bypass invariant, stale-nonce recovery, owner-scoped concurrent re-dispatch, degradation guards, and the 2FA double-prompt fix. **Milestone B (in-modal 2FA) shipped in v4.7.0** (PRs #185/#186) — reviewed brief in `.planning/gutenberg-editor-reauth-milestone-b-2fa-partial-brief.md`. E2E coverage lives in `tests/e2e/specs/editor-reauth.spec.ts`.
-- **Network policy hierarchy for multisite** — Super admins set minimum session duration and maximum entry-point policies; site admins can only tighten.
-- **Core Trac alignment: privileged-action confirmation + Multisite terminology** — Map Core Trac [#20140](https://core.trac.wordpress.org/ticket/20140), [#37593](https://core.trac.wordpress.org/ticket/37593), and [#39174](https://core.trac.wordpress.org/ticket/39174) to Sudo's product language and gated-rule catalog. Deliverables: confirm coverage for password/email/user/role changes; identify missing network-level actions; standardize docs on “network administrator” for ordinary Multisite authority, “super admin” only for Core's technical concept, and “break-glass recovery mode” / “sudo session” for Sudo's temporary elevation concepts. **Progress (2026-06-21, external PRs):** [#97](https://github.com/dknauss/Sudo/pull/97) standardized the docs on “break-glass recovery mode” and added explicit disambiguation from core's `WP_Recovery_Mode` (FAQ, security-model, readme.md, readme.txt); [#96](https://github.com/dknauss/Sudo/pull/96) renamed the dashboard event label Recovery→Break-glass to match. Remaining: the “network administrator” vs “super admin” terminology pass and the network-level gated-action coverage review.
-- **Session-store architecture follow-up** — Evaluate and likely implement a dedicated sudo-session table, with the current recommendation favoring an authoritative table plus usermeta shadow writes. See [`docs/session-store-evaluation.md`](session-store-evaluation.md).
-- ~~**Internal admin governance hardening**~~ ✅ Shipped in 3.2.0. Dedicated `manage_wp_sudo`, `view_wp_sudo_activity`, `export_wp_sudo_activity`, and `revoke_wp_sudo_sessions` capabilities replace broad `manage_options` defaults. See [`docs/archive/internal-admin-governance-spec.md`](archive/internal-admin-governance-spec.md) for the archived design spec.
-- **Deprecate and remove `compatibility` governance mode** — The `wp_sudo_governance_mode = 'compatibility'` DB option is a permanent security regression path: it lets any `manage_options` holder administer Sudo settings, undoing the governance model. `WP_SUDO_RECOVERY_MODE` (requires filesystem access) is the intended break-glass — now hardened (role-gated, with notice + audit event; see below). Plan: fire `_doing_it_wrong()` + persistent admin notice when compatibility mode is active in the next minor release; remove the option and the fallback branch in the next major.
-- ~~**Contain `WP_SUDO_RECOVERY_MODE` break-glass**~~ ✅ Shipped in v3.4.0 (June 13, 2026) — The grant in both `wp_sudo_can()` and `wp_sudo_map_governance_meta_cap()` is role-gated to `manage_options` / `manage_network_options`; a permanent non-dismissible notice renders on the Sudo settings screen; and a new `wp_sudo_recovery_mode_active` audit hook fires (stored as a sampled `recovery_mode` event). Remaining: a scoped single-user recovery form (`define('WP_SUDO_RECOVERY_MODE', <user_id_or_login>)`). See §12.1 Phase R3.
-
-### Completed: v4.0.0 breaking changes
-
-The v4.0.0 major has shipped. The `sudo_can()` deprecated alias and `compatibility`
-governance mode were removed, minimum requirements were raised to WordPress 6.4 and PHP 8.2,
-and integrator/release notes were published. Current release facts have advanced beyond
-v4.0.0; use [`docs/release-status.md`](release-status.md) for the latest tag, runtime
-version, and package metadata.
-
-Future major-release planning should start as a new milestone rather than editing this
-completed v4.0.0 plan in place.
-
-### UI Documentation Rule
-
-Any development phase that significantly changes the UI must include a
-README/readme screenshot refresh task in that phase's scope. Treat screenshots
-as phased assets: update them when the public docs would otherwise become
-misleading, and expect to redo the set after later major UI changes.
-
-### Later: Major Features (Need Design Work)
-
-- **Client-side modal challenge** (UX like GitHub) — `.needs-sudo` CSS class on forms, JS intercepts submit, inline password prompt. Significant complexity. Likely a milestone unto itself.
-- **REST API sudo grant endpoint** — `POST /wp/v2/sudo` for headless clients. Enables interactive sudo flow for SvelteKit/Next.js apps.
-- **Per-session sudo isolation** — Integration with `WP_Session_Tokens` for per-browser isolation.
-- **SSO/SAML/OIDC provider framework** — Provider interface parallel to existing 2FA hooks.
-- **Phase D:** Docker Compose with switchable stacks
-- **Third-party bridge discovery mode** — Report-only scanner/assistant for plugin AJAX, admin-post, REST, and generic dispatcher entry points; useful for bridge coverage without turning WP Sudo into a generic hook firewall.
-
----
-
-### ✅ Security Hardening Sprint — Complete (v2.10.2–v2.13.0)
-
-All 5 phases shipped. Identified by independent assessments from Codex, Gemini, and Claude (March 2026).
-
-- ~~**P1 — Request Stash data minimization**~~ ✅ Phase 1
-- ~~**P1 — Upload-action coverage**~~ ✅ Phase 1
-- ~~**P1 — Non-blocking rate limiting**~~ ✅ Phase 2
-- ~~**P2 — Rule-schema validation**~~ ✅ Phase 3
-- ~~**P2 — MU loader path resilience**~~ ✅ Phase 3
-- ~~**P3 — WPGraphQL persisted-query strategy**~~ ✅ Phase 4
-- ~~**P3 — WSAL sensor extension**~~ ✅ Phase 4
-- ~~**IP + user multidimensional rate limiting**~~ ✅ Phase 5
-
-### ✅ Shipped: Major Operator Tooling and Visibility (v3.0.0)
-
-The v3.0.0 release consolidates Phases 7–9 work plus pre-release fixes:
-
-- ~~**Connectors API gating**~~ ✅ — Gates `/wp/v2/settings` writes containing `connectors_*_api_key` fields
-- ~~**Policy presets**~~ ✅ — One-click Normal, Incident Lockdown, and Headless Friendly presets
-- ~~**Request / Rule Tester**~~ ✅ — Diagnostic panel for evaluating request shapes against gate rules
-- ~~**Settings UI revision**~~ ✅ — Tabbed navigation, dropdown policies, improved preset UX
-- ~~**Event_Store persistence layer**~~ ✅ — `wpsudo_events` table with 14-day retention, cron pruning, SQLite compat
-- ~~**Session Activity Dashboard Widget**~~ ✅ — Active sessions, recent events, policy summary for site admins
-
-### ✅ Shipped: IP + User Multidimensional Rate Limiting (v2.13.0)
-
-- ~~**Multi-dimensional rate limiting (IP + user)**~~ ✅ implemented — Per-IP tracking via transients alongside per-user tracking, combined lockout policy, and the triggering IP address added as the third `wp_sudo_lockout` hook argument.
-
-### ✅ Shipped: Operator Tooling and Ecosystem Reach (v2.12.0)
-
-The operator tooling tranche shipped in v2.12.0.
-
-- ~~**WP-CLI `wp sudo` subcommands**~~ ✅ implemented (`wp sudo status`, `wp sudo revoke [--user=<id>]`, `wp sudo revoke --all`)
-- ~~**Stream bridge**~~ ✅ implemented (`bridges/wp-sudo-stream-bridge.php`)
-- ~~**Public `wp_sudo_check()` / `wp_sudo_require()` API**~~ ✅ implemented (session check + challenge redirect helper for third-party integrations)
-
-### ✓ Completed in v2.11.0
-
-- ~~Action Registry schema validation~~ — `normalize_filtered_rules()` validates and normalizes `wp_sudo_gated_actions` filter output; malformed rules dropped fail-closed.
-- ~~MU loader resilience~~ — basename/path resolution uses explicit fallback chain (`WP_SUDO_PLUGIN_BASENAME` → derived → canonical); diagnostic action on unresolved paths.
-- ~~WPGraphQL persisted-query strategy~~ — `wp_sudo_wpgraphql_classification` filter enables external mutation classification for persisted-query setups; `str_contains` heuristic preserved as fallback.
-- ~~WSAL sensor bridge~~ — `bridges/wp-sudo-wsal-sensor.php` maps 11 audit hooks to structured WSAL events (IDs 1900001–1900011); inert when WSAL absent. (The sensor now maps additional hooks, including `wp_sudo_escalation_blocked` (1900012) and `wp_sudo_session_revoked` (1900013) — see `docs/current-metrics.md` for the audit-hook total; the **Stream** bridge still lacks these.)
-
-### ✓ Completed in v2.10.0
-
-- ~~WebAuthn gating bridge~~ — shipped v2.10.0: `bridges/wp-sudo-webauthn-bridge.php` gates security key registration and deletion AJAX endpoints (`webauthn_preregister`, `webauthn_register`, `webauthn_delete_key`) via `wp_sudo_gated_actions` filter. Prevents silent key registration from a hijacked session.
-- ~~WP 7.0 REST error notice CSS fix~~ — shipped v2.10.0: scoped `#application-passwords-section .notice.notice-error` selector restores background in WP 7.0
-- ~~CI integration test fixes~~ — shipped v2.10.0: fixed Challenge constructor arg order in ExitPathTest, added `set_current_screen()` for admin context in CI
-
-### ✓ Completed in v2.8.0
-
-- ~~Expire sudo session on password change~~ — shipped v2.8.0: hooks `after_password_reset` and `profile_update`; meta-existence guard prevents phantom audit events
-- ~~WPGraphQL conditional display~~ — shipped v2.8.0: settings, help tab, and Site Health adapt when WPGraphQL is inactive
-- ~~Apache dev testing~~ — v2.8.0 verified on Apache (Local by Flywheel): single-site + multisite subdomain, REST API gating, Application Password auth with `HTTP_AUTHORIZATION` passthrough confirmed working
-
-### ✓ Completed in v2.6.0
-
-- ~~Login grants sudo session~~ — shipped v2.6.0: `wp_login` hook calls `Sudo_Session::activate()`; opt-out filter added in 3.3.0 (the original "mirrors Unix sudo" rationale was wrong — see llm-lies-log #17)
-- ~~Gate `user.change_password`~~ — shipped v2.6.0: closes session-theft → password change → lockout attack chain
-- ~~Grace period (two-tier expiry)~~ — shipped v2.6.0: 120 s grace window after expiry; session-token-verified, deferred cleanup
-
-### ✓ Completed in v2.5.x
-
-- ~~WPGraphQL surface gating (Disabled / Limited / Unrestricted)~~ — shipped v2.5.0, fixed v2.5.1–v2.5.2
-- ~~Cross-origin headless mutation bypass~~ — fixed v2.5.2 (SvelteKit testing revealed unauthenticated mutations passed through)
-- ~~Per-app-password policy dropdown~~ — fixed v2.5.2 (was silently broken since v2.3)
-- ~~Security hardening (Opus audit)~~ — fixed v2.5.2: MU-plugin AJAX, app-password AJAX, user.promote rule
-- ~~WPGraphQL headless authentication boundary~~ — documented v2.5.2
-- ~~Abilities API (WordPress 6.9+)~~ — documented v2.5.1: covered by existing REST API (App Passwords) policy
-
-### ✓ CI Matrix — ~~Phase A~~ ✅ Done v2.9.2
-
-- PHP 8.2–8.4 for unit tests; targeted integration coverage for WordPress 6.2, 6.7, and 7.0 GA; single-site + multisite + PCOV coverage
-
----
-
-## Context
-
-This is a living document covering accumulated input and thinking about the strategic
-challenges and priorities for WP Sudo. 
-
-Current project state (as of July 15, 2026):
-- **Current release state is canonical in `docs/release-status.md`** — the latest tagged release is recorded in `docs/release-status.md` and the plugin is not currently published to the WordPress.org plugin repository. Publication is intentionally delayed/on hold, but the repository should remain submission-ready; `readme.txt` Stable tag is package/future-publication metadata until WordPress.org publication.
-- Current test and size counts are centralized in [`docs/current-metrics.md`](current-metrics.md).
-- CI pipeline: unit tests on PHP 8.2–8.4; integration tests on PHP 8.2/8.3; WordPress 6.2, 6.7, and 7.0 GA; single-site + multisite; MySQL 8.0 plus one MariaDB lane; PCOV coverage job; Playwright E2E suite (current test count in `docs/current-metrics.md`)
-- WordPress 7.0 GA shipped on May 20, 2026, and the forward lane is now pinned to the final 7.0 release. See `docs/release-status.md`.
-
----
+> **Not the forward roadmap.** The material below is retained temporarily and will be
+> relocated: design analyses (§§1–10) move to their own docs (Pass 2), and the feature
+> backlog (§§11–11.2) migrates to GitHub issues (Pass 3). Legacy section numbers are
+> kept only until then. Completed-remediation detail under §12.1 is slated for deletion
+> once its open Phase R3 work is tracked as an issue. Historical v3.1–v3.3 remediation
+> record: [`archive/execution-plan-v3.1-v3.3.md`](archive/execution-plan-v3.1-v3.3.md).
+> Full shipped history is in [`CHANGELOG.md`](../CHANGELOG.md).
 
 ## 1. Integration Tests — Scope and Value
 
@@ -515,92 +370,6 @@ not context retrieval.
 
 ---
 
-## Recommended Next Steps (Priority Order)
-
-> Steps 1–16 completed in v2.4.0–v2.14.x development. Updated March 24, 2026.
-
-1. ~~Add TDD requirement to CLAUDE.md~~ — done (v2.4.0)
-2. ~~Install WP 7.0 Beta 1, run manual testing guide~~ — done (v2.4.0)
-3. ~~Scaffold integration test harness~~ — done (v2.4.0, 55 tests)
-4. ~~Write first integration tests~~ — done (v2.4.1, 73 tests)
-5. ~~Visual review against 7.0 admin refresh~~ — done (v2.4.0)
-6. ~~WPGraphQL surface gating~~ — done (v2.5.0–v2.5.2)
-7. ~~Abilities API coverage documented~~ — done (v2.5.1)
-8. ~~**Update `Tested up to`** when WordPress 7.0 final ships~~ — done (v3.3.0)
-9. ~~**Core design features** — login=sudo, gate password changes, grace period~~ — done (v2.6.0)
-10. ~~**Security hardening sprint** — stash redaction, upload-action gating, non-blocking rate limiting~~ — done (v2.10.2–v2.11.0)
-11. ~~**Rule-schema validation and MU loader resilience**~~ — done (v2.11.0)
-12. ~~**WSAL sensor extension and GraphQL persisted-query strategy**~~ — done (v2.11.0)
-13. ~~**Plan environment diversity testing**~~ — done (see section 5)
-14. ~~**Multi-dimensional rate limiting (IP + user)**~~ — done (v2.13.0)
-15. ~~**Playwright E2E test infrastructure**~~ — done; browser coverage and alternate-stack smoke lanes are in place
-16. ~~**Apache + MariaDB CI job**~~ — done; covered by the named `wp-env` Playwright lane
-
-### Post-v3.4.0 Priority Plan
-
-With the WordPress 7.0 compatibility release and v3.4.0 hardening work closed,
-the recommended implementation order is:
-
-1. **Deprecate `compatibility` governance mode** (✅ resolved) — Two paired governance security-debt items. (a) ✅ *Resolved in v4.0.0:* rather than a deprecation cycle, the `compatibility` mode and the `wp_sudo_governance_mode` option were **removed outright** in 4.0.0 — governance is always strict, and the inert option is auto-removed with a one-time dismissible notice and a `wp_sudo_inert_governance_mode_detected` audit event. (b) ✅ *Shipped in v3.4.0:* the break-glass path that replaces it is hardened — the grant is role-gated to administrators, a non-dismissible notice renders, and the `wp_sudo_recovery_mode_active` audit hook fires (stored as a sampled `recovery_mode` event), so it is explicit, auditable, and bounded (see §12.1 Phase R3). `WP_SUDO_RECOVERY_MODE` is the only supported break-glass path going forward, and it is now sound; compatibility mode can be removed once (a) lands. **Effort:** Low (deprecation remaining)
-2. **Monitor and tune E2E CI acceleration without reducing release assurance**
-   - Explicit CI groups now split the former long challenge shard across behavior-focused jobs
-   - Keep the full Playwright suite available for release-grade confidence, but shorten normal feedback loops
-   - Measure grouped runtime before deciding whether cache/image/policy optimizations are still worth the complexity
-   - Treat worker-level parallelism as a later step that requires explicit safety rules
-   - **Effort:** Low to medium
-3. ~~**Refresh README screenshots for the current UI**~~ — done on `main`
-   - Refreshed the WordPress.org-style screenshot assets for Settings -> Sudo,
-     Gated Actions, Rule Tester, Access, the Session Activity dashboard widget,
-     and break-glass recovery mode
-   - Added a compact screenshot gallery to the GitHub README and updated the
-     `readme.txt` captions
-   - Expect to redo this again after major UI changes; keep future passes focused
-     on making current public docs honest
-4. **Strengthen release-only environment checks instead of broadening required CI**
-   - Add the managed-host/manual environment checklist promised in section 5
-   - Keep SQLite as smoke/release assurance, not a required merge gate
-   - Add breadth only where a real compatibility signal is missing
-   - **Effort:** Low to medium
-5. **Design Gutenberg Block Editor reauthentication UX**
-   - Treat this as the most important next major product feature, even though it is the largest UX/design lift
-   - Define challenge transport, snackbar/notices behavior, autosave/editor-state safety, replay semantics, and test strategy before implementation
-   - Use the design phase to decide what needs Playwright coverage, whether any build tooling is required, and how failures should recover without losing editor work
-   - **Effort:** High
-6. **Build the Sudo Activity screen MVP as a modest built-in visibility layer**
-   - Keep it focused on recent Sudo events, short retention, and support/debugging value
-   - Do not make it a full audit-log, alerting, export, or notification product
-   - Prepare the UI for External Audit Mode so Stream/WP Activity Log sites can delegate persistence and notifications
-   - **Effort:** Medium
-7. **Add audit-visibility integrity warnings**
-   - Warn when local passed-event logging is disabled or delegated audit coverage is missing
-   - Make reduced visibility explicit in settings, dashboard, and activity surfaces
-   - **Effort:** Low to medium
-8. ~~**Build the Session Activity Dashboard Widget**~~ ✅ Done (v3.0.0)
-   - ~~This is the smallest meaningful product feature still open~~
-   - ~~It adds operator value without forcing a major challenge-flow redesign~~
-   - ~~It will also establish the audit-data persistence layer that other visibility features could reuse~~
-   - ~~**Effort:** Medium~~
-9. **Extend Dashboard Widget for Multisite Network Admin** (see §11.1)
-   - Build on the v3.0.0 foundation with cross-site aggregation
-   - Add super admin visibility controls
-   - This is the natural next step now that Event_Store and the per-site widget exist
-   - **Effort:** Medium
-10. **Re-evaluate multisite Network Policy Hierarchy after the dashboard/audit work**
-   - This remains valuable, but only for a narrower audience
-   - It becomes easier once policy state and audit visibility are clearer
-   - **Effort:** High
-
-### Post-v3.4.0 Backlog Triage
-
-Use this default order after the v3.4.0 release unless a real user need overrides it:
-
-- **Do next:** E2E explicit-group runtime monitoring, Plugin Check warning triage, and the next screenshot refresh when UI work changes public screens
-- **Small release-readiness hardening:** localization/translation packaging (POT generation, JS/CLI strings, translator comments, and an i18n check) before the next public packaging push
-- **Most important major feature track:** Gutenberg Block Editor reauthentication — **Milestone A (in-editor password modal) shipped** (PR #178, 2026-07-07); the live continuation is **Milestone B (in-modal 2FA)**, per `.planning/gutenberg-editor-reauth-milestone-b-2fa-partial-brief.md`
-- **Plan next:** The Two Factor lifecycle bridge (gate recovery-code generation, TOTP setup/delete, and profile-form provider changes), Patchstack 2FA compatibility as a second-tier bridge/test target, the modest Sudo Activity screen MVP, audit-visibility warnings, multisite operator controls, and governance polish
-- **Do later if demand exists:** Network Policy Hierarchy for Multisite, Cross-Site Session Revocation, network-enforced Passed-event logging policy (super admins can require immutable Passed-event audit visibility across subsites), Security Administrator governance mode (dedicated `manage_wp_sudo` capability, settings/widget visibility scoped to that capability, optional strict-mode assignee workflow, and documented recovery path for misconfiguration)
-- **Keep as design backlog:** third-party bridge discovery mode, client-side modal challenge, per-session sudo isolation, REST sudo grant endpoint, SSO/SAML/OIDC framework
-
 ## Archived Execution Record (v3.1–v3.3)
 
 For the historical v3.1–v3.3 security/governance audit and remediation record,
@@ -820,137 +589,6 @@ The 76 `exit`/`die` paths in the codebase (mostly `wp_send_json()` + `exit` in t
 | Grace window REST pass | `rest_get_server()->dispatch()` | No `sudo_required` during grace |
 
 **Remaining:** The `@runInSeparateProcess` approach (real `exit()` + output capture + header assertions) is still deferred. The WPDieException pattern covers response body shape but cannot verify actual HTTP headers or `Set-Cookie` output. This matters most for the challenge success path (cookie-setting). Browser-level testing (Playwright) would cover this more naturally than subprocess PHPUnit.
-
----
-
-## 9. Code Review Findings (GPT 5.3 Codex Verified Addendum)
-
-**Source:** Line-verified code review in `.planning/research.md` (addendum, lines 567–914). All findings reference actual line numbers in the codebase, verified against `composer test:unit`, `composer lint`, and PHPStan. This supersedes the Zen Trinity review in the same file, which contains fabricated code snippets and statistics.
-
-### High Priority
-
-**~~Grace window scope broader than documented intent~~** ✅ Fixed
-
-- ~~Gate permits any matched gated action when the user is within the 120s grace window (`class-gate.php:617-619`, `828-830`, `960-961`).~~
-- ~~`is_within_grace()` only checks time window + token validity, not whether the request was in-flight when the session expired (`class-sudo-session.php:192-211`).~~
-- ~~`docs/security-model.md:153` implies grace should only cover in-flight requests, not grant new gated access.~~
-- ~~**Impact:** Effective policy is "full gated access for 120 seconds after expiry with valid token" — stronger than documented intent, may weaken audit expectations.~~
-- ~~**Action:** Decide on intended semantics. Options: (a) tighten grace to in-flight-only with a stash marker, (b) accept current behavior and update docs to match. Either way, add tests asserting the chosen contract.~~
-- Fixed: accepted current behavior (Option B). Updated `security-model.md` and `FAQ.md` to document grace as a 120s wind-down window, not in-flight-only. 3 integration tests added (`ExitPathTest.php` GRACE-01 through GRACE-03).
-
-**~~MU-plugin makes deactivation non-authoritative~~** ✅ Fixed
-
-- ~~MU shim loads the plugin whenever files exist, regardless of `active_plugins` option (`mu-plugin/wp-sudo-gate.php:20-24`, `mu-plugin/wp-sudo-loader.php:22-30`).~~
-- ~~Plugin deactivation callback does not remove the MU shim (`class-plugin.php:430-438`).~~
-- ~~FAQ states deactivation returns ungated behavior (`FAQ.md:129-132`), but that's only true if the shim is absent.~~
-- ~~**Impact:** If MU shim is installed, deactivating from Plugins screen doesn't reliably disable runtime behavior.~~
-- ~~**Action:** Decide and document intended behavior. If "deactivate means off," remove MU shim on deactivation or add an early bail when plugin is inactive.~~
-- Fixed: loader checks `active_plugins` / `active_sitewide_plugins` before loading. `uninstall.php` deletes shim. FAQ updated.
-
-### Medium Priority
-
-**~~`return_url` double-encoding~~** ✅ Fixed
-
-- ~~Source side pre-encodes `return_url` before `add_query_arg` (`class-plugin.php:205-209`, `class-gate.php:1118-1120`, `1264-1267`, `1331-1334`).~~
-- ~~Destination side reads value directly without decoding (`class-challenge.php:133-136`, `191-194`).~~
-- ~~**Impact:** Cancel/shortcut return behavior can fall back to dashboard instead of the originating page.~~
-- ~~**Action:** Pass raw URL to `add_query_arg` (let WordPress encode once), or decode before validation on the read path. Add round-trip tests for complex URLs.~~
-- Fixed: removed `rawurlencode()` from all 4 source locations. Unit test in `PluginTest.php`.
-
-**~~Site Health stale-session scan capped at 100 users~~** ✅ Fixed
-
-- ~~`find_stale_sessions()` queries `get_users(... 'number' => 100)` (`class-site-health.php:256-263`).~~
-- ~~**Impact:** Large sites can report "no stale sessions" while stale records exist beyond user 100.~~
-- ~~**Action:** Paginate through all matching users or maintain a cleanup cursor.~~
-- Fixed: paginated `do/while` loop in `find_stale_sessions()`. Unit test in `SiteHealthTest.php`.
-
-**~~REST cookie-auth detection only checks `X-WP-Nonce` header~~** ✅ Fixed
-
-- ~~Cookie-auth classifier in Gate checks only for `X-WP-Nonce` header (`class-gate.php:833-835`).~~
-- ~~No fallback check for `_wpnonce` request param.~~
-- ~~**Impact:** Some legitimate cookie-auth clients may be misclassified as headless and routed to app-password policy.~~
-- ~~**Action:** Add conservative fallback detection for `_wpnonce` request params. Add tests for mixed cookie-auth request shapes.~~
-- Fixed: fallback checks `$_REQUEST['_wpnonce']`, matching WP core's `rest_cookie_check_errors()`. Verified against WP trunk source. 2 unit tests in `GateTest.php`.
-
-### Low Priority
-
-**~~Version constant drift between runtime and test/static bootstrap~~** ✅ Fixed
-
-- ~~Runtime: `2.9.1` (`wp-sudo.php:6`, `:25`). Bootstraps: `2.8.0` (`phpstan-bootstrap.php:13`, `tests/bootstrap.php:18`).~~
-- ~~**Action:** Synchronize in release process. Consider extracting version to a single source read by all bootstraps.~~
-- Fixed: both bootstraps updated to `2.9.1`. Add to release checklist.
-
-**~~2FA default window documentation mismatch~~** ✅ Fixed
-
-- ~~Actual default: 5 minutes (`class-sudo-session.php:370`). Admin help text: 10 minutes (`class-admin.php:323`).~~
-- ~~**Action:** Align help text to actual default.~~
-- Fixed: help text now reads "5 minutes". Note: this is the **2FA authentication window** (how long to enter a 2FA code), not the sudo session duration (15 min default). Two distinct timers.
-
-**~~2FA window bounds not enforced in code~~** ✅ Fixed
-
-- ~~FAQ claims 1–15 minute bounds (`FAQ.md:139`). Code trusts filter return without clamping (`class-sudo-session.php:370-371`).~~
-- ~~**Action:** Clamp filter result to documented min/max, or remove hard-bound language from docs.~~
-- Fixed: clamped to 60–900 seconds (1–15 minutes) after `apply_filters`. 3 unit tests in `SudoSessionTest.php`. `developer-reference.md` updated.
-
-**~~Admin bar countdown stalls at `0:01` before reload (cosmetic)~~** ✅ Fixed
-
-- ~~When the session expires, the JS countdown decrements `r` to `0`, calls `window.location.reload()`, and returns — but the label was last set to `Sudo: 0:01` in the previous tick and is never updated to `0:00`. The reload latency (1–3s network round-trip) means the timer visually freezes at `0:01` before disappearing.~~
-- Fixed: label now updates to `Sudo: 0:00`, interval is cleared, and expiry is announced via SR live region before `reload()` fires.
-
-**~~REST error notice has no visible background in WP 7.0 (cosmetic)~~** ✅ Fixed
-
-- Fixed by adding `#application-passwords-section .notice.notice-error` selector to `wp-sudo-notices.css`. Scoped to the Application Passwords section on profile.php — doesn't affect other admin notices.
-
-**Reauthentication flow design: password-first is correct**
-
-- The challenge page uses a two-step flow: password entry → optional 2FA (TOTP, email OTP, WebAuthn, etc.). This was evaluated against alternatives (2FA replacing password, method-picker with all factors on one screen, standalone WebAuthn button alongside password).
-- **Design decision (2026-02-28):** The current password-first flow is the right design.
-  - **Reauthentication ≠ login.** At reauth, the user already proved identity at login. Any single strong factor suffices to confirm "you're still here." In principle, 2FA could replace the password rather than supplement it. In practice, the tradeoffs make password-first the better default.
-  - **OS-level autofill mitigates password friction.** On macOS (Touch ID), Windows (Hello), iOS (Face ID), and Android (biometric), the browser offers biometric autofill for `autocomplete="current-password"` fields. Users tap a fingerprint sensor, the password fills, they click confirm. This makes the password step ~2 seconds with no typing — eliminating the main UX argument for a custom WebAuthn button.
-  - **WebAuthn as a standalone primary factor is redundant.** A "Use passkey" button alongside the password field would save one click over biometric autofill. The engineering cost (custom WebAuthn ceremony UI, bypassing the Two Factor provider's `authentication_page()`, new validation paths) is not justified by that marginal gain.
-  - **TOTP as a standalone primary factor is the best alternative** but has hook-architecture costs. The bridge plugin hooks (`wp_sudo_requires_two_factor`, `wp_sudo_render_two_factor_fields`, `wp_sudo_validate_two_factor`) all assume the sequential model. Changing to "password OR TOTP" would require new hook semantics and bridge plugin rewrites.
-  - **Email OTP as standalone is problematic.** Without a preceding password step, anyone who knows the username can trigger OTP email sends — a minor spam/enumeration vector.
-  - **Backup codes as standalone are weak.** Shorter than passwords, often stored in plaintext, intended as a fallback — not suitable as a primary reauth factor.
-- **WebAuthn ceremony UX** remains rough when WebAuthn is the active 2FA provider (the `navigator.credentials.get()` popup appears after form submission rather than as a natural step). This is a Two Factor plugin provider UX issue, not a WP Sudo architecture issue. The challenge page is provider-agnostic and renders whatever the active provider outputs.
-- **Modal challenge caveat:** This analysis assumes the current full-page challenge. If the client-side modal challenge (see §10) is implemented, OS-level autofill may not work reliably — browsers are increasingly cautious about autofilling inside iframes and dynamically injected forms, and password manager heuristics depend on page-level cues (form action, URL) that a modal disrupts. If the modal breaks the OS autofill shortcut, an explicit "Use passkey" or "Use TOTP" button on the modal becomes more valuable. Re-evaluate this decision when the modal ships.
-- **Status:** No code changes needed for the current full-page challenge. The flow is optimal given OS-level credential management. Revisit when (a) WordPress core introduces a native reauthentication API that supports method selection, or (b) the modal challenge design begins implementation.
-
-**~~Request stash stores raw POST payloads~~** ✅ Fixed (Phase 1)
-
-- ~~Stash stores verbatim request arrays (`class-request-stash.php:65-67`, `205-212`).~~
-- Fixed: stash writes now redact sensitive keys and enforce a per-user stash cap before transient storage.
-- See `.planning/phases/01-request-stash-redaction-and-upload-action-coverage/`.
-
-**~~Progressive delay uses blocking `sleep()`~~** ✅ Fixed (Phase 2)
-
-- ~~`sleep($delay)` during failed auth attempts (`class-sudo-session.php:718`).~~
-- Fixed: non-blocking throttle uses `_wp_sudo_throttle_until` plus append-row `_wp_sudo_failure_event` tracking; no worker-blocking sleep.
-- See `.planning/phases/02-non-blocking-rate-limiting/`.
-
-**~~App-password admin JS has hardcoded English strings~~** ✅ Fixed
-
-- ~~Hardcoded UI strings in `admin/js/wp-sudo-app-passwords.js` (lines 31, 142, 195).~~
-- ~~**Action:** Move to `wp_localize_script()` for localization.~~
-- Fixed: 3 strings localized via `wp_localize_script()` i18n object. Unit test in `AdminTest.php`.
-
-### Findings Already Addressed
-
-| Finding | Status |
-|---------|--------|
-| Uninstall path has no tests | ✅ Fixed v2.9.1 — `tests/Integration/UninstallTest.php` (2 tests) |
-| Multisite uninstall network-active branch can under-clean | ✅ Tested — `UninstallTest::test_multisite_uninstall_cleans_user_meta()` covers the cleanup path |
-| Version constant drift (bootstraps at 2.8.0 vs runtime 2.9.1) | ✅ Fixed — `phpstan-bootstrap.php` and `tests/bootstrap.php` updated to `2.9.1` |
-| 2FA default window help text says 10 min, code is 5 min | ✅ Fixed — `class-admin.php:323` now reads "5 minutes" |
-| Grace window scope broader than documented | ✅ Fixed v2.9.2 — docs corrected (`security-model.md`, `FAQ.md`), 3 integration tests |
-| MU-plugin makes deactivation non-authoritative | ✅ Fixed v2.9.2 — loader checks `active_plugins`, `uninstall.php` deletes shim, FAQ updated |
-| `return_url` double-encoding | ✅ Fixed v2.9.2 — `rawurlencode()` removed from 4 locations, unit test added |
-| Site Health stale-session scan capped at 100 users | ✅ Fixed v2.9.2 — paginated `do/while` loop, unit test added |
-| 2FA window bounds not enforced in code | ✅ Fixed v2.9.2 — clamped to 60–900 s, 3 unit tests added |
-| App-password JS hardcoded English strings | ✅ Fixed v2.9.2 — localized via `wp_localize_script()`, unit test added |
-| Exit path testing not started | ✅ Partially addressed v2.9.2 — 9 integration tests in `ExitPathTest.php` |
-| REST cookie-auth `_wpnonce` fallback | ✅ Fixed v2.9.2 — Gate checks `$_REQUEST['_wpnonce']` fallback (mirrors WP core), 2 unit tests |
-| Admin settings CRUD integration tests | ✅ Done v2.9.2 — 8 integration tests in `AdminTest.php` |
-| CI matrix missing PHP 8.0 and older WP versions | ✅ Done v2.9.2 — PHP 8.0–8.4, WP 6.7 + latest + trunk |
 
 ---
 
@@ -1592,7 +1230,7 @@ trigger is Gutenberg integration, which would require browser-level testing anyw
 | Feature | Reason |
 |---------|--------|
 | Session extension (extend without reauth) | Undermines the time-bounded trust model and violates zero-trust principles. The keyboard shortcut (`Cmd+Shift+S` / `Ctrl+Shift+S`) makes re-authentication fast enough. |
-| Passkey/WebAuthn as a standalone reauthentication method | Evaluated and declined (2026-02-28). OS-level biometric autofill (Touch ID, Windows Hello, Face ID) already provides a smooth passwordless-like UX for the password field — a custom WebAuthn button saves one click at significant engineering cost. TOTP-only reauth is the strongest alternative but requires bridge hook redesign. Email OTP standalone has enumeration risk; backup codes standalone are too weak. The password-first + optional 2FA flow is correct for reauthentication. See [§9 reauthentication flow design](#9-code-review-findings-gpt-53-codex-verified-addendum). WebAuthn key *registration/deletion gating* is a separate concern, addressed by the bridge plugin (`bridges/wp-sudo-webauthn-bridge.php`, shipped v2.10.0). |
+| Passkey/WebAuthn as a standalone reauthentication method | Evaluated and declined (2026-02-28). OS-level biometric autofill (Touch ID, Windows Hello, Face ID) already provides a smooth passwordless-like UX for the password field — a custom WebAuthn button saves one click at significant engineering cost. TOTP-only reauth is the strongest alternative but requires bridge hook redesign. Email OTP standalone has enumeration risk; backup codes standalone are too weak. The password-first + optional 2FA flow is correct for reauthentication. See [the password-first reauthentication rationale](security-model.md#reauthentication-flow-password-first-design-rationale). WebAuthn key *registration/deletion gating* is a separate concern, addressed by the bridge plugin (`bridges/wp-sudo-webauthn-bridge.php`, shipped v2.10.0). |
 
 ---
 
@@ -2165,134 +1803,3 @@ need explicit localization.
 - Full Playwright E2E is required only if the implementation changes browser/admin
   UX, request replay, challenge flow, or release-grade deployment confidence.
 
-### P1: Request Stash Data Minimization ✅ Complete (Phase 1)
-
-**Problem:** `Request_Stash::sanitize_params()` (`class-request-stash.php:205`) returns `$_POST` data verbatim, including passwords and tokens. These are stored in WordPress transients (`wp_options` table) accessible to any code with database read access, backup systems, and object cache backends.
-
-**Fix:**
-- Implement secret-key redaction before transient storage (recursive, case-insensitive matching on `password`, `pass`, `user_pass`, `token`, `secret`, `api_key`, etc.).
-- Add filter for extending/overriding the sensitive key list.
-- Add per-user stash cap (e.g., 5 concurrent) with oldest-first eviction to bound growth from authenticated abuse.
-- Preserve replay fidelity for non-secret fields; fail safely with explicit error if a redacted field is required for replay.
-
-**Tests:** Unit tests for redaction and allowlist behavior, stash cap eviction. Integration tests confirming built-in replay flows still work.
-
-### P1: Upload-Action Coverage ✅ Complete (Phase 1)
-
-**Problem:** `Action_Registry` gates `install-plugin` and `install-theme` (WordPress.org directory installs) but has no rules for `update.php?action=upload-plugin` or `upload-theme` (ZIP upload paths). A compromised session can upload arbitrary plugin ZIPs without sudo challenge.
-
-**Fix:** Add explicit action mappings for `upload-plugin` and `upload-theme` in the Action Registry.
-
-**Tests:** Unit tests for matching upload action requests. Integration tests confirming challenge path on upload actions.
-
-### P1: Non-Blocking Rate Limiting ✅ Complete (Phase 2)
-
-**Problem:** `Sudo_Session::record_failed_attempt()` (`class-sudo-session.php:719`) uses `sleep()` for progressive delays (2s at attempt 4, 5s at attempt 5). Under concurrent abuse, this blocks PHP-FPM workers and reduces site throughput. The read-modify-write integer counter also has a TOCTOU race window.
-
-**Fix:** Replace `sleep()` with non-blocking time-based throttling. Use a model that narrows race susceptibility without blocking workers. Preserve existing hook contracts (`wp_sudo_reauth_failed`, `wp_sudo_lockout`).
-
-**Tests:** Unit tests for threshold and lockout windows. Integration tests for repeated failures and lockout expiration.
-
-### P2: Rule-Schema Validation ✅ Complete (Phase 3)
-
-**Problem:** `Action_Registry::get_rules()` returns the output of `wp_sudo_gated_actions` filter without schema validation. Malformed rules from third-party code could cause silent matching failures. (Note: `safe_preg_match()` already guards against regex crashes, so this is a reliability issue, not a crash risk.)
-
-**Fix (shipped):** Added filtered-rule normalization/validation in `Action_Registry::get_rules()`. Invalid rules are dropped fail-closed per rule (required scalar metadata + array-or-null surfaces), and non-array filter payloads fall back to built-in rules. Filter contract and cache behavior are preserved.
-
-**Tests:** Unit coverage for valid/invalid/mixed filtered rule sets and built-in matching resilience with malformed custom rules. Integration coverage added for mixed valid/invalid custom rules, malformed surface shapes, and non-array payload fallback behavior.
-
-### P2: MU Loader Path Resilience ✅ Complete (Phase 3)
-
-**Problem:** `mu-plugin/wp-sudo-loader.php:22` hardcodes `'wp-sudo/wp-sudo.php'` as the plugin basename. The loader fails silently in non-standard directory layouts.
-
-**Fix (shipped):** Hardened basename/path detection in `mu-plugin/wp-sudo-loader.php` using configured basename, loader-derived basename, and canonical fallback strategies. Added explicit unresolved-path diagnostic action (`wp_sudo_mu_loader_unresolved_plugin_path`). Canonical installs remain unchanged.
-
-**Tests:** Unit coverage for basename fallback construction, non-canonical active-slug recognition, inert behavior when inactive, and unresolved-path diagnostics.
-
-**Related (shipped):** MU-plugin install UX now detects `is_writable()` on the mu-plugins directory. When the directory is not writable (common on managed hosts), the Install button is hidden and manual copy instructions are shown expanded instead.
-
-### P3: WPGraphQL Persisted-Query Strategy ✅ Complete (Phase 4)
-
-**Problem:** Mutation detection in Limited mode (`class-gate.php:919`) uses `str_contains($body, 'mutation')`. Persisted queries send only a query ID, not the operation text, so mutations sent via the Persisted Queries extension bypass detection.
-
-**Fix (shipped):** Added classifier hook `wp_sudo_wpgraphql_classification` so persisted-query environments can explicitly classify request bodies as `mutation`/`query`. Unknown classifier output falls back to legacy heuristic behavior.
-
-**Tests:** Unit coverage for classifier mutation/query/unknown fallback behavior and bypass precedence. Integration assertions added for persisted-query mutation block and query pass-through flows.
-
-### P3: WSAL Sensor Extension ✅ Complete (Phase 4)
-
-**Problem:** Audit hooks exist but have no integration with enterprise logging tools.
-
-**Fix (shipped):** Added optional bridge `bridges/wp-sudo-wsal-sensor.php` mapping WP Sudo audit hooks into structured WSAL events. The bridge remains inert when WSAL APIs are unavailable. Stream parity also shipped later via `bridges/wp-sudo-stream-bridge.php`; see `docs/current-metrics.md` / `docs/developer-reference.md` for the current audit-hook total.
-
-**Tests:** Unit tests for WSAL presence/absence behavior, listener registration, payload mapping, and pass-through hook contract safety.
-
-### Explicit Deferrals
-
-| Feature | Reason |
-|---------|--------|
-| Modal challenge rewrite | Design-heavy; no security improvement over current stash-challenge-replay flow. |
-| Per-session/device sudo isolation | Valuable but requires larger architectural change; not a hardening item. |
-| `enforce_editor_unfiltered_html()` optimization | Negligible overhead (cached role lookup); relocating to `admin_init` introduces a detection gap on frontend requests. |
-| REST early-exit optimization | No measured bottleneck at 29 rules; worth revisiting if rule count grows significantly. |
-
----
-
-## Appendix A: Accessibility Roadmap
-
-> **Status: Complete.** Initial audit items resolved in v2.2.0–v2.3.1. Follow-up
-> audit items (v2.4.0–v2.10.0 UI additions) resolved in v2.10.1.
-
-### Initial audit (v2.2.0–v2.3.1)
-
-All Critical, High, Medium, and Low severity items from the WCAG 2.1 AA audit and
-WCAG 2.2 AA follow-up audit have been addressed:
-
-- **Escape key guard (WCAG 3.2.2):** `aria-live` announcement with 600 ms delay
-  before navigating away from the challenge page.
-- **Step-change announcement (WCAG 4.1.3):** Password → 2FA transition announced
-  via `wp.a11y.speak()`.
-- **Settings label-input association (WCAG 1.3.1):** All `add_settings_field()`
-  calls include `label_for` matching the rendered input `id`.
-- **Replay status message (WCAG 4.1.3):** Visible "Replaying your action..." message
-  and `wp.a11y.speak()` announcement before form submission.
-- **Localized JavaScript strings (i18n):** All user-facing strings passed through
-  `wp_localize_script()`.
-- **Session expiry handling (WCAG 2.2.1):** "Start over" button replaces automatic
-  reload.
-- **Reduced motion preferences:** `@media (prefers-reduced-motion: reduce)` rules
-  in both CSS files.
-- **Focus-visible outlines:** `:focus-visible` outlines with proper offset.
-- **Gated actions table semantics:** Native table semantics with `<caption>` element
-  (replaced `role="presentation"` in v2.2.0).
-- **Disabled link contrast:** Changed to `#787c82` (4.6:1 ratio, WCAG AA).
-- **Admin notice ARIA roles:** `role="alert"` on blocked-action notice,
-  `role="status"` on gate notice.
-- **MU-plugin message area:** `role="status"` and `aria-live="polite"`.
-- **Admin bar countdown cleanup:** `pagehide` listener clears interval, prevents
-  bfcache issues.
-- **Settings default value documentation (WCAG 3.3.5):** Inline `<p class="description">`
-  text on all fields.
-- **Lockout countdown SR throttling (WCAG 4.1.3):** `aria-live="off"` with
-  30-second and 10-second `announce()` intervals.
-
-### Follow-up audit (v2.4.0–v2.10.0 additions, fixed v2.11.0)
-
-Three accessibility gaps found in UI added after v2.3.1:
-
-- **Per-app-password policy SR feedback (WCAG 4.1.3):** Save success/error was
-  visual-only (outline color). Added `wp.a11y.speak()` announcements for save
-  confirmation and error states. Added `wp-a11y` as script dependency.
-- **Disabled action button semantics (WCAG 4.1.2):** `aria-disabled="true"` on
-  `<a>` elements (theme/plugin pages) without `role="button"` — screen readers
-  may not announce disabled state on native links. Added `role="button"` to
-  disabled `<a>` elements.
-- **MU-plugin message `aria-atomic` (WCAG 4.1.3):** `role="status"` +
-  `aria-live="polite"` message element was missing `aria-atomic="true"`, so
-  content replacements may only announce changed text nodes. Added attribute.
-
-Also fixed in this pass:
-
-- **Admin bar countdown 0:01 stall (WCAG 4.1.3):** Timer label never updated to
-  `0:00` on session expiry — last visible value was `0:01` during reload latency.
-  Fixed: label updates to `0:00`, interval cleared, expiry announced before reload.

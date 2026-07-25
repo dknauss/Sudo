@@ -13,6 +13,7 @@ Use these current docs first:
 
 Archived files:
 
+- [accessibility-audit.md](accessibility-audit.md) — completed WCAG 2.1/2.2 AA audit record (was ROADMAP Appendix A).
 - [execution-plan-v3.1-v3.3.md](execution-plan-v3.1-v3.3.md) — historical security/governance execution record.
 - [internal-admin-governance-spec.md](internal-admin-governance-spec.md) — implemented governance design spec.
 - [phase3-stash-minimization-spec.md](phase3-stash-minimization-spec.md) — implemented Phase 3 request-stash minimization record.
