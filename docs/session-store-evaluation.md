@@ -366,7 +366,7 @@ Mitigations short of Option 1:
 What breaks at this tier:
 
 - Gate-path reads on user meta are fundamentally per-request × per-user-meta-row-hydrate. Even with object cache, cold-cache reconstructions on eviction become visible as p99 latency spikes.
-- Network-admin aggregation (roadmap §11.1) cannot be built from transient caches. A super-admin dashboard querying sudo state across every subsite's user set requires a single indexed query, not a fan-out over N usermeta scans.
+- Network-admin aggregation (the network dashboard widget, [#243](https://github.com/dknauss/Sudo/issues/243)) cannot be built from transient caches. A super-admin dashboard querying sudo state across every subsite's user set requires a single indexed query, not a fan-out over N usermeta scans.
 - At 100 M+ event rows, prune durations grow; retention policy may need tightening or partitioning.
 
 At this point `docs/session-store-evaluation.md` Option 1 (authoritative session table + usermeta shadow) stops being "the right long-term direction" and becomes load-bearing. Schema shape for that phase is sketched under "Required Code Touchpoints for a Future Session-Table Phase" below and in Option 1's Candidate schema section above. Indexing targets:

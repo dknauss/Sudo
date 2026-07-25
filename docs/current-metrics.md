@@ -93,7 +93,7 @@ value across these known consumers:
 - `docs/ui-ux-testing-prompts.md` — settings page field count
 - `docs/developer-reference.md` — hook signatures, audit hooks
 - `tests/MANUAL-TESTING.md` — gated rules count
-- `docs/ROADMAP.md` — unit test coverage notes
+- `docs/testing-strategy.md` — test-suite / coverage notes
 
 ## CI Matrix Snapshot
 
