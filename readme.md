@@ -235,6 +235,13 @@ composer analyse
 
 For full setup, integration tests, E2E workflows, and contributor expectations, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## Acknowledgements
+
+Sudo's core design owes a debt to two people:
+
+- **John Blackbourn**, for the action-gating concept — that consequential operations should require a fresh proof of intent, regardless of role. It is the single biggest conceptual contribution to the project.
+- **Tim Nash**, for the idea of locking down roles and permissions, which shaped Sudo's opt-in admin-escalation guard and its opt-in role/capability lockdown audit.
+
 ## License
 
 GPL-2.0-or-later.
