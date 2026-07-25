@@ -92,60 +92,16 @@ print(len(hooks))
 PY
 )"
 
-# Persistent options — DISCOVER the option names the plugin actually writes rather
-# than counting a hardcoded list (which would be self-confirming, the very defect this
-# closes). Scans the full production tree for write-API first arguments
-# (update_option / add_option / update_site_option / add_site_option), resolves
-# Class::CONST / self::CONST to their string values, keeps wp_sudo_* names, and fails
-# closed on any unresolvable constant or network-option write (whose option name is a
-# different argument). The discovered SET is compared to the expected set below, so an
-# added or removed option cannot pass silently at an unchanged count.
-ACTUAL_OPTIONS="$(cd "$REPO_ROOT" && python3 - <<'PY'
-import pathlib, re, sys
-
-prod_files = []
-for p in ('wp-sudo.php', 'uninstall.php'):
-    fp = pathlib.Path(p)
-    if fp.exists():
-        prod_files.append(fp)
-for d in ('includes', 'mu-plugin', 'bridges'):
-    prod_files += sorted(pathlib.Path(d).rglob('*.php'))
-
-texts = {f: f.read_text() for f in prod_files}
-
-const_map = {}
-for t in texts.values():
-    for m in re.finditer(r"const\s+([A-Z0-9_]+)\s*=\s*'([^']*)'\s*;", t):
-        const_map.setdefault(m.group(1), m.group(2))
-
-for f, t in texts.items():
-    if re.search(r"\b(?:update|add)_network_option\s*\(", t):
-        sys.stderr.write("verify-metrics: network-option write in %s; option name is arg 2 there, so this gate needs extending.\n" % f)
-        sys.exit(3)
-
-names = set()
-write_re = re.compile(r"\b(?:update|add)_(?:option|site_option)\s*\(\s*([^,]+?)\s*,")
-for f, t in texts.items():
-    for m in write_re.finditer(t):
-        arg = m.group(1).strip()
-        lit = re.match(r"^'([^']*)'$", arg)
-        if lit:
-            names.add(lit.group(1))
-            continue
-        cst = re.match(r"^(?:self|static|[A-Za-z_][A-Za-z0-9_]*)::([A-Z0-9_]+)$", arg)
-        if cst:
-            key = cst.group(1)
-            if key not in const_map:
-                sys.stderr.write("verify-metrics: unresolved option constant %s in %s\n" % (arg, f))
-                sys.exit(3)
-            names.add(const_map[key])
-            continue
-        sys.stderr.write("verify-metrics: unresolvable option-name argument '%s' in %s\n" % (arg, f))
-        sys.exit(3)
-
-print(' '.join(sorted(n for n in names if n.startswith('wp_sudo_'))))
-PY
-)"
+# Persistent options — discover the option names the plugin writes using the
+# tokenizer-based, unit-tested scanner (bin/scan-persistent-options.php;
+# tests/Unit/PersistentOptionScannerTest.php), then assert the SET below — not just a
+# count — so an added or removed option cannot pass silently. The scanner resolves
+# class constants CLASS-SCOPED and fails closed (exit 3) on anything it cannot resolve
+# to a string literal or on a network-option write; set -e turns that exit into a hard
+# gate failure carrying the scanner's message.
+ACTUAL_OPTIONS="$(php "$REPO_ROOT/bin/scan-persistent-options.php" \
+	"$REPO_ROOT/wp-sudo.php" "$REPO_ROOT/uninstall.php" \
+	"$REPO_ROOT/includes" "$REPO_ROOT/mu-plugin" "$REPO_ROOT/bridges")"
 # Expected live-option name set (the contract). Update this AND the "Persistent
 # options" row in docs/current-metrics.md together when the plugin's persisted
 # options genuinely change.
