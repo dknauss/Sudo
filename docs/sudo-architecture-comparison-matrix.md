@@ -55,12 +55,102 @@ Source review date: **July 25, 2026** (Fortress characterization re-verified aga
 - The proposed switch-only design can improve least-privilege posture but introduces concentrated identity and recovery risks that must be treated as first-class security concerns.
 - In practice, architecture choice is a tradeoff between stricter privilege minimization and operational/audit complexity.
 
+## Design-Borrowing Assessment: Fortress Session & Sudo Patterns
+
+*Added July 25, 2026. Sources: Fortress **public docs only** (session module) on the
+raw GitHub `beta` branch; WP Sudo [`class-sudo-session.php`](../includes/class-sudo-session.php)
+and [`class-gate.php`](../includes/class-gate.php). Fortress's implementation code ships
+from a separate license-gated `fortress-dist` repo and was **not** read — every
+Fortress-side mechanism below is from their documentation, and reasoned gaps are marked
+`Inference:`.*
+
+**Licensing constraint (read before reusing anything here).** Fortress is proprietary
+**source-available** under a Snicco Media EULA, **not** open source. `LICENSE.txt` §3.1–3.2
+prohibits reverse-engineering, reconstructing their source/algorithms, publishing
+benchmarks, and building a competing product with similar functionality using their
+binary. Only *design patterns* (ideas) are borrowed here; no Fortress code or doc text is
+copied, and nothing below depends on reading their source. Keep any future notes at the
+pattern level and cite their public docs.
+
+### Threat framing: Fortress hardens the *session*; WP Sudo hardens the *action*
+
+The two are not competing takes on one threat — they defend **different kill-chain steps**
+(see [security-model.md](security-model.md#threat-model-the-kill-chain)). WP Sudo targets
+the step 2→3 transition (valid session → escalate/persist/impact). Fortress's *session
+module* targets step 2 itself — shrinking how long a stolen session is useful — plus a
+step-up gate on sensitive capabilities. They overlap only at "sudo mode / step-up," and
+even there the mechanism differs (cap-strip-until-sudo vs. challenge-on-action).
+
+| Threat | Fortress (session module) | WP Sudo | Stronger |
+|---|---|---|---|
+| Stolen **auth** cookie, no active sudo window (or auth cookie captured *without* the sudo cookie) → **sensitive** action | Cap-strip forces password re-entry once sudo lapses | Reauth at the action — password, **plus 2FA only when the user has it configured** (`needs_two_factor()` defaults false); sudo cookie bound to login session. *Caveat: if the attacker also captures the sudo cookie **during** an active window — notably the post-login auto-grant — the action is not re-challenged; that is a documented residual risk in [security-model.md](security-model.md#what-it-does-not-protect-against).* | Tie — WP Sudo adds 2FA browser-binding + reauth rate-limiting |
+| Stolen cookie → **non-sensitive** damage window | Rotation (20 min) + idle (30 min) + absolute timeouts shrink the whole window | Out of scope — relies on WP core auth expiry | **Fortress** (owns the session store) |
+| Session fixation / rotate-on-privilege-change | Yes (owns the store) | No | **Fortress** |
+| Programmatic surfaces (CLI/Cron/XML-RPC/App-Pass/GraphQL) | App-passwords = blunt global on/off; XML-RPC & non-`fort` CLI gating **undocumented**; cap-strip only catches paths that call `current_user_can()` | Explicit three-tier policy per surface + effect backstops + per-app-password overrides | **WP Sudo** |
+| Reauth brute-force | Not documented in the session module | Per-user + per-(IP,user) progressive lockout | **WP Sudo** |
+| Password-change session revocation | **Not documented** (relies on WP core) | Hooks `after_password_reset` / `profile_update` | **WP Sudo** |
+| Priv-esc via a **broken-access-control** path that skips the cap check | Cap-strip **can't help** — nothing to strip if the path never checks the cap | Opt-in escalation guard hooks the *effect* (`{prefix}capabilities` write, `grant_super_admin`), firing even when the vulnerable code's own cap check failed | **WP Sudo** (opt-in/default-OFF; own `$wpdb`/`user_has_cap` blind spots) |
+
+**"Does Fortress defend *more* threats?"** As a *product*, yes — but that is apples-to-oranges:
+Fortress is a multi-module suite (login hardening, 2FA, etc. — step 1 of the chain), WP Sudo
+is a focused step 2→3 gate. Comparing the *session/sudo modules specifically*: Fortress covers
+continuous session-theft-window reduction that WP Sudo structurally does not; WP Sudo covers
+multi-surface reach, reauth-throttling, password-change revocation, and BAC-path escalation that
+Fortress's session module does not. The one real Fortress advantage (rotation/idle) is **out of
+WP Sudo's scope by design** — WP Sudo "is not a session system" — so it is a *complementary tool*,
+not a gap to fill.
+
+### Borrow / skip / already-tracked / recommend-against
+
+| Fortress pattern | Verdict | Rationale |
+|---|---|---|
+| **Per-token session rows** in a custom table (via `session_token_manager` drop-in) | **Already tracked** | This is the enabling primitive for independent rotation/idle/expiry. WP Sudo's own [ROADMAP](ROADMAP.md) "Next" item (session-store architecture) and "Later" per-session/device isolation already cover it; Fortress **validates** that direction. Not a new action item. |
+| **Four orthogonal timeouts** (absolute/rotation/idle/sudo) | **Mostly skip** | Rotation/idle matter for 12–24 h login sessions, not a ≤15-min sudo window. WP Sudo's absolute duration + 120 s grace is the right shape for step-up. |
+| ↳ **Per-capability / per-action timeout tiering** | **Borrow (new roadmap item)** | A shorter sudo TTL for `user.delete` than for `plugin.activate` maps to WP Sudo's *per-rule* model (it is role-agnostic, so per-rule fits better than per-cap). Real but small; logged to ROADMAP → Later, not scheduled. |
+| **`toggle-sudo` operator CLI command** | **Low-value borrow** | An operator `wp sudo activate <user>` is cheap, but must be a real operator command, **not** a test-only shim (CLAUDE.md forbids test shims in production). |
+| **"ajax-like request" heuristic** (Accept/X-Requested-With/admin-ajax/wp-json) | **Already better** | `Gate::is_rest_cookie_auth()` (nonce + app-password classification, incl. the both-present→headless C2 fix) is more precise than a header sniff. |
+| **No IP/UA/device binding** (`Inference:` from complete-doc absence) | **Convergent (tentative)** | Fortress's public docs argue against IP/UA binding and rely on rotation instead — but `Inference:` doc silence establishes neither the runtime behavior nor the design intent of the license-gated code, so treat "Fortress does not bind" as a documented stance, not confirmed behavior. WP Sudo independently avoids IP/UA binding too, binding to the login-session token instead. The convergence is suggestive, not a verified validation of WP Sudo's call. |
+| **Capability-stripping as the surface-agnostic backstop** | **Recommend against** (see below) | Conflicts with WP Sudo's challenge-on-action UX and is *weaker* than the existing effect-hook guard for the escalation threat. |
+
+### Recommended against: a capability-stripping backstop
+
+Fortress's actual security boundary is cap-stripping — filtering ~38 protected capabilities out
+of a user's session at runtime (`Inference:` almost certainly the `user_has_cap`/`map_meta_cap`
+filters; the exact hook is **not** named in their docs) whenever sudo has lapsed. They explicitly
+separate this from path-matching, which their docs call *UX only*. That separation **validates**
+WP Sudo's own split between challenge/redirect and hard effect-backstops. Adopting the cap-strip
+mechanism itself, however, is the wrong move for WP Sudo, for two independent reasons:
+
+1. **It is weaker than the effect-hook guard for the escalation threat.** Cap-stripping reinforces
+   authorization but cannot catch a path that *skipped* the cap check — exactly the broken-access-control
+   shape WP Sudo's escalation guard is built to stop by hooking the **effect** (`{prefix}capabilities`
+   write, `grant_super_admin`). This is already recorded as escalation-guard blind-spot #1 in
+   [ROADMAP.md](ROADMAP.md) ("a capability-based check … carries a high false-positive cost … needs a
+   design before any attempt"); the Fortress comparison confirms that assessment rather than reopening it.
+2. **It forces a "can't-see-until-sudo" UX WP Sudo deliberately rejected.** A runtime cap strip fires on
+   *render-time* checks too (e.g. `current_user_can('activate_plugins')` used to decide whether to draw a
+   page), so a non-sudo user cannot even see the admin surface. WP Sudo's chosen model is see-the-page,
+   challenge-on-action, and its effect-hook set is intentionally narrow (true destructive effects only) so
+   it never trips render-time checks — a better fit for that UX, and it also mirrors the inverse of the
+   capability-*escalation* model WP Sudo abandoned in v2.
+
+If a cap-layer backstop is ever revisited, it should be an **opt-in "hardened mode,"** not a default, and
+only after the false-positive design work noted in the ROADMAP blind-spot item.
+
+### Verification caveats
+
+- Fortress's implementation source is **license-gated and unread**; all Fortress mechanisms above are from
+  their public `beta`-branch docs.
+- `Inference:`-marked items (no IP/UA binding; the exact cap-strip hook; absence of password-change
+  revocation and explicit XML-RPC/non-`fort` CLI gating) are reasoned from complete-doc absence, not from an
+  explicit Fortress statement or code.
+
 ## Assumptions and Limits
 
 - This is a comparative analysis, not an implementation guide.
 - Proposed model analysis is conceptual and intentionally avoids runbook-level details.
 - Statements marked `Inference:` are reasoned conclusions where source documents do not specify exact behavior.
-- Findings are constrained to the referenced documents and code paths, reviewed on the dates noted: the WP Sudo and proposed-model characterizations from the **March 3, 2026** baseline review; the **Fortress** characterization and its four added sources (installation, configuration reference, license, GridPane KB) from the **July 25, 2026** re-verification. Fortress's runtime source is license-gated and not public, so its characterization is scoped to those public docs/license/KB, not to reading the enforcement code.
+- Findings are constrained to the referenced documents and code paths, reviewed on the dates noted: the WP Sudo and proposed-model characterizations from the **March 3, 2026** baseline review; the **Fortress** characterization, its four added sources (installation, configuration reference, license, GridPane KB), and the session/sudo-module design-borrowing assessment from the **July 25, 2026** re-verification. Fortress's runtime source is license-gated and not public, so its characterization is scoped to those public docs/license/KB, not to reading the enforcement code.
 
 ## References
 
@@ -70,12 +160,13 @@ Source review date: **July 25, 2026** (Fortress characterization re-verified aga
   - [`includes/class-gate.php`](../includes/class-gate.php)
   - [`includes/class-sudo-session.php`](../includes/class-sudo-session.php)
   - [`includes/class-plugin.php`](../includes/class-plugin.php)
-- Fortress references:
+- Fortress references (public docs, license, and KB; implementation source is license-gated and not read):
   - [The Fortress sudo mode](https://raw.githubusercontent.com/snicco/fortress/beta/docs/modules/session/sudo-mode.md)
   - [Session management and security](https://raw.githubusercontent.com/snicco/fortress/beta/docs/modules/session/session-managment-and-security.md)
+  - [Custom session storage — per-token rows via the session_token_manager drop-in](https://raw.githubusercontent.com/snicco/fortress/beta/docs/modules/session/custom-session-storage.md)
   - [Installation — must-use loader + server integration](https://raw.githubusercontent.com/snicco/fortress/beta/docs/getting-started/02_installation.md)
   - [Configuration reference — timeout defaults, protected caps/pages](https://raw.githubusercontent.com/snicco/fortress/beta/docs/configuration/02_configuration_reference.md)
-  - [License — proprietary EULA (Snicco Media)](https://raw.githubusercontent.com/snicco/fortress/beta/LICENSE.txt)
+  - [License — proprietary EULA (Snicco Media); §3.1–3.2 bar reverse-engineering and competitive use](https://raw.githubusercontent.com/snicco/fortress/beta/LICENSE.txt)
   - [GridPane — Fortress installed as a must-use plugin](https://gridpane.com/kb/fortress-security-part-2-quick-start-configuration-guide/)
 - User Switching reference:
   - [User Switching (WordPress.org plugin documentation)](https://wordpress.org/plugins/user-switching/)

@@ -32,7 +32,11 @@ the full backlog is in the [issues](https://github.com/dknauss/Sudo/issues), lab
   `Sudo_Session::deactivate()`.
 - **Session-store architecture** — evaluate and likely implement a dedicated
   sudo-session table (authoritative table + usermeta shadow writes). Design:
-  [`session-store-evaluation.md`](session-store-evaluation.md).
+  [`session-store-evaluation.md`](session-store-evaluation.md). Snicco Fortress's
+  per-token session-row model (one row per token via the `session_token_manager`
+  drop-in) independently validates this direction — see the design-borrowing
+  assessment in
+  [`sudo-architecture-comparison-matrix.md`](sudo-architecture-comparison-matrix.md#design-borrowing-assessment-fortress-session--sudo-patterns).
 - **Sudo Activity screen + export surface** — a dedicated list-table Activity admin
   screen (search, sortable columns, CSV export with capability + nonce checks) that
   gives the reserved `export_wp_sudo_activity` capability a UI surface. Keep it lean
@@ -58,6 +62,14 @@ the full backlog is in the [issues](https://github.com/dknauss/Sudo/issues), lab
 - **REST sudo-grant endpoint** (`POST /wp/v2/sudo`) for headless clients.
 - **Per-session / device sudo isolation** via `WP_Session_Tokens` — deferred:
   architectural, not a hardening item.
+- **Per-rule / per-action sudo TTL** — a shorter sudo window for the highest-risk
+  rules (e.g. `user.delete`, `options.critical`) than for routine ones (e.g.
+  `plugin.activate`), instead of one global `session_duration`. Borrowed (adapted to
+  WP Sudo's per-rule, role-agnostic model) from Fortress's per-capability timeout
+  tiering; see the design-borrowing assessment in
+  [`sudo-architecture-comparison-matrix.md`](sudo-architecture-comparison-matrix.md#design-borrowing-assessment-fortress-session--sudo-patterns).
+  Small, unscheduled; needs a design pass on how a per-rule TTL interacts with an
+  already-active broader window before any implementation.
 - **SSO / SAML / OIDC provider framework** — a provider interface parallel to the 2FA hooks.
 - **Third-party bridge discovery mode** — a report-only scanner for plugin
   AJAX / admin-post / REST entry points (not a generic hook firewall).
