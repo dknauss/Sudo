@@ -227,16 +227,18 @@ As of 2026-03-23, the practical testing picture is:
 - environment coverage is intentionally selective rather than exhaustive
 
 Specifically, the repo now has:
-- unit CI on PHP `8.0`–`8.4`
-- integration CI on PHP `8.0`/`8.1`/`8.3`
+- unit CI on PHP `8.2`–`8.4`
+- integration CI on PHP `8.2`/`8.3`
 - automated WordPress lanes for `6.4`, `6.7`, and `7.0`
-- a scheduled WordPress `6.3`–`6.6` compatibility sweep
+- a scheduled WordPress `6.4`–`6.6` compatibility sweep
 - one MariaDB integration lane in addition to the main MySQL `8.0` matrix, plus WordPress `6.4` and `6.5` MariaDB overlap lanes in the scheduled sweep
 - Playwright E2E on Apache + MariaDB via `wp-env`
 - Playwright stack-smoke coverage on explicit nginx + php-fpm + MariaDB
 - Playwright stack-smoke coverage on explicit nginx + php-fpm + MariaDB multisite
 - Playwright stack-smoke coverage on Playground SQLite
 - local/manual SQLite verification documented for Studio in [`docs/studio-sqlite-release-runbook.md`](studio-sqlite-release-runbook.md)
+
+The canonical, gate-verified CI matrix lives in [`current-metrics.md`](current-metrics.md) (CI Matrix Snapshot); prefer it over this prose list, which is a narrative summary.
 
 Still missing from automation:
 - broader MariaDB and legacy-MySQL breadth

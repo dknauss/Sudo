@@ -6,7 +6,7 @@
 
 ## WordPress 7.0 Prep
 
-> **Status: Complete.** WP 7.0 GA shipped May 20, 2026. All RC and final signoffs are recorded in `tests/MANUAL-TESTING.md`. `Tested up to: 7.0` ships in v3.3.0. The `rewrite_role_error()` / `render_role_error_notice()` workaround (Trac #64690) removed in v3.4.0. The Connectors registry-aware matcher remains as follow-up work.
+> **Status: Complete.** WP 7.0 GA shipped May 20, 2026. All RC and final signoffs are recorded in `tests/MANUAL-TESTING.md`. `Tested up to: 7.0` ships in v3.3.0. The `rewrite_role_error()` / `render_role_error_notice()` workaround (Trac #64690) removed in v3.4.0. The Connectors registry-aware matcher **shipped in v4.1.0** (`Action_Registry::is_connector_api_key_setting_name()` reads and caches `wp_get_connectors()` — see the CHANGELOG); the "open security gap" section below is retained only as the historical problem statement.
 
 ### Verified changes that affect WP Sudo
 
@@ -16,9 +16,9 @@
 | **Always-iframed post editor** | All blocks render in iframe. WP Sudo's admin UI gating does not touch the block editor — it intercepts `admin_init` actions, not editor saves. | **Low risk.** Verify the challenge page CSS still works inside the admin chrome. |
 | **Admin visual refresh** (DataViews, design tokens, Trac #64308) | Settings → Sudo page uses standard `settings_fields()` / `do_settings_sections()`. If WP 7.0 reskins these, our page gets the new look for free. | ✅ Completed against WP 7.0 pre-release and GA builds; continue ordinary visual checks before future compatibility bumps. |
 | **Fragment Notes + @ mentions** | Extends 6.9 Notes (block-level comments). No auth surface — notes are post meta. | No impact on WP Sudo. |
-| **Abilities API expansion** | New REST surface for AI agents. 3 read-only core abilities in WP 7.0. Abilities use `permission_callback` (typically `current_user_can()`). Not gated by WP Sudo. | **No action for 7.0.** Existing REST surface interception already covers `/wp-abilities/v1/` routes. When destructive abilities appear (`DELETE` on `/run`), add a REST rule to `Action_Registry`. See [`docs/abilities-api-assessment.md`](abilities-api-assessment.md). |
+| **Abilities API expansion** | New REST surface for AI agents. 3 read-only core abilities in WP 7.0. Abilities use `permission_callback` (typically `current_user_can()`). Not gated by WP Sudo. | **No action for 7.0.** Existing REST surface interception already covers `/wp-abilities/v1/` routes. When destructive abilities appear (`DELETE` on `/run`), add a REST rule to `Action_Registry`. See [`docs/abilities-api-assessment.md`](../abilities-api-assessment.md). |
 | **WP AI Client merge proposal** | Provider-agnostic AI API. Includes REST/JS layer. | No immediate impact. If merged, AI model calls routed through REST are covered by existing Gate. Monitor. |
-| **WordPress MCP Adapter** | Translates Abilities into MCP tools for AI agents (Claude, Cursor, etc.). Calls abilities through the same REST endpoints. | **No new surface.** MCP Adapter is a REST consumer — covered by existing `Gate::intercept_rest()`. Same gating strategy as Abilities API. See [`docs/abilities-api-assessment.md`](abilities-api-assessment.md). |
+| **WordPress MCP Adapter** | Translates Abilities into MCP tools for AI agents (Claude, Cursor, etc.). Calls abilities through the same REST endpoints. | **No new surface.** MCP Adapter is a REST consumer — covered by existing `Gate::intercept_rest()`. Same gating strategy as Abilities API. See [`docs/abilities-api-assessment.md`](../abilities-api-assessment.md). |
 | **Viewport-based block visibility** | Editor-only. No auth surface. | No impact. |
 | **Trac #64690 — Bulk role-change error message** ([ticket](https://core.trac.wordpress.org/ticket/64690)) | ✅ Core shipped the fix in WP 7.0 GA. `rewrite_role_error()` and `render_role_error_notice()` removed in v3.4.0; corresponding unit tests deleted. | Done. |
 
@@ -33,7 +33,10 @@
 7. ~~**Update version references when WordPress 7.0 final ships**~~ ✅ Done in v3.3.0 — `Tested up to: 7.0` in `readme.txt`.
 8. ~~**Remove `handle_err_admin_role()` workaround**~~ — done (v3.4.0); `rewrite_role_error()` and `render_role_error_notice()` removed after Trac #64690 confirmed in WP 7.0 GA.
 
-### Connectors registry-aware matcher (open — security coverage gap)
+### Connectors registry-aware matcher (✅ shipped in v4.1.0 — historical problem statement)
+
+> This was the open problem when WP 7.0 landed; the fix shipped in v4.1.0 (two-tier
+> matcher: `wp_get_connectors()` registry first, regex fallback). Kept as history.
 
 **Problem (verified against core trunk):** the `connectors.update_credentials` rule
 identifies connector-secret writes to `/wp/v2/settings` by a **name convention** —
@@ -88,7 +91,7 @@ execution path via `WP_Ability::execute()`, but that remains a monitor-only conc
 now rather than justification for a new surface type.
 
 For full analysis, trigger conditions, and example rules, see
-[`docs/abilities-api-assessment.md`](abilities-api-assessment.md).
+[`docs/abilities-api-assessment.md`](../abilities-api-assessment.md).
 
 ---
 

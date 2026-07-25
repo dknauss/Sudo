@@ -30,7 +30,8 @@ cross-user state. So:
    is completely unaffected — they're on a different admin page.
 
 2. **Both users are in the post editor, User A triggers sudo from the admin bar
-   shortcut (Ctrl+Shift+S).** User A sees the challenge modal. User B sees nothing.
+   shortcut (Ctrl+Shift+S).** User A is navigated to the full-page challenge (the
+   admin-bar shortcut sets `window.location.href`; it does not open a modal). User B sees nothing.
    Sudo session tokens are bound to User A's user meta and browser cookie. No
    cross-user interference.
 
