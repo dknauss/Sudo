@@ -3,16 +3,16 @@
 **Status:** Draft engineering spec, not adopted by WordPress core.
 **Drafted:** July 2026
 **Companion to:** [`core-action-gate-proposal.md`](core-action-gate-proposal.md) (the *why* and phasing). This document is the *what to change in core*.
-**Relates to:** Core Trac [#20140](https://core.trac.wordpress.org/ticket/20140), [#37593](https://core.trac.wordpress.org/ticket/37593), [#39174](https://core.trac.wordpress.org/ticket/39174).
+**Relates to:** Core Trac [#20140](https://core.trac.wordpress.org/ticket/20140), [#37593](https://core.trac.wordpress.org/ticket/37593), [#39174](https://core.trac.wordpress.org/ticket/39174), [#16470](https://core.trac.wordpress.org/ticket/16470) (single-site email-change confirmation, fixed in 4.9 — the `send_confirmation_on_profile_email()` flow §4.1 must accommodate).
 **Prior art:** WP Sudo 4.8.0 — `includes/class-gate.php`, `class-sudo-session.php`, `class-action-registry.php`, `class-request-stash.php`, `class-challenge.php`.
 
 ---
 
 ## 1. Goal and non-goals
 
-**Goal.** Give WordPress core a built-in way to require *fresh proof of human intent from the actor* before a small set of consequential operations proceed — regardless of which role the actor holds or which surface the request enters through. The concrete target is the failure mode behind #20140 and the broader class of incidents dominating recent WordPress security reports: **an authenticated-but-illegitimate session** (stolen cookie, walked-away device, XSS in an admin origin, a hijacked or maliciously-created Editor/Admin) performing account changes and privilege escalation.
+**Goal.** Give WordPress core a built-in way to require *fresh proof of human intent from the actor* before a small set of consequential operations proceed — regardless of which roles and capabilities the actor holds or which surface the request enters through. The concrete target is the failure mode behind #20140 and the broader class of incidents dominating recent WordPress security reports: **an authenticated-but-illegitimate session** (stolen cookie, walked-away device, XSS in an admin origin, a hijacked or maliciously-created Editor/Admin) performing account changes and privilege escalation. This is the most *exploited* vulnerability class, even though not the most disclosed: Patchstack's *State of WordPress Security 2026* reports **broken access control as the single most-exploited category** of the 11,334 vulnerabilities found in 2025 (up 42% year over year), and notes such exploits *"look like normal authenticated traffic with no obvious injection patterns"* — precisely why a proof-of-intent gate, not traffic inspection, is the right defense.
 
-The security boundary is **recent authentication of the actor**, not the target user's old password. That reframing is what lets an admin change another user's password without knowing it while still proving who is at the keyboard, and it unifies three cases that #20140 argued separately: changing your own password, changing another user's password/email, and promoting a user.
+The security boundary is **recent, deliberate authentication of the actor at the moment a consequential effect is about to occur** — not knowledge of the target's credentials, and not the actor's original login (which may be hours stale or hijacked). This unifies the cases #20140 argued separately — changing your own password, changing another user's password or email, promoting a user — but it generalizes past them to every catalog effect (plugin install, user deletion, and the rest). The proof is *point-in-time knowledge of the actor's own factor*, not continuous presence: it forces a fresh, loggable, deliberate step, so a stolen cookie or walked-away session cannot silently drive a consequential effect. It does not prove a human is still at the screen.
 
 **Non-goals** (kept deliberately out so this can land):
 
@@ -20,7 +20,8 @@ The security boundary is **recent authentication of the actor**, not the target 
 - Not a plugin sandbox or runtime isolation. It constrains *declared operations that pass through core chokepoints*; it cannot stop arbitrary code already running in-process. (See proposal §2.5, §4.5.)
 - Not a new login system or 2FA framework. It consumes existing authenticated identity and existing session infrastructure.
 - Not a WAF. It gates named operations; it does not inspect traffic.
-- Phase 1 targets **browser + cookie-authenticated REST**. Application Passwords, WP-CLI, cron, XML-RPC are explicitly deferred (§9).
+- Not an audit log, monitor, or SIEM. It **enforces** proof of intent at the chokepoint; it does not observe, correlate, or alert on events. Detection and logging are a separate concern — useful in a plugin, out of scope for core.
+- **Interactive surfaces first.** The first enforcement cut targets browser + cookie-authenticated REST; Application Passwords, WP-CLI, cron, and XML-RPC are explicitly deferred (§9).
 
 ---
 
