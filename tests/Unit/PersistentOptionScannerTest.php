@@ -148,6 +148,17 @@ final class PersistentOptionScannerTest extends TestCase {
 		$this->scan( array( 'a' => $a, 'b' => $b ) );
 	}
 
+	/** Hardening: PHP function names are case-insensitive, so a non-canonical case must still be discovered. */
+	public function test_case_insensitive_write_call_is_discovered(): void {
+		$this->assertSame( array( 'wp_sudo_ci' ), $this->scan( array( 'a' => "<?php UPDATE_OPTION( 'wp_sudo_ci', 1 );" ) ) );
+	}
+
+	/** Hardening: options persisted via the Settings API (register_setting, option name = arg 2) are discovered. */
+	public function test_register_setting_option_is_discovered(): void {
+		$src = "<?php class Admin { const OPTION_KEY = 'wp_sudo_settings'; function r() { register_setting( 'wp_sudo_group', self::OPTION_KEY ); } }";
+		$this->assertSame( array( 'wp_sudo_settings' ), $this->scan( array( 'admin' => $src ) ) );
+	}
+
 	public function test_scans_the_real_production_tree_to_exactly_the_three_live_options(): void {
 		$root  = dirname( __DIR__, 2 );
 		$files = array( $root . '/wp-sudo.php', $root . '/uninstall.php' );

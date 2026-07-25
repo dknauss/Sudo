@@ -32,7 +32,19 @@ namespace WP_Sudo\Dev;
 final class Persistent_Option_Scanner {
 
 	/** Write APIs whose first argument is the option name. */
-	private const WRITE_FUNCS = array( 'update_option', 'add_option', 'update_site_option', 'add_site_option' );
+	/**
+	 * Option-persisting functions mapped to the ZERO-BASED index of the argument
+	 * holding the option NAME. update_option/add_option (+ site variants) take it
+	 * first; register_setting() (Settings API, stored via options.php) takes it second.
+	 * Matched case-insensitively, since PHP function names are.
+	 */
+	private const OPTION_ARG_INDEX = array(
+		'update_option'      => 0,
+		'add_option'         => 0,
+		'update_site_option' => 0,
+		'add_site_option'    => 0,
+		'register_setting'   => 1,
+	);
 
 	/** Network write APIs whose option name is argument 2 (not parsed — fail closed). */
 	private const NETWORK_FUNCS = array( 'update_network_option', 'add_network_option' );
@@ -205,31 +217,38 @@ final class Persistent_Option_Scanner {
 				continue;
 			}
 
-			// Collect the first-argument tokens (up to the first top-level comma or the closing paren).
+			// Collect the call's top-level arguments (split at depth-1 commas), then take
+			// the one that holds the option name for this function (arg 0 for the write
+			// APIs, arg 1 for register_setting).
+			$args  = array();
+			$cur   = array();
 			$depth = 0;
-			$arg   = array();
 			for ( $j = $i + 1; $j < $count; $j++ ) {
 				$t = $sig[ $j ];
 				if ( null === $t[0] && '(' === $t[1] ) {
-					$depth++;
+					++$depth;
 					if ( 1 === $depth ) {
 						continue;
 					}
 				}
 				if ( null === $t[0] && ')' === $t[1] ) {
-					$depth--;
+					--$depth;
 					if ( 0 === $depth ) {
+						$args[] = $cur;
 						break;
 					}
 				}
 				if ( null === $t[0] && ',' === $t[1] && 1 === $depth ) {
-					break;
+					$args[] = $cur;
+					$cur    = array();
+					continue;
 				}
 				if ( $depth >= 1 ) {
-					$arg[] = $t;
+					$cur[] = $t;
 				}
 			}
-			$writes[] = array( 'kind' => 'arg', 'label' => $label, 'class' => $current_class, 'arg' => $arg );
+			$opt_index = self::OPTION_ARG_INDEX[ $func ];
+			$writes[]  = array( 'kind' => 'arg', 'label' => $label, 'class' => $current_class, 'arg' => $args[ $opt_index ] ?? array() );
 		}
 
 		return array( 'consts' => $consts, 'writes' => $writes );
@@ -247,7 +266,8 @@ final class Persistent_Option_Scanner {
 		} else {
 			return null;
 		}
-		return ( in_array( $name, self::WRITE_FUNCS, true ) || in_array( $name, self::NETWORK_FUNCS, true ) ) ? $name : null;
+		$name = strtolower( $name ); // PHP function names are case-insensitive.
+		return ( isset( self::OPTION_ARG_INDEX[ $name ] ) || in_array( $name, self::NETWORK_FUNCS, true ) ) ? $name : null;
 	}
 
 	/**
