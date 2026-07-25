@@ -2,17 +2,17 @@
 
 This file is the single source of truth for current repository counts.
 
-Last verified: 2026-07-24
+Last verified: 2026-07-25
 Verification environment: local workspace, PHP 8.x
 
 ## Test Metrics
 
 | Metric | Value | Verification |
 |---|---:|---|
-| Unit tests | 1,115 tests | `composer test:unit` |
-| Unit assertions | 3,343 assertions | `composer test:unit` |
+| Unit tests | 1,134 tests | `composer test:unit` |
+| Unit assertions | 3,363 assertions | `composer test:unit` |
 | Integration tests in suite | 235 test methods | `rg -c "function test" tests/Integration/*.php | awk -F: '{sum+=$2} END{print sum}'` |
-| Unit test files | 37 | `ls tests/Unit/*.php | wc -l` |
+| Unit test files | 38 | `ls tests/Unit/*.php | wc -l` |
 | Integration test files | 31 | `ls tests/Integration/*.php | wc -l` |
 
 ## Size Metrics
@@ -20,10 +20,10 @@ Verification environment: local workspace, PHP 8.x
 | Metric | Value | Verification |
 |---|---:|---|
 | Production PHP lines (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 19,072 | `find ./includes ./wp-sudo.php ./uninstall.php ./mu-plugin ./bridges -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
-| Tests PHP lines (`tests/`) | 39,682 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
-| Production + tests PHP lines | 58,754 | sum of the two rows above |
-| Test-to-production ratio | 2.08:1 | `39682 / 19072` |
-| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`, `.claude/`) | 59,895 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" ! -path "*/.claude/*" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Tests PHP lines (`tests/`) | 39,860 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Production + tests PHP lines | 58,932 | sum of the two rows above |
+| Test-to-production ratio | 2.09:1 | `39860 / 19072` |
+| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`, `.claude/`) | 60,441 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" ! -path "*/.claude/*" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
 
 ## Footprint & Performance
 
@@ -35,13 +35,14 @@ profiling — a precise Query Monitor figure would confirm but not change the sh
 
 | Item | Value | Verification |
 |---|---:|---|
-| Persistent options | 3 | `wp_sudo_settings` (config, `Admin::OPTION_KEY`), `wp_sudo_activated`, `wp_sudo_governance_mode`: `grep -rhoE "wp_sudo_(settings\|activated\|governance_mode)\b" includes/ wp-sudo.php \| sort -u \| wc -l` → 3 |
+| Persistent options | 3 | `wp_sudo_settings` (`Admin::OPTION_KEY`), `wp_sudo_db_version` (`Upgrader::VERSION_OPTION`), `wp_sudo_activated` (literal). Names discovered write-scoped from the production tree (`update_option`/`add_option`/`*_site_option` first args, constants resolved) and asserted as an exact set by `composer verify:metrics` — see `bin/verify-metrics.sh`. |
 | Custom tables | 1 | `{base_prefix}wpsudo_events` (dashboard activity log; one network-wide table on multisite): `grep -oE "wpsudo_events" includes/class-event-store.php \| sort -u \| wc -l` → 1 |
 | Events retention (default) | 14 days, batch-pruned | `grep -c 'function prune( int \$days = 14' includes/class-event-store.php` → 1 |
 
 Per-user meta (`_wp_sudo_*`: session token/expiry/bind + ephemeral rate-limit counters)
 and transients (request stash, rate-limit keys, active-count cache) are written only for
-users who hold a session or trigger gating; they self-expire and are removed on uninstall.
+users who hold a session or trigger gating. Uninstall removes the options, per-user meta,
+and the events table; the transients are left to self-expire (`uninstall.php` deletes no transients).
 
 ### Per-request cost (front-end)
 
@@ -51,7 +52,7 @@ three `init` callbacks (`enforce_editor_unfiltered_html`, `gate_non_interactive`
 
 | Context | Added DB queries | Basis |
 |---|---:|---|
-| Front-end visitor (logged out) | 0 | No admin bar; the `init` hooks do constant/global + cached-role checks only |
+| Front-end visitor (logged out) | 0 added (steady state) | No admin bar; the always-on `init` hooks do only in-memory/cached reads, so no query is added. Static-hook inference, not a runtime `$wpdb->num_queries` measurement (see the note above). **Exception:** on single-site, if the Editor role has drifted to regain `unfiltered_html`, the tamper canary (`enforce_editor_unfiltered_html`) repairs it via one `update_option` write on that request. |
 | Front-end, logged-in user | ≤ 1 (cached user-meta) | Admin-bar `Sudo_Session::is_active()` — static per-request cache, else one `get_user_meta` |
 | Non-gated admin page | negligible | In-memory rule matching + the same cached session check |
 | Gated action | bounded (grant/stash/rate-limit) | Only on the specific dangerous action, not on browsing |
@@ -92,7 +93,7 @@ value across these known consumers:
 - `docs/ui-ux-testing-prompts.md` — settings page field count
 - `docs/developer-reference.md` — hook signatures, audit hooks
 - `tests/MANUAL-TESTING.md` — gated rules count
-- `docs/ROADMAP.md` — unit test coverage notes
+- `docs/testing-strategy.md` — test-suite / coverage notes
 
 ## CI Matrix Snapshot
 

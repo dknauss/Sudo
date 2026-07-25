@@ -108,7 +108,7 @@ composer sbom                 # Regenerate CycloneDX SBOM (.sbom/bom.json)
 ./vendor/bin/phpunit --filter testMethodName           # Run a single test method
 ```
 
-No build step. No production dependencies — only dev dependencies (PHPUnit 9.6, Brain\Monkey, Mockery, VIP WPCS, PHPStan, CycloneDX). `config.platform.php` is set to `8.1.99` so the lock file resolves packages compatible with PHP 8.1+ regardless of local PHP version.
+No build step. No production dependencies — only dev dependencies (PHPUnit 9.6, Brain\Monkey, Mockery, VIP WPCS, PHPStan, CycloneDX). `config.platform.php` is set to `8.2.99` so the lock file resolves packages compatible with PHP 8.2+ regardless of local PHP version.
 
 ## WP-CLI and remote-site safety
 
@@ -140,7 +140,7 @@ remote-site safety", and user-level `~/AGENTS.md`):
 - `docs/security-manual-test-checklist.md` — live/manual end-to-end security test checklist (reauth REST gates + lockdown audit); the layer automated unit/CI tests do not cover.
 - `docs/abilities-api-assessment.md` — WordPress Abilities API (6.9+) assessment.
 - `docs/sudo-architecture-comparison-matrix.md` — competitive comparison with other sudo/reauth approaches.
-- `docs/ROADMAP.md` — unified roadmap: integration tests, WP 7.0 prep, collaboration analysis, TDD strategy, core design features, feature backlog, accessibility appendix.
+- `docs/ROADMAP.md` — forward-only roadmap (Now/Next/Later/Non-goals). The design analyses that used to live here are now standalone docs: `docs/testing-strategy.md` (integration/TDD/coverage/mutation/exit-path), `docs/collaboration-analysis.md`, `docs/sudo-design-notes.md` (core design), plus archives `docs/archive/wp-7.0-prep.md` and `docs/archive/accessibility-audit.md`. The feature backlog now lives in GitHub issues (see the roadmap's Backlog section).
 - `docs/release-status.md` — canonical current release status: stable tag, unreleased `main` work, and WordPress forward-lane posture.
 - `docs/wporg-submission-checklist.md` — WordPress.org submission process: validation gates, asset specs, SVN trunk/tags layout, and the version-sync gate.
 

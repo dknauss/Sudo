@@ -234,7 +234,7 @@ For each viewport size, verify the listed checkpoints on each UI surface.
 
 ## 4. Accessibility Spot Checks
 
-These are quick checks beyond a full WCAG audit. For the resolved accessibility items, see [ROADMAP.md Appendix A](ROADMAP.md#appendix-a-accessibility-roadmap).
+These are quick checks beyond a full WCAG audit. For the resolved accessibility items, see [the archived accessibility audit](archive/accessibility-audit.md).
 
 ### 4a. Screen Reader Announcement Flow During Challenge
 
