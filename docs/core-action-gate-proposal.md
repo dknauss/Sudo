@@ -11,7 +11,7 @@
 
 WordPress has a mature capability system, a mature authentication system, and a mature hook system. What it does **not** have is a first-class registry of **consequential operations**: actions important enough that core, plugins, audit tools, UI surfaces, and policy systems may all want to identify them consistently.
 
-That missing registry forces every protection layer to invent its own catalog. Protection layers such as WP Sudo and Wordfence, the Solid Security plugin, and Snicco Fortress — a proprietary, license-gated **must-use** security suite deployed at the server level and integrated by hosts such as GridPane — all identify overlapping sets of dangerous operations, but they do so with different identifiers, different semantics, different enforcement models, and no shared interoperability surface. The result is duplication, inconsistent operator experience, and no standard way for plugins to declare that an operation is consequential enough to observe, decorate, audit, or eventually gate.
+That missing registry forces each security tool to reinvent the notion of a "dangerous operation" in its own model — with different identifiers, different semantics, different enforcement models, and no shared interoperability surface. The result is duplication, inconsistent operator experience, and no standard way to declare that an operation is consequential enough to observe, decorate, audit, or eventually gate.
 
 This proposal argues that WordPress should solve that problem first.
 
@@ -49,7 +49,7 @@ That gap matters in ordinary failure modes:
 - **Credential-integrity failures.** Some operations are dangerous not because they reveal secrets but because they replace trusted state—for example, rotating connector or provider API keys.
 - **Delegated or long-lived API access.** Application passwords, automation scripts, and service credentials represent legitimate grants, but they do not themselves answer whether a specific consequential action should proceed without additional scrutiny.
 
-These are not hypothetical edge cases. They are common enough that WordPress security plugins already compensate by maintaining their own catalogs of dangerous operations and their own enforcement logic. WP Sudo is one such implementation. Others address overlapping concerns differently. The important point is not that any one implementation should be lifted into core unchanged. It is that **the repeated emergence of these systems is evidence of a missing shared primitive.**
+These are not hypothetical edge cases. They are common enough that WordPress security tools already compensate by maintaining their own ad-hoc catalogs of dangerous operations and their own enforcement logic, in incompatible tool-specific ways. WP Sudo is different in kind — the focused, single-purpose implementation of exactly this proof-of-intent primitive (§16) — which is why this proposal generalizes from it rather than from any broad security suite. The important point is not that any one implementation should be lifted into core unchanged. It is that **the repeated emergence of these systems is evidence of a missing shared primitive.**
 
 The deeper problem is that WordPress lacks a canonical way to talk about consequential operations at all.
 
