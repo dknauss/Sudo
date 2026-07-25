@@ -283,10 +283,10 @@ Third-party transports (WPGraphQL, custom REST/RPC endpoints) are **not** core s
 
 A conforming implementation must show:
 
-1. A stolen-cookie session cannot change any catalog field or promote a user without a fresh challenge — verified identically via admin UI **and** cookie-REST.
+1. A stolen-cookie session cannot change any catalog field, promote a user, **or install/activate a plugin or install/switch/delete a theme**, without a fresh challenge — verified via admin UI and, where the route exists, cookie-REST.
 2. An admin can change another user's password **without knowing it**, after reauthenticating themselves (the #20140 correctness requirement in #8/#9).
 3. Logout / "log out everywhere" / password change **immediately** invalidate the reauth window (session-token binding).
-4. A gated POST that is challenged replays with **no data loss** and **no secret leakage** into the stash.
+4. A gated **non-secret** POST that is challenged **replays** with **no data loss**; a **secret-bearing** change (a password) is **reauth-then-resubmit**, with the secret **never written to the stash** (§5.1, §8).
 5. Demotions and lateral role changes are **not** challenged; only new grants of admin/network-admin authority are.
 6. A built-in action whose gate cannot be evaluated **fails closed**.
 7. Non-interactive surfaces **block-and-log**, never silently pass.
