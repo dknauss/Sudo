@@ -249,7 +249,7 @@ Phase 2 baseline (proposal §13) — start small:
 
 - Browser-first interstitial at `wp-login.php?action=reauth`, in the existing authenticated context.
 - Password verification against the current user; if a 2FA plugin is present, expose a `wp_reauth_second_factor` hook so it can add its factor (the plugin integrates the Two-Factor plugin exactly this way). Core ships no 2FA of its own.
-- On success: `wp_start_reauth_window()`, then replay the stashed request.
+- On success — the password **and** any factor added via `wp_reauth_second_factor` have both passed — call `wp_start_reauth_window()`, then replay the stashed request. The window never opens on the password step alone when a second factor is present.
 - Nonce-protected, rate-limited, lockout on repeated failure.
 
 Explicitly deferred: WebAuthn ceremonies, external IdP redirects, multi-step TOTP/recovery flows, async/pending challenges, consent overlays.
