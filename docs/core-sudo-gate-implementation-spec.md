@@ -226,7 +226,7 @@ This is the second half of closing the "admin can just install a backdoor" objec
 | 3 | `wp-includes/user.php` | `wp_update_user()` | Detect consequential field changes; gate; return `WP_Error` (§5.1) |
 | 4 | `wp-includes/user.php` | `wp_insert_user()` | Gate `core/create-user` for authenticated privileged-context inserts only — **not** anonymous registration/guest-checkout (actor 0 → fail-closed); needs a reliable admin-context signal, see §8 |
 | 5 | `wp-admin/includes/user.php` | `wp_delete_user()` (**bool** return) | Gate `core/delete-user` via a **pre-delete adapter** (hook `delete_user` / REST `delete_item`), not a `WP_Error` return |
-| 6 | `wp-includes/class-wp-user.php` / `wp-includes/meta.php` | `WP_User::set_role`/`add_role`, `map_meta_cap`, **and `update_user_metadata` on the `{prefix}capabilities` key** | Escalation guard (§5.3); the meta hook catches the REST `add_role` path and any AJAX/plugin write to the caps meta directly |
+| 6 | `wp-includes/class-wp-user.php` / `wp-includes/meta.php` | `WP_User::set_role`/`add_role`, `map_meta_cap`, **and `update_user_metadata` on the `{prefix}capabilities` key** | Escalation guard (§5.3); the meta hook catches the REST `add_role` path and `update_user_meta` writes to the caps key — **not** a raw `$wpdb` write, which fires no hook and is out of scope (§5.3) |
 | 7 | `wp-includes/ms-functions.php` (`add_user_to_blog`) · `wp-includes/capabilities.php` (`grant_super_admin`) | `add_user_to_blog` (returns `true\|WP_Error` since 5.4); `grant_super_admin` (returns `void`) | Multisite promotion gate via a pre-grant adapter (hook `grant_super_admin` / `add_user_to_blog`) — intercept before the grant, not by return value (a returned `WP_Error` from `add_user_to_blog` is truthy) |
 | 8 | `wp-includes/pluggable.php` | `wp_start/has/end_reauth_window` | Recent-auth window on `WP_Session_Tokens` (§4.2) |
 | 9 | `wp-includes/class-wp-session-tokens.php` | token record schema | Persist `reauth_at`, `reauth_scope`; clear on destroy |
@@ -235,10 +235,11 @@ This is the second half of closing the "admin can just install a backdoor" objec
 | 12 | `wp-login.php` | new `action=reauth` | Challenge interstitial: password (+2FA hook), rate-limit, replay |
 | 13 | `wp-includes/rest-api/endpoints/class-wp-rest-users-controller.php` | update/create/delete | Surface `sudo_reauth_required` as 403 + challenge metadata |
 | 14 | `wp-admin/includes/plugin.php` + `wp-admin/includes/class-plugin-upgrader.php` | `activate_plugin`, `delete_plugins`, **`Plugin_Upgrader::install()`** (`core/install-plugin`) | Gate plugin actions (§5.4) |
-| 15 | `wp-includes/request-stash.php` (new) | stash/replay | Port `class-request-stash.php` (allowlist, redaction, TTL, per-user cap) |
-| 16 | Site Health | new async test | Report registered actions + whether gating is enabled |
+| 15 | `wp-includes/theme.php` · `wp-admin/includes/theme.php` · `wp-admin/includes/class-theme-upgrader.php` | `Theme_Upgrader::install()` (`bool\|WP_Error`), `switch_theme()` (**void**), `delete_theme()` (`false\|null\|WP_Error\|true`) | Gate theme actions (§5.4): `install` takes the `WP_Error` guard; `switch_theme`/`delete_theme` use **pre-op adapters**, not a return value |
+| 16 | `wp-includes/request-stash.php` (new) | stash/replay | Port `class-request-stash.php` (allowlist, redaction, TTL, per-user cap) |
+| 17 | Site Health | new async test | Report registered actions + whether gating is enabled |
 
-Rows 1–2 are Phase 1 and shippable alone. Rows 3–15 are Phase 2. Row 16 is a Phase-1 consumer that demonstrates value before any enforcement exists.
+Rows 1–2 are Phase 1 and shippable alone. Rows 3–16 are Phase 2. Row 17 is a Phase-1 consumer that demonstrates value before any enforcement exists.
 
 ---
 
