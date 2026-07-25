@@ -163,7 +163,7 @@ Here is how the major WordPress 2FA plugins store and validate credentials, and 
 | Detection | `\WP2FA\Admin\Helpers\User_Helper::is_user_using_two_factor( $user_id )` |
 | Method check | `\WP2FA\Admin\Helpers\User_Helper::get_enabled_method_for_user( $user_id )` → `'totp'`, `'email'`, etc. |
 | TOTP validation | `\WP2FA\Authenticator\Authentication::is_valid_authcode( $key, $code )` |
-| TOTP secret | `\WP2FA\Methods\TOTP::get_totp_key( $user_id )` (returns encrypted key, which `is_valid_authcode` expects) |
+| TOTP secret | `\WP2FA\Methods\TOTP::get_totp_key( $user )` (returns encrypted key, which `is_valid_authcode` expects) |
 | Email validation | `\WP2FA\Authenticator\Authentication::validate_token( $user, $code )` |
 | Backup codes | `\WP2FA\Methods\Backup_Codes::validate_code( $user, $code )` |
 | Storage | `wp_2fa_totp_key` user meta (AES-256-CTR encrypted) |
@@ -362,7 +362,7 @@ add_filter( 'wp_sudo_validate_two_factor', function ( $valid, $user ) {
 
 ### Silent fallback to recovery codes when TOTP key is missing
 
-**Affects:** Two Factor plugin (WordPress/two-factor) 0.14.x
+**Affects:** Two Factor plugin (WordPress/two-factor), observed through at least 0.16.x
 **Status:** Upstream bug — to be reported to the Two Factor project.
 
 When a user enables the TOTP provider via the Two Factor profile UI but the REST API call that saves the TOTP secret (`_two_factor_totp_key`) fails silently, the plugin enters an inconsistent state:

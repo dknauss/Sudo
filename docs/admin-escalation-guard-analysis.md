@@ -383,7 +383,7 @@ reauth prompt (§6, §8).
   it was meant to avoid; and a `false` return is indistinguishable from a
   legitimate "value unchanged" no-op. Halting before the write is the only clean
   stop and is consistent with the existing CLI `user.promote` guard on the same
-  hook. Pair with the `wp_sudo_action_blocked` audit so the block is observable.
+  hook. Pair with the `wp_sudo_escalation_blocked` audit so the block is observable.
 - **Coexist with the existing CLI guard on the same hook.** The CLI
   `user.promote` guard already hooks `add_user_metadata`/`update_user_metadata`.
   Two guards on one filter must not double-fire, emit contradictory audit signals,
@@ -418,7 +418,7 @@ reauth prompt (§6, §8).
     sync) can mark a specific grant as legitimate;
   - a **constant / WP-CLI bypass** (e.g. a defined constant, plus the existing CLI
     policy) for deployment, migration, and first-admin bootstrapping;
-  - **audit events on every block** (`wp_sudo_action_blocked`) so a silent
+  - **audit events on every block** (`wp_sudo_escalation_blocked`) so a silent
     short-circuit is diagnosable rather than a mystery.
 - **Creation path is guarded too** (revises the earlier "exclude creation"
   caution). A blocked one-shot admin-create leaves at most a **roleless, powerless**
@@ -430,7 +430,7 @@ reauth prompt (§6, §8).
 ## 7. Required TDD scenarios (before any implementation)
 
 1. Promote existing user to `administrator` via the meta filter, no sudo, filter
-   ON → blocked + `wp_sudo_action_blocked('admin')`; capabilities write
+   ON → blocked + `wp_sudo_escalation_blocked( $target_id, 'user.promote', $surface )`; capabilities write
    prevented.
 2. Same, sudo active/grace → allowed silently, write proceeds.
 3. Assign `customer` / `subscriber` / `editor` (non-admin), no sudo, filter ON →

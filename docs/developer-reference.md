@@ -290,7 +290,8 @@ on the dedicated Sudo capability family — no surface falls back to bare
 |---|---|
 | Settings page (`add_options_page` / `add_network_options_page`) | `manage_wp_sudo` |
 | Settings page callback (`render_settings_page`) | `manage_wp_sudo` |
-| AJAX handlers (grant/revoke cap, revoke session, mu-plugin install/uninstall) | `manage_wp_sudo` |
+| AJAX handlers (grant/revoke cap, mu-plugin install/uninstall) | `manage_wp_sudo` |
+| Session revoke (Users-list row action + "Revoke sudo sessions" bulk action) | `revoke_wp_sudo_sessions` |
 | Dashboard widget | `view_wp_sudo_activity` |
 
 **Intentional non-gate uses of `manage_options`** (these are correct behavior, not
