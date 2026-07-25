@@ -175,7 +175,7 @@ Extensibility: the action registry is filterable via wp_sudo_gated_actions. Audi
 Sudo's core design owes a debt to two people:
 
 * **John Blackbourn**, for the action-gating concept — that consequential operations should require a fresh proof of intent, regardless of role. It is the single biggest conceptual contribution to the project.
-* **Tim Nash**, for the idea of locking down roles and permissions, which became Sudo's admin-escalation guard (refusing to grant administrator or super-admin without an active sudo session) and its role and capability lockdown.
+* **Tim Nash**, for the idea of locking down roles and permissions, which shaped Sudo's opt-in admin-escalation guard and its opt-in role/capability lockdown audit.
 
 == Screenshots ==
 
