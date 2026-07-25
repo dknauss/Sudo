@@ -62,7 +62,8 @@ the full backlog is in the [issues](https://github.com/dknauss/Sudo/issues), lab
 - **REST sudo-grant endpoint** (`POST /wp/v2/sudo`) for headless clients.
 - **Per-session / device sudo isolation** via `WP_Session_Tokens` — deferred:
   architectural, not a hardening item.
-- **Per-rule / per-action sudo TTL** — a shorter sudo window for the highest-risk
+- **Per-rule / per-action sudo TTL** ([#269](https://github.com/dknauss/Sudo/issues/269), `priority: low`) —
+  a shorter sudo window for the highest-risk
   rules (e.g. `user.delete`, `options.critical`) than for routine ones (e.g.
   `plugin.activate`), instead of one global `session_duration`. Borrowed (adapted to
   WP Sudo's per-rule, role-agnostic model) from Fortress's per-capability timeout
