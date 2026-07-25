@@ -298,7 +298,7 @@ A Playground blueprint reproducing a stolen-session takeover and showing where t
 
 ## 11. What WP Sudo becomes if core ships this
 
-WP Sudo stops being a full sudo implementation and becomes (proposal §16): opinionated stricter defaults, operator UI and diagnostics, per-surface policy for the deferred surfaces core leaves as block-only, multisite policy hierarchy, richer 2FA/passkey challenge providers, and compatibility bridges. The registry and the recent-auth primitive move to core; the policy and UX product stays in the plugin.
+WP Sudo stops being a full sudo implementation and becomes (proposal §16): opinionated stricter defaults, operator UI and diagnostics, audit logging and drift/anomaly detection (including the lockdown-audit backstop for out-of-band `$wpdb` privilege writes the gate can't see, §5.3 — the observability/SIEM-adjacent work core leaves out by design, §1), per-surface policy for the deferred surfaces core leaves as block-only, multisite policy hierarchy, richer 2FA/passkey challenge providers, and compatibility bridges. The registry and the recent-auth primitive move to core; the policy and UX product stays in the plugin.
 
 ---
 
