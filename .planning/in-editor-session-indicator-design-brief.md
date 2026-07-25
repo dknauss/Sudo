@@ -193,3 +193,63 @@ registers; `wp-editor` presence is itself the ~6.6 signal).
 active; `2fa_pending`'s `expires_at` is the 2FA window not the session; an additive
 `remaining` field is safe for the challenge-page JS and the modal (both read only named
 fields).
+
+---
+
+## Implementation addendum (2026-07-25) — cross-module wiring + turnkey change list
+
+*Resolves the one item the brief left "decide in TDD": how the separate indicator
+module receives feed #2 (`remaining` from an in-editor grant). Server-side feed
+re-verified complete on this date — all three `authenticated` emitters carry
+`remaining` (`class-challenge.php:668/883/925`) and the page-load localize is gated on
+`is_active()` (`class-plugin.php:383`). Copy-paste-ready skeletons are in
+[`262-implementation-draft.md`](262-implementation-draft.md); this section records the
+decisions. **The client UI + E2E still require a browser-capable, dev-provisioned
+session to build and verify (per CLAUDE.md → "Browser and Playwright handoff"); nothing
+below has been run in a live editor.**
+
+### Decision: cross-module contract is a `window` CustomEvent
+
+The indicator (`wp-sudo-session-indicator.js`) and the reauth modal
+(`wp-sudo-editor-reauth.js`) are **separate modules**, so feed #2 needs a channel.
+Chosen: a browser `CustomEvent` on `window`, **not** a shared global or coupling the two
+modules.
+
+- On a successful grant, `wp-sudo-editor-reauth.js` dispatches
+  `window.dispatchEvent( new CustomEvent( 'wp-sudo-session-granted', { detail: { remaining: <int seconds> } } ) )`.
+- `wp-sudo-session-indicator.js` listens for `wp-sudo-session-granted` and re-seeds its
+  local countdown from `event.detail.remaining`.
+
+Rationale: fully decoupled (either module works if the other is absent), build-free, no
+shared mutable global, and directly E2E-assertable (grant → event → indicator re-seeds).
+The event name is an internal contract between these two first-party modules only.
+
+### Turnkey change list
+
+1. **`admin/js/wp-sudo-editor-reauth.js`** — widen the grant responses and emit the event:
+   - `postPassword()` success object: add `remaining: ( json.data.remaining | 0 )`.
+   - `postTwoFactor()` success object: add `remaining: ( json.data.remaining | 0 )`.
+   - In `submitPassword()` and `submitTwoFactor()`, on `res.ok && 'authenticated' === res.code`,
+     dispatch the `wp-sudo-session-granted` event with `res.remaining` **before**
+     `props.resolve( true )`.
+2. **`admin/js/wp-sudo-session-indicator.js`** (new) — Part A snackbar + Part B
+   feature-detected `PluginSidebar`; local M:SS tick seeded from
+   `wpSudoEditorReauth.remaining` (feed #1) and re-seeded by the grant event (feed #2).
+   No network, no timer-driven requests. Reuse the M:SS format + `pagehide` cleanup +
+   reduced-motion pattern from `wp-sudo-admin-bar.js`.
+3. **`includes/class-plugin.php`** (`enqueue_editor_reauth()`, ~L344) — register the new
+   `wp-sudo-session-indicator` handle (deps `wp-plugins`, `wp-editor`, `wp-element`,
+   `wp-components`, `wp-data`, `wp-i18n`); the modal handle keeps its existing deps.
+   `wp-editor` presence is itself the ~6.6 Part-B signal.
+4. **`tests/e2e/specs/`** (sibling of `editor-reauth.spec.ts`) — grant → indicator
+   active + countdown → expiry clears → **re-grant re-seeds**; gate Part-B assertions on
+   `wp.editor` presence.
+5. **`docs/current-metrics.md`** — asset count +1 (and E2E count if a new spec lands).
+
+### Invariants the skeletons must preserve (from the brief above)
+
+- Informational only — never mint/extend/refresh a session; no "end session" control in v1.
+- Tick is local arithmetic off one seeded value — no timer-driven network calls.
+- Grace reads as **inactive** (feed values are already 0 during grace) — intentional, not a bug.
+- Announce-once a11y: one `core/notices` snackbar per grant; the ticking panel text is
+  static (not an `aria-live` per-second region).
