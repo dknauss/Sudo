@@ -52,7 +52,7 @@ three `init` callbacks (`enforce_editor_unfiltered_html`, `gate_non_interactive`
 
 | Context | Added DB queries | Basis |
 |---|---:|---|
-| Front-end visitor (logged out) | 0 added | No admin bar; the always-on `init` hooks read only constants/globals and the tamper canary's `get_role()`, which resolves against the autoloaded `wp_user_roles` option (served from the alloptions cache) — no *added* query. Static-hook inference, not a runtime `$wpdb->num_queries` measurement (see the note above). |
+| Front-end visitor (logged out) | 0 added (steady state) | No admin bar; the always-on `init` hooks do only in-memory/cached reads, so no query is added. Static-hook inference, not a runtime `$wpdb->num_queries` measurement (see the note above). **Exception:** on single-site, if the Editor role has drifted to regain `unfiltered_html`, the tamper canary (`enforce_editor_unfiltered_html`) repairs it via one `update_option` write on that request. |
 | Front-end, logged-in user | ≤ 1 (cached user-meta) | Admin-bar `Sudo_Session::is_active()` — static per-request cache, else one `get_user_meta` |
 | Non-gated admin page | negligible | In-memory rule matching + the same cached session check |
 | Gated action | bounded (grant/stash/rate-limit) | Only on the specific dangerous action, not on browsing |
