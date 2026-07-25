@@ -31,7 +31,7 @@ The framing treats these as mutually exclusive. They are not, and picking either
 
 The decisive fact: **the operations the gate must protect are not abilities, and are not registered in the Abilities API.**
 
-The Phase 1 core catalog (spec §4.1) is `wp_update_user()`, `wp_insert_user()`, `wp_delete_user()`, `activate_plugin()`, `delete_plugins()`, `Plugin_Upgrader::install()`, and role/super-admin changes. As of WP 7.0 the Abilities API registers **three read-only abilities** (`core/get-site-info`, `core/get-user-info`, `core/get-environment-info`) — none of them mutations (abilities-api-assessment.md). So "annotate the ability" has nothing to annotate for any catalog member.
+The Phase 1 core catalog (spec §4.1) is `wp_update_user()`, `wp_insert_user()`, `wp_delete_user()`, `activate_plugin()`, `delete_plugins()`, `Plugin_Upgrader::install()`, the theme mutations (`Theme_Upgrader::install()`, `switch_theme()`, `delete_theme()`), and role/super-admin changes. As of WP 7.0 the Abilities API registers **three read-only abilities** (`core/get-site-info`, `core/get-user-info`, `core/get-environment-info`) — none of them mutations (abilities-api-assessment.md). So "annotate the ability" has nothing to annotate for any catalog member.
 
 To make Option B work, core would first have to **register the entire consequential mutation surface as abilities** — wrap `wp_update_user()`, `activate_plugin()`, and the rest as `WP_Ability` objects. That is a far larger, separately contested project than a proof-of-intent gate, and it would tie this proposal's landing to an "abilitize core's write path" effort that has no consensus and no timeline. Coupling a small, landable security primitive to that is exactly the entanglement proposal §4 and §6 warn against.
 
