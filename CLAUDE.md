@@ -108,7 +108,7 @@ composer sbom                 # Regenerate CycloneDX SBOM (.sbom/bom.json)
 ./vendor/bin/phpunit --filter testMethodName           # Run a single test method
 ```
 
-No build step. No production dependencies — only dev dependencies (PHPUnit 9.6, Brain\Monkey, Mockery, VIP WPCS, PHPStan, CycloneDX). `config.platform.php` is set to `8.1.99` so the lock file resolves packages compatible with PHP 8.1+ regardless of local PHP version.
+No build step. No production dependencies — only dev dependencies (PHPUnit 9.6, Brain\Monkey, Mockery, VIP WPCS, PHPStan, CycloneDX). `config.platform.php` is set to `8.2.99` so the lock file resolves packages compatible with PHP 8.2+ regardless of local PHP version.
 
 ## WP-CLI and remote-site safety
 
