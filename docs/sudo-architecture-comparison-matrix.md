@@ -5,16 +5,16 @@
 This document compares three architecture patterns for privileged WordPress operations:
 
 1. **WP Sudo (current)**: action-gated reauthentication.
-2. **Fortress (current)**: protected capabilities/pages plus multi-timeout session hardening.
+2. **Fortress (current)**: a proprietary, license-gated **must-use** security suite (not an ordinary plugin — server-level deployment, integrated by hosts such as GridPane) providing protected capabilities/pages plus multi-timeout session hardening.
 3. **Proposed switch-only superadmin model**: stripped admin capabilities plus temporary switched access to one privileged account.
 
 Scope is **Security + Ops** and the proposed model is intentionally **conceptual only** (no implementation runbook).  
-Source review date: **March 3, 2026**.
+Source review date: **July 25, 2026** (Fortress characterization re-verified against live Snicco/GridPane sources; prior review March 3, 2026).
 
 ## Architecture Definitions
 
 - **WP Sudo (Current)**: Hook-based interception layer that matches dangerous operations and requires reauthentication before execution, while keeping the native WordPress role/capability model in place.
-- **Fortress (Current)**: Session security model with absolute/idle/rotation/sudo timeouts and runtime restrictions via protected capabilities and protected pages outside sudo mode.
+- **Fortress (Current)**: Session security model with absolute/idle/rotation/sudo timeouts and runtime restrictions via protected capabilities and protected pages outside sudo mode. Distributed under a proprietary EULA (not GPL/MIT); its runtime code ships via the separate license-gated `snicco/fortress-dist` repository, and it loads as a **must-use plugin** (deployed under `mu-plugins/snicco-fortress/`, ahead of ordinary plugins) with logs/config/secrets stored outside the web root — a server-level integration, not an ordinary plugin install.
 - **Proposed Switch-Only Superadmin Model**: Normal administrators run with stripped capabilities; reauthentication grants temporary occupancy of a single privileged account through account switching.
 
 ## Matrix: Security and Operational Differences
@@ -24,7 +24,7 @@ Source review date: **March 3, 2026**.
 | Enforcement primitive | Hook-based action interception and rule matching (`admin_init`, REST interception, function-level hooks, WPGraphQL hook). | Runtime filtering of protected capabilities plus protected-page redirect to Confirm Access. | Stripped baseline privileges plus temporary identity switch into one privileged account after reauth. | Operation-level controls (WP Sudo) and capability/page controls (Fortress) are different from identity-brokering controls (proposed). |
 | Default privilege posture after login | Native role capabilities remain; browser login also grants an initial sudo session window. | Session starts in sudo mode with full allowed privileges until timeout. | Administrators are intentionally constrained by default; the privileged state is not standing. | Proposed model gives the strictest default least privilege, with more operator friction. |
 | What expires on timeout | Sudo session state expires; base WordPress login session remains valid. | Sudo mode expires; separate absolute/idle controls can also expire the session itself. | **Inference:** Temporary switched privileged context expires or is exited; operator returns to stripped account while normal login may continue. | Privilege expiry and session expiry are separate controls; architectures differ in where they draw that boundary. |
-| Session hardening model (absolute / idle / rotation / sudo) | Sudo duration + challenge lockout controls; no plugin-managed absolute / idle / rotation session lifecycle model. | Explicit absolute timeout, idle timeout, rotation timeout, and sudo timeout. | **Inference:** By itself, this model adds privilege-state controls, not full session lifecycle hardening, unless paired with additional controls. | Fortress has the most explicit stolen-cookie window management in the compared source set. |
+| Session hardening model (absolute / idle / rotation / sudo) | Sudo duration + challenge lockout controls; no plugin-managed absolute / idle / rotation session lifecycle model. | Explicit absolute, idle, rotation, and sudo timeouts (config defaults: absolute 12h / 24h remember-me, idle 30 min, rotation 20 min, sudo 10 min). | **Inference:** By itself, this model adds privilege-state controls, not full session lifecycle hardening, unless paired with additional controls. | Fortress has the most explicit stolen-cookie window management in the compared source set. |
 | Reauth trigger semantics | Triggered when a request matches a gated action (or policy block on non-interactive surfaces). | Triggered when user is outside sudo mode and hits protected capability/page boundaries. | **Inference:** Triggered when user requests entry into privileged switched identity. | Trigger timing differs: per-action (WP Sudo), per-cap/page state (Fortress), or per-identity-escalation event (proposed). |
 | Coverage of known destructive operations | Explicit built-in registry for many plugin / theme / user / options / update / export and multisite operations; extensible with custom rules. | Broad default protected capability/page lists cover many destructive admin paths. | Broad when those operations require capabilities held only by the privileged switched account. | All three can cover many known high-risk operations, but they maintain coverage through different maintenance models. |
 | Coverage of unknown/new plugin operations | Depends on hook/rule coverage; operations bypassing expected hooks can evade gating. | Depends on whether plugin paths rely on protected capabilities/pages. | **Inference:** Depends on whether operations require stripped capabilities; custom capabilities granted to stripped roles create gaps. | Unknown-path resilience is strongest where privilege boundaries are broad and correctly mapped; each model has different blind spots. |
@@ -60,7 +60,7 @@ Source review date: **March 3, 2026**.
 - This is a comparative analysis, not an implementation guide.
 - Proposed model analysis is conceptual and intentionally avoids runbook-level details.
 - Statements marked `Inference:` are reasoned conclusions where source documents do not specify exact behavior.
-- Findings are constrained to the referenced documents and code paths reviewed on March 3, 2026.
+- Findings are constrained to the referenced documents and code paths, reviewed on the dates noted: the WP Sudo and proposed-model characterizations from the **March 3, 2026** baseline review; the **Fortress** characterization and its four added sources (installation, configuration reference, license, GridPane KB) from the **July 25, 2026** re-verification. Fortress's runtime source is license-gated and not public, so its characterization is scoped to those public docs/license/KB, not to reading the enforcement code.
 
 ## References
 
@@ -73,5 +73,9 @@ Source review date: **March 3, 2026**.
 - Fortress references:
   - [The Fortress sudo mode](https://raw.githubusercontent.com/snicco/fortress/beta/docs/modules/session/sudo-mode.md)
   - [Session management and security](https://raw.githubusercontent.com/snicco/fortress/beta/docs/modules/session/session-managment-and-security.md)
+  - [Installation — must-use loader + server integration](https://raw.githubusercontent.com/snicco/fortress/beta/docs/getting-started/02_installation.md)
+  - [Configuration reference — timeout defaults, protected caps/pages](https://raw.githubusercontent.com/snicco/fortress/beta/docs/configuration/02_configuration_reference.md)
+  - [License — proprietary EULA (Snicco Media)](https://raw.githubusercontent.com/snicco/fortress/beta/LICENSE.txt)
+  - [GridPane — Fortress installed as a must-use plugin](https://gridpane.com/kb/fortress-security-part-2-quick-start-configuration-guide/)
 - User Switching reference:
   - [User Switching (WordPress.org plugin documentation)](https://wordpress.org/plugins/user-switching/)
