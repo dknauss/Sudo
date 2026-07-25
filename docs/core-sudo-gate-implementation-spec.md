@@ -63,14 +63,19 @@ A pure-data registry. No hooks, no enforcement — just naming and metadata. New
 
 ```php
 wp_register_action( 'core/change-user-password', [
-    'label'             => __( 'Change another user’s password' ),
-    'capabilities'      => [ 'edit_user' ],
-    'category'          => 'user-management',
-    'consequence_class' => 'account-takeover',      // privilege-escalation | account-takeover | code-execution | destructive
-    'scope'             => 'users',                 // reauth reuse grouping for the gate
-    'annotations'       => [
-        'destructive'          => false,
-        'requires_recent_auth' => true,
+    'label'        => __( 'Change another user’s password' ),
+    'capabilities' => [ 'edit_user' ],
+    'category'     => 'user-management',
+    // The portable `consequence` block — the *same* shape a consequential ability
+    // would carry as its `consequence` annotation, so one source-blind getter can
+    // read standalone entries and annotated abilities without reshaping (decision memo).
+    'consequence'  => [
+        'class'       => 'account-takeover',   // privilege-escalation | account-takeover | code-execution | destructive
+        'scope'       => 'users',              // reauth reuse grouping for the gate
+        'annotations' => [
+            'destructive'          => false,
+            'requires_recent_auth' => true,
+        ],
     ],
 ] );
 
@@ -118,7 +123,7 @@ Mechanics:
 - On a successful challenge, write `reauth_at` (unix ts) and optional `reauth_scope` into the **current** session token's stored array — the current token comes from `wp_get_session_token()`, then `WP_Session_Tokens::update( $token, $session )` (a `final public` method; session records are arbitrary arrays, so a new key is safe). Binding to the session token means the elevated window is destroyed automatically by `wp_logout()`, `WP_Session_Tokens::destroy()`, and "log out everywhere."
 - **A password change must clear the window explicitly** — the session-token binding does *not* cover it. `wp_update_user()` clears and immediately re-issues the auth cookie against the *same* token, and `wp_set_password()` doesn't touch session-token records, so `reauth_at` can survive a password change and violate the acceptance criterion that a password change invalidates the window. Hook `after_password_reset` and the password path of `wp_update_user()` / `wp_set_password()` to call `wp_end_reauth_window()` (or destroy the record).
 - `wp_has_recent_auth()` reads the *current request's* session token record and checks `reauth_at >= time() - $ttl`. Because it consults the session store (not just a cookie string), `destroy_all()` revokes the window on the next request — an improvement over the plugin's cookie-string bind, which is documented there as taking effect one request later.
-- **Multisite: the window's reach follows the auth cookie's domain, not the network.** `reauth_at` lives in the *current login session's* token record, so it travels exactly as far as the auth cookie that presents that token. On a **subdirectory** network (one shared cookie domain) the same cookie is sent on every site, so one reauth carries across the network; on a **subdomain or mapped-domain** network (per-domain cookies) each site presents a different cookie/session, so the window is **isolated per domain** — reauthenticating on one site does not elevate another. This mirrors WP Sudo's own cookie-domain-bound session model (`Sudo_Session` binds the token cookie to `COOKIE_DOMAIN`; the `ADVN-02` integration test verifies the per-domain isolation). Deterministic per-site scoping *regardless* of cookie domain is deferred to the `scope` tag and Phase 2 policy (§8, §11), not v1.
+- **Multisite: the window's reach follows the auth cookie's domain, not the network.** `reauth_at` lives in the *current login session's* token record, so it travels exactly as far as the auth cookie that presents that token. On a **subdirectory** network (one shared cookie domain) the same cookie is sent on every site, so one reauth carries across the network; on a **subdomain or mapped-domain** network (per-domain cookies) each site presents a different cookie/session, so the window is **isolated per domain** — reauthenticating on one site does not elevate another. This mirrors WP Sudo's own cookie-domain-bound session model (`Sudo_Session` binds the token cookie to `COOKIE_DOMAIN`; the `ADVN-02` integration test verifies the per-domain isolation). Deterministic per-site scoping *regardless* of cookie domain is deferred to the `consequence.scope` tag and Phase 2 policy (§8, §11), not v1.
 - Default TTL: **15 minutes**, filterable via `wp_reauth_window_ttl` and definable with `WP_REAUTH_WINDOW` in `wp-config.php`. A short **grace** (≈2 min, as in the plugin) prevents a multi-step form from re-challenging mid-flow.
 - Rate limiting / lockout on failed challenges: port the plugin's model (5 failures ⇒ 300s lockout, progressive delays, per-user and per-IP) into the challenge handler.
 

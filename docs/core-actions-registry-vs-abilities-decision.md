@@ -50,7 +50,7 @@ Phase 1 is a standalone registry. This is essentially **Option A**, and it is th
 
 | Concern | Design |
 |---|---|
-| **Metadata schema** | A `consequence` block — `consequence_class`, `scope`, `annotations.requires_recent_auth`, etc. (spec §4.1) — defined once. |
+| **Metadata schema** | A nested `consequence` block — `consequence.class`, `consequence.scope`, `consequence.annotations.requires_recent_auth`, etc. (spec §4.1) — defined once, and **nested** precisely so the same block attaches to a standalone entry now or, later, to an ability as its `consequence` annotation without reshaping. |
 | **What Phase 1 registers** | The plain-core-function catalog (spec §4.1) as standalone entries. This is the whole of Phase 1. |
 | **Naming** | Reuse the Abilities `namespace/name` convention (proposal §6) — the one cheap thing that keeps a future union possible. |
 | **The gate's view** | `wp_get_action( $id )` / `wp_get_actions()` over the standalone entries; the gate (spec §4.3) is written against that surface. |
@@ -76,13 +76,13 @@ This is the point of settling the fork — the Phase 1 patch now has a definite 
 1. **Define the `consequence` metadata schema** (pure data; the fields in spec §4.1).
 2. **Ship `wp_register_action()` / `wp_get_action()` / `wp_get_actions()` / `wp_action_exists()`** over the standalone entries. (The getters are the seam where a future ability-reading extension would hook — but Phase 1 reads standalone entries only.)
 3. **Register the small core catalog** as standalone entries (because none are abilities today).
-4. **Ship the Site Health consumer** (spec §6 row 16) to demonstrate value before any enforcement.
+4. **Ship the Site Health consumer** (spec §6 row 17) to demonstrate value before any enforcement.
 
 Rows 1–4 are inert naming/observability — shippable alone, exactly the "Phase 1 lands without the gate" property proposal §5 depends on. No abilitization required, no second registry, and the shared ID convention leaves the ability-reading extension available as a cheap later addition.
 
 ### MVP status
 
-The `dknauss/consequential-actions` demonstrator implements the **standalone (Option-A) shape**: an `actions()` catalog filtered by `consequential_actions`, with `namespace/action-name` IDs and **no** Abilities-API awareness (metadata was label-only through v0.2.0; enriched to the full `capabilities`/`category`/`consequence_class`/`scope`/`annotations` shape in v0.2.1, merged to `consequential-actions` `main` via PR #2 — a `v0.2.1` release tag is still pending). That is exactly the shape this memo recommends for core too — a standalone registry — so the MVP is a faithful preview, not a simplification of some richer target. The ability-reading extension is a deferred core option, not something the MVP is missing.
+The `dknauss/consequential-actions` demonstrator implements the **standalone (Option-A) shape**: an `actions()` catalog filtered by `consequential_actions`, with `namespace/action-name` IDs and **no** Abilities-API awareness (metadata was label-only through v0.2.0; enriched to the full consequence metadata — `capabilities`/`category`/`consequence_class`/`scope`/`annotations` — in v0.2.1, merged to `consequential-actions` `main` via PR #2 — a `v0.2.1` release tag is still pending). The MVP is a faithful preview of the standalone-registry model and its fields; **one shape delta remains** — the demo carries the consequence fields **flat** (`consequence_class`/`scope`/`annotations` at the top level), while core **nests** them under a `consequence` block (spec §4.1) so the same block can annotate an ability later. That is a field-shape delta, not a model difference; it is tracked in [`core-sudo-gate-vs-demo-reconciliation.md`](core-sudo-gate-vs-demo-reconciliation.md). The ability-reading extension is a deferred core option, not something the MVP is missing.
 
 The canonical tracker for MVP-vs-design deltas is [`core-sudo-gate-vs-demo-reconciliation.md`](core-sudo-gate-vs-demo-reconciliation.md).
 

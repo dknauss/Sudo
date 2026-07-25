@@ -82,6 +82,8 @@ The demo's `actions()` returns `[ 'id' => [ 'label' => ... ] ]`. The spec's regi
 
 Scope note (post-dating this review): [`core-actions-registry-vs-abilities-decision.md`](core-actions-registry-vs-abilities-decision.md) settled the core Layer 1 as a **standalone** registry, Abilities-aligned in ID convention, with reading consequence-annotated abilities as a deferred extension (nothing populates the ability side yet). So the MVP's standalone `actions()` shape is the faithful preview — align the array to the `consequence` metadata *shape* only; there is no union for the MVP to model.
 
+**Nesting delta (July 2026, open).** Core spec §4.1 now **nests** the consequence fields under a `consequence` block (`consequence.class` / `consequence.scope` / `consequence.annotations`) so the same block can annotate an ability later; the demo (v0.2.1) still carries them **flat** at the top level. Same fields, same model — a field-shape delta only. Cheap demo follow-up: wrap the three fields in a `consequence` key so the "this is what registration looks like" story stays identical across demo and core. Not yet done in the demo.
+
 ---
 
 ## Punch list for a v0.2 demo (in priority order)
