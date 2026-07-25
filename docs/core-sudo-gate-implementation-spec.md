@@ -300,12 +300,14 @@ A Playground blueprint reproducing a stolen-session takeover and showing where t
 
 WP Sudo stops being a full sudo implementation and becomes (proposal §16): opinionated stricter defaults, operator UI and diagnostics, audit logging and drift/anomaly detection (including the lockdown-audit backstop for out-of-band `$wpdb` privilege writes the gate can't see, §5.3 — the observability/SIEM-adjacent work core leaves out by design, §1), per-surface policy for the deferred surfaces core leaves as block-only, multisite policy hierarchy, richer 2FA/passkey challenge providers, and compatibility bridges. The registry and the recent-auth primitive move to core; the policy and UX product stays in the plugin.
 
+Seen from the other side, once core owns the primitive this posture layer becomes WP Sudo's reason to exist for enterprise and multisite networks — a pragmatic semi-zero-trust bolt-on for a core that predates trust-boundary thinking, and the intended identity of what would otherwise look like scope-creep while the plugin has to *be* the primitive too.
+
 ---
 
 ## 12. Open questions (for core review)
 
 1. Registry-in-core vs. consequence-metadata layered on the **Abilities API** (which now exists and already provides namespacing + execution hooks). The lighter landing may be to *not* build a second registry — annotate abilities instead. Strongest fresh argument since the old #20140 comments; worth settling first. **Resolved (July 2026):** a **standalone** consequence-actions registry now, Abilities-aligned in its ID convention, with reading consequence-annotated abilities left as a deferred extension (nothing populates the ability side yet). Not "abilities-only," and not a registry needlessly incompatible with Abilities. See [`core-actions-registry-vs-abilities-decision.md`](core-actions-registry-vs-abilities-decision.md). The public name for the API remains open (§4.0 of the proposal).
 2. `WP_Session_Tokens` extension vs. a dedicated store (proposal §12).
-3. Flat recent-auth freshness vs. scope-bound windows for v1 (§4.2).
+3. Flat recent-auth freshness vs. scope-bound windows for v1 (§4.2) — flat freshness makes the window **network-wide on multisite**; scope-bound windows are also the per-site-scoping lever.
 4. Should `core/create-user` gate *all* inserts or only privileged-context ones (registration/import would otherwise trip it)?
 5. Default-on vs. default-off for Phase 2 gating (§8) — the single biggest adoption/impact tradeoff.
