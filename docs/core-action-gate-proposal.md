@@ -156,11 +156,11 @@ This proposal lands in the middle of a broader architectural debate about WordPr
 
 Between April 17 and May 26, 2026, Malcolm Peralty published a six-part series titled “What Might WP Next Look Like?” proposing a split between a long-supported “WP Classic” line and a modernized “WP Next.” Part 1 (April 17) opens with the diagnosis that this proposal was originally written against: WordPress’s plugin contract is still effectively “trust everybody with the whole process,” and Peralty argues that a clean structural split may be the only honest way to repair that.
 
-Parts 4 and 5 (May 25) are the most directly relevant sections for this proposal. Part 4 (“Performance and Security”) includes an explicit admission that plugins “can `exec()` anything because PHP has no capability model and WordPress has no manifest,” and proposes a four-phase manifest enforcement strategy — declared-but-not-enforced, API-level enforcement, static analysis, and eventual WASM isolation. That enforcement phasing maps almost exactly to this proposal’s Phase 1 (Actions API: registry and naming) → Phase 2 (Action Gate: enforcement) structure. Part 5 (“The Plugin Economy”) adds a “declared contracts” model with `@api` vs. `@internal` distinctions that directly supports the interoperability and taxonomy arguments in this proposal.
+Parts 4 and 5 (May 25) are the most directly relevant sections for this proposal. Part 4 (“Performance and Security”) is blunt about the runtime — a plugin can `exec()` whatever it wants, read every other plugin’s secrets, and exfiltrate anything, because (in Peralty’s words) “there is no permission model at the plugin boundary” — and proposes a four-phase manifest enforcement strategy — declared-but-not-enforced, API-level enforcement, static analysis, and eventual WASM isolation. That enforcement phasing maps almost exactly to this proposal’s Phase 1 (Actions API: registry and naming) → Phase 2 (Action Gate: enforcement) structure. Part 5 (“The Plugin Economy”) adds a “declared contracts” model with `@api` vs. `@internal` distinctions that directly supports the interoperability and taxonomy arguments in this proposal.
 
 This proposal agrees with Peralty’s runtime diagnosis while stopping well short of claiming that an Action Gate primitive is a substitute for the split he is proposing. If Peralty is right, then this proposal is not the answer to WordPress’s deepest trust problem. It is, at best, a backward-compatible hardening layer for consequential operations in the existing runtime — and, notably, one whose registry-first approach fits naturally within Peralty’s own declared-but-not-enforced Phase 1 model.
 
-A full read of the series sharpens the relationship. Part 2 (“The Kernel”) describes WP Next as a **PSR-15 middleware pipeline** over a PSR-11 container with **PSR-14 typed events**; Part 6 (“The Migration Plan”) lists the shared `wp-kernel`’s security services as **CSRF protection, OAuth, and a phased plugin-manifest model**. Across all six parts, **proof of intent for consequential operations is never raised** — not in the kernel, not in the admin (Part 3 states plainly that “Next’s admin is Classic’s admin”), not in the manifest phasing. This matters in two directions. The kernel supplies precisely the seam an Action Gate needs — request middleware and typed effect events — so under WP Next the gate is a natural PSR-15 middleware / event consumer rather than a bolt-on. And the seam is left empty: even the most detailed WP Next plan omits a proof-of-intent layer, which is the clearest evidence that this primitive is orthogonal to the split rather than subsumed by it.
+A full read of the series sharpens the relationship. Part 2 (“The Kernel”) describes WP Next as a **PSR-15 middleware pipeline** over a PSR-11 container with **PSR-14 typed events**; Part 6 (“The Migration Plan”) lists the shared `wp-kernel`’s security services as **CSRF protection, OAuth, and a phased plugin-manifest model**. Across all six parts, **proof of intent for consequential operations is never raised** — not in the kernel, not in the admin (Part 3 states plainly that “Next’s admin is Classic’s admin”), not in the manifest phasing. (Part 6 does propose WebAuthn/passkeys and OAuth/OIDC, but those are login-time *authentication*, not proof of intent for a consequential operation already inside an authenticated session — which only sharpens the point.) This matters in two directions. The kernel supplies precisely the seam an Action Gate needs — request middleware and typed effect events — so under WP Next the gate is a natural PSR-15 middleware / event consumer rather than a bolt-on. And the seam is left empty: even the most detailed WP Next plan omits a proof-of-intent layer, which is the clearest evidence that this primitive is orthogonal to the split rather than subsumed by it.
 
 ### Joost de Valk: the strongest current refactor-without-split argument
 
@@ -541,7 +541,7 @@ This means the gate layer should build on action metadata rather than introduce 
 ### Enforcement
 
 ```php
-$decision = wp_enforce_action_gate(
+$decision = wp_check_action_gate(
 	'core/activate-plugin',
 	[
 		'context' => [
@@ -558,9 +558,9 @@ $decision = wp_enforce_action_gate(
 $decision->passed();           // bool
 $decision->needs_challenge();  // bool
 $decision->blocked();          // bool
-$decision->reason();           // 'passed' | 'no_session' | 'expired' | 'policy_blocked' | 'rate_limited'
+$decision->reason();           // 'passed' | 'no_recent_auth' | 'expired' | 'rate_limited' | 'blocked'
 $decision->challenge_url();    // string|null
-$decision->as_rest_error();    // WP_Error|WP_REST_Response
+$decision->as_wp_error();      // WP_Error (transport-agnostic; adapters render it — see below)
 ```
 
 ### Transport separation
@@ -631,7 +631,7 @@ The current ecosystem absolutely includes 2FA plugins, passkey plugins, and ente
 
 ## 14. Surface Model: What Belongs in Early Phases and What Does Not
 
-One of the main weaknesses of all-at-once gate proposals is that they try to unify browser, REST, application-password, WP-CLI, cron, XML-RPC, and WPGraphQL behavior immediately.
+One of the main weaknesses of all-at-once gate proposals is that they try to unify browser, REST, application-password, WP-CLI, cron, and XML-RPC behavior immediately.
 
 This proposal recommends a narrower approach.
 
@@ -646,11 +646,12 @@ This proposal recommends a narrower approach.
 - WP-CLI
 - wp-cron
 - XML-RPC
-- WPGraphQL
 
 ### Why defer them
 
 These surfaces have materially different semantics and operator expectations. They should not be bundled into the first core proof-of-intent primitive unless there is a fully sourced, well-defined implementation story for each. Application Passwords, in particular, are broader than a REST-only concept; they are API credentials used for REST and, where enabled, XML-RPC.
+
+Third-party transports (WPGraphQL, custom REST/RPC endpoints) are deliberately *not* enumerated as core surfaces here: the gate lives at the data-layer chokepoint, so their mutations are covered regardless, and each request resolves to one of the two classes above — a human cookie session (challenge-capable) or an API credential / no actor (block-and-log). Per-surface policy for them is a plugin concern, not a core surface to phase.
 
 ---
 
