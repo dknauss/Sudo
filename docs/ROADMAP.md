@@ -9,8 +9,10 @@ canonical_for: forward roadmap (Now / Next / Later / Non-goals)
 
 Forward-looking only. Shipped work lives in [`CHANGELOG.md`](../CHANGELOG.md); open
 work is tracked as GitHub issues; design analyses live in their own docs. Current
-release state is canonical in [`release-status.md`](release-status.md). Nothing is in
-flight right now — `main` is clean with no open PRs.
+release state is canonical in [`release-status.md`](release-status.md). Near-term work
+is grouped in the [**v5.0.0** milestone](https://github.com/dknauss/Sudo/milestone/1);
+the full backlog is in the [issues](https://github.com/dknauss/Sudo/issues), labeled
+`priority: high` / `medium` / `low`.
 
 ## Now
 
@@ -21,10 +23,13 @@ flight right now — `main` is clean with no open PRs.
   `wp sudo manifest diff` / Site Health / cron run. Walk the network (manifest sites,
   or all blogs via `switch_to_blog()`), keep the cache-bypass reads per-blog, and
   consider a `--site=<id|url>` scope flag with batching for large networks.
-  Priority: medium; documented MVP limitation until shipped.
+  `priority: high`, in the [v5.0.0 milestone](https://github.com/dknauss/Sudo/milestone/1); documented MVP limitation until shipped.
 
 ## Next
 
+- **Cross-site (network-admin) session revocation** ([#239](https://github.com/dknauss/Sudo/issues/239), `priority: high`, v5.0.0) —
+  network revoke-all / by-user / by-site for incident response, reusing
+  `Sudo_Session::deactivate()`.
 - **Session-store architecture** — evaluate and likely implement a dedicated
   sudo-session table (authoritative table + usermeta shadow writes). Design:
   [`session-store-evaluation.md`](session-store-evaluation.md).
@@ -37,8 +42,9 @@ flight right now — `main` is clean with no open PRs.
 - **Multisite terminology + coverage pass** — remaining Core-Trac-alignment work:
   standardize "network administrator" vs. "super admin"; review network-level
   gated-action coverage. Maps to Trac [#20140](https://core.trac.wordpress.org/ticket/20140).
-- **Scoped single-user recovery form** — `define( 'WP_SUDO_RECOVERY_MODE', <user> )`,
-  the open follow-up to the hardened break-glass (Phase R3).
+- **Scoped single-user recovery form** ([#240](https://github.com/dknauss/Sudo/issues/240), `priority: high`, v5.0.0) —
+  `define( 'WP_SUDO_RECOVERY_MODE', <user> )`, plus a `Site_Health::test_recovery_mode()`
+  status; the open follow-up to the hardened break-glass (Phase R3).
 - **Test-scaffolding hardening** — blueprint rot-guard smoke lane (do first),
   tag-pinned blueprint copies at each release, and run the release environment matrix
   every release.
