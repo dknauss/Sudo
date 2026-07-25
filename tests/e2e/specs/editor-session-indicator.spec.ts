@@ -196,4 +196,42 @@ test.describe( 'In-editor sudo session indicator', () => {
 		await expect( panel ).toBeVisible();
 		await expect( panel ).toHaveText( /Sudo active — \d+:\d{2} remaining/ );
 	} );
+
+	test( 'INDICATOR-04: the countdown ticks to expiry and re-seeds on a later grant', async ( {
+		page,
+	} ) => {
+		await openEditor( page );
+		test.skip(
+			! ( await hasUnifiedSidebar( page ) ),
+			'Part B requires the unified PluginSidebar (WP 6.6+).'
+		);
+		await openIndicatorSidebar( page );
+
+		const panel = page.locator( '.wp-sudo-indicator-panel' );
+		await expect( panel ).toBeVisible();
+		// Inactive at open (no session, no grant this pageview).
+		await expect( panel ).toHaveText( /No active sudo session/ );
+
+		// Feed #2 with a short remaining drives the real deadline ticker
+		// deterministically — no need for a live short-duration session. This
+		// exercises seed → tick → active→inactive transition at 0.
+		await page.evaluate( () =>
+			window.dispatchEvent(
+				new CustomEvent( 'wp-sudo-session-granted', { detail: { remaining: 3 } } )
+			)
+		);
+		await expect( panel ).toHaveText( /Sudo active — 0:0\d remaining/ );
+
+		// The local ticker reaches 0 and the panel flips to inactive (grace reads
+		// inactive too, per the design). Poll past the 3 s deadline.
+		await expect( panel ).toHaveText( /No active sudo session/, { timeout: 6_000 } );
+
+		// A later grant re-seeds the countdown from the new event (feed #2 re-seed).
+		await page.evaluate( () =>
+			window.dispatchEvent(
+				new CustomEvent( 'wp-sudo-session-granted', { detail: { remaining: 240 } } )
+			)
+		);
+		await expect( panel ).toHaveText( /Sudo active — [34]:\d{2} remaining/ );
+	} );
 } );

@@ -52,16 +52,14 @@ the full backlog is in the [issues](https://github.com/dknauss/Sudo/issues), lab
 - **Test-scaffolding hardening** — blueprint rot-guard smoke lane (do first),
   tag-pinned blueprint copies at each release, and run the release environment matrix
   every release.
-- **In-editor sudo session-status indicator — client UI** ([#262](https://github.com/dknauss/Sudo/issues/262), `priority: low`) —
-  complete the half-shipped indicator. The server-side feed (localized `remaining`,
-  gated on `is_active()`) shipped in #204; the cross-module contract, a
-  [design brief](../.planning/in-editor-session-indicator-design-brief.md), and
-  implementation-ready
-  [draft skeletons](../.planning/262-implementation-draft.md) landed in #274. The client
-  UI remains — a `core/notices` snackbar baseline (WP 6.4+ floor) plus a feature-detected
-  `PluginSidebar`/header countdown (WP 6.6+, degrading to the snackbar); it needs a
-  browser-capable session to build + E2E-verify. Distinct from the shipped in-editor
-  reauth *modal* (Milestones A/B, v4.6/4.7).
+- **Screenshot refresh for the in-editor session indicator** ([#262](https://github.com/dknauss/Sudo/issues/262)
+  client UI shipped in PR #277) — the indicator itself is now implemented and live-verified: a
+  `core/notices` snackbar baseline (WP 6.4+ floor) plus a feature-detected `PluginSidebar` "Sudo"
+  panel with a live countdown (WP 6.6+, degrading to the snackbar), fed by the #204 `is_active()`-gated
+  `remaining` value and a `wp-sudo-session-granted` grant event. The remaining forward work is a
+  **README/readme screenshot refresh** to add the net-new editor sidebar + snackbar surface to the
+  public screenshot set (AGENTS.md → "UI screenshot planning"), folded into the next screenshot batch.
+  Distinct from the shipped in-editor reauth *modal* (Milestones A/B, v4.6/4.7).
 
 ## Later (need design work)
 

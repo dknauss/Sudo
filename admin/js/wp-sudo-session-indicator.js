@@ -210,7 +210,10 @@
 
 	// --- Part B: feature-detected PluginSidebar (WP 6.6+ unified API) --------
 	// The unified wp.editor.PluginSidebar renders in BOTH the post and site editors
-	// at 6.6+. Below that it is absent and Part A carries the feature (design brief).
+	// starting in WordPress 6.6; before 6.6 it existed only as wp.editPost.PluginSidebar
+	// (post editor only). Verified against the 6.6 dev note "Editor unified extensibility
+	// APIs in 6.6" (make.wordpress.org/core/2024/06/18/editor-unified-extensibility-apis-in-6-6/).
+	// Below 6.6 wp.editor.PluginSidebar is absent and Part A (snackbar) carries the feature.
 	var PluginSidebar = wp.editor && wp.editor.PluginSidebar;
 	var registerPlugin = wp.plugins && wp.plugins.registerPlugin;
 	if ( ! PluginSidebar || ! registerPlugin ) {
@@ -232,14 +235,20 @@
 		}, [] );
 
 		var active = secs > 0;
-		// The ticking countdown is static readable text updated in place, NOT an
-		// aria-live region — a per-second live region would be an AT nuisance. The
-		// grant snackbar (Part A) is the single announcement (brief a11y decision).
+		// The pinned header button exposes active vs. inactive through its accessible
+		// name (the PluginSidebar `title`), which flips only on the active↔inactive
+		// transition — NOT per second — so the persistent control reflects state even
+		// while the panel is closed (design brief Part B), without a per-tick live
+		// region (that would be an AT nuisance; the grant snackbar is the single
+		// announcement). The ticking M:SS itself stays static readable text in the panel.
+		var title = active
+			? __( 'Sudo · active', 'wp-sudo' )
+			: __( 'Sudo · inactive', 'wp-sudo' );
 		return el(
 			PluginSidebar,
 			{
 				name: 'wp-sudo-session-indicator',
-				title: __( 'Sudo', 'wp-sudo' ),
+				title: title,
 				icon: 'shield',
 			},
 			el(
