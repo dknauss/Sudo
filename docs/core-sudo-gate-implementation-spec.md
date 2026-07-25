@@ -32,12 +32,13 @@ The security boundary is **recent, deliberate authentication of the actor at the
 | Stolen/replayed admin cookie | yes | yes | **Yes, outside an open window** — no recent auth ⇒ challenge; a cookie stolen *while a window is open* inherits that elevation until it expires (window TTL) |
 | XSS running in an authed admin origin | yes | yes | **Partially** — cannot silently satisfy an interactive reauth, but in-origin XSS can free-ride on (or trigger, or keylog) any window already open |
 | Walk-away / shared workstation | yes | yes | **Yes** — window expires; consequential action re-challenges |
-| Malicious Editor escalating to Admin | yes | yes (edit/promote) | **Yes** — promotion is a gated effect |
+| Malicious Editor escalating to Admin | yes | no promote cap — reaches the path via a broken-access-control bug | **Yes, as defense-in-depth** — the capability check stops the legitimate case; the gate is the backstop when a BAC bug bypasses it, because promotion is a gated effect |
 | Attacker who knows the password | yes | yes | Partially — reauth still forces a deliberate, loggable step and blocks silent replay |
+| Stolen Application Password / API credential | yes (API credential, not a human session) | yes | **Block-and-log** — no interactive reauth is possible over a credential channel, so these surfaces are hard-blocked, not challenged (§9) |
 | Compromised plugin executing in-process | n/a | n/a | **No** — out of scope (needs runtime isolation) |
 | Missing `current_user_can()` in a handler | n/a | n/a | **No** — that's an authz bug, orthogonal |
 
-The value is concentrated on the top five rows, which are precisely the "broken access control / privilege escalation / session hijack" categories driving current WordPress CVEs.
+The value is concentrated on the interactive-session rows, which are precisely the "broken access control / privilege escalation / session hijack" categories that are the most-exploited class in current WordPress security data (§1).
 
 ---
 
