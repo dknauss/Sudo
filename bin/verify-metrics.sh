@@ -102,13 +102,15 @@ PY
 ACTUAL_OPTIONS="$(php "$REPO_ROOT/bin/scan-persistent-options.php" \
 	"$REPO_ROOT/wp-sudo.php" "$REPO_ROOT/uninstall.php" \
 	"$REPO_ROOT/includes" "$REPO_ROOT/mu-plugin" "$REPO_ROOT/bridges")"
-# Expected live-option name set (the contract). Update this AND the "Persistent
-# options" row in docs/current-metrics.md together when the plugin's persisted
-# options genuinely change.
-EXPECTED_OPTIONS="wp_sudo_activated wp_sudo_db_version wp_sudo_settings"
+# Documented option NAMES from the "Persistent options" row (parsed by the same
+# tested scanner), compared directly against code discovery — so a stale name in the
+# doc (e.g. reverting to a removed option) is caught even when the count still reads 3.
+# No hardcoded expected list: the doc is the declared contract, the code is ground
+# truth, and the gate fails on any divergence between them.
+DOC_OPTIONS="$(php "$REPO_ROOT/bin/scan-persistent-options.php" --doc-names "$METRICS_FILE")"
 ACTUAL_OPTIONS_SORTED="$(printf '%s\n' $ACTUAL_OPTIONS | sort | tr '\n' ' ' | sed 's/ *$//')"
-EXPECTED_OPTIONS_SORTED="$(printf '%s\n' $EXPECTED_OPTIONS | sort | tr '\n' ' ' | sed 's/ *$//')"
-EXPECTED_OPTIONS_COUNT="$(printf '%s\n' $EXPECTED_OPTIONS | wc -w | tr -d ' ')"
+DOC_OPTIONS_SORTED="$(printf '%s\n' $DOC_OPTIONS | sort | tr '\n' ' ' | sed 's/ *$//')"
+ACTUAL_OPTIONS_COUNT="$(printf '%s\n' $ACTUAL_OPTIONS | wc -w | tr -d ' ')"
 
 DOC_UNIT_TESTS="$(metric_number 'Unit tests')"
 DOC_UNIT_ASSERTIONS="$(metric_number 'Unit assertions')"
@@ -142,8 +144,8 @@ FAILURES=""
 [ "$DOC_GATED_MULTI" = "$ACTUAL_GATED_MULTI" ] || add_failure "Gated rules (multisite)" "$DOC_GATED_MULTI" "$ACTUAL_GATED_MULTI"
 [ "$DOC_GATED_TOTAL" = "$ACTUAL_GATED_TOTAL" ] || add_failure "Gated rules (total)" "$DOC_GATED_TOTAL" "$ACTUAL_GATED_TOTAL"
 [ "$DOC_AUDIT_HOOKS" = "$ACTUAL_AUDIT_HOOKS" ] || add_failure "Audit hooks" "$DOC_AUDIT_HOOKS" "$ACTUAL_AUDIT_HOOKS"
-[ "$ACTUAL_OPTIONS_SORTED" = "$EXPECTED_OPTIONS_SORTED" ] || add_failure "Persistent options (name set)" "$EXPECTED_OPTIONS_SORTED" "$ACTUAL_OPTIONS_SORTED"
-[ "$DOC_OPTIONS_COUNT" = "$EXPECTED_OPTIONS_COUNT" ] || add_failure "Persistent options (count)" "$DOC_OPTIONS_COUNT" "$EXPECTED_OPTIONS_COUNT"
+[ "$DOC_OPTIONS_SORTED" = "$ACTUAL_OPTIONS_SORTED" ] || add_failure "Persistent options (documented names vs code)" "$DOC_OPTIONS_SORTED" "$ACTUAL_OPTIONS_SORTED"
+[ "$DOC_OPTIONS_COUNT" = "$ACTUAL_OPTIONS_COUNT" ] || add_failure "Persistent options (documented count vs code)" "$DOC_OPTIONS_COUNT" "$ACTUAL_OPTIONS_COUNT"
 
 if [ -n "$FAILURES" ]; then
 	echo "Metrics drift detected in docs/current-metrics.md:"

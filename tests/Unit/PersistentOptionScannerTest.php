@@ -91,6 +91,33 @@ final class PersistentOptionScannerTest extends TestCase {
 		$this->scan( array( 'a' => "<?php class A { function f() { update_option( self::MYSTERY, 1 ); } }" ) );
 	}
 
+	public function test_doc_option_names_parses_only_the_persistent_options_row(): void {
+		$md = "# Metrics\n\n"
+			. "| Persistent options | 3 | `wp_sudo_settings` (`Admin::OPTION_KEY`), `wp_sudo_db_version`, `wp_sudo_activated` (literal). |\n"
+			. "| Other | 1 | `wp_sudo_ignored_elsewhere` |\n\n"
+			. "Per-user meta `_wp_sudo_expires` etc. are written only for active users.\n";
+		$this->assertSame(
+			array( 'wp_sudo_activated', 'wp_sudo_db_version', 'wp_sudo_settings' ),
+			( new Persistent_Option_Scanner() )->doc_option_names( $md )
+		);
+	}
+
+	/**
+	 * Regression for the "documented names never verified" false-green: a stale doc
+	 * that reverts to the removed governance_mode option must parse to a DIFFERENT set
+	 * than the code discovers, so the gate's doc-vs-code comparison fails.
+	 */
+	public function test_doc_option_names_surfaces_a_stale_documented_name(): void {
+		$stale      = "| Persistent options | 3 | `wp_sudo_settings`, `wp_sudo_db_version`, `wp_sudo_governance_mode` |\n";
+		$documented = ( new Persistent_Option_Scanner() )->doc_option_names( $stale );
+		$this->assertSame( array( 'wp_sudo_db_version', 'wp_sudo_governance_mode', 'wp_sudo_settings' ), $documented );
+		$this->assertNotSame(
+			array( 'wp_sudo_activated', 'wp_sudo_db_version', 'wp_sudo_settings' ),
+			$documented,
+			'A stale documented name set must differ from the live option set so verify:metrics fails.'
+		);
+	}
+
 	public function test_scans_the_real_production_tree_to_exactly_the_three_live_options(): void {
 		$root  = dirname( __DIR__, 2 );
 		$files = array( $root . '/wp-sudo.php', $root . '/uninstall.php' );

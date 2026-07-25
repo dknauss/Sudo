@@ -86,6 +86,31 @@ final class Persistent_Option_Scanner {
 	}
 
 	/**
+	 * Parse the option names DOCUMENTED in the "Persistent options" row of
+	 * current-metrics.md, so the gate can compare the documented name SET to what the
+	 * code actually writes — rather than trusting a hardcoded list or only the count.
+	 * Scoped to that one row so `_wp_sudo_*` meta keys or example greps elsewhere in
+	 * the file are not picked up.
+	 *
+	 * @return list<string> Sorted, unique wp_sudo_* names named in that row.
+	 */
+	public function doc_option_names( string $metrics_content ): array {
+		$names = array();
+		foreach ( preg_split( '/\R/', $metrics_content ) as $line ) {
+			if ( 1 === preg_match( '/^\|\s*Persistent options\s*\|/', $line ) ) {
+				preg_match_all( '/wp_sudo_[a-z0-9_]+/', $line, $m );
+				foreach ( $m[0] as $n ) {
+					$names[ $n ] = true;
+				}
+				break;
+			}
+		}
+		$out = array_keys( $names );
+		sort( $out );
+		return $out;
+	}
+
+	/**
 	 * Tokenize one source into its class constants and option-write descriptors.
 	 *
 	 * @return array{consts: array<string,array<string,string>>, writes: list<array<string,mixed>>}
@@ -247,6 +272,20 @@ final class Persistent_Option_Scanner {
 // CLI entry point. Skipped when the file is require()'d (e.g. under PHPUnit),
 // where $argv[0] is the test runner rather than this script.
 if ( 'cli' === PHP_SAPI && isset( $argv ) && realpath( $argv[0] ) === realpath( __FILE__ ) ) {
+	$scanner = new Persistent_Option_Scanner();
+
+	// `--doc-names <metrics-file>`: print the option names the doc claims, for the
+	// gate to compare against code discovery.
+	if ( isset( $argv[1] ) && '--doc-names' === $argv[1] ) {
+		$metrics = $argv[2] ?? '';
+		if ( ! is_file( $metrics ) ) {
+			fwrite( STDERR, "verify-metrics: metrics file not found: $metrics\n" );
+			exit( 3 );
+		}
+		echo implode( ' ', $scanner->doc_option_names( (string) file_get_contents( $metrics ) ) ) . "\n";
+		exit( 0 );
+	}
+
 	$files = array();
 	foreach ( array_slice( $argv, 1 ) as $path ) {
 		if ( is_dir( $path ) ) {
@@ -262,8 +301,7 @@ if ( 'cli' === PHP_SAPI && isset( $argv ) && realpath( $argv[0] ) === realpath( 
 	}
 
 	try {
-		$scanner = new Persistent_Option_Scanner();
-		$names   = $scanner->scan_files( $files );
+		$names = $scanner->scan_files( $files );
 	} catch ( \RuntimeException $e ) {
 		fwrite( STDERR, 'verify-metrics: ' . $e->getMessage() . "\n" );
 		exit( 3 );
