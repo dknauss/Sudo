@@ -322,9 +322,12 @@ An action registration may carry multiple layers of meaning, and those layers sh
 - **label** — human-readable text
 - **capabilities** — expected capability checks for the operation
 - **category** — broad grouping such as plugin management or user management
-- **consequence class** — a risk-oriented classification: code execution, privilege escalation, account takeover, destructive deletion, or external credential mutation (the same five-value set as the implementation spec §4.1 enum)
-- **scope** — a grouping that a future gate layer may use when deciding how proof-of-intent is reused
-- **annotations** — optional booleans or strings such as `destructive`, `requires_recent_auth`, or `consent_required`
+- **consequence** — a *nested block* carrying the risk metadata, kept together so the same block is portable to a consequential ability's `consequence` annotation later (implementation spec §4.1):
+  - **class** — a risk-oriented classification: code execution, privilege escalation, account takeover, destructive deletion, or external credential mutation (the same five-value set as the spec §4.1 enum)
+  - **scope** — a grouping that a future gate layer may use when deciding how proof-of-intent is reused
+  - **annotations** — optional booleans or strings such as `destructive`, `requires_recent_auth`, or `consent_required`
+
+The top-level fields (`id`, `label`, `capabilities`, `category`) are ones a consequential ability would already carry; the nested `consequence` block is the portable addition. Keeping the risk metadata in one block is precisely what lets a future getter read a standalone entry and a consequence-annotated ability through one surface without reshaping.
 
 One reason to be explicit here is that WordPress has historically overloaded terminology in security and permissions discussions. This proposal should avoid doing that again. “Category,” “consequence class,” “scope,” and “annotation” are not interchangeable and should not be treated as such.
 
@@ -343,6 +346,8 @@ The best answer is not that abilities are irrelevant. They are highly relevant. 
 
 - **Abilities** are executable units with registration, validation, permission, and execution semantics.
 - **Actions**, as used in this proposal, are a taxonomy of consequential operations that core and plugins may want to name, observe, audit, decorate, and later gate—even when those operations are not naturally modeled as one self-contained ability object.
+
+There is also a decisive *enforcement* reason the two cannot simply merge. Even where an action maps cleanly to an ability, the Abilities API's execution hook is **observational, not a gate**: `WP_Ability::execute()` fires `wp_before_execute_ability` and then calls the ability on the very next line, discarding whatever the hook returned — so a callback cannot return a `WP_Error` or a challenge to stop execution. (This is verified against `WordPress/abilities-api` and set out in [`core-actions-registry-vs-abilities-decision.md`](core-actions-registry-vs-abilities-decision.md).) A proof-of-intent gate therefore has to enforce at the **data-layer chokepoint**, regardless of whether an operation happens to be an ability; the registry is simply what lets it name that operation the same way in either case.
 
 Some future consequential actions may map one-to-one to abilities. Others may wrap long-standing core functions or mixed legacy flows that do not yet fit the ability model cleanly. That means the proposal should align with Abilities where possible without requiring every consequential operation to be reduced to an ability first.
 
