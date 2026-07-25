@@ -118,6 +118,36 @@ final class PersistentOptionScannerTest extends TestCase {
 		);
 	}
 
+	/**
+	 * Hardening (#9): a top-level `const` after a class body closes must not be
+	 * attributed to that class and shadow its real constant.
+	 */
+	public function test_top_level_const_after_class_is_not_misattributed(): void {
+		$src = "<?php class A { const KEY = 'wp_sudo_a'; function f() { update_option( self::KEY, 1 ); } }\nconst KEY = 'wp_sudo_unrelated';\n";
+		$this->assertSame( array( 'wp_sudo_a' ), $this->scan( array( 'a' => $src ) ) );
+	}
+
+	/**
+	 * Hardening (#10): `static::CONST` is late-static-bound and cannot be resolved by
+	 * static analysis, so it must fail closed rather than resolve as `self::`.
+	 */
+	public function test_late_static_bound_constant_fails_closed(): void {
+		$this->expectException( \RuntimeException::class );
+		$this->scan( array( 'a' => "<?php class A { const KEY = 'wp_sudo_a'; function f() { update_option( static::KEY, 1 ); } }" ) );
+	}
+
+	/**
+	 * Hardening (#8): two classes sharing a short name (e.g. same class name in
+	 * different namespaces) that declare the same constant with DIFFERENT values are
+	 * ambiguous and must fail closed rather than silently keep the first value.
+	 */
+	public function test_conflicting_same_named_class_constant_fails_closed(): void {
+		$a = "<?php namespace One; class Config { const KEY = 'wp_sudo_one'; function f() { update_option( self::KEY, 1 ); } }";
+		$b = "<?php namespace Two; class Config { const KEY = 'wp_sudo_two'; function g() { update_option( self::KEY, 1 ); } }";
+		$this->expectException( \RuntimeException::class );
+		$this->scan( array( 'a' => $a, 'b' => $b ) );
+	}
+
 	public function test_scans_the_real_production_tree_to_exactly_the_three_live_options(): void {
 		$root  = dirname( __DIR__, 2 );
 		$files = array( $root . '/wp-sudo.php', $root . '/uninstall.php' );

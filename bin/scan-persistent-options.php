@@ -51,7 +51,17 @@ final class Persistent_Option_Scanner {
 		foreach ( $sources as $label => $src ) {
 			$parsed = $this->parse( (string) $src, (string) $label );
 			foreach ( $parsed['consts'] as $cls => $map ) {
-				$class_consts[ $cls ] = ( $class_consts[ $cls ] ?? array() ) + $map;
+				foreach ( $map as $const_name => $value ) {
+					// Constants are keyed by (short) class name. If two classes — e.g. the
+					// same short name in different namespaces — declare the same constant
+					// with DIFFERENT values, resolution is ambiguous and could silently
+					// drop a live option, so fail closed instead of keeping whichever
+					// appeared first.
+					if ( isset( $class_consts[ $cls ][ $const_name ] ) && $class_consts[ $cls ][ $const_name ] !== $value ) {
+						throw new \RuntimeException( sprintf( 'Ambiguous constant %s::%s (conflicting values "%s" and "%s"); cannot resolve option names safely.', $cls, $const_name, $class_consts[ $cls ][ $const_name ], $value ) );
+					}
+					$class_consts[ $cls ][ $const_name ] = $value;
+				}
 			}
 			foreach ( $parsed['writes'] as $w ) {
 				$writes[] = $w;
@@ -131,18 +141,37 @@ final class Persistent_Option_Scanner {
 		$consts        = array();
 		$writes        = array();
 		$current_class = null;
+		$class_depth   = -1;
+		$brace_depth   = 0;
 		$count         = count( $sig );
 
 		for ( $i = 0; $i < $count; $i++ ) {
 			list( $id, $text ) = $sig[ $i ];
 
+			// Track brace depth so class scope is closed at the class's `}`. Without
+			// this, a top-level `const` after a class would be attributed to it and
+			// could shadow a real class constant, dropping a live option.
+			if ( null === $id && '{' === $text ) {
+				++$brace_depth;
+				continue;
+			}
+			if ( null === $id && '}' === $text ) {
+				--$brace_depth;
+				if ( null !== $current_class && $brace_depth <= $class_depth ) {
+					$current_class = null;
+					$class_depth   = -1;
+				}
+				continue;
+			}
+
 			if ( T_CLASS === $id && $i + 1 < $count && T_STRING === $sig[ $i + 1 ][0] ) {
 				$current_class            = $sig[ $i + 1 ][1];
+				$class_depth              = $brace_depth; // Class body opens at brace_depth + 1.
 				$consts[ $current_class ] = $consts[ $current_class ] ?? array();
 				continue;
 			}
 
-			if ( T_CONST === $id && null !== $current_class && $i + 1 < $count && T_STRING === $sig[ $i + 1 ][0] ) {
+			if ( T_CONST === $id && null !== $current_class && $brace_depth > $class_depth && $i + 1 < $count && T_STRING === $sig[ $i + 1 ][0] ) {
 				$const_name = $sig[ $i + 1 ][1];
 				for ( $j = $i + 2; $j < $count; $j++ ) {
 					if ( null === $sig[ $j ][0] && ';' === $sig[ $j ][1] ) {
@@ -247,7 +276,14 @@ final class Persistent_Option_Scanner {
 		) {
 			$qualifier  = $arg[0][1];
 			$const_name = $arg[2][1];
-			$cls        = ( 'self' === $qualifier || 'static' === $qualifier ) ? ( $w['class'] ?? null ) : $qualifier;
+			// `static::` is late-static-bound: under inheritance PHP resolves it to the
+			// runtime (sub)class, which this static scan cannot know. Resolving it as
+			// `self::` could report a base-class value and miss a subclass's option, so
+			// fail closed rather than guess.
+			if ( T_STATIC === $arg[0][0] || 'static' === $qualifier ) {
+				throw new \RuntimeException( sprintf( 'Late-static-bound option constant static::%s in %s cannot be resolved by static analysis; use self:: or an explicit class name.', $const_name, $w['label'] ) );
+			}
+			$cls = ( 'self' === $qualifier ) ? ( $w['class'] ?? null ) : $qualifier;
 			if ( null !== $cls && isset( $class_consts[ $cls ][ $const_name ] ) ) {
 				return $class_consts[ $cls ][ $const_name ];
 			}
