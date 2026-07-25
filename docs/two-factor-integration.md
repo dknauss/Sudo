@@ -27,67 +27,33 @@ The sudo session is **only activated after both steps succeed**. A correct passw
 
 The 2FA step is entirely optional. If no 2FA plugin is active or the user has not configured 2FA, the session activates immediately after a successful password.
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Gate intercepts action                   │
-│              (plugin activation, user deletion, etc.)       │
-└────────────────────────────┬────────────────────────────────┘
-                             │
-                             ▼
-┌─────────────────────────────────────────────────────────────┐
-│                  Challenge Page (Step 1)                    │
-│                    Password Prompt                          │
-│                                                             │
-│  ┌─────────────────────────────────────────────────────┐    │
-│  │  User enters WordPress password                     │    │
-│  │  → AJAX POST to wp_sudo_challenge_auth              │    │
-│  └──────────────────────┬──────────────────────────────┘    │
-└─────────────────────────┼───────────────────────────────────┘
-                          │
-                          ▼
-              ┌───────────────────────┐
-              │  Password correct?    │
-              └───────┬───────┬───────┘
-                 NO   │       │  YES
-                 ▼    │       ▼
-             (error)  │  ┌──────────────────┐
-                      │  │ needs_two_factor?│
-                      │  └──────┬─────┬─────┘
-                      │    NO   │     │ YES
-                      │    ▼    │     ▼
-                      │ activate│  ┌──────────────────────────────────────┐
-                      │ session │  │  Return '2fa_pending'                │
-                      │         │  │  Set challenge cookie (httponly)     │
-                      │         │  │  Store pending transient             │
-                      │         │  └──────────────────┬───────────────────┘
-                      │         │                     │
-                      │         │                     ▼
-                      │         │  ┌──────────────────────────────────────┐
-                      │         │  │  Challenge Page (Step 2)             │
-                      │         │  │  2FA Authentication                   │
-                      │         │  │                                      │
-                      │         │  │  ┌──────────────────────────────┐    │
-                      │         │  │  │ User enters 2FA code         │    │
-                      │         │  │  │ → AJAX POST to               │    │
-                      │         │  │  │   wp_sudo_challenge_2fa      │    │
-                      │         │  │  └──────────────┬───────────────┘    │
-                      │         │  └─────────────────┼────────────────────┘
-                      │         │                    │
-                      │         │                    ▼
-                      │         │        ┌───────────────────────┐
-                      │         │        │   2FA code valid?     │
-                      │         │        └───────┬───────┬───────┘
-                      │         │           NO   │       │ YES
-                      │         │           ▼    │       ▼
-                      │         │       (error)  │  clear pending state
-                      │         │                │  activate session
-                      │         │                │  replay stashed request
-                      │         │                │
-                      ▼         ▼                ▼
-              ┌─────────────────────────────────────────┐
-              │  Sudo session active                    │
-              │  Original action replayed               │
-              └─────────────────────────────────────────┘
+The same two-step flow is reached through **two surfaces**: the **full-page challenge** (interactive admin and cookie-REST actions, which stash the intercepted request and replay it on success) and the **in-editor modal** (a gated block-editor `apiFetch` that returns `sudo_required`, prompting an in-place password step and — for modal-capable accounts — in-modal 2FA via a server-rendered partial; WebAuthn/push or a throttled/expired second factor falls back to the full-page challenge, and the original request is transparently re-dispatched rather than stashed). The diagram shows both.
+
+```mermaid
+flowchart TD
+    A1["Gate intercepts an interactive / REST action<br/>(plugin, theme, user, or settings op)"] --> P
+    A2["Block editor: a gated apiFetch returns<br/>sudo_required → in-editor modal opens"] --> P
+
+    P["Step 1 — Password<br/>AJAX: wp_sudo_challenge_auth"] --> PC{"Password correct?"}
+    PC -- No --> PE["Error → re-prompt"]
+    PC -- Yes --> TF{"2FA configured?"}
+
+    TF -- No --> ACT["Activate sudo session"]
+    TF -- Yes --> PEND["Return 2fa_pending<br/>challenge cookie (httponly) + pending transient"]
+
+    PEND --> SURF{"Which surface?"}
+    SURF -- "full-page" --> F2["Step 2 — 2FA<br/>AJAX: wp_sudo_challenge_2fa"]
+    SURF -- "modal, 2FA modal-capable" --> M2["In-modal 2FA (TOTP / email / backup code)<br/>server partial: wp_sudo_challenge_2fa_partial<br/>validated by wp_sudo_challenge_2fa"]
+    SURF -- "modal, not modal-capable / throttled / expired" --> LO["Link-out snackbar (WebAuthn / push, etc.)<br/>→ open the full-page challenge_url"]
+
+    LO --> F2
+    F2 --> V{"2FA code valid?"}
+    M2 --> V
+    V -- No --> FE["Error → re-prompt"]
+    V -- Yes --> ACT
+
+    ACT --> DONE["Sudo session active"]
+    DONE --> R["Interactive / full-page: replay the stashed request<br/>Editor modal: transparently re-dispatch the apiFetch<br/>(secret-bearing changes — e.g. a password — are<br/>reauth-then-resubmit, never replayed)"]
 ```
 
 ---
