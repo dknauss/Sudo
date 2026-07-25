@@ -1,6 +1,6 @@
 # POC Patch Sketches: Recent-Auth Gate at the Core Chokepoints
 
-**Status:** Illustrative sketches, not tested against a core checkout. Companion to [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md). Signatures verified against WordPress core: `wp_update_user` / `wp_insert_user` (returns `WP_Error`) and `wp_delete_user` (returns `bool`) in `wp-includes/user.php`; `wp_set_password` in `wp-includes/pluggable.php`; `WP_User::set_role` / `add_role` in `wp-includes/class-wp-user.php`; `wpmu_create_user` (returns `int|false`) in `wp-includes/ms-functions.php`; the users controller in `wp-includes/rest-api/endpoints/class-wp-rest-users-controller.php` (canonical: <https://github.com/WordPress/wordpress-develop/tree/trunk/src/wp-includes>). Line anchors are approximate.
+**Status:** Illustrative sketches, not tested against a core checkout. Companion to [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md). Signatures verified against WordPress core: `wp_update_user` / `wp_insert_user` (returns `WP_Error`) in `wp-includes/user.php` and `wp_delete_user` (returns `bool`) in `wp-admin/includes/user.php`; `wp_set_password` in `wp-includes/pluggable.php`; `WP_User::set_role` / `add_role` in `wp-includes/class-wp-user.php`; `wpmu_create_user` (returns `int|false`) in `wp-includes/ms-functions.php`; the users controller in `wp-includes/rest-api/endpoints/class-wp-rest-users-controller.php` (canonical: <https://github.com/WordPress/wordpress-develop/tree/trunk/src/wp-includes>). Line anchors are approximate.
 **Purpose:** Make the spec's central claim concrete — that gating a handful of *data-layer chokepoints* covers admin UI, REST, and programmatic callers in one insertion, using error paths those functions already return.
 
 The four pieces below are the minimum viable enforcement core:
@@ -161,7 +161,7 @@ function wp_check_action_gate( $action_id, array $args = array() ) {
 	}
 	// A built-in `core/` action that is not registered means the catalog failed to
 	// load (or loaded too late) — fail CLOSED. Unknown third-party actions pass.
-	// (0 === strpos, not str_starts_with: core still supports PHP 7.x.)
+	// (`0 === strpos`; `str_starts_with()` is equivalent and core-safe — WP polyfills it in wp-includes/compat.php since 5.9.)
 	if ( ! wp_action_exists( $action_id ) ) {
 		return ( 0 === strpos( (string) $action_id, 'core/' ) )
 			? new WP_Action_Gate_Decision( $action_id, 'blocked' )
@@ -292,4 +292,4 @@ The challenge page (`wp-login.php?action=reauth`) verifies the actor's password 
 
 ## Why this is the whole thing
 
-Four insertions of three lines each (`wp_update_user`, `wp_insert_user`, `wp_delete_user`, plugin actions) + one 6-line admin adapter + the window/gate primitives. Every other caller — REST, CLI, programmatic — is covered because it already handles the `WP_Error` these functions already return. That is the difference between gating the effect and gating the form, in ~150 lines of core.
+A handful of insertions at the core mutation chokepoints (`wp_update_user`, `wp_insert_user`, plugin actions) + the window/gate primitives. Most callers — REST, CLI, programmatic — are covered because they already handle the `WP_Error` these functions return. **The seam is not uniform**, though: `wp_delete_user()` returns `bool` (a returned `WP_Error` is truthy → gate it with a *pre-delete adapter*, not a return value), `WP_User::set_role()` returns `void`, and `wp_set_password()`/`reset_password()` bypass `wp_update_user()` — so each of those chokepoints specifies whether it pays the signature-change cost or an interstitial/`wp_die()` cost (see the §5.1 per-chokepoint caveat). That is the difference between gating the effect and gating the form — a bounded, per-chokepoint change, not a framework.
