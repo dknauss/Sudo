@@ -52,6 +52,14 @@ the full backlog is in the [issues](https://github.com/dknauss/Sudo/issues), lab
 - **Test-scaffolding hardening** — blueprint rot-guard smoke lane (do first),
   tag-pinned blueprint copies at each release, and run the release environment matrix
   every release.
+- **In-editor sudo session-status indicator — client UI** ([#262](https://github.com/dknauss/Sudo/issues/262), `priority: low`) —
+  complete the half-shipped indicator. The server-side feed (localized `remaining`,
+  gated on `is_active()`) and a design brief
+  ([`in-editor-session-indicator-design-brief.md`](in-editor-session-indicator-design-brief.md))
+  shipped in #204; the client UI remains — a `core/notices` snackbar baseline (WP 6.4+
+  floor) plus a feature-detected `PluginSidebar`/header countdown (WP 6.6+, degrading to
+  the snackbar). Distinct from the shipped in-editor reauth *modal* (Milestones A/B,
+  v4.6/4.7).
 
 ## Later (need design work)
 
