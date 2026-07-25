@@ -11,7 +11,7 @@
 
 WordPress has a mature capability system, a mature authentication system, and a mature hook system. What it does **not** have is a first-class registry of **consequential operations**: actions important enough that core, plugins, audit tools, UI surfaces, and policy systems may all want to identify them consistently.
 
-That missing registry forces every protection layer to invent its own catalog. Plugins such as WP Sudo, Fortress, Wordfence, and Solid Security all identify overlapping sets of dangerous operations, but they do so with different identifiers, different semantics, different enforcement models, and no shared interoperability surface. The result is duplication, inconsistent operator experience, and no standard way for plugins to declare that an operation is consequential enough to observe, decorate, audit, or eventually gate.
+That missing registry forces every protection layer to invent its own catalog. Protection layers such as WP Sudo and Wordfence, the Solid Security plugin, and Snicco Fortress — a proprietary, license-gated **must-use** security suite deployed at the server level and integrated by hosts such as GridPane — all identify overlapping sets of dangerous operations, but they do so with different identifiers, different semantics, different enforcement models, and no shared interoperability surface. The result is duplication, inconsistent operator experience, and no standard way for plugins to declare that an operation is consequential enough to observe, decorate, audit, or eventually gate.
 
 This proposal argues that WordPress should solve that problem first.
 
