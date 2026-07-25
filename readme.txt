@@ -170,6 +170,13 @@ CI: GitHub Actions runs PHPStan level 6 and PHPCS on every push and PR, unit tes
 
 Extensibility: the action registry is filterable via wp_sudo_gated_actions. Audit hooks cover session lifecycle, gated actions, policy decisions, preset application, lockouts, tamper detection, and the high-severity admin-escalation block. See the GitHub repository for hook reference, CONTRIBUTING.md, and the full developer documentation.
 
+== Acknowledgements ==
+
+Sudo's core design owes a debt to two people:
+
+* **John Blackbourn**, for the action-gating concept — that consequential operations should require a fresh proof of intent, regardless of role. It is the single biggest conceptual contribution to the project.
+* **Tim Nash**, for the idea of locking down roles and permissions, which shaped Sudo's opt-in admin-escalation guard and its opt-in role/capability lockdown audit.
+
 == Screenshots ==
 
 1. Challenge page — reauthentication interstitial with password field.
