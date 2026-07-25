@@ -28,6 +28,9 @@ jobs:
             "docs/connectors-api-reference.md"
             "docs/core-action-gate-proposal.md"
             "docs/current-metrics.md"
+            "docs/collaboration-analysis.md"
+            "docs/sudo-design-notes.md"
+            "docs/testing-strategy.md"
             "docs/e2e-runtime-review.md"
             "docs/llm-lies-log.md"
             "docs/password-change-reauth-research.md"
@@ -44,7 +47,7 @@ jobs:
 
           # Paths that are not user-facing project docs (planning artifacts,
           # agent skill fixtures, test fixtures, per-PHP-version test dirs).
-          EXCLUDED_PATHS='^(\.planning/|\.github/skills/|\.github/php[0-9]+-tests/|tests/)'
+          EXCLUDED_PATHS='^(\.planning/|\.github/skills/|\.github/php[0-9]+-tests/|tests/|docs/archive/)'
 
           # Build an alternation of excluded file names for grep -E.
           EXCLUDE_FILE_REGEX=$(IFS='|'; echo "${EXCLUDED_FILES[*]}")
