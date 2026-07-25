@@ -180,7 +180,7 @@ function wp_sudo_is_recovery_mode(): bool {
  * unscoped and grant every administrator — the exact blast radius scoping exists
  * to prevent. Keep this strict; keep wp_sudo_is_recovery_mode() loose.
  *
- * @since 5.0.0
+ * @since TBD
  *
  * @return bool
  */
@@ -203,7 +203,7 @@ function wp_sudo_recovery_mode_is_unscoped(): bool {
  * user lookup (get_user_by) and no capability checks, so it cannot re-enter
  * map_meta_cap.
  *
- * @since 5.0.0
+ * @since TBD
  *
  * @return int|null Resolved target user ID, or null when there is no scoped target.
  */
@@ -246,7 +246,7 @@ function wp_sudo_recovery_mode_user(): ?int {
  * (the target must hold manage_options / manage_network_options), so a scoped
  * target who lost admin rights is still denied.
  *
- * @since 5.0.0
+ * @since TBD
  *
  * @param int $user_id User being evaluated.
  * @return bool

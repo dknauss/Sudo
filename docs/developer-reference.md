@@ -284,14 +284,14 @@ effectively bypasses the governance model.
 
 ### `wp_sudo_recovery_mode_is_unscoped(): bool`
 
-*(Since 5.0.0)* Returns `true` only for the legacy **unscoped** form, using a
+*(Since TBD)* Returns `true` only for the legacy **unscoped** form, using a
 strict `=== true` comparison. `define( 'WP_SUDO_RECOVERY_MODE', 1 )` is therefore
 **scoped** (user ID 1), not unscoped — the strict test prevents a `1 == true`
 loose-comparison footgun that would grant every administrator.
 
 ### `wp_sudo_recovery_mode_user(): ?int`
 
-*(Since 5.0.0)* Resolves a **scoped** `WP_SUDO_RECOVERY_MODE` value to a user ID:
+*(Since TBD)* Resolves a **scoped** `WP_SUDO_RECOVERY_MODE` value to a user ID:
 an integer is looked up as a user ID, any other value as a login
 (`get_user_by`). Returns `null` when the constant is undefined, unscoped
 (boolean `true`), empty, or resolves to no existing user (a typo). Performs only
@@ -299,7 +299,7 @@ a user lookup — no capability checks — so it cannot re-enter `map_meta_cap`.
 
 ### `wp_sudo_user_matches_recovery( int $user_id ): bool`
 
-*(Since 5.0.0)* The single seam both governance callers use to decide whether the
+*(Since TBD)* The single seam both governance callers use to decide whether the
 break-glass grant applies to a user. Three explicit states: inactive → nobody;
 **unscoped** (`true`) → the current user only (preserving the pre-scoping
 contract); **scoped** → only the resolved target, and an unresolvable target
@@ -903,7 +903,7 @@ break-glass / environment switches.
 | Constant | Effect | Since |
 |---|---|---|
 | `WP_SUDO_ALLOW_ESCALATION` | Define `true` to bypass the admin-escalation guard entirely. Checked **first**, before any session or capability read, so deployment, migration, and sole-admin recovery flows are never hard-blocked by the guard. Constant form of the `wp_sudo_allow_escalation` filter. | 4.1.0 |
-| `WP_SUDO_RECOVERY_MODE` | Break-glass recovery — the escape hatch for a misconfigured/last-manager lockout. **Scoped** (`<user_id_or_login>`, since 5.0.0) grants only that one named user; an unresolvable value grants nobody (fail-closed). **Unscoped** (strictly `true`) grants the current user and re-opens governance to every `manage_options` (`manage_network_options` on multisite) holder regardless of role — note `1` means user ID 1, not "on". Weakens the governance model while set; a Site Health critical status flags it — remove as soon as normal access is restored. See [`wp_sudo_is_recovery_mode()`](#wp_sudo_is_recovery_mode-bool), [`wp_sudo_recovery_mode_user()`](#wp_sudo_recovery_mode_user-int). | 3.4.0; scoped 5.0.0 |
+| `WP_SUDO_RECOVERY_MODE` | Break-glass recovery — the escape hatch for a misconfigured/last-manager lockout. **Scoped** (`<user_id_or_login>`, since TBD) grants only that one named user; an unresolvable value grants nobody (fail-closed). **Unscoped** (strictly `true`) grants the current user and re-opens governance to every `manage_options` (`manage_network_options` on multisite) holder regardless of role — note `1` means user ID 1, not "on". Weakens the governance model while set; a Site Health critical status flags it — remove as soon as normal access is restored. See [`wp_sudo_is_recovery_mode()`](#wp_sudo_is_recovery_mode-bool), [`wp_sudo_recovery_mode_user()`](#wp_sudo_recovery_mode_user-int). | 3.4.0; scoped TBD |
 | `WP_SUDO_DISABLE_PASSED_EVENT_LOGGING` | Define `true` to stop recording `action_passed` dashboard events (reduced audit visibility for actions performed during an active sudo session). Checked **before** the `wp_sudo_log_passed_events_enabled` filter, which can still override per-request. | 3.0.0 |
 
 Internal/structural constants (`WP_SUDO_VERSION`, `WP_SUDO_PLUGIN_DIR`,

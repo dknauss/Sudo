@@ -3346,7 +3346,7 @@ class Admin {
 	 * target, or scoped to an unresolvable value that grants no one (#240).
 	 *
 	 * @since 3.4.0
-	 * @since 5.0.0 Branches copy on scoped vs unscoped recovery mode.
+	 * @since TBD Branches copy on scoped vs unscoped recovery mode.
 	 * @return void
 	 */
 	private function render_recovery_mode_notice(): void {
