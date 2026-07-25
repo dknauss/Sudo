@@ -92,6 +92,68 @@ print(len(hooks))
 PY
 )"
 
+# Persistent options — DISCOVER the option names the plugin actually writes rather
+# than counting a hardcoded list (which would be self-confirming, the very defect this
+# closes). Scans the full production tree for write-API first arguments
+# (update_option / add_option / update_site_option / add_site_option), resolves
+# Class::CONST / self::CONST to their string values, keeps wp_sudo_* names, and fails
+# closed on any unresolvable constant or network-option write (whose option name is a
+# different argument). The discovered SET is compared to the expected set below, so an
+# added or removed option cannot pass silently at an unchanged count.
+ACTUAL_OPTIONS="$(cd "$REPO_ROOT" && python3 - <<'PY'
+import pathlib, re, sys
+
+prod_files = []
+for p in ('wp-sudo.php', 'uninstall.php'):
+    fp = pathlib.Path(p)
+    if fp.exists():
+        prod_files.append(fp)
+for d in ('includes', 'mu-plugin', 'bridges'):
+    prod_files += sorted(pathlib.Path(d).rglob('*.php'))
+
+texts = {f: f.read_text() for f in prod_files}
+
+const_map = {}
+for t in texts.values():
+    for m in re.finditer(r"const\s+([A-Z0-9_]+)\s*=\s*'([^']*)'\s*;", t):
+        const_map.setdefault(m.group(1), m.group(2))
+
+for f, t in texts.items():
+    if re.search(r"\b(?:update|add)_network_option\s*\(", t):
+        sys.stderr.write("verify-metrics: network-option write in %s; option name is arg 2 there, so this gate needs extending.\n" % f)
+        sys.exit(3)
+
+names = set()
+write_re = re.compile(r"\b(?:update|add)_(?:option|site_option)\s*\(\s*([^,]+?)\s*,")
+for f, t in texts.items():
+    for m in write_re.finditer(t):
+        arg = m.group(1).strip()
+        lit = re.match(r"^'([^']*)'$", arg)
+        if lit:
+            names.add(lit.group(1))
+            continue
+        cst = re.match(r"^(?:self|static|[A-Za-z_][A-Za-z0-9_]*)::([A-Z0-9_]+)$", arg)
+        if cst:
+            key = cst.group(1)
+            if key not in const_map:
+                sys.stderr.write("verify-metrics: unresolved option constant %s in %s\n" % (arg, f))
+                sys.exit(3)
+            names.add(const_map[key])
+            continue
+        sys.stderr.write("verify-metrics: unresolvable option-name argument '%s' in %s\n" % (arg, f))
+        sys.exit(3)
+
+print(' '.join(sorted(n for n in names if n.startswith('wp_sudo_'))))
+PY
+)"
+# Expected live-option name set (the contract). Update this AND the "Persistent
+# options" row in docs/current-metrics.md together when the plugin's persisted
+# options genuinely change.
+EXPECTED_OPTIONS="wp_sudo_activated wp_sudo_db_version wp_sudo_settings"
+ACTUAL_OPTIONS_SORTED="$(printf '%s\n' $ACTUAL_OPTIONS | sort | tr '\n' ' ' | sed 's/ *$//')"
+EXPECTED_OPTIONS_SORTED="$(printf '%s\n' $EXPECTED_OPTIONS | sort | tr '\n' ' ' | sed 's/ *$//')"
+EXPECTED_OPTIONS_COUNT="$(printf '%s\n' $EXPECTED_OPTIONS | wc -w | tr -d ' ')"
+
 DOC_UNIT_TESTS="$(metric_number 'Unit tests')"
 DOC_UNIT_ASSERTIONS="$(metric_number 'Unit assertions')"
 DOC_INTEGRATION_METHODS="$(metric_number 'Integration tests in suite')"
@@ -106,6 +168,7 @@ DOC_GATED_SINGLE="$(metric_number 'Gated rules (single-site)')"
 DOC_GATED_MULTI="$(metric_number 'Gated rules (multisite)')"
 DOC_GATED_TOTAL="$(metric_number 'Gated rules (total)')"
 DOC_AUDIT_HOOKS="$(metric_number 'Audit hooks')"
+DOC_OPTIONS_COUNT="$(metric_number 'Persistent options')"
 
 FAILURES=""
 
@@ -123,6 +186,8 @@ FAILURES=""
 [ "$DOC_GATED_MULTI" = "$ACTUAL_GATED_MULTI" ] || add_failure "Gated rules (multisite)" "$DOC_GATED_MULTI" "$ACTUAL_GATED_MULTI"
 [ "$DOC_GATED_TOTAL" = "$ACTUAL_GATED_TOTAL" ] || add_failure "Gated rules (total)" "$DOC_GATED_TOTAL" "$ACTUAL_GATED_TOTAL"
 [ "$DOC_AUDIT_HOOKS" = "$ACTUAL_AUDIT_HOOKS" ] || add_failure "Audit hooks" "$DOC_AUDIT_HOOKS" "$ACTUAL_AUDIT_HOOKS"
+[ "$ACTUAL_OPTIONS_SORTED" = "$EXPECTED_OPTIONS_SORTED" ] || add_failure "Persistent options (name set)" "$EXPECTED_OPTIONS_SORTED" "$ACTUAL_OPTIONS_SORTED"
+[ "$DOC_OPTIONS_COUNT" = "$EXPECTED_OPTIONS_COUNT" ] || add_failure "Persistent options (count)" "$DOC_OPTIONS_COUNT" "$EXPECTED_OPTIONS_COUNT"
 
 if [ -n "$FAILURES" ]; then
 	echo "Metrics drift detected in docs/current-metrics.md:"

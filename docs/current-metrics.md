@@ -35,7 +35,7 @@ profiling — a precise Query Monitor figure would confirm but not change the sh
 
 | Item | Value | Verification |
 |---|---:|---|
-| Persistent options | 3 | `wp_sudo_settings` (config, `Admin::OPTION_KEY`), `wp_sudo_activated`, `wp_sudo_governance_mode`: `grep -rhoE "wp_sudo_(settings\|activated\|governance_mode)\b" includes/ wp-sudo.php \| sort -u \| wc -l` → 3 |
+| Persistent options | 3 | `wp_sudo_settings` (`Admin::OPTION_KEY`), `wp_sudo_db_version` (`Upgrader::VERSION_OPTION`), `wp_sudo_activated` (literal). Names discovered write-scoped from the production tree (`update_option`/`add_option`/`*_site_option` first args, constants resolved) and asserted as an exact set by `composer verify:metrics` — see `bin/verify-metrics.sh`. |
 | Custom tables | 1 | `{base_prefix}wpsudo_events` (dashboard activity log; one network-wide table on multisite): `grep -oE "wpsudo_events" includes/class-event-store.php \| sort -u \| wc -l` → 1 |
 | Events retention (default) | 14 days, batch-pruned | `grep -c 'function prune( int \$days = 14' includes/class-event-store.php` → 1 |
 
