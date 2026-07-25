@@ -272,9 +272,10 @@ Non-interactive surfaces cannot present an interactive challenge, so v1 **hard-b
 - Application-Password REST and XML-RPC (API credentials, not human sessions)
 - WP-CLI (no browser)
 - wp-cron (no actor)
-- WPGraphQL
 
 Rationale: these have materially different trust and operator expectations and should not be bundled into the first primitive (proposal §14).
+
+Third-party transports (WPGraphQL, custom REST/RPC endpoints) are **not** core surfaces to enumerate here: the chokepoint gate applies to their mutations regardless, and each resolves to one of the two classes above — a **human cookie session** (challenge-capable) or an **API credential / no actor** (block-and-log). Per-surface policy for them is the plugin's job (§11).
 
 ---
 
