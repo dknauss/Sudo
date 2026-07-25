@@ -95,8 +95,11 @@ Naming follows the Abilities API shape `namespace/action-name` (lowercase, hyphe
 | `core/activate-plugin` | `activate_plugin()` |
 | `core/install-plugin` | `Plugin_Upgrader::install()` |
 | `core/delete-plugin` | `delete_plugins()` |
+| `core/install-theme` | `Theme_Upgrader::install()` |
+| `core/switch-theme` | `switch_theme()` |
+| `core/delete-theme` | `delete_theme()` |
 
-The account-change rows are the direct #20140 deliverable. The plugin/user rows close the bypass paths that make field-only gating theater.
+The account-change rows are the direct #20140 deliverable. The plugin/theme/user rows close the bypass paths that make field-only gating theater: installing a malicious theme or switching to one is a code-execution path equivalent to the plugin routes, so gating plugins but not themes would just relocate the "install a backdoor" bypass. (The built-in plugin/theme **file editor** — `edit_plugins`/`edit_themes` — is a still-more-direct code-execution path; it is left out of the v1 catalog because it is commonly disabled via `DISALLOW_FILE_EDIT` and warrants its own treatment, not because it is less dangerous.)
 
 ### 4.2 Recent-auth window, built on `WP_Session_Tokens`
 
