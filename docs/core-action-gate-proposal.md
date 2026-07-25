@@ -11,7 +11,7 @@
 
 WordPress has a mature capability system, a mature authentication system, and a mature hook system. What it does **not** have is a first-class registry of **consequential operations**: actions important enough that core, plugins, audit tools, UI surfaces, and policy systems may all want to identify them consistently.
 
-That missing registry forces every protection layer to invent its own catalog. Protection layers such as WP Sudo and Wordfence, the Solid Security plugin, and Snicco Fortress — a proprietary, license-gated **must-use** security suite deployed at the server level and integrated by hosts such as GridPane — all identify overlapping sets of dangerous operations, but they do so with different identifiers, different semantics, different enforcement models, and no shared interoperability surface. The result is duplication, inconsistent operator experience, and no standard way for plugins to declare that an operation is consequential enough to observe, decorate, audit, or eventually gate.
+That missing registry forces each security tool to reinvent the notion of a "dangerous operation" in its own model — with different identifiers, different semantics, different enforcement models, and no shared interoperability surface. The result is duplication, inconsistent operator experience, and no standard way to declare that an operation is consequential enough to observe, decorate, audit, or eventually gate.
 
 This proposal argues that WordPress should solve that problem first.
 
@@ -49,7 +49,7 @@ That gap matters in ordinary failure modes:
 - **Credential-integrity failures.** Some operations are dangerous not because they reveal secrets but because they replace trusted state—for example, rotating connector or provider API keys.
 - **Delegated or long-lived API access.** Application passwords, automation scripts, and service credentials represent legitimate grants, but they do not themselves answer whether a specific consequential action should proceed without additional scrutiny.
 
-These are not hypothetical edge cases. They are common enough that WordPress security plugins already compensate by maintaining their own catalogs of dangerous operations and their own enforcement logic. WP Sudo is one such implementation. Others address overlapping concerns differently. The important point is not that any one implementation should be lifted into core unchanged. It is that **the repeated emergence of these systems is evidence of a missing shared primitive.**
+These are not hypothetical edge cases. They are common enough that WordPress security tools already compensate by maintaining their own ad-hoc catalogs of dangerous operations and their own enforcement logic, in incompatible tool-specific ways. WP Sudo is different in kind — the focused, single-purpose implementation of exactly this proof-of-intent primitive (§16) — which is why this proposal generalizes from it rather than from any broad security suite. The important point is not that any one implementation should be lifted into core unchanged. It is that **the repeated emergence of these systems is evidence of a missing shared primitive.**
 
 The deeper problem is that WordPress lacks a canonical way to talk about consequential operations at all.
 
@@ -87,10 +87,10 @@ If a session cookie is stolen, inherited, or reused on an unlocked device, an at
 
 Some operations are simply more dangerous than others even when performed by authorized users. Examples include:
 
-- activating, installing, or deleting plugins
+- activating, installing, or deleting plugins **or themes**
 - promoting users to administrator
 - deleting users
-- editing code-bearing sources
+- editing code-bearing sources (the plugin/theme file editor — in scope as a *threat*, though deferred from the v1 gate catalog because it is commonly disabled via `DISALLOW_FILE_EDIT`; see the implementation spec §4.1)
 - rotating external credentials
 
 These operations are infrequent, high-impact, and amenable to a deliberate confirmation or recent-auth check.
@@ -134,6 +134,10 @@ This proposal does not attempt to classify malicious requests, inspect payloads 
 
 The proposal does not introduce a new login system. Any future gate layer would build on existing authenticated identities and existing session infrastructure, adding a fresh proof-of-intent requirement for selected operations rather than replacing WordPress login.
 
+#### 2.9 Audit logging, monitoring, and SIEM
+
+The Actions API gives audit and monitoring tools a shared vocabulary and consistent before/after events to consume (§2.4, §9.1) — but core itself does not become an audit log, event monitor, or SIEM. It **enforces** and **names**; it does not observe, correlate, retain, or alert on activity. Collecting, storing, and analyzing that stream is a separate concern that plugins and hosts provide (the implementation spec makes this an explicit core non-goal, §1). Bundling observability into core would be a much larger, separately contested project and is deliberately excluded here.
+
 ### The core boundary claim
 
 The most important boundary claim in this proposal is this:
@@ -152,11 +156,11 @@ This proposal lands in the middle of a broader architectural debate about WordPr
 
 Between April 17 and May 26, 2026, Malcolm Peralty published a six-part series titled “What Might WP Next Look Like?” proposing a split between a long-supported “WP Classic” line and a modernized “WP Next.” Part 1 (April 17) opens with the diagnosis that this proposal was originally written against: WordPress’s plugin contract is still effectively “trust everybody with the whole process,” and Peralty argues that a clean structural split may be the only honest way to repair that.
 
-Parts 4 and 5 (May 25) are the most directly relevant sections for this proposal. Part 4 (“Performance and Security”) includes an explicit admission that plugins “can `exec()` anything because PHP has no capability model and WordPress has no manifest,” and proposes a four-phase manifest enforcement strategy — declared-but-not-enforced, API-level enforcement, static analysis, and eventual WASM isolation. That enforcement phasing maps almost exactly to this proposal’s Phase 1 (Actions API: registry and naming) → Phase 2 (Action Gate: enforcement) structure. Part 5 (“The Plugin Economy”) adds a “declared contracts” model with `@api` vs. `@internal` distinctions that directly supports the interoperability and taxonomy arguments in this proposal.
+Parts 4 and 5 (May 25) are the most directly relevant sections for this proposal. Part 4 (“Performance and Security”) is blunt about the runtime — a plugin can `exec()` whatever it wants, read every other plugin’s secrets, and exfiltrate anything, because (in Peralty’s words) “there is no permission model at the plugin boundary” — and proposes a four-phase manifest enforcement strategy — declared-but-not-enforced, API-level enforcement, static analysis, and eventual WASM isolation. That enforcement phasing maps almost exactly to this proposal’s Phase 1 (Actions API: registry and naming) → Phase 2 (Action Gate: enforcement) structure. Part 5 (“The Plugin Economy”) adds a “declared contracts” model with `@api` vs. `@internal` distinctions that directly supports the interoperability and taxonomy arguments in this proposal.
 
 This proposal agrees with Peralty’s runtime diagnosis while stopping well short of claiming that an Action Gate primitive is a substitute for the split he is proposing. If Peralty is right, then this proposal is not the answer to WordPress’s deepest trust problem. It is, at best, a backward-compatible hardening layer for consequential operations in the existing runtime — and, notably, one whose registry-first approach fits naturally within Peralty’s own declared-but-not-enforced Phase 1 model.
 
-A full read of the series sharpens the relationship. Part 2 (“The Kernel”) describes WP Next as a **PSR-15 middleware pipeline** over a PSR-11 container with **PSR-14 typed events**; Part 6 (“The Migration Plan”) lists the shared `wp-kernel`’s security services as **CSRF protection, OAuth, and a phased plugin-manifest model**. Across all six parts, **proof of intent for consequential operations is never raised** — not in the kernel, not in the admin (Part 3 states plainly that “Next’s admin is Classic’s admin”), not in the manifest phasing. This matters in two directions. The kernel supplies precisely the seam an Action Gate needs — request middleware and typed effect events — so under WP Next the gate is a natural PSR-15 middleware / event consumer rather than a bolt-on. And the seam is left empty: even the most detailed WP Next plan omits a proof-of-intent layer, which is the clearest evidence that this primitive is orthogonal to the split rather than subsumed by it.
+A full read of the series sharpens the relationship. Part 2 (“The Kernel”) describes WP Next as a **PSR-15 middleware pipeline** over a PSR-11 container with **PSR-14 typed events**; Part 6 (“The Migration Plan”) lists the shared `wp-kernel`’s security services as **CSRF protection, OAuth, and a phased plugin-manifest model**. Across all six parts, **proof of intent for consequential operations is never raised** — not in the kernel, not in the admin (Part 3 states plainly that “Next’s admin is Classic’s admin”), not in the manifest phasing. (Part 6 does propose WebAuthn/passkeys and OAuth/OIDC, but those are login-time *authentication*, not proof of intent for a consequential operation already inside an authenticated session — which only sharpens the point.) This matters in two directions. The kernel supplies precisely the seam an Action Gate needs — request middleware and typed effect events — so under WP Next the gate is a natural PSR-15 middleware / event consumer rather than a bolt-on. And the seam is left empty: even the most detailed WP Next plan omits a proof-of-intent layer, which is the clearest evidence that this primitive is orthogonal to the split rather than subsumed by it.
 
 ### Joost de Valk: the strongest current refactor-without-split argument
 
@@ -318,9 +322,12 @@ An action registration may carry multiple layers of meaning, and those layers sh
 - **label** — human-readable text
 - **capabilities** — expected capability checks for the operation
 - **category** — broad grouping such as plugin management or user management
-- **consequence class** — a risk-oriented classification such as code execution, privilege escalation, destructive deletion, or external credential mutation
-- **scope** — a grouping that a future gate layer may use when deciding how proof-of-intent is reused
-- **annotations** — optional booleans or strings such as `destructive`, `requires_recent_auth`, or `consent_required`
+- **consequence** — a *nested block* carrying the risk metadata, kept together so the same block is portable to a consequential ability's `consequence` annotation later (implementation spec §4.1):
+  - **class** — a risk-oriented classification: code execution, privilege escalation, account takeover, destructive deletion, or external credential mutation (the same five-value set as the spec §4.1 enum)
+  - **scope** — a grouping that a future gate layer may use when deciding how proof-of-intent is reused
+  - **annotations** — optional booleans or strings such as `destructive`, `requires_recent_auth`, or `consent_required`
+
+The top-level fields (`id`, `label`, `capabilities`, `category`) are ones a consequential ability would already carry; the nested `consequence` block is the portable addition. Keeping the risk metadata in one block is precisely what lets a future getter read a standalone entry and a consequence-annotated ability through one surface without reshaping.
 
 One reason to be explicit here is that WordPress has historically overloaded terminology in security and permissions discussions. This proposal should avoid doing that again. “Category,” “consequence class,” “scope,” and “annotation” are not interchangeable and should not be treated as such.
 
@@ -339,6 +346,8 @@ The best answer is not that abilities are irrelevant. They are highly relevant. 
 
 - **Abilities** are executable units with registration, validation, permission, and execution semantics.
 - **Actions**, as used in this proposal, are a taxonomy of consequential operations that core and plugins may want to name, observe, audit, decorate, and later gate—even when those operations are not naturally modeled as one self-contained ability object.
+
+There is also a decisive *enforcement* reason the two cannot simply merge. Even where an action maps cleanly to an ability, the Abilities API's execution hook is **observational, not a gate**: `WP_Ability::execute()` fires `wp_before_execute_ability` and then calls the ability on the very next line, discarding whatever the hook returned — so a callback cannot return a `WP_Error` or a challenge to stop execution. (This is verified against `WordPress/abilities-api` and set out in [`core-actions-registry-vs-abilities-decision.md`](core-actions-registry-vs-abilities-decision.md).) A proof-of-intent gate therefore has to enforce at the **data-layer chokepoint**, regardless of whether an operation happens to be an ability; the registry is simply what lets it name that operation the same way in either case.
 
 Some future consequential actions may map one-to-one to abilities. Others may wrap long-standing core functions or mixed legacy flows that do not yet fit the ability model cleanly. That means the proposal should align with Abilities where possible without requiring every consequential operation to be reduced to an ability first.
 
@@ -453,6 +462,9 @@ These criteria are intentionally narrower than “anything security-sensitive.�
 | `core/activate-plugin` | `activate_plugin()`, plugin activation flows |
 | `core/install-plugin` | plugin upload and installer flows |
 | `core/delete-plugin` | `delete_plugins()` |
+| `core/install-theme` | theme upload and installer flows (`Theme_Upgrader::install()`) |
+| `core/switch-theme` | `switch_theme()`, theme activation flows |
+| `core/delete-theme` | `delete_theme()` |
 | `core/update-connector-credentials` | `/wp/v2/settings` writes containing `connectors_*_api_key` |
 
 The account-change entries reflect the long-running discussion in
@@ -529,7 +541,7 @@ This means the gate layer should build on action metadata rather than introduce 
 ### Enforcement
 
 ```php
-$decision = wp_enforce_action_gate(
+$decision = wp_check_action_gate(
 	'core/activate-plugin',
 	[
 		'context' => [
@@ -546,9 +558,9 @@ $decision = wp_enforce_action_gate(
 $decision->passed();           // bool
 $decision->needs_challenge();  // bool
 $decision->blocked();          // bool
-$decision->reason();           // 'passed' | 'no_session' | 'expired' | 'policy_blocked' | 'rate_limited'
+$decision->reason();           // 'passed' | 'no_recent_auth' | 'expired' | 'rate_limited' | 'blocked'
 $decision->challenge_url();    // string|null
-$decision->as_rest_error();    // WP_Error|WP_REST_Response
+$decision->as_wp_error();      // WP_Error (transport-agnostic; adapters render it — see below)
 ```
 
 ### Transport separation
@@ -619,7 +631,7 @@ The current ecosystem absolutely includes 2FA plugins, passkey plugins, and ente
 
 ## 14. Surface Model: What Belongs in Early Phases and What Does Not
 
-One of the main weaknesses of all-at-once gate proposals is that they try to unify browser, REST, application-password, WP-CLI, cron, XML-RPC, and WPGraphQL behavior immediately.
+One of the main weaknesses of all-at-once gate proposals is that they try to unify browser, REST, application-password, WP-CLI, cron, and XML-RPC behavior immediately.
 
 This proposal recommends a narrower approach.
 
@@ -634,11 +646,12 @@ This proposal recommends a narrower approach.
 - WP-CLI
 - wp-cron
 - XML-RPC
-- WPGraphQL
 
 ### Why defer them
 
 These surfaces have materially different semantics and operator expectations. They should not be bundled into the first core proof-of-intent primitive unless there is a fully sourced, well-defined implementation story for each. Application Passwords, in particular, are broader than a REST-only concept; they are API credentials used for REST and, where enabled, XML-RPC.
+
+Third-party transports (WPGraphQL, custom REST/RPC endpoints) are deliberately *not* enumerated as core surfaces here: the gate lives at the data-layer chokepoint, so their mutations are covered regardless, and each request resolves to one of the two classes above — a human cookie session (challenge-capable) or an API credential / no actor (block-and-log). Per-surface policy for them is a plugin concern, not a core surface to phase.
 
 ---
 
@@ -694,6 +707,7 @@ If WordPress eventually shipped an Actions API, and later a core Action Gate, WP
 
 - opinionated policy defaults
 - operator UI and diagnostics
+- audit logging and privilege-drift / anomaly detection — the SIEM-adjacent observability core leaves out by design (implementation spec §11)
 - compatibility bridges
 - richer multisite and advanced-policy tooling
 - stricter defaults than core
@@ -714,7 +728,7 @@ The Actions API still matters as a semantic model. In a more isolated runtime, p
 
 Concretely: even WP Next’s `wp-kernel` — a PSR-15 middleware pipeline with PSR-14 typed events (Part 2), whose enumerated security services are CSRF, OAuth, and plugin manifests (Part 6) — has **no proof-of-intent layer**. The Action Gate is exactly the middleware that fills that seam: a PSR-15 stage that consumes the Actions registry and, for selected consequential effects, demands fresh proof of human intent before the request proceeds. Manifests answer “is this plugin *allowed* to do this?”; the gate answers “is a human *intending* this right now?” — a distinct question WP Next’s own plan leaves open.
 
-The WP 7.0 Connectors credential-write path is the concrete, in-repo instance of that distinction. A manifest entry declaring “this plugin may write settings” authorizes the *class* of operation; it says nothing about whether a human is intentionally replacing an AI-provider API key *now*. Yet a single `POST /wp/v2/settings` swapping a `connectors_*_api_key` option is exactly the stolen-session abuse of a legitimate operation this proposal’s threat model targets (§2.1, §2.3) — a credential-integrity failure reachable with no filesystem access and no code execution. WP Sudo already gates this path in production via the `connectors.update_credentials` rule (the proposal’s Phase-1 `core/update-connector-credentials` catalog entry, §8), verified against WordPress 7.0 GA (2026-06-15). It is therefore the clearest available demonstration that a proof-of-intent gate remains load-bearing *even after* a manifest system ships. Sources for the third-party Connectors claims here (the `/wp/v2/settings` route, the `connectors_*_api_key` option-name pattern, and GA verification): the official [Connectors API dev note](https://make.wordpress.org/core/2026/03/18/introducing-the-connectors-api-in-wordpress-7-0/) and WordPress core `src/wp-includes/connectors.php`, analyzed in full in [`connectors-api-reference.md`](connectors-api-reference.md) Part II.
+The WP 7.0 Connectors credential-write path is the concrete, in-repo instance of that distinction. A manifest entry declaring “this plugin may write settings” authorizes the *class* of operation; it says nothing about whether a human is intentionally replacing an AI-provider API key *now*. Yet a single `POST /wp/v2/settings` swapping a `connectors_*_api_key` option is exactly the stolen-session abuse of a legitimate operation this proposal’s threat model targets (§2.1, §2.3) — a credential-integrity failure reachable with no filesystem access and no code execution. WP Sudo already gates this path in production via the `connectors.update_credentials` rule (the proposal’s Phase-1 `core/update-connector-credentials` catalog entry, §8), verified against WordPress 7.0 GA (released 2026-05-20). It is therefore the clearest available demonstration that a proof-of-intent gate remains load-bearing *even after* a manifest system ships. Sources for the third-party Connectors claims here (the `/wp/v2/settings` route, the `connectors_*_api_key` option-name pattern, and GA verification): the official [Connectors API dev note](https://make.wordpress.org/core/2026/03/18/introducing-the-connectors-api-in-wordpress-7-0/) and WordPress core `src/wp-includes/connectors.php`, analyzed in full in [`connectors-api-reference.md`](connectors-api-reference.md) Part II.
 
 ### If WordPress changes more slowly than either proposal hopes
 
