@@ -234,4 +234,54 @@ test.describe( 'In-editor sudo session indicator', () => {
 		);
 		await expect( panel ).toHaveText( /Sudo active — [34]:\d{2} remaining/ );
 	} );
+
+	// NOTE ON SCOPE (verified by mutation testing during development): this test pins
+	// that the displayed state derives from the ABSOLUTE deadline — after the wall clock
+	// passes it, the panel reads inactive even though the 1 s interval never advanced a
+	// counter. A naive decrementing counter would still show ~2:00 here and fail the
+	// final assertion. It does NOT isolate the `visibilitychange`/`focus` resync handler
+	// specifically: in the editor a focus event also remounts the sidebar, and the panel
+	// re-derives `remaining` from the deadline on remount — so removing the resync handler
+	// still passes this test. The resync handler matters for a genuinely backgrounded tab
+	// (no remount) and is verified by code review; it is not reliably isolatable in E2E.
+	test( 'INDICATOR-05: after the deadline passes, refocusing shows inactive (display honors the absolute deadline)', async ( {
+		page,
+	} ) => {
+		await openEditor( page );
+		test.skip(
+			! ( await hasUnifiedSidebar( page ) ),
+			'Part B requires the unified PluginSidebar (WP 6.6+).'
+		);
+		await openIndicatorSidebar( page );
+		const panel = page.locator( '.wp-sudo-indicator-panel' );
+		await expect( panel ).toBeVisible();
+
+		// Install the fake clock AFTER the editor has loaded, so ONLY the indicator's
+		// own ticker + deadline (created at seed time below) bind to it — the editor
+		// booted on the real clock. Then seed a 2-minute session; deadline = now+120s.
+		await page.clock.install();
+		await page.evaluate( () =>
+			window.dispatchEvent(
+				new CustomEvent( 'wp-sudo-session-granted', { detail: { remaining: 120 } } )
+			)
+		);
+		await expect( panel ).toHaveText( /Sudo active — [12]:\d{2} remaining/ );
+
+		// Simulate a throttled/backgrounded tab: move Date.now() PAST the deadline via
+		// setFixedTime, which — unlike fastForward/runFor — does NOT fire the pending
+		// 1 s interval. So the ticker never runs and the panel stays STALE, still
+		// showing the ~2:00 it last rendered. (fastForward would fire the interval once
+		// at the target and self-heal here, which would NOT isolate the resync path.)
+		const target = await page.evaluate( () => Date.now() + 130_000 );
+		await page.clock.setFixedTime( target );
+		await expect( panel ).toHaveText( /Sudo active — [12]:\d{2} remaining/ );
+
+		// Refocusing re-derives `remaining` from the ABSOLUTE deadline (via resync and/or
+		// the sidebar remount) while the interval is still dormant, so the panel flips to
+		// inactive. This fails if the deadline were replaced by a decrementing counter
+		// (still ~2:00 here) — pinning that the display honors wall-clock expiry, not an
+		// interval tick count (design-review objection 1). See the scope note above.
+		await page.evaluate( () => window.dispatchEvent( new Event( 'focus' ) ) );
+		await expect( panel ).toHaveText( /No active sudo session/ );
+	} );
 } );

@@ -59,6 +59,12 @@ the full backlog is in the [issues](https://github.com/dknauss/Sudo/issues), lab
   `remaining` value and a `wp-sudo-session-granted` grant event. The remaining forward work is a
   **README/readme screenshot refresh** to add the net-new editor sidebar + snackbar surface to the
   public screenshot set (AGENTS.md → "UI screenshot planning"), folded into the next screenshot batch.
+  A second, optional enhancement (out of the v1 brief scope): **cross-tab grant sync** — the v1
+  indicator re-seeds only in the tab that granted (feed #2 is a same-`window` event) and via feed #1
+  on any later page load; an already-open editor in a *different* tab, or a grant completed on the
+  standalone challenge page, won't live-update until reload. A `BroadcastChannel`/`storage`-event
+  channel could propagate grants to every open editor. Informational-only, so the staleness is
+  cosmetic and self-heals (the server stays authoritative and re-challenges as needed).
   Distinct from the shipped in-editor reauth *modal* (Milestones A/B, v4.6/4.7).
 
 ## Later (need design work)
