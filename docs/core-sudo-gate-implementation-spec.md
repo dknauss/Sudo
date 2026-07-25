@@ -134,13 +134,16 @@ $gate = wp_check_action_gate( 'core/change-user-password', [
 ] );
 
 $gate->passed();          // bool  — recent auth present (or action not gated / gating disabled)
-$gate->needs_challenge(); // bool
+$gate->needs_challenge(); // bool  — no_recent_auth | expired (an interactive reauth can satisfy it)
+$gate->blocked();         // bool  — rate_limited | fail-closed (hard refusal; no challenge offered)
 $gate->reason();          // 'passed' | 'no_recent_auth' | 'expired' | 'rate_limited' | 'blocked'
 $gate->challenge_url( $return_to ); // string — browser interstitial URL, nonce-protected
 $gate->as_wp_error();     // WP_Error 'sudo_reauth_required' with challenge data in $error_data
 ```
 
 `wp_check_action_gate()` returns *passed* when gating is globally off, a valid window exists, or an **unknown third-party** action is unregistered — so unguarded callers are never broken. But an unregistered **`core/`** action fails **closed** (`blocked`): a missing built-in means the catalog failed to load, and the guarded mutation must not silently proceed. The global `WP_DISABLE_ACTION_GATE` / `wp_action_gate_enabled` kill-switch is checked *before* that fail-closed branch, so an operator can still recover from a broken catalog load.
+
+> **Naming (open, see §12-Q1 / proposal §4.0).** The error code `sudo_reauth_required` (and the §5.2 surface responses) inherit WP Sudo's *"sudo"* brand. The rest of this API is core-neutral (`wp_check_action_gate`, `wp_register_action`, "recent-auth window"), and §8 endorses *"sudo mode"* for the window — so this is a deliberate but unsettled choice. Decide `sudo_reauth_required` vs a neutral `reauth_required` / `recent_auth_required` as part of the public-name resolution before the patch, and apply it consistently across the error code, the `wp-login.php?action=reauth` slug, and the REST `code`.
 
 ---
 
