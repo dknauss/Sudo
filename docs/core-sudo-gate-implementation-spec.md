@@ -4,7 +4,7 @@
 **Drafted:** July 2026
 **Companion to:** [`core-action-gate-proposal.md`](core-action-gate-proposal.md) (the *why* and phasing). This document is the *what to change in core*.
 **Relates to:** Core Trac [#20140](https://core.trac.wordpress.org/ticket/20140), [#37593](https://core.trac.wordpress.org/ticket/37593), [#39174](https://core.trac.wordpress.org/ticket/39174).
-**Prior art:** WP Sudo 4.7.0 — `includes/class-gate.php`, `class-sudo-session.php`, `class-action-registry.php`, `class-request-stash.php`, `class-challenge.php`.
+**Prior art:** WP Sudo 4.8.0 — `includes/class-gate.php`, `class-sudo-session.php`, `class-action-registry.php`, `class-request-stash.php`, `class-challenge.php`.
 
 ---
 
@@ -28,8 +28,8 @@ The security boundary is **recent authentication of the actor**, not the target 
 
 | Actor | Has valid session? | Has capability? | Defended by this spec? |
 |---|---|---|---|
-| Stolen/replayed admin cookie | yes | yes | **Yes** — no recent auth ⇒ challenge |
-| XSS running in an authed admin origin | yes | yes | **Yes** — cannot silently satisfy an interactive reauth |
+| Stolen/replayed admin cookie | yes | yes | **Yes, outside an open window** — no recent auth ⇒ challenge; a cookie stolen *while a window is open* inherits that elevation until it expires (window TTL) |
+| XSS running in an authed admin origin | yes | yes | **Partially** — cannot silently satisfy an interactive reauth, but in-origin XSS can free-ride on (or trigger, or keylog) any window already open |
 | Walk-away / shared workstation | yes | yes | **Yes** — window expires; consequential action re-challenges |
 | Malicious Editor escalating to Admin | yes | yes (edit/promote) | **Yes** — promotion is a gated effect |
 | Attacker who knows the password | yes | yes | Partially — reauth still forces a deliberate, loggable step and blocks silent replay |
@@ -208,10 +208,10 @@ Role changes are the subtlest path and need a dedicated guard, mirroring the plu
 | 1 | `wp-includes/actions-api.php` (new) | `wp_register_action`, `wp_get_action(s)`, `wp_action_exists` | Registry API (§4.1) |
 | 2 | `wp-includes/class-wp-consequential-actions.php` (new) | registry storage | Pure-data store + core catalog bootstrap on `init` |
 | 3 | `wp-includes/user.php` | `wp_update_user()` | Detect consequential field changes; gate; return `WP_Error` (§5.1) |
-| 4 | `wp-includes/user.php` | `wp_insert_user()` | Gate `core/create-user` for admin-context inserts |
+| 4 | `wp-includes/user.php` | `wp_insert_user()` | Gate `core/create-user` for authenticated privileged-context inserts only — **not** anonymous registration/guest-checkout (actor 0 → fail-closed); needs a reliable admin-context signal, see §8 |
 | 5 | `wp-admin/includes/user.php` | `wp_delete_user()` (**bool** return) | Gate `core/delete-user` via a **pre-delete adapter** (hook `delete_user` / REST `delete_item`), not a `WP_Error` return |
 | 6 | `wp-includes/class-wp-user.php` / `wp-includes/meta.php` | `WP_User::set_role`/`add_role`, `map_meta_cap`, **and `update_user_metadata` on the `{prefix}capabilities` key** | Escalation guard (§5.3); the meta hook catches the REST `add_role` path and any AJAX/plugin write to the caps meta directly |
-| 7 | `wp-includes/ms-functions.php` | `add_user_to_blog`, `grant_super_admin` (**bool/void** — no `WP_Error`) | Multisite promotion gate via a pre-grant adapter (hook `grant_super_admin` / `add_user_to_blog`), not a return value |
+| 7 | `wp-includes/ms-functions.php` (`add_user_to_blog`) · `wp-includes/capabilities.php` (`grant_super_admin`) | `add_user_to_blog` (returns `true\|WP_Error` since 5.4); `grant_super_admin` (returns `void`) | Multisite promotion gate via a pre-grant adapter (hook `grant_super_admin` / `add_user_to_blog`) — intercept before the grant, not by return value (a returned `WP_Error` from `add_user_to_blog` is truthy) |
 | 8 | `wp-includes/pluggable.php` | `wp_start/has/end_reauth_window` | Recent-auth window on `WP_Session_Tokens` (§4.2) |
 | 9 | `wp-includes/class-wp-session-tokens.php` | token record schema | Persist `reauth_at`, `reauth_scope`; clear on destroy |
 | 10 | `wp-includes/gate.php` (new) | `wp_check_action_gate()` + decision class | Gate evaluation (§4.3) |
@@ -241,7 +241,7 @@ Explicitly deferred: WebAuthn ceremonies, external IdP redirects, multi-step TOT
 
 ## 8. Defaults, config, back-compat
 
-- **Default state.** Ship Phase 1 registry **always on** (inert; naming only). Ship Phase 2 gating **on for the core catalog by default**, because a security default that must be discovered protects almost no one — but make the window generous (15 min) and every consequential path stash-and-replay so the UX cost is one password prompt, not lost work. Provide `WP_DISABLE_ACTION_GATE` for emergencies and a per-action `wp_action_gate_enabled` filter.
+- **Default state.** Ship Phase 1 registry **always on** (inert; naming only). Ship Phase 2 gating **on for the core catalog by default**, because a security default that must be discovered protects almost no one — but make the window generous (15 min) and every consequential path stash-and-replay so the UX cost is one password prompt, not lost work. Provide `WP_DISABLE_ACTION_GATE` for emergencies and a per-action `wp_action_gate_enabled` filter. **Exception — `core/create-user`:** default-on gating would fail-closed on unauthenticated self-registration and guest checkout (the actor is user 0, so no reauth window can exist). Gate `create-user` only for *authenticated, privileged-context* inserts — never the anonymous registration path — or default it off. This needs a reliable admin-context signal (`is_admin()` is not one; scope by an authenticated actor holding `create_users` via a non-registration entry point). Open: §12-Q4/Q5.
 - **Config surface.** `WP_REAUTH_WINDOW` (ttl), `wp_reauth_window_ttl` / `wp_action_gate_enabled` / `wp_consequential_actions` (catalog) filters. Keep the plugin's `Disabled/Limited/Unrestricted` per-surface policy vocabulary **out** of core v1 (proposal §18-Q5); core v1 is binary per action.
 - **Back-compat.** Because enforcement returns existing `WP_Error` types from functions that already return them, non-updated callers degrade safely to "action refused with an actionable error," never a fatal or a silent pass. Programmatic callers that must bypass (migrations; trusted automation under WP-CLI/cron, which have **no auth cookie or session token**, so `wp_start_reauth_window()` — a browser-session API — cannot help them) short-circuit via the `wp_action_gate_enabled` filter or a scoped constant, **not** the session-window API.
 - **Multisite terminology** (#37593/#39174): "network administrator" for ordinary network authority, "super admin" only for core's technical concept, "sudo mode" for the temporary window. No permanent role is introduced.

@@ -65,11 +65,11 @@ Because Tier 1 is gated, the attacker's real move is to **mint an account whose 
 | Create Application Password | `auth.app_password` | durable API credential; confirm REST `/users/<id>/application-passwords` coverage |
 | Delete user | `user.delete` | |
 | Grant super admin (multisite) | `network.super_admin` | |
-| Change account email → password reset | `user.change_email` (added by this change) | **was** the open door — now closed (§4) |
+| Change account email → password reset | `user.change_email` (added in 4.8.0) | **was** the open door — now closed (§4) |
 
 ---
 
-## 4. Finding: account-email change was not gated — closed by this change
+## 4. Finding: account-email change was not gated — closed in 4.8.0
 
 `user.change_password` **deliberately narrows to password-only**: its admin callback returns true only when `pass1`/`pass2` is present, with a source comment noting that `profile.php`/`user-edit.php` handle "bio, email, role, etc." under the same `action=update`. Before this change there was **no `user.change_email` rule**, and `options.critical` matches only the **site** `admin_email`/`new_admin_email` option — not a user's per-account email.
 
@@ -117,6 +117,6 @@ The `consequential-actions` MVP and the core-gate spec both already list `core/c
 ## 6. Summary
 
 - The **terminal RCE actions** (editor, install, upload, update, activate — plugin and theme) are gated and backstopped at the effect level, so route multiplicity does not require exhaustive enumeration.
-- The **credential-manufacturing pivots** are gated: account-email change is now closed by the `user.change_email` rule (§4), which gates **`POST` as well as `PUT`/`PATCH`** (core's `WP_REST_Server::EDITABLE = 'POST, PUT, PATCH'`). **Dependency:** the sibling `user.change_password` / `user.promote` REST rules had the same `PUT`/`PATCH`-only gap (a stolen cookie could change a password or role via `POST /wp/v2/users/{id}` ungated); that fix ships separately (PR #213) and reaches this branch when it merges to `main`. On this branch *alone*, only `change_email` gates `POST` — so this row is fully closed only after #213 lands.
+- The **credential-manufacturing pivots** are gated: account-email change is closed by the `user.change_email` rule (§4), and the sibling `user.change_password` / `user.promote` REST rules gate **`POST` as well as `PUT`/`PATCH`** (core's `WP_REST_Server::EDITABLE = 'POST, PUT, PATCH'`) — **all shipped in 4.8.0**. A stolen cookie can no longer change a password, email, or role via `POST /wp/v2/users/{id}` ungated.
 - **Critical-settings REST matcher (closed by #215):** on REST, `POST /wp/v2/settings` writes to critical options were gated **only** by the enumerated `options.critical` rule — the effect-level `pre_update_option_{opt}` backstop is armed for the CLI/cron/XML-RPC policy surfaces (`register_function_hooks()`), not for REST (the REST/interactive `arm_effect_guards()` covers named effect functions like `wp_delete_user()`/`delete_plugins()`, not option writes). That enumerated rule matched raw option names (`siteurl`, `admin_email`) while core keys the endpoint by `show_in_rest` names (`url`, `email`), so a cookie-authenticated `POST /wp/v2/settings {"url":"…"}` was **ungated** and repointing `siteurl` yielded the XSS-as-RCE primitive. PR #215 fixes the matcher to also match the `show_in_rest` aliases, closing the gap.
 - The defense works because a cookie thief holds a session but not a password, and every gate demands the actor's password. **Scope (per [`security-model.md`](security-model.md)):** this invariant holds for the **enumerated core routes and effect-backstopped operations** above; it does *not* extend to custom plugin endpoints, direct database writes, or code already executing in-process. The claim is "no *gated core route* to RCE avoids a challenge," not an absolute one.
