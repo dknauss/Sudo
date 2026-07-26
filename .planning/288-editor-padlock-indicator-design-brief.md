@@ -71,10 +71,11 @@ Raised by the maintainer after #288 merged, and correct: other icons in the bloc
 editor header do not change background colour. Verified against Gutenberg trunk
 (fetched 2026-07-26) rather than assumed:
 
-- **Semantic background colour has no core precedent here.** The only background
-  change core applies to a pinned-item button is `.is-pressed` →
-  `background: $components-color-foreground`, a neutral near-black
-  (`packages/components/src/button/style.scss` L342-348). Colour in that header belongs
+- **Semantic background colour has no core precedent here.** The pressed state fills
+  with a neutral near-black, `background: $components-color-foreground`
+  (`packages/components/src/button/style.scss` L342-348). Not core's only background on
+  these buttons — `:disabled`/`[aria-disabled]` takes `$gray-600` and `.is-tertiary:hover`
+  an accent mix — but none of them encode meaning, which is the claim that matters. Colour in that header belongs
   to the two calls to action — the Inserter toggle and the Publish CTA, both on the WP
   admin blue — and not to the pinned sidebar controls this feature lives among. (An
   earlier draft said Publish was the only coloured element in the header; the Inserter
