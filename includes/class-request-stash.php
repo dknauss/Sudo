@@ -340,7 +340,7 @@ class Request_Stash {
 	 * Deliberately refuses to mint (returns '') unless ALL hold:
 	 *  - the gated request was same-origin initiated (`Sec-Fetch-Site: same-origin`).
 	 *    WordPress nonces are bound to the session token, NOT the browser (GB-NONCE-TOKEN,
-	 *    GB-SESSION-TOKEN-COOKIE), so an attacker holding a stolen login cookie can mint
+	 *    GB-SESSION-TOKEN-SRC), so an attacker holding a stolen login cookie can mint
 	 *    a valid nonce and lure the victim into issuing the gated request — which would
 	 *    otherwise mint the binding in the VICTIM's browser and defeat the whole
 	 *    mechanism. A missing or cross-site/same-site header fails closed.

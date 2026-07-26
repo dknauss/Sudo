@@ -181,14 +181,16 @@ while IFS= read -r raw_row; do
 	[ "$id" != "ID" ] || continue
 	case "$id" in ---*|:--*) continue ;; esac
 
-	# Every registry ID uses the GB- prefix. That is what makes the dangling-reference
+	# Registry IDs use a per-source-family prefix from a closed set. That is what makes
+	# the dangling-reference
 	# scan below provably complete: a reference outside the scanned prefix cannot exist,
 	# because a row that would mint one is rejected here. To add another source family,
-	# widen this prefix AND the scan's regex together (search: GB-).
+	# widen this list AND the scan's regex together (search: GB-).
+	#   GB- Gutenberg / wordpress-develop     FT- Snicco Fortress
 	case "$id" in
-		GB-*) ;;
+		GB-*|FT-*) ;;
 		*)
-			add_failure "$id: registry IDs must use the GB- prefix — the dangling-reference scan looks for GB-* and would never find a reference to this ID"
+			add_failure "$id: registry IDs must use a known prefix (GB-, FT-) — the dangling-reference scan looks for those and would never find a reference to this ID"
 			continue
 			;;
 	esac
@@ -324,7 +326,7 @@ done < "$SOURCES_FILE"
 # as a dangling failure against a valid tree), and verify-sources holds this checker's
 # own regression harness, whose fixtures necessarily contain example GB-* IDs — the
 # same self-reference exemption bin/verify-sources.sh gets in the orphan scan below.
-referenced="$(grep -rhoIE '\bGB-[A-Z0-9][A-Z0-9-]+' \
+referenced="$(grep -rhoIE '\b(GB|FT)-[A-Z0-9][A-Z0-9-]+' \
 	--exclude-dir={vendor,node_modules,.git,vendor_test,.tmp,.claude,verify-sources} \
 	"$REPO_ROOT" 2>/dev/null | sort -u || true)"
 while IFS= read -r ref; do
@@ -367,10 +369,14 @@ done <<< "$referenced"
 # not turn a migration backlog into a red build on day one; shrink that list as files
 # migrate. A first cut matched per file and warned about 14, of which 6 were noise —
 # including verify-sources.yml, i.e. the tool warning about itself.
+# Shrinks as files are migrated. docs/sudo-architecture-comparison-matrix.md was migrated
+# (FT-* rows). The two-factor files cite upstream at PINNED COMMIT SHAs
+# (bea876d…, c515462…, abf9109…), which are immutable: a registry row cannot protect
+# against drift that cannot happen. They stay listed so the scan does not fail on them,
+# not because they are owed a migration.
 GRANDFATHERED_ORPHANS="CHANGELOG.md
 docs/abilities-api-assessment.md
 docs/core-sudo-gate-implementation-spec.md
-docs/sudo-architecture-comparison-matrix.md
 docs/two-factor-authentication-flow.md
 docs/two-factor-ecosystem.md
 docs/two-factor-integration.md
@@ -394,7 +400,7 @@ while IFS= read -r f; do
 	if printf '%s\n' "$GRANDFATHERED_ORPHANS" | grep -qxF -- "$rel"; then
 		add_warning "$rel cites upstream code outside the registry (grandfathered — migrate as you touch it)"
 	else
-		add_failure "$rel cites upstream code outside the registry — add a row to docs/upstream-sources.md and reference its GB- ID instead of the raw URL"
+		add_failure "$rel cites upstream code outside the registry — add a row to docs/upstream-sources.md and reference its registry ID instead of the raw URL"
 	fi
 done <<< "$orphans"
 
