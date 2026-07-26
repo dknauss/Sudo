@@ -534,7 +534,7 @@ test.describe( 'Challenge flow', () => {
      * does not matter for CHAL-01; what matters is that the challenge page was shown,
      * password was accepted, and the stash was replayed to plugins.php).
      */
-    test( 'CHAL-01: gated action redirects to challenge, correct password replays action', async ( {
+    test( 'CHAL-01: gated action redirects to challenge, correct password returns to the screen', async ( {
         page,
     } ) => {
         // Step 1: Get a real activate URL with a valid nonce.
@@ -585,7 +585,8 @@ test.describe( 'Challenge flow', () => {
             .evaluate( ( form ) => ( form as HTMLFormElement ).requestSubmit() );
         await expect( page ).toHaveURL( /plugins\.php/, { timeout: 15_000 } );
 
-        // Step 8: Verify we landed on plugins.php (stash replayed).
+        // Step 8: Verify we landed back on plugins.php. #322: the action itself is
+        // NOT replayed — this asserts the landing screen only (CHAL-15 covers state).
         await expect(
             page,
             'Must be back on plugins.php after stash-replay'
@@ -1418,9 +1419,10 @@ test.describe( 'Challenge flow', () => {
     } );
 
     /**
-     * CHAL-15: A stashed gated action should replay after the 2FA lockout countdown expires.
+     * CHAL-15: After 2FA lockout recovery, a stashed GET action is NOT replayed (#322)
+     * — the user lands on the originating screen with the notice and re-issues it.
      */
-    test( 'CHAL-15: stash replay survives 2FA lockout expiry recovery', async ( {
+    test( 'CHAL-15: stashed GET is never replayed after 2FA lockout recovery', async ( {
         page,
     } ) => {
         await enableE2eTwoFactor();
@@ -1494,12 +1496,37 @@ test.describe( 'Challenge flow', () => {
 
             await expect(
                 page,
-                'The recovered stash-backed 2FA flow must return to plugins.php'
+                'The recovered stash-backed 2FA flow must land on the originating screen, plugins.php'
             ).toHaveURL( /plugins\.php/ );
+
+            // #322: the effect is stripped — no action, no nonce, no replay.
+            await expect(
+                page,
+                'The landing URL must carry the non-replay notice flag'
+            ).toHaveURL( new RegExp( 'wp_sudo_blocked_replay=1' ) );
+            expect(
+                page.url(),
+                'The landing URL must not carry the gated action parameters'
+            ).not.toMatch( /action=activate|_wpnonce/ );
+
+            await expect(
+                page.locator( '.notice-warning' ).filter( { hasText: 'not replayed automatically' } ),
+                'The user must be told the request was not replayed and must be re-issued'
+            ).toBeVisible( { timeout: 10_000 } );
 
             await expect(
                 page.locator( `.deactivate a[href*="${ E2E_ACTIVATABLE_PLUGIN_DIR }"]` ),
-                'The stashed fixture plugin activation should complete after 2FA lockout recovery'
+                'The stashed plugin activation must NOT have executed — reauth grants the session, not the action'
+            ).toBeHidden();
+
+            // Manual retry: the action is a single re-click away, now that sudo is active.
+            await page
+                .locator( `.activate a[href*="${ E2E_ACTIVATABLE_PLUGIN_DIR }"]` )
+                .click();
+
+            await expect(
+                page.locator( `.deactivate a[href*="${ E2E_ACTIVATABLE_PLUGIN_DIR }"]` ),
+                'Re-issuing the action under the active sudo session must pass straight through'
             ).toBeVisible( { timeout: 10_000 } );
         } finally {
             await disableE2eTwoFactor();
@@ -1507,9 +1534,10 @@ test.describe( 'Challenge flow', () => {
     } );
 
     /**
-     * CHAL-16: A provider resend should still allow stash replay after 2FA lockout expiry recovery.
+     * CHAL-16: A provider resend still completes reauth after lockout expiry, and the
+     * stashed action is still NOT replayed (#322).
      */
-    test( 'CHAL-16: provider resend still replays the stash after 2FA lockout expiry', async ( {
+    test( 'CHAL-16: provider resend completes reauth without replaying the stash', async ( {
         page,
     } ) => {
         await enableE2eTwoFactor();
@@ -1623,22 +1651,33 @@ test.describe( 'Challenge flow', () => {
 
             await expect(
                 page,
-                'The recovered provider-backed stash flow must return to plugins.php'
+                'The recovered provider-backed flow must land on the originating screen, plugins.php'
             ).toHaveURL( /plugins\.php/ );
 
             await expect(
-                page.locator( `.deactivate a[href*="${ E2E_ACTIVATABLE_PLUGIN_DIR }"]` ),
-                'The stashed fixture plugin activation should complete after provider resend and 2FA lockout recovery'
+                page,
+                'The landing URL must carry the non-replay notice flag'
+            ).toHaveURL( /wp_sudo_blocked_replay=1/ );
+
+            await expect(
+                page.locator( '.notice-warning' ).filter( { hasText: 'not replayed automatically' } ),
+                'The user must be told the request was not replayed'
             ).toBeVisible( { timeout: 10_000 } );
+
+            await expect(
+                page.locator( `.deactivate a[href*="${ E2E_ACTIVATABLE_PLUGIN_DIR }"]` ),
+                'The stashed plugin activation must NOT have executed after provider resend recovery'
+            ).toBeHidden();
         } finally {
             await disableE2eTwoFactor();
         }
     } );
 
     /**
-     * CHAL-17: A stashed POST action should replay after the 2FA lockout countdown expires.
+     * CHAL-17: After 2FA lockout recovery, a stashed POST is NOT replayed (#322) — it
+     * lands on the neutral dashboard with the notice and the state is unchanged.
      */
-    test( 'CHAL-17: POST stash replay survives 2FA lockout expiry recovery', async ( {
+    test( 'CHAL-17: stashed POST is never replayed after 2FA lockout recovery', async ( {
         page,
     } ) => {
         const originalDuration = await getWpSudoSessionDuration();
@@ -1724,19 +1763,28 @@ test.describe( 'Challenge flow', () => {
             await page.fill( '#wp-sudo-e2e-two-factor-code', E2E_TWO_FACTOR_CODE );
 
             await Promise.all( [
-                page.waitForURL( /page=wp-sudo-settings/, { timeout: 15_000 } ),
+                page.waitForURL( /wp_sudo_blocked_replay=1/, { timeout: 15_000 } ),
                 submitTwoFactorChallenge( page ),
             ] );
 
+            // #322: a POST lands on the neutral dashboard — its re-submit needs the
+            // form re-filled regardless, so there is no useful originating screen.
             await expect(
                 page,
-                'The recovered POST replay flow must return to the WP Sudo settings page'
-            ).toHaveURL( /page=wp-sudo-settings/ );
+                'The recovered POST flow must carry the non-replay notice flag'
+            ).toHaveURL( new RegExp( 'wp_sudo_blocked_replay=1' ) );
 
             await expect(
+                page.locator( '.notice-warning' ).filter( { hasText: 'not replayed automatically' } ),
+                'The user must be told the POST was not replayed'
+            ).toBeVisible( { timeout: 10_000 } );
+
+            // State must be unchanged: the stashed settings POST never executed.
+            await page.goto( '/wp-admin/options-general.php?page=wp-sudo-settings' );
+            await expect(
                 page.locator( '#session_duration' ),
-                'The stashed POST replay should save the new session duration value'
-            ).toHaveValue( String( updatedDuration ) );
+                'The stashed POST must NOT have been saved — reauth grants the session, not the action'
+            ).toHaveValue( String( originalDuration ) );
         } finally {
             await setWpSudoSessionDuration( originalDuration );
             await disableE2eTwoFactor();

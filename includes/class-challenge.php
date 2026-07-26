@@ -1067,7 +1067,16 @@ class Challenge {
 		 * is involved. #322 v2 (origin-bound replay) restores seamless auto-replay for
 		 * the same-browser case without reopening this hole.
 		 */
-		$neutral_url = is_network_admin() ? network_admin_url() : admin_url();
+
+		/*
+		 * Derive the admin context from the STASHED URL, not from the current
+		 * request. Completion can arrive over admin-ajax.php (the in-editor and
+		 * modal grant paths post to the localized admin_url('admin-ajax.php')),
+		 * where is_network_admin() is false even for an action that originated in
+		 * Network Admin — which would land a network settings or super-admin flow
+		 * on the single-site dashboard.
+		 */
+		$neutral_url = $this->neutral_landing_url( $stash['url'] ?? null );
 		$target      = $neutral_url;
 
 		if ( 'GET' === strtoupper( (string) ( $stash['method'] ?? 'GET' ) ) && ! empty( $stash['url'] ) && is_string( $stash['url'] ) ) {
@@ -1076,7 +1085,16 @@ class Challenge {
 			$origin    = wp_validate_redirect( $stash['url'], $neutral_url );
 			$query_pos = strpos( $origin, '?' );
 			$screen    = false === $query_pos ? $origin : substr( $origin, 0, $query_pos );
-			$target    = wp_validate_redirect( $screen, $neutral_url );
+
+			/*
+			 * Some gated GETs live on an action-handler endpoint rather than a
+			 * screen — plugin/theme install and update all route through
+			 * update.php. Stripping the query there yields a bare handler with no
+			 * UI and nothing to re-click, so the "soft landing" would be a dead
+			 * end. Land those on the neutral dashboard instead.
+			 */
+			$screen = self::is_action_handler_endpoint( $screen ) ? $neutral_url : $screen;
+			$target = wp_validate_redirect( $screen, $neutral_url );
 		}
 
 		$notice_arg = ! empty( $stash['redacted_fields_omitted'] )
@@ -1090,5 +1108,50 @@ class Challenge {
 			'redacted_fields_omitted' => ! empty( $stash['redacted_fields_omitted'] ),
 			'post_replay_blocked'     => true,
 		);
+	}
+
+	/**
+	 * Neutral landing URL for a stashed request, derived from the stash.
+	 *
+	 * Uses the stashed URL's own path to decide between Network Admin and the
+	 * site dashboard, because completion may arrive over `admin-ajax.php`, where
+	 * `is_network_admin()` reports false regardless of where the action began.
+	 * Falls back to the current context when no usable stash URL is present.
+	 *
+	 * @param string|null $stash_url The stashed request URL, if any.
+	 * @return string Admin URL to land on.
+	 */
+	private function neutral_landing_url( ?string $stash_url ): string {
+		if ( is_string( $stash_url ) && '' !== $stash_url ) {
+			$path = (string) wp_parse_url( $stash_url, PHP_URL_PATH );
+
+			if ( '' !== $path ) {
+				$network_path = (string) wp_parse_url( network_admin_url(), PHP_URL_PATH );
+
+				if ( '' !== $network_path && 0 === strpos( $path, $network_path ) ) {
+					return network_admin_url();
+				}
+
+				return admin_url();
+			}
+		}
+
+		return is_network_admin() ? network_admin_url() : admin_url();
+	}
+
+	/**
+	 * Whether an admin URL points at an action-handler endpoint rather than a screen.
+	 *
+	 * These endpoints perform work and redirect; they render no UI of their own, so
+	 * landing on one with its query stripped leaves the user with nothing to re-click.
+	 *
+	 * @param string $url Admin URL with its query already removed.
+	 * @return bool True when the URL is a handler endpoint.
+	 */
+	private static function is_action_handler_endpoint( string $url ): bool {
+		$handlers = array( 'update.php', 'admin-post.php', 'admin-ajax.php', 'options.php', 'link-manager.php' );
+		$file     = basename( (string) wp_parse_url( $url, PHP_URL_PATH ) );
+
+		return in_array( $file, $handlers, true );
 	}
 }

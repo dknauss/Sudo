@@ -2662,8 +2662,10 @@ class GateTest extends TestCase {
 		$this->assertSame( 'plugin.activate', $result['matched_rule_id'] );
 		$this->assertSame( 'admin', $result['matched_surface'] );
 		$this->assertSame( 'gate', $result['decision'] );
-		$this->assertTrue( $result['stash_replay_eligible'] );
-		$this->assertContains( 'Interactive admin requests use challenge + stash/replay.', $result['notes'] );
+		// #322: replay is disabled globally, so the diagnostic reports it for every
+		// admin rule — not just the stash_no_replay ones.
+		$this->assertFalse( $result['stash_replay_eligible'] );
+		$this->assertContains( 'Interactive admin request: gated. The action is never replayed automatically — after reauth the user re-issues it themselves.', $result['notes'] );
 	}
 
 	/**

@@ -47,6 +47,13 @@ class ChallengeTest extends TestCase
 
 		Functions\when('get_user_meta')->justReturn('');
 		Functions\when('esc_url_raw')->returnArg();
+		// Core's thin wrapper over parse_url; the landing-URL helpers use it to read
+		// the stashed URL's path (network-admin detection, handler-endpoint check).
+		Functions\when('wp_parse_url')->alias(
+			static function ( string $url, int $component = -1 ) {
+				return parse_url($url, $component);
+			}
+		);
 	}
 
 	/**
@@ -1572,6 +1579,93 @@ class ChallengeTest extends TestCase
 		$this->assertTrue($data['redacted_fields_omitted']);
 		$this->assertArrayNotHasKey('replay', $data);
 		$this->assertArrayNotHasKey('post_data', $data);
+	}
+
+	/**
+	 * #322 follow-up: a gated GET whose action lives on an action-handler endpoint
+	 * (update.php — plugin/theme install and update all route through it) must NOT
+	 * land there with the query stripped. update.php renders no UI, so the promised
+	 * "soft landing where a single re-click passes through" would be a dead end.
+	 */
+	public function test_get_on_action_handler_endpoint_lands_on_dashboard_not_the_handler(): void
+	{
+		$this->stash->shouldReceive('get')
+			->once()
+			->with('handler-stash-key', 42)
+			->andReturn(array(
+				'method' => 'GET',
+				'url' => 'https://example.com/wp-admin/update.php?action=install-plugin&plugin=akismet&_wpnonce=abc',
+				'rule_id' => 'plugin.install',
+			));
+
+		$this->stash->shouldReceive('delete')->once()->with('handler-stash-key', 42);
+
+		Functions\when('admin_url')->justReturn('https://example.com/wp-admin/');
+		Functions\when('network_admin_url')->justReturn('https://example.com/wp-admin/network/');
+		Functions\when('is_network_admin')->justReturn(false);
+		Functions\when('wp_validate_redirect')->returnArg();
+		Functions\when('add_query_arg')->alias(
+			static function ( string $key, string $value, string $url ): string {
+				$separator = str_contains($url, '?') ? '&' : '?';
+				return $url . $separator . $key . '=' . $value;
+			}
+		);
+
+		$method = new \ReflectionMethod($this->challenge, 'build_replay_response_data');
+		if ( PHP_VERSION_ID < 80100 ) {
+			$method->setAccessible(true);
+		}
+		$data = $method->invoke($this->challenge, 42, 'handler-stash-key');
+
+		$this->assertSame('success', $data['code']);
+		$this->assertStringNotContainsString('update.php', $data['redirect']);
+		$this->assertStringContainsString('/wp-admin/', $data['redirect']);
+		// Still never the full action URL.
+		$this->assertStringNotContainsString('install-plugin', $data['redirect']);
+		$this->assertStringNotContainsString('_wpnonce', $data['redirect']);
+	}
+
+	/**
+	 * #322 follow-up: completion can arrive over admin-ajax.php, where
+	 * is_network_admin() is false even for an action that began in Network Admin.
+	 * The landing context must come from the stashed URL, not the current request,
+	 * or network flows get dumped on the single-site dashboard.
+	 */
+	public function test_network_admin_context_survives_ajax_completion(): void
+	{
+		$this->stash->shouldReceive('get')
+			->once()
+			->with('network-stash-key', 42)
+			->andReturn(array(
+				'method' => 'POST',
+				'url' => 'https://example.com/wp-admin/network/settings.php',
+				'rule_id' => 'options.critical',
+				'post' => array(),
+			));
+
+		$this->stash->shouldReceive('delete')->once()->with('network-stash-key', 42);
+
+		Functions\when('admin_url')->justReturn('https://example.com/wp-admin/');
+		Functions\when('network_admin_url')->justReturn('https://example.com/wp-admin/network/');
+		// The AJAX completion path: not network admin as far as the request knows.
+		Functions\when('is_network_admin')->justReturn(false);
+		Functions\when('wp_validate_redirect')->returnArg();
+		Functions\when('add_query_arg')->alias(
+			static function ( string $key, string $value, string $url ): string {
+				$separator = str_contains($url, '?') ? '&' : '?';
+				return $url . $separator . $key . '=' . $value;
+			}
+		);
+
+		$method = new \ReflectionMethod($this->challenge, 'build_replay_response_data');
+		if ( PHP_VERSION_ID < 80100 ) {
+			$method->setAccessible(true);
+		}
+		$data = $method->invoke($this->challenge, 42, 'network-stash-key');
+
+		$this->assertSame('success', $data['code']);
+		$this->assertStringContainsString('/wp-admin/network/', $data['redirect']);
+		$this->assertTrue($data['post_replay_blocked']);
 	}
 
 	/**

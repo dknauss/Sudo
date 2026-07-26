@@ -32,7 +32,7 @@ test.describe( 'WP Sudo alternative stack smoke tests', () => {
         ).toBeDefined();
     } );
 
-    test( 'STACK-03: stashed settings POST replays after password auth', async ( {
+    test( 'STACK-03: stashed settings POST is not replayed; retry saves after password auth', async ( {
         page,
     } ) => {
         await page.goto( '/wp-admin/options-general.php?page=wp-sudo-settings' );
@@ -59,6 +59,24 @@ test.describe( 'WP Sudo alternative stack smoke tests', () => {
         await page
             .locator( '#wp-sudo-challenge-password-form' )
             .evaluate( ( form ) => ( form as HTMLFormElement ).requestSubmit() );
+        // #322: the stashed POST is NEVER replayed. A POST lands on the neutral
+        // dashboard carrying the non-replay notice, and the setting is unchanged.
+        await page.waitForURL( /wp_sudo_blocked_replay=1/, { timeout: 15_000 } );
+        await expect(
+            page.locator( '.notice-warning' ).filter( { hasText: 'not replayed automatically' } )
+        ).toBeVisible( { timeout: 10_000 } );
+
+        await page.goto( '/wp-admin/options-general.php?page=wp-sudo-settings' );
+        await expect(
+            sessionDuration,
+            'The stashed POST must not have been saved by the reauth'
+        ).toHaveValue( originalValue );
+
+        // Manual retry under the now-active sudo session must save normally.
+        await sessionDuration.fill( updatedValue );
+        await page
+            .locator( '#submit' )
+            .evaluate( ( button ) => ( button as HTMLInputElement ).form?.requestSubmit() );
         await expect( page ).toHaveURL(
             /\/wp-admin\/options-general\.php\?page=wp-sudo-settings(?:&updated=true)?$/,
             { timeout: 15_000 }

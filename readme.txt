@@ -51,7 +51,7 @@ Developers can add custom rules via the `wp_sudo_gated_actions` filter.
 
 = How it works =
 
-**Browser requests (admin UI):** The user sees an interstitial challenge page. After entering their password (and 2FA code if configured), the original request is replayed automatically. **AJAX and REST requests** receive a `sudo_required` error; an admin notice on the next page load links to the challenge page.
+**Browser requests (admin UI):** The user sees an interstitial challenge page. After entering their password (and 2FA code if configured), the sudo session is granted — the original request is **never replayed automatically**, so the user re-issues it themselves against the session they now hold. **AJAX and REST requests** receive a `sudo_required` error; an admin notice on the next page load links to the challenge page.
 
 **Non-interactive requests (WP-CLI, Cron, XML-RPC, Application Passwords, WPGraphQL):** Configurable per-surface policies with three modes: **Disabled**, **Limited** (default), and **Unrestricted**.
 

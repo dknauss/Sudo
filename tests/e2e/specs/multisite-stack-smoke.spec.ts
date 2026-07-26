@@ -87,7 +87,7 @@ test.describe( 'WP Sudo multisite alternative stack smoke tests', () => {
         ).toBeUndefined();
     } );
 
-    test( 'MSTACK-02: network-admin settings POST replays after password auth', async ( {
+    test( 'MSTACK-02: network-admin POST is not replayed and lands in Network Admin', async ( {
         page,
     } ) => {
         await page.goto( '/wp-admin/network/settings.php?page=wp-sudo-settings' );
@@ -111,12 +111,33 @@ test.describe( 'WP Sudo multisite alternative stack smoke tests', () => {
         );
         await page.fill( '#wp-sudo-challenge-password', DEFAULT_PASSWORD );
 
+        // #322: the stashed POST is NEVER replayed. The landing context is derived
+        // from the STASHED url, so a network-admin action stays in Network Admin
+        // even though completion can arrive over admin-ajax.php.
+        await Promise.all( [
+            page.waitForURL( /wp_sudo_blocked_replay=1/, { timeout: NAV_TIMEOUT } ),
+            forceClick( page.locator( '#wp-sudo-challenge-submit' ) ),
+        ] );
+
+        await expect(
+            page,
+            'A network-admin action must not be dumped on the single-site dashboard'
+        ).toHaveURL( /\/wp-admin\/network\// );
+
+        await page.goto( '/wp-admin/network/settings.php?page=wp-sudo-settings' );
+        await expect(
+            sessionDuration,
+            'The stashed network POST must not have been saved by the reauth'
+        ).toHaveValue( originalValue );
+
+        // Manual retry under the active sudo session saves normally.
+        await sessionDuration.fill( updatedValue );
         await Promise.all( [
             page.waitForURL(
                 /\/wp-admin\/network\/settings\.php\?page=wp-sudo-settings(?:&updated=true)?$/,
                 { timeout: NAV_TIMEOUT }
             ),
-            forceClick( page.locator( '#wp-sudo-challenge-submit' ) ),
+            forceClick( page.locator( '#submit' ) ),
         ] );
 
         await expect( sessionDuration ).toHaveValue( updatedValue );

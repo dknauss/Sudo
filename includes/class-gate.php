@@ -1549,17 +1549,12 @@ class Gate {
 
 		if ( 'admin' === $surface ) {
 			$result['decision'] = 'gate';
-			// Derive replay eligibility from the matched rule's stash mode: rules
-			// marked stash_no_replay (profile email/password/role saves) are NOT
-			// replayed — after reauth the user re-submits the form.
-			$stash_mode = $matched_rule['stash']['post_mode'] ?? 'allowlist';
-			if ( 'none' === $stash_mode ) {
-				$result['stash_replay_eligible'] = false;
-				$result['notes'][]               = __( 'Interactive admin request: gated, but this rule is non-replayable — after reauth the user re-submits the form.', 'wp-sudo' );
-			} else {
-				$result['stash_replay_eligible'] = true;
-				$result['notes'][]               = __( 'Interactive admin requests use challenge + stash/replay.', 'wp-sudo' );
-			}
+			// #322: replay is disabled globally — no stashed action is ever
+			// auto-executed after reauth, regardless of the matched rule's stash
+			// mode. Reporting per-rule eligibility here would tell the operator the
+			// opposite of what the gate now does.
+			$result['stash_replay_eligible'] = false;
+			$result['notes'][]               = __( 'Interactive admin request: gated. The action is never replayed automatically — after reauth the user re-issues it themselves.', 'wp-sudo' );
 			return $result;
 		}
 
