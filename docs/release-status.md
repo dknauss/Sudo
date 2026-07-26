@@ -81,7 +81,7 @@ which is a ⚠️ **retroactive gap still open** for a maintainer reuse-or-rerun
 ## Current `main` release state
 
 - **Current `main` version:** `4.9.0` (runtime constant) — **unreleased**. The latest tag remains `v4.8.0` (cut 2026-07-23, on `10587a4`). `main` was bumped off the released identity on 2026-07-26 so that an unreleased tree stops advertising a shipped version; the bump carries no payload of its own. Unlike the `4.7.0` state, `main` has progressed **past** the tag with unreleased work (see next bullet). (`4.8.0` is the REST-gate security-hardening release plus the opt-in role/capability lockdown audit MVP; see the payload note above.)
-- **Unreleased work on `main` past `v4.8.0`:** one security-hardening change plus three small features, documentation, and CI tooling — none version-bumped. **Security (the largest unreleased change):** the sudo proof format is replaced by a **self-authenticating, per-login-session record** (`_wp_sudo_proofs`, keyed by `sha256(verifier)`, entries `{ token, expires, hmac }`). The enforcement path verifies an `hash_hmac('sha256', …, wp_salt('auth'))` over the record and reads it **cache-bypassed**, closing a forged-assurance path in which an object-cache-poisoning primitive could plant a token hash for an attacker-controlled cookie and obtain sudo with no challenge (#278); keying per login session additionally gives a user's concurrent browsers independent sudo sessions (#279), and a just-expired proof is retained through its 120 s grace window so one browser's reauth cannot cancel another's in-flight replay. Pre-4.9.0 sessions carry no proof entry and require one reauthentication after upgrade (no migration). Doc'd in `docs/security-model.md`; the docblocks name the format as **4.9.0**. The next tag is **MAJOR** — decided, not open: the `#322` fix removes the documented `wp_sudo_action_replayed` hook, which `VERSIONING.md` classes as MAJOR (see *Development lanes* below). This assurance change on its own would have been a MINOR. **Features:** (1) the optional critical-event alert bridge now pushes a high-severity alert on role/capability drift (`wp_sudo_role_drift_detected` → bridge push), a backward-compatible addition in the optional companion bridge (PR #226); (2) **scoped break-glass recovery** — `WP_SUDO_RECOVERY_MODE` now accepts a user ID or login (grants break-glass to one named user instead of every `manage_options` holder), plus a pull-based Site Health critical status that flags active recovery mode and names its scope (PR #268, issue #240); (3) the **in-editor sudo session-status indicator** client UI — a build-free editor module surfacing session state via an announce-once snackbar (WP 6.4+) and a feature-detected countdown sidebar (WP 6.6+), with no read endpoint and no polling (PR #277 / #262). **Docs/CI:** the 4.8.0 live/manual security-test checklist + results (#223–#225); core-proposal, roadmap, and accuracy docs (#227–#234); the **ROADMAP restructure** — Pass 1/2 (forward-only Now/Next/Later + design essays promoted to standalone docs) merged as PR #236. (The feature backlog has been *filed* as GitHub issues **#238–#257**, but the ROADMAP sections that duplicate them are removed only by the **still-open Pass-3 PR #258** — so on `main` the backlog still lives in `ROADMAP.md` for now.) And the **persistent-options metrics gate** — a tokenizer-based dev/CI scanner (`bin/scan-persistent-options.php`) wired into `composer verify:metrics` (PR #237). None of those bumped `WP_SUDO_VERSION` when they landed; `main` now carries `4.9.0` (see the version bullets above). **This bullet is a convenience summary — the canonical, always-current drift source is `git log v4.8.0..main --oneline`.**
+- **Unreleased work on `main` past `v4.8.0`:** one security-hardening change plus three small features, documentation, and CI tooling — none version-bumped. **Security (the largest unreleased change):** the sudo proof format is replaced by a **self-authenticating, per-login-session record** (`_wp_sudo_proofs`, keyed by `sha256(verifier)`, entries `{ token, expires, hmac }`). The enforcement path verifies an `hash_hmac('sha256', …, wp_salt('auth'))` over the record and reads it **cache-bypassed**, closing a forged-assurance path in which an object-cache-poisoning primitive could plant a token hash for an attacker-controlled cookie and obtain sudo with no challenge (#278); keying per login session additionally gives a user's concurrent browsers independent sudo sessions (#279), and a just-expired proof is retained through its 120 s grace window so one browser's reauth cannot cancel another's in-flight replay. Pre-5.0.0 sessions carry no proof entry and require one reauthentication after upgrade (no migration). Doc'd in `docs/security-model.md`; the docblocks name the format as **5.0.0**. The next tag is **MAJOR** — decided, not open: the `#322` fix removes the documented `wp_sudo_action_replayed` hook, which `VERSIONING.md` classes as MAJOR (see *Development lanes* below). This assurance change on its own would have been a MINOR. **Features:** (1) the optional critical-event alert bridge now pushes a high-severity alert on role/capability drift (`wp_sudo_role_drift_detected` → bridge push), a backward-compatible addition in the optional companion bridge (PR #226); (2) **scoped break-glass recovery** — `WP_SUDO_RECOVERY_MODE` now accepts a user ID or login (grants break-glass to one named user instead of every `manage_options` holder), plus a pull-based Site Health critical status that flags active recovery mode and names its scope (PR #268, issue #240); (3) the **in-editor sudo session-status indicator** client UI — a build-free editor module surfacing session state via an announce-once snackbar (WP 6.4+) and a feature-detected countdown sidebar (WP 6.6+), with no read endpoint and no polling (PR #277 / #262). **Docs/CI:** the 4.8.0 live/manual security-test checklist + results (#223–#225); core-proposal, roadmap, and accuracy docs (#227–#234); the **ROADMAP restructure** — Pass 1/2 (forward-only Now/Next/Later + design essays promoted to standalone docs) merged as PR #236. (The feature backlog has been *filed* as GitHub issues **#238–#257**, but the ROADMAP sections that duplicate them are removed only by the **still-open Pass-3 PR #258** — so on `main` the backlog still lives in `ROADMAP.md` for now.) And the **persistent-options metrics gate** — a tokenizer-based dev/CI scanner (`bin/scan-persistent-options.php`) wired into `composer verify:metrics` (PR #237). None of those bumped `WP_SUDO_VERSION` when they landed; `main` now carries `5.0.0` (see the version bullets above). **This bullet is a convenience summary — the canonical, always-current drift source is `git log v4.8.0..main --oneline`.**
 - **Runtime version constant:** `4.9.0` on `main`. `WP_SUDO_VERSION` is set in `wp-sudo.php` (header + constant), `tests/bootstrap.php`, and `phpstan-bootstrap.php`; `readme.txt` Stable tag is `4.9.0`. All five version-sync points are in sync at `4.9.0`. **`blueprint.json` deliberately still targets the `v4.8.0` tag ZIP:** per [`VERSIONING.md`](../VERSIONING.md) the Playground install target is bumped **after** the tag is cut, never before, because the public "Try latest release" badge loads `blueprint.json` from `main` and a pre-tag bump would point the demo at a ZIP that does not exist yet. Bumping it is a tag-time step, not a drift.
 - **Current package metadata (on `main`):** `readme.txt` Stable tag `4.9.0` == header Version (no `stable_tag_mismatch`); `Requires at least 6.4`, `Requires PHP 8.2`, `Tested up to 7.0`. Package/listing name: **"Sudo – Admin Action Gating"** (UI brand "Sudo"; slug/text-domain stay `wp-sudo`).
 - **Last archived release checklist:** `docs/archive/release-3.0.0-checklist.md`
@@ -98,40 +98,53 @@ post-`4.8.0` churn.
 |---|---|---|---|
 | Plugin security release | `4.9.0 — security` | **Yes** — the only lane with one | The `4.9.0` payload plus its tag-time gates |
 | Plugin, everything else | `post-4.9.0` | No | Features, non-blocking bugs, follow-ups deferred out of `4.9.0` |
-| Plugin, next feature batch | `v5.0.0` | No | Curated multisite governance/break-glass batch — reclaimed `v5.0.0` when the security release rolled back to `4.9.0` and freed the number. All backward-compatible additions, so MINOR is the correct class. |
+| Plugin, next feature batch | `v5.0.0` | No | Curated multisite governance/break-glass batch. All backward-compatible additions; the number is reserved for it again now that this release is a MINOR. |
 | Core proposal research | `core-gate proposal — v1 readiness` | No | Proposal/spec findings; **no plugin release depends on these** |
 | Core proposal, deferred | `core-gate: provenance/automation policy (deferred project)` | No | The automated-update provenance split (#320) |
 
-> ⚠️ **Superseded — the version was rolled back to `4.9.0`.** The version strings in
-> all five sync points, the POT, and the version facts above are now `4.9.0`. The
-> argument below is kept as the decision record for why `5.0.0` was taken at the
-> time; it has **not** been rewritten, and it no longer describes the version on
-> `main`. The milestones have been renamed to match (`4.9.0 — security`,
-> `post-4.9.0`, and the feature batch reclaiming `v5.0.0`). What the rollback
-> reopens is the **MAJOR-vs-MINOR** question this section settles: `VERSIONING.md`
-> classes the `#322` hook removal as MAJOR, and at `4.9.0` that removal ships in a
-> MINOR. That needs deciding separately from this string change.
+**Why `4.9.0` and not `5.0.0`.** `main` briefly carried `5.0.0`, taken by the rule:
+the `#322` **v1** fix removed the only call site of `wp_sudo_action_replayed`, and
+[`VERSIONING.md`](../VERSIONING.md) classes removing a documented public hook as MAJOR.
+That premise then evaporated — **PR #350 merged v1 *and* v2**, and v2 restores
+origin-bound replay, so the hook still fires. Nothing documented is removed.
 
-**Why `5.0.0` and not `4.9.0`.** The `#322` fix removes the only call site of
-`wp_sudo_action_replayed` — the gate no longer replays a stashed request, so there is
-no replay left to announce. That hook is a **documented public extension point**
-(`docs/developer-reference.md`, event code `1900009`), and [`VERSIONING.md`](../VERSIONING.md)
-classes removing a documented hook as **MAJOR**. Taken by the rule rather than by
-override: the release is `5.0.0`. Everything else in the payload would have been a
-MINOR on its own.
+Two further checks, made against the source rather than assumed:
+
+- The session meta keys (`_wp_sudo_token`, `_wp_sudo_expires`, `_wp_sudo_session_bind`,
+  `_wp_sudo_proofs`) appear **nowhere** in `docs/developer-reference.md`. Replacing the
+  proof format is therefore an internal storage change, not an API break —
+  `VERSIONING.md` explicitly does not cover undocumented behaviour.
+- `wp_sudo_action_replayed` keeps its signature `(int $user_id, string $rule_id)`. Under
+  v2 it fires only for bound same-browser replays, so it fires *less often*; that is a
+  narrowing of an event, not a changed signature or return value.
+
+What the payload does add is two **new** documented public entries — the
+`wp_sudo_lockout_cleared` hook and the `wp sudo unlock` CLI command. Additions are what
+MINOR means. So `4.9.0`, by the rule.
+
+**The forced reauthentication is communicated in prose, not in the version digit.**
+Every user must reauthenticate once after upgrading, because pre-`4.9.0` sessions carry
+no proof entry and no migration runs. That is a real operator-visible discontinuity, and
+it is the strongest argument anyone will make for a major. It is handled by the
+**Upgrade Notice** in `readme.txt`, which reaches operators far more reliably than the
+version number does. A MAJOR is a promise that integrators have work to do; here every
+hook still fires and every signature is intact, so spending it would be a false alarm —
+and `5.0.0` is wanted for the core-gate work, which will genuinely break contracts.
 
 **`4.9.0` payload.** Landed: forge-resistant per-login-session assurance (#278, #279,
-PR #348) and the reauth-lockout out-of-band clear (#280, PR #343). Open: the stash
-confused-deputy fix (#322, PR #368 — the v1 fail-closed half). #273
-(release-environment matrix) rides the milestone as a **tag-time gate**, not payload —
-it was left open through `4.8.0` and must be run or explicitly waived before the tag
-is cut.
+PR #348), the reauth-lockout out-of-band clear (#280, PR #343), and the stash
+confused-deputy fix (#322, PR #350 — **v1 fail-closed plus the v2 origin-bound replay
+layer**). #273 (release-environment matrix) rides the milestone as a **tag-time gate**,
+not payload — it was left open through `4.8.0` and must be run or explicitly waived
+before the tag is cut.
 
-**Deferred out of `4.9.0`.** The `#322` **v2** layer (informed confirmation +
-origin-bound replay, PR #350) is held back: all of its open review threads sit on that
-layer, none on v1. It restores replay, and therefore probably restores the removed
-hook — so its own version classification must be decided on its merits, not inherited
-from this release.
+**Open review gate on the v2 layer.** The v1/v2 split was meant to give origin-bound
+replay a separate adversarial pass; #350 merged both before that happened. The scoped
+review brief is on issue [#322](https://github.com/dknauss/Sudo/issues/322) and should
+be answered before the tag — in particular whether an un-nameable target (one outside
+`Request_Stash::TARGET_PARAMS`, which omits the `Target:` line entirely) should fail
+closed rather than replay against a coarse label. PR #368, the v1-only split, is closed
+as superseded.
 
 **Membership rule.** A review finding that is not a regression introduced by the PR
 under review gets **filed and deferred**, never bolted onto the PR in flight. #354,

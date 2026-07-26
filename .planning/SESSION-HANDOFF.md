@@ -95,18 +95,25 @@ versioning has neither hazard — a doubled increment is harmless.
    this one was working it. **Merge their commits, never force-push** — and re-run the gates
    after, since their new integration test arrived red.
 
-**Release-state note (corrected 2026-07-26 late).** This block originally said `main` was
-`4.8.0` and that **#364** would bump it to **4.9.0**. Both are now out of date: #364 was
-**closed** and **#372** landed the bump instead, taking **`5.0.0`** — not a bigger number for
-its own sake, but by the rule. `#322` removes the only call site of `wp_sudo_action_replayed`,
-and `VERSIONING.md` classes removing a documented public hook as MAJOR; everything else in the
-payload would have been a MINOR. The reasoning is recorded under "Why `5.0.0` and not `4.9.0`"
-in `docs/release-status.md`, which is canonical for release state.
+**Release-state note (corrected again — read this one).** This block has now said `4.8.0`,
+then `4.9.0`, then `5.0.0`. The settled answer is **`4.9.0`**.
 
-**So: the proof format shipped in this work is `5.0.0`, not `4.9.0`.** The `4.9.0` strings that
-#348 left in code docblocks and `docs/security-model.md` were swept by #372 — verified, none
-remain outside that one deliberate explanatory line in `release-status.md`. If you are reading
-an older branch that still says 4.9.0, it predates the bump.
+The 5.0.0 bump (#372) was taken by the rule: `#322` v1 removed the only call site of the
+documented `wp_sudo_action_replayed` hook, and `VERSIONING.md` classes that as MAJOR. That
+premise then evaporated — **#350 merged v1 *and* v2**, and v2 restores origin-bound replay, so
+the hook still fires (`class-challenge.php`). With nothing documented removed, the payload is a
+backward-compatible **MINOR**.
+
+Checked directly rather than assumed: the session meta keys (`_wp_sudo_token`,
+`_wp_sudo_expires`, `_wp_sudo_session_bind`, `_wp_sudo_proofs`) are **not** in
+`docs/developer-reference.md`, so replacing the proof format is an internal storage change,
+not an API break — `VERSIONING.md` explicitly does not cover undocumented behaviour. The two
+genuinely new public entries (`wp_sudo_lockout_cleared`, `wp sudo unlock`) are additions, which
+is what MINOR means.
+
+**So: the proof format shipped in this work is `4.9.0`.** The forced one-time reauthentication
+on upgrade is communicated through `readme.txt`'s Upgrade Notice, not through the version digit.
+Rationale is recorded in `docs/release-status.md`, which stays canonical for release state.
 
 Counts (tests, LOC, hooks) move constantly; `docs/current-metrics.md` is the source of truth
 and `composer verify:metrics` is the gate.
