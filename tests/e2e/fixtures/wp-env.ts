@@ -15,9 +15,15 @@
  *    inside a `containerBash` script — never interpolate into a host command string.
  */
 import { execFile, execFileSync } from 'child_process';
+import * as path from 'path';
 import { promisify } from 'util';
 
 const execFileAsync = promisify( execFile );
+
+// wpEnvRunArgv() returns the logical `wp-env …` command; execute it shell-free as
+// `node <wp-env bin>` (mirrors global-setup.ts) so it also works on native Windows,
+// where `npx` is `npx.cmd` and execFile cannot launch a .cmd without a shell.
+const WP_ENV_BIN = path.join( process.cwd(), 'node_modules/@wordpress/env/bin/wp-env' );
 
 export interface WpEnvRunOptions {
 	timeout?: number;
@@ -50,6 +56,12 @@ export function containerBash( script: string, positionals: string[] = [] ): str
 	return [ 'bash', '-lc', script, 'bash', ...positionals ];
 }
 
+/** Map the logical `wp-env …` argv onto a shell-free `node <wp-env bin> …` exec. */
+function wpEnvExecArgv( container: string, args: string[] ): string[] {
+	const [ , ...rest ] = wpEnvRunArgv( container, args ); // drop the logical 'wp-env' token
+	return [ WP_ENV_BIN, ...rest ];
+}
+
 /** Run `wp-env run <container> -- <...args>` with no shell (async). */
 export async function wpEnvRunCli(
 	container: string,
@@ -57,8 +69,8 @@ export async function wpEnvRunCli(
 	options: WpEnvRunOptions = {}
 ): Promise<{ stdout: string; stderr: string }> {
 	const { stdout, stderr } = await execFileAsync(
-		'npx',
-		wpEnvRunArgv( container, args ),
+		process.execPath,
+		wpEnvExecArgv( container, args ),
 		{ encoding: 'utf8', ...options }
 	);
 
@@ -75,7 +87,7 @@ export function wpEnvRunCliSync(
 	args: string[],
 	options: WpEnvRunOptions = {}
 ): string {
-	const out = execFileSync( 'npx', wpEnvRunArgv( container, args ), {
+	const out = execFileSync( process.execPath, wpEnvExecArgv( container, args ), {
 		encoding: 'utf8',
 		...options,
 	} );
