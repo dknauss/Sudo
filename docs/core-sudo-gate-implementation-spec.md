@@ -353,11 +353,10 @@ Seen from the other side, once core owns the primitive this posture layer become
 
 ## Acknowledgments
 
-This spec builds on prior art, tickets, and input from people across the WordPress community. Named here for their relevant work; any errors are the authors', not theirs.
+Named here only for contributions confirmed by the maintainer. The **"gate the effect, not the field"** framing is a WP Sudo concept and is deliberately left **uncredited**.
 
-- **John James Jacoby** and **Jeremy Felt** — the network-role / "network administrator" vs. "super admin" terminology work in [#37593](https://core.trac.wordpress.org/ticket/37593) and [#39174](https://core.trac.wordpress.org/ticket/39174), which this spec's multisite naming follows (§8). *(An earlier draft mis-cited these tickets as recent-auth prior art; they concern multisite role terminology, not sudo mode.)*
-- **John Blackbourn** ([@johnbillion](https://github.com/johnbillion)) — owner of [#16470](https://core.trac.wordpress.org/ticket/16470) (single-site email-change confirmation), whose `send_confirmation_on_profile_email()` flow the email-change chokepoint must accommodate (§4.1), and long-running WordPress core security work.
-- **Timothy Jacobs** (@TimothyBlynJacobs) — the WordPress REST API architecture this spec's cookie-REST enforcement and controller surfacing build on (§5.2, §6 row 13).
-- **Tim Nash** — WordPress security guidance informing the threat model and the "gate the effect, not the field" framing (§2, §3).
-- **Calvin Alkan** (Snicco / Fortress) — Fortress's server-side session-hardening and sudo-mode prior art (see [`sudo-architecture-comparison-matrix.md`](sudo-architecture-comparison-matrix.md)), and the scoping challenge that sharpened the core/plugin boundary and the not-a-SIEM non-goal (§1, §11).
-- The WordPress core contributors on the cited Trac tickets ([#20140](https://core.trac.wordpress.org/ticket/20140), #37593, #39174, #16470) and the maintainers of the surveyed protection layers.
+- **John Blackbourn** ([@johnbillion](https://github.com/johnbillion)) — the **action-gating concept** itself: the foundational idea behind WP Sudo and this spec, alongside his long-running WordPress core security work.
+- **Tim Nash** — the **roles/permissions lockdown** idea, which maps to WP Sudo's admin-escalation guard and role/capability lockdown work.
+- **Calvin Alkan** (Snicco / Fortress) — critical feedback on WP Sudo and Fortress as inspiration (see [`sudo-architecture-comparison-matrix.md`](sudo-architecture-comparison-matrix.md)); the argument that a regular plugin cannot achieve this on its own — a core motivation for moving parts of it into WordPress core; and the "this is becoming a SIEM" critique that shaped the explicit **not-a-SIEM** non-goal (§1, §11).
+
+Prior art and tickets are referenced impersonally in the body: WordPress core Trac [#20140](https://core.trac.wordpress.org/ticket/20140) (recent auth for consequential actions) and [#16470](https://core.trac.wordpress.org/ticket/16470) (single-site email-change confirmation, whose `send_confirmation_on_profile_email()` flow §4.1 must accommodate), plus the surveyed protection layers.
