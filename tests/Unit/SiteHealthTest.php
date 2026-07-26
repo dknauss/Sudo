@@ -402,6 +402,22 @@ class SiteHealthTest extends TestCase {
 	}
 
 	/**
+	 * #322: an HTTPS site whose wp_sudo_cookie_secure filter suppresses Secure mints
+	 * no binding, so health must not promise that actions resume.
+	 */
+	public function test_replay_binding_recommends_when_secure_cookies_are_filtered_off(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'is_ssl' )->justReturn( true );
+		Functions\when( 'force_ssl_admin' )->justReturn( true );
+		// The documented inverse override: Secure suppressed despite HTTPS.
+		Functions\when( 'apply_filters' )->justReturn( false );
+
+		$result = $this->health->test_replay_binding();
+
+		$this->assertSame( 'recommended', $result['status'] );
+	}
+
+	/**
 	 * #322: without HTTPS the __Host- binding cookie cannot be set, so replay never
 	 * engages and the user must repeat the action. Surfaced so the degradation is
 	 * visible rather than looking like a bug.

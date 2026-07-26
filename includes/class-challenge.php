@@ -1206,7 +1206,16 @@ class Challenge {
 			// cross-host stash on multisite — stash transients are network-wide but
 			// wp_validate_redirect only allows the current host), fall through to the
 			// fail-closed landing instead of replaying against a different URL.
-			if ( '' !== $safe_url && $safe_url === $stash['url'] ) {
+			//
+			// Also refuse a non-HTTPS replay URL. A binding is only ever minted when
+			// cookies are Secure, but that can be true via FORCE_SSL_ADMIN while PHP
+			// does not see the request as SSL (TLS terminated upstream) — in which case
+			// build_original_url() recorded an http:// action URL. Replaying it would
+			// downgrade the scheme, dropping the POST body on redirect or omitting the
+			// Secure auth cookies. Fail closed instead of rewriting the URL.
+			$is_https = 0 === strpos( strtolower( (string) $stash['url'] ), 'https://' );
+
+			if ( '' !== $safe_url && $safe_url === $stash['url'] && $is_https ) {
 				$this->clear_binding_cookie();
 
 				/**

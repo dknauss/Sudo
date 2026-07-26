@@ -2040,6 +2040,38 @@ class ChallengeTest extends TestCase
 	}
 
 	/**
+	 * #322: refuse a bound replay whose stashed URL is not HTTPS.
+	 *
+	 * A binding only mints when cookies are Secure, but that can be true via
+	 * FORCE_SSL_ADMIN while PHP does not see the request as SSL (TLS terminated
+	 * upstream) — in which case the stored action URL is http://. Replaying it would
+	 * downgrade the scheme, dropping the POST body on redirect or omitting the Secure
+	 * auth cookies.
+	 */
+	public function test_bound_stash_with_non_https_url_is_not_replayed(): void
+	{
+		$secret = 'super-secret-proof';
+		$_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE] = $secret;
+
+		$stash = $this->boundPostStash($secret);
+		$stash['url'] = 'http://example.com/wp-admin/users.php';
+
+		$this->stash->shouldReceive('get')->once()->andReturn($stash);
+		$this->stash->shouldReceive('delete')->once();
+		$this->stubReplayEnv();
+
+		$data = $this->invokeReplay('downgrade-key', true);
+
+		$this->assertArrayNotHasKey(
+			'replay',
+			$data,
+			'A bound replay must not downgrade to an http:// action URL.'
+		);
+
+		unset($_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE]);
+	}
+
+	/**
 	 * #322 v2: a redacted/blocked stash is never replayed, binding or not.
 	 */
 	public function test_bound_but_redacted_stash_is_not_replayed(): void

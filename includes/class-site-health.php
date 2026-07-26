@@ -461,12 +461,13 @@ class Site_Health {
 			'color' => 'blue',
 		);
 
-		// Deliberately NOT Sudo_Session::cookie_secure(): that value is filterable
-		// (wp_sudo_cookie_secure), and a staging site forcing it true over plain HTTP
-		// would make this report "good" while the browser still rejects the __Host-
-		// cookie and every challenge falls back to manual resubmission. Health must
-		// reflect the transport the browser actually sees.
-		if ( is_ssl() || force_ssl_admin() ) {
+		// BOTH conditions, because either one alone gives a wrong answer:
+		// - the transport the browser actually sees, since wp_sudo_cookie_secure is
+		// filterable and a staging site forcing it true over plain HTTP would be told
+		// replay works while the browser still rejects the __Host- cookie;
+		// - the effective cookie setting, since the same filter can suppress Secure on
+		// an HTTPS site, in which case no binding is ever minted and nothing resumes.
+		if ( ( is_ssl() || force_ssl_admin() ) && Sudo_Session::cookie_secure() ) {
 			return array(
 				'label'       => __( 'Reauthentication can resume your action', 'wp-sudo' ),
 				'status'      => 'good',
