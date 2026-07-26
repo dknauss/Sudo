@@ -228,8 +228,8 @@ class PluginTest extends TestCase {
 			if ( Sudo_Session::META_KEY === $key ) {
 				return time() + 600;
 			}
-			if ( Sudo_Session::TOKEN_META_KEY === $key ) {
-				return hash( 'sha256', $token );
+			if ( Sudo_Session::PROOF_META_KEY === $key ) {
+				return $this->make_proof_map( (int) $uid, $token, time() + 600 );
 			}
 			return '';
 		} );
@@ -496,8 +496,8 @@ class PluginTest extends TestCase {
 			if ( Sudo_Session::META_KEY === $key ) {
 				return time() + 600;
 			}
-			if ( Sudo_Session::TOKEN_META_KEY === $key ) {
-				return hash( 'sha256', $token );
+			if ( Sudo_Session::PROOF_META_KEY === $key ) {
+				return $this->make_proof_map( (int) $uid, $token, time() + 600 );
 			}
 			return '';
 		} );
@@ -823,8 +823,8 @@ class PluginTest extends TestCase {
 			if ( Sudo_Session::META_KEY === $key ) {
 				return time() + 600; // Active session.
 			}
-			if ( Sudo_Session::TOKEN_META_KEY === $key ) {
-				return hash( 'sha256', $token );
+			if ( Sudo_Session::PROOF_META_KEY === $key ) {
+				return $this->make_proof_map( (int) $uid, $token, time() + 600 );
 			}
 			return '';
 		} );
@@ -875,8 +875,8 @@ class PluginTest extends TestCase {
 			if ( Sudo_Session::META_KEY === $key ) {
 				return time() + 420; // Active: 7 min left.
 			}
-			if ( Sudo_Session::TOKEN_META_KEY === $key ) {
-				return hash( 'sha256', $token );
+			if ( Sudo_Session::PROOF_META_KEY === $key ) {
+				return $this->make_proof_map( (int) $uid, $token, time() + 420 );
 			}
 			return '';
 		} );
@@ -952,8 +952,8 @@ class PluginTest extends TestCase {
 			if ( Sudo_Session::META_KEY === $key ) {
 				return time() + 420; // Future expiry from another browser's session.
 			}
-			if ( Sudo_Session::TOKEN_META_KEY === $key ) {
-				return hash( 'sha256', 'the-other-browser-token' );
+			if ( Sudo_Session::PROOF_META_KEY === $key ) {
+				return $this->make_proof_map( (int) $uid, 'the-other-browser-token', time() + 420 );
 			}
 			return '';
 		} );

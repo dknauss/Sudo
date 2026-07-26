@@ -1613,8 +1613,8 @@ class GateTest extends TestCase {
 			if ( Sudo_Session::META_KEY === $key ) {
 				return time() + 600;
 			}
-			if ( Sudo_Session::TOKEN_META_KEY === $key ) {
-				return hash( 'sha256', $token );
+			if ( Sudo_Session::PROOF_META_KEY === $key ) {
+				return $this->make_proof_map( (int) $uid, $token, time() + 600 );
 			}
 			return '';
 		} );
@@ -1880,8 +1880,8 @@ class GateTest extends TestCase {
 			if ( Sudo_Session::META_KEY === $key ) {
 				return time() + 600;
 			}
-			if ( Sudo_Session::TOKEN_META_KEY === $key ) {
-				return hash( 'sha256', $token );
+			if ( Sudo_Session::PROOF_META_KEY === $key ) {
+				return $this->make_proof_map( (int) $uid, $token, time() + 600 );
 			}
 			return '';
 		} );
@@ -3006,8 +3006,8 @@ class GateTest extends TestCase {
 			if ( Sudo_Session::META_KEY === $key ) {
 				return time() + 600;
 			}
-			if ( Sudo_Session::TOKEN_META_KEY === $key ) {
-				return hash( 'sha256', $token );
+			if ( Sudo_Session::PROOF_META_KEY === $key ) {
+				return $this->make_proof_map( (int) $uid, $token, time() + 600 );
 			}
 			return '';
 		} );
@@ -3104,8 +3104,8 @@ class GateTest extends TestCase {
 			if ( Sudo_Session::META_KEY === $key ) {
 				return time() + 600;
 			}
-			if ( Sudo_Session::TOKEN_META_KEY === $key ) {
-				return hash( 'sha256', $token );
+			if ( Sudo_Session::PROOF_META_KEY === $key ) {
+				return $this->make_proof_map( (int) $uid, $token, time() + 600 );
 			}
 			return '';
 		} );
@@ -3337,8 +3337,8 @@ class GateTest extends TestCase {
 			if ( Sudo_Session::META_KEY === $key ) {
 				return time() + 600;
 			}
-			if ( Sudo_Session::TOKEN_META_KEY === $key ) {
-				return hash( 'sha256', $token );
+			if ( Sudo_Session::PROOF_META_KEY === $key ) {
+				return $this->make_proof_map( (int) $uid, $token, time() + 600 );
 			}
 			return '';
 		} );
@@ -3413,8 +3413,8 @@ class GateTest extends TestCase {
 			if ( Sudo_Session::META_KEY === $key ) {
 				return time() + 600;
 			}
-			if ( Sudo_Session::TOKEN_META_KEY === $key ) {
-				return hash( 'sha256', $token );
+			if ( Sudo_Session::PROOF_META_KEY === $key ) {
+				return $this->make_proof_map( (int) $uid, $token, time() + 600 );
 			}
 			return '';
 		} );
@@ -4038,8 +4038,8 @@ class GateTest extends TestCase {
 			if ( Sudo_Session::META_KEY === $key ) {
 				return time() + 600;
 			}
-			if ( Sudo_Session::TOKEN_META_KEY === $key ) {
-				return hash( 'sha256', $token );
+			if ( Sudo_Session::PROOF_META_KEY === $key ) {
+				return $this->make_proof_map( (int) $uid, $token, time() + 600 );
 			}
 			return '';
 		} );
@@ -4079,8 +4079,8 @@ class GateTest extends TestCase {
 			if ( Sudo_Session::META_KEY === $key ) {
 				return time() + 600;
 			}
-			if ( Sudo_Session::TOKEN_META_KEY === $key ) {
-				return hash( 'sha256', $token );
+			if ( Sudo_Session::PROOF_META_KEY === $key ) {
+				return $this->make_proof_map( (int) $uid, $token, time() + 600 );
 			}
 			return '';
 		} );
@@ -4615,16 +4615,17 @@ class GateTest extends TestCase {
 	 */
 	public function test_escalation_guard_blocks_admin_grant_when_actor_lacks_authority(): void {
 		$this->prime_escalation_env( true );
-		$token = 'authority-test-token';
+		$token  = 'authority-test-token';
+		$record = $this->make_proof_map( 5, $token, time() + 600 );
 		// Actor 5 has an active sudo session (is_active true)...
 		Functions\when( 'get_current_user_id' )->justReturn( 5 );
 		Functions\when( 'get_user_meta' )->alias(
-			static function ( $uid, $key, $single = true ) use ( $token ) { // phpcs:ignore VariableAnalysis.CodeAnalysis.VariableAnalysis.UnusedVariable -- $single parity with get_user_meta signature.
+			static function ( $uid, $key, $single = true ) use ( $record ) { // phpcs:ignore VariableAnalysis.CodeAnalysis.VariableAnalysis.UnusedVariable -- $single parity with get_user_meta signature.
 				if ( 5 === (int) $uid && \WP_Sudo\Sudo_Session::META_KEY === $key ) {
 					return time() + 600;
 				}
-				if ( 5 === (int) $uid && \WP_Sudo\Sudo_Session::TOKEN_META_KEY === $key ) {
-					return hash( 'sha256', $token );
+				if ( 5 === (int) $uid && \WP_Sudo\Sudo_Session::PROOF_META_KEY === $key ) {
+					return $record;
 				}
 				return array(); // target 7 has no caps -> newly grants administrator
 			}
@@ -4687,15 +4688,16 @@ class GateTest extends TestCase {
 			}
 		);
 
-		$token = 'authority-test-token';
+		$token  = 'authority-test-token';
+		$record = $this->make_proof_map( 5, $token, time() + 600 );
 		Functions\when( 'get_current_user_id' )->justReturn( 5 );
 		Functions\when( 'get_user_meta' )->alias(
-			static function ( $uid, $key, $single = true ) use ( $token ) { // phpcs:ignore VariableAnalysis.CodeAnalysis.VariableAnalysis.UnusedVariable -- signature parity.
+			static function ( $uid, $key, $single = true ) use ( $record ) { // phpcs:ignore VariableAnalysis.CodeAnalysis.VariableAnalysis.UnusedVariable -- signature parity.
 				if ( 5 === (int) $uid && \WP_Sudo\Sudo_Session::META_KEY === $key ) {
 					return time() + 600;
 				}
-				if ( 5 === (int) $uid && \WP_Sudo\Sudo_Session::TOKEN_META_KEY === $key ) {
-					return hash( 'sha256', $token );
+				if ( 5 === (int) $uid && \WP_Sudo\Sudo_Session::PROOF_META_KEY === $key ) {
+					return $record;
 				}
 				return array();
 			}
@@ -4780,16 +4782,17 @@ class GateTest extends TestCase {
 		$this->prime_escalation_env( true );
 		// Neither target (7) nor actor (5) is a super admin.
 		Functions\when( 'is_super_admin' )->justReturn( false );
-		$token = 'authority-test-token';
+		$token  = 'authority-test-token';
+		$record = $this->make_proof_map( 5, $token, time() + 600 );
 		// Actor 5 nonetheless holds an active sudo session (is_active true).
 		Functions\when( 'get_current_user_id' )->justReturn( 5 );
 		Functions\when( 'get_user_meta' )->alias(
-			static function ( $uid, $key, $single = true ) use ( $token ) { // phpcs:ignore VariableAnalysis.CodeAnalysis.VariableAnalysis.UnusedVariable -- $single parity with get_user_meta signature.
+			static function ( $uid, $key, $single = true ) use ( $record ) { // phpcs:ignore VariableAnalysis.CodeAnalysis.VariableAnalysis.UnusedVariable -- $single parity with get_user_meta signature.
 				if ( 5 === (int) $uid && \WP_Sudo\Sudo_Session::META_KEY === $key ) {
 					return time() + 600;
 				}
-				if ( 5 === (int) $uid && \WP_Sudo\Sudo_Session::TOKEN_META_KEY === $key ) {
-					return hash( 'sha256', $token );
+				if ( 5 === (int) $uid && \WP_Sudo\Sudo_Session::PROOF_META_KEY === $key ) {
+					return $record;
 				}
 				return array();
 			}

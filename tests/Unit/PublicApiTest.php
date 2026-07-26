@@ -41,8 +41,10 @@ class PublicApiTest extends TestCase {
 
 		$_COOKIE[ Sudo_Session::TOKEN_COOKIE ] = $token;
 
+		$record = $this->make_proof_map( $user_id, $token, time() + 300 );
+
 		Functions\when( 'get_user_meta' )->alias(
-			static function ( int $uid, string $meta_key, bool $single ) use ( $user_id, $token ) {
+			static function ( int $uid, string $meta_key, bool $single ) use ( $user_id, $record ) {
 				if ( $uid !== $user_id || true !== $single ) {
 					return '';
 				}
@@ -51,8 +53,8 @@ class PublicApiTest extends TestCase {
 					return time() + 300;
 				}
 
-				if ( Sudo_Session::TOKEN_META_KEY === $meta_key ) {
-					return hash( 'sha256', $token );
+				if ( Sudo_Session::PROOF_META_KEY === $meta_key ) {
+					return $record;
 				}
 
 				return '';
@@ -79,8 +81,10 @@ class PublicApiTest extends TestCase {
 
 		$_COOKIE[ Sudo_Session::TOKEN_COOKIE ] = $token;
 
+		$record = $this->make_proof_map( $other_user_id, $token, time() + 300 );
+
 		Functions\when( 'get_user_meta' )->alias(
-			static function ( int $uid, string $meta_key, bool $single ) use ( $other_user_id, $token ) {
+			static function ( int $uid, string $meta_key, bool $single ) use ( $other_user_id, $record ) {
 				if ( $uid !== $other_user_id || true !== $single ) {
 					return '';
 				}
@@ -89,8 +93,8 @@ class PublicApiTest extends TestCase {
 					return time() + 300;
 				}
 
-				if ( Sudo_Session::TOKEN_META_KEY === $meta_key ) {
-					return hash( 'sha256', $token );
+				if ( Sudo_Session::PROOF_META_KEY === $meta_key ) {
+					return $record;
 				}
 
 				return '';
@@ -132,8 +136,10 @@ class PublicApiTest extends TestCase {
 
 		$_COOKIE[ Sudo_Session::TOKEN_COOKIE ] = $token;
 
+		$record = $this->make_proof_map( $other_user_id, $token, time() + 300 );
+
 		Functions\when( 'get_user_meta' )->alias(
-			static function ( int $uid, string $meta_key, bool $single ) use ( $other_user_id, $token ) {
+			static function ( int $uid, string $meta_key, bool $single ) use ( $other_user_id, $record ) {
 				if ( $uid !== $other_user_id || true !== $single ) {
 					return '';
 				}
@@ -142,8 +148,8 @@ class PublicApiTest extends TestCase {
 					return time() + 300;
 				}
 
-				if ( Sudo_Session::TOKEN_META_KEY === $meta_key ) {
-					return hash( 'sha256', $token );
+				if ( Sudo_Session::PROOF_META_KEY === $meta_key ) {
+					return $record;
 				}
 
 				return '';

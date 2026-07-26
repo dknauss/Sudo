@@ -32,9 +32,9 @@
  *   page.clock only affects browser-side JavaScript. PHP uses the real wall clock (time()).
  *   The JS countdown timer can reach zero and call window.location.reload() via fake clock,
  *   but the PHP session will still be active on the reloaded page unless we expire it
- *   server-side. TIMR-04 uses WP-CLI to zero out the server-side session expiry meta before
+ *   server-side. TIMR-04 uses WP-CLI to clear the server-side proof record before
  *   ticking to zero, ensuring PHP also considers the session expired on reload.
- *   Source: includes/class-sudo-session.php META_KEY = '_wp_sudo_expires' (verified)
+ *   Source: includes/class-sudo-session.php PROOF_META_KEY = '_wp_sudo_proofs' (verified)
  *
  * Session duration: default is 15 minutes (900 seconds). Tests use runFor() to fast-
  * forward time rather than changing the session_duration setting — simpler and avoids
@@ -217,9 +217,10 @@ test.describe( 'Admin bar timer', () => {
      *
      * PHP/JS clock separation: page.clock.runFor() advances ONLY browser JavaScript time.
      * PHP uses real wall clock (time()). To ensure the session is also expired PHP-side
-     * when the page reloads, we use WP-CLI to zero out the _wp_sudo_expires user meta
-     * before triggering the JS reload. This makes both JS and PHP agree: session expired.
-     * Source: includes/class-sudo-session.php META_KEY = '_wp_sudo_expires' (verified)
+     * when the page reloads, we use WP-CLI to clear the server-side proof before
+     * triggering the JS reload. This makes both JS and PHP agree: session expired.
+     * Source: includes/class-sudo-session.php PROOF_META_KEY = '_wp_sudo_proofs',
+     * read by is_active() via resolve_valid_proof() (verified)
      *
      * We runFor 910_000ms (910 seconds) to go well past the 900-second JS countdown.
      * Because the starting URL and reload target are both `/wp-admin/`, this test must
@@ -245,12 +246,27 @@ test.describe( 'Admin bar timer', () => {
 
         // Expire the server-side PHP session before triggering the JS reload.
         // PHP uses real time() to check expiry; page.clock only affects browser JS.
-        // Setting _wp_sudo_expires to 1 (distant past) makes PHP see session as expired.
-        // Source: class-sudo-session.php — is_active() checks META_KEY against time() (verified)
+        //
+        // Since 4.9.0 enforcement reads the expiry from the signed per-login-session
+        // proof entry, NOT from _wp_sudo_expires (now only a liveness marker used for
+        // enumeration/display). Backdating a proof entry out of band is impossible by
+        // design: its HMAC binds the RAW login-session verifier and the map stores only
+        // sha256(verifier), so no CLI caller can re-sign a mutated entry — that is the
+        // forge resistance working as intended. Clearing the proof map is therefore how
+        // this fixture makes PHP see no active session, and it is the state the server
+        // is left in once an expired proof is pruned. The liveness marker is backdated
+        // alongside it so the display feeds agree.
+        // Source: class-sudo-session.php — is_active() → resolve_valid_proof() returns
+        // null when no entry matches the current verifier (verified)
         //
         // WP-CLI container: 'cli' targets the development site on port 8889 (same site
         // the browser tests use). 'tests-cli' targets the tests site on port 8890.
         // Source: wp-env.json — "port": 8889 is the development site (verified)
+        wpEnvRunCliSync(
+            'cli',
+            [ 'wp', 'user', 'meta', 'delete', '1', '_wp_sudo_proofs' ],
+            { stdio: 'ignore' }
+        );
         wpEnvRunCliSync(
             'cli',
             [ 'wp', 'user', 'meta', 'update', '1', '_wp_sudo_expires', '1' ],
@@ -264,7 +280,8 @@ test.describe( 'Admin bar timer', () => {
         await waitForTimerTriggeredReload( page, 910_000 );
 
         // After reload, both JS and PHP agree the session is expired.
-        // PHP admin_bar_node() checks is_active() which checks _wp_sudo_expires — now past.
+        // PHP admin_bar_node() checks is_active(), which now resolves the signed proof
+        // record — cleared above, so there is nothing left to verify.
         // Source: class-admin-bar.php — admin_bar_node() only adds node when session active (verified)
         await expect(
             page.locator( '#wp-admin-bar-wp-sudo-active' ),
