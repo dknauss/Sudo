@@ -96,12 +96,69 @@ function wp_sudo_cleanup_site(): void {
 	// Remove governance capabilities granted on this site.
 	wp_sudo_cleanup_governance_caps();
 
+	// Remove orphaned IP-scoped lockout transients on this site (#280).
+	wp_sudo_cleanup_ip_lockout_transients();
+
 	delete_option( 'wp_sudo_settings' );
 	delete_option( 'wp_sudo_version' );
 	delete_option( 'wp_sudo_activated' );
 	delete_option( 'wp_sudo_role_version' );
 	delete_option( 'wp_sudo_db_version' );
 	delete_option( 'wp_sudo_governance_mode' );
+}
+
+/**
+ * Remove orphaned IP-scoped lockout transients on the current site (#280).
+ *
+ * These transients (Sudo_Session::ip_lockout_transient_key() /
+ * ip_failure_event_transient_key()) are keyed deterministically from
+ * (ip, user_id, failure-epoch) — not from user meta — so the network-wide
+ * user-meta wipe in wp_sudo_cleanup_user_meta() does not reach them, and
+ * they are per-blog (delete_transient() operates on the current blog's
+ * options), so this must run once per site rather than once network-wide.
+ *
+ * Why this matters on uninstall specifically: the failure-epoch meta
+ * (IP_FAILURE_EPOCH_META_KEY) is what makes an out-of-band `wp sudo unlock`
+ * durable — bumping it orphans every transient derived from the OLD epoch.
+ * But that meta is itself deleted by wp_sudo_cleanup_user_meta(), so a
+ * reinstall within a transient's TTL (up to 24h) sees an absent epoch
+ * (identity value 0) and derives the exact same pre-unlock key for a
+ * matching (ip, user_id) pair — reviving a failure count an operator
+ * already cleared. Sweeping the transients themselves at uninstall time,
+ * rather than relying on the epoch to keep them unreachable, closes that
+ * window regardless of what epoch value a later reinstall starts from.
+ *
+ * Uses a direct $wpdb sweep because WordPress exposes no "list transients
+ * matching a name pattern" API — the whole point is to catch entries whose
+ * (ip, user_id, epoch) triple is no longer reconstructable once the meta
+ * above is gone. This only reaches the options-table storage path: on a
+ * site with a persistent external object cache (Redis/Memcached), these
+ * transients live in the cache instead of `wp_options` and are unaffected,
+ * same as any other transient cleanup performed via raw SQL.
+ *
+ * @return void
+ */
+function wp_sudo_cleanup_ip_lockout_transients(): void {
+	global $wpdb;
+
+	// Mirrors Sudo_Session::IP_FAILURE_EVENT_TRANSIENT_PREFIX /
+	// IP_LOCKOUT_UNTIL_TRANSIENT_PREFIX. Not read from the class constants:
+	// this file deliberately avoids loading Sudo_Session (see the plain
+	// string literals in wp_sudo_cleanup_user_meta() above for the same
+	// reason), so these two prefixes must be kept in sync by hand if they
+	// ever change.
+	$transient_prefixes = array( 'wp_sudo_ip_failure_event_', 'wp_sudo_ip_lockout_until_' );
+
+	foreach ( $transient_prefixes as $prefix ) {
+		// phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery, WordPress.DB.DirectDatabaseQuery.NoCaching, WordPress.DB.PreparedSQL.NotPrepared -- one-time uninstall sweep of a known option-name prefix; no core API enumerates transients by pattern, and the value being deleted is never read back.
+		$wpdb->query(
+			$wpdb->prepare(
+				"DELETE FROM {$wpdb->options} WHERE option_name LIKE %s OR option_name LIKE %s",
+				$wpdb->esc_like( '_transient_' . $prefix ) . '%',
+				$wpdb->esc_like( '_transient_timeout_' . $prefix ) . '%'
+			)
+		);
+	}
 }
 
 /**
@@ -148,6 +205,9 @@ function wp_sudo_cleanup_user_meta(): void {
 	delete_metadata( 'user', 0, '_wp_sudo_failure_event', '', true );
 	delete_metadata( 'user', 0, '_wp_sudo_throttle_until', '', true );
 	delete_metadata( 'user', 0, '_wp_sudo_lockout_until', '', true );
+	delete_metadata( 'user', 0, '_wp_sudo_lockout_ip_transient', '', true );
+	delete_metadata( 'user', 0, '_wp_sudo_lockout_ip_failure_transient', '', true );
+	delete_metadata( 'user', 0, '_wp_sudo_ip_failure_epoch', '', true );
 	delete_metadata( 'user', 0, '_wp_sudo_stash_keys', '', true );
 }
 
