@@ -273,7 +273,7 @@ For a mutation to pass through in Limited mode, two conditions must be met simul
 
 1. **WordPress must identify the requesting user** — `get_current_user_id()` must return a non-zero value. This requires the request to carry valid WordPress authentication: a session cookie (browser-based admin access), an Application Password (`Authorization` header), or a JWT token if a JWT plugin is active.
 
-2. **The sudo session cookie must be present** — the `wp_sudo_token` cookie must accompany the request and match the token hash stored in the user's proof entry. This cookie is only set when the user completes a sudo challenge in the WordPress admin UI. Since 4.9.0 the proof is a self-authenticating record keyed per login session (`_wp_sudo_proofs`, keyed by `sha256(verifier)`): each entry's HMAC binds it to the WordPress login session that created it, so a captured cookie replayed from a different login session is rejected, the window ends on logout, and a proof stops verifying once its login session is no longer valid (e.g. after `WP_Session_Tokens::destroy_all()` the user is no longer authenticated, so the window is unreachable). Because the proof is keyed per login session, a user's concurrent browsers hold independent sudo sessions — reauthenticating in one does not revoke another. Pre-4.9.0 sessions simply have no proof entry and require one reauthentication after upgrade; no migration is needed.
+2. **The sudo session cookie must be present** — the `wp_sudo_token` cookie must accompany the request and match the token hash stored in the user's proof entry. This cookie is only set when the user completes a sudo challenge in the WordPress admin UI. Since 4.9.0 the proof is a self-authenticating record keyed per login session (`_wp_sudo_proofs`, keyed by `sha256(verifier)`): each entry's HMAC binds it to the WordPress login session that created it, so a captured cookie replayed from a different login session is rejected, the window ends on logout, and a proof stops verifying once its login session is no longer valid (e.g. after `WP_Session_Tokens::destroy_all()` the user is no longer authenticated, so the window is unreachable **from the next request on** — within the request that destroyed the tokens the user is already loaded and `wp_get_session_token()` keeps returning that request's cookie verifier, which `resolve_valid_proof()` hashes without consulting the session-token store, so a later gated check in that same request can still resolve the proof). Because the proof is keyed per login session, a user's concurrent browsers hold independent sudo sessions — reauthenticating in one does not revoke another. Pre-4.9.0 sessions simply have no proof entry and require one reauthentication after upgrade; no migration is needed.
 
 **Why this matters for headless deployments.** A frontend running at a different origin from the WordPress backend (e.g. a SvelteKit app at `localhost:5173` calling WordPress at `site.wp.local`) cannot automatically share the sudo session cookie. Cross-origin requests do not carry cookies unless CORS is configured with `Access-Control-Allow-Credentials: true` and a matching origin, and the frontend fetch uses `credentials: 'include'`. Without this, `get_current_user_id()` returns `0` and the sudo session cookie is absent — mutations are blocked by the Limited policy regardless of whether the frontend user is "logged in" from the application's perspective.
 
@@ -356,9 +356,15 @@ supplies the write.)
   in `wp-config.php` (ties to the salt-relocation proposal, #310).
 
 **Risk: Stale liveness marker.** `_wp_sudo_expires` is a per-user enumeration
-hint, not the enforcement value; a stale cached copy can only mis-report the
-"Sudo Active" count (benign — revoking a phantom is a no-op). Enforcement always
-goes through the cache-bypassed, HMAC-verified proof.
+hint, not the enforcement value, so it can never grant access — enforcement
+always goes through the cache-bypassed, HMAC-verified proof. It can, however,
+**withhold** an operator action: `is_session_live()` reads this scalar through
+the cache, and both `Admin::revoke_session_core()` and the Users-list row-action
+visibility gate consult it. A stale, expired copy therefore reports
+`target_expired` and can hide or refuse revocation for a session that is
+genuinely active — a fail-closed nuisance rather than a bypass, but a real one
+on a misconfigured cache. The reverse (a stale *live* value) only inflates the
+"Sudo Active" count, which is benign since revoking a phantom is a no-op.
 
 **Risk: Stale rate-limit state.** If append-row failure events
 (`_wp_sudo_failure_event`) or lockout/throttle timestamps
