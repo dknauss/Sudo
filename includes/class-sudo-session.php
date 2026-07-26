@@ -63,6 +63,12 @@ class Sudo_Session {
 	 * (which stores all session tokens in a single `session_tokens` meta the same
 	 * way). Reauth is human-paced, so the window is negligible; #279 is
 	 * eliminated for the realistic case and no worse than core for the rest.
+	 * Verified in core `wp-includes/class-wp-user-meta-session-tokens.php`:
+	 * `get_sessions()` reads the single `session_tokens` meta, `update_session()`
+	 * mutates one verifier's entry, and `update_sessions()` writes the whole
+	 * array back with `update_user_meta()` — a read-modify-write on one row:
+	 * <https://github.com/WordPress/wordpress-develop/blob/trunk/src/wp-includes/class-wp-user-meta-session-tokens.php>
+	 * (retrieved 2026-07-26).
 	 *
 	 * Degradation: when the AUTH_SALT family lives in wp_options rather than
 	 * wp-config.php, a DB-write attacker can read the salt and forge the HMAC;
@@ -946,9 +952,20 @@ class Sudo_Session {
 
 		// Housekeeping: drop entries for login sessions whose sudo has expired,
 		// so the map does not accumulate a row per historical login session.
+		// Retain a just-expired entry through its GRACE_SECONDS window, though:
+		// another concurrent browser's proof may have expired seconds ago and
+		// still be replaying an in-flight gated form under is_within_grace()
+		// (#279). Evicting it here — as `expires < now` did — redirects that
+		// form and defeats the lost-work grace protection. Malformed rows (a
+		// non-array, or one missing `expires`) can never be a valid grace record
+		// and are dropped unconditionally so they cannot linger forever. The
+		// strict `<` mirrors is_within_grace()'s own closing boundary
+		// (`now > expires + GRACE_SECONDS`), so an entry is swept one second
+		// after grace closes, never while it is still grace-eligible.
 		$now = time();
 		foreach ( $map as $key => $entry ) {
-			if ( ! is_array( $entry ) || ! isset( $entry['expires'] ) || (int) $entry['expires'] < $now ) {
+			if ( ! is_array( $entry ) || ! isset( $entry['expires'] )
+				|| (int) $entry['expires'] + self::GRACE_SECONDS < $now ) {
 				unset( $map[ $key ] );
 			}
 		}

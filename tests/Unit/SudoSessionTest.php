@@ -504,6 +504,137 @@ class SudoSessionTest extends TestCase
 		$this->assertFalse(Sudo_Session::is_active($user));
 	}
 
+	/**
+	 * Re-sign a proof-map entry after mutating its expiry, so resolve_valid_proof()
+	 * still trusts it. build_hmac() is private; reach it via reflection (the suite's
+	 * PHP 8.0/8.5-safe @setAccessible pattern).
+	 *
+	 * @param array<string, array{token:string,expires:int,hmac:string}> $map      Proof map (by reference).
+	 * @param int                                                          $user_id  User ID.
+	 * @param string                                                       $verifier Login-session verifier (plaintext).
+	 * @param int                                                          $expires  New expiry to set + sign.
+	 * @return void
+	 */
+	private function backdate_proof_entry(array &$map, int $user_id, string $verifier, int $expires): void
+	{
+		$key = hash('sha256', $verifier);
+		$this->assertArrayHasKey($key, $map, 'backdate_proof_entry: verifier not present in map');
+		$map[$key]['expires'] = $expires;
+
+		$hmac = new \ReflectionMethod(Sudo_Session::class, 'build_hmac');
+		@$hmac->setAccessible(true); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		$map[$key]['hmac'] = $hmac->invoke(null, $user_id, $verifier, $map[$key]['token'], $expires);
+	}
+
+	/**
+	 * #279 grace regression: a second browser's activation runs set_token()
+	 * housekeeping over the shared proof map. That sweep must NOT evict another
+	 * login session's entry that expired only moments ago and is still inside its
+	 * GRACE_SECONDS window — doing so redirects that browser's in-flight gated
+	 * form and defeats the lost-work protection this concurrent-browser design
+	 * exists to preserve.
+	 *
+	 * RED before the fix: housekeeping drops any entry with expires < now, so A's
+	 * just-expired entry is deleted by B's activation and is_within_grace(A) fails.
+	 */
+	public function test_set_token_housekeeping_preserves_other_verifier_in_grace(): void
+	{
+		$user  = 7;
+		$store = array();
+		$this->stub_stateful_user_meta($store);
+		Functions\when('get_current_user_id')->justReturn($user);
+		Functions\when('wp_generate_password')->justReturn('cookie-A');
+
+		// Browser A activates under verifier-A.
+		Functions\when('wp_get_session_token')->justReturn('verifier-A');
+		Sudo_Session::activate($user);
+
+		// Age A's proof 30 s into the past — expired, but well within GRACE_SECONDS (120 s).
+		$this->backdate_proof_entry($store[Sudo_Session::PROOF_META_KEY], $user, 'verifier-A', time() - 30);
+
+		// Browser B activates under its own verifier — this triggers set_token() housekeeping.
+		Functions\when('wp_generate_password')->justReturn('cookie-B');
+		Functions\when('wp_get_session_token')->justReturn('verifier-B');
+		Sudo_Session::activate($user);
+
+		$map = $store[Sudo_Session::PROOF_META_KEY];
+		$this->assertArrayHasKey(
+			hash('sha256', 'verifier-A'),
+			$map,
+			"Browser A's grace-window proof was swept by B's activation."
+		);
+
+		// A's request: its cookie + verifier -> expired but still in grace.
+		Sudo_Session::reset_cache();
+		$_COOKIE[Sudo_Session::TOKEN_COOKIE] = 'cookie-A';
+		Functions\when('wp_get_session_token')->justReturn('verifier-A');
+		$this->assertFalse(Sudo_Session::is_active($user), 'A is expired, so is_active() must be false.');
+		$this->assertTrue(Sudo_Session::is_within_grace($user), 'A must still be within its grace window.');
+	}
+
+	/**
+	 * The grace-aware retention must not become an unbounded leak: an entry
+	 * expired beyond its GRACE_SECONDS window is still swept by the next
+	 * activation's housekeeping.
+	 */
+	public function test_set_token_housekeeping_sweeps_verifier_past_grace(): void
+	{
+		$user  = 7;
+		$store = array();
+		$this->stub_stateful_user_meta($store);
+		Functions\when('get_current_user_id')->justReturn($user);
+		Functions\when('wp_generate_password')->justReturn('cookie-A');
+
+		Functions\when('wp_get_session_token')->justReturn('verifier-A');
+		Sudo_Session::activate($user);
+
+		// Age A past expiry + grace (GRACE_SECONDS + 60 s ago).
+		$this->backdate_proof_entry(
+			$store[Sudo_Session::PROOF_META_KEY],
+			$user,
+			'verifier-A',
+			time() - (Sudo_Session::GRACE_SECONDS + 60)
+		);
+
+		Functions\when('wp_generate_password')->justReturn('cookie-B');
+		Functions\when('wp_get_session_token')->justReturn('verifier-B');
+		Sudo_Session::activate($user);
+
+		$this->assertArrayNotHasKey(
+			hash('sha256', 'verifier-A'),
+			$store[Sudo_Session::PROOF_META_KEY],
+			"A's beyond-grace entry should have been swept."
+		);
+	}
+
+	/**
+	 * The rewritten predicate must keep dropping malformed entries
+	 * unconditionally — a non-array or expires-less row must never survive the
+	 * grace-aware retention (it can never be a valid grace record and would
+	 * otherwise linger forever).
+	 */
+	public function test_set_token_housekeeping_drops_malformed_entries(): void
+	{
+		$user  = 7;
+		$store = array(
+			Sudo_Session::PROOF_META_KEY => array(
+				'garbage-non-array'    => 'not-an-array',
+				'garbage-no-expires'   => array('token' => 'x', 'hmac' => 'y'),
+			),
+		);
+		$this->stub_stateful_user_meta($store);
+		Functions\when('get_current_user_id')->justReturn($user);
+		Functions\when('wp_generate_password')->justReturn('cookie-B');
+		Functions\when('wp_get_session_token')->justReturn('verifier-B');
+
+		Sudo_Session::activate($user);
+
+		$map = $store[Sudo_Session::PROOF_META_KEY];
+		$this->assertArrayNotHasKey('garbage-non-array', $map);
+		$this->assertArrayNotHasKey('garbage-no-expires', $map);
+		$this->assertArrayHasKey(hash('sha256', 'verifier-B'), $map, 'The fresh activation entry must remain.');
+	}
+
 	// =================================================================
 	// F8 — cookie_secure(): FORCE_SSL_ADMIN fallback and filter
 	// =================================================================
