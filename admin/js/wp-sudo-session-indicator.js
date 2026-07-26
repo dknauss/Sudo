@@ -51,7 +51,7 @@
 	// The admin bar's own expiring threshold (wp-sudo-admin-bar.js: if (r <= 60)),
 	// reused verbatim so the two surfaces flip red at the same moment.
 	var EXPIRING_THRESHOLD = 60;
-	var BODY_CLASS_ACTIVE = 'wp-sudo-editor-session-active';
+	// Only the expiring state paints a chip, so it is the only state CSS needs to see.
 	var BODY_CLASS_EXPIRING = 'wp-sudo-editor-session-expiring';
 	// Two page loads of the SAME session compute deadlines within a few seconds of
 	// each other; a genuinely new (re-granted) session extends the deadline by the
@@ -249,10 +249,19 @@
 	var useState = wp.element.useState;
 	var useEffect = wp.element.useEffect;
 
-	// --- #288: paint the pinned header button ---------------------------------
+	// --- #288: the final-minute chip on the pinned header button ---------------
 	// The pinned button is the only part of this feature visible while the panel is
 	// CLOSED, which is the whole point in the full-screen editor: no admin bar, so no
 	// chip and no countdown anywhere else on screen.
+	//
+	// ONLY the expiring state paints. State is otherwise carried by the glyph (the
+	// `icon` pick in IndicatorPanel below), because that is what core does here: the sole
+	// background change core applies to a pinned-item button is the neutral
+	// `.is-pressed` fill, never a semantic colour, while a state-driven icon is
+	// precedented (core swaps `isPinned ? starFilled : starEmpty` on this same toggle).
+	// So a green chip for the whole session would invent a convention and park colour
+	// in the header for 15 minutes at a time; one red chip for the last 60 s spends it
+	// where it is earned.
 	//
 	// State is carried by a class on <body>, not on the button. Gutenberg re-renders
 	// that button with a fresh `className` prop every time `is-pressed` flips (opening
@@ -262,10 +271,10 @@
 	//
 	// Deliberately NOT a `useEffect` in IndicatorPanel: that component re-renders every
 	// second (the subscribe/setSecs pump below), so a component-scoped effect would need
-	// exactly-correct cleanup for both classes or the site editor — an SPA, where
-	// document.body outlives route changes — keeps a stale chip painted after unmount.
-	// A module-level subscriber with a `lastState` guard has no unmount to get wrong and
-	// touches classList only on a real transition, never per tick.
+	// exactly-correct cleanup or the site editor — an SPA, where document.body outlives
+	// route changes — keeps a stale chip painted after unmount. A module-level subscriber
+	// with a `lastState` guard has no unmount to get wrong and touches classList only on
+	// a real transition, never per tick.
 	//
 	// Armed only AFTER the WP 6.6+ feature detect above, so no class is set on 6.4-6.5,
 	// where wp.editor.PluginSidebar is absent and Part A carries the feature. It IS armed
@@ -281,12 +290,7 @@
 			return;
 		}
 		lastState = state;
-		var classes = document.body.classList;
-		// Both classes are carried in the expiring state — mirroring the admin bar,
-		// which adds `wp-sudo-expiring` alongside `wp-sudo-active` rather than
-		// swapping — and the stylesheet's source order lets the expiring rule win.
-		classes.toggle( BODY_CLASS_ACTIVE, 'inactive' !== state );
-		classes.toggle( BODY_CLASS_EXPIRING, 'expiring' === state );
+		document.body.classList.toggle( BODY_CLASS_EXPIRING, 'expiring' === state );
 	}
 	subscribe( syncBodyState );
 	syncBodyState();
@@ -326,19 +330,37 @@
 			title = __( 'Sudo · inactive', 'wp-sudo' );
 		}
 
-		// Glyph. Active/inactive share the unlocked padlock the admin-bar chip already
-		// uses (class-admin-bar.php: dashicons-unlock) so the two surfaces read as one
-		// system; those two states are already told apart without colour, by the presence
-		// or absence of the green chip (a ~5:1 luminance difference, legible in greyscale).
+		// Glyph — the PRIMARY state channel, one shape per state:
 		//
-		// Expiring gets a DIFFERENT glyph because active-vs-expiring otherwise differs
-		// only in hue: #2e7d32 and #c62828 have a contrast ratio of 1.09:1 against each
-		// other, so on an icon-only button they are the same swatch under a red-green
-		// deficiency, in greyscale, and in forced-colors mode — a WCAG 1.4.1 failure the
-		// accessible name cannot discharge (a name is programmatic, not visual). The
-		// admin bar needs no such swap because it carries visible "Sudo: M:SS" text.
-		// A per-transition swap is not the per-second churn the brief forbids.
-		var icon = 'expiring' === state ? 'warning' : 'unlock';
+		//   inactive   lock      a closed padlock: not elevated
+		//   active     unlock    the admin bar's own glyph (class-admin-bar.php)
+		//   expiring   warning   a third, non-padlock shape for the final 60 s
+		//
+		// A state-driven icon on this control is a core pattern, not an invention: core
+		// swaps `isPinned ? starFilled : starEmpty` on the very same toggle
+		// (packages/interface/src/components/complementary-area/index.js L326, Gutenberg
+		// trunk, fetched 2026-07-26). Semantic BACKGROUND colour is not — core's only
+		// background change on these buttons is the neutral `.is-pressed` fill
+		// (packages/components/src/button/style.scss L342-348), which is why colour here
+		// is spent on the expiring state alone.
+		//
+		// Carrying state on shape also settles WCAG 1.4.1 by construction rather than by
+		// supplement: #2e7d32 and #c62828 are 1.09:1 against EACH OTHER, so a colour-led
+		// vocabulary collapses to one swatch under a red-green deficiency, in greyscale,
+		// and in forced-colors mode. Three distinct shapes survive all three. The
+		// accessible name above cannot discharge 1.4.1 (a name is programmatic, not
+		// visual), so it tracks the same three states rather than substituting for them.
+		//
+		// Per-transition, not per-second — the churn the design brief forbids is a value
+		// that changes on every tick, which is why the compact M:SS stays out of `title`.
+		var icon;
+		if ( 'expiring' === state ) {
+			icon = 'warning';
+		} else if ( 'active' === state ) {
+			icon = 'unlock';
+		} else {
+			icon = 'lock';
+		}
 
 		return el(
 			PluginSidebar,

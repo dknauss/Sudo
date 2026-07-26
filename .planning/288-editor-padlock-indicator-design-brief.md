@@ -64,6 +64,47 @@ Files changed: `admin/js/wp-sudo-session-indicator.js`, new
   declared dependency of this script, so the 6.6 detect passes. Inert there: no button
   with the module's `aria-controls` renders outside the post/site editor.)
 
+## Amendment (post-merge follow-up): colour reduced to the expiring state only
+
+Raised by the maintainer after #288 merged, and correct: other icons in the block
+editor header do not change background colour. Verified against Gutenberg trunk
+(fetched 2026-07-26) rather than assumed:
+
+- **Semantic background colour has no core precedent here.** The only background
+  change core applies to a pinned-item button is `.is-pressed` →
+  `background: $components-color-foreground`, a neutral near-black
+  (`packages/components/src/button/style.scss` L342-348). The single coloured
+  element in that header is the Publish CTA.
+- **A state-driven glyph does have precedent, on this exact control.** Core renders
+  `icon={ isPinned ? starFilled : starEmpty }` for the pin toggle and
+  `icon={ showIconLabels ? check : icon }` for the label mode
+  (`packages/interface/src/components/complementary-area/index.js` L326, L280); the
+  `icon` prop flows through to the toggle at L293.
+
+So the shipped design had it backwards: it invented a convention for the states that
+did not need one, and the *glyph* swap — the part that was already idiomatic — was
+used only for the edge state. Amended vocabulary:
+
+| State | #288 as shipped | Amended |
+|---|---|---|
+| No session | `unlock`, no chip | **`lock`**, no chip |
+| Active | `unlock` + green chip | `unlock`, **no chip** |
+| Final 60 s | `warning` + red chip | `warning` + red chip (unchanged) |
+
+Two independent gains. The at-rest state no longer shows an *unlocked* padlock while
+sudo is inactive — which asserted the opposite of the truth for the state the header
+displays most of the time, and which this brief's original scope decision (§Q2, "keep
+`unlock` for inactive") got wrong. And with two of the three states carrying no colour,
+WCAG 1.4.1 is satisfied by construction rather than by supplement: shape is the primary
+channel and the red chip only reinforces it.
+
+Cost, stated plainly: a 20 px glyph change is less noticeable peripherally than a
+green→red chip, so this trades some at-a-glance salience — the original point of
+#288 — for fitting the surface. The maintainer made that call knowing the trade.
+
+`wp-sudo-editor-session-active` is removed entirely: with no rule consuming it, keeping
+it would be dead state. Only `wp-sudo-editor-session-expiring` remains.
+
 ## Resolutions (design review completed — implemented in the #288 branch)
 
 All five questions below were put to a design reviewer before implementation. The

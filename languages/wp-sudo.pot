@@ -2005,24 +2005,24 @@ msgstr ""
 msgid "Reauthenticated — sudo active for about %d min."
 msgstr ""
 
-#: admin/js/wp-sudo-session-indicator.js:322
+#: admin/js/wp-sudo-session-indicator.js:326
 msgid "Sudo · expiring"
 msgstr ""
 
-#: admin/js/wp-sudo-session-indicator.js:324
+#: admin/js/wp-sudo-session-indicator.js:328
 msgid "Sudo · active"
 msgstr ""
 
-#: admin/js/wp-sudo-session-indicator.js:326
+#: admin/js/wp-sudo-session-indicator.js:330
 msgid "Sudo · inactive"
 msgstr ""
 
 #. translators: %s: time remaining in M:SS format
-#: admin/js/wp-sudo-session-indicator.js:359
+#: admin/js/wp-sudo-session-indicator.js:381
 #, js-format
 msgid "Sudo active — %s remaining."
 msgstr ""
 
-#: admin/js/wp-sudo-session-indicator.js:363
+#: admin/js/wp-sudo-session-indicator.js:385
 msgid "No active sudo session."
 msgstr ""

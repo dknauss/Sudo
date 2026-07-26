@@ -263,13 +263,21 @@ test.describe( 'Visual regression baselines', () => {
     } );
 
     /**
-     * VISN-05 / VISN-06: in-editor pinned header padlock (#288).
+     * VISN-05 / VISN-06 / VISN-07: in-editor pinned header padlock (#288).
      *
      * The full-screen editor hides the admin bar, so VISN-03/04 above cover a surface
-     * the editing user never sees. These two baselines pin the editor's equivalent:
-     * the PluginSidebar's pinned header button wearing the SAME admin-bar tokens —
-     * green #2e7d32 active, red #c62828 in the final 60 s — on a dashicons-unlock
-     * padlock, with the sidebar panel CLOSED.
+     * the editing user never sees. These three baselines pin the editor's equivalent —
+     * one per state, with the sidebar panel CLOSED:
+     *
+     *   VISN-07 inactive   dashicons-lock      stock button, no chip
+     *   VISN-05 active     dashicons-unlock    stock button, no chip
+     *   VISN-06 expiring   dashicons-warning   red #c62828 chip
+     *
+     * Three baselines rather than two because the vocabulary is now carried by SHAPE,
+     * with colour reinforcing only the urgent state. That claim is only meaningful if
+     * each state is pinned as pixels: a regression that silently reverted two of the
+     * three glyphs to one shape would leave colour as the sole differentiator again,
+     * and no assertion about class names would catch how it actually renders.
      *
      * WHY an element screenshot is safe here (unlike VISN-03/04): the admin-bar node
      * auto-sizes to its "Sudo: M:SS" text, so its width drifts run to run. This button
@@ -279,8 +287,9 @@ test.describe( 'Visual regression baselines', () => {
      * Clipping to the button alone also isolates it from unrelated header churn (the
      * neighbouring Settings button's is-pressed state, Publish-button label changes).
      *
-     * Source: admin/css/wp-sudo-editor-indicator.css — the two state rules (verified)
-     * Source: admin/js/wp-sudo-session-indicator.js — body-class toggle, EXPIRING_THRESHOLD
+     * Source: admin/css/wp-sudo-editor-indicator.css — the single expiring rule (verified)
+     * Source: admin/js/wp-sudo-session-indicator.js — sessionState(), the IndicatorPanel
+     *         `icon` selection, the body-class toggle, EXPIRING_THRESHOLD
      * Source: live WP 7.0 editor DOM — button[aria-controls="…"] inside .interface-pinned-items
      */
     const pinnedButtonSelector =
@@ -339,9 +348,36 @@ test.describe( 'Visual regression baselines', () => {
         await expect( button ).toBeVisible();
         // Panel closed — the state must be legible without opening the sidebar.
         await expect( button ).toHaveAttribute( 'aria-expanded', 'false' );
-        await expect( button ).toHaveCSS( 'background-color', 'rgb(46, 125, 50)' );
+        // Stock button: colour is spent only on the final minute, not on the whole
+        // session. Asserted before the snapshot so a reintroduced chip fails loudly
+        // here rather than as an opaque pixel diff.
+        await expect( button ).toHaveCSS( 'background-color', 'rgba(0, 0, 0, 0)' );
 
         await expect( button ).toHaveScreenshot( 'editor-indicator-active.png', {
+            threshold: 0.05,
+        } );
+    } );
+
+    test( 'VISN-07: editor pinned padlock in inactive state baseline', async ( {
+        page,
+    } ) => {
+        await openEditor( page );
+        test.skip(
+            ! ( await page.evaluate(
+                () => !! ( window as any ).wp?.editor?.PluginSidebar
+            ) ),
+            'The pinned header button requires the unified PluginSidebar (WP 6.6+).'
+        );
+
+        // No seeding — this is the at-rest state, which is what the header shows for
+        // most of a session-less editing session, and therefore the one most worth
+        // pinning: it must read CLOSED padlock, not open.
+        const button = page.locator( pinnedButtonSelector );
+        await expect( button ).toBeVisible();
+        await expect( button ).toHaveAttribute( 'aria-expanded', 'false' );
+        await expect( button ).toHaveCSS( 'background-color', 'rgba(0, 0, 0, 0)' );
+
+        await expect( button ).toHaveScreenshot( 'editor-indicator-inactive.png', {
             threshold: 0.05,
         } );
     } );

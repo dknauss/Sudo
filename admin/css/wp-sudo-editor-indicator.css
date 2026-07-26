@@ -1,18 +1,28 @@
 /**
  * WP Sudo – In-editor session-indicator styles (#288).
  *
- * Colours the PluginSidebar's pinned header button with the admin bar's exact
- * tokens, so the two persistent indicators read as one system:
+ * Paints the PluginSidebar's pinned header button for ONE state — the final 60 s:
  *
- *   active            #2e7d32   hover #1b5e20
- *   expiring (<=60s)  #c62828   hover #b71c1c
- *   inactive/expired  — no rule matches; the stock Gutenberg button is restored.
+ *   expiring (<=60s)  #c62828   hover #b71c1c   (admin-bar parity)
+ *   everything else   — no rule matches; the stock Gutenberg button is used.
  *
- * Token source: admin/css/wp-sudo-admin-bar.css (verified — the same four backgrounds
- * on the same white glyph).
- * Contrast against the white glyph: 5.13:1 active, 7.87:1 active-hover, 5.62:1
- * expiring, 6.57:1 expiring-hover — all clear both WCAG 1.4.11 (3:1, the criterion
- * that governs a meaningful icon) and the stricter 1.4.3 (4.5:1).
+ * Deliberately not a chip per state. Core applies no semantic background colour to
+ * these buttons at all: the only background change on a pinned-item button is the
+ * neutral `.is-pressed` fill, `background: $components-color-foreground`
+ * (packages/components/src/button/style.scss L342-348, Gutenberg trunk, fetched
+ * 2026-07-26). A green chip for the whole session would both invent a convention and
+ * hold colour in the header for the full session duration; the active and inactive
+ * states are carried by the GLYPH instead (lock / unlock / warning in
+ * admin/js/wp-sudo-session-indicator.js), which IS a core pattern — core swaps
+ * `isPinned ? starFilled : starEmpty` on this very toggle. Colour here reinforces the
+ * one urgent moment rather than encoding the whole vocabulary, so the states stay
+ * distinguishable in greyscale, under colour-vision deficiency, and in forced-colors
+ * mode without depending on this file at all.
+ *
+ * Token source: admin/css/wp-sudo-admin-bar.css (verified — same red, same hover red,
+ * same white glyph). Contrast against the white glyph: 5.62:1 expiring, 6.57:1
+ * expiring-hover — both clear WCAG 1.4.11 (3:1, the criterion that governs a
+ * meaningful icon) and the stricter 1.4.3 (4.5:1).
  *
  * The state lives on <body> (toggled by admin/js/wp-sudo-session-indicator.js on
  * transitions only, never per second) because Gutenberg re-renders the pinned
@@ -71,27 +81,7 @@
  * @package WP_Sudo
  */
 
-/* Active — green chip, white glyph. */
-body.wp-sudo-editor-session-active
-	.interface-pinned-items
-	button[aria-controls="wp-sudo-session-indicator:wp-sudo-session-indicator"]:not(.is-pressed) {
-	background: #2e7d32;
-	color: #fff;
-}
-
-body.wp-sudo-editor-session-active
-	.interface-pinned-items
-	button[aria-controls="wp-sudo-session-indicator:wp-sudo-session-indicator"]:not(.is-pressed):hover {
-	background: #1b5e20;
-	color: #fff;
-}
-
-/*
- * Expiring — red chip in the final 60 s. Both body classes are present in this
- * state (mirroring the admin bar, which adds .wp-sudo-expiring alongside
- * .wp-sudo-active), so this block must stay AFTER the active block: equal
- * specificity, later rule wins.
- */
+/* Expiring — red chip in the final 60 s. The only painted state. */
 body.wp-sudo-editor-session-expiring
 	.interface-pinned-items
 	button[aria-controls="wp-sudo-session-indicator:wp-sudo-session-indicator"]:not(.is-pressed) {

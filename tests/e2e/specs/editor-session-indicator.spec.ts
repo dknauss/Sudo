@@ -54,9 +54,28 @@ const SIDEBAR_NAME = 'wp-sudo-session-indicator/wp-sudo-session-indicator';
 const PINNED_BUTTON =
 	'.interface-pinned-items button[aria-controls="wp-sudo-session-indicator:wp-sudo-session-indicator"]';
 
-/** Admin-bar parity tokens (admin/css/wp-sudo-admin-bar.css — verified). */
-const ACTIVE_BG = 'rgb(46, 125, 50)'; // #2e7d32
-const EXPIRING_BG = 'rgb(198, 40, 40)'; // #c62828
+/**
+ * The three-state glyph vocabulary. State is carried by the GLYPH, with colour
+ * reserved for the one urgent moment:
+ *
+ *   inactive   dashicons-lock      no chip (stock Gutenberg button)
+ *   active     dashicons-unlock    no chip
+ *   expiring   dashicons-warning   red chip (#c62828)
+ *
+ * Icon-only, no chip, for the two non-urgent states because that is what core
+ * actually does on these controls: the only background change core applies to a
+ * pinned-item button is the neutral `.is-pressed` fill (packages/components/src/
+ * button/style.scss L342-348 — `background: $components-color-foreground`), never a
+ * semantic colour. A state-driven GLYPH, by contrast, is precedented — core swaps
+ * `isPinned ? starFilled : starEmpty` on this very toggle (packages/interface/src/
+ * components/complementary-area/index.js L326). Verified against Gutenberg trunk,
+ * fetched 2026-07-26.
+ *
+ * Distinguishing the three by shape rather than hue also means they survive
+ * greyscale, colour-vision deficiency, and forced-colors mode by construction,
+ * instead of relying on the red chip to carry the expiring state alone.
+ */
+const EXPIRING_BG = 'rgb(198, 40, 40)'; // #c62828 — admin-bar parity, the only chip left
 const STOCK_BG = 'rgba(0, 0, 0, 0)'; // Gutenberg's `.components-button { background: none }`
 
 type NoticeSnapshot = { content: string };
@@ -309,13 +328,15 @@ test.describe( 'In-editor sudo session indicator', () => {
 	// signal was its accessible name, so a sighted user editing full-screen — where the
 	// admin bar (and its countdown) never renders — saw an identical glyph whether sudo
 	// was active, about to expire, or inactive. These tests pin the visual contract:
-	// the admin bar's own tokens, on the padlock the rest of the plugin already uses.
+	// a padlock that opens and closes with the session, and one red chip for the final
+	// minute.
 	//
-	// State is carried by a class on <body> rather than on the button, because Gutenberg
-	// re-renders the pinned button with a fresh `className` whenever `is-pressed` flips
-	// (panel open/close) and would wipe an externally-added class. Asserting the COMPUTED
-	// background rather than the body class keeps these tests honest about the delivered
-	// pixel — a body class that no CSS rule consumes would still fail here.
+	// The red chip's state is carried by a class on <body> rather than on the button,
+	// because Gutenberg re-renders the pinned button with a fresh `className` whenever
+	// `is-pressed` flips (panel open/close) and would wipe an externally-added class.
+	// Asserting the COMPUTED background rather than the body class keeps these tests
+	// honest about the delivered pixel — a body class that no CSS rule consumes would
+	// still fail here.
 
 	/** Seed the module's countdown deterministically via feed #2 (see INDICATOR-04). */
 	async function seedRemaining( page: Page, remaining: number ): Promise< void > {
@@ -326,7 +347,7 @@ test.describe( 'In-editor sudo session indicator', () => {
 		}, remaining );
 	}
 
-	test( 'INDICATOR-06: the pinned header button uses the unlock padlock, not the shield', async ( {
+	test( 'INDICATOR-06: with no session the button shows a CLOSED padlock and no chip', async ( {
 		page,
 	} ) => {
 		await openEditor( page );
@@ -335,18 +356,30 @@ test.describe( 'In-editor sudo session indicator', () => {
 			'Part B requires the unified PluginSidebar (WP 6.6+).'
 		);
 
-		// The padlock is the plugin's persistent-indicator glyph everywhere else
-		// (class-admin-bar.php uses dashicons-unlock), so the two surfaces read as
-		// one system. The shield was iconography used nowhere else.
+		// The button is registered unconditionally, so it sits in the header whether or
+		// not sudo is active. It must therefore READ correctly at rest: a CLOSED padlock
+		// for "not elevated". Shipping `unlock` here (as #288 first did) said the
+		// opposite of the truth for the state the user sees the vast majority of the time.
 		const glyph = page.locator( `${ PINNED_BUTTON } .dashicon` );
-		await expect( glyph ).toHaveClass( /dashicons-unlock/ );
+		await expect( glyph ).toHaveClass( /dashicons-lock/ );
+		await expect( glyph ).not.toHaveClass( /dashicons-unlock/ );
 		await expect( glyph ).not.toHaveClass( /dashicons-shield/ );
+		await expect( page.locator( PINNED_BUTTON ) ).toHaveAttribute(
+			'aria-label',
+			/inactive/
+		);
+
+		// No chip at rest — core puts no semantic colour on these buttons.
+		await expect( page.locator( PINNED_BUTTON ) ).toHaveCSS(
+			'background-color',
+			STOCK_BG
+		);
 	} );
 
-	test( 'INDICATOR-07: the pinned button paints green while active and red in the final 60 s', async ( {
+	test( 'INDICATOR-07: only the final minute paints a chip; active is the stock button', async ( {
 		page,
 	} ) => {
-		// Feed #1: a real session acquired before the editor loads, so the green chip
+		// Feed #1: a real session acquired before the editor loads, so the active state
 		// is proven on the page-load path and not just the synthetic-event path.
 		await activateSudoSession( page );
 		await openEditor( page );
@@ -358,21 +391,23 @@ test.describe( 'In-editor sudo session indicator', () => {
 		const button = page.locator( PINNED_BUTTON );
 		await expect( button ).toBeVisible();
 
-		// Active — admin-bar green. The panel stays CLOSED throughout: the whole point
-		// of #288 is that state is legible without opening the sidebar.
+		// Active — the OPEN padlock, on the stock button. Colour is deliberately NOT
+		// spent here: a green chip would sit in the header for the whole session, and
+		// core reserves that header's colour for the Publish CTA. The panel stays CLOSED
+		// throughout: the point of #288 is that state is legible without opening it.
 		await expect( button ).toHaveAttribute( 'aria-expanded', 'false' );
-		await expect( button ).toHaveCSS( 'background-color', ACTIVE_BG );
+		await expect( button ).toHaveCSS( 'background-color', STOCK_BG );
+		await expect( button.locator( '.dashicon' ) ).toHaveClass( /dashicons-unlock/ );
 
-		// Final minute — admin-bar red, at the same `remaining <= 60` threshold the
-		// admin bar uses (wp-sudo-admin-bar.js: if (r <= 60) → wp-sudo-expiring).
+		// Final minute — the one moment that earns colour, at the same `remaining <= 60`
+		// threshold the admin bar uses (wp-sudo-admin-bar.js: if (r <= 60) → expiring).
 		await seedRemaining( page, 45 );
 		await expect( button ).toHaveCSS( 'background-color', EXPIRING_BG );
 
-		// Expiry reverts to the stock Gutenberg button — no lingering red chip, and
-		// no leaked body class. (Grace reads inactive here, per the module's design.)
-		// This also pins that the module-level body-class sync has no unmount path to
-		// get wrong: the class comes off because the STATE changed, not because React
-		// tore something down.
+		// Expiry reverts to the stock button — no lingering red chip, and no leaked body
+		// class. This also pins that the module-level body-class sync has no unmount path
+		// to get wrong: the class comes off because the STATE changed, not because React
+		// tore something down. (Grace reads inactive here, per the module's design.)
 		await seedRemaining( page, 2 );
 		await expect( button ).toHaveCSS( 'background-color', STOCK_BG, { timeout: 8_000 } );
 		await expect
@@ -385,21 +420,23 @@ test.describe( 'In-editor sudo session indicator', () => {
 			)
 			.toEqual( [] );
 
-		// A later grant re-paints green — the transition is not one-way.
-		await seedRemaining( page, 600 );
-		await expect( button ).toHaveCSS( 'background-color', ACTIVE_BG );
+		// A later grant re-paints the chip on its way back through expiring — the
+		// transition is not one-way.
+		await seedRemaining( page, 45 );
+		await expect( button ).toHaveCSS( 'background-color', EXPIRING_BG );
 	} );
 
-	test( 'INDICATOR-08: the expiring state is distinguishable without colour', async ( {
+	test( 'INDICATOR-08: all three states differ by SHAPE, not only by colour', async ( {
 		page,
 	} ) => {
-		// WCAG 1.4.1. Green #2e7d32 and red #c62828 have a contrast ratio of 1.09:1
-		// against EACH OTHER, so on an icon-only button they are the same swatch under a
-		// red-green deficiency, in greyscale, and in forced-colors mode. The admin bar
-		// escapes this because it carries visible "Sudo: M:SS" text; this button carries
-		// none, so active and expiring must differ in SHAPE as well as hue. The
-		// accessible name cannot discharge 1.4.1 — a name is programmatic, not visual —
-		// but it is asserted here too, for AT parity with the sighted red cue.
+		// WCAG 1.4.1. Two of the three states now carry no colour at all, so shape is
+		// not merely a supplement here — it is the primary channel, and the red chip
+		// only reinforces the one urgent state. That makes the vocabulary survive
+		// greyscale, colour-vision deficiency, and forced-colors mode by construction,
+		// rather than relying on green-vs-red, which is 1.09:1 against ITSELF and would
+		// be the same swatch to those users. The accessible name cannot discharge 1.4.1
+		// — a name is programmatic, not visual — but it is asserted alongside, so the
+		// sighted and AT vocabularies cannot drift.
 		await openEditor( page );
 		test.skip(
 			! ( await hasUnifiedSidebar( page ) ),
@@ -409,16 +446,23 @@ test.describe( 'In-editor sudo session indicator', () => {
 		const button = page.locator( PINNED_BUTTON );
 		const glyph = button.locator( '.dashicon' );
 
+		// inactive → closed padlock
+		await expect( glyph ).toHaveClass( /dashicons-lock/ );
+		await expect( button ).toHaveAttribute( 'aria-label', /inactive/ );
+
+		// active → open padlock. Distinct from BOTH other states without colour.
 		await seedRemaining( page, 600 );
 		await expect( glyph ).toHaveClass( /dashicons-unlock/ );
+		await expect( glyph ).not.toHaveClass( /dashicons-lock\b/ );
 		await expect( button ).toHaveAttribute( 'aria-label', /active/ );
 
-		// Crossing into the final minute changes the glyph, not just the colour.
+		// expiring → a third, non-padlock shape.
 		await seedRemaining( page, 45 );
+		await expect( glyph ).toHaveClass( /dashicons-warning/ );
 		await expect( glyph ).not.toHaveClass( /dashicons-unlock/ );
 		await expect( button ).toHaveAttribute( 'aria-label', /expiring/ );
 
-		// ...and crossing back restores the padlock, so the swap is not one-way.
+		// ...and crossing back restores the open padlock, so no swap is one-way.
 		await seedRemaining( page, 600 );
 		await expect( glyph ).toHaveClass( /dashicons-unlock/ );
 		await expect( button ).toHaveAttribute( 'aria-label', /active/ );
