@@ -209,6 +209,38 @@ Never commit production code without corresponding test coverage.
 Tests are the primary defense against LLM context collapse — they verify
 behavior that the model cannot hold in working memory.
 
+## Concurrent Sessions — Check Before You Branch
+
+**REQUIRED before creating a branch, worktree, or PR.**
+
+Several sessions work this repo at once. They share one filesystem and one git
+repo, so each can already see the others — but only if it looks. Three sessions
+once independently built the same version rollback (#389, #390, #391) and a
+fourth nearly joined them. Nothing collided, because each picked a different
+name for identical work.
+
+1. **Search for the work, not the name:**
+   ```bash
+   gh pr list --state open --search "<issue#|keyword>"
+   git branch -a --sort=-committerdate | head -20
+   ```
+   A `SessionStart` hook prints both at session start — read it rather than
+   re-running it. If work for that issue already exists, join it, hand your
+   findings to it, or say so. Do **not** start a parallel branch.
+
+2. **Name branches after the issue, so collisions actually collide:**
+   `<type>/<issue#>-<slug>` — e.g. `fix/322-stash-fail-closed`,
+   `chore/388-version-4.9.0`. Git then refuses the second session's
+   `worktree add -b`, which is the only mechanical stop that works. A name
+   without the issue number silently coexists with three siblings.
+
+3. **Another session's branch is not yours to force.** A locked worktree or an
+   unmerged branch means someone is on it. Before touching one, confirm it has
+   no uncommitted work and no unpushed commits, work from a **detached**
+   worktree of your own, and never check out a branch another worktree holds.
+   If it holds unmerged commits, capture what is worth keeping (a finding, a
+   test) before deleting anything.
+
 ## Commit Practices
 
 - Always run tests and PHPStan before committing.
