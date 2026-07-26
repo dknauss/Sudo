@@ -95,6 +95,107 @@ class RequestStashTest extends TestCase {
 	}
 
 	/**
+	 * #322 v2 (BLOCKER 1): no binding is minted for a cross-site-initiated request.
+	 *
+	 * WordPress nonces are bound to the session token, NOT the browser, so an attacker
+	 * holding a stolen login cookie can mint a valid nonce and lure the victim into
+	 * issuing the gated request. If we minted a binding then, it would land in the
+	 * VICTIM's browser and the victim's own reauth would release the attacker's
+	 * action. Anything other than `Sec-Fetch-Site: same-origin` must fail closed.
+	 *
+	 * @dataProvider non_same_origin_fetch_sites
+	 */
+	public function test_save_does_not_bind_unless_same_origin_initiated( ?string $fetch_site ): void {
+		$this->stub_stash_index_meta_io();
+
+		$_SERVER['REQUEST_METHOD'] = 'GET';
+		$_SERVER['HTTP_HOST']      = 'example.com';
+		$_SERVER['REQUEST_URI']    = '/wp-admin/plugins.php?action=activate&plugin=evil.php';
+
+		if ( null === $fetch_site ) {
+			unset( $_SERVER['HTTP_SEC_FETCH_SITE'] );
+		} else {
+			$_SERVER['HTTP_SEC_FETCH_SITE'] = $fetch_site;
+		}
+
+		Functions\when( 'wp_generate_password' )->justReturn( 'abc123def456ghij' );
+		Functions\when( 'esc_url_raw' )->returnArg();
+		Functions\when( 'is_ssl' )->justReturn( true );
+		Functions\when( 'sanitize_text_field' )->returnArg();
+
+		$stored = null;
+		Functions\expect( 'set_transient' )
+			->once()
+			->andReturnUsing(
+				function ( $key, $value ) use ( &$stored ) {
+					$stored = $value;
+					return true;
+				}
+			);
+
+		$this->stash->save( 1, array( 'id' => 'plugin.activate', 'label' => 'Activate plugin' ) );
+
+		$this->assertSame(
+			'',
+			$stored['binding_hash'] ?? 'MISSING',
+			'A lured (non-same-origin) request must not mint a browser binding.'
+		);
+
+		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'], $_SERVER['HTTP_SEC_FETCH_SITE'] );
+	}
+
+	/**
+	 * Fetch-site values that must NOT produce a binding.
+	 *
+	 * @return array<string, array{0: string|null}>
+	 */
+	public static function non_same_origin_fetch_sites(): array {
+		return array(
+			'cross-site'    => array( 'cross-site' ),
+			'same-site'     => array( 'same-site' ),
+			'none'          => array( 'none' ),
+			'absent header' => array( null ),
+		);
+	}
+
+	/**
+	 * #322 v2: the stash records the concrete target for informed confirmation.
+	 */
+	public function test_save_captures_target_for_informed_confirmation(): void {
+		$this->stub_stash_index_meta_io();
+
+		$_SERVER['REQUEST_METHOD'] = 'GET';
+		$_SERVER['HTTP_HOST']      = 'example.com';
+		$_SERVER['REQUEST_URI']    = '/wp-admin/plugins.php?action=activate&plugin=evil%2Fevil.php';
+		$_GET['plugin']            = 'evil/evil.php';
+
+		Functions\when( 'wp_generate_password' )->justReturn( 'abc123def456ghij' );
+		Functions\when( 'esc_url_raw' )->returnArg();
+		Functions\when( 'is_ssl' )->justReturn( true );
+		Functions\when( 'sanitize_text_field' )->returnArg();
+
+		$stored = null;
+		Functions\expect( 'set_transient' )
+			->once()
+			->andReturnUsing(
+				function ( $key, $value ) use ( &$stored ) {
+					$stored = $value;
+					return true;
+				}
+			);
+
+		$this->stash->save( 1, array( 'id' => 'plugin.activate', 'label' => 'Activate plugin' ) );
+
+		$this->assertSame(
+			'evil/evil.php',
+			$stored['target']['plugin'] ?? null,
+			'The challenge must be able to name WHAT is being authorized.'
+		);
+
+		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'], $_GET['plugin'] );
+	}
+
+	/**
 	 * Test save() still returns the key when transient storage fails.
 	 */
 	public function test_save_returns_key_when_set_transient_fails(): void {
