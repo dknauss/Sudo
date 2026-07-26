@@ -87,6 +87,14 @@ This is the intended low-friction user experience: when a gated action trips Sud
 <td><strong>Users list revocation</strong></td>
 <td><strong>In-editor 2FA modal</strong></td>
 </tr>
+<tr>
+<td><img src="https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-11.png" alt="Block editor with the Sudo sidebar panel open, showing a live countdown of the time remaining in the sudo session."></td>
+<td><img src="https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-12.png" alt="Block editor header with a green unlocked-padlock button marking the active sudo session, above a snackbar confirming reauthentication."></td>
+</tr>
+<tr>
+<td><strong>In-editor session panel</strong></td>
+<td><strong>In-editor session indicator</strong></td>
+</tr>
 </table>
 
 ## Features

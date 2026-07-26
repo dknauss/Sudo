@@ -41,6 +41,24 @@ import type { Page } from '@playwright/test';
 const SNACKBAR_ID = 'wp-sudo-session-active';
 const SIDEBAR_NAME = 'wp-sudo-session-indicator/wp-sudo-session-indicator';
 
+/**
+ * The pinned header button PluginSidebar renders for this module (#288).
+ *
+ * `aria-controls` is `{plugin-name}:{sidebar-name}` — both are the module's own
+ * `wp-sudo-session-indicator`, so this selector is plugin-scoped and, unlike
+ * `aria-label`, locale-independent. Verified against the live WP 7.0 editor DOM:
+ *   <button aria-controls="wp-sudo-session-indicator:wp-sudo-session-indicator"
+ *           class="components-button is-compact has-icon" aria-label="Sudo · active">
+ *     <span class="dashicon dashicons dashicons-unlock"></span></button>
+ */
+const PINNED_BUTTON =
+	'.interface-pinned-items button[aria-controls="wp-sudo-session-indicator:wp-sudo-session-indicator"]';
+
+/** Admin-bar parity tokens (admin/css/wp-sudo-admin-bar.css — verified). */
+const ACTIVE_BG = 'rgb(46, 125, 50)'; // #2e7d32
+const EXPIRING_BG = 'rgb(198, 40, 40)'; // #c62828
+const STOCK_BG = 'rgba(0, 0, 0, 0)'; // Gutenberg's `.components-button { background: none }`
+
 type NoticeSnapshot = { content: string };
 
 test.describe( 'In-editor sudo session indicator', () => {
@@ -283,5 +301,126 @@ test.describe( 'In-editor sudo session indicator', () => {
 		// interval tick count (design-review objection 1). See the scope note above.
 		await page.evaluate( () => window.dispatchEvent( new Event( 'focus' ) ) );
 		await expect( panel ).toHaveText( /No active sudo session/ );
+	} );
+
+	// --- #288: at-a-glance padlock state on the PINNED HEADER button ----------
+	//
+	// Before #288 the header control was a static `shield` dashicon whose only state
+	// signal was its accessible name, so a sighted user editing full-screen — where the
+	// admin bar (and its countdown) never renders — saw an identical glyph whether sudo
+	// was active, about to expire, or inactive. These tests pin the visual contract:
+	// the admin bar's own tokens, on the padlock the rest of the plugin already uses.
+	//
+	// State is carried by a class on <body> rather than on the button, because Gutenberg
+	// re-renders the pinned button with a fresh `className` whenever `is-pressed` flips
+	// (panel open/close) and would wipe an externally-added class. Asserting the COMPUTED
+	// background rather than the body class keeps these tests honest about the delivered
+	// pixel — a body class that no CSS rule consumes would still fail here.
+
+	/** Seed the module's countdown deterministically via feed #2 (see INDICATOR-04). */
+	async function seedRemaining( page: Page, remaining: number ): Promise< void > {
+		await page.evaluate( ( secs ) => {
+			window.dispatchEvent(
+				new CustomEvent( 'wp-sudo-session-granted', { detail: { remaining: secs } } )
+			);
+		}, remaining );
+	}
+
+	test( 'INDICATOR-06: the pinned header button uses the unlock padlock, not the shield', async ( {
+		page,
+	} ) => {
+		await openEditor( page );
+		test.skip(
+			! ( await hasUnifiedSidebar( page ) ),
+			'Part B requires the unified PluginSidebar (WP 6.6+).'
+		);
+
+		// The padlock is the plugin's persistent-indicator glyph everywhere else
+		// (class-admin-bar.php uses dashicons-unlock), so the two surfaces read as
+		// one system. The shield was iconography used nowhere else.
+		const glyph = page.locator( `${ PINNED_BUTTON } .dashicon` );
+		await expect( glyph ).toHaveClass( /dashicons-unlock/ );
+		await expect( glyph ).not.toHaveClass( /dashicons-shield/ );
+	} );
+
+	test( 'INDICATOR-07: the pinned button paints green while active and red in the final 60 s', async ( {
+		page,
+	} ) => {
+		// Feed #1: a real session acquired before the editor loads, so the green chip
+		// is proven on the page-load path and not just the synthetic-event path.
+		await activateSudoSession( page );
+		await openEditor( page );
+		test.skip(
+			! ( await hasUnifiedSidebar( page ) ),
+			'Part B requires the unified PluginSidebar (WP 6.6+).'
+		);
+
+		const button = page.locator( PINNED_BUTTON );
+		await expect( button ).toBeVisible();
+
+		// Active — admin-bar green. The panel stays CLOSED throughout: the whole point
+		// of #288 is that state is legible without opening the sidebar.
+		await expect( button ).toHaveAttribute( 'aria-expanded', 'false' );
+		await expect( button ).toHaveCSS( 'background-color', ACTIVE_BG );
+
+		// Final minute — admin-bar red, at the same `remaining <= 60` threshold the
+		// admin bar uses (wp-sudo-admin-bar.js: if (r <= 60) → wp-sudo-expiring).
+		await seedRemaining( page, 45 );
+		await expect( button ).toHaveCSS( 'background-color', EXPIRING_BG );
+
+		// Expiry reverts to the stock Gutenberg button — no lingering red chip, and
+		// no leaked body class. (Grace reads inactive here, per the module's design.)
+		// This also pins that the module-level body-class sync has no unmount path to
+		// get wrong: the class comes off because the STATE changed, not because React
+		// tore something down.
+		await seedRemaining( page, 2 );
+		await expect( button ).toHaveCSS( 'background-color', STOCK_BG, { timeout: 8_000 } );
+		await expect
+			.poll( async () =>
+				page.evaluate( () =>
+					Array.from( document.body.classList ).filter( ( c ) =>
+						c.startsWith( 'wp-sudo-editor-session' )
+					)
+				)
+			)
+			.toEqual( [] );
+
+		// A later grant re-paints green — the transition is not one-way.
+		await seedRemaining( page, 600 );
+		await expect( button ).toHaveCSS( 'background-color', ACTIVE_BG );
+	} );
+
+	test( 'INDICATOR-08: the expiring state is distinguishable without colour', async ( {
+		page,
+	} ) => {
+		// WCAG 1.4.1. Green #2e7d32 and red #c62828 have a contrast ratio of 1.09:1
+		// against EACH OTHER, so on an icon-only button they are the same swatch under a
+		// red-green deficiency, in greyscale, and in forced-colors mode. The admin bar
+		// escapes this because it carries visible "Sudo: M:SS" text; this button carries
+		// none, so active and expiring must differ in SHAPE as well as hue. The
+		// accessible name cannot discharge 1.4.1 — a name is programmatic, not visual —
+		// but it is asserted here too, for AT parity with the sighted red cue.
+		await openEditor( page );
+		test.skip(
+			! ( await hasUnifiedSidebar( page ) ),
+			'Part B requires the unified PluginSidebar (WP 6.6+).'
+		);
+
+		const button = page.locator( PINNED_BUTTON );
+		const glyph = button.locator( '.dashicon' );
+
+		await seedRemaining( page, 600 );
+		await expect( glyph ).toHaveClass( /dashicons-unlock/ );
+		await expect( button ).toHaveAttribute( 'aria-label', /active/ );
+
+		// Crossing into the final minute changes the glyph, not just the colour.
+		await seedRemaining( page, 45 );
+		await expect( glyph ).not.toHaveClass( /dashicons-unlock/ );
+		await expect( button ).toHaveAttribute( 'aria-label', /expiring/ );
+
+		// ...and crossing back restores the padlock, so the swap is not one-way.
+		await seedRemaining( page, 600 );
+		await expect( glyph ).toHaveClass( /dashicons-unlock/ );
+		await expect( button ).toHaveAttribute( 'aria-label', /active/ );
 	} );
 } );

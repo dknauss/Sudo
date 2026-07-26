@@ -1,0 +1,96 @@
+/**
+ * WP Sudo – In-editor session-indicator styles (#288).
+ *
+ * Colours the PluginSidebar's pinned header button with the admin bar's exact
+ * tokens, so the two persistent indicators read as one system:
+ *
+ *   active            #2e7d32   hover #1b5e20
+ *   expiring (<=60s)  #c62828   hover #b71c1c
+ *   inactive/expired  — no rule matches; the stock Gutenberg button is restored.
+ *
+ * Token source: admin/css/wp-sudo-admin-bar.css (verified — the same four backgrounds
+ * on the same white glyph).
+ * Contrast against the white glyph: 5.13:1 active, 7.87:1 active-hover, 5.62:1
+ * expiring, 6.57:1 expiring-hover — all clear both WCAG 1.4.11 (3:1, the criterion
+ * that governs a meaningful icon) and the stricter 1.4.3 (4.5:1).
+ *
+ * The state lives on <body> (toggled by admin/js/wp-sudo-session-indicator.js on
+ * transitions only, never per second) because Gutenberg re-renders the pinned
+ * button with a fresh className whenever `is-pressed` flips on panel open/close,
+ * which would wipe a class added directly to the button. A body class is also why
+ * this needs no `:has()`, which post-dates the plugin's WP 6.4 floor in Firefox.
+ *
+ * CROSS-FILE COUPLING: `aria-controls` is `{plugin-name}:{sidebar-name}` — both
+ * `wp-sudo-session-indicator`, from registerPlugin() and PluginSidebar's `name` in
+ * admin/js/wp-sudo-session-indicator.js. Renaming either there silently unpaints
+ * this chip; tests/e2e/specs/editor-session-indicator.spec.ts INDICATOR-07 is what
+ * fails loudly if that happens. Locale-independent, unlike matching `aria-label`.
+ * Verified against the live WP 7.0 editor DOM.
+ *
+ * `.interface-pinned-items` is load-bearing, not decoration: the Options menu renders
+ * the SAME toggle component with the SAME `aria-controls`, so dropping the container
+ * scope would paint a green chip on a menu item inside that dropdown.
+ *
+ * `:not(.is-pressed)` hands the button back to Gutenberg while the panel is OPEN.
+ * These selectors otherwise out-specify core's pressed styling and would destroy the
+ * panel-open affordance; with the panel open the panel itself shows the live M:SS,
+ * so the chip is redundant there anyway.
+ *
+ * No `!important`: the only core rules competing for this button's background top out
+ * at specificity (0,3,0) — `.components-button.is-pressed:not(…)` and
+ * `.components-button:hover:not(…)` — which these (0,4,2) selectors beat, and this
+ * sheet also loads after wp-components. Verified in the live editor cascade.
+ * Nothing here sets `outline`, `box-shadow`, or `overflow`, so core's focus ring
+ * (drawn outside the button, on the white header) keeps its own contrast.
+ *
+ * Inert below WP 6.6, where wp.editor.PluginSidebar is absent, no pinned button is
+ * rendered, and the module falls back to the Part A snackbar: the selector simply
+ * matches nothing, so the unconditional enqueue is harmless.
+ *
+ * NO `transition`, deliberately — the one token this does NOT take from the admin bar
+ * (which cross-fades `background 0.3s`). A colour cross-fade is driven by the document
+ * animation timeline, so it only advances while the page is producing frames; observed
+ * here, the green→red transition parked at currentTime 0 and left the chip showing the
+ * STALE colour until an unrelated style recalc unstuck it. An expiry cue that can lie
+ * for as long as the tab is not painting is worse than no animation, and this is a
+ * discrete security state, not a decorative one — it should flip instantly. Having no
+ * motion at all is also why there is no `prefers-reduced-motion` block below: there is
+ * nothing to reduce.
+ *
+ * @package WP_Sudo
+ */
+
+/* Active — green chip, white glyph. */
+body.wp-sudo-editor-session-active
+	.interface-pinned-items
+	button[aria-controls="wp-sudo-session-indicator:wp-sudo-session-indicator"]:not(.is-pressed) {
+	background: #2e7d32;
+	color: #fff;
+}
+
+body.wp-sudo-editor-session-active
+	.interface-pinned-items
+	button[aria-controls="wp-sudo-session-indicator:wp-sudo-session-indicator"]:not(.is-pressed):hover {
+	background: #1b5e20;
+	color: #fff;
+}
+
+/*
+ * Expiring — red chip in the final 60 s. Both body classes are present in this
+ * state (mirroring the admin bar, which adds .wp-sudo-expiring alongside
+ * .wp-sudo-active), so this block must stay AFTER the active block: equal
+ * specificity, later rule wins.
+ */
+body.wp-sudo-editor-session-expiring
+	.interface-pinned-items
+	button[aria-controls="wp-sudo-session-indicator:wp-sudo-session-indicator"]:not(.is-pressed) {
+	background: #c62828;
+	color: #fff;
+}
+
+body.wp-sudo-editor-session-expiring
+	.interface-pinned-items
+	button[aria-controls="wp-sudo-session-indicator:wp-sudo-session-indicator"]:not(.is-pressed):hover {
+	background: #b71c1c;
+	color: #fff;
+}
