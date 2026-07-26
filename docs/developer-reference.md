@@ -551,7 +551,18 @@ do_action( 'wp_sudo_action_gated', int $user_id, string $rule_id, string $surfac
 do_action( 'wp_sudo_action_blocked', int $user_id, string $rule_id, string $surface );
 do_action( 'wp_sudo_action_allowed', int $user_id, string $rule_id, string $surface ); // Unrestricted policy (v2.9.0).
 do_action( 'wp_sudo_action_passed', int $user_id, string $rule_id, string $surface ); // Active session (v3.0.0).
-do_action( 'wp_sudo_action_replayed', int $user_id, string $rule_id );
+// REMOVED in 4.9.0: do_action( 'wp_sudo_action_replayed', int $user_id, string $rule_id );
+// The gate no longer replays a stashed request after reauthentication (#322), so the
+// call site in Challenge is gone and NO NEW action_replayed events are recorded.
+// Nothing replaces it: there is no replay event left to observe. A listener that
+// counted replays should read its silence as "replay no longer occurs", not as a gap.
+//
+// What deliberately REMAINS: Event_Recorder still maps the event name and the
+// dashboard widget still offers the "Replayed" filter and label, so action_replayed
+// rows written before the upgrade stay readable. Event code 1900009 therefore still
+// resolves for historical rows and must never be reassigned. Bridges that subscribe
+// to the hook keep their (now inert) add_action registrations — harmless, and left in
+// place so a bridge does not need a version check to load.
 
 // Admin-escalation guard (v4.1.0, opt-in via the wp_sudo_guard_escalation filter,
 // default OFF). High-severity, distinct from wp_sudo_action_blocked so external
@@ -753,7 +764,7 @@ Event mapping:
 | `wp_sudo_action_blocked` | `1900006` |
 | `wp_sudo_action_allowed` | `1900007` |
 | `wp_sudo_action_passed` | `1900008` |
-| `wp_sudo_action_replayed` | `1900009` |
+| ~~`wp_sudo_action_replayed`~~ *(removed 4.9.0, #322)* | `1900009` — **retired, do not reassign** |
 | `wp_sudo_capability_tampered` | `1900010` |
 | `wp_sudo_policy_preset_applied` | `1900011` |
 | `wp_sudo_escalation_blocked` | `1900012` |

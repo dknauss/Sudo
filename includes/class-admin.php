@@ -620,7 +620,6 @@ class Admin {
 					. '<li><code>wp_sudo_action_gated</code></li>'
 					. '<li><code>wp_sudo_action_blocked</code></li>'
 					. '<li><code>wp_sudo_action_allowed</code></li>'
-					. '<li><code>wp_sudo_action_replayed</code></li>'
 					. '<li><code>wp_sudo_policy_preset_applied</code></li>'
 					. '</ul>'
 					. '<p>' . __( 'See Developer Reference for full signatures and examples.', 'wp-sudo' ) . '</p>',
