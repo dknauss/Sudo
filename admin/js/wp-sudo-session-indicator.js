@@ -46,6 +46,13 @@
 	var GRANT_EVENT = 'wp-sudo-session-granted';
 	var SNACKBAR_ID = 'wp-sudo-session-active';
 	var ANNOUNCE_KEY = 'wpSudoIndicatorAnnounced';
+
+	// --- #288: at-a-glance state on the pinned header button -----------------
+	// The admin bar's own expiring threshold (wp-sudo-admin-bar.js: if (r <= 60)),
+	// reused verbatim so the two surfaces flip red at the same moment.
+	var EXPIRING_THRESHOLD = 60;
+	var BODY_CLASS_ACTIVE = 'wp-sudo-editor-session-active';
+	var BODY_CLASS_EXPIRING = 'wp-sudo-editor-session-expiring';
 	// Two page loads of the SAME session compute deadlines within a few seconds of
 	// each other; a genuinely new (re-granted) session extends the deadline by the
 	// full duration (>= 60 s), so this tolerance separates "same session, reloaded"
@@ -87,6 +94,24 @@
 		var m = Math.floor( secs / 60 );
 		var s = secs % 60;
 		return m + ':' + ( s < 10 ? '0' : '' ) + s;
+	}
+
+	/**
+	 * Collapse the per-second countdown to the THREE states the UI actually has.
+	 *
+	 * The single source of truth for both #288 state signals — the body class that
+	 * colours the pinned header button and the accessible name / glyph the button
+	 * carries — so the two cannot drift apart. Coarse by design: keying off this
+	 * string is what keeps the body-class toggle off the per-second path.
+	 *
+	 * @param {number} secs Seconds remaining.
+	 * @return {string} 'inactive' | 'expiring' | 'active'.
+	 */
+	function sessionState( secs ) {
+		if ( secs <= 0 ) {
+			return 'inactive';
+		}
+		return secs <= EXPIRING_THRESHOLD ? 'expiring' : 'active';
 	}
 
 	function stopTicker() {
@@ -224,6 +249,48 @@
 	var useState = wp.element.useState;
 	var useEffect = wp.element.useEffect;
 
+	// --- #288: paint the pinned header button ---------------------------------
+	// The pinned button is the only part of this feature visible while the panel is
+	// CLOSED, which is the whole point in the full-screen editor: no admin bar, so no
+	// chip and no countdown anywhere else on screen.
+	//
+	// State is carried by a class on <body>, not on the button. Gutenberg re-renders
+	// that button with a fresh `className` prop every time `is-pressed` flips (opening
+	// or closing the panel), silently wiping any class added to it from outside React.
+	// Body class rather than a `:has()` selector because `:has()` post-dates the
+	// plugin's WP 6.4 floor in Firefox (121, Dec 2023).
+	//
+	// Deliberately NOT a `useEffect` in IndicatorPanel: that component re-renders every
+	// second (the subscribe/setSecs pump below), so a component-scoped effect would need
+	// exactly-correct cleanup for both classes or the site editor — an SPA, where
+	// document.body outlives route changes — keeps a stale chip painted after unmount.
+	// A module-level subscriber with a `lastState` guard has no unmount to get wrong and
+	// touches classList only on a real transition, never per tick.
+	//
+	// Armed only AFTER the WP 6.6+ feature detect above, so no class is set on 6.4-6.5,
+	// where wp.editor.PluginSidebar is absent and Part A carries the feature. It IS armed
+	// on any other screen that fires enqueue_block_editor_assets — notably the widgets
+	// editor — because `wp-editor` is a declared dependency of this script, so the detect
+	// passes there too. Harmless: no button with our `aria-controls` renders outside the
+	// post/site editor, so the class matches no rule and nothing paints.
+	// The matching CSS is admin/css/wp-sudo-editor-indicator.css.
+	var lastState = null;
+	function syncBodyState() {
+		var state = sessionState( currentRemaining() );
+		if ( state === lastState ) {
+			return;
+		}
+		lastState = state;
+		var classes = document.body.classList;
+		// Both classes are carried in the expiring state — mirroring the admin bar,
+		// which adds `wp-sudo-expiring` alongside `wp-sudo-active` rather than
+		// swapping — and the stylesheet's source order lets the expiring rule win.
+		classes.toggle( BODY_CLASS_ACTIVE, 'inactive' !== state );
+		classes.toggle( BODY_CLASS_EXPIRING, 'expiring' === state );
+	}
+	subscribe( syncBodyState );
+	syncBodyState();
+
 	function IndicatorPanel() {
 		var st = useState( currentRemaining() );
 		var secs = st[ 0 ];
@@ -235,21 +302,50 @@
 		}, [] );
 
 		var active = secs > 0;
-		// The pinned header button exposes active vs. inactive through its accessible
-		// name (the PluginSidebar `title`), which flips only on the active↔inactive
-		// transition — NOT per second — so the persistent control reflects state even
-		// while the panel is closed (design brief Part B), without a per-tick live
-		// region (that would be an AT nuisance; the grant snackbar is the single
-		// announcement). The ticking M:SS itself stays static readable text in the panel.
-		var title = active
-			? __( 'Sudo · active', 'wp-sudo' )
-			: __( 'Sudo · inactive', 'wp-sudo' );
+		var state = sessionState( secs );
+
+		// The pinned header button exposes state through its accessible name (the
+		// PluginSidebar `title`), which changes only on a transition — NOT per second —
+		// so the persistent control reflects state even while the panel is closed
+		// (design brief Part B), without a per-tick live region (that would be an AT
+		// nuisance; the grant snackbar is the single spoken announcement). The ticking
+		// M:SS itself stays static readable text inside the panel.
+		//
+		// "expiring" is a THIRD name state added in #288, giving AT users parity with
+		// the sighted red cue below. It costs one extra transition per session, and an
+		// accessible-name change on an unfocused button is not announced at all — a
+		// screen reader reads it only when the user reaches the control — so it adds no
+		// interruption. Note `title` is also the open panel's heading and the Options-menu
+		// entry, so all three surfaces stay in step.
+		var title;
+		if ( 'expiring' === state ) {
+			title = __( 'Sudo · expiring', 'wp-sudo' );
+		} else if ( 'active' === state ) {
+			title = __( 'Sudo · active', 'wp-sudo' );
+		} else {
+			title = __( 'Sudo · inactive', 'wp-sudo' );
+		}
+
+		// Glyph. Active/inactive share the unlocked padlock the admin-bar chip already
+		// uses (class-admin-bar.php: dashicons-unlock) so the two surfaces read as one
+		// system; those two states are already told apart without colour, by the presence
+		// or absence of the green chip (a ~5:1 luminance difference, legible in greyscale).
+		//
+		// Expiring gets a DIFFERENT glyph because active-vs-expiring otherwise differs
+		// only in hue: #2e7d32 and #c62828 have a contrast ratio of 1.09:1 against each
+		// other, so on an icon-only button they are the same swatch under a red-green
+		// deficiency, in greyscale, and in forced-colors mode — a WCAG 1.4.1 failure the
+		// accessible name cannot discharge (a name is programmatic, not visual). The
+		// admin bar needs no such swap because it carries visible "Sudo: M:SS" text.
+		// A per-transition swap is not the per-second churn the brief forbids.
+		var icon = 'expiring' === state ? 'warning' : 'unlock';
+
 		return el(
 			PluginSidebar,
 			{
 				name: 'wp-sudo-session-indicator',
 				title: title,
-				icon: 'shield',
+				icon: icon,
 			},
 			el(
 				'div',

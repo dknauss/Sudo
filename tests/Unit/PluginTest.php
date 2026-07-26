@@ -584,6 +584,7 @@ class PluginTest extends TestCase {
 	}
 
 	public function test_enqueue_editor_reauth_loads_for_logged_in_user(): void {
+		Functions\when( 'wp_enqueue_style' )->justReturn( true ); // #288 editor-indicator stylesheet.
 		Functions\when( 'get_current_user_id' )->justReturn( 1 );
 		Functions\when( 'get_userdata' )->justReturn( new \WP_User( 1 ) );
 		Functions\when( 'get_user_meta' )->justReturn( '' ); // is_active() gate for localized `remaining` (#182).
@@ -633,6 +634,7 @@ class PluginTest extends TestCase {
 	 * for the announce-once snackbar and its domReady-deferred page-load feed.
 	 */
 	public function test_enqueue_editor_reauth_registers_session_indicator(): void {
+		Functions\when( 'wp_enqueue_style' )->justReturn( true ); // #288 editor-indicator stylesheet.
 		Functions\when( 'get_current_user_id' )->justReturn( 1 );
 		Functions\when( 'get_userdata' )->justReturn( new \WP_User( 1 ) );
 		Functions\when( 'get_user_meta' )->justReturn( '' ); // is_active() gate for localized `remaining` (#182).
@@ -660,12 +662,63 @@ class PluginTest extends TestCase {
 	}
 
 	/**
+	 * #288 (at-a-glance padlock): the indicator's stylesheet ships alongside the
+	 * module on the same block/site-editor hook. Without it the module still sets
+	 * its body class on every transition and nothing paints — the feature is the
+	 * class and the CSS together, so the enqueue is part of the contract.
+	 *
+	 * Deliberately UNCONDITIONAL, not feature-detected: below WP 6.6 there is no
+	 * pinned header button, the module falls back to the Part A snackbar, and the
+	 * stylesheet's selectors match nothing. Gating it would buy nothing and add a
+	 * version check that could drift from the JS feature detect.
+	 *
+	 * No dependency array: the sheet targets Gutenberg's own button but does not
+	 * need `wp-components` loaded first — it out-specifies core rather than
+	 * overriding a specific one, and enqueue order is already correct on this hook.
+	 */
+	public function test_enqueue_editor_reauth_enqueues_indicator_stylesheet(): void {
+		Functions\when( 'get_current_user_id' )->justReturn( 1 );
+		Functions\when( 'get_userdata' )->justReturn( new \WP_User( 1 ) );
+		Functions\when( 'get_user_meta' )->justReturn( '' );
+		Functions\when( 'admin_url' )->justReturn( 'http://example.test/wp-admin/admin-ajax.php' );
+		Functions\when( 'wp_create_nonce' )->justReturn( 'grant-nonce' );
+		Functions\when( 'wp_localize_script' )->justReturn( true );
+		Functions\when( 'wp_enqueue_script' )->justReturn( true );
+		Functions\when( 'wp_set_script_translations' )->justReturn( true );
+
+		Functions\expect( 'wp_enqueue_style' )
+			->once()
+			->with(
+				'wp-sudo-editor-indicator',
+				\Mockery::pattern( '#admin/css/wp-sudo-editor-indicator\.css$#' ),
+				array(),
+				WP_SUDO_VERSION
+			);
+
+		( new Plugin() )->enqueue_editor_reauth();
+	}
+
+	/**
+	 * #288: an anonymous request enqueues no editor assets at all — including the
+	 * indicator stylesheet, which must not leak onto a logged-out block-editor
+	 * render (a front-end block context can reach this hook).
+	 */
+	public function test_enqueue_editor_reauth_skips_stylesheet_for_anonymous(): void {
+		Functions\when( 'get_current_user_id' )->justReturn( 0 );
+
+		Functions\expect( 'wp_enqueue_style' )->never();
+
+		( new Plugin() )->enqueue_editor_reauth();
+	}
+
+	/**
 	 * Increment 2 (Task 2): the editor script is localized with the grant nonce,
 	 * the AJAX action names, and the SUBSITE admin-ajax URL (never network-admin,
 	 * so a subsite editor posts to its own admin-ajax.php — design review obj. 6).
 	 * The single wp_sudo_challenge nonce is reused (C1); no new nonce action.
 	 */
 	public function test_enqueue_editor_reauth_localizes_grant_data(): void {
+		Functions\when( 'wp_enqueue_style' )->justReturn( true ); // #288 editor-indicator stylesheet.
 		Functions\when( 'get_current_user_id' )->justReturn( 1 );
 		Functions\when( 'get_userdata' )->justReturn( new \WP_User( 1 ) );
 		Functions\when( 'get_user_meta' )->justReturn( '' ); // is_active() gate for localized `remaining` (#182).
@@ -710,6 +763,7 @@ class PluginTest extends TestCase {
 	 * stays authoritative on the 2fa_pending invariant.
 	 */
 	public function test_enqueue_editor_reauth_localizes_has_two_factor(): void {
+		Functions\when( 'wp_enqueue_style' )->justReturn( true ); // #288 editor-indicator stylesheet.
 		Functions\when( 'get_current_user_id' )->justReturn( 1 );
 		Functions\when( 'get_userdata' )->justReturn( new \WP_User( 1 ) );
 		Functions\when( 'get_user_meta' )->justReturn( '' ); // is_active() gate for localized `remaining` (#182).
@@ -759,6 +813,7 @@ class PluginTest extends TestCase {
 	 * from enqueue_shortcut(), which deliberately skips when a session is active.
 	 */
 	public function test_enqueue_editor_reauth_loads_even_when_session_active(): void {
+		Functions\when( 'wp_enqueue_style' )->justReturn( true ); // #288 editor-indicator stylesheet.
 		$user_id = 7;
 		$token   = 'editor-reauth-token';
 
@@ -810,6 +865,7 @@ class PluginTest extends TestCase {
 	 */
 	public function test_enqueue_editor_reauth_localizes_remaining_when_active(): void
 	{
+		Functions\when( 'wp_enqueue_style' )->justReturn( true ); // #288 editor-indicator stylesheet.
 		$user_id = 7;
 		$token   = 'editor-indicator-token';
 
@@ -855,6 +911,7 @@ class PluginTest extends TestCase {
 	 */
 	public function test_enqueue_editor_reauth_localizes_zero_remaining_when_inactive(): void
 	{
+		Functions\when( 'wp_enqueue_style' )->justReturn( true ); // #288 editor-indicator stylesheet.
 		Functions\when( 'get_current_user_id' )->justReturn( 7 );
 		Functions\when( 'get_userdata' )->justReturn( new \WP_User( 7 ) );
 		Functions\when( 'get_user_meta' )->justReturn( '' ); // No session meta.
@@ -886,6 +943,7 @@ class PluginTest extends TestCase {
 	 */
 	public function test_enqueue_editor_reauth_localizes_zero_remaining_for_other_browser(): void
 	{
+		Functions\when( 'wp_enqueue_style' )->justReturn( true ); // #288 editor-indicator stylesheet.
 		$user_id = 7;
 
 		Functions\when( 'get_current_user_id' )->justReturn( $user_id );
