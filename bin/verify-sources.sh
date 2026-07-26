@@ -376,7 +376,6 @@ done <<< "$referenced"
 # not because they are owed a migration.
 GRANDFATHERED_ORPHANS="CHANGELOG.md
 docs/abilities-api-assessment.md
-docs/core-sudo-gate-implementation-spec.md
 docs/two-factor-authentication-flow.md
 docs/two-factor-ecosystem.md
 docs/two-factor-integration.md
