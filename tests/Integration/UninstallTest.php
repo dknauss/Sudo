@@ -131,6 +131,9 @@ class UninstallTest extends TestCase {
 		update_user_meta( $user->ID, Sudo_Session::LOCKOUT_IP_TRANSIENT_META_KEY, 'wp_sudo_ip_lockout_until_test' );
 		update_user_meta( $user->ID, Sudo_Session::LOCKOUT_IP_FAILURE_TRANSIENT_META_KEY, 'wp_sudo_ip_failure_event_test' );
 
+		// Seed the IP-failure epoch (#280) — written by clear_reauth_lockout().
+		update_user_meta( $user->ID, Sudo_Session::IP_FAILURE_EPOCH_META_KEY, 3 );
+
 		// Verify the data exists before uninstall.
 		$this->assertNotEmpty( get_user_meta( $user->ID, '_wp_sudo_expires', true ), 'Expiry meta should exist before uninstall.' );
 		$this->assertNotEmpty( get_user_meta( $user->ID, '_wp_sudo_token', true ), 'Token meta should exist before uninstall.' );
@@ -203,6 +206,10 @@ class UninstallTest extends TestCase {
 			get_user_meta( $user->ID, Sudo_Session::LOCKOUT_IP_FAILURE_TRANSIENT_META_KEY, true ),
 			'IP-failure-transient pointer meta should be deleted (#280).'
 		);
+		$this->assertEmpty(
+			get_user_meta( $user->ID, Sudo_Session::IP_FAILURE_EPOCH_META_KEY, true ),
+			'IP-failure epoch meta should be deleted (#280).'
+		);
 
 		// Assert: unfiltered_html restored to editors.
 		$editor = get_role( 'editor' );
@@ -245,6 +252,9 @@ class UninstallTest extends TestCase {
 		update_user_meta( $user->ID, Sudo_Session::LOCKOUT_IP_TRANSIENT_META_KEY, 'wp_sudo_ip_lockout_until_test' );
 		update_user_meta( $user->ID, Sudo_Session::LOCKOUT_IP_FAILURE_TRANSIENT_META_KEY, 'wp_sudo_ip_failure_event_test' );
 
+		// Seed the IP-failure epoch (#280) — written by clear_reauth_lockout().
+		update_user_meta( $user->ID, Sudo_Session::IP_FAILURE_EPOCH_META_KEY, 3 );
+
 		// Verify meta exists.
 		$this->assertNotEmpty( get_user_meta( $user->ID, '_wp_sudo_expires', true ), 'Expiry meta should exist before uninstall.' );
 		$this->assertNotEmpty( get_user_meta( $user->ID, '_wp_sudo_token', true ), 'Token meta should exist before uninstall.' );
@@ -284,6 +294,10 @@ class UninstallTest extends TestCase {
 		$this->assertEmpty(
 			get_user_meta( $user->ID, Sudo_Session::LOCKOUT_IP_FAILURE_TRANSIENT_META_KEY, true ),
 			'IP-failure-transient pointer meta should be deleted on multisite (#280).'
+		);
+		$this->assertEmpty(
+			get_user_meta( $user->ID, Sudo_Session::IP_FAILURE_EPOCH_META_KEY, true ),
+			'IP-failure epoch meta should be deleted on multisite (#280).'
 		);
 
 		// Assert: network options are cleaned.

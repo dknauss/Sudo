@@ -109,12 +109,15 @@ class CLI_Command {
 	 * who already holds WP-CLI (shell / hosting-config) access; it is not
 	 * reachable from any web, REST, AJAX, or admin-UI surface. Registration
 	 * of the whole `wp sudo` command tree is itself gated on
-	 * `defined( 'WP_CLI' ) && WP_CLI` (see Plugin::maybe_register_cli()).
+	 * `defined( 'WP_CLI' ) && WP_CLI && class_exists( '\WP_CLI' )`, inline in
+	 * Plugin::init() at the `\WP_CLI::add_command( 'sudo', ... )` call.
 	 *
-	 * Clears both halves of a lockout episode: the per-user hard lockout and
-	 * the per-(ip, user) rolling failure window that would otherwise
-	 * re-trigger a fresh lockout on the very next wrong password from the
-	 * same IP (Sudo_Session::reset_failed_attempts()).
+	 * Clears the whole lockout episode via
+	 * Sudo_Session::clear_reauth_lockout(): the per-user hard lockout, and
+	 * every per-(ip, user) rolling failure window that would otherwise
+	 * re-trigger a fresh lockout on the next wrong password — including from
+	 * an IP other than the one that submitted the threshold attempt, and on
+	 * multisite from a blog other than the one running this command.
 	 *
 	 * A cleared lockout is a bounded escape hatch, not full remediation — if
 	 * an attacker still holds the target user's login session, they can
@@ -151,7 +154,7 @@ class CLI_Command {
 		// effect), so this reflects what was actually true at invocation time.
 		$was_locked = Sudo_Session::has_unexpired_lockout( $user_id );
 
-		Sudo_Session::reset_failed_attempts( $user_id );
+		Sudo_Session::clear_reauth_lockout( $user_id );
 
 		if ( ! $was_locked ) {
 			\WP_CLI::log( sprintf( 'No active reauth lockout for user %d.', $user_id ) );
@@ -297,9 +300,10 @@ class CLI_Command {
 	 * Accepts `--user=<id|login>`: a numeric value always resolves as a user
 	 * ID (matching pre-existing behavior — a non-numeric string previously
 	 * cast to 0 via `(int)` and was already treated as "no target user"), any
-	 * other value is looked up as a login. WP-CLI assoc-arg values are always
-	 * strings (or booleans for a bare flag), never PHP ints, so numeric
-	 * detection uses `is_numeric()` rather than an `is_int()` type check.
+	 * other value is looked up as a login. Numeric detection uses
+	 * `is_numeric()` rather than an `is_int()` type check because a WP-CLI
+	 * assoc-arg value is never a PHP int — see GB-CLI-ASSOC in
+	 * docs/upstream-sources.md.
 	 *
 	 * @since TBD Accepts a login, not just a numeric ID (#280).
 	 *

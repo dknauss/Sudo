@@ -182,6 +182,14 @@ class CliCommandTest extends TestCase {
 		Functions\when( 'delete_user_meta' )->justReturn( true );
 		Functions\when( 'delete_transient' )->justReturn( true );
 
+		// The clear bumps the failure epoch, which is what orphans the IP-scoped
+		// transients of EVERY IP (and, on multisite, every blog) involved in the
+		// episode — not just the IP that submitted the threshold attempt (#280).
+		Functions\expect( 'update_user_meta' )
+			->once()
+			->with( 9, Sudo_Session::IP_FAILURE_EPOCH_META_KEY, 1 )
+			->andReturn( true );
+
 		Functions\expect( 'do_action' )
 			->once()
 			->with( 'wp_sudo_lockout_cleared', 9 );
@@ -200,6 +208,8 @@ class CliCommandTest extends TestCase {
 	public function test_unlock_reports_no_op_when_not_locked(): void {
 		Functions\when( 'get_user_meta' )->justReturn( '' );
 		Functions\when( 'delete_user_meta' )->justReturn( true );
+		Functions\when( 'delete_transient' )->justReturn( true );
+		Functions\when( 'update_user_meta' )->justReturn( true );
 
 		Functions\expect( 'do_action' )
 			->with( 'wp_sudo_lockout_cleared', \Mockery::any() )
@@ -228,6 +238,8 @@ class CliCommandTest extends TestCase {
 			}
 		);
 		Functions\when( 'delete_user_meta' )->justReturn( true );
+		Functions\when( 'delete_transient' )->justReturn( true );
+		Functions\when( 'update_user_meta' )->justReturn( true );
 
 		$command = new CLI_Command();
 		$command->unlock( array(), array( 'user' => '9' ) );
@@ -262,6 +274,7 @@ class CliCommandTest extends TestCase {
 		);
 		Functions\when( 'delete_user_meta' )->justReturn( true );
 		Functions\when( 'delete_transient' )->justReturn( true );
+		Functions\when( 'update_user_meta' )->justReturn( true );
 		Functions\when( 'do_action' )->justReturn( null );
 
 		$command = new CLI_Command();
