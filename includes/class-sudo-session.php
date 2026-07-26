@@ -931,7 +931,7 @@ class Sudo_Session {
 	 *
 	 * @return bool
 	 */
-	private static function cookie_secure(): bool {
+	public static function cookie_secure(): bool {
 		$secure = is_ssl() || force_ssl_admin();
 
 		/**

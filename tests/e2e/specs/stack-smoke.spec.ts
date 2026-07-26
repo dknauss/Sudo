@@ -32,7 +32,21 @@ test.describe( 'WP Sudo alternative stack smoke tests', () => {
         ).toBeDefined();
     } );
 
-    test( 'STACK-03: stashed settings POST replays after password auth', async ( {
+    /**
+     * STACK-03 (#322): a stashed settings POST is NOT replayed after reauth.
+     *
+     * Was "replays after password auth". The stash was keyed to user_id alone, so a
+     * cloned session could plant one and the victim's reauth would carry out the
+     * attacker's transaction (confused deputy). Auto-resume is therefore removed:
+     * reauth lands on a neutral admin page with the "review and submit again" notice
+     * and the change is NOT applied — the user re-submits it themselves.
+     *
+     * #322 v2 restores seamless replay for the same browser, but only where the
+     * binding cookie can be set: it is `__Host-` prefixed and so requires Secure.
+     * These stacks run over plain HTTP, so no binding is ever minted here and the
+     * fail-closed path above is the correct expectation for this suite.
+     */
+    test( 'STACK-03: stashed settings POST is not replayed after password auth', async ( {
         page,
     } ) => {
         await page.goto( '/wp-admin/options-general.php?page=wp-sudo-settings' );
@@ -59,23 +73,48 @@ test.describe( 'WP Sudo alternative stack smoke tests', () => {
         await page
             .locator( '#wp-sudo-challenge-password-form' )
             .evaluate( ( form ) => ( form as HTMLFormElement ).requestSubmit() );
-        await expect( page ).toHaveURL(
-            /\/wp-admin\/options-general\.php\?page=wp-sudo-settings(?:&updated=true)?$/,
-            { timeout: 15_000 }
-        );
 
-        await expect( sessionDuration ).toHaveValue( updatedValue );
+        // Leaves the challenge, but NOT to a replayed action: a neutral admin page
+        // carrying the blocked-replay notice.
+        await page.waitForURL( /wp_sudo_blocked_replay=1/, { timeout: 15_000 } );
+        await expect( page ).not.toHaveURL( /page=wp-sudo-challenge/ );
+
+        // The gated change was NOT applied — the user must submit it again.
+        await page.goto( '/wp-admin/options-general.php?page=wp-sudo-settings' );
+        await expect( sessionDuration ).toHaveValue( originalValue );
+
+        /**
+         * Submit the settings form and confirm the value actually PERSISTED.
+         *
+         * Deliberately not `waitForURL`: the settings URL is already the current URL
+         * here, and waitForURL resolves immediately when the current URL matches — so
+         * it returns before the POST commits and a following navigation aborts the
+         * save. Re-loading the page and polling the served value asserts the real
+         * post-condition instead of a URL shape.
+         */
+        const saveAndConfirm = async ( value: string ) => {
+            await sessionDuration.fill( value );
+            await page
+                .locator( '#submit' )
+                .evaluate( ( button ) => ( button as HTMLInputElement ).form?.requestSubmit() );
+
+            await expect
+                .poll(
+                    async () => {
+                        await page.goto( '/wp-admin/options-general.php?page=wp-sudo-settings' );
+                        return sessionDuration.inputValue();
+                    },
+                    { timeout: 15_000 }
+                )
+                .toBe( value );
+        };
+
+        // The session is now active, so the user's own re-submit passes straight
+        // through the gate (one re-do, not a second password).
+        await saveAndConfirm( updatedValue );
 
         // Restore the original setting so stack smoke runs stay side-effect-light.
-        await sessionDuration.fill( originalValue );
-        await page
-            .locator( '#submit' )
-            .evaluate( ( button ) => ( button as HTMLInputElement ).form?.requestSubmit() );
-        await expect( page ).toHaveURL(
-            /\/wp-admin\/options-general\.php\?page=wp-sudo-settings(?:&updated=true)?$/,
-            { timeout: 15_000 }
-        );
-        await expect( sessionDuration ).toHaveValue( originalValue );
+        await saveAndConfirm( originalValue );
     } );
 
     test( 'STACK-04: admin bar AJAX deactivation clears the sudo cookie', async ( {

@@ -51,7 +51,7 @@ Developers can add custom rules via the `wp_sudo_gated_actions` filter.
 
 = How it works =
 
-**Browser requests (admin UI):** The user sees an interstitial challenge page. After entering their password (and 2FA code if configured), the original request is replayed automatically. **AJAX and REST requests** receive a `sudo_required` error; an admin notice on the next page load links to the challenge page.
+**Browser requests (admin UI):** The user sees an interstitial challenge page naming the action and its concrete target. After entering their password (and 2FA code if configured) they are returned to where they were; on HTTPS sites, in the same browser that started the action, the original request resumes automatically. Otherwise nothing is resumed and the user performs the action again under the now-active sudo session. A resumed request is bound to the browser that created it, so an action started elsewhere can never be completed by someone else's reauthentication. **AJAX and REST requests** receive a `sudo_required` error; an admin notice on the next page load links to the challenge page.
 
 **Non-interactive requests (WP-CLI, Cron, XML-RPC, Application Passwords, WPGraphQL):** Configurable per-surface policies with three modes: **Disabled**, **Limited** (default), and **Unrestricted**.
 
@@ -98,7 +98,7 @@ Settings and sessions are network-wide. The action registry includes 8 additiona
 
 = How does sudo gating work? =
 
-For browser-admin requests, Sudo intercepts the request before WordPress processes the sensitive operation. In many common flows this happens on `admin_init`; other actions use surface-specific hooks. The original request is stashed, the user is redirected to a challenge page, and after successful reauthentication, the original request is replayed. For AJAX and REST requests, the browser receives a `sudo_required` error and an admin notice links to the challenge page.
+For browser-admin requests, Sudo intercepts the request before WordPress processes the sensitive operation. In many common flows this happens on `admin_init`; other actions use surface-specific hooks. The original request is stashed and the user is redirected to a challenge page that names the action and its concrete target. After successful reauthentication the request resumes automatically only when the browser presenting it is the one that started it (proven by a cookie browsers accept only over HTTPS) and the confirmation described the whole effect. Otherwise — including on any non-HTTPS site — nothing is resumed: the user is returned with a "review and submit again" notice and performs the action themselves under the now-active sudo session. Secrets are never stashed, and such requests are never resumed automatically.
 
 = Does this replace WordPress roles and capabilities? =
 
