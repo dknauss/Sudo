@@ -1,5 +1,40 @@
 # Session handoff — 2026-07-26 (core-gate reconciliation + doc consolidation)
 
+## ⇢⇢ RESUME HERE (updated 2026-07-27 — design-review panel + decisions + #322 lane)
+
+**This block supersedes the older "⇢ RESUME HERE" below.** In particular it **overrides that block's #322 mitigation** ("add a `replay_mode: none` … method-independent"): the six-model panel proved a per-class `replay_mode` denylist **fails open** and misses GET replay — see the decided fix below.
+
+**All merged to `main` this session:** #334 (this handoff's prior RESUME block), **#337** (panel synthesis `.planning/core-gate-unit1-review-synthesis.md` + `llm-lies-log #39` + rewritten `.planning/322-stash-confused-deputy-design-brief.md`), **#338** (headline caveat in proposal §1 + spec §1). #320 closed (split approved); milestone #4 created; #306/#307 relocated; decision/finding comments on #315/#308/#310/#319/#316/#303/#302/#307.
+
+**Decisions taken (all durable):**
+1. **#320 split — approved, closed.** v1 = recent-auth primitive + provenance-blind package-write gate on browser/cookie-auth paths + identity pivots. #306/#307 → deferred milestone #4. #302 stays v1.
+2. **Unit-1 shape = B (per-action step-up).** Drop the reusable recent-auth *window* for consequential actions; each is its own challenge + one-time proof-bound intent token. Closes #308/#315 and most of #310/#319 by construction. Shape A (windowed) drafted and rejected. Draft deltas: scratchpad `unit1-shapeA/B-*.md` (this session).
+3. **#322 = "Both"** — ship global fail-closed in v1; origin-bound replay is a *later* enhancement.
+4. **Cron/auto-update = caveat the headline** (landed #338). WordPress has **no working package signing** (verified vs `wordpress-develop` trunk: `wp_trusted_keys()` empty since 2021-04-01, `Core_Upgrader` passes `check_signatures=false`, soft-fail default — `llm-lies-log #39`). #307 provenance is the only real control; compensating primitives listed in the synthesis doc.
+5. **#310 fix = promote the cache-bypass `$wpdb` read to REQUIRED** (defeats the cache-poison forgery regardless of salt); wp-config salts = defense-in-depth, not a hard precondition.
+
+**Panel findings** (verified; full text in `.planning/core-gate-unit1-review-synthesis.md`, U-1..U-11) — key: U-4 `add_user_to_blog`/`grant_super_admin` **already have veto filters** (no core patch); `switch_theme`/`wp_delete_user`/self-email admin path **do** need core patches; U-5 every veto seam needs a no-actor/self-heal carve-out; U-6 #316 is a doc contradiction (§4.1 vs §12); U-7 needs a §7 confirmation-page content contract; U-8 REST token-redemption path; U-9 #319 = issue-then-confirm + previous-proof slot + logged-in-cookie paths.
+
+**Core-gate next actionable (both shape-independent):**
+- **Unit 1a (land-now):** #303 + #316 (veto seams + U-4 inventory + U-5 doctrine), #319 (U-9), #310 (U-3 required cache-bypass). One spec-edit PR.
+- **Unit 1b (Shape B rewrite):** replace spec §4.2 window with per-action step-up; §5.1 no consequential auto-replay + bulk-as-single-digest; §7 content contract; §8/§9 REST redemption + (headline already caveated). Folds #315 + #308.
+- **Cross-lane tie:** the lockout DoS escape hatch (spec §4.2, file-based) = the SAME gap as plugin **#280** (no in-band lockout clear). Share a solution.
+
+**#322 lane — IN PROGRESS (I was driving it):**
+- Worktree `.claude/worktrees/sudo-322-stash`, branch **`fix/322-stash-confused-deputy`**, WIP commit **`6093f05`** pushed (no PR yet — **intentionally RED**).
+- Two failing unit tests in `tests/Unit/ChallengeTest.php` reproduce the vuln at `build_replay_response_data()`: `test_gated_post_stash_does_not_auto_replay` (POST auto-replay) and `test_gated_get_stash_does_not_redirect_to_action_url` (GET redirect-to-action-URL).
+- **Green-step plan (designed, not yet applied):**
+  1. `build_replay_response_data()` (`class-challenge.php:1022`): after consuming the stash, **always** take a fail-closed redirect — never return `replay=true`, never redirect to `$safe_url` (the stashed action URL). Redirect to `return_url` (same-host validated) else the **neutral `$fallback_url`** (dashboard) with the `BLOCKED_REPLAY` notice (or `REDACTED` if `redacted_fields_omitted`). **The redirect fallback must be `$fallback_url`, never `$safe_url`** (else a GET stash with no `return_url` still hits the action URL). Fire `wp_sudo_action_replay_blocked` instead of `wp_sudo_action_replayed`. This one chokepoint covers all 3 callers (`replay_stash`, `render_resume_page`, `complete_active_session_request`).
+  2. Drop `success_url`/`reject_url` from the `auth.app_password` stash allowlist (`class-action-registry.php:484`).
+  3. **Tests to UPDATE deliberately** (they encode old replay): `test_replay_success_omits_remaining` (:634), `test_handle_ajax_2fa_replays_stash_on_success` (:1438), `test_render_page_resumes_when_session_is_already_active` (:1924). `test_redacted_secret_stash_...` (:1511) and `test_blocked_post_replay_...` (:1559) should still pass — verify.
+  4. **E2E (needs wp-env):** `challenge.spec.ts` **CHAL-01** (asserts GET `plugin.activate` replays → must assert action NOT performed, neutral redirect) and **CHAL-04** (active-session resume). Wire into `e2e.yml`.
+  5. Full `composer test` + `analyse` + `lint`; pre-commit reviewer agent; open the #322 PR (green commit on top of `6093f05`).
+- **Coupling correction:** #322 does **NOT** share #279's key — the clone shares the login-session verifier, so #322's later origin-binding needs a *pre-challenge browser-instance secret*, distinct machinery. They can proceed independently.
+
+**Plugin lane (parallel, user launches separate sessions):** kickoff prompts drafted this session (in chat) — **Session 1 = #278 then #279** (same `class-sudo-session.php` token machinery, sequential, two PRs), **Session 2 = #280** (independent lockout clear + `wp sudo unlock` WP-CLI). Each: own worktree, Pre-Impl Design Review + TDD + pre-commit reviewer.
+
+---
+
 Main is at `2c3b16c`. A fresh session can resume from here alone. (Earlier session detail is in "Done this session" further down; the **Latest** section below has the core-gate design-review record.)
 
 ## ⇢ RESUME HERE (2026-07-26, end of the docs/design-review session)
