@@ -20,7 +20,8 @@
  * the countdown timer in the admin bar. The timer text changes every second.
  * ALL visual snapshots on admin pages with an active session MUST either:
  *   a) Mask the #wp-admin-bar-wp-sudo-active element, OR
- *   b) Stop the countdown interval + pin the label (freezeAdminBarTimer below)
+ *   b) Pin the label via a clone swap (freezeAdminBarTimer below) — never by
+ *      stopping timers, see ROOT CAUSE below
  *
  * PITFALL (element-level screenshots of auto-sized elements):
  * The `li#wp-admin-bar-wp-sudo-active` element auto-sizes to its text content.
@@ -32,30 +33,34 @@
  * decrements `r` every second using setInterval. Since `remaining` is PHP's real time()
  * computation, it varies by the elapsed real seconds between session creation and page load.
  *
- * Approach for VISN-03/04 (issue #341 — three attempts, only the third was the cause):
+ * ROOT CAUSE of #341 — do not break this again: **starving the page's timers starves
+ * requestAnimationFrame, and Playwright's screenshot stability wait never settles.**
+ * The symptom is a `toHaveScreenshot` TIMEOUT (5000ms, "waiting for element to be
+ * stable"), never a pixel diff, so it survives `--update-snapshots`.
+ *
+ * Two different mechanisms produced it, which is what made it hard to see:
+ *   - `page.clock.install()` — the original code. Freezes setTimeout/setInterval AND rAF.
+ *   - clearing the timer id range (`for (id..maxId) clearInterval(id)`) — a "fix" that
+ *     reproduced the identical hang, because setTimeout and setInterval SHARE one id
+ *     space, so this cancels every pending timer the admin page depends on.
+ * Because the replacement broke the same thing, removing clock.install() appeared to
+ * change nothing, and the real mechanism was wrongly ruled out for two rounds.
+ *
+ * Proof: a probe doing `await new Promise(r => requestAnimationFrame(() => setTimeout(r, 100)))`
+ * never resolved — `page.evaluate` hit the 60s test timeout — confirming rAF/timers were
+ * dead at screenshot time.
+ *
+ * Approach for VISN-03/04:
  *   1. activateSudoSession(page)  — real timers; the AJAX challenge flow needs them
- *   2. goto a QUIET admin screen  — NOT /wp-admin/. This was the actual bug: the
- *      dashboard's welcome-panel images and "Events and News" widget keep reflowing
- *      layout after the network settles, so Playwright's "waiting for element to be
- *      stable" step never completes and toHaveScreenshot times out (5000ms) instead of
- *      reporting a pixel diff. The admin bar renders on every admin screen, and VISN-02
- *      already proves the settings screen is stable.
- *   3. freezeAdminBarTimer(page[, {expiring:true}]) — stop the countdown, pin the label
- *      to a fixed-width string, and (VISN-04) apply wp-sudo-expiring directly
+ *   2. goto a quiet admin screen (not the dashboard) — incidental, not the fix: it just
+ *      avoids the welcome-panel/news-widget churn. VISN-02 proves this screen is stable.
+ *   3. freezeAdminBarTimer(page[, {expiring:true}]) — swap the label for a fixed-text
+ *      clone, touching NO timers, and (VISN-04) apply wp-sudo-expiring directly
  *   4. element screenshot of the frozen node + mask for a stable baseline
  *
- * Two hypotheses were tested against CI and FALSIFIED before the page-stability cause
- * was found; both are recorded here so they are not re-tried:
- *   - "page.clock.install() freezes rAF, which the stability check polls on." The trace
- *     disproved it: with the clock left live and the countdown frozen, the DOM showed a
- *     frozen "Sudo: 15:00" and the hang was byte-identical. clock.install() is still
- *     avoided (it makes runFor() the only way to advance, for no benefit here), but it
- *     was never the cause.
- *   - "the page-level clip is the problem." Switching to an element screenshot changed
- *     nothing — though it did surface the decisive call-log line ("attempting scroll into
- *     view action / waiting for element to be stable") that page screenshots never print.
- *     The element screenshot is kept because it is better isolated, not because it fixed
- *     anything on its own.
+ * The element screenshot (vs the old page-level clip) was also not the fix; it is kept
+ * because it is better isolated, and because its call log prints the "waiting for element
+ * to be stable" line that page screenshots omit — the clue that located the cause.
  *
  * PITFALL (platform differences): Snapshot pixel comparison can differ between macOS
  * (local) and Linux Docker (CI). The threshold values below are set to accommodate
@@ -77,13 +82,15 @@ const adminBarTimerSelector = '#wp-admin-bar-wp-sudo-active';
  * Make the admin-bar countdown node static for a stable screenshot WITHOUT freezing
  * the page clock.
  *
- * Stops the countdown interval — its id is closure-private in `wp-sudo-admin-bar.js`,
- * so clear the whole live range — and pins the `.ab-label` to a fixed-width string, so
- * the auto-sizing node keeps identical dimensions between runs.
+ * Replaces the `.ab-label` with a clone carrying fixed text, so the auto-sizing node
+ * keeps identical dimensions between runs. The countdown's interval is left running: it
+ * holds a reference to the original label element, which is now detached, so its writes
+ * are invisible.
  *
- * This is what makes the NODE dimension-stable. It is not what fixed #341's timeout;
- * that was the reflowing dashboard page (see the header). `page.clock.install()` is
- * avoided because freezing the clock forces runFor() bookkeeping for no gain here.
+ * Crucially this touches NO timers. Both `page.clock.install()` and brute-force
+ * `clearInterval` over the id range starve the page's timers (setTimeout and setInterval
+ * share one id space), which starves requestAnimationFrame — and Playwright's screenshot
+ * stability wait then never settles. That is the #341 hang; see the header.
  *
  * For the expiring baseline, apply `wp-sudo-expiring` directly rather than ticking to
  * `r <= 60` (wp-sudo-admin-bar.js adds it at that threshold, verified).
@@ -93,13 +100,6 @@ async function freezeAdminBarTimer(
 	{ expiring = false }: { expiring?: boolean } = {}
 ): Promise< void > {
 	await page.evaluate( ( isExpiring ) => {
-		// The countdown's intervalId is private to the IIFE in wp-sudo-admin-bar.js,
-		// so clear the full live range to guarantee it stops.
-		const maxId = setInterval( () => {}, 1_000_000 ) as unknown as number;
-		for ( let id = 1; id <= maxId; id++ ) {
-			clearInterval( id );
-		}
-
 		const node = document.getElementById( 'wp-admin-bar-wp-sudo-active' );
 		if ( ! node ) {
 			return;
@@ -109,8 +109,17 @@ async function freezeAdminBarTimer(
 		}
 		const label = node.querySelector( '.ab-label' );
 		if ( label ) {
-			// Fixed text → deterministic node width → stable pixels outside the mask.
-			label.textContent = isExpiring ? 'Sudo: 0:42' : 'Sudo: 15:00';
+			// Swap in a clone and leave the countdown's timer alone. wp-sudo-admin-bar.js
+			// holds a reference to the ORIGINAL .ab-label, so it keeps writing to the
+			// detached node every second while the visible clone stays fixed.
+			//
+			// Do NOT stop the countdown by clearing timer ids: setTimeout and setInterval
+			// share one id space, so clearing the range kills every pending timer on the
+			// page. That starves requestAnimationFrame-driven work, and Playwright's
+			// screenshot stability wait never settles — the exact hang in #341.
+			const frozen = label.cloneNode( true ) as HTMLElement;
+			frozen.textContent = isExpiring ? 'Sudo: 0:42' : 'Sudo: 15:00';
+			label.replaceWith( frozen );
 		}
 	}, expiring );
 }
