@@ -314,6 +314,25 @@ Of the five contested seams, **one is gateable with an existing hook and four ar
 
 Everything else in §6 already returns `WP_Error` and needs no contract change.
 
+### 6.3 Veto audit — every chokepoint, checked rather than assumed (#358)
+
+§6.1 covers the five seams a reviewer challenged. This is the sweep across the rest, because the two failures found there — a discarded write-return reported as success, and an option veto that left the remaining writes applied — show that a plausible-looking return contract is not evidence. Each row below was checked against `wordpress-develop` trunk.
+
+| Row | Seam | Can it refuse? | Evidence |
+|---|---|---|---|
+| 3 | `wp_update_user()` | **Yes** | Calls `wp_insert_user()` and returns early on `is_wp_error()`, so a `WP_Error` propagates to every caller. |
+| 4 | `wp_insert_user()` | **Yes** | Returns `WP_Error` on eleven distinct paths; callers already branch on it. |
+| 4e | `users_can_register` / `default_role` writes | **Yes, with a caveat** | `pre_update_option_{$option}` (`option.php:901`) — returning the old value trips the `$value === $old_value` check and `update_option()` returns `false` without writing. **Caveat:** `false` is indistinguishable from "no change needed", so the caller cannot tell a refusal from a no-op. Sufficient here only because the option write *is* the whole effect — the opposite of `switch_theme`, where the same technique leaves later writes applied (§6.1). |
+| 6 | capability escalation | **Yes — via the meta hook, not the method** | `WP_User::set_role()` returns `void` and only fires `do_action`s, so it cannot be vetoed at the function. The row is sound because it targets the `{prefix}capabilities` write: `update_{$meta_type}_metadata` is a genuine short-circuit filter (`meta.php:251`, `if ( null !== $check )`). Keep the guard on the meta write; do not move it to `set_role()`. |
+| 14 | `WP_Upgrader::install_package()` | **Yes** | Six `WP_Error` returns; the upgrader's callers already thread them. |
+| 14b | `wp_edit_theme_plugin_file()` | **Yes** | Twenty-one `WP_Error` returns — the most defensively written sink in the set. |
+| 14c | `activate_plugin()`, `delete_plugins()` | **Yes** | Four `WP_Error` returns each. |
+| 15 | `delete_theme()` | **Yes** | Returns `WP_Error`; callers test `is_wp_error()`. (`switch_theme()` in the same row cannot — §6.1.) |
+
+**Result:** no further blockers. The core-patch tally in §6.1 stands at four, and every other chokepoint can genuinely refuse. Two properties are now recorded rather than assumed: an option-level veto is only adequate where the option write is the entire effect, and row 6's enforcement lives on the meta write because the role setter returns `void`.
+
+**Not covered here:** row 4d (Application Password issuance) is being specified at its shared sink rather than the two enumerated surfaces — tracked in #326 — so its veto point is audited with that change.
+
 ### 6.2 No-actor and self-heal carve-outs — required for every veto seam
 
 A gate that fails closed on a path with **no actor to challenge** does not protect that path; it breaks it. Every seam added here inherits this rule, which is stated once:
