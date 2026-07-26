@@ -1,6 +1,6 @@
 # Session handoff — 2026-07-26 (core-gate reconciliation + doc consolidation)
 
-## ⇢⇢⇢ RESUME HERE (updated 2026-07-26 late — plugin security lane CLOSED: #278/#279/#280)
+## ⇢⇢⇢ RESUME HERE (updated 2026-07-26 end of session — plugin security lane CLOSED + follow-ups)
 
 **Scope of this block: the plugin lane only.** It closes out the "Plugin lane (parallel,
 user launches separate sessions)" line in the core-gate block below — that lane is now
@@ -28,7 +28,7 @@ roster of every IP touched): the serialized read-modify-write reintroduces a los
 race, and pruning a *sliding* 24 h window by first-seen can drop a still-live entry. Key
 versioning has neither hazard — a doubled increment is harmless.
 
-**Follow-ups filed from review** (verified real, deliberately out of scope):
+**Follow-ups from review** — everything the Codex passes surfaced that was not fixed inside #348/#343. All verified real before filing; the merged ones were done later in the same session:
 - **#354 (open)** — Site Health `find_stale_sessions()` classifies from the *cached*
   `_wp_sudo_expires` and then deletes `PROOF_META_KEY`, so the same failed-invalidation
   scenario #278 exists to tolerate can delete every live proof for a user. Fail-closed, but
@@ -40,9 +40,30 @@ versioning has neither hazard — a doubled increment is harmless.
 - **#356 (closed)** — uninstall left the IP-scoped transients behind. Fixed in-flight by a
   concurrent session inside #343 (prefix `DELETE` on `wp_options`, since the keys are hashed
   and cannot be enumerated for a `delete_transient()` loop).
-- **Running in a separate session:** `bin/verify-sources.sh` walks the working tree rather
-  than tracked files, so a local (gitignored) `reviewer-approved` flag containing an upstream
-  URL fails `composer verify:sources` while CI passes. Not yet an issue/PR.
+- **#374 (merged)** — `bin/verify-sources.sh` walked the working tree rather than tracked
+  files, so a local (gitignored) `reviewer-approved` flag containing an upstream URL failed
+  `composer verify:sources` while CI, on a clean checkout, passed. Now filters with
+  `git check-ignore` — deliberately "ignored", not "untracked", so an uncommitted doc still
+  has to satisfy the registry rule. **The spawned session that wrote it stopped without
+  committing**; the work was sound but sat unpushed in its worktree until picked up. Worth
+  assuming that failure mode rather than trusting a completion signal.
+- **#375 (merged)** — follow-up review of #343 after it landed. The `wp sudo unlock`
+  "nothing tracked" branch bumps the epoch (a real state write) but did not fire
+  `wp_sudo_lockout_cleared`, contradicting the hook's own contract; it now fires with
+  `$was_locked = false`. Also swept the stale "no epoch write" claims this session's own
+  unconditional-bump change left behind.
+- **#371 (open)** — the uninstall transient sweep reaches `wp_options` only. On a site with a
+  persistent external object cache the transients live in the cache, so a reinstall inside
+  that TTL can still revive a cleared window at epoch 0. Proposed fix is a
+  per-installation-instance nonce in the key material; deferred because `ip_key_material()`
+  is on the per-failed-attempt path and wants its own TDD pass.
+- **#379 (open)** — the enforcement gap behind trap 1 below. `CHANGELOG.md` is still in
+  `GRANDFATHERED_ORPHANS`, held there by a *single* line in the frozen `## 4.8.0` section, so
+  a reverted citation only warns. Proposal: scope the scan to `## Unreleased` and ungrandfather
+  the file, leaving released sections as frozen history. **Filed against the #377 lane**
+  (`fix/verify-sources-hardening`) rather than implemented here, because that PR is rewriting
+  the same script — editing it concurrently would reproduce the collision class the issue is
+  about.
 
 **Traps this session hit — read before merging `main` into any open branch:**
 
@@ -52,6 +73,10 @@ versioning has neither hazard — a doubled increment is harmless.
    duplicated Gutenberg paths and snippets. Both were caught by review, not by CI —
    `verify:sources` only *warns* on `CHANGELOG.md` (grandfathered). **Resolve the Unreleased
    list additively and then `grep -o "GB-[A-Z-]*" CHANGELOG.md` to confirm nothing was lost.**
+   Tracked as #379. **Corollary, learned the hard way in #375:** a claim about behaviour
+   usually exists in *three* places here — the inline docblock, `docs/developer-reference.md`,
+   and `CHANGELOG.md`. Fixing two of three is the default failure. `grep -rn` the phrase before
+   calling it done.
 2. **`uninstall.php` can only be `require`d once per PHP process.** The two existing require
    sites never collide because one is single-site and the other multisite. A *second*
    single-site integration test that requires it fatals with "Cannot redeclare
@@ -86,7 +111,7 @@ an older branch that still says 4.9.0, it predates the bump.
 Counts (tests, LOC, hooks) move constantly; `docs/current-metrics.md` is the source of truth
 and `composer verify:metrics` is the gate.
 
-Main was at `3ebd2e6` when this block was written; it has since taken #372 (the 5.0.0 bump), #374, and #350 (#322 v1).
+Main is at `15f7ecd` (#375). Since this block was first written it has taken #369, #374, #372 (the 5.0.0 bump), #350 (#322 v1), #381, and #375.
 
 ---
 
