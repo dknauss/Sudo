@@ -232,6 +232,34 @@ test.describe( 'Visual regression baselines', () => {
         // Freeze the countdown so the node keeps identical dimensions between runs.
         await freezeAdminBarTimer( page );
 
+        // TEMPORARY DIAGNOSTIC (#341) — measure, do not guess. Three hypotheses
+        // (clock.install/rAF, page-level clip, reflowing dashboard) were each falsified
+        // by CI. Sample the node's box, the page height and scroll offset over ~1s to
+        // find what actually never settles for the element-stability wait. Remove once
+        // the cause is identified.
+        const diag = await page.evaluate( async () => {
+            const n = document.getElementById( 'wp-admin-bar-wp-sudo-active' );
+            const samples: string[] = [];
+            for ( let i = 0; i < 10; i++ ) {
+                const r = n?.getBoundingClientRect();
+                samples.push(
+                    `${ Math.round( r?.x ?? -1 ) },${ Math.round( r?.y ?? -1 ) },` +
+                    `${ Math.round( r?.width ?? -1 ) },${ Math.round( r?.height ?? -1 ) }` +
+                    `|sy=${ Math.round( window.scrollY ) }|bh=${ document.body.scrollHeight }`
+                );
+                await new Promise( ( res ) =>
+                    requestAnimationFrame( () => setTimeout( res, 100 ) )
+                );
+            }
+            return {
+                readyState: document.readyState,
+                animations: document.getAnimations?.().length ?? -1,
+                samples,
+            };
+        } );
+        // eslint-disable-next-line no-console
+        console.log( 'VISN03-DIAG ' + JSON.stringify( diag ) );
+
         // Element screenshot of the frozen Sudo node (not a page clip): better isolated,
         // and freezeAdminBarTimer() pins the label so the node no longer auto-sizes —
         // removing the original reason a page clip was used (#341).
