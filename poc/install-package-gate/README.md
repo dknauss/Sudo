@@ -86,8 +86,20 @@ Two caveats kept honest: this was found by reading `run()`, not by demonstrating
 - **No challenge UI.** Proving intent is a separate concern (proposal §4); the tests grant the proof directly.
 - **No identity pivots.** Own-password change and the rest of Group B need seams core does **not** have — `wp_set_password()` and `set_role()` are `void`, `wp_delete_user()` returns `bool` so a `WP_Error` is truthy and a refusal reads as success. Those need the four `pre_*` filters scoped in [#358](https://github.com/dknauss/Sudo/issues/358), and that is the second slice — the one that genuinely requires a `wordpress-develop` patch branch.
 - **No non-interactive policy.** Out of v1 scope per [#320](https://github.com/dknauss/Sudo/issues/320).
-- **The proof is not action- or target-bound.** Within its TTL it authorises any package write, so a session-riding attacker could substitute a different install. Scoping it is [#308](https://github.com/dknauss/Sudo/issues/308); flat freshness is the spec's current v1 recommendation, and this slice follows it deliberately rather than by omission.
-- **The proof record is not signed.** `has_proof()` trusts a transient. Proposal §4 requires an HMAC-signed record precisely because that storage is cache-poisonable ([#310](https://github.com/dknauss/Sudo/issues/310)); a production implementation must not skip it.
+### ⚠️ The proof model here is behind the spec
+
+This slice implements a **reusable 15-minute window**. The spec has since moved past that, and the divergence is deliberate but must not be mistaken for agreement:
+
+> §5.1: *"**No reusable window for in-scope actions.** A proof is minted for **one action digest**, is single-use, and is discarded on redemption."*
+
+§11 item 3 ("flat freshness vs. scope-bound windows") is now **closed** — *"with no reusable window there is nothing to scope."* So what this slice does is not the spec's v1 recommendation; it is a **superseded** model that happens to be enough to demonstrate the seam.
+
+Concretely, the slice is missing:
+
+- **Per-action digest binding and single use.** Within its TTL the proof authorises *any* package write, so a session-riding attacker could substitute a different install ([#308](https://github.com/dknauss/Sudo/issues/308), and §5.1's redemption contract).
+- **An HMAC-signed record.** `has_proof()` trusts a transient. §4.2 requires the MAC to cover the proof hash, and a cache-bypassing read on the enforcement path, precisely because that storage is poisonable ([#310](https://github.com/dknauss/Sudo/issues/310)).
+
+Both are tracked for alignment. The seam findings above — that the veto exists, and that `install_package()` fires too late — are independent of the proof model and stand regardless.
 
 ## Running it
 

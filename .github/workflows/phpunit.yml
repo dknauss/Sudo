@@ -275,6 +275,13 @@ jobs:
       - name: Run integration tests
         run: composer test:integration
 
+      # The core-gate PoC has its own bootstrap and config so it cannot perturb
+      # the plugin's suites — which also means nothing else runs it. Without this
+      # step its load-bearing real-core tests could break silently while every
+      # required gate stayed green.
+      - name: Run core-gate PoC slice
+        run: composer test:poc
+
   code-quality:
     name: "Code Quality (lint + static analysis)"
     needs: changes

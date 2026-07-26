@@ -311,29 +311,16 @@ final class InstallPackageGateTest extends WP_UnitTestCase {
 
 		remove_filter( 'upgrader_pre_install', 'WP_Sudo\PoC\InstallPackageGate\gate_install_package', 10 );
 
-		$open_destination = get_temp_dir() . 'poc-open-' . wp_generate_password( 8, false );
-		$upgrader         = new WP_Upgrader( new Automatic_Upgrader_Skin() );
-		$upgrader->init();
-		$allowed = $upgrader->install_package(
-			array(
-				'source'                      => $this->source,
-				'destination'                 => $open_destination,
-				'clear_destination'           => false,
-				'abort_if_destination_exists' => false,
-				'clear_working'               => false,
-				'hook_extra'                  => array( 'type' => 'plugin', 'action' => 'install' ),
-			)
-		);
+		// Deliberately the SAME destination as the blocked call. Substituting a
+		// fresh path would make this a different call, and the differential would
+		// prove less than it claims.
+		$allowed = $this->install();
 
-		$this->assertNotWPError( $allowed, 'ungated, the same call must succeed' );
+		$this->assertNotWPError( $allowed, 'ungated, the identical call must succeed' );
 		$this->assertDirectoryExists(
-			$open_destination,
+			$this->destination,
 			'ungated, the package reaches the filesystem — which is what the gate prevents'
 		);
-
-		// Clean up the directory this test deliberately let through.
-		array_map( 'unlink', glob( $open_destination . '/*' ) ?: array() );
-		@rmdir( $open_destination );
 	}
 
 	/** Revoking is immediate — "log out everywhere" must close the window now. */
