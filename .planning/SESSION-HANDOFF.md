@@ -1,6 +1,22 @@
 # Session handoff — 2026-07-26 (core-gate reconciliation + doc consolidation)
 
-Main is at `5867a1b`. Everything below is durable in files/issues, not this session — a fresh session can resume from here alone. (The "Done this session" list below is the earlier part of the session; the **Latest** section immediately below is the current state.)
+Main is at `84b7630`. A fresh session can resume from here alone. (Earlier session detail is in "Done this session" further down; the **Latest** section below has the core-gate design-review record.)
+
+## ⇢ RESUME HERE (2026-07-26, end of the docs/design-review session)
+
+**Concurrent sessions — DO NOT disturb their worktrees; each merges its own branch:**
+- `Sudo-288-glyphs` → `feat/288-glyph-state-vocabulary` — **editor padlock UX** (glyph state vocabulary). CI is running on `5790335`; 2 shells live there. This is a follow-up to the merged #288 base feature.
+- `Sudo-deps-hardening` → `fix/npm-lockfile-security` — **CI/Dependabot security** (the GitHub-flagged npm-lockfile vulns).
+- (This session used only ephemeral worktrees under `scratchpad/`, all removed.)
+
+**Core-gate design review is DONE (Fable+Opus+Codex); the proposal is NOT ready-to-land.** All findings are GitHub issues, label `core-gate-review`, organized into two milestones + a decision anchor. See spec **§12** for the summary and memory [[sudo-core-gate-direction]].
+
+**Triage (applied — Claude+Codex reconciled):**
+- **Milestone "WP Sudo security"** (live plugin): **#322** (P1 stash confused-deputy — App-Password `success_url` exfil; priority: high), #278 (medium), #280 (medium), #279 (low). Implement #278/#279/#280 **independently** (not one PR). **#322 fast mitigation is method-INDEPENDENT** — `stash_no_replay`/`post_mode:none` is POST-only (verified: `class-request-stash.php:410` returns before the policy for GET), so add a `replay_mode: none` enforced before the GET/POST branch + stop `render_resume_page()` auto-executing on active sudo + drop `success_url` from persisted data. Keep #322 open until browser-binding + confirmation + proof-bound token. Code fix → design-review + TDD; ship in the next release or a focused security point-release.
+- **Milestone "core-gate proposal — v1 readiness":** **#320 is the first strategic decision** (scope split — anchor comment posted with the full order). Then mechanism invariants **#315, #303+#316, #308, #310, #319** (all blockers, not polish); v1 closure **#302** (core update stays in v1), **#304**, + the #311 splits **#326–#329** (App-Password shared sink, option-write bypasses, pluggable session managers, fail-closed recovery); compat **#305, #309**; **#306/#307** are "scope depends on #320" (held out of the milestone). #311 remains the medium/low tracker.
+- **#315 (proposal) ≠ #322 (plugin)** though they share the invariant: *no proof authorizes an attacker-selected transaction without browser + action/target binding + deliberate confirmation.* Plugin (Strict cookies) proves the token/UX model; core (Lax + shared nonces) needs its own threat analysis.
+
+**Also this session:** architectural material moved out of the proposal → `core-gate-architectural-context.md` (#312); Fable prose pass (#299); §12 known-gaps + Codex framing correction (#313/#318/#321); doc overclaims qualified in `security-model.md` + `FAQ.md` (#323). Auto-archive-after-PR-merge desktop setting caused the earlier session/worktree teardown — **Dan disabled it 2026-07-26** ([[claude-code-autoarchive-pr-merge-hazard]]); don't batch-auto-merge if it's ever re-enabled.
 
 ## Latest — continued session (core-gate docs polish + design review)
 
