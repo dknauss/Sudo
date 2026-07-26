@@ -10,7 +10,7 @@
  *   1 Challenge page · 2 Gated plugin activation · 3 Settings tab · 4 Gated Actions
  *   5 Rule Tester · 6 Access tab · 7 Dashboard widget · 8 Admin-bar timer
  *   9 Break-glass recovery notice
- *   11 In-editor indicator panel · 12 In-editor padlock chip + grant snackbar
+ *   11 In-editor indicator panel · 12 In-editor header padlock + grant snackbar
  *
  * KNOWN DRIFT (pre-existing, not introduced by the 11/12 addition): the committed
  * screenshot-9.png is the Users-list "Sudo Active" view, which is also what readme
@@ -138,7 +138,7 @@ test.describe( 'WordPress.org listing screenshots (ORG-02)', () => {
 	} );
 
 	/**
-	 * 11–12 — the in-editor session indicator (#262 / #277, padlock chip from #288).
+	 * 11–12 — the in-editor session indicator (#262 / #277, header padlock from #288).
 	 *
 	 * Filed as #284: the indicator shipped with no listing screenshot, so nothing in the
 	 * asset set showed the one surface that carries sudo state while the admin bar is
@@ -150,14 +150,15 @@ test.describe( 'WordPress.org listing screenshots (ORG-02)', () => {
 	 *
 	 *   11 PluginSidebar panel open — "Sudo active — M:SS remaining" (Part B, WP 6.6+).
 	 *      The pinned button reads is-pressed/dark here, by design: #288 hands the button
-	 *      back to Gutenberg while the panel is open, so the green chip is shot 12's job.
-	 *   12 Panel closed — the green padlock chip in the header (#288) plus the
-	 *      announce-once grant snackbar (Part A, the WP 6.4–6.5 baseline).
+	 *      back to Gutenberg while the panel is open, so the header glyph is shot 12's job.
+	 *   12 Panel closed — the unlocked padlock in the header marking the live session
+	 *      (#288) plus the announce-once grant snackbar (Part A, the WP 6.4-6.5 baseline).
 	 *
 	 * Verified surfaces (against live source):
 	 *   - Panel:    .wp-sudo-indicator-panel, registerPlugin('wp-sudo-session-indicator')
-	 *   - Chip:     .interface-pinned-items button[aria-controls="…"] painted #2e7d32 by
-	 *               admin/css/wp-sudo-editor-indicator.css off a body class
+	 *   - Glyph:    .interface-pinned-items button[aria-controls="…"] carrying
+	 *               dashicons-unlock while a session is live (dashicons-lock at rest;
+	 *               only the final 60 s adds a red chip, via a body class)
 	 *   - Snackbar: .components-snackbar, notice id 'wp-sudo-session-active'
 	 */
 	test( 'capture in-editor indicator screenshots', async ( { page } ) => {
@@ -202,7 +203,7 @@ test.describe( 'WordPress.org listing screenshots (ORG-02)', () => {
 		// grant that created it. Shooting it first, on the seeding grant above, is what
 		// makes this deterministic; the panel shot has no such window and can follow.
 		//
-		// 12 — panel closed: the green padlock chip in the header (#288) plus the
+		// 12 — panel closed: the unlocked padlock in the header (#288) plus the
 		// announce-once grant snackbar (Part A). "visible" alone is not enough — it is
 		// reached while the snackbar is still fading in, and a shot on that signal catches
 		// it at opacity 0, absent from the PNG.
