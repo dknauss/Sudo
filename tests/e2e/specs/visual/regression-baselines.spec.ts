@@ -261,4 +261,112 @@ test.describe( 'Visual regression baselines', () => {
             }
         );
     } );
+
+    /**
+     * VISN-05 / VISN-06: in-editor pinned header padlock (#288).
+     *
+     * The full-screen editor hides the admin bar, so VISN-03/04 above cover a surface
+     * the editing user never sees. These two baselines pin the editor's equivalent:
+     * the PluginSidebar's pinned header button wearing the SAME admin-bar tokens —
+     * green #2e7d32 active, red #c62828 in the final 60 s — on a dashicons-unlock
+     * padlock, with the sidebar panel CLOSED.
+     *
+     * WHY an element screenshot is safe here (unlike VISN-03/04): the admin-bar node
+     * auto-sizes to its "Sudo: M:SS" text, so its width drifts run to run. This button
+     * carries NO text — #288 deliberately omits a compact M:SS from the header, exactly
+     * so the header neither churns per second nor varies in width. It is a fixed 32x32
+     * icon button, which makes the snapshot dimension-stable with no clip and no mask.
+     * Clipping to the button alone also isolates it from unrelated header churn (the
+     * neighbouring Settings button's is-pressed state, Publish-button label changes).
+     *
+     * Source: admin/css/wp-sudo-editor-indicator.css — the two state rules (verified)
+     * Source: admin/js/wp-sudo-session-indicator.js — body-class toggle, EXPIRING_THRESHOLD
+     * Source: live WP 7.0 editor DOM — button[aria-controls="…"] inside .interface-pinned-items
+     */
+    const pinnedButtonSelector =
+        '.interface-pinned-items button[aria-controls="wp-sudo-session-indicator:wp-sudo-session-indicator"]';
+
+    /** Open the post editor and settle it (mirrors editor-session-indicator.spec.ts). */
+    async function openEditor( page: Page ): Promise< void > {
+        await page.goto( '/wp-admin/post-new.php' );
+        await page.waitForFunction(
+            () =>
+                !! ( window as any ).wp?.apiFetch &&
+                !! ( window as any ).wp?.data?.select?.( 'core/notices' ),
+            undefined,
+            { timeout: 30_000 }
+        );
+        await page.evaluate( () => {
+            const prefs = ( window as any ).wp?.data?.dispatch?.( 'core/preferences' );
+            prefs?.set?.( 'core/edit-post', 'welcomeGuide', false );
+            prefs?.set?.( 'core', 'welcomeGuide', false );
+        } );
+        await page
+            .locator( '.components-modal__screen-overlay' )
+            .waitFor( { state: 'detached', timeout: 10_000 } )
+            .catch( () => {} );
+    }
+
+    /**
+     * Drive the indicator to a chosen `remaining` via feed #2 (the grant CustomEvent).
+     *
+     * Deterministic by construction: the expiring state needs `remaining <= 60`, and the
+     * settings floor for session duration is 1 minute, so waiting out a real session
+     * would be both slow and racy. This is the same seeding INDICATOR-04 uses.
+     */
+    async function seedRemaining( page: Page, remaining: number ): Promise< void > {
+        await page.evaluate( ( secs ) => {
+            window.dispatchEvent(
+                new CustomEvent( 'wp-sudo-session-granted', { detail: { remaining: secs } } )
+            );
+        }, remaining );
+    }
+
+    test( 'VISN-05: editor pinned padlock in active state baseline', async ( {
+        page,
+    } ) => {
+        await openEditor( page );
+        test.skip(
+            ! ( await page.evaluate(
+                () => !! ( window as any ).wp?.editor?.PluginSidebar
+            ) ),
+            'The pinned header button requires the unified PluginSidebar (WP 6.6+).'
+        );
+
+        await seedRemaining( page, 600 );
+
+        const button = page.locator( pinnedButtonSelector );
+        await expect( button ).toBeVisible();
+        // Panel closed — the state must be legible without opening the sidebar.
+        await expect( button ).toHaveAttribute( 'aria-expanded', 'false' );
+        await expect( button ).toHaveCSS( 'background-color', 'rgb(46, 125, 50)' );
+
+        await expect( button ).toHaveScreenshot( 'editor-indicator-active.png', {
+            threshold: 0.05,
+        } );
+    } );
+
+    test( 'VISN-06: editor pinned padlock in expiring state baseline', async ( {
+        page,
+    } ) => {
+        await openEditor( page );
+        test.skip(
+            ! ( await page.evaluate(
+                () => !! ( window as any ).wp?.editor?.PluginSidebar
+            ) ),
+            'The pinned header button requires the unified PluginSidebar (WP 6.6+).'
+        );
+
+        // 45 s — inside the admin bar's own `remaining <= 60` expiring threshold.
+        await seedRemaining( page, 45 );
+
+        const button = page.locator( pinnedButtonSelector );
+        await expect( button ).toBeVisible();
+        await expect( button ).toHaveAttribute( 'aria-expanded', 'false' );
+        await expect( button ).toHaveCSS( 'background-color', 'rgb(198, 40, 40)' );
+
+        await expect( button ).toHaveScreenshot( 'editor-indicator-expiring.png', {
+            threshold: 0.05,
+        } );
+    } );
 } );

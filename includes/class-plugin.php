@@ -406,6 +406,20 @@ class Plugin {
 			true
 		);
 		wp_set_script_translations( 'wp-sudo-session-indicator', 'wp-sudo' );
+
+		// #288 (at-a-glance padlock): paints the indicator's PINNED HEADER button with
+		// the admin bar's own tokens — green while active, red in the final 60 s — off a
+		// class the module above toggles on <body> at each state transition. Without it
+		// the editor's most security-relevant transient state is invisible to a sighted
+		// user editing full-screen, where the admin-bar chip never renders. Enqueued
+		// unconditionally: below WP 6.6 no pinned button exists, the module falls back to
+		// the Part A snackbar, and the stylesheet's selectors simply match nothing.
+		wp_enqueue_style(
+			'wp-sudo-editor-indicator',
+			WP_SUDO_PLUGIN_URL . 'admin/css/wp-sudo-editor-indicator.css',
+			array(),
+			WP_SUDO_VERSION
+		);
 	}
 
 	/**
