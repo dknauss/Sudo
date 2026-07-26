@@ -552,7 +552,9 @@ do_action( 'wp_sudo_lockout', int $user_id, int $attempts, string $ip );
 // ordinary login before this ran — Sudo_Session::clear_ip_failure_generation()),
 // and that too is a real state change worth auditing, even though it deletes
 // no per-user meta or transient. $was_locked is false on this path.
-// Only a lockout's own natural expiry (no operator action) never fires this.
+// Two things never fire it: a lockout's own natural expiry (no operator action
+// at all), and an invocation whose --user resolves to nobody, which errors out
+// before reading any state — there is no user to audit.
 do_action( 'wp_sudo_lockout_cleared', int $user_id, bool $was_locked );
 
 // Action gating.

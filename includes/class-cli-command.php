@@ -203,12 +203,12 @@ class CLI_Command {
 		/**
 		 * Fires when an operator discards reauth failure state via WP-CLI.
 		 *
-		 * Fires on every branch that actually mutates state: a full lockout
-		 * clear, a sub-threshold counter clear, and — see the earlier call site
-		 * above — a "nothing tracked" outcome that still bumps the per-IP
-		 * failure generation. Does NOT fire only when the command left the
-		 * user completely untouched, which never happens as of #280's review
-		 * follow-up: every reachable branch of unlock() calls this hook.
+		 * Fires on every branch that mutates state for a resolved user: a full
+		 * lockout clear, a sub-threshold counter clear, and — see the earlier
+		 * call site above — a "nothing tracked" outcome that still bumps the
+		 * per-IP failure generation. The one branch that does not fire it is
+		 * the guard above, where `--user` resolves to nobody and the command
+		 * errors out before reading any state — there is no user to audit.
 		 * Subscribers that need to tell a true lockout apart from a
 		 * sub-threshold/generation-only clear must read $was_locked — the hook
 		 * firing does NOT by itself mean the user was locked out.
