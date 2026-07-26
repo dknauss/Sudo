@@ -113,7 +113,7 @@ Named and set aside — a *different* primitive or *not reachable through the co
 
 A gate against illegitimate *sessions* is not a defense against a *pre-authentication* core vulnerability, and this proposal does not claim to be one — but they intersect at the chokepoint.
 
-**wp2shell** (CVE-2026-63030 batch-route auth bypass + CVE-2026-60137 `WP_Query` SQL injection; unauthenticated RCE, patched 6.8.6 / 6.9.5 / 7.0.2 on 2026-07-17). Per public reconstructions — the original advisory **withheld detail** — the chain drives WordPress's **normal REST user-creation path** under the bypass (`401` then re-evaluated as admin → `201`), with the SQLi used as a *read* to poison the object cache; RCE then follows an ordinary plugin install.
+**wp2shell** (CVE-2026-63030 batch-route auth bypass + CVE-2026-60137 `WP_Query` SQL injection; unauthenticated RCE, patched in the emergency 6.8.6 / 6.9.5 / 7.0.2 releases). Per public reconstructions — the original advisory **withheld detail** — the chain drives WordPress's **normal REST user-creation path** under the bypass (`401` then re-evaluated as admin → `201`), with the SQLi used as a *read* to poison the object cache; RCE then follows an ordinary plugin install.
 
 If that holds, the privileged step routes through the `core/create-user` chokepoint in [§4](#4-what-gets-gated-the-minimal-closure) — defense-in-depth. **But the same object-cache-poisoning primitive is why [§5](#5-how-it-lands-in-core) requires an HMAC-signed assurance**: an unsigned `reauth_at` in the `user_meta` cache group would be forgeable by exactly this primitive. The gate is a layer, subject to its own state being unforgeable — not a substitute for patching the bypass.
 
