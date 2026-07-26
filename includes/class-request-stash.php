@@ -47,6 +47,38 @@ class Request_Stash {
 	private const KEY_LENGTH = 16;
 
 	/**
+	 * Cookie carrying the per-browser stash binding proof (#322 v2).
+	 *
+	 * `__Host-` prefixed on purpose: the prefix forces Secure + Path=/ and, crucially,
+	 * forbids a `Domain` attribute, so the cookie is host-only and a sibling subdomain
+	 * cannot plant or overwrite it (cookie tossing). On subdomain multisite
+	 * COOKIE_DOMAIN is `.example.com`, which would otherwise let any host under the
+	 * network transplant a proof the attacker legitimately owns.
+	 *
+	 * @var string
+	 */
+	public const BINDING_COOKIE = '__Host-wp_sudo_stash_proof';
+
+	/**
+	 * Request params that identify the concrete target of a gated action.
+	 *
+	 * Recorded so the challenge can name what is about to happen ("Activate plugin:
+	 * evil/evil.php") instead of only the coarse rule label. Informed confirmation is
+	 * the control that survives a binding bypass — the user is consenting to a NAMED
+	 * action, not signing a blank cheque.
+	 *
+	 * @var string[]
+	 */
+	private const TARGET_PARAMS = array( 'plugin', 'theme', 'stylesheet', 'template', 'user_id', 'users', 'option', 'file', 'id', 'post', 'blog_id', 'app_name' );
+
+	/**
+	 * Maximum stored length of a single target value.
+	 *
+	 * @var int
+	 */
+	private const TARGET_MAX_LENGTH = 100;
+
+	/**
 	 * Reason code for POST requests that are intentionally not replayed.
 	 *
 	 * @var string
@@ -156,6 +188,8 @@ class Request_Stash {
 			'post_replay_blocked'      => $post_replay_blocked || $redacted_fields_omitted,
 			'post_replay_block_reason' => $redacted_fields_omitted ? 'redacted_fields_omitted' : $post_replay_block_reason,
 			'created'                  => time(),
+			'target'                   => $this->capture_target(),
+			'binding_hash'             => $this->mint_binding_proof(),
 		);
 
 		$this->set_stash_transient( self::TRANSIENT_PREFIX . $key, $data, self::TTL );
@@ -164,6 +198,100 @@ class Request_Stash {
 		$this->add_to_stash_index( $user_id, $key );
 
 		return $key;
+	}
+
+	/**
+	 * Capture the concrete target of the gated request for informed confirmation.
+	 *
+	 * Read-only, sanitized, length-capped. Never used to route or replay — it exists
+	 * solely so the challenge page can name the action the user is authorizing.
+	 *
+	 * @return array<string, string>
+	 */
+	private function capture_target(): array {
+		$target = array();
+
+		foreach ( self::TARGET_PARAMS as $param ) {
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- Display metadata only, never used to route or replay; sanitized below.
+			$raw = $_GET[ $param ] ?? $_POST[ $param ] ?? null;
+
+			if ( null === $raw || is_array( $raw ) || '' === $raw ) {
+				continue;
+			}
+
+			$value = sanitize_text_field( wp_unslash( (string) $raw ) );
+
+			if ( '' === $value ) {
+				continue;
+			}
+
+			$target[ $param ] = substr( $value, 0, self::TARGET_MAX_LENGTH );
+		}
+
+		return $target;
+	}
+
+	/**
+	 * Mint a per-browser binding proof for this stash (#322 v2).
+	 *
+	 * Returns the sha256 of a fresh random secret and sets the plaintext secret in a
+	 * host-only, httponly, SameSite=Strict cookie. Only the HASH is ever stored, so a
+	 * stash read does not yield the proof.
+	 *
+	 * Deliberately refuses to mint (returns '') unless ALL hold:
+	 *  - the gated request was same-origin initiated (`Sec-Fetch-Site: same-origin`).
+	 *    WordPress nonces are bound to the session token, NOT the browser, so an
+	 *    attacker holding a stolen login cookie can mint a valid nonce and lure the
+	 *    victim into issuing the gated request — which would otherwise mint the
+	 *    binding in the VICTIM's browser and defeat the whole mechanism. A missing or
+	 *    cross-site/same-site header fails closed.
+	 *  - cookies are Secure (`__Host-` requires it; without TLS there is no binding
+	 *    worth trusting anyway).
+	 *  - headers are not already sent, so the cookie can actually reach the browser.
+	 *    Storing a hash the browser can never satisfy would strand the stash.
+	 *
+	 * Binding is defence-in-depth only. It is never sufficient on its own to authorize
+	 * a replay — informed confirmation of the named target is the primary control.
+	 *
+	 * @return string sha256 hex digest, or '' when no binding is minted.
+	 */
+	private function mint_binding_proof(): string {
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Fetch metadata header, not user input.
+		$fetch_site = isset( $_SERVER['HTTP_SEC_FETCH_SITE'] ) ? sanitize_text_field( wp_unslash( (string) $_SERVER['HTTP_SEC_FETCH_SITE'] ) ) : '';
+
+		if ( 'same-origin' !== $fetch_site ) {
+			return '';
+		}
+
+		if ( ! Sudo_Session::cookie_secure() || headers_sent() ) {
+			return '';
+		}
+
+		// random_bytes(): unfilterable, unlike wp_generate_password(), whose
+		// `random_password` filter a third-party plugin could collapse.
+		try {
+			$secret = bin2hex( random_bytes( 32 ) );
+		} catch ( \Exception $e ) {
+			return '';
+		}
+
+		// phpcs:ignore WordPressVIPMinimum.Functions.RestrictedFunctions.cookies_setcookie
+		setcookie(
+			self::BINDING_COOKIE,
+			$secret,
+			array(
+				'expires'  => time() + self::TTL,
+				// __Host- requires path=/ and forbids an explicit domain.
+				'path'     => '/',
+				'secure'   => true,
+				'httponly' => true,
+				'samesite' => 'Strict',
+			)
+		);
+
+		$_COOKIE[ self::BINDING_COOKIE ] = $secret; // phpcs:ignore WordPressVIPMinimum.Variables.RestrictedVariables.cache_constraints___COOKIE
+
+		return hash( 'sha256', $secret );
 	}
 
 	/**

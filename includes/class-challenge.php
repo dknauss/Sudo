@@ -309,6 +309,13 @@ class Challenge {
 
 			$action_label = $stash['label'] ?? $stash['rule_id'] ?? __( 'this action', 'wp-sudo' );
 		}
+
+		// #322 v2: name the concrete target. A coarse label ("Activate plugin") is a
+		// blank cheque — an attacker who lures the user into a gated request gets the
+		// same prompt as a legitimate action. Showing WHAT is about to happen makes
+		// the password submit an informed decision, which is the control that holds
+		// even if the browser binding is bypassed.
+		$action_target  = $this->describe_stash_target( $stash );
 		$throttle_delay = Sudo_Session::throttle_remaining( $user_id );
 		$is_locked      = Sudo_Session::is_locked_out( $user_id );
 		$is_throttled   = $throttle_delay > 0;
@@ -329,6 +336,17 @@ class Challenge {
 					);
 					?>
 				</p>
+				<?php if ( '' !== $action_target ) : ?>
+					<p class="wp-sudo-challenge-target">
+						<?php
+						printf(
+							/* translators: %s: the concrete target of the action (e.g. a plugin file or user login) */
+							esc_html__( 'Target: %s', 'wp-sudo' ),
+							'<code>' . esc_html( $action_target ) . '</code>'
+						);
+						?>
+					</p>
+				<?php endif; ?>
 
 				<ol class="wp-sudo-lecture">
 					<li><?php esc_html_e( 'Respect the privacy of others.', 'wp-sudo' ); ?></li>
@@ -658,7 +676,8 @@ class Challenge {
 		switch ( $result['code'] ) {
 			case 'success':
 				if ( $stash_key ) {
-					$this->replay_stash( $user_id, $stash_key );
+					// Password just verified on this request → bound replay is eligible.
+					$this->replay_stash( $user_id, $stash_key, true );
 				} else {
 					// Session-only flow — session is now active, user retries manually.
 					// `remaining` seeds the in-editor indicator's countdown (#182).
@@ -873,7 +892,8 @@ class Challenge {
 		Sudo_Session::activate( $user_id );
 
 		if ( $stash_key ) {
-			$this->replay_stash( $user_id, $stash_key );
+			// Second factor just verified on this request → bound replay is eligible.
+			$this->replay_stash( $user_id, $stash_key, true );
 		} else {
 			// Session-only flow — session is now active, user retries manually.
 			// `remaining` seeds the in-editor indicator's countdown (#182).
@@ -893,12 +913,13 @@ class Challenge {
 	 *   - Redirects for GET requests.
 	 *   - Builds and submits a hidden form for POST requests.
 	 *
-	 * @param int    $user_id   The user ID.
-	 * @param string $stash_key The stash key.
+	 * @param int    $user_id             The user ID.
+	 * @param string $stash_key           The stash key.
+	 * @param bool   $credential_verified Whether a password/2FA was verified on this request (#322 v2).
 	 * @return void
 	 */
-	private function replay_stash( int $user_id, string $stash_key ): void {
-		wp_send_json_success( $this->build_replay_response_data( $user_id, $stash_key ) );
+	private function replay_stash( int $user_id, string $stash_key, bool $credential_verified = false ): void {
+		wp_send_json_success( $this->build_replay_response_data( $user_id, $stash_key, null, $credential_verified ) );
 	}
 
 	/**
@@ -1022,14 +1043,113 @@ class Challenge {
 	}
 
 	/**
+	 * Describe the concrete target of a stashed action for informed confirmation.
+	 *
+	 * Display only — never used to route or replay. Values were sanitized and
+	 * length-capped at stash time; they are escaped again at render.
+	 *
+	 * @param array<string, mixed>|null $stash The stash data, if any.
+	 * @return string Human-readable target, or '' when the stash records none.
+	 */
+	private function describe_stash_target( ?array $stash ): string {
+		if ( ! $stash || empty( $stash['target'] ) || ! is_array( $stash['target'] ) ) {
+			return '';
+		}
+
+		$parts = array();
+
+		foreach ( $stash['target'] as $key => $value ) {
+			if ( ! is_string( $key ) || ! is_scalar( $value ) || '' === (string) $value ) {
+				continue;
+			}
+
+			$parts[] = $key . '=' . (string) $value;
+		}
+
+		return implode( ', ', $parts );
+	}
+
+	/**
+	 * Whether a stash may be auto-replayed under the #322 v2 origin binding.
+	 *
+	 * Every condition must hold; anything else falls back to the v1 fail-closed
+	 * landing. Binding is defence-in-depth, never the sole authorization — the
+	 * challenge page names the concrete target so the credential the user just
+	 * supplied is consent to a KNOWN action, not a blank cheque.
+	 *
+	 * @param array<string, mixed> $stash               The stash data.
+	 * @param bool                 $credential_verified Whether a password/2FA was verified on THIS request.
+	 * @return bool
+	 */
+	private function may_replay_bound_stash( array $stash, bool $credential_verified ): bool {
+		// Only the post-credential paths. The already-active resume paths involve no
+		// password step at all and auto-submit on page load, so the cookie would be
+		// the only control between "victim opens a link" and "stashed POST executes".
+		if ( ! $credential_verified ) {
+			return false;
+		}
+
+		// Never replay a stash whose body was redacted or explicitly not replayable —
+		// it would submit a form with secret fields silently missing.
+		if ( ! empty( $stash['redacted_fields_omitted'] ) || ! empty( $stash['post_replay_blocked'] ) ) {
+			return false;
+		}
+
+		$expected = isset( $stash['binding_hash'] ) && is_string( $stash['binding_hash'] ) ? $stash['binding_hash'] : '';
+
+		if ( '' === $expected ) {
+			return false;
+		}
+
+		// phpcs:ignore WordPressVIPMinimum.Variables.RestrictedVariables.cache_constraints___COOKIE
+		$presented = isset( $_COOKIE[ Request_Stash::BINDING_COOKIE ] ) ? sanitize_text_field( wp_unslash( (string) $_COOKIE[ Request_Stash::BINDING_COOKIE ] ) ) : '';
+
+		if ( '' === $presented ) {
+			return false;
+		}
+
+		return hash_equals( $expected, hash( 'sha256', $presented ) );
+	}
+
+	/**
+	 * Clear the one-time stash binding cookie.
+	 *
+	 * Cleared on BOTH the replay and fail-closed paths so a proof never outlives the
+	 * stash it belonged to.
+	 *
+	 * @return void
+	 */
+	private function clear_binding_cookie(): void {
+		if ( headers_sent() ) {
+			return;
+		}
+
+		// phpcs:ignore WordPressVIPMinimum.Functions.RestrictedFunctions.cookies_setcookie
+		setcookie(
+			Request_Stash::BINDING_COOKIE,
+			'',
+			array(
+				'expires'  => time() - 3600,
+				'path'     => '/',
+				'secure'   => true,
+				'httponly' => true,
+				'samesite' => 'Strict',
+			)
+		);
+
+		unset( $_COOKIE[ Request_Stash::BINDING_COOKIE ] ); // phpcs:ignore WordPressVIPMinimum.Variables.RestrictedVariables.cache_constraints___COOKIE -- Clearing a one-time proof for the current request; not a caching decision.
+	}
+
+	/**
 	 * Build replay response data for a stashed request.
 	 *
 	 * @param int         $user_id      The user ID.
 	 * @param string      $stash_key    The stash key.
 	 * @param string|null $fallback_url Fallback redirect when stash is missing.
+	 * @param bool        $credential_verified Whether a password/2FA was verified on this request (#322 v2).
 	 * @return array<string, mixed>
 	 */
-	private function build_replay_response_data( int $user_id, string $stash_key, ?string $fallback_url = null ): array {
+	private function build_replay_response_data( int $user_id, string $stash_key, ?string $fallback_url = null, bool $credential_verified = false ): array {
 		$stash = $this->stash->get( $stash_key, $user_id );
 
 		if ( ! $fallback_url ) {
@@ -1045,6 +1165,45 @@ class Challenge {
 
 		// Consume the stash (one-time use).
 		$this->stash->delete( $stash_key, $user_id );
+
+		if ( $this->may_replay_bound_stash( $stash, $credential_verified ) ) {
+			$safe_url = wp_validate_redirect( $stash['url'], '' );
+
+			// Refuse rather than re-target: if validation altered the URL (e.g. a
+			// cross-host stash on multisite — stash transients are network-wide but
+			// wp_validate_redirect only allows the current host), fall through to the
+			// fail-closed landing instead of replaying against a different URL.
+			if ( '' !== $safe_url && $safe_url === $stash['url'] ) {
+				$this->clear_binding_cookie();
+
+				/**
+				 * Fires when a stashed request is about to be replayed.
+				 *
+				 * @since 2.0.0
+				 *
+				 * @param int    $user_id The user who reauthenticated.
+				 * @param string $rule_id The rule ID that was gated.
+				 */
+				do_action( 'wp_sudo_action_replayed', $user_id, $stash['rule_id'] ?? '' );
+
+				if ( 'GET' === strtoupper( (string) ( $stash['method'] ?? 'GET' ) ) ) {
+					return array(
+						'code'     => 'success',
+						'redirect' => $safe_url,
+					);
+				}
+
+				return array(
+					'code'      => 'success',
+					'replay'    => true,
+					'method'    => $stash['method'],
+					'url'       => $safe_url,
+					'post_data' => $stash['post'] ?? array(),
+				);
+			}
+		}
+
+		$this->clear_binding_cookie();
 
 		/*
 		 * #322 — fail closed, with a soft landing. The stashed action is NEVER

@@ -1722,6 +1722,181 @@ class ChallengeTest extends TestCase
 	}
 
 	// -----------------------------------------------------------------
+	// #322 v2 — origin-bound replay. Auto-replay is allowed ONLY when a
+	// credential was verified on THIS request AND the browser presents the
+	// binding proof minted when the stash was created. Everything else keeps
+	// the v1 fail-closed landing.
+	// -----------------------------------------------------------------
+
+	/**
+	 * Build a clean, replayable POST stash bound to $secret.
+	 *
+	 * @param string $secret Binding secret whose hash the stash stores.
+	 * @return array<string, mixed>
+	 */
+	private function boundPostStash(string $secret): array
+	{
+		return array(
+			'method' => 'POST',
+			'url' => 'https://example.com/wp-admin/users.php',
+			'return_url' => 'https://example.com/wp-admin/user-new.php',
+			'rule_id' => 'user.create',
+			'post' => array('role' => 'administrator'),
+			'binding_hash' => hash('sha256', $secret),
+		);
+	}
+
+	/**
+	 * Stub the functions the replay chokepoint needs.
+	 */
+	private function stubReplayEnv(): void
+	{
+		Functions\when('admin_url')->justReturn('https://example.com/wp-admin/');
+		Functions\when('wp_validate_redirect')->returnArg();
+		Functions\when('sanitize_text_field')->returnArg();
+		Functions\when('headers_sent')->justReturn(true); // skip setcookie in unit context
+		Functions\when('add_query_arg')->alias(
+			static function ( string $key, string $value, string $url ): string {
+				$separator = str_contains($url, '?') ? '&' : '?';
+				return $url . $separator . $key . '=' . $value;
+			}
+		);
+	}
+
+	/**
+	 * Invoke the replay chokepoint directly.
+	 *
+	 * @param bool $credentialVerified Whether a credential was verified this request.
+	 * @return array<string, mixed>
+	 */
+	private function invokeReplay(string $stashKey, bool $credentialVerified): array
+	{
+		$method = new \ReflectionMethod($this->challenge, 'build_replay_response_data');
+		if ( PHP_VERSION_ID < 80100 ) {
+			$method->setAccessible(true);
+		}
+		return $method->invoke($this->challenge, 42, $stashKey, 'https://example.com/wp-admin/', $credentialVerified);
+	}
+
+	/**
+	 * #322 v2: the legitimate same-browser flow replays again (UX restored).
+	 */
+	public function test_bound_stash_replays_after_credential_verified(): void
+	{
+		$secret = 'super-secret-proof';
+		$_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE] = $secret;
+
+		$this->stash->shouldReceive('get')->once()->andReturn($this->boundPostStash($secret));
+		$this->stash->shouldReceive('delete')->once();
+		$this->stubReplayEnv();
+
+		$data = $this->invokeReplay('bound-key', true);
+
+		$this->assertTrue($data['replay'] ?? false, 'Matching binding + verified credential must replay.');
+		$this->assertSame(array('role' => 'administrator'), $data['post_data']);
+
+		unset($_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE]);
+	}
+
+	/**
+	 * #322 v2: the attacker's planted stash — victim's browser has no proof.
+	 */
+	public function test_planted_stash_without_binding_cookie_fails_closed(): void
+	{
+		unset($_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE]);
+
+		$this->stash->shouldReceive('get')->once()->andReturn($this->boundPostStash('attacker-secret'));
+		$this->stash->shouldReceive('delete')->once();
+		$this->stubReplayEnv();
+
+		$data = $this->invokeReplay('planted-key', true);
+
+		$this->assertArrayNotHasKey('replay', $data, 'No proof in this browser → must not replay.');
+		$this->assertArrayNotHasKey('post_data', $data);
+	}
+
+	/**
+	 * #322 v2: cookie transplant — a proof that does not match this stash is refused.
+	 */
+	public function test_transplanted_binding_cookie_is_refused(): void
+	{
+		$_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE] = 'a-different-stashs-proof';
+
+		$this->stash->shouldReceive('get')->once()->andReturn($this->boundPostStash('the-real-proof'));
+		$this->stash->shouldReceive('delete')->once();
+		$this->stubReplayEnv();
+
+		$data = $this->invokeReplay('transplant-key', true);
+
+		$this->assertArrayNotHasKey('replay', $data, 'Mismatched proof must not replay.');
+
+		unset($_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE]);
+	}
+
+	/**
+	 * #322 v2: the no-password resume paths stay fail-closed even with a valid proof.
+	 */
+	public function test_bound_stash_is_not_replayed_without_credential_verification(): void
+	{
+		$secret = 'super-secret-proof';
+		$_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE] = $secret;
+
+		$this->stash->shouldReceive('get')->once()->andReturn($this->boundPostStash($secret));
+		$this->stash->shouldReceive('delete')->once();
+		$this->stubReplayEnv();
+
+		$data = $this->invokeReplay('resume-key', false);
+
+		$this->assertArrayNotHasKey('replay', $data, 'Resume path (no credential this request) must not replay.');
+
+		unset($_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE]);
+	}
+
+	/**
+	 * #322 v2: a redacted/blocked stash is never replayed, binding or not.
+	 */
+	public function test_bound_but_redacted_stash_is_not_replayed(): void
+	{
+		$secret = 'super-secret-proof';
+		$_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE] = $secret;
+
+		$stash = $this->boundPostStash($secret);
+		$stash['redacted_fields_omitted'] = true;
+
+		$this->stash->shouldReceive('get')->once()->andReturn($stash);
+		$this->stash->shouldReceive('delete')->once();
+		$this->stubReplayEnv();
+
+		$data = $this->invokeReplay('redacted-key', true);
+
+		$this->assertArrayNotHasKey('replay', $data, 'Redacted stash must never replay (secrets are missing).');
+		$this->assertStringContainsString('wp_sudo_redacted_replay=1', $data['redirect']);
+
+		unset($_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE]);
+	}
+
+	/**
+	 * #322 v2: refuse rather than re-target when validation alters the stashed URL.
+	 */
+	public function test_bound_stash_with_unvalidatable_url_is_not_replayed(): void
+	{
+		$secret = 'super-secret-proof';
+		$_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE] = $secret;
+
+		$this->stash->shouldReceive('get')->once()->andReturn($this->boundPostStash($secret));
+		$this->stash->shouldReceive('delete')->once();
+		$this->stubReplayEnv();
+		// Simulate wp_validate_redirect() rejecting/altering the stashed URL.
+		Functions\when('wp_validate_redirect')->justReturn('https://example.com/wp-admin/');
+
+		$data = $this->invokeReplay('crosshost-key', true);
+
+		$this->assertArrayNotHasKey('replay', $data, 'Altered URL must fail closed, not re-target the POST.');
+
+		unset($_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE]);
+	}
+
+	// -----------------------------------------------------------------
 	// handle_ajax_2fa — Two Factor provider: pre_process_authentication resend
 	// -----------------------------------------------------------------
 
