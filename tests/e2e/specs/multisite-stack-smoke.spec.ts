@@ -122,26 +122,33 @@ test.describe( 'WP Sudo multisite alternative stack smoke tests', () => {
         await page.goto( '/wp-admin/network/settings.php?page=wp-sudo-settings' );
         await expect( sessionDuration ).toHaveValue( originalValue );
 
-        await sessionDuration.fill( updatedValue );
-        await Promise.all( [
-            page.waitForURL(
-                /\/wp-admin\/network\/settings\.php\?page=wp-sudo-settings(?:&updated=true)?$/,
-                { timeout: NAV_TIMEOUT }
-            ),
-            forceClick( page.locator( '#submit' ) ),
-        ] );
+        /**
+         * Submit and confirm the value actually PERSISTED.
+         *
+         * Not `waitForURL`: the settings URL is already current here, so waitForURL
+         * resolves immediately and the assertion would only observe the value fill()
+         * just typed into the DOM — passing even if the save never committed.
+         */
+        const saveAndConfirm = async ( value: string ) => {
+            await sessionDuration.fill( value );
+            await forceClick( page.locator( '#submit' ) );
 
-        await expect( sessionDuration ).toHaveValue( updatedValue );
+            await expect
+                .poll(
+                    async () => {
+                        await page.goto( '/wp-admin/network/settings.php?page=wp-sudo-settings' );
+                        return sessionDuration.inputValue();
+                    },
+                    { timeout: NAV_TIMEOUT }
+                )
+                .toBe( value );
+        };
 
-        await sessionDuration.fill( originalValue );
-        await Promise.all( [
-            page.waitForURL(
-                /\/wp-admin\/network\/settings\.php\?page=wp-sudo-settings(?:&updated=true)?$/,
-                { timeout: NAV_TIMEOUT }
-            ),
-            forceClick( page.locator( '#submit' ) ),
-        ] );
-        await expect( sessionDuration ).toHaveValue( originalValue );
+        // The session is now active, so the user's own re-submit passes straight through.
+        await saveAndConfirm( updatedValue );
+
+        // Restore so stack smoke runs stay side-effect-light.
+        await saveAndConfirm( originalValue );
     } );
 
     test( 'MSTACK-03: network-admin policy preset applies and can be restored', async ( {

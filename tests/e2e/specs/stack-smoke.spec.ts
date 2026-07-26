@@ -83,34 +83,38 @@ test.describe( 'WP Sudo alternative stack smoke tests', () => {
         await page.goto( '/wp-admin/options-general.php?page=wp-sudo-settings' );
         await expect( sessionDuration ).toHaveValue( originalValue );
 
+        /**
+         * Submit the settings form and confirm the value actually PERSISTED.
+         *
+         * Deliberately not `waitForURL`: the settings URL is already the current URL
+         * here, and waitForURL resolves immediately when the current URL matches — so
+         * it returns before the POST commits and a following navigation aborts the
+         * save. Re-loading the page and polling the served value asserts the real
+         * post-condition instead of a URL shape.
+         */
+        const saveAndConfirm = async ( value: string ) => {
+            await sessionDuration.fill( value );
+            await page
+                .locator( '#submit' )
+                .evaluate( ( button ) => ( button as HTMLInputElement ).form?.requestSubmit() );
+
+            await expect
+                .poll(
+                    async () => {
+                        await page.goto( '/wp-admin/options-general.php?page=wp-sudo-settings' );
+                        return sessionDuration.inputValue();
+                    },
+                    { timeout: 15_000 }
+                )
+                .toBe( value );
+        };
+
         // The session is now active, so the user's own re-submit passes straight
         // through the gate (one re-do, not a second password).
-        await sessionDuration.fill( updatedValue );
-        await page
-            .locator( '#submit' )
-            .evaluate( ( button ) => ( button as HTMLInputElement ).form?.requestSubmit() );
-        await expect( page ).toHaveURL(
-            /\/wp-admin\/options-general\.php\?page=wp-sudo-settings(?:&updated=true)?$/,
-            { timeout: 15_000 }
-        );
-        await expect( sessionDuration ).toHaveValue( updatedValue );
+        await saveAndConfirm( updatedValue );
 
         // Restore the original setting so stack smoke runs stay side-effect-light.
-        // Wait for the save to COMMIT and re-read from the server: asserting straight
-        // after fill() would only observe the value just typed into the DOM, so a
-        // blocked or failed restore would pass and leak state into later runs.
-        await sessionDuration.fill( originalValue );
-        await Promise.all( [
-            page.waitForURL(
-                /\/wp-admin\/options-general\.php\?page=wp-sudo-settings(?:&updated=true)?$/,
-                { timeout: 15_000 }
-            ),
-            page
-                .locator( '#submit' )
-                .evaluate( ( button ) => ( button as HTMLInputElement ).form?.requestSubmit() ),
-        ] );
-        await page.goto( '/wp-admin/options-general.php?page=wp-sudo-settings' );
-        await expect( sessionDuration ).toHaveValue( originalValue );
+        await saveAndConfirm( originalValue );
     } );
 
     test( 'STACK-04: admin bar AJAX deactivation clears the sudo cookie', async ( {
