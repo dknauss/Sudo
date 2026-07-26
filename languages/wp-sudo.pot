@@ -2000,7 +2000,7 @@ msgid "This action requires reauthentication. Enter your password to continue."
 msgstr ""
 
 #. translators: %d: whole minutes remaining in the sudo session
-#: admin/js/wp-sudo-session-indicator.js:202
+#: admin/js/wp-sudo-session-indicator.js:205
 #, js-format
 msgid "Reauthenticated — sudo active for about %d min."
 msgstr ""

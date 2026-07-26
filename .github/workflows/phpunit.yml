@@ -308,6 +308,12 @@ jobs:
       - name: Verify metrics file drift
         run: composer verify:metrics
 
+      # The script existed but ran nowhere, so a stale POT reached main in #317:
+      # line references had been hand-patched instead of regenerated, and one was
+      # missed. Cheap to run, and it only fails when the POT is genuinely out of date.
+      - name: Verify POT file drift
+        run: composer verify:i18n
+
       - name: Run PHPCS
         run: composer lint
 
