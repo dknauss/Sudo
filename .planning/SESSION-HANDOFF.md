@@ -37,6 +37,70 @@
 
 Main is at `2c3b16c`. A fresh session can resume from here alone. (Earlier session detail is in "Done this session" further down; the **Latest** section below has the core-gate design-review record.)
 
+## ⇢ RESUME HERE — process/CI hygiene + editor-UX lane (2026-07-26)
+
+**A separate lane from the core-gate work above.** No file overlap: this touched the
+in-editor indicator, `AGENTS.md`/`CLAUDE.md`, `bin/`, `.github/workflows/`, and the
+visual baselines. Read this only if you are picking up that lane.
+
+**Merged:** **#317** — the in-editor header indicator's state moved from a colour chip
+to the padlock glyph (closed padlock inactive / open active / warning in the final
+60 s), with the green chip returning *only* under core's "Show button text labels"
+preference, where core replaces our icon with its own `check` and suppresses the
+tooltip, leaving colour as the only channel. E2E total 94.
+
+**Open PRs, all independent of each other:**
+
+| PR | What | State |
+|---|---|---|
+| #332 | Prose-discipline rules (`AGENTS.md`) + `docs/upstream-sources.md` citation registry + `bin/verify-sources.sh` + nightly workflow; also a stale POT fix and `composer verify:i18n` wired into CI for the first time | auto-merge armed |
+| #336 | `docs/llm-lies-log.md` #40-#48 — this session's confabulations | auto-merge armed |
+| #339 | `AGENTS.md` becomes canonical for Verification Requirements; closes #333 | open |
+| #342 | VISN-01/02 baselines regenerated on Linux + an `update_snapshots` dispatch mode + `e2e-visual.yml` stops swallowing its exit code | open |
+| #344 | Unbreaks `docs-lint`, red on `main` since #338 | open |
+
+**Open issues:** **#341** — VISN-03/04 fail with a `toHaveScreenshot` timeout that
+survives `--update-snapshots`; their baselines are byte-identical after regeneration,
+so this is a test bug, not drift. Traces are in the run artifacts. The obvious cause
+(`page.clock.install()`) was tested and refuted.
+
+**The theme of the lane, and the thing worth carrying forward: three separate checks
+had quietly stopped meaning anything.**
+
+1. `e2e-visual.yml` marked its only test step `continue-on-error`, so it reported
+   success while four baselines failed on every nightly run.
+2. `composer verify:i18n` existed but was wired into no workflow at all — which is how
+   a stale POT reached `main` in #317.
+3. `docs-lint` had been red on `main` for two commits with nobody noticing, because it
+   is not a required check.
+
+None of these were caught by anyone reading code. Each was found by running the thing
+and looking at the output.
+
+**Next actionable, in order:**
+
+1. **Land the five PRs.** They are blocked only by the merge race with the core-gate
+   lane — every push to `main` puts them `BEHIND`. If both lanes are active, coordinate
+   or merge them from the UI.
+2. **Citation migration (blocked on #332).** `bin/verify-sources.sh` warns that 8 files
+   cite upstream code outside the registry. Five are
+   `raw.githubusercontent.com/snicco/fortress/**beta**/…` — a *moving branch*, so the
+   highest drift risk in the repo. Deliberately left as a WARN backlog rather than a
+   red build on day one. Do this on a branch stacked on `chore/prose-discipline`, not a
+   fork of the script.
+3. **#341** — needs a trace read, not a guess.
+
+**Two traps this lane hit that will recur:**
+
+- **Visual baselines must be generated on the Linux runner.** Regenerating on macOS
+  produces PNGs that can never match: font metrics differ by a few pixels, and
+  `threshold` is a per-pixel colour tolerance, not a pixel-count budget. #342 adds a
+  dispatch mode for this. The trap has now caught the repo twice.
+- **Regenerate the POT, never hand-patch its line references.** `bin/make-pot.sh`
+  exists. Hand-patching five refs in #317 missed a sixth and shipped a stale POT.
+
+---
+
 ## ⇢ RESUME HERE (2026-07-26, end of the docs/design-review session)
 
 **Concurrent sessions — DO NOT disturb their worktrees; each merges its own branch:**

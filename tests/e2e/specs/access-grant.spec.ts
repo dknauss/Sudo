@@ -21,16 +21,14 @@
  * Source: includes/class-action-registry.php — options.wp_sudo_access gates wp_sudo_grant_cap (verified)
  */
 import { test, expect, activateSudoSession } from '../fixtures/test';
-import { execSync } from 'child_process';
-import { wpEnvRun } from '../fixtures/wp-env';
+import { wpEnvRunCliSync } from '../fixtures/wp-env';
 
 // 'cli' targets the development site (port 8889) — the same site the browser uses.
-const WP_ENV_RUN_CLI = wpEnvRun( 'cli' );
 const ACCESS_QUERY = 'page=wp-sudo-settings&tab=access';
 
 /** Run a WP-CLI command in the dev-site container and return trimmed stdout. */
-function cli( command: string ): string {
-	return execSync( `${ WP_ENV_RUN_CLI } ${ command }`, { encoding: 'utf8' } ).trim();
+function cli( args: string[] ): string {
+	return wpEnvRunCliSync( 'cli', args );
 }
 
 /**
@@ -39,13 +37,27 @@ function cli( command: string ): string {
  * Access grants are themselves gateable in browser/admin flows. Test setup and
  * cleanup should not be intercepted by Sudo's CLI policy while preparing users.
  */
-function fixtureCli( command: string ): string {
-	return cli( `wp --skip-plugins ${ command }` );
+function fixtureCli( args: string[] ): string {
+	return cli( [ 'wp', '--skip-plugins', ...args ] );
+}
+
+/**
+ * Run a fixture command whose failure is non-fatal (the WP-CLI equivalent of a
+ * trailing `|| true` / `|| echo ''`), returning '' on any non-zero exit.
+ */
+function fixtureCliAllowFail( args: string[] ): string {
+	try {
+		return fixtureCli( args );
+	} catch {
+		return '';
+	}
 }
 
 /** Whether a user effectively holds a capability (robust vs. list-caps formatting). */
 function userCan( userId: number, cap: string ): boolean {
-	return fixtureCli( `eval "echo user_can( ${ userId }, '${ cap }' ) ? 'yes' : 'no';"` ) === 'yes';
+	return (
+		fixtureCli( [ 'eval', `echo user_can( ${ userId }, '${ cap }' ) ? 'yes' : 'no';` ] ) === 'yes'
+	);
 }
 
 test.describe( 'Access tab — grant capability', () => {
@@ -54,32 +66,40 @@ test.describe( 'Access tab — grant capability', () => {
 	test.beforeAll( () => {
 		// The granting admin (user 1) must hold manage_wp_sudo to reach the Access
 		// tab and authorize grants — guarantee it regardless of activation state.
-		fixtureCli( 'user add-cap 1 manage_wp_sudo --quiet' );
+		fixtureCli( [ 'user', 'add-cap', '1', 'manage_wp_sudo', '--quiet' ] );
 
 		// Dedicated administrator target (idempotent — reuse if a previous run left it).
-		const existing = fixtureCli(
-			`user get e2e_grant_target --field=ID 2>/dev/null || echo ''`
-		);
+		const existing = fixtureCliAllowFail( [
+			'user',
+			'get',
+			'e2e_grant_target',
+			'--field=ID',
+		] );
 		targetId = existing
 			? parseInt( existing, 10 )
 			: parseInt(
-					fixtureCli(
-						'user create e2e_grant_target e2e_grant@example.com ' +
-							'--role=administrator --user_pass=password --porcelain'
-					),
+					fixtureCli( [
+						'user',
+						'create',
+						'e2e_grant_target',
+						'e2e_grant@example.com',
+						'--role=administrator',
+						'--user_pass=password',
+						'--porcelain',
+					] ),
 					10
 			  );
 	} );
 
 	test.afterAll( () => {
-		fixtureCli( `user delete ${ targetId } --yes --reassign=1` );
+		fixtureCli( [ 'user', 'delete', String( targetId ), '--yes', '--reassign=1' ] );
 	} );
 
 	test.beforeEach( () => {
 		// Clean slate: strip the cap and clear the Gate's blocked-action transients
 		// (which otherwise persist between runs and affect gating).
-		fixtureCli( `user remove-cap ${ targetId } manage_wp_sudo --quiet 2>/dev/null || true` );
-		fixtureCli( 'transient delete --all --quiet 2>/dev/null || true' );
+		fixtureCliAllowFail( [ 'user', 'remove-cap', String( targetId ), 'manage_wp_sudo', '--quiet' ] );
+		fixtureCliAllowFail( [ 'transient', 'delete', '--all', '--quiet' ] );
 	} );
 
 	test( 'ACCESS-01: grant is gated without an active sudo session', async ( {
