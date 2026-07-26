@@ -146,6 +146,66 @@ class Sudo_Session {
 	public const LOCKOUT_DURATION = 300;
 
 	/**
+	 * User-meta key pointing at the IP-scoped lockout-until transient set
+	 * alongside a lockout (see ip_lockout_transient_key()).
+	 *
+	 * Lets an out-of-band clear (WP-CLI `wp sudo unlock`, #280) find and
+	 * delete the specific transient a lockout episode created, without
+	 * needing to store the raw triggering IP address in user meta.
+	 *
+	 * @since TBD
+	 * @var string
+	 */
+	public const LOCKOUT_IP_TRANSIENT_META_KEY = '_wp_sudo_lockout_ip_transient';
+
+	/**
+	 * User-meta key pointing at the IP-scoped rolling failure-event transient
+	 * set alongside a lockout (see ip_failure_event_transient_key()).
+	 *
+	 * This transient tracks the last 24h of failures for the (ip, user) pair
+	 * and is what decides whether the *next* wrong password re-triggers a
+	 * lockout. Clearing only the lockout-until transient without also
+	 * clearing this one would leave a stale rolling count in place, so a
+	 * single further wrong password from the same IP would immediately
+	 * re-lock the user right after an out-of-band clear (#280).
+	 *
+	 * @since TBD
+	 * @var string
+	 */
+	public const LOCKOUT_IP_FAILURE_TRANSIENT_META_KEY = '_wp_sudo_lockout_ip_failure_transient';
+
+	/**
+	 * User meta: monotonic counter that versions this user's IP-scoped
+	 * transient keys, so an out-of-band clear (#280) can invalidate ALL of
+	 * them at once.
+	 *
+	 * The stored pointers above name only the single IP that submitted the
+	 * threshold attempt. That is not the whole episode: a lockout fires on
+	 * `max( user_attempts, ip_attempts )`, so four failures from IP A followed
+	 * by the fifth from IP B trips the per-user count while the pointer records
+	 * only B. Clearing B alone leaves A's rolling window holding four events,
+	 * and A's very next wrong password re-locks the user — exactly what the
+	 * clear exists to prevent.
+	 *
+	 * Rather than enumerate every IP touched (a serialized roster would need a
+	 * read-modify-write on each failure, reintroducing the same lost-update
+	 * bug it was meant to fix), the epoch is folded into both key builders.
+	 * Bumping it once orphans every key derived from the old value — every IP,
+	 * and on multisite every blog, since user meta is network-global while
+	 * transients are per-blog. Orphaned rows expire on their own TTL (24 h
+	 * failure window, LOCKOUT_DURATION lockout) and are reaped by core's
+	 * `delete_expired_transients` cron; nothing reads them again.
+	 *
+	 * Absent/zero is the identity value: the key is byte-identical to the
+	 * pre-epoch scheme, so an in-flight lockout created before upgrade stays
+	 * reachable and clearable with no migration.
+	 *
+	 * @since TBD
+	 * @var string
+	 */
+	public const IP_FAILURE_EPOCH_META_KEY = '_wp_sudo_ip_failure_epoch';
+
+	/**
 	 * User-meta key for tracking failed reauth events (append-only).
 	 *
 	 * @var string
@@ -1278,10 +1338,24 @@ class Sudo_Session {
 				$now + self::LOCKOUT_DURATION
 			);
 
+			$ip_lockout_key = self::ip_lockout_transient_key( $ip, $user_id );
 			set_transient(
-				self::ip_lockout_transient_key( $ip, $user_id ),
+				$ip_lockout_key,
 				$now + self::LOCKOUT_DURATION,
 				self::LOCKOUT_DURATION
+			);
+
+			// Remember pointers to both IP-scoped transients this lockout just
+			// wrote (the lockout-until transient above, and the rolling
+			// failure-event window read via record_failed_attempt_for_ip()), so
+			// an out-of-band clear (#280) can fully undo this lockout episode —
+			// not just the user-meta half — instead of leaving a stale rolling
+			// count that would immediately re-lock on the next wrong password.
+			update_user_meta( $user_id, self::LOCKOUT_IP_TRANSIENT_META_KEY, $ip_lockout_key );
+			update_user_meta(
+				$user_id,
+				self::LOCKOUT_IP_FAILURE_TRANSIENT_META_KEY,
+				self::ip_failure_event_transient_key( $ip, $user_id )
 			);
 
 			/**
@@ -1358,7 +1432,41 @@ class Sudo_Session {
 	 * @return string
 	 */
 	private static function ip_failure_event_transient_key( string $ip, int $user_id ): string {
-		return self::IP_FAILURE_EVENT_TRANSIENT_PREFIX . hash( 'sha256', $ip . '|' . $user_id );
+		return self::IP_FAILURE_EVENT_TRANSIENT_PREFIX . hash( 'sha256', self::ip_key_material( $ip, $user_id ) );
+	}
+
+	/**
+	 * Build the hashed material shared by both IP-scoped transient keys.
+	 *
+	 * Appends the failure epoch only when it is non-zero, so the key for a user
+	 * who has never been explicitly unlocked is byte-identical to the pre-epoch
+	 * scheme — no migration, and lockouts already in flight at upgrade time stay
+	 * reachable. See IP_FAILURE_EPOCH_META_KEY.
+	 *
+	 * @since TBD
+	 *
+	 * @param string $ip      Request IP address.
+	 * @param int    $user_id User ID.
+	 * @return string
+	 */
+	private static function ip_key_material( string $ip, int $user_id ): string {
+		$epoch = self::ip_failure_epoch( $user_id );
+
+		return $epoch > 0
+			? $ip . '|' . $user_id . '|' . $epoch
+			: $ip . '|' . $user_id;
+	}
+
+	/**
+	 * Read the user's current IP-failure epoch.
+	 *
+	 * @since TBD
+	 *
+	 * @param int $user_id User ID.
+	 * @return int Zero when never bumped.
+	 */
+	private static function ip_failure_epoch( int $user_id ): int {
+		return max( 0, (int) get_user_meta( $user_id, self::IP_FAILURE_EPOCH_META_KEY, true ) );
 	}
 
 	/**
@@ -1375,7 +1483,7 @@ class Sudo_Session {
 	 * @return string
 	 */
 	private static function ip_lockout_transient_key( string $ip, int $user_id ): string {
-		return self::IP_LOCKOUT_UNTIL_TRANSIENT_PREFIX . hash( 'sha256', $ip . '|' . $user_id );
+		return self::IP_LOCKOUT_UNTIL_TRANSIENT_PREFIX . hash( 'sha256', self::ip_key_material( $ip, $user_id ) );
 	}
 
 	/**
@@ -1447,6 +1555,154 @@ class Sudo_Session {
 		delete_user_meta( $user_id, self::LOCKOUT_UNTIL_META_KEY );
 		delete_user_meta( $user_id, self::FAILURE_EVENT_META_KEY );
 		delete_user_meta( $user_id, self::THROTTLE_UNTIL_META_KEY );
+
+		// Also clear the IP-scoped transients a lockout may have written,
+		// via the pointers stored alongside them. Presence-gated: on the
+		// (much more common) non-lockout reset — e.g. every successful
+		// activate() — these pointer keys are absent, so this is a no-op.
+		self::clear_ip_lockout_pointer( $user_id, self::LOCKOUT_IP_TRANSIENT_META_KEY );
+		self::clear_ip_lockout_pointer( $user_id, self::LOCKOUT_IP_FAILURE_TRANSIENT_META_KEY );
+	}
+
+	/**
+	 * Completely clear a reauth-lockout episode, out of band (#280).
+	 *
+	 * The reset_failed_attempts() helper clears the per-user meta half plus the
+	 * two IP-scoped transients named by the stored pointers. Those pointers name
+	 * only the IP that submitted the threshold attempt, and delete_transient()
+	 * is scoped to the current blog — so on its own it leaves two ways for the
+	 * user to be re-locked by the very next wrong password:
+	 *
+	 * - another IP whose rolling 24h window accumulated failures below the
+	 *   threshold (the lockout fired on the per-user count, not that IP's), and
+	 * - on multisite, the transients written by whichever blog created the
+	 *   lockout, when the clear runs in a different blog's context.
+	 *
+	 * Bumping the failure epoch closes both: every key derived from the old
+	 * epoch — any IP, any blog — is orphaned at once, because the epoch lives
+	 * in network-global user meta. Orphans expire on their own TTL. The pointer
+	 * clear still runs first so the common same-IP, same-blog case is tidied
+	 * immediately rather than left to TTL.
+	 *
+	 * This is the operator-initiated clear only. Natural lockout expiry
+	 * (is_locked_out()) keeps its existing reset_failed_attempts() behavior.
+	 *
+	 * @since TBD
+	 *
+	 * @param int $user_id User ID.
+	 * @return void
+	 */
+	public static function clear_reauth_lockout( int $user_id ): void {
+		self::reset_failed_attempts( $user_id );
+		self::clear_ip_failure_generation( $user_id );
+	}
+
+	/**
+	 * Bump the failure epoch, orphaning every IP-scoped transient key derived
+	 * from the previous value.
+	 *
+	 * Split out from clear_reauth_lockout() because it is the only half that
+	 * can reach state this process cannot enumerate: the IP-scoped windows are
+	 * per-blog transients keyed by a hash that includes the IP, while every
+	 * predicate that decides "is there anything to clear" reads network-global
+	 * user meta. An operator clearing a user who reads as clean here may still
+	 * be freeing them on another site, so the bump is worth running on its own.
+	 *
+	 * Safe to call when there was nothing to invalidate: the epoch is a
+	 * monotonic counter, and bumping it discards no per-user counter.
+	 *
+	 * @since TBD
+	 *
+	 * @param int $user_id User ID.
+	 * @return void
+	 */
+	public static function clear_ip_failure_generation( int $user_id ): void {
+		update_user_meta(
+			$user_id,
+			self::IP_FAILURE_EPOCH_META_KEY,
+			self::ip_failure_epoch( $user_id ) + 1
+		);
+	}
+
+	/**
+	 * Delete the IP-scoped transient named by a stored pointer meta value,
+	 * then clear the pointer itself.
+	 *
+	 * @since TBD
+	 *
+	 * @param int    $user_id          User ID.
+	 * @param string $pointer_meta_key One of the LOCKOUT_IP_*_META_KEY constants.
+	 * @return void
+	 */
+	private static function clear_ip_lockout_pointer( int $user_id, string $pointer_meta_key ): void {
+		$transient_key = get_user_meta( $user_id, $pointer_meta_key, true );
+
+		if ( ! is_string( $transient_key ) || '' === $transient_key ) {
+			return;
+		}
+
+		delete_transient( $transient_key );
+		delete_user_meta( $user_id, $pointer_meta_key );
+	}
+
+	/**
+	 * Whether a user currently has an unexpired hard lockout, without the
+	 * auto-reset side effect of is_locked_out().
+	 *
+	 * The is_locked_out() method resets failure tracking as a side effect once
+	 * the lockout timestamp is in the past — useful for the normal reauth flow,
+	 * but wrong for a caller (the WP-CLI `wp sudo unlock` command, #280)
+	 * that needs to know whether the user WAS locked out at the moment of
+	 * invocation before it calls reset_failed_attempts() itself, so it can
+	 * report an accurate outcome instead of the check silently clearing
+	 * state ahead of the report.
+	 *
+	 * @since TBD
+	 *
+	 * @param int $user_id User ID.
+	 * @return bool True when a lockout is currently active (not yet expired).
+	 */
+	public static function has_unexpired_lockout( int $user_id ): bool {
+		$until = (int) get_user_meta( $user_id, self::LOCKOUT_UNTIL_META_KEY, true );
+
+		return $until > time();
+	}
+
+	/**
+	 * Whether any PER-USER reauth failure tracking is currently stored.
+	 *
+	 * True when there is at least one failure event, a throttle timestamp, or a
+	 * lockout timestamp — including a lockout that has already expired but was
+	 * never cleared, since the rolling window behind it is what would re-lock
+	 * the user.
+	 *
+	 * Scope limit worth knowing: this reads user meta only. The per-(ip, user)
+	 * rolling windows are transients keyed by a hash of the IP, so they cannot
+	 * be enumerated without knowing the IP, and a user whose per-user meta is
+	 * clean can still have one outstanding. Erring that way is deliberate: the
+	 * caller then treats the unlock as a no-op and leaves a brute-force window
+	 * intact, rather than clearing defenses for a user who is not blocked.
+	 *
+	 * Lets the WP-CLI clear (#280) tell "there is nothing to do" apart from
+	 * "there are pre-lockout counters here", so it neither erases a live
+	 * brute-force defense while reporting a no-op, nor writes an epoch bump for
+	 * a user with no state at all. Pure read, like has_unexpired_lockout().
+	 *
+	 * @since TBD
+	 *
+	 * @param int $user_id User ID.
+	 * @return bool
+	 */
+	public static function has_failure_state( int $user_id ): bool {
+		if ( self::get_failed_attempts( $user_id ) > 0 ) {
+			return true;
+		}
+
+		if ( (int) get_user_meta( $user_id, self::THROTTLE_UNTIL_META_KEY, true ) > 0 ) {
+			return true;
+		}
+
+		return (int) get_user_meta( $user_id, self::LOCKOUT_UNTIL_META_KEY, true ) > 0;
 	}
 
 	// -------------------------------------------------------------------------

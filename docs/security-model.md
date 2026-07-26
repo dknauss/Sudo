@@ -319,6 +319,9 @@ the risks and mitigations for each caching layer.
 | `_wp_sudo_failure_event` | Append-row failed auth event timestamps | `Sudo_Session::record_failed_attempt()` | `Sudo_Session::get_failed_attempts()`, `Sudo_Session::is_locked_out()` |
 | `_wp_sudo_throttle_until` | Throttle expiry timestamp for non-blocking retry delay | `Sudo_Session::record_failed_attempt()` | `Sudo_Session::throttle_remaining()`, `Sudo_Session::attempt_activation()` |
 | `_wp_sudo_lockout_until` | Lockout expiry timestamp | `Sudo_Session::record_failed_attempt()` | `Sudo_Session::is_locked_out()` |
+| `_wp_sudo_lockout_ip_transient` | Pointer to the IP-scoped lockout-until transient a lockout wrote, so an out-of-band clear can delete it | `Sudo_Session::record_failed_attempt()` | `Sudo_Session::reset_failed_attempts()` |
+| `_wp_sudo_lockout_ip_failure_transient` | Pointer to the IP-scoped rolling failure-window transient, cleared for the same reason | `Sudo_Session::record_failed_attempt()` | `Sudo_Session::reset_failed_attempts()` |
+| `_wp_sudo_ip_failure_epoch` | Counter versioning this user's IP-scoped transient keys. Bumping it orphans every key derived from the previous value — every IP, and (being network-global meta against per-blog transients) every blog — which is how `wp sudo unlock` clears a whole lockout episode rather than only the IP that submitted the threshold attempt. Absent/zero reproduces the pre-epoch key, so no migration is needed | `Sudo_Session::clear_reauth_lockout()` | `Sudo_Session::ip_failure_event_transient_key()`, `Sudo_Session::ip_lockout_transient_key()` |
 
 All reads go through `get_user_meta()`, which checks the object cache before
 querying the database. Writes go through `add_user_meta()` /
