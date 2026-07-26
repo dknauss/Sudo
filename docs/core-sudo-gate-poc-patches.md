@@ -51,17 +51,23 @@ function wp_start_reauth_window( $user_id = 0, $scope = '' ) {
 	$session['reauth_at']    = $at;
 	$session['reauth_scope'] = (string) $scope;
 	$session['reauth_proof'] = hash( 'sha256', $proof );   // a HASH, never the secret itself
-	$session['reauth_sig']   = hash_hmac( 'sha256', "$user_id|$token|$at|$scope", wp_salt( 'auth' ) );
+	// (3) The MAC MUST cover the proof hash too — otherwise a cache-poisoning attacker
+	// keeps a valid signature and swaps in the hash of a cookie THEY hold, defeating the
+	// separate-proof requirement. Bind every trusted field into the signed payload.
+	$session['reauth_sig']   = hash_hmac( 'sha256', "$user_id|$token|$at|$scope|{$session['reauth_proof']}", wp_salt( 'auth' ) );
 	$manager->update( $token, $session );                  // keyed PER verifier — concurrent sessions don't collide
 
 	if ( ! headers_sent() ) {
 		setcookie( WP_REAUTH_PROOF_COOKIE, $proof, array(
-			'expires'  => 0,                 // session cookie; the signed record's TTL is authoritative
-			'path'     => ADMIN_COOKIE_PATH, // not COOKIEPATH — never sent on the front end
+			'expires'  => 0,             // session cookie; the signed record's TTL is authoritative
+			'path'     => COOKIEPATH,    // site root — the proof must reach BOTH /wp-admin AND cookie-authed
+			                             // /wp-json REST (ADMIN_COOKIE_PATH would not be sent to REST, so a
+			                             // reauthenticated REST mutation would 403 forever). Tradeoff: also
+			                             // sent on front-end requests; scope the SECRET, not just the path.
 			'domain'   => COOKIE_DOMAIN,
 			'secure'   => is_ssl(),
 			'httponly' => true,
-			'samesite' => 'Lax',             // Strict would drop it on a top-level nav into wp-admin
+			'samesite' => 'Lax',         // Strict drops it on a top-level nav into wp-admin
 		) );
 	}
 	return true;
@@ -85,8 +91,9 @@ function wp_has_recent_auth( $user_id = 0, $scope = '' ) {
 	$at     = (int) $session['reauth_at'];
 	$sscope = (string) ( $session['reauth_scope'] ?? '' );
 
-	// (3) HMAC first — a forged (cache-poisoned) reauth_at without a valid signature dies here.
-	$expect = hash_hmac( 'sha256', "$user_id|$token|$at|$sscope", wp_salt( 'auth' ) );
+	// (3) HMAC first — a forged (cache-poisoned) record without a valid signature dies here.
+	// The MAC covers the proof hash, so an attacker cannot keep the signature and swap the proof.
+	$expect = hash_hmac( 'sha256', "$user_id|$token|$at|$sscope|" . (string) $session['reauth_proof'], wp_salt( 'auth' ) );
 	if ( ! hash_equals( $expect, (string) $session['reauth_sig'] ) ) {
 		return false;
 	}
@@ -124,9 +131,13 @@ function wp_end_reauth_window( $user_id = 0 ) {
 	// token for $user_id, so clearing only the current session is insufficient.
 	wp_reauth_clear_all_sessions( $user_id );   // new WP_Session_Tokens helper
 
-	if ( ! headers_sent() ) {
+	// Expire the proof cookie ONLY when ending the CURRENT actor's own window. When an
+	// admin changes ANOTHER user's password ($user_id = target), deleting the current
+	// browser's cookie would prematurely end the admin's own 15-min window — the target's
+	// server-side records are already cleared above, which is sufficient.
+	if ( get_current_user_id() === $user_id && ! headers_sent() ) {
 		setcookie( WP_REAUTH_PROOF_COOKIE, '', array(
-			'expires' => time() - YEAR_IN_SECONDS, 'path' => ADMIN_COOKIE_PATH,
+			'expires' => time() - YEAR_IN_SECONDS, 'path' => COOKIEPATH,
 			'domain'  => COOKIE_DOMAIN, 'secure' => is_ssl(), 'httponly' => true, 'samesite' => 'Lax',
 		) );
 	}
@@ -134,6 +145,8 @@ function wp_end_reauth_window( $user_id = 0 ) {
 ```
 
 Two core edits the sketch depends on: (a) **only the challenge handler may write `reauth_*`** — core must strip the reserved keys from the `attach_session_information` filter result, since that filter sets the base session array on every `WP_Session_Tokens::create()` and any registered callback could otherwise pre-elevate new sessions; and (b) the HMAC covers the verifier, so an injected or cache-poisoned stamp on any other session fails validation. A cache-bypassing `$wpdb` read of the record on the enforcement path is an optional complement (it does not survive a direct-DB *write*; the HMAC does). Note a fresh `login` timestamp is **not** a substitute for this record — `wp_signon('','')` mints one from a held cookie with no credential entered.
+
+**Concurrency (required):** `$manager->update()` is a read-modify-write of the whole `session_tokens` array, so keying the record per verifier does not by itself make writes atomic — two simultaneous reauthentications, or a challenge write racing credential teardown, can drop one writer's `reauth_*` (a lost update that can also *restore* data teardown just removed). A core implementation needs a per-record write path (`WP_Session_Tokens::update_reauth( $token, $data )`) with compare-and-swap or row-level locking, not the whole-array merge, before relying on immediate revocation and concurrent-session isolation.
 
 ---
 
@@ -208,6 +221,32 @@ function wp_check_action_gate( $action_id, array $args = array() ) {
 			: new WP_Action_Gate_Decision( $action_id, 'passed' );
 	}
 	$user_id = isset( $args['actor'] ) ? (int) $args['actor'] : get_current_user_id();
+
+	// Classify the ACTOR before any recent-auth check (spec §9). Only an interactive
+	// cookie session can render/answer a challenge; the others get a policy, not a
+	// challenge URL. This is what keeps unattended security updates and WP-CLI package
+	// operations from being refused, and stops an API credential from getting an
+	// (unanswerable) interactive challenge instead of the promised block-and-log.
+	switch ( wp_action_gate_actor_class( $args ) ) {  // 'cookie' | 'api_credential' | 'system' | 'cli'
+		case 'system':                                // wp-cron auto-updater, etc.
+			// Allow ONLY core's own updater drawing from the configured update source;
+			// otherwise block. Provenance must be decided where it is still available
+			// (the update offer / package URL), NOT at install_package(), which sees only
+			// an unpacked local path — see the adapter note in §3 and spec §5.4/§9.
+			return new WP_Action_Gate_Decision(
+				$action_id,
+				wp_action_gate_trusted_autoupdate( $args ) ? 'passed' : 'blocked'
+			);
+		case 'cli':                                   // shell already dominates the gate
+			return new WP_Action_Gate_Decision(
+				$action_id,
+				apply_filters( 'wp_action_gate_cli_policy', true, $action_id, $args ) ? 'passed' : 'blocked'
+			);
+		case 'api_credential':                        // App Password / XML-RPC — no interactive reauth possible
+			return new WP_Action_Gate_Decision( $action_id, 'blocked' );
+		// 'cookie' falls through to the interactive recent-auth path below.
+	}
+
 	// v1 = flat freshness: do NOT pass the action scope (spec §4.2). Check the
 	// recent-auth WINDOW before the lockout: a user who already holds a valid
 	// window should proceed even with recent failed attempts on other actions.

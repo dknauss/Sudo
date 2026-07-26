@@ -26,6 +26,7 @@ source of truth for its topic; this index never restates content (see
 
 | Question | Read |
 |---|---|
+| Security-team overview: close the XSS→RCE route with recent auth (start here) | [`core-sudo-gate-security-pitch.md`](core-sudo-gate-security-pitch.md) |
 | *Why* should core have an action gate, and in what phases? | [`core-action-gate-proposal.md`](core-action-gate-proposal.md) |
 | *What* exactly would change in core (files, functions, APIs)? | [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md) |
 | What do the actual patches look like at the chokepoints? | [`core-sudo-gate-poc-patches.md`](core-sudo-gate-poc-patches.md) |
