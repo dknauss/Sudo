@@ -90,15 +90,29 @@ function actor_class(): string {
 		return ACTOR_INTERACTIVE;
 	}
 
-	// A request that CARRIES a login cookie but whose token no longer verifies —
-	// revoked by "log out everywhere", expired, or forged — is still a browser
-	// request. Folding it into ACTOR_NONE would be a fail-open: the caller would
-	// drop into the out-of-v1-scope branch and the write would be allowed. That
-	// inverts the intent of session revocation, so it gets its own class and is
-	// refused below.
-	if ( ! empty( $_COOKIE[ LOGGED_IN_COOKIE ] ) ) {
-		return ACTOR_REVOKED;
+	// A request that CARRIES any auth cookie but has no verifiable session token
+	// is still a browser request, and must be refused rather than reclassified.
+	// Folding it into ACTOR_NONE would be a fail-open: the caller would drop into
+	// the out-of-v1-scope branch and the write would be allowed.
+	//
+	// Two distinct ways to land here, both of which were bugs:
+	//   1. The session was revoked mid-request ("log out everywhere"), expired,
+	//      or the cookie is forged.
+	//   2. wp-admin resolves the current user from AUTH_COOKIE /
+	//      SECURE_AUTH_COOKIE, while wp_get_session_token() reads LOGGED_IN_COOKIE
+	//      unconditionally. A client presenting a valid admin auth cookie and NO
+	//      logged-in cookie is fully authenticated with full capabilities, yet has
+	//      no readable token — so checking only LOGGED_IN_COOKIE let it through.
+	foreach ( array( LOGGED_IN_COOKIE, AUTH_COOKIE, SECURE_AUTH_COOKIE ) as $cookie ) {
+		if ( ! empty( $_COOKIE[ $cookie ] ) ) {
+			return ACTOR_REVOKED;
+		}
 	}
+
+	// Belt and braces: an authenticated user with no auth cookie at all is not a
+	// browser (WP-CLI --user, a plugin calling wp_set_current_user() during
+	// cron). Those are out of v1 scope by #320 and pass through, which is why
+	// this is a cookie test rather than an is_user_logged_in() test.
 
 	return ACTOR_NONE;
 }
@@ -277,4 +291,30 @@ function gate_install_package( $response, $hook_extra = array() ) {
 	);
 }
 
+/**
+ * The same decision, one step earlier in the normal updater flow.
+ *
+ * `upgrader_pre_install` alone is NOT sufficient, and this matters for the
+ * proposal's seam choice. WP_Upgrader::run() calls unpack_package() (which
+ * extracts the archive into wp-content/upgrade/) BEFORE install_package(). So a
+ * gate that only fires inside install_package() lets attacker-controlled PHP
+ * reach a web-reachable directory that many hosts execute PHP from — it blocks
+ * the final move into the live plugin/theme tree, not the extraction.
+ *
+ * `upgrader_pre_download` fires before both the download and the unpack, so
+ * gating here closes that window for the run() path. install_package() is still
+ * gated too, because it is reachable directly by callers that never go through
+ * run().
+ *
+ * @param bool|\WP_Error $reply       Short-circuit response; a WP_Error aborts.
+ * @param string         $package     Package URL or local path (unused).
+ * @param \WP_Upgrader   $upgrader    The upgrader instance (unused).
+ * @param array          $hook_extra  Context, same shape as install_package()'s.
+ * @return bool|\WP_Error
+ */
+function gate_pre_download( $reply, $package = '', $upgrader = null, $hook_extra = array() ) {
+	return gate_install_package( $reply, is_array( $hook_extra ) ? $hook_extra : array() );
+}
+
+add_filter( 'upgrader_pre_download', __NAMESPACE__ . '\\gate_pre_download', 10, 4 );
 add_filter( 'upgrader_pre_install', __NAMESPACE__ . '\\gate_install_package', 10, 2 );

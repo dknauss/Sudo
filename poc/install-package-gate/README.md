@@ -33,6 +33,24 @@ Anyone can write a test asserting `install_package()` returned an error. That pr
 
 That difference is the entire claim of §3, and it is now empirical rather than argued.
 
+## A finding that corrects the proposal: `install_package()` alone is too late
+
+`WP_Upgrader::run()` does this, in order (`class-wp-upgrader.php`):
+
+| step | line | effect |
+|---|---|---|
+| `download_package()` | 849 | fetches the archive |
+| `unpack_package()` | 887 | **extracts it into `wp-content/upgrade/`** (:367, :378) |
+| `install_package()` | 898 | moves it into the live plugin/theme tree — where this gate fires |
+
+So a gate that fires *only* inside `install_package()` blocks the final move but **not the extraction**. Attacker-controlled PHP is already sitting in `wp-content/upgrade/`, a directory many hosts happily execute PHP from, and a session-riding attacker who can request a known path during the window gets execution regardless of the refusal that follows.
+
+Proposal §3 names `install_package()` as *the* code-write seam. On this evidence that is **not sufficient on its own** for the interactive branch, and the spec should say so.
+
+This slice therefore gates at **`upgrader_pre_download`** as well, which fires before both the download and the unpack — and keeps the `install_package()` gate, because that sink is reachable directly by callers that never go through `run()`. `test_the_run_path_is_refused_before_anything_is_unpacked()` asserts `wp-content/upgrade/` is untouched.
+
+Two caveats kept honest: this was found by reading `run()`, not by demonstrating the race, and the residual depends on the host executing PHP under `wp-content`. Neither weakens the ordering fact.
+
 ## What it covers
 
 | Behaviour | Why it is here |
@@ -46,6 +64,8 @@ That difference is the entire claim of §3, and it is now empirical rather than 
 | Programmatic call inside an interactive request → still gated | the misclassification boundary ([#357](https://github.com/dknauss/Sudo/issues/357)) — call origin is not an actor class |
 | Forged cookie cannot mint or hold a proof | `wp_get_session_token()` only *parses* the cookie; `WP_Session_Tokens::verify()` is the real check |
 | Revoking re-gates immediately | "log out everywhere" must close the window now |
+| An admin `AUTH_COOKIE` with no `LOGGED_IN_COOKIE` is not actorless | wp-admin authenticates from `AUTH_COOKIE`/`SECURE_AUTH_COOKIE`, while `wp_get_session_token()` reads only `LOGGED_IN_COOKIE` — checking one cookie was a fail-open |
+| `run()` is refused before anything is unpacked | the seam-placement finding above |
 
 ## Design notes worth carrying into the spec
 

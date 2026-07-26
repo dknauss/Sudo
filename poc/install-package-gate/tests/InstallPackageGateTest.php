@@ -58,7 +58,12 @@ final class InstallPackageGateTest extends WP_UnitTestCase {
 	}
 
 	public function tear_down(): void {
-		unset( $_COOKIE[ LOGGED_IN_COOKIE ], $_COOKIE[ \WP_Sudo\PoC\InstallPackageGate\PROOF_COOKIE ] );
+		unset(
+			$_COOKIE[ LOGGED_IN_COOKIE ],
+			$_COOKIE[ AUTH_COOKIE ],
+			$_COOKIE[ SECURE_AUTH_COOKIE ],
+			$_COOKIE[ \WP_Sudo\PoC\InstallPackageGate\PROOF_COOKIE ]
+		);
 		foreach ( array( $this->source, $this->destination ) as $dir ) {
 			if ( is_dir( $dir ) ) {
 				array_map( 'unlink', glob( $dir . '/*' ) ?: array() );
@@ -341,5 +346,85 @@ final class InstallPackageGateTest extends WP_UnitTestCase {
 
 		$this->assertWPError( $result );
 		$this->assertSame( 'wp_sudo_reauth_required', $result->get_error_code() );
+	}
+
+	/**
+	 * wp-admin resolves the current user from AUTH_COOKIE / SECURE_AUTH_COOKIE,
+	 * but wp_get_session_token() reads LOGGED_IN_COOKIE unconditionally. A client
+	 * presenting a valid admin auth cookie and no logged-in cookie is fully
+	 * authenticated with full capabilities, yet has no readable token.
+	 *
+	 * Checking only LOGGED_IN_COOKIE classified that as actorless and allowed the
+	 * write. Distinct from the revoked-session case: here the authenticating
+	 * session is still perfectly valid.
+	 */
+	public function test_an_admin_auth_cookie_without_a_logged_in_cookie_is_not_actorless(): void {
+		$expiry = time() + DAY_IN_SECONDS;
+		$token  = WP_Session_Tokens::get_instance( $this->admin_id )->create( $expiry );
+
+		// Authenticated by the admin cookie only.
+		$_COOKIE[ AUTH_COOKIE ] = wp_generate_auth_cookie( $this->admin_id, $expiry, 'auth', $token );
+		unset( $_COOKIE[ LOGGED_IN_COOKIE ] );
+
+		$result = $this->install();
+
+		$this->assertWPError(
+			$result,
+			'an authenticated browser request must not be reclassified as actorless'
+		);
+		$this->assertSame( 'wp_sudo_reauth_required', $result->get_error_code() );
+		$this->assertDirectoryDoesNotExist( $this->destination );
+	}
+
+	/**
+	 * The seam-placement finding, and the most consequential thing this slice
+	 * turned up.
+	 *
+	 * WP_Upgrader::run() calls unpack_package() — which extracts the archive into
+	 * wp-content/upgrade/ — BEFORE install_package(). So gating only inside
+	 * install_package() blocks the final move into the live plugin tree while
+	 * still letting attacker-controlled PHP land in a directory many hosts
+	 * execute PHP from.
+	 *
+	 * Gating upgrader_pre_download closes that: run() is refused before anything
+	 * is downloaded or extracted.
+	 */
+	public function test_the_run_path_is_refused_before_anything_is_unpacked(): void {
+		$this->start_session( $this->admin_id );
+
+		$upgrade_dir = WP_CONTENT_DIR . '/upgrade';
+		$before      = is_dir( $upgrade_dir ) ? glob( $upgrade_dir . '/*' ) : array();
+
+		$upgrader = new WP_Upgrader( new Automatic_Upgrader_Skin() );
+		$upgrader->init();
+
+		// run() drives the skin's header/footer, which buffer output. Contain it
+		// so the runner's strict output check stays meaningful elsewhere.
+		$depth = ob_get_level();
+		ob_start();
+		$result = $upgrader->run(
+			array(
+				'package'     => $this->source . '/plugin.php',
+				'destination' => $this->destination,
+				'hook_extra'  => array( 'type' => 'plugin', 'action' => 'install' ),
+			)
+		);
+		while ( ob_get_level() > $depth ) {
+			ob_end_clean();
+		}
+
+		$this->assertWPError( $result );
+		$this->assertSame(
+			'wp_sudo_reauth_required',
+			$result->get_error_code(),
+			'run() must be refused at the download seam, before unpack_package()'
+		);
+
+		$after = is_dir( $upgrade_dir ) ? glob( $upgrade_dir . '/*' ) : array();
+		$this->assertSame(
+			$before,
+			$after,
+			'nothing may be extracted into wp-content/upgrade when the gate refuses'
+		);
 	}
 }
