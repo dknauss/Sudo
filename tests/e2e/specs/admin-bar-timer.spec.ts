@@ -247,7 +247,7 @@ test.describe( 'Admin bar timer', () => {
         // Expire the server-side PHP session before triggering the JS reload.
         // PHP uses real time() to check expiry; page.clock only affects browser JS.
         //
-        // Since 4.9.0 enforcement reads the expiry from the signed per-login-session
+        // Since 5.0.0 enforcement reads the expiry from the signed per-login-session
         // proof entry, NOT from _wp_sudo_expires (now only a liveness marker used for
         // enumeration/display). Backdating a proof entry out of band is impossible by
         // design: its HMAC binds the RAW login-session verifier and the map stores only
