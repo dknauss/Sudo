@@ -70,13 +70,23 @@ versioning has neither hazard — a doubled increment is harmless.
    this one was working it. **Merge their commits, never force-push** — and re-run the gates
    after, since their new integration test arrived red.
 
-**Release-state note:** `main` is still `4.8.0` at all five version-sync points, but the
-4.9.0 proof format is already named in code docblocks and `docs/security-model.md`.
-**PR #364 (blocked)** does the bump and records the lanes — land it before anything reads the
-version as authoritative. Counts (tests, LOC, hooks) move constantly; `docs/current-metrics.md`
-is the source of truth and `composer verify:metrics` is the gate.
+**Release-state note (corrected 2026-07-26 late).** This block originally said `main` was
+`4.8.0` and that **#364** would bump it to **4.9.0**. Both are now out of date: #364 was
+**closed** and **#372** landed the bump instead, taking **`5.0.0`** — not a bigger number for
+its own sake, but by the rule. `#322` removes the only call site of `wp_sudo_action_replayed`,
+and `VERSIONING.md` classes removing a documented public hook as MAJOR; everything else in the
+payload would have been a MINOR. The reasoning is recorded under "Why `5.0.0` and not `4.9.0`"
+in `docs/release-status.md`, which is canonical for release state.
 
-Main is at `3ebd2e6`.
+**So: the proof format shipped in this work is `5.0.0`, not `4.9.0`.** The `4.9.0` strings that
+#348 left in code docblocks and `docs/security-model.md` were swept by #372 — verified, none
+remain outside that one deliberate explanatory line in `release-status.md`. If you are reading
+an older branch that still says 4.9.0, it predates the bump.
+
+Counts (tests, LOC, hooks) move constantly; `docs/current-metrics.md` is the source of truth
+and `composer verify:metrics` is the gate.
+
+Main was at `3ebd2e6` when this block was written; it has since taken #372 (the 5.0.0 bump), #374, and #350 (#322 v1).
 
 ---
 
