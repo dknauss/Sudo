@@ -191,7 +191,7 @@ Sudo's core design owes a debt to three people:
 9. Users list — Sudo Active view with the "Revoke sudo sessions" bulk action and per-user row action.
 10. In-editor two-factor modal — the Two Factor authentication-code step injected into the block-editor reauthentication modal, after the password step.
 11. In-editor session panel — the Sudo sidebar in the block editor with a live countdown of the time left in the session.
-12. In-editor session indicator — the green unlocked-padlock button in the editor header while sudo is active, with the reauthentication confirmation snackbar.
+12. In-editor session indicator — the unlocked padlock in the editor header while sudo is active, with the reauthentication confirmation snackbar.
 
 == Changelog ==
 

@@ -51,8 +51,11 @@
 	// The admin bar's own expiring threshold (wp-sudo-admin-bar.js: if (r <= 60)),
 	// reused verbatim so the two surfaces flip red at the same moment.
 	var EXPIRING_THRESHOLD = 60;
-	var BODY_CLASS_ACTIVE = 'wp-sudo-editor-session-active';
+	// The expiring chip paints in every mode; the active chip paints only where core
+	// has taken the glyph away (see syncIconLabels below), so CSS needs all three.
 	var BODY_CLASS_EXPIRING = 'wp-sudo-editor-session-expiring';
+	var BODY_CLASS_ACTIVE = 'wp-sudo-editor-session-active';
+	var BODY_CLASS_ICON_LABELS = 'wp-sudo-editor-icon-labels';
 	// Two page loads of the SAME session compute deadlines within a few seconds of
 	// each other; a genuinely new (re-granted) session extends the deadline by the
 	// full duration (>= 60 s), so this tolerance separates "same session, reloaded"
@@ -249,10 +252,19 @@
 	var useState = wp.element.useState;
 	var useEffect = wp.element.useEffect;
 
-	// --- #288: paint the pinned header button ---------------------------------
+	// --- #288: the final-minute chip on the pinned header button ---------------
 	// The pinned button is the only part of this feature visible while the panel is
 	// CLOSED, which is the whole point in the full-screen editor: no admin bar, so no
 	// chip and no countdown anywhere else on screen.
+	//
+	// ONLY the expiring state paints. State is otherwise carried by the glyph (the
+	// `icon` pick in IndicatorPanel below), because that is what core does here: the sole
+	// background change core applies to a pinned-item button is the neutral
+	// `.is-pressed` fill, never a semantic colour, while a conditional icon on this very
+	// button is core's own construction (`icon={ showIconLabels ? check : icon }`).
+	// So a green chip for the whole session would invent a convention and park colour
+	// in the header for 15 minutes at a time; one red chip for the last 60 s spends it
+	// where it is earned.
 	//
 	// State is carried by a class on <body>, not on the button. Gutenberg re-renders
 	// that button with a fresh `className` prop every time `is-pressed` flips (opening
@@ -262,10 +274,10 @@
 	//
 	// Deliberately NOT a `useEffect` in IndicatorPanel: that component re-renders every
 	// second (the subscribe/setSecs pump below), so a component-scoped effect would need
-	// exactly-correct cleanup for both classes or the site editor — an SPA, where
-	// document.body outlives route changes — keeps a stale chip painted after unmount.
-	// A module-level subscriber with a `lastState` guard has no unmount to get wrong and
-	// touches classList only on a real transition, never per tick.
+	// exactly-correct cleanup or the site editor — an SPA, where document.body outlives
+	// route changes — keeps a stale chip painted after unmount. A module-level subscriber
+	// with a `lastState` guard has no unmount to get wrong and touches classList only on
+	// a real transition, never per tick.
 	//
 	// Armed only AFTER the WP 6.6+ feature detect above, so no class is set on 6.4-6.5,
 	// where wp.editor.PluginSidebar is absent and Part A carries the feature. It IS armed
@@ -282,14 +294,50 @@
 		}
 		lastState = state;
 		var classes = document.body.classList;
-		// Both classes are carried in the expiring state — mirroring the admin bar,
-		// which adds `wp-sudo-expiring` alongside `wp-sudo-active` rather than
-		// swapping — and the stylesheet's source order lets the expiring rule win.
-		classes.toggle( BODY_CLASS_ACTIVE, 'inactive' !== state );
 		classes.toggle( BODY_CLASS_EXPIRING, 'expiring' === state );
+		// EXACTLY 'active', not "not inactive": the two classes are mutually exclusive,
+		// so the stylesheet needs no source-order tiebreak between them.
+		classes.toggle( BODY_CLASS_ACTIVE, 'active' === state );
 	}
 	subscribe( syncBodyState );
 	syncBodyState();
+
+	// --- the one place the active state still earns colour ---------------------
+	// Core's "Show button text labels" preference takes this button's icon slot for
+	// its own `check` glyph — `icon={ showIconLabels ? check : icon }` — and disables
+	// the tooltip in the same breath (`showTooltip={ ! showIconLabels }`,
+	// complementary-area/index.js L280-281, trunk, fetched 2026-07-26). Verified in a
+	// live WP 7.0 editor: with it on, all three states render that same `check` SVG,
+	// `.dashicon` is gone, and the button renders no visible text.
+	//
+	// So for that cohort the glyph vocabulary does not exist and there is no hover
+	// affordance either — active and inactive would be one appearance, which is the
+	// #288 bug this feature exists to fix. Colour is the only channel core leaves,
+	// so the active chip comes back THERE and only there: the default view keeps no
+	// semantic colour but the urgent red, which is the whole point of the redesign.
+	//
+	// A body class again rather than a React prop: the paint is CSS either way, and
+	// this keeps the preference out of IndicatorPanel's per-second render path.
+	var lastIconLabels = null;
+	function syncIconLabels() {
+		var prefs = wp.data.select( 'core/preferences' );
+		// `core/preferences` is registered by the editor, not by wp.data itself, and
+		// this module also loads on the widgets screen — hence the capability check
+		// rather than an assumption. Absent store reads as "preference off", which is
+		// the safe default: no chip.
+		var on = !! ( prefs && prefs.get && prefs.get( 'core', 'showIconLabels' ) );
+		if ( on === lastIconLabels ) {
+			return;
+		}
+		lastIconLabels = on;
+		document.body.classList.toggle( BODY_CLASS_ICON_LABELS, on );
+	}
+	// Scoped to the preferences store (`subscribe( listener, storeNameOrDescriptor )`,
+	// @wordpress/data registry.ts L62-86) so this does not run on every editor
+	// keystroke. The `lastIconLabels` guard makes it a no-op even where an older
+	// registry ignores the second argument and subscribes globally.
+	wp.data.subscribe( syncIconLabels, 'core/preferences' );
+	syncIconLabels();
 
 	function IndicatorPanel() {
 		var st = useState( currentRemaining() );
@@ -326,19 +374,51 @@
 			title = __( 'Sudo · inactive', 'wp-sudo' );
 		}
 
-		// Glyph. Active/inactive share the unlocked padlock the admin-bar chip already
-		// uses (class-admin-bar.php: dashicons-unlock) so the two surfaces read as one
-		// system; those two states are already told apart without colour, by the presence
-		// or absence of the green chip (a ~5:1 luminance difference, legible in greyscale).
+		// Glyph — the PRIMARY state channel, one shape per state:
 		//
-		// Expiring gets a DIFFERENT glyph because active-vs-expiring otherwise differs
-		// only in hue: #2e7d32 and #c62828 have a contrast ratio of 1.09:1 against each
-		// other, so on an icon-only button they are the same swatch under a red-green
-		// deficiency, in greyscale, and in forced-colors mode — a WCAG 1.4.1 failure the
-		// accessible name cannot discharge (a name is programmatic, not visual). The
-		// admin bar needs no such swap because it carries visible "Sudo: M:SS" text.
-		// A per-transition swap is not the per-second churn the brief forbids.
-		var icon = 'expiring' === state ? 'warning' : 'unlock';
+		//   inactive   lock      a closed padlock: not elevated
+		//   active     unlock    the admin bar's own glyph (class-admin-bar.php)
+		//   expiring   warning   a third, non-padlock shape for the final 60 s
+		//
+		// A state-driven icon on this control is a core pattern, not an invention. Core
+		// swaps this button's icon conditionally itself — `icon={ showIconLabels ? check
+		// : icon }` (packages/interface/src/components/complementary-area/index.js L280)
+		// — and the component it renders takes a second, state-selected icon by design:
+		// `icon={ selectedIcon && isSelected ? selectedIcon : icon }`
+		// (packages/interface/src/components/complementary-area-toggle/index.js L58).
+		// Both Gutenberg trunk, fetched 2026-07-26. (The `isPinned ? starFilled :
+		// starEmpty` swap at complementary-area/index.js L326 is a DIFFERENT control —
+		// the pin/unpin star inside the panel header — so it is not the precedent here.)
+		// Semantic BACKGROUND colour has no such precedent: core's only background change
+		// on these buttons is the neutral `.is-pressed` fill
+		// (packages/components/src/button/style.scss L342-348), which is why colour here
+		// is spent on the expiring state alone.
+		//
+		// Carrying state on shape also settles WCAG 1.4.1 by construction rather than by
+		// supplement: #2e7d32 and #c62828 are 1.09:1 against EACH OTHER, so a colour-led
+		// vocabulary collapses to one swatch under a red-green deficiency, in greyscale,
+		// and in forced-colors mode. Three distinct shapes survive all three. The
+		// accessible name above cannot discharge 1.4.1 (a name is programmatic, not
+		// visual), so it tracks the same three states rather than substituting for them.
+		//
+		// This channel is unavailable under core's "Show button text labels" preference,
+		// which discards the icon for its own `check` glyph (the L280 line above) and
+		// renders no visible text for a pinned item. That is handled by falling back to
+		// colour in exactly that mode — see syncIconLabels() above and the paired rules
+		// in admin/css/wp-sudo-editor-indicator.css — because a shape channel core has
+		// taken away cannot carry the vocabulary. The accessible name is unaffected in
+		// either mode.
+		//
+		// Per-transition, not per-second — the churn the design brief forbids is a value
+		// that changes on every tick, which is why the compact M:SS stays out of `title`.
+		var icon;
+		if ( 'expiring' === state ) {
+			icon = 'warning';
+		} else if ( 'active' === state ) {
+			icon = 'unlock';
+		} else {
+			icon = 'lock';
+		}
 
 		return el(
 			PluginSidebar,
