@@ -84,6 +84,43 @@ class ActionRegistryTest extends TestCase {
 	}
 
 	/**
+	 * #322: `success_url` must NOT be stashable for the app-password rule.
+	 *
+	 * It is the redirect target a newly minted application password is handed to,
+	 * i.e. the exfil sink in the stash confused-deputy. The legitimate external-app
+	 * handoff still works because the user's own fresh resubmit carries it; it just
+	 * must never ride a stored/replayed stash.
+	 */
+	public function test_app_password_rule_does_not_stash_success_url(): void {
+		Functions\when( '__' )->returnArg();
+
+		$rules = Action_Registry::get_rules();
+		$rule  = null;
+
+		foreach ( $rules as $candidate ) {
+			if ( 'auth.app_password' === ( $candidate['id'] ?? '' ) ) {
+				$rule = $candidate;
+				break;
+			}
+		}
+
+		$this->assertNotNull( $rule, 'auth.app_password rule must exist.' );
+		$this->assertNotContains(
+			'success_url',
+			$rule['stash']['post_fields'] ?? array(),
+			'success_url must not be stashable (#322 exfil sink).'
+		);
+		// Dropping success_url is not sufficient on its own: without post_mode 'none'
+		// the approval POST would still be auto-submitted by #322 v2's bound replay,
+		// minting a credential for a request the attacker planted.
+		$this->assertSame(
+			'none',
+			$rule['stash']['post_mode'] ?? null,
+			'The app-password approval must never be replayed (#322).'
+		);
+	}
+
+	/**
 	 * Test get_rules() applies the wp_sudo_gated_actions filter.
 	 */
 	public function test_get_rules_applies_filter(): void {

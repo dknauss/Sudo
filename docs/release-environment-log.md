@@ -2,7 +2,7 @@
 
 This file is the durable record of release-grade manual environment matrix outcomes for WP Sudo packages.
 
-It records what was actually run, what was deferred, who owns follow-up, and whether any deferral blocks the next release or publication decision. It does **not** perform a WordPress.org upload, managed-host provisioning, release tag, or publication approval. WordPress.org submission remains intentionally delayed/on hold until the maintainer explicitly approves publication.
+It records what was actually run, what was deferred, who owns follow-up, and whether any deferral blocks the next release or publication decision. It does **not** perform a WordPress.org upload, managed-host provisioning, release tag, or publication approval. WordPress.org submission is **not planned** (see *WordPress.org publication status* in [`release-status.md`](release-status.md)); this log gates the GitHub tag and its release ZIP, which is the distribution channel.
 
 Keep the executable smoke-test procedure in [`tests/MANUAL-TESTING.md`](../tests/MANUAL-TESTING.md). This log is the record of record for per-version outcomes; do not duplicate the full smoke steps here.
 
@@ -163,4 +163,4 @@ A deferred or failed lane must include all of the following before the release d
 3. **Follow-up or waiver** — a linked issue, release note, or explicit maintainer waiver.
 4. **Blocker posture** — whether it blocks the next public tag/publication decision.
 
-Unless a maintainer explicitly records a waiver, deferred release-grade lanes block the next public tag/publication decision. WordPress.org-only upload/submission work remains separate and on hold until publication approval.
+Unless a maintainer explicitly records a waiver, deferred release-grade lanes block the next public tag/publication decision. WordPress.org-only upload/submission work is **not planned** and gates nothing here; if that decision is ever reversed it is tracked separately in `wporg-submission-checklist.md` §2.

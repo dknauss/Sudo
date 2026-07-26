@@ -157,7 +157,7 @@ Active sudo is **per browser session**, not site-wide. Sudo works alongside your
 
 More technically, Sudo is a Multisite-compatible, zero-trust-aligned security-hardening plugin for WordPress. It adds **action-gated reauthentication**, enables **attack surface definition** (open, closed, or sudo-gated), gives **visibility to privileged action requests**, and confines Sudo administration to explicitly designated users.
 
-**Browser (wp-admin):** gated actions redirect to a challenge screen. After successful reauthentication, the original request replays automatically.
+**Browser (wp-admin):** gated actions redirect to a challenge screen that names the action and its concrete target. After successful reauthentication the user is returned to where they were, and — on HTTPS sites, in the same browser that started the action — the original request resumes automatically. Otherwise nothing is resumed and the user performs the action again, now covered by the active sudo session. A resumed request is bound to the browser that created it, so an action started elsewhere can never be completed by someone else's reauthentication.
 
 **AJAX and REST:** blocked requests receive a `sudo_required` error until reauthentication occurs.
 

@@ -74,7 +74,7 @@ source of truth for its topic; this index never restates content (see
 | What were the live security-test results for 4.8.0? | [`security-test-results-4.8.0.md`](security-test-results-4.8.0.md) |
 | Which session store should WP Sudo use? | [`session-store-evaluation.md`](session-store-evaluation.md) |
 | What's the roadmap? | [`ROADMAP.md`](ROADMAP.md) |
-| How do I submit/update the plugin on WordPress.org? | [`wporg-submission-checklist.md`](wporg-submission-checklist.md) |
+| What are the pre-tag release gates? (WordPress.org submission is **not planned** — §2 there is dormant reference) | [`wporg-submission-checklist.md`](wporg-submission-checklist.md) |
 | How do I run the Studio SQLite release? | [`studio-sqlite-release-runbook.md`](studio-sqlite-release-runbook.md) |
 | What's the release environment history? | [`release-environment-log.md`](release-environment-log.md) |
 

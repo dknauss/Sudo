@@ -395,6 +395,23 @@ orphans="$(grep -roIE \
 	| cut -d: -f1 | sort -u || true)"
 while IFS= read -r f; do
 	[ -n "$f" ] || continue
+	# The scan walks the WORKING TREE, which holds files git does not: `reviewer-approved`,
+	# the pre-commit reviewer agent's approval flag, is gitignored and routinely records the
+	# upstream URLs the reviewer verified. It made `composer verify:sources` fail for any
+	# developer holding a current approval flag while CI — a clean checkout with no flag —
+	# stayed green. A checker that reds only on the developer's machine is a checker people
+	# learn to run with their eyes closed, which costs more than the rule it enforces.
+	# .github/workflows/docs-lint.yml scopes its own scan with `git ls-files` for this reason.
+	#
+	# The filter is "ignored", not "untracked", on purpose: a doc you have written but not
+	# yet committed still has to satisfy the registry rule, or the check would arrive one
+	# commit too late to stop the citation. `git check-ignore` consults the index first, so
+	# a TRACKED file that also matches an ignore rule stays in scope. Outside a git work
+	# tree git exits 128, nothing is skipped, and the scan behaves exactly as it did before
+	# — the failure mode here is a false positive, so degrading toward loud is correct.
+	if git -C "$REPO_ROOT" check-ignore -q -- "$f" 2>/dev/null; then
+		continue
+	fi
 	rel="${f#"$REPO_ROOT/"}"
 	if printf '%s\n' "$GRANDFATHERED_ORPHANS" | grep -qxF -- "$rel"; then
 		add_warning "$rel cites upstream code outside the registry (grandfathered — migrate as you touch it)"

@@ -304,7 +304,13 @@
 	 * it to screen readers before performing the redirect or form submit.
 	 */
 	function handleReplay(data) {
-		// Show replay status to all users (visible + announced).
+		// #322: only say "replaying" when something is actually being replayed. Most
+		// responses now carry a plain redirect (the action is NOT resumed), and
+		// announcing a replay there tells screen-reader users the opposite of what
+		// happened — the one cohort that cannot see the notice on the next page.
+		var willReplay = !!(data && (data.replay || data.replaying));
+		var message = willReplay ? strings.replayingAction : strings.returningToPage;
+
 		loadingOverlay.hidden = false;
 		var srOnly = loadingOverlay.querySelector('.wp-sudo-sr-only');
 		if (srOnly) {
@@ -312,9 +318,9 @@
 		}
 		var statusEl = loadingOverlay.querySelector('.wp-sudo-loading-text');
 		if (statusEl) {
-			statusEl.textContent = strings.replayingAction;
+			statusEl.textContent = message;
 		}
-		announce(strings.replayingAction);
+		announce(message);
 
 		if (!data) {
 			window.location.href = window.location.origin + '/wp-admin/';

@@ -71,13 +71,13 @@ class Sudo_Session {
 	 * the cache-bypass read still defends the cache-poison-only attacker. See
 	 * proposal #310 and docs/security-model.md.
 	 *
-	 * @since 4.9.0
+	 * @since 5.0.0
 	 * @var string
 	 */
 	public const PROOF_META_KEY = '_wp_sudo_proofs';
 
 	/**
-	 * Legacy user-meta key: pre-4.9.0 session binding token (SHA-256 of cookie).
+	 * Legacy user-meta key: pre-5.0.0 session binding token (SHA-256 of cookie).
 	 *
 	 * Superseded by PROOF_META_KEY. No longer read or written on the enforcement
 	 * path; retained only so teardown (clear_session_data), Site Health cleanup,
@@ -89,7 +89,7 @@ class Sudo_Session {
 	public const TOKEN_META_KEY = '_wp_sudo_token';
 
 	/**
-	 * Legacy user-meta key: pre-4.9.0 login-session bind (SHA-256 of verifier).
+	 * Legacy user-meta key: pre-5.0.0 login-session bind (SHA-256 of verifier).
 	 *
 	 * Superseded by the HMAC binding inside PROOF_META_KEY. No longer read or
 	 * written; retained only for teardown/uninstall cleanup of upgraded sites.
@@ -931,7 +931,7 @@ class Sudo_Session {
 	 *
 	 * @return bool
 	 */
-	private static function cookie_secure(): bool {
+	public static function cookie_secure(): bool {
 		$secure = is_ssl() || force_ssl_admin();
 
 		/**
@@ -1043,7 +1043,7 @@ class Sudo_Session {
 
 		update_user_meta( $user_id, self::PROOF_META_KEY, $map );
 
-		// Cleanup: drop pre-4.9.0 token/bind rows from upgraded sites. Harmless
+		// Cleanup: drop pre-5.0.0 token/bind rows from upgraded sites. Harmless
 		// no-ops once removed; nothing on the enforcement path reads them.
 		delete_user_meta( $user_id, self::TOKEN_META_KEY );
 		delete_user_meta( $user_id, self::SESSION_BIND_META_KEY );
@@ -1258,7 +1258,7 @@ class Sudo_Session {
 	private static function clear_session_data( int $user_id ): void {
 		delete_user_meta( $user_id, self::META_KEY );
 		delete_user_meta( $user_id, self::PROOF_META_KEY );
-		// Legacy pre-4.9.0 keys — cleaned up on any teardown of an upgraded site.
+		// Legacy pre-5.0.0 keys — cleaned up on any teardown of an upgraded site.
 		delete_user_meta( $user_id, self::TOKEN_META_KEY );
 		delete_user_meta( $user_id, self::SESSION_BIND_META_KEY );
 

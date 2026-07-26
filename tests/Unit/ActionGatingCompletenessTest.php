@@ -175,7 +175,7 @@ class ActionGatingCompletenessTest extends TestCase {
 
 	/**
 	 * set_token() on a cookie-less surface (no login-session token) writes a proof
-	 * whose HMAC binds to the empty verifier, and clears the legacy pre-4.9.0 bind
+	 * whose HMAC binds to the empty verifier, and clears the legacy pre-5.0.0 bind
 	 * row so upgraded sites are cleaned up.
 	 */
 	public function test_set_token_clears_bind_when_no_session_token(): void {
