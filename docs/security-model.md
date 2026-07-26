@@ -325,10 +325,13 @@ querying the database. Writes go through `add_user_meta()` /
 invalidate the cached value.
 
 **Risk: Forged assurance via object-cache poisoning.** `user_meta` is a
-persistent, global object-cache group. A cache-poisoning primitive (e.g. the
-wp2shell SQLi→cache-poison class) could plant a `_wp_sudo_proofs` entry whose
-`token` is the SHA-256 of a cookie the attacker controls, forging an active sudo
-session with no challenge. This is a **fail-open** condition.
+persistent, global object-cache group. Any primitive that can write into that
+group — an SQL-injection-to-cache-poison chain being the usual shape — could
+plant a `_wp_sudo_proofs` entry whose `token` is the SHA-256 of a cookie the
+attacker controls, forging an active sudo session with no challenge. This is a
+**fail-open** condition. (Stated as a capability, not an attribution to a
+specific named exploit: the mitigations below do not depend on which primitive
+supplies the write.)
 
 **Mitigations (4.9.0):**
 
@@ -345,9 +348,12 @@ session with no challenge. This is a **fail-open** condition.
   where the salt lives. (Mirrors the role-audit drift-detection reads.)
 - **Degradation:** when the `AUTH_SALT` family lives in `wp_options` rather than
   `wp-config.php`, a DB-write attacker can read the salt and forge the HMAC; the
-  cache-bypass read still defends the cache-poison-only attacker, and the attacker
-  still needs the victim's `wp_sudo_token` cookie. Prefer salts in `wp-config.php`
-  (ties to the salt-relocation proposal, #310).
+  cache-bypass read still defends the cache-poison-only attacker. Note what such
+  an attacker still needs: the **raw login-session verifier**, which comes from
+  the victim's WordPress **login** cookie. Holding it, they can mint their own
+  `wp_sudo_token`, hash it, and sign a matching proof — so the victim's existing
+  `wp_sudo_token` cookie is *not* the barrier; the login session is. Prefer salts
+  in `wp-config.php` (ties to the salt-relocation proposal, #310).
 
 **Risk: Stale liveness marker.** `_wp_sudo_expires` is a per-user enumeration
 hint, not the enforcement value; a stale cached copy can only mis-report the
@@ -482,7 +488,7 @@ Every successful browser form login (the `wp_login` hook) automatically activate
 
 **Security properties and limits of the auto-grant:**
 
-- **Second factor enforced by session binding.** WP Sudo's priority-10 grant runs on `wp_login` *before* the second factor is verified — the Two Factor plugin hooks the same hook at `PHP_INT_MAX` (verified against live source in `Two_Factor_Core::wp_login()`, `class-two-factor-core.php`) — but that grant does not survive to become a password-only window. The grant binds to the login-session token (see [Session Binding](#session-binding)), and for an enrolled user the Two Factor plugin unconditionally destroys that session to challenge the factor: `Two_Factor_Core::wp_login()` calls `destroy_current_session_for_user()` then `wp_clear_auth_cookie()`, and re-mints with `wp_set_auth_cookie()` only after the factor validates (verified against live source). The re-minted session token no longer matches the grant's binding, so `verify_token()` rejects it and the user meets WP Sudo's own challenge, which enforces password + second factor. Net: an enrolled user is never left holding a password-strength sudo window from the auto-grant. (This assumes the second factor is actually exercised on the login; a 2FA plugin that authenticates the factor inline via the `authenticate` filter mints the grant *after* the factor instead, which is likewise fine.)
+- **Second factor enforced by session binding.** WP Sudo's priority-10 grant runs on `wp_login` *before* the second factor is verified — the Two Factor plugin hooks the same hook at `PHP_INT_MAX` (verified against live source in `Two_Factor_Core::wp_login()`, `class-two-factor-core.php`) — but that grant does not survive to become a password-only window. The grant binds to the login-session token (see [Session Binding](#session-binding)), and for an enrolled user the Two Factor plugin unconditionally destroys that session to challenge the factor: `Two_Factor_Core::wp_login()` calls `destroy_current_session_for_user()` then `wp_clear_auth_cookie()`, and re-mints with `wp_set_auth_cookie()` only after the factor validates (verified against live source). The re-minted session token no longer matches the grant's binding, so the proof no longer resolves (`resolve_valid_proof()` finds no entry under the new verifier's map key) and the user meets WP Sudo's own challenge, which enforces password + second factor. Net: an enrolled user is never left holding a password-strength sudo window from the auto-grant. (This assumes the second factor is actually exercised on the login; a 2FA plugin that authenticates the factor inline via the `authenticate` filter mints the grant *after* the factor instead, which is likewise fine.)
 - **Walk-away exposure (password-only logins).** For a login whose session persists — a password login *not* completed with a session-rotating second factor — a user who logs in and steps away leaves up to a full session window (1–15 minutes, per the session-duration setting) of gated-action capability for whoever is at the keyboard, someone who could *not* have passed the challenge. (A Two Factor-enrolled login does not leave this window; the grant is invalidated per the previous point.) Sites where this matters can suppress the grant with the `wp_sudo_grant_session_on_login` filter (return `false`), requiring an explicit challenge at the first gated action.
 - **Programmatic logins.** Any code that fires `do_action( 'wp_login', ... )` — SSO/SAML/OIDC plugins, custom login flows — triggers the grant. For passwordless SSO users this is what keeps gated actions reachable at all: a fresh identity-provider login is effectively their reauthentication, since they cannot pass a WordPress-password challenge. Conversely, sites that do not want programmatic logins to mint sudo sessions should suppress the grant via the filter — but only for users who retain a usable WordPress password, otherwise gated actions become unreachable for them. For those passwordless accounts the guarantee is correspondingly weaker: the sudo window opens at *login freshness*, not at the moment of the action. (This login-freshness downgrade is specific to passwordless accounts. A 2FA-enrolled user with a real password is instead re-challenged, because Session Binding invalidates the pre-2FA grant — see *Second factor enforced by session binding* above.) A site that needs a genuine at-the-moment step-up for administrators should not treat WP Sudo under passwordless SSO as providing one — and note that provisioning WordPress passwords for those admins is *not* sufficient by itself, because the login auto-grant still mints a window on every login. The remedy is to give those admins passwords **and** suppress the auto-grant for them via the `wp_sudo_grant_session_on_login` filter (so they meet the challenge at the first gated action), or to adopt the roadmapped IdP challenge-provider (see the [FAQ](FAQ.md)) — not to remove WP Sudo, which still gates the action, bounds the window, and fires audit hooks.
 - **Non-interactive surfaces unaffected.** `wp_login` does not fire for Application Password or XML-RPC authentication, and those paths carry no session cookie, so the grant is scoped to browser logins.
@@ -495,7 +501,7 @@ Since v2.6.0, sudo sessions have a 120-second grace window (`Sudo_Session::GRACE
 
 **Security properties of the grace window:**
 
-- **Token binding is enforced** — `is_within_grace()` calls `verify_token()` before returning `true`. The session cookie must still be present and match the stored hash. A browser without the original sudo cookie cannot gain grace access.
+- **Token binding is enforced** — `is_within_grace()` resolves the signed proof (`resolve_valid_proof()`) before returning `true`, so the HMAC must verify and the session cookie must still be present and match the stored hash. A browser without the original sudo cookie cannot gain grace access.
 - **Grace applies to interactive surfaces only** — the admin UI, cookie-authenticated REST, and WPGraphQL gating points check grace. Because `is_within_grace()` requires the sudo token cookie, grace is structurally unreachable for cookie-less requests — App Password and bearer-token REST clients never receive a grace window. The admin bar timer does not check grace either — it reflects the true session state so the user sees accurately when their session has expired.
 - **Meta cleanup is deferred** — `is_active()` does not delete the session meta while the grace window is open. This allows `is_within_grace()` to read the expiry timestamp and token. Cleanup runs when `time() > $expires + GRACE_SECONDS`.
 - **Wind-down, not extension** — gated actions initiated during the grace period pass if the session token is still valid. The gate does not distinguish between "in-progress" and "new" actions — the window is deliberately short (120 s) to limit exposure. `is_active()` returns false during grace, the admin bar shows the session as expired, and no new session meta is written.

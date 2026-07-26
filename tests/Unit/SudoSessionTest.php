@@ -635,6 +635,77 @@ class SudoSessionTest extends TestCase
 		$this->assertArrayHasKey(hash('sha256', 'verifier-B'), $map, 'The fresh activation entry must remain.');
 	}
 
+	/**
+	 * #278: the read-modify-write that preserves other browsers' proofs must
+	 * source the existing map from the DATABASE, not the object cache.
+	 *
+	 * Enforcement already reads cache-bypassed, so a stale or poisoned cached
+	 * map cannot be trusted there. But if activation merges onto that same
+	 * cached map and writes the whole thing back, it PERSISTS the stale entries
+	 * — laundering them into the database, where the cache-bypassed enforcement
+	 * read will then honor them. A revoked browser that still holds its cookies
+	 * would have its entry resurrected by an unrelated activation.
+	 *
+	 * Modelled by making get_user_meta() serve a stale map until
+	 * wp_cache_delete() runs, after which it serves the true (revoked) state.
+	 */
+	public function test_set_token_sources_the_existing_map_cache_bypassed(): void
+	{
+		$user       = 7;
+		$stale_key  = hash('sha256', 'verifier-REVOKED');
+		$cache_live = true; // Flipped by wp_cache_delete().
+		$written    = null;
+
+		$stale_map = array(
+			$stale_key => array(
+				'token'   => hash('sha256', 'cookie-REVOKED'),
+				'expires' => time() + 900,
+				'hmac'    => 'whatever-it-was-signed-with',
+			),
+		);
+
+        // The database no longer holds that entry — it was revoked.
+		Functions\when('get_user_meta')->alias(
+			function ($uid, $key, $single = false) use (&$cache_live, $stale_map) {
+				if (Sudo_Session::PROOF_META_KEY !== $key) {
+					return '';
+				}
+				return $cache_live ? $stale_map : '';
+			}
+		);
+		Functions\when('wp_cache_delete')->alias(
+			function () use (&$cache_live) {
+				$cache_live = false; // Forced re-read now hits the DB.
+				return true;
+			}
+		);
+		Functions\when('update_user_meta')->alias(
+			function ($uid, $key, $value) use (&$written) {
+				if (Sudo_Session::PROOF_META_KEY === $key) {
+					$written = $value;
+				}
+				return true;
+			}
+		);
+		Functions\when('delete_user_meta')->justReturn(true);
+		Functions\when('get_option')->justReturn(array('session_duration' => 15));
+		Functions\when('is_ssl')->justReturn(false);
+		Functions\when('headers_sent')->justReturn(true);
+		Functions\when('get_current_user_id')->justReturn($user);
+		Functions\when('wp_generate_password')->justReturn('cookie-NEW');
+		Functions\when('wp_get_session_token')->justReturn('verifier-NEW');
+
+		Sudo_Session::activate($user);
+
+		$this->assertIsArray($written);
+		$this->assertArrayHasKey(hash('sha256', 'verifier-NEW'), $written);
+		$this->assertArrayNotHasKey(
+			$stale_key,
+			$written,
+			'A revoked proof entry present only in the object cache was written back to the database.'
+		);
+	}
+
 	// =================================================================
 	// F8 — cookie_secure(): FORCE_SSL_ADMIN fallback and filter
 	// =================================================================

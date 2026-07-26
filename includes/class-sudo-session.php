@@ -941,7 +941,16 @@ class Sudo_Session {
 
 		// Read-modify-write the per-login-session proof map so a second browser's
 		// activation adds its own entry instead of overwriting the first's (#279).
-		$map = get_user_meta( $user_id, self::PROOF_META_KEY, true );
+		//
+		// Sourced cache-BYPASSED, for the same reason enforcement is: this path
+		// writes the merged map back, so anything it reads from a stale or
+		// poisoned object cache would be laundered into the database, where the
+		// cache-bypassed enforcement read would then honor it. A browser whose
+		// proof was revoked but whose cached entry survived (failed
+		// invalidation) would have that entry resurrected by an unrelated
+		// activation. Reading through the same seam keeps the database, not the
+		// cache, authoritative on both paths.
+		$map = self::read_proof( $user_id, true );
 		if ( ! is_array( $map ) ) {
 			$map = array();
 		}
