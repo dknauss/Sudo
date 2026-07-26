@@ -96,9 +96,9 @@ post-`4.8.0` churn.
 
 | Lane | Milestone | Clock | Admits |
 |---|---|---|---|
-| Plugin security release | `5.0.0 — security` | **Yes** — the only lane with one | The `5.0.0` payload plus its tag-time gates |
-| Plugin, everything else | `post-5.0.0` | No | Features, non-blocking bugs, follow-ups deferred out of `5.0.0` |
-| Plugin, next feature batch | `v5.1.0` | No | Curated multisite governance/break-glass batch — renumbered from `v5.0.0` when `5.0.0` was claimed by this security release. All backward-compatible additions, so MINOR is the correct class. |
+| Plugin security release | `4.9.0 — security` | **Yes** — the only lane with one | The `4.9.0` payload plus its tag-time gates |
+| Plugin, everything else | `post-4.9.0` | No | Features, non-blocking bugs, follow-ups deferred out of `4.9.0` |
+| Plugin, next feature batch | `v5.0.0` | No | Curated multisite governance/break-glass batch — reclaimed `v5.0.0` when the security release rolled back to `4.9.0` and freed the number. All backward-compatible additions, so MINOR is the correct class. |
 | Core proposal research | `core-gate proposal — v1 readiness` | No | Proposal/spec findings; **no plugin release depends on these** |
 | Core proposal, deferred | `core-gate: provenance/automation policy (deferred project)` | No | The automated-update provenance split (#320) |
 
@@ -106,9 +106,11 @@ post-`4.8.0` churn.
 > all five sync points, the POT, and the version facts above are now `4.9.0`. The
 > argument below is kept as the decision record for why `5.0.0` was taken at the
 > time; it has **not** been rewritten, and it no longer describes the version on
-> `main`. The MAJOR-vs-MINOR question it settles is reopened by the rollback, and
-> the `5.0.0 — security` / `post-5.0.0` milestone names still carry the old number.
-> Both need a decision separate from this string change.
+> `main`. The milestones have been renamed to match (`4.9.0 — security`,
+> `post-4.9.0`, and the feature batch reclaiming `v5.0.0`). What the rollback
+> reopens is the **MAJOR-vs-MINOR** question this section settles: `VERSIONING.md`
+> classes the `#322` hook removal as MAJOR, and at `4.9.0` that removal ships in a
+> MINOR. That needs deciding separately from this string change.
 
 **Why `5.0.0` and not `4.9.0`.** The `#322` fix removes the only call site of
 `wp_sudo_action_replayed` — the gate no longer replays a stashed request, so there is
@@ -118,14 +120,14 @@ classes removing a documented hook as **MAJOR**. Taken by the rule rather than b
 override: the release is `5.0.0`. Everything else in the payload would have been a
 MINOR on its own.
 
-**`5.0.0` payload.** Landed: forge-resistant per-login-session assurance (#278, #279,
+**`4.9.0` payload.** Landed: forge-resistant per-login-session assurance (#278, #279,
 PR #348) and the reauth-lockout out-of-band clear (#280, PR #343). Open: the stash
 confused-deputy fix (#322, PR #368 — the v1 fail-closed half). #273
 (release-environment matrix) rides the milestone as a **tag-time gate**, not payload —
 it was left open through `4.8.0` and must be run or explicitly waived before the tag
 is cut.
 
-**Deferred out of `5.0.0`.** The `#322` **v2** layer (informed confirmation +
+**Deferred out of `4.9.0`.** The `#322` **v2** layer (informed confirmation +
 origin-bound replay, PR #350) is held back: all of its open review threads sit on that
 layer, none on v1. It restores replay, and therefore probably restores the removed
 hook — so its own version classification must be decided on its merits, not inherited
@@ -134,7 +136,7 @@ from this release.
 **Membership rule.** A review finding that is not a regression introduced by the PR
 under review gets **filed and deferred**, never bolted onto the PR in flight. #354,
 #355 and #356 are the worked examples — all three were split out of #348/#343 review
-rather than absorbed, and all three sit in `post-5.0.0`.
+rather than absorbed, and all three sit in `post-4.9.0`.
 
 ## WordPress.org publication status
 
