@@ -372,6 +372,11 @@ A two-model adversarial design review (Fable + Opus) of this spec and the propos
 8. **`map_meta_cap` enforcement conflates authz with proof-of-intent and invites recursion (#309).** Drop the §5.3 `map_meta_cap` insertion (the caps-meta-write + `wp_update_user`/`set_role` seams already cover the writes) or make it non-blocking.
 9. **HMAC forgery-resistance is conditional on `AUTH_SALT` placement (#310).** With the salts in `wp_options`, the wp2shell SQLi read (§10) forges the MAC. State salts-in-`wp-config.php` as a hard precondition (§4.2), not a footnote.
 
+A later **Codex** pass added two more high-severity design blockers not covered above:
+
+10. **Auto-replay is a confused-deputy hole (#315).** §5.1/§8 replay **non-account** code actions (install/activate/switch/delete) after a challenge, and the stash is per-user — so a copied session can pre-stash a code action and the victim's legitimate reauth replays/executes it. Bind each stash to the creating session/proof, or make code actions **reauth-then-resubmit** (not auto-replayed) like the account pivots.
+11. **The self-email gate is on an observational `do_action` (#316).** §4.1 routes `core/change-own-email` enforcement to `personal_options_update`, whose return is discarded — it cannot veto the pending-email write, so this Group-B pivot has no working enforcement on the profile surface. Gate at a veto-capable seam before `send_confirmation_on_profile_email()` runs (and the REST self-update permission callback). Same class as #303, distinct path.
+
 These interact with §11's open questions (notably Q2 session store, Q3 scope-bound windows, Q5 default-on). The medium/low items — app-password shared sink, the registration invariant being point-in-time, actor-class detection, option-write activation bypass, `WP_Session_Tokens` pluggability, multisite super-admin/network-option, the REST silent-200, and four mechanism gaps — are tracked in #311.
 
 ---
