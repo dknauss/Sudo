@@ -22,6 +22,7 @@ The security boundary is **recent, deliberate authentication of the actor at the
 - Not a WAF. It gates named operations; it does not inspect traffic.
 - Not an audit log, monitor, or SIEM. It **enforces** proof of intent at the chokepoint; it does not observe, correlate, or alert on events. Detection and logging are a separate concern — useful in a plugin, out of scope for core.
 - **Interactive surfaces first.** The first enforcement cut targets browser + cookie-authenticated REST; Application Passwords, WP-CLI, cron, and XML-RPC are explicitly deferred (§9).
+- **Not code-provenance for the automated-update channel.** The gate's "an admin session is insufficient to introduce code" guarantee is scoped to *actor-driven* paths. The cron/auto-update path installs code with **no actor to challenge**, so its integrity is a package-signing / provenance problem this gate does not solve. WordPress has **no working package signing** today — the signed-updates keys lapsed 2021-04-01, `Core_Upgrader` requests no verification (`check_signatures=false`), and verification soft-fails by default (verified against `wordpress-develop` trunk, 2026-07-26). Deferred to a provenance primitive (issue #307); the gate is complementary to, not a substitute for, signing.
 
 ---
 
