@@ -146,30 +146,6 @@ class SudoSessionTest extends TestCase {
 	}
 
 	/**
-	 * Re-sign the current login session's proof entry with a past expiry so
-	 * enforcement treats it as genuinely expired (valid HMAC, elapsed window).
-	 *
-	 * @param int $user_id User ID.
-	 * @param int $expires Past expiry timestamp to stamp on the entry.
-	 * @return void
-	 */
-	private function force_proof_expiry( int $user_id, int $expires ): void {
-		$map      = get_user_meta( $user_id, Sudo_Session::PROOF_META_KEY, true );
-		$verifier = wp_get_session_token();
-		$key      = hash( 'sha256', $verifier );
-		$this->assertIsArray( $map );
-		$this->assertArrayHasKey( $key, $map );
-
-		$map[ $key ]['expires'] = $expires;
-		$map[ $key ]['hmac']    = hash_hmac(
-			'sha256',
-			$user_id . '|' . $verifier . '|' . $map[ $key ]['token'] . '|' . $expires,
-			wp_salt( 'auth' )
-		);
-		update_user_meta( $user_id, Sudo_Session::PROOF_META_KEY, $map );
-	}
-
-	/**
 	 * INTG-03: deactivate() clears meta and cookie.
 	 */
 	public function test_deactivate_clears_meta_and_cookie(): void {
