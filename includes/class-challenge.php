@@ -262,6 +262,10 @@ class Challenge {
 					'startOver'            => __( 'Start over', 'wp-sudo' ),
 					'twoFactorRequired'    => __( 'Password confirmed. Two-factor authentication required.', 'wp-sudo' ),
 					'replayingAction'      => __( 'Replaying your action…', 'wp-sudo' ),
+					// #322: most responses do not replay — the action is not resumed and
+					// the user returns to re-perform it. Announcing a replay there would
+					// tell screen-reader users the opposite of what happened.
+					'returningToPage'      => __( 'Returning you to your page…', 'wp-sudo' ),
 					'leavingChallenge'     => __( 'Leaving challenge page.', 'wp-sudo' ),
 					'lockoutExpired'       => __( 'Lockout expired. You may try again.', 'wp-sudo' ),
 				),
