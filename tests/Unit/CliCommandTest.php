@@ -238,27 +238,6 @@ class CliCommandTest extends TestCase {
 	}
 
 	/**
-	 * A user with no active lockout gets an accurate no-op report, and the
-	 * wp_sudo_lockout_cleared hook must NOT fire for a no-op.
-	 */
-	public function test_unlock_reports_no_op_when_not_locked(): void {
-		Functions\when( 'get_user_meta' )->justReturn( '' );
-		Functions\when( 'delete_user_meta' )->justReturn( true );
-		Functions\when( 'delete_transient' )->justReturn( true );
-		Functions\when( 'update_user_meta' )->justReturn( true );
-
-		Functions\expect( 'do_action' )
-			->with( 'wp_sudo_lockout_cleared', \Mockery::any(), \Mockery::any() )
-			->never();
-
-		$command = new CLI_Command();
-		$command->unlock( array(), array( 'user' => '9' ) );
-
-		$this->assertSame( 'log', \WP_CLI::$messages[0]['type'] ?? null );
-		$this->assertStringContainsString( 'No active reauth lockout for user 9', \WP_CLI::$messages[0]['message'] ?? '' );
-	}
-
-	/**
 	 * An already-expired lockout (natural expiry, never explicitly cleared) is
 	 * NOT reported as a lockout clear — has_unexpired_lockout() reads the raw
 	 * timestamp with no auto-reset side effect, so it correctly reports that
@@ -303,6 +282,13 @@ class CliCommandTest extends TestCase {
 	 * a login on subsite B reads as "nothing tracked" here yet still blocks the
 	 * user on A; refusing to act would leave the escape hatch unable to open
 	 * the one door it exists for.
+	 *
+	 * The audit hook must ALSO fire on this path: the canonical contract
+	 * (docs/developer-reference.md) says wp_sudo_lockout_cleared fires
+	 * "whenever the command actually discarded something", and bumping the
+	 * epoch discards real, previously-unobservable per-IP state (#280
+	 * review follow-up). $was_locked is false here, matching the case where
+	 * per-user counters were cleared without a hard lockout.
 	 */
 	public function test_unlock_bumps_the_epoch_but_clears_no_counters_when_nothing_is_tracked(): void {
 		Functions\when( 'get_user_meta' )->justReturn( '' );
@@ -310,11 +296,15 @@ class CliCommandTest extends TestCase {
 		// No per-user counter is discarded...
 		Functions\expect( 'delete_user_meta' )->never();
 		Functions\expect( 'delete_transient' )->never();
-		// ...but the generation is invalidated.
+		// ...but the generation is invalidated...
 		Functions\expect( 'update_user_meta' )
 			->once()
 			->with( 9, Sudo_Session::IP_FAILURE_EPOCH_META_KEY, 1 )
 			->andReturn( true );
+		// ...and the clear is audited, same as any other state-discarding outcome.
+		Functions\expect( 'do_action' )
+			->once()
+			->with( 'wp_sudo_lockout_cleared', 9, false );
 
 		$command = new CLI_Command();
 		$command->unlock( array(), array( 'user' => '9' ) );

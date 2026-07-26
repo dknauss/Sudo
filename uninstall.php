@@ -136,6 +136,15 @@ function wp_sudo_cleanup_site(): void {
  * transients live in the cache instead of `wp_options` and are unaffected,
  * same as any other transient cleanup performed via raw SQL.
  *
+ * KNOWN RESIDUAL GAP (tracked in #371, not fixed here): on such a cache-backed
+ * site specifically, a reinstall within a still-live transient's TTL can still
+ * revive a cleared/pre-clear window at epoch 0, because this sweep cannot
+ * reach the cache and the epoch identity value (0) is unchanged by uninstall.
+ * The durable fix is a per-installation-instance nonce folded into the key
+ * material (so a fresh activation always derives unreachable keys, regardless
+ * of storage backend) — deferred because it touches the hottest per-attempt
+ * key-derivation path in the plugin and needs its own dedicated PR.
+ *
  * @return void
  */
 function wp_sudo_cleanup_ip_lockout_transients(): void {

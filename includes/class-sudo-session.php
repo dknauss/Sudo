@@ -1679,14 +1679,20 @@ class Sudo_Session {
 	 * Scope limit worth knowing: this reads user meta only. The per-(ip, user)
 	 * rolling windows are transients keyed by a hash of the IP, so they cannot
 	 * be enumerated without knowing the IP, and a user whose per-user meta is
-	 * clean can still have one outstanding. Erring that way is deliberate: the
-	 * caller then treats the unlock as a no-op and leaves a brute-force window
-	 * intact, rather than clearing defenses for a user who is not blocked.
+	 * clean can still have one outstanding on another blog. The WP-CLI clear
+	 * (#280) does NOT simply no-op in that case: CLI_Command::unlock() still
+	 * calls Sudo_Session::clear_ip_failure_generation() even when this method
+	 * returns false, precisely because a per-(ip, user) window can be live
+	 * while per-user meta reads clean — see that method's docblock. This
+	 * predicate only decides whether to ALSO clear per-user counters (and
+	 * whether to log a full lockout-clear vs. a narrower message); it never
+	 * decides whether the per-IP generation gets bumped.
 	 *
-	 * Lets the WP-CLI clear (#280) tell "there is nothing to do" apart from
+	 * Lets the WP-CLI clear tell "no per-user counters to delete" apart from
 	 * "there are pre-lockout counters here", so it neither erases a live
-	 * brute-force defense while reporting a no-op, nor writes an epoch bump for
-	 * a user with no state at all. Pure read, like has_unexpired_lockout().
+	 * per-user brute-force defense while reporting a narrower outcome, nor
+	 * deletes user meta for a user with no per-user state at all. Pure read,
+	 * like has_unexpired_lockout().
 	 *
 	 * @since TBD
 	 *
