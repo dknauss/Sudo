@@ -315,13 +315,22 @@ jobs:
       # bin/make-pot.sh shells out to WP-CLI, which ubuntu-latest does not ship, so
       # install it here. Deliberately NOT made optional in the script: a check that
       # skips itself when a dependency is missing reports success while verifying
-      # nothing, which is how the stale POT survived in the first place.
+      # nothing, which is how the stale POT survived to main in the first place.
+      #
+      # PINNED with a checksum, because this job feeds the required PHPUnit gate. An
+      # unpinned `gh-pages/phar/wp-cli.phar` is whatever WP-CLI shipped this morning:
+      # a release that changes `i18n make-pot` output would turn every open PR red at
+      # once, for a reason unrelated to any of them. Bump deliberately.
       - name: Install WP-CLI (required by bin/make-pot.sh)
+        env:
+          WP_CLI_VERSION: '2.12.0'
+          WP_CLI_SHA256: 'ce34ddd838f7351d6759068d09793f26755463b4a4610a5a5c0a97b68220d85c'
         run: |
-          curl -sSLo /usr/local/bin/wp \
-            https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
-          chmod +x /usr/local/bin/wp
-          wp --info --allow-root
+          curl -sSLo /tmp/wp-cli.phar \
+            "https://github.com/wp-cli/wp-cli/releases/download/v${WP_CLI_VERSION}/wp-cli-${WP_CLI_VERSION}.phar"
+          echo "${WP_CLI_SHA256}  /tmp/wp-cli.phar" | sha256sum --check --strict
+          sudo install -m 0755 /tmp/wp-cli.phar /usr/local/bin/wp
+          wp --version --allow-root
 
       - name: Verify POT file drift
         run: composer verify:i18n

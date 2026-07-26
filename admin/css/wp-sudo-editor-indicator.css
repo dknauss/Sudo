@@ -51,9 +51,10 @@
  * GB-AREA-IDENTIFIER and GB-AREA-ARIA-CONTROLS (the `{plugin}:{sidebar}` identifier and
  * the `aria-controls` it feeds) and GB-PINNED-CLASS (the container class), all in
  * docs/upstream-sources.md — which `composer verify:sources` re-checks against live
- * upstream, unlike a URL pasted into a comment. Confirmed against the live WP 7.0
- * editor DOM as well. Note `.replace()` swaps only the FIRST `/`, so this holds while
- * neither name contains one.
+ * upstream, unlike a URL pasted into a comment. First verified 2026-07-26 and
+ * confirmed against the live WP 7.0 editor DOM; the registry's own check is what keeps
+ * it true after that, so treat the date as provenance, not as a freshness claim. Note
+ * `.replace()` swaps only the FIRST `/`, so this holds while neither name contains one.
  *
  * `.interface-pinned-items` is load-bearing, not decoration: the Options menu renders
  * the SAME toggle component with the SAME `aria-controls`, so dropping the container

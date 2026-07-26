@@ -213,11 +213,12 @@ And update `Stable tag` in `readme.txt`.
 
 ## Prose Discipline
 
-Every rule below exists because the failure it describes has already shipped in this
-repo. `docs/llm-lies-log.md` is the record; PR #317 alone needed three rounds of
-corrections, all to prose, none to code. Prose is the least-tested artifact here and the
-one an LLM produces fastest — treat a sentence about behaviour as seriously as a line of
-code that asserts it.
+Every rule below exists because the failure it describes happened in this repo.
+`docs/llm-lies-log.md` is the standing record. PR #317 needed roughly seven follow-up
+commits before merge; most corrected prose rather than code, and two of those findings
+came from a reviewer rather than from tests or the author's own sweeps. Prose is the
+least-tested artifact here and the one an LLM produces fastest — treat a sentence about
+behaviour as seriously as a line of code that asserts it.
 
 ### Cite the enclosing symbol, never a bare line number
 
@@ -225,10 +226,13 @@ code that asserts it.
   "`ComplementaryAreaToggle` inside `<PinnedItems>` (complementary-area/index.js L280)",
   not "complementary-area/index.js L326".
 - If you cannot name the enclosing scope, you have not read the file — a `grep` hit
-  proves a token's address, not that it belongs to the thing you are describing. #288
-  cited `isPinned ? starFilled : starEmpty` as precedent for the pinned toolbar button;
-  the line was real, but it belongs to the pin/unpin star in a different container.
-  Six files, including the user-facing changelog, carried that error to `main`.
+  proves a token's address, not that it belongs to the thing you are describing. #317's
+  first commit cited `isPinned ? starFilled : starEmpty` as precedent for the pinned
+  toolbar button; the line was real, but it belongs to the pin/unpin star in a different
+  container. It spread to five files, including the changelog entry, within one commit,
+  and was caught 24 minutes later only because someone re-read the file in context
+  rather than re-checking the line number. It never reached `main` — the point is how
+  fast a grep-verified citation propagates before anyone reads it.
 - Line numbers are a convenience, not the identity. The snippet plus the symbol is the
   identity, because upstream trunk moves under you.
 
@@ -260,8 +264,8 @@ code that asserts it.
 - Prefer "carried on the glyph rather than a chip, because core applies no semantic
   background here" over "the only painted state is expiring".
 - A decision plus its reason stays true. A description of current behaviour rots at the
-  next commit, and no test fails when it does. "The only painted state" survived four
-  hours.
+  next commit, and no test fails when it does. "The only painted state" was written at
+  08:29 and was false by 09:13 — 44 minutes.
 - If current state must be described, describe it in **one** place and point at that
   place from everywhere else.
 
