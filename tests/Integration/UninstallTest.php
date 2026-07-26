@@ -244,6 +244,12 @@ class UninstallTest extends TestCase {
 		$this->purge_events_table_all_provenances();
 		$this->activate_plugin();
 
+		// Uninstall_Guard::is_authorized() falls back to
+		// current_user_can( 'delete_plugins' ) outside WP-CLI, so this test needs
+		// a real administrator as the acting user — mirroring the sibling
+		// uninstall tests and the real single-site uninstall actor.
+		wp_set_current_user( $this->make_admin()->ID );
+
 		// Epoch 0 (never explicitly unlocked) omits the epoch segment entirely —
 		// see Sudo_Session::ip_key_material() — so this is "ip|user_id", matching
 		// the pre-epoch key byte-for-byte.
