@@ -33,11 +33,11 @@
  * decrements `r` every second using setInterval. Since `remaining` is PHP's real time()
  * computation, it varies by the elapsed real seconds between session creation and page load.
  *
- * Solution for VISN-03/04: take a page-level screenshot clipped to a fixed bounding box
- * covering the WordPress admin bar (x:0, y:0, width:1280, height:32). This gives a
- * stable 1280x32 px baseline regardless of timer text or element width. Mask the
- * timer label text within the clip so pixel-level text differences don't cause failures.
- * The background color (green/red) and layout are stable and correctly captured.
+ * Solution for VISN-03/04: take an ELEMENT screenshot of the frozen Sudo node, masking
+ * the timer label. A page-level clip of the admin bar was the original bug — it never
+ * settled for toHaveScreenshot's stability check on the busy dashboard (#341), whereas
+ * every element-level baseline in this file is stable. freezeAdminBarTimer() pins the
+ * label to a fixed width so the auto-sizing node no longer varies run to run.
  *
  * Approach for VISN-03/04 (see issue #341): do NOT use page.clock.install(). It freezes
  * requestAnimationFrame, which Playwright's toHaveScreenshot stability check polls on, so
@@ -49,7 +49,7 @@
  *   2. page.goto('/wp-admin/')     — countdown starts under the real clock
  *   3. freezeAdminBarTimer(page[, {expiring:true}]) — stop the interval, fix the label,
  *      and (VISN-04) apply wp-sudo-expiring directly instead of ticking 840s
- *   4. page screenshot with clip + mask for a stable baseline
+ *   4. element screenshot of the frozen node + mask for a stable baseline
  *
  * PITFALL (platform differences): Snapshot pixel comparison can differ between macOS
  * (local) and Linux Docker (CI). The threshold values below are set to accommodate
@@ -103,7 +103,7 @@ async function freezeAdminBarTimer(
 		}
 		const label = node.querySelector( '.ab-label' );
 		if ( label ) {
-			// Fixed text → deterministic node width → stable clip outside the mask.
+			// Fixed text → deterministic node width → stable pixels outside the mask.
 			label.textContent = isExpiring ? 'Sudo: 0:42' : 'Sudo: 15:00';
 		}
 	}, expiring );
@@ -183,22 +183,22 @@ test.describe( 'Visual regression baselines', () => {
      * VISN-03: Admin bar in active session state.
      *
      * Activate a sudo session and navigate to the admin dashboard.
-     * Take a page-level screenshot clipped to the WordPress admin bar region
-     * (x:0, y:0, width:1280, height:32) with the timer text masked.
+     * Take an element screenshot of the frozen Sudo node with the timer text masked.
      *
-     * WHY a page clip rather than an element screenshot:
-     * The `li#wp-sudo-active` element auto-sizes to its text content, and the timer
-     * text varies by a few seconds each run (PHP computes remaining = expires - time()
-     * at page render). Element-level screenshots have variable width → Playwright
-     * fails with "Expected 312px, received 315px". A fixed 1280x32 clip of the admin
-     * bar region is always the same dimensions regardless of timer text width.
+     * WHY an element screenshot (like every other passing baseline in this file):
+     * the `li#wp-sudo-active` element auto-sizes to its timer text, which is why a page
+     * clip was tried first (element widths varied → "Expected 312px, received 315px").
+     * But freezeAdminBarTimer() now pins the label to a fixed width, so the node is
+     * dimension-stable. The page clip was itself the bug: it captured the whole busy
+     * dashboard admin bar, which never settled for toHaveScreenshot's stability check
+     * (#341). An element screenshot of the frozen node is stable and isolated.
      *
-     * Timer text is masked to eliminate pixel-level text diffs — what we're testing
-     * is the presence and background color of the WP Sudo node (green = active).
+     * Timer text is masked to keep pixel-level text rendering out of the diff — what we
+     * test is the presence and background color of the WP Sudo node (green = active).
      *
      * Source: class-admin-bar.php — node id 'wp-sudo-active' (verified)
      * Source: admin/css/wp-sudo-admin-bar.css — .wp-sudo-active background: #2e7d32 (green) (verified)
-     * Source: viewport 1280x900 → admin bar clip: x:0,y:0,w:1280,h:32 (verified from config)
+     * Source: class-admin-bar.php — li#wp-admin-bar-wp-sudo-active is the element target (verified)
      *
      * Stability: after load, freezeAdminBarTimer() stops the countdown interval and pins
      * the label to a fixed width. page.clock.install() is deliberately NOT used — it
@@ -223,20 +223,18 @@ test.describe( 'Visual regression baselines', () => {
         // toHaveScreenshot's stability check polls on, hanging the assertion.
         await freezeAdminBarTimer( page );
 
-        // Snapshot the full admin bar (fixed 1280x32 clip) with timer text masked.
-        // Clip dimensions: width=1280 (viewport), height=32 (WP admin bar standard height).
-        // Mask the .ab-label (timer text) within the timer node to eliminate text-diff noise.
-        // threshold: 0.1 — tolerate sub-pixel antialiasing differences.
-        // maxDiffPixels: 200 — tolerate timer-node width variation at mask boundary.
-        //   The .ab-label mask bounding box shifts slightly as timer text width changes
-        //   (e.g. "Sudo: 14:59" vs "Sudo: 14:58" differ by a few pixels in rendered width).
-        //   This leaves a handful of edge pixels outside the mask that vary between runs.
-        //   200px is above the observed max drift (64px) and well below any real regression.
+        // Element screenshot of the frozen Sudo node (not a page clip). Every
+        // element-level baseline in this suite is stable on CI; the only failures were
+        // VISN-03/04's page-level clip, which never settled because the wider admin bar
+        // (e.g. the external gravatar avatar) kept the clipped region changing (#341).
+        // freezeAdminBarTimer() pins the label to a fixed width, so the node no longer
+        // auto-sizes run to run — the original reason a page clip was used.
+        // Mask the .ab-label (timer text) so any text rendering stays out of the diff.
+        // threshold 0.1 / maxDiffPixels 200 — tolerate sub-pixel antialiasing.
         // This baseline primarily asserts: WP Sudo node is visible with green background.
-        await expect( page ).toHaveScreenshot(
+        await expect( timerNode ).toHaveScreenshot(
             'admin-bar-active.png',
             {
-                clip: { x: 0, y: 0, width: 1280, height: 32 },
                 mask: [ timerNode.locator( '.ab-label' ) ],
                 threshold: 0.1,
                 maxDiffPixels: 200,
@@ -247,16 +245,16 @@ test.describe( 'Visual regression baselines', () => {
     /**
      * VISN-04: Admin bar in expiring state (wp-sudo-expiring class active).
      *
-     * Activate a session, force the wp-sudo-expiring state directly, then take a
-     * page-level screenshot clipped to the admin bar region.
+     * Activate a session, force the wp-sudo-expiring state directly, then take an
+     * element screenshot of the frozen Sudo node.
      *
      * At 60s remaining the JS adds `wp-sudo-expiring` to the li node, which triggers the
      * CSS background change from green (#2e7d32) to red (#c62828); we apply that class
      * directly rather than ticking down to it.
      *
-     * WHY page clip: same reason as VISN-03 — element auto-sizes to text content.
-     * freezeAdminBarTimer() pins the label to a fixed width; the fixed clip covers the
-     * whole admin bar so any residual width variation stays outside the assertion.
+     * WHY an element screenshot: same as VISN-03 — freezeAdminBarTimer() pins the label
+     * to a fixed width so the node is dimension-stable, and an element screenshot of the
+     * frozen node avoids the page-clip instability on the busy dashboard (#341).
      *
      * Source: admin/js/wp-sudo-admin-bar.js — if (r <= 60) n.classList.add('wp-sudo-expiring') (verified)
      * Source: admin/css/wp-sudo-admin-bar.css — .wp-sudo-expiring background: #c62828 (red) (verified)
@@ -288,15 +286,13 @@ test.describe( 'Visual regression baselines', () => {
             'wp-sudo-expiring class must be present for the expiring-state baseline'
         ).toHaveClass( /wp-sudo-expiring/ );
 
-        // Snapshot the full admin bar (fixed 1280x32 clip) with timer text masked.
-        // This baseline primarily asserts: WP Sudo node has red background (expiring state).
+        // Element screenshot of the frozen Sudo node (see VISN-03 / #341: page-level
+        // clips never settled on the busy dashboard; element screenshots are stable).
+        // Asserts: WP Sudo node has the red expiring background.
         // Source: admin/css/wp-sudo-admin-bar.css — .wp-sudo-expiring background: #c62828 (verified)
-        // maxDiffPixels: 200 — tolerate timer-node width variation at mask boundary (same
-        // rationale as VISN-03: .ab-label mask bounding box shifts slightly between runs).
-        await expect( page ).toHaveScreenshot(
+        await expect( timerNode ).toHaveScreenshot(
             'admin-bar-expiring.png',
             {
-                clip: { x: 0, y: 0, width: 1280, height: 32 },
                 mask: [ timerNode.locator( '.ab-label' ) ],
                 threshold: 0.1,
                 maxDiffPixels: 200,
