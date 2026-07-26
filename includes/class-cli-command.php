@@ -126,9 +126,13 @@ class CLI_Command {
 	 * multisite from a blog other than the one running this command.
 	 *
 	 * A cleared lockout is a bounded escape hatch, not full remediation — if
-	 * an attacker still holds the target user's login session, they can
-	 * re-trigger a fresh lockout immediately. Revoke the session
-	 * (`wp sudo revoke --user=<id>`) or rotate the password as well.
+	 * an attacker still holds the target user's WordPress LOGIN session, they
+	 * can re-trigger a fresh lockout immediately. Note that
+	 * `wp sudo revoke` is NOT the remedy for that: it calls
+	 * Sudo_Session::deactivate(), which clears this plugin's own proof and
+	 * session meta and never touches WordPress login sessions, so the attacker
+	 * keeps their cookie and can simply reauthenticate. Destroy the login
+	 * sessions (`wp user session destroy <user> --all`) or reset the password.
 	 *
 	 * ## OPTIONS
 	 *
@@ -205,7 +209,7 @@ class CLI_Command {
 
 		\WP_CLI::success(
 			sprintf(
-				'Cleared reauth lockout for user %1$d. If an attacker still holds this user\'s session, the lockout can retrigger — consider `wp sudo revoke --user=%1$d` or a password reset.',
+				'Cleared reauth lockout for user %1$d. If an attacker still holds this user\'s WordPress login session, the lockout can retrigger — destroy their login sessions (`wp user session destroy %1$d --all`) or reset the password. Note `wp sudo revoke` only clears this plugin\'s own session, not the WordPress login.',
 				$user_id
 			)
 		);
@@ -330,13 +334,18 @@ class CLI_Command {
 	/**
 	 * Resolve target user ID from assoc args or CLI auth context.
 	 *
-	 * Accepts `--user=<id|login>`: a numeric value always resolves as a user
-	 * ID (matching pre-existing behavior — a non-numeric string previously
+	 * Accepts `--user=<id|login>`: a **digits-only** value always resolves as a
+	 * user ID (matching pre-existing behavior — a non-numeric string previously
 	 * cast to 0 via `(int)` and was already treated as "no target user"), any
-	 * other value is looked up as a login. Numeric detection uses
-	 * `is_numeric()` rather than an `is_int()` type check because a WP-CLI
-	 * assoc-arg value is never a PHP int — see GB-CLI-ASSOC in
-	 * docs/upstream-sources.md.
+	 * other value is looked up as a login.
+	 *
+	 * The digits-only test is `ctype_digit()`, deliberately narrower than
+	 * `is_numeric()`. `is_numeric()` also accepts floats, exponent notation,
+	 * and leading whitespace, so a legitimate login of `1.5` or `1e3` would
+	 * cast to user 1 or 1000 and the command would mutate the WRONG ACCOUNT —
+	 * unacceptable for `revoke` and `unlock`. A string check rather than an
+	 * `is_int()` type check is still correct here because a WP-CLI assoc-arg
+	 * value is never a PHP int — see GB-CLI-ASSOC in docs/upstream-sources.md.
 	 *
 	 * @since TBD Accepts a login, not just a numeric ID (#280).
 	 *
@@ -344,10 +353,17 @@ class CLI_Command {
 	 * @return int Positive user ID or 0.
 	 */
 	private function resolve_user_id( array $assoc_args ): int {
-		if ( isset( $assoc_args['user'] ) && is_scalar( $assoc_args['user'] ) ) {
+		if ( isset( $assoc_args['user'] ) ) {
 			$value = $assoc_args['user'];
 
-			if ( is_numeric( $value ) ) {
+			// A bare `--user` (or `--no-user`) arrives as a bool, which would
+			// otherwise stringify to '1'/'' and silently target user 1 or a
+			// login of ''. No target was named, so resolve nothing.
+			if ( is_bool( $value ) || ! is_scalar( $value ) ) {
+				return 0;
+			}
+
+			if ( is_int( $value ) || ctype_digit( (string) $value ) ) {
 				return max( 0, (int) $value );
 			}
 

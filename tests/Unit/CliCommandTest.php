@@ -162,6 +162,42 @@ class CliCommandTest extends TestCase {
 		$command->revoke( array(), array( 'user' => 'no-such-user' ) );
 	}
 
+	/**
+	 * Only a digits-only value is treated as a user ID. PHP's is_numeric()
+	 * also accepts floats and exponent notation, so a legitimate login like
+	 * "1.5" or "1e3" would have been cast to user 1 or 1000 and the command
+	 * would have mutated the WRONG ACCOUNT. Those must take the login path.
+	 *
+	 * @dataProvider non_digit_user_values
+	 */
+	public function test_non_digit_user_values_resolve_as_logins( string $value, int $resolved ): void {
+		Functions\when( 'headers_sent' )->justReturn( true );
+		Functions\when( 'delete_user_meta' )->justReturn( true );
+		Functions\when( 'do_action' )->justReturn( null );
+
+		Functions\expect( 'get_user_by' )
+			->once()
+			->with( 'login', $value )
+			->andReturn( new \WP_User( $resolved ) );
+
+		$command = new CLI_Command();
+		$command->revoke( array(), array( 'user' => $value ) );
+
+		$this->assertStringContainsString( 'user ' . $resolved, \WP_CLI::$messages[0]['message'] ?? '' );
+	}
+
+	/**
+	 * @return array<string, array{0: string, 1: int}>
+	 */
+	public static function non_digit_user_values(): array {
+		return array(
+			'float-like'    => array( '1.5', 41 ),
+			'exponent-like' => array( '1e3', 42 ),
+			'leading space' => array( ' 12', 43 ),
+			'negative'      => array( '-5', 44 ),
+		);
+	}
+
 	// ---- unlock (#280) ----
 
 	/**
