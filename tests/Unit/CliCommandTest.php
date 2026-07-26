@@ -162,6 +162,59 @@ class CliCommandTest extends TestCase {
 		$command->revoke( array(), array( 'user' => 'no-such-user' ) );
 	}
 
+	/**
+	 * `is_numeric()` accepts float and scientific-notation strings, not just
+	 * integers — "1.5" and "1e3" are both numeric. A login that happens to
+	 * look like one of those must still be looked up, not silently cast:
+	 * `(int) "1.5"` is 1 and `(int) "1e3"` is 1000, either of which would
+	 * mutate a real, unrelated account instead of erroring or resolving the
+	 * intended login.
+	 *
+	 * @dataProvider provide_numeric_looking_non_integer_values
+	 */
+	public function test_revoke_treats_non_integer_numeric_strings_as_logins( string $value ): void {
+		Functions\expect( 'get_user_by' )
+			->once()
+			->with( 'login', $value )
+			->andReturn( false );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessage( 'No target user' );
+
+		$command = new CLI_Command();
+		$command->revoke( array(), array( 'user' => $value ) );
+	}
+
+	/**
+	 * @return array<string, array{0: string}>
+	 */
+	public static function provide_numeric_looking_non_integer_values(): array {
+		return array(
+			'decimal'             => array( '1.5' ),
+			'scientific notation' => array( '1e3' ),
+			'leading plus'        => array( '+5' ),
+		);
+	}
+
+	/**
+	 * A plain digits-only string is still resolved as a user ID — the fix for
+	 * the float/scientific-notation case must not regress the common path.
+	 */
+	public function test_revoke_still_resolves_plain_digit_strings_as_id(): void {
+		Functions\when( 'headers_sent' )->justReturn( true );
+		Functions\when( 'delete_user_meta' )->justReturn( true );
+
+		Functions\expect( 'get_user_by' )->never();
+		Functions\expect( 'do_action' )
+			->once()
+			->with( 'wp_sudo_deactivated', 9 );
+
+		$command = new CLI_Command();
+		$command->revoke( array(), array( 'user' => '9' ) );
+
+		$this->assertStringContainsString( 'user 9', \WP_CLI::$messages[0]['message'] ?? '' );
+	}
+
 	// ---- unlock (#280) ----
 
 	/**

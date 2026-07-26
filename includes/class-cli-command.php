@@ -25,7 +25,7 @@ class CLI_Command {
 	 * ## OPTIONS
 	 *
 	 * [--user=<id|login>]
-	 * : Target user. A purely numeric value always resolves as a user ID (even
+	 * : Target user. A digits-only value always resolves as a user ID (even
 	 *   if some user's login happens to be numeric); any other value is looked
 	 *   up as a login. Defaults to the current WP-CLI user context.
 	 *
@@ -67,7 +67,7 @@ class CLI_Command {
 	 * ## OPTIONS
 	 *
 	 * [--user=<id|login>]
-	 * : Target user. A purely numeric value always resolves as a user ID (even
+	 * : Target user. A digits-only value always resolves as a user ID (even
 	 *   if some user's login happens to be numeric); any other value is looked
 	 *   up as a login. Defaults to the current WP-CLI user context.
 	 *
@@ -126,14 +126,20 @@ class CLI_Command {
 	 * multisite from a blog other than the one running this command.
 	 *
 	 * A cleared lockout is a bounded escape hatch, not full remediation — if
-	 * an attacker still holds the target user's login session, they can
-	 * re-trigger a fresh lockout immediately. Revoke the session
-	 * (`wp sudo revoke --user=<id>`) or rotate the password as well.
+	 * an attacker still holds the target user's WordPress LOGIN session (not
+	 * just their sudo proof), they can re-trigger a fresh lockout immediately.
+	 * `wp sudo revoke` does NOT help here: it calls Sudo_Session::deactivate(),
+	 * which clears only the sudo-layer proof, not the WordPress login session
+	 * the attacker actually holds. Reset the password instead
+	 * (`wp user reset-password <id>`) — the auth-cookie validation key is
+	 * derived in part from the password hash (GB-AUTH-COOKIE-PASSFRAG in
+	 * docs/upstream-sources.md), so a password change invalidates every
+	 * existing login cookie for the user, the attacker's included.
 	 *
 	 * ## OPTIONS
 	 *
 	 * [--user=<id|login>]
-	 * : Target user. A purely numeric value always resolves as a user ID
+	 * : Target user. A digits-only value always resolves as a user ID
 	 *   (even if some user's login happens to be numeric); any other value
 	 *   is looked up as a login. Defaults to the current WP-CLI user context.
 	 *
@@ -205,7 +211,7 @@ class CLI_Command {
 
 		\WP_CLI::success(
 			sprintf(
-				'Cleared reauth lockout for user %1$d. If an attacker still holds this user\'s session, the lockout can retrigger — consider `wp sudo revoke --user=%1$d` or a password reset.',
+				'Cleared reauth lockout for user %1$d. If an attacker still holds this user\'s WordPress login session, the lockout can retrigger — `wp sudo revoke` will not stop that (it clears only the sudo proof, not the login session); reset the password instead (`wp user reset-password %1$d`).',
 				$user_id
 			)
 		);
@@ -330,11 +336,14 @@ class CLI_Command {
 	/**
 	 * Resolve target user ID from assoc args or CLI auth context.
 	 *
-	 * Accepts `--user=<id|login>`: a numeric value always resolves as a user
-	 * ID (matching pre-existing behavior — a non-numeric string previously
-	 * cast to 0 via `(int)` and was already treated as "no target user"), any
-	 * other value is looked up as a login. Numeric detection uses
-	 * `is_numeric()` rather than an `is_int()` type check because a WP-CLI
+	 * Accepts `--user=<id|login>`: a digits-only value always resolves as a
+	 * user ID (matching pre-existing behavior — a non-numeric string
+	 * previously cast to 0 via `(int)` and was already treated as "no target
+	 * user"), any other value is looked up as a login. Uses `ctype_digit()`
+	 * rather than `is_numeric()` — `is_numeric()` also accepts floats ("1.5")
+	 * and scientific notation ("1e3"), either of which would `(int)`-cast to
+	 * a DIFFERENT, real user ID instead of looking up a login that happens to
+	 * look numeric — and rather than an `is_int()` check, because a WP-CLI
 	 * assoc-arg value is never a PHP int — see GB-CLI-ASSOC in
 	 * docs/upstream-sources.md.
 	 *
@@ -347,7 +356,11 @@ class CLI_Command {
 		if ( isset( $assoc_args['user'] ) && is_scalar( $assoc_args['user'] ) ) {
 			$value = $assoc_args['user'];
 
-			if ( is_numeric( $value ) ) {
+			// Digits-only, not is_numeric(): is_numeric() also accepts floats
+			// ("1.5") and scientific notation ("1e3"), either of which would
+			// (int)-cast to a DIFFERENT, real user ID (1, and 1000) instead of
+			// looking up a login that happens to look numeric.
+			if ( is_int( $value ) || ( is_string( $value ) && '' !== $value && ctype_digit( $value ) ) ) {
 				return max( 0, (int) $value );
 			}
 
