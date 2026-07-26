@@ -1,6 +1,22 @@
 # Session handoff — 2026-07-26 (core-gate reconciliation + doc consolidation)
 
-Working tree: clean on `main` (`e55351b`). Everything below is durable in files/issues, not this session — a fresh session can resume from here alone.
+Main is at `5867a1b`. Everything below is durable in files/issues, not this session — a fresh session can resume from here alone. (The "Done this session" list below is the earlier part of the session; the **Latest** section immediately below is the current state.)
+
+## Latest — continued session (core-gate docs polish + design review)
+
+- **Fable docs pass (prose) — merged (#299, `7393fd8`).** Register/clarity pass on proposal, spec, PoC, attack-tree; verified substance-clean (headings, links, code, numbers byte-identical). README excluded (pointer index).
+- **Architectural material relocated out of the proposal — merged (#312, `3e723e3`).** The Peralty/de Valk/Coords split-vs-refactor debate + WP-Next kernel framing moved to a **new strategy companion `docs/core-gate-architectural-context.md`**; proposal §7 is now a short pointer (no renumber). The **WP 7.0 Connectors credential-write example moved DOWN into the closure (§3)** as a concrete in-scope threat (kept, with citation).
+- **Two-model design review of the proposal (Fable + Opus) — DONE.** Not fatal; both models validated the shape. Findings verified against source (doc-anchored claims by grep; WP-internals by knowledge, two flagged for a live-core re-check: `Core_Upgrader` call graph, `wp_salt()` options-fallback). Captured as:
+  - **GitHub issues #302–#310** (nine HIGH, individually actionable) + **#311** (medium/low tracker), label `core-gate-review`.
+  - **Spec §12 "Reviewer findings / known gaps" — merged (#313, `5867a1b`)** summarizing the HIGH gaps + issue links.
+  - HIGH gaps: core-update ungated (#302); `do_action()` pre-op adapters can't block (#303); `wp_set_password()` reset-path lockout (#304); SSO/passkey mandatory-password lockout (#305); default-on App-Password/automation back-compat regression (#306); auto-updater provenance primitive (#307); flat-freshness cross-authorization (#308); `map_meta_cap` recursion/boundary (#309); AUTH_SALT-in-options HMAC forgery (#310). Most mechanical or already-levered; a handful are bounded policy decisions.
+  - **Fable verdict:** strong at both jobs — prose pass substance-clean; on the design critique it was the broader of the two (caught the biggest omission, core-update), Opus contributed 3 distinct high-value items (SSO/passkey, AUTH_SALT, REST silent-200). Two-model run was worth it; neither a superset.
+- **NEXT (Dan): Codex design pass** over proposal + spec, cross-referencing #302–#311 (so it builds on the known gaps rather than re-deriving them).
+
+### #288 padlock UX — status + an incident to be aware of
+- **#288 base feature (padlock shows sudo state) already merged** (`776ccf1`). The **follow-up is `feat/288-glyph-state-vocabulary`**, in its own worktree at **`/Users/dan-knauss/Code/Sudo-288-glyphs`**.
+- **That worktree's work is INTACT and staged (uncommitted):** the #288 design brief, `admin/css/wp-sudo-editor-indicator.css`, `admin/js/wp-sudo-session-indicator.js`, `CHANGELOG.md`, `readme.md`/`readme.txt`, `languages/wp-sudo.pot`, `docs/current-metrics.md`, the e2e specs, and a new `editor-indicator-inactive` visual snapshot. **To resume: open a new session in `/Users/dan-knauss/Code/Sudo-288-glyphs` and continue** (commit → PR).
+- **Incident:** the interactive terminal/session driving that UX worktree appears to have died — possibly when *this* session was auto-archived (a platform behavior, not a command anyone ran). **No work was lost** (files survive a terminal kill; the changes were even `git add`-ed). This session's git cleanup did **not** remove that worktree (the `git worktree list` immediately afterward still showed it intact). If a session auto-archive killing sibling terminals recurs, worth reporting to the Claude Code team.
 
 ## Done this session (in order)
 
