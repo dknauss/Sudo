@@ -2662,8 +2662,20 @@ class GateTest extends TestCase {
 		$this->assertSame( 'plugin.activate', $result['matched_rule_id'] );
 		$this->assertSame( 'admin', $result['matched_surface'] );
 		$this->assertSame( 'gate', $result['decision'] );
-		$this->assertTrue( $result['stash_replay_eligible'] );
-		$this->assertContains( 'Interactive admin requests use challenge + stash/replay.', $result['notes'] );
+		$this->assertTrue( $result['stash_replay_eligible'], 'The rule itself permits replay.' );
+
+		// #322: the rule permitting replay is not a promise that the action resumes —
+		// that also needs the same browser, HTTPS and a fully described action. The
+		// diagnostic must say so, or it tells an operator on an HTTP site that their
+		// action will resume when it never can.
+		$note = implode( ' ', $result['notes'] );
+		$this->assertStringNotContainsString(
+			'Interactive admin requests use challenge + stash/replay.',
+			$note,
+			'The old note promised an unconditional replay.'
+		);
+		$this->assertStringContainsString( 'same browser', $note );
+		$this->assertStringContainsString( 'HTTPS', $note );
 	}
 
 	/**

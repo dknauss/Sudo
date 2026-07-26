@@ -1549,16 +1549,18 @@ class Gate {
 
 		if ( 'admin' === $surface ) {
 			$result['decision'] = 'gate';
-			// Derive replay eligibility from the matched rule's stash mode: rules
-			// marked stash_no_replay (profile email/password/role saves) are NOT
-			// replayed — after reauth the user re-submits the form.
+			// Replay eligibility is a RULE-LEVEL answer only. Since #322 a stashed
+			// action is additionally never replayed unless the browser presenting the
+			// reauthentication is the one that created it — so reporting a plain "Yes"
+			// here would tell an operator the action resumes when, on an HTTP site or
+			// from a different browser, it never will.
 			$stash_mode = $matched_rule['stash']['post_mode'] ?? 'allowlist';
 			if ( 'none' === $stash_mode ) {
 				$result['stash_replay_eligible'] = false;
-				$result['notes'][]               = __( 'Interactive admin request: gated, but this rule is non-replayable — after reauth the user re-submits the form.', 'wp-sudo' );
+				$result['notes'][]               = __( 'Interactive admin request: gated, and this rule is never replayed — after reauthentication the user re-submits the form.', 'wp-sudo' );
 			} else {
 				$result['stash_replay_eligible'] = true;
-				$result['notes'][]               = __( 'Interactive admin requests use challenge + stash/replay.', 'wp-sudo' );
+				$result['notes'][]               = __( 'Interactive admin request: gated. This rule permits replay, but the action only resumes automatically when the same browser that started it completes the reauthentication over HTTPS and the challenge was able to name the whole action. Otherwise the user is returned to the page and performs it again.', 'wp-sudo' );
 			}
 			return $result;
 		}
