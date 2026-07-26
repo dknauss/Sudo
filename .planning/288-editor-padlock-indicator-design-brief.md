@@ -45,7 +45,8 @@ the panel), which would wipe an externally-added class. Body class rather than
 Files changed: `admin/js/wp-sudo-session-indicator.js`, new
 `admin/css/wp-sudo-editor-indicator.css`, `includes/class-plugin.php`
 (one `wp_enqueue_style`), `tests/e2e/specs/editor-session-indicator.spec.ts`,
-`tests/e2e/specs/visual/regression-baselines.spec.ts` (+2 snapshots).
+`tests/e2e/specs/visual/regression-baselines.spec.ts` (+2 snapshots — three as shipped,
+see the amendment below).
 
 ## What this explicitly must NOT do
 
@@ -150,7 +151,22 @@ the glyph (above). It no longer paints anything on its own, and it now means exa
 'active' rather than "not inactive", so the two state classes are mutually exclusive and
 the stylesheet needs no source-order tiebreak between them.
 
-## Resolutions (design review completed — implemented in the #288 branch)
+## Resolutions (design review for the ORIGINAL #288 design — HISTORICAL)
+
+> **Superseded by the amendment above.** This section records what was settled before
+> #288 shipped and is kept for the reasoning, not as a description of the code. Three
+> of its statements are no longer true of `main`:
+>
+> - Active and inactive no longer share `dashicons-unlock`; inactive is `dashicons-lock`
+>   and the chip-vs-no-chip distinction it relies on is gone (§Q2 below, and the
+>   original §Q2 scope decision to "keep `unlock` for inactive", which the amendment
+>   reverses).
+> - "Active green / expiring red" is now "expiring red always, active green only under
+>   core's icon-labels preference".
+> - The `+2 snapshots` scope is now three baselines, one per state (VISN-05/06/07).
+>
+> Read the amendment for the shipped behaviour; read this for why each question was
+> answered the way it was at the time.
 
 All five questions below were put to a design reviewer before implementation. The
 settled answers, and the two places the implementation departs from this brief:

@@ -1,14 +1,19 @@
 /**
  * WP Sudo – In-editor session-indicator styles (#288).
  *
- * Paints the PluginSidebar's pinned header button for ONE state — the final 60 s:
+ * Paints the PluginSidebar's pinned header button in two cases, and no others:
  *
- *   expiring (<=60s)  #c62828   hover #b71c1c   (admin-bar parity)
- *   everything else   — no rule matches; the stock Gutenberg button is used.
+ *   expiring (<=60s)          #c62828   hover #b71c1c   (admin-bar parity)
+ *   active, icon-labels only   #2e7d32   hover #1b5e20   (admin-bar parity)
+ *   everything else            — no rule matches; the stock Gutenberg button is used.
+ *
+ * The second case needs both `wp-sudo-editor-icon-labels` and
+ * `wp-sudo-editor-session-active`, so in the default editor an active session paints
+ * nothing. See the rule's own comment below for why that mode is the exception.
  *
  * Deliberately not a chip per state. Core applies no semantic background colour to
- * these buttons at all: the only background change on a pinned-item button is the
- * neutral `.is-pressed` fill, `background: $components-color-foreground`
+ * these buttons: the only background change on a pinned-item button is the neutral
+ * `.is-pressed` fill, `background: $components-color-foreground`
  * (packages/components/src/button/style.scss L342-348, Gutenberg trunk, fetched
  * 2026-07-26). A green chip for the whole session would both invent a convention and
  * hold colour in the header for the full session duration; the active and inactive
@@ -17,10 +22,12 @@
  * core itself swaps the icon out conditionally here (`icon={ showIconLabels ? check :
  * icon }`, complementary-area/index.js L280), and ComplementaryAreaToggle takes a
  * state-driven icon by design (`icon={ selectedIcon && isSelected ? selectedIcon :
- * icon }`, complementary-area-toggle/index.js L58). Colour here reinforces the one
- * urgent moment rather than encoding the whole vocabulary, so the states stay
- * distinguishable in greyscale, under colour-vision deficiency, and in forced-colors
- * mode without depending on this file at all.
+ * icon }`, complementary-area-toggle/index.js L58). Colour reinforces the one urgent
+ * moment rather than encoding the whole vocabulary, so wherever the glyph is ours the
+ * states stay distinguishable in greyscale, under colour-vision deficiency, and in
+ * forced-colors mode without depending on this file at all. Where the glyph is NOT
+ * ours — core's "Show button text labels" preference takes the icon slot — this file
+ * carries the active state instead, because nothing else can.
  *
  * Token source: admin/css/wp-sudo-admin-bar.css (verified — same red, same hover red,
  * same white glyph). Contrast against the white glyph: 5.62:1 expiring, 6.57:1
