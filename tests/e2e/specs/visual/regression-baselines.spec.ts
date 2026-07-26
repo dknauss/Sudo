@@ -20,8 +20,7 @@
  * the countdown timer in the admin bar. The timer text changes every second.
  * ALL visual snapshots on admin pages with an active session MUST either:
  *   a) Mask the #wp-admin-bar-wp-sudo-active element, OR
- *   b) Stop the countdown interval + pin the label (freezeAdminBarTimer below) —
- *      NOT page.clock.install(), which hangs toHaveScreenshot's stability wait (#341)
+ *   b) Stop the countdown interval + pin the label (freezeAdminBarTimer below)
  *
  * PITFALL (element-level screenshots of auto-sized elements):
  * The `li#wp-admin-bar-wp-sudo-active` element auto-sizes to its text content.
@@ -33,23 +32,30 @@
  * decrements `r` every second using setInterval. Since `remaining` is PHP's real time()
  * computation, it varies by the elapsed real seconds between session creation and page load.
  *
- * Solution for VISN-03/04: take an ELEMENT screenshot of the frozen Sudo node, masking
- * the timer label. A page-level clip of the admin bar was the original bug — it never
- * settled for toHaveScreenshot's stability check on the busy dashboard (#341), whereas
- * every element-level baseline in this file is stable. freezeAdminBarTimer() pins the
- * label to a fixed width so the auto-sizing node no longer varies run to run.
- *
- * Approach for VISN-03/04 (see issue #341): do NOT use page.clock.install(). It freezes
- * requestAnimationFrame, which Playwright's toHaveScreenshot stability check polls on, so
- * the assertion hangs until timeout — both admin-bar baselines failed exactly this way.
- * Instead, after loading the admin page, stop the countdown interval and pin the label to
- * a fixed-width string via freezeAdminBarTimer(); the page clock stays live so stability
- * settles, and the node no longer oscillates between runs.
- *   1. activateSudoSession(page)   — real timers for the AJAX challenge flow
- *   2. page.goto('/wp-admin/')     — countdown starts under the real clock
- *   3. freezeAdminBarTimer(page[, {expiring:true}]) — stop the interval, fix the label,
- *      and (VISN-04) apply wp-sudo-expiring directly instead of ticking 840s
+ * Approach for VISN-03/04 (issue #341 — three attempts, only the third was the cause):
+ *   1. activateSudoSession(page)  — real timers; the AJAX challenge flow needs them
+ *   2. goto a QUIET admin screen  — NOT /wp-admin/. This was the actual bug: the
+ *      dashboard's welcome-panel images and "Events and News" widget keep reflowing
+ *      layout after the network settles, so Playwright's "waiting for element to be
+ *      stable" step never completes and toHaveScreenshot times out (5000ms) instead of
+ *      reporting a pixel diff. The admin bar renders on every admin screen, and VISN-02
+ *      already proves the settings screen is stable.
+ *   3. freezeAdminBarTimer(page[, {expiring:true}]) — stop the countdown, pin the label
+ *      to a fixed-width string, and (VISN-04) apply wp-sudo-expiring directly
  *   4. element screenshot of the frozen node + mask for a stable baseline
+ *
+ * Two hypotheses were tested against CI and FALSIFIED before the page-stability cause
+ * was found; both are recorded here so they are not re-tried:
+ *   - "page.clock.install() freezes rAF, which the stability check polls on." The trace
+ *     disproved it: with the clock left live and the countdown frozen, the DOM showed a
+ *     frozen "Sudo: 15:00" and the hang was byte-identical. clock.install() is still
+ *     avoided (it makes runFor() the only way to advance, for no benefit here), but it
+ *     was never the cause.
+ *   - "the page-level clip is the problem." Switching to an element screenshot changed
+ *     nothing — though it did surface the decisive call-log line ("attempting scroll into
+ *     view action / waiting for element to be stable") that page screenshots never print.
+ *     The element screenshot is kept because it is better isolated, not because it fixed
+ *     anything on its own.
  *
  * PITFALL (platform differences): Snapshot pixel comparison can differ between macOS
  * (local) and Linux Docker (CI). The threshold values below are set to accommodate
@@ -71,13 +77,13 @@ const adminBarTimerSelector = '#wp-admin-bar-wp-sudo-active';
  * Make the admin-bar countdown node static for a stable screenshot WITHOUT freezing
  * the page clock.
  *
- * `page.clock.install()` cannot be used here (issue #341): it also freezes
- * requestAnimationFrame, which Playwright's `toHaveScreenshot` stability check polls
- * on, so the assertion hangs until timeout instead of settling. Instead we stop the
- * countdown interval — its id is closure-private in `wp-sudo-admin-bar.js`, so clear
- * the whole live range — and pin the `.ab-label` to a fixed-width string so the
- * auto-sizing node stops oscillating between runs. With the real clock left alone,
- * `requestAnimationFrame` keeps firing and the stability check settles immediately.
+ * Stops the countdown interval — its id is closure-private in `wp-sudo-admin-bar.js`,
+ * so clear the whole live range — and pins the `.ab-label` to a fixed-width string, so
+ * the auto-sizing node keeps identical dimensions between runs.
+ *
+ * This is what makes the NODE dimension-stable. It is not what fixed #341's timeout;
+ * that was the reflowing dashboard page (see the header). `page.clock.install()` is
+ * avoided because freezing the clock forces runFor() bookkeeping for no gain here.
  *
  * For the expiring baseline, apply `wp-sudo-expiring` directly rather than ticking to
  * `r <= 60` (wp-sudo-admin-bar.js adds it at that threshold, verified).
@@ -200,9 +206,9 @@ test.describe( 'Visual regression baselines', () => {
      * Source: admin/css/wp-sudo-admin-bar.css — .wp-sudo-active background: #2e7d32 (green) (verified)
      * Source: class-admin-bar.php — li#wp-admin-bar-wp-sudo-active is the element target (verified)
      *
-     * Stability: after load, freezeAdminBarTimer() stops the countdown interval and pins
-     * the label to a fixed width. page.clock.install() is deliberately NOT used — it
-     * freezes requestAnimationFrame and hangs toHaveScreenshot's stability wait (#341).
+     * Stability: freezeAdminBarTimer() makes the node dimension-stable; taking the shot
+     * on a quiet admin screen (not the reflowing dashboard) is what keeps Playwright's
+     * element-stability wait from timing out — see the header for #341's full history.
      */
     test( 'VISN-03: admin bar node in active session state baseline', async ( {
         page,
@@ -223,17 +229,12 @@ test.describe( 'Visual regression baselines', () => {
         // Source: admin/css/wp-sudo-admin-bar.css — .wp-sudo-active selector (verified)
         await expect( timerNode ).toHaveClass( /wp-sudo-active/ );
 
-        // Freeze the countdown so the node is static for the screenshot. Do NOT use
-        // page.clock.install() (issue #341): it freezes requestAnimationFrame, which
-        // toHaveScreenshot's stability check polls on, hanging the assertion.
+        // Freeze the countdown so the node keeps identical dimensions between runs.
         await freezeAdminBarTimer( page );
 
-        // Element screenshot of the frozen Sudo node (not a page clip). Every
-        // element-level baseline in this suite is stable on CI; the only failures were
-        // VISN-03/04's page-level clip, which never settled because the wider admin bar
-        // (e.g. the external gravatar avatar) kept the clipped region changing (#341).
-        // freezeAdminBarTimer() pins the label to a fixed width, so the node no longer
-        // auto-sizes run to run — the original reason a page clip was used.
+        // Element screenshot of the frozen Sudo node (not a page clip): better isolated,
+        // and freezeAdminBarTimer() pins the label so the node no longer auto-sizes —
+        // removing the original reason a page clip was used (#341).
         // Mask the .ab-label (timer text) so any text rendering stays out of the diff.
         // threshold 0.1 / maxDiffPixels 200 — tolerate sub-pixel antialiasing.
         // This baseline primarily asserts: WP Sudo node is visible with green background.
@@ -265,8 +266,7 @@ test.describe( 'Visual regression baselines', () => {
      * Source: admin/css/wp-sudo-admin-bar.css — .wp-sudo-expiring background: #c62828 (red) (verified)
      *
      * Stability: freezeAdminBarTimer(page, { expiring: true }) applies the class and stops
-     * the countdown. page.clock.install()/runFor() are NOT used — install() freezes
-     * requestAnimationFrame and hangs toHaveScreenshot's stability wait (#341).
+     * the countdown; the quiet admin screen keeps the element-stability wait settling (#341).
      */
     test( 'VISN-04: admin bar node in expiring state baseline', async ( {
         page,
@@ -283,11 +283,9 @@ test.describe( 'Visual regression baselines', () => {
         const timerNode = page.locator( adminBarTimerSelector );
         await expect( timerNode ).toBeVisible();
 
-        // Force the expiring state directly and freeze the countdown. Ticking via
-        // page.clock.runFor() is unavailable here: page.clock.install() freezes the
-        // requestAnimationFrame that toHaveScreenshot's stability check polls on, which
-        // hangs the assertion (issue #341). The JS adds wp-sudo-expiring at r <= 60
-        // (wp-sudo-admin-bar.js, verified); freezeAdminBarTimer applies it deterministically.
+        // Force the expiring state directly and freeze the countdown. The JS adds
+        // wp-sudo-expiring at r <= 60 (wp-sudo-admin-bar.js, verified);
+        // freezeAdminBarTimer applies it deterministically without clock bookkeeping.
         await freezeAdminBarTimer( page, { expiring: true } );
 
         // Verify expiring class is applied.
@@ -296,8 +294,7 @@ test.describe( 'Visual regression baselines', () => {
             'wp-sudo-expiring class must be present for the expiring-state baseline'
         ).toHaveClass( /wp-sudo-expiring/ );
 
-        // Element screenshot of the frozen Sudo node (see VISN-03 / #341: page-level
-        // clips never settled on the busy dashboard; element screenshots are stable).
+        // Element screenshot of the frozen Sudo node (see VISN-03 / #341).
         // Asserts: WP Sudo node has the red expiring background.
         // Source: admin/css/wp-sudo-admin-bar.css — .wp-sudo-expiring background: #c62828 (verified)
         await expect( timerNode ).toHaveScreenshot(
