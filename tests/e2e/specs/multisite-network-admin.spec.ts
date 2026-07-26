@@ -16,8 +16,12 @@
  *   6. Verify redirect returns to /wp-admin/network/plugins.php with sudo active.
  */
 import { test, expect, activateSudoSession } from '../fixtures/test';
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { promisify } from 'util';
+import * as fs from 'fs';
+import path from 'path';
+
+const execFileAsync = promisify( execFile );
 
 const LOCAL_MULTISITE_HOST = 'multisite-subdomains.local';
 const DEFAULT_PASSWORD = process.env.WP_PASSWORD ?? 'password';
@@ -26,7 +30,6 @@ const E2E_TWO_FACTOR_MU_PLUGIN = 'wp-sudo-e2e-two-factor.php';
 const E2E_TWO_FACTOR_REQUIRE_META = '_wp_sudo_e2e_require_two_factor';
 const E2E_TWO_FACTOR_CODE_META = '_wp_sudo_e2e_two_factor_code';
 const E2E_LOCKOUT_SECONDS_META = '_wp_sudo_e2e_lockout_seconds';
-const execAsync = promisify( exec );
 
 function getMultisiteSitePath(): string {
     const configured = process.env.WP_E2E_SITE_PATH ?? '';
@@ -34,24 +37,42 @@ function getMultisiteSitePath(): string {
     return configured.trim();
 }
 
-async function runWpCli( sitePath: string, baseUrl: string, args: string ): Promise<void> {
-    await execAsync(
-        `wp --path='${ sitePath }' --url='${ baseUrl }' ${ args }`,
-        { timeout: 30_000 }
-    );
+/**
+ * Run a host-side `wp` command via execFile (no shell). Pass `ignoreErrors` for
+ * the setup/teardown calls that previously relied on a trailing `|| true`.
+ */
+async function runWpCli(
+    sitePath: string,
+    baseUrl: string,
+    args: string[],
+    { ignoreErrors = false }: { ignoreErrors?: boolean } = {}
+): Promise<void> {
+    try {
+        await execFileAsync(
+            'wp',
+            [ `--path=${ sitePath }`, `--url=${ baseUrl }`, ...args ],
+            { timeout: 30_000 }
+        );
+    } catch ( error ) {
+        if ( ! ignoreErrors ) {
+            throw error;
+        }
+    }
 }
 
 async function installE2eTwoFactorBridge( sitePath: string ): Promise<void> {
-    await execAsync(
-        `mkdir -p '${ sitePath }/wp-content/mu-plugins' && cp '${ process.cwd() }/tests/e2e/fixtures/${ E2E_TWO_FACTOR_MU_PLUGIN }' '${ sitePath }/wp-content/mu-plugins/${ E2E_TWO_FACTOR_MU_PLUGIN }'`,
-        { timeout: 30_000 }
+    const muDir = path.join( sitePath, 'wp-content', 'mu-plugins' );
+    fs.mkdirSync( muDir, { recursive: true } );
+    fs.copyFileSync(
+        path.join( process.cwd(), 'tests', 'e2e', 'fixtures', E2E_TWO_FACTOR_MU_PLUGIN ),
+        path.join( muDir, E2E_TWO_FACTOR_MU_PLUGIN )
     );
 }
 
 async function removeE2eTwoFactorBridge( sitePath: string ): Promise<void> {
-    await execAsync(
-        `rm -f '${ sitePath }/wp-content/mu-plugins/${ E2E_TWO_FACTOR_MU_PLUGIN }'`,
-        { timeout: 30_000 }
+    fs.rmSync(
+        path.join( sitePath, 'wp-content', 'mu-plugins', E2E_TWO_FACTOR_MU_PLUGIN ),
+        { force: true }
     );
 }
 
@@ -66,7 +87,8 @@ async function clearSudoFailureMeta( sitePath: string, baseUrl: string ): Promis
         await runWpCli(
             sitePath,
             baseUrl,
-            `user meta delete 1 ${ metaKey } --quiet 2>/dev/null || true`
+            [ 'user', 'meta', 'delete', '1', metaKey, '--quiet' ],
+            { ignoreErrors: true }
         );
     }
 }
@@ -75,12 +97,12 @@ async function enableE2eTwoFactor( sitePath: string, baseUrl: string ): Promise<
     await runWpCli(
         sitePath,
         baseUrl,
-        `user meta update 1 ${ E2E_TWO_FACTOR_REQUIRE_META } 1 --quiet`
+        [ 'user', 'meta', 'update', '1', E2E_TWO_FACTOR_REQUIRE_META, '1', '--quiet' ]
     );
     await runWpCli(
         sitePath,
         baseUrl,
-        `user meta update 1 ${ E2E_TWO_FACTOR_CODE_META } ${ E2E_TWO_FACTOR_CODE } --quiet`
+        [ 'user', 'meta', 'update', '1', E2E_TWO_FACTOR_CODE_META, E2E_TWO_FACTOR_CODE, '--quiet' ]
     );
 }
 
@@ -88,12 +110,14 @@ async function disableE2eTwoFactor( sitePath: string, baseUrl: string ): Promise
     await runWpCli(
         sitePath,
         baseUrl,
-        `user meta delete 1 ${ E2E_TWO_FACTOR_REQUIRE_META } --quiet 2>/dev/null || true`
+        [ 'user', 'meta', 'delete', '1', E2E_TWO_FACTOR_REQUIRE_META, '--quiet' ],
+        { ignoreErrors: true }
     );
     await runWpCli(
         sitePath,
         baseUrl,
-        `user meta delete 1 ${ E2E_TWO_FACTOR_CODE_META } --quiet 2>/dev/null || true`
+        [ 'user', 'meta', 'delete', '1', E2E_TWO_FACTOR_CODE_META, '--quiet' ],
+        { ignoreErrors: true }
     );
 }
 
@@ -105,7 +129,7 @@ async function setE2eLockoutSeconds(
     await runWpCli(
         sitePath,
         baseUrl,
-        `user meta update 1 ${ E2E_LOCKOUT_SECONDS_META } ${ seconds } --quiet`
+        [ 'user', 'meta', 'update', '1', E2E_LOCKOUT_SECONDS_META, String( seconds ), '--quiet' ]
     );
 }
 
