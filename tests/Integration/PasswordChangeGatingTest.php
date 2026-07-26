@@ -222,8 +222,7 @@ class PasswordChangeGatingTest extends TestCase {
 	 * verified). Plugin::deactivate_session_on_password_reset() is hooked
 	 * there (includes/class-plugin.php:152, verified) and calls
 	 * Sudo_Session::deactivate(), which deletes the _wp_sudo_expires and
-	 * _wp_sudo_token user meta (includes/class-plugin.php:348-352 and
-	 * includes/class-sudo-session.php:870-897 clear_session_data, verified).
+	 * _wp_sudo_proofs user meta (Sudo_Session::clear_session_data, verified).
 	 */
 	public function test_password_reset_expires_active_sudo_session(): void {
 		$password = 'kill-chain-original-pass';
@@ -262,9 +261,9 @@ class PasswordChangeGatingTest extends TestCase {
 			'wp_sudo_deactivated should fire exactly once for the reset.'
 		);
 
-		// Token meta must be gone — a stolen session cookie is now worthless.
+		// Proof meta must be gone — a stolen session cookie is now worthless.
 		$this->assertSame( '', get_user_meta( $user->ID, Sudo_Session::META_KEY, true ) );
-		$this->assertSame( '', get_user_meta( $user->ID, Sudo_Session::TOKEN_META_KEY, true ) );
+		$this->assertSame( '', get_user_meta( $user->ID, Sudo_Session::PROOF_META_KEY, true ) );
 	}
 
 	// ─────────────────────────────────────────────────────────────────────
@@ -317,7 +316,7 @@ class PasswordChangeGatingTest extends TestCase {
 			'wp_sudo_deactivated should fire exactly once for the password change.'
 		);
 		$this->assertSame( '', get_user_meta( $user->ID, Sudo_Session::META_KEY, true ) );
-		$this->assertSame( '', get_user_meta( $user->ID, Sudo_Session::TOKEN_META_KEY, true ) );
+		$this->assertSame( '', get_user_meta( $user->ID, Sudo_Session::PROOF_META_KEY, true ) );
 	}
 
 	/**

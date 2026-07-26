@@ -75,6 +75,7 @@ class LoginSudoGrantTest extends TestCase {
 		Functions\when( 'headers_sent' )->justReturn( false );
 		Functions\when( 'setcookie' )->justReturn( true );
 		Functions\when( 'delete_user_meta' )->justReturn( true );
+		Functions\when( 'get_user_meta' )->justReturn( array() ); // set_token() reads the proof map (#279) before writing.
 		Functions\when( 'update_user_meta' )->justReturn( true );
 		Functions\when( 'get_user_meta' )->justReturn( '' ); // reset_failed_attempts() IP-pointer lookup (#280).
 
@@ -102,6 +103,7 @@ class LoginSudoGrantTest extends TestCase {
 		Functions\when( 'headers_sent' )->justReturn( false );
 		Functions\when( 'setcookie' )->justReturn( true );
 		Functions\when( 'delete_user_meta' )->justReturn( true );
+		Functions\when( 'get_user_meta' )->justReturn( array() ); // set_token() reads the proof map (#279) before writing.
 		Functions\when( 'update_user_meta' )->justReturn( true );
 		Functions\when( 'get_user_meta' )->justReturn( '' ); // reset_failed_attempts() IP-pointer lookup (#280).
 
@@ -131,6 +133,7 @@ class LoginSudoGrantTest extends TestCase {
 		Functions\when( 'headers_sent' )->justReturn( false );
 		Functions\when( 'setcookie' )->justReturn( true );
 		Functions\when( 'delete_user_meta' )->justReturn( true );
+		Functions\when( 'get_user_meta' )->justReturn( array() ); // set_token() reads the proof map (#279) before writing.
 		Functions\when( 'update_user_meta' )->justReturn( true );
 		Functions\when( 'get_user_meta' )->justReturn( '' ); // reset_failed_attempts() IP-pointer lookup (#280).
 

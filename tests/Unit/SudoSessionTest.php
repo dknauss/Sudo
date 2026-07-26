@@ -124,13 +124,15 @@ class SudoSessionTest extends TestCase
 	public function test_is_active_returns_false_when_no_cookie(): void
 	{
 		$future = time() + 300;
+		$record = $this->valid_proof_record(1, 'correct-token', $future);
 
-		Functions\when('get_user_meta')->alias(function ($uid, $key, $single) use ($future) {
+		Functions\when('get_current_user_id')->justReturn(1);
+		Functions\when('get_user_meta')->alias(function ($uid, $key, $single) use ($future, $record) {
 			if (Sudo_Session::META_KEY === $key) {
 				return $future;
 			}
-			if (Sudo_Session::TOKEN_META_KEY === $key) {
-				return hash('sha256', 'correct-token');
+			if (Sudo_Session::PROOF_META_KEY === $key) {
+				return $record;
 			}
 			return '';
 		});
@@ -144,13 +146,15 @@ class SudoSessionTest extends TestCase
 	public function test_is_active_returns_false_when_token_mismatch(): void
 	{
 		$future = time() + 300;
+		$record = $this->valid_proof_record(1, 'correct-token', $future);
 
-		Functions\when('get_user_meta')->alias(function ($uid, $key, $single) use ($future) {
+		Functions\when('get_current_user_id')->justReturn(1);
+		Functions\when('get_user_meta')->alias(function ($uid, $key, $single) use ($future, $record) {
 			if (Sudo_Session::META_KEY === $key) {
 				return $future;
 			}
-			if (Sudo_Session::TOKEN_META_KEY === $key) {
-				return hash('sha256', 'correct-token');
+			if (Sudo_Session::PROOF_META_KEY === $key) {
+				return $record;
 			}
 			return '';
 		});
@@ -165,15 +169,16 @@ class SudoSessionTest extends TestCase
 	{
 		$future = time() + 300;
 		$token = 'valid-token-456';
+		$record = $this->valid_proof_record(1, $token, $future);
 
 		Functions\when('get_current_user_id')->justReturn(1);
 
-		Functions\when('get_user_meta')->alias(function ($uid, $key, $single) use ($future, $token) {
+		Functions\when('get_user_meta')->alias(function ($uid, $key, $single) use ($future, $record) {
 			if (Sudo_Session::META_KEY === $key) {
 				return $future;
 			}
-			if (Sudo_Session::TOKEN_META_KEY === $key) {
-				return hash('sha256', $token);
+			if (Sudo_Session::PROOF_META_KEY === $key) {
+				return $record;
 			}
 			return '';
 		});
@@ -188,17 +193,517 @@ class SudoSessionTest extends TestCase
 	{
 		// Use a timestamp well beyond the grace window (GRACE_SECONDS = 120 s)
 		// to ensure cleanup actually fires. A value within the grace window would
-		// be deferred and this assertion would fail.
-		$past = time() - (Sudo_Session::GRACE_SECONDS + 60);
-		Functions\when('get_user_meta')->justReturn($past);
+		// be deferred and this assertion would fail. The proof must still resolve
+		// (valid HMAC + matching cookie) for the current user, otherwise is_active
+		// short-circuits before the expiry-cleanup branch.
+		$past   = time() - (Sudo_Session::GRACE_SECONDS + 60);
+		$cookie = 'expired-but-valid';
+		$record = $this->valid_proof_record(1, $cookie, $past);
+
+		Functions\when('get_current_user_id')->justReturn(1);
+		Functions\when('get_user_meta')->alias(function ($uid, $key, $single) use ($past, $record) {
+			if (Sudo_Session::PROOF_META_KEY === $key) {
+				return $record;
+			}
+			if (Sudo_Session::META_KEY === $key) {
+				return $past;
+			}
+			return '';
+		});
 		Functions\when('is_ssl')->justReturn(false);
 		Functions\when('headers_sent')->justReturn(false);
 		Functions\when('setcookie')->justReturn(true);
+		$_COOKIE[Sudo_Session::TOKEN_COOKIE] = $cookie;
 
+		// Per-browser prune empties the map, so PROOF_META_KEY + META_KEY are deleted.
 		Functions\expect('delete_user_meta')
-			->times(3); // META_KEY + TOKEN_META_KEY + SESSION_BIND_META_KEY
+			->times(2);
 
 		Sudo_Session::is_active(1);
+	}
+
+	// =================================================================
+	// #278 — self-authenticating (HMAC-signed) proof + cache-bypass read
+	// =================================================================
+
+	/**
+	 * Build a valid, HMAC-signed proof record matching production's schema.
+	 *
+	 * @param int    $user_id  User the record belongs to.
+	 * @param string $cookie   The plaintext wp_sudo_token cookie value.
+	 * @param int    $expires  Session expiry timestamp.
+	 * @param string $verifier Raw login-session verifier bound into the HMAC.
+	 * @param string $salt     Auth salt used for the HMAC.
+	 * @return array{token: string, expires: int, hmac: string}
+	 */
+	private function valid_proof_record(
+		int $user_id,
+		string $cookie,
+		int $expires,
+		string $verifier = '',
+		string $salt = 'unit-test-auth-salt'
+	): array {
+		// Sudo_Session stores a MAP keyed by the SHA-256 of the verifier; return
+		// the single-entry map so this plugs directly into a PROOF_META_KEY stub.
+		return $this->make_proof_map( $user_id, $cookie, $expires, $verifier, $salt );
+	}
+
+	public function test_is_active_accepts_valid_hmac_signed_proof(): void
+	{
+		$expires = time() + 300;
+		$cookie  = 'legit-cookie-value';
+		$record  = $this->valid_proof_record(1, $cookie, $expires);
+
+		Functions\when('get_current_user_id')->justReturn(1);
+		Functions\when('get_user_meta')->alias(function ($uid, $key, $single) use ($record, $expires) {
+			if (Sudo_Session::PROOF_META_KEY === $key) {
+				return $record;
+			}
+			if (Sudo_Session::META_KEY === $key) {
+				return $expires;
+			}
+			return '';
+		});
+
+		$_COOKIE[Sudo_Session::TOKEN_COOKIE] = $cookie;
+
+		$this->assertTrue(Sudo_Session::is_active(1));
+	}
+
+	/**
+	 * #278 core: a cache-poisoning attacker sets the proof token to the SHA-256
+	 * of a cookie they control, but cannot compute the HMAC (auth salt unknown).
+	 * The enforcement path must reject the forged record.
+	 */
+	public function test_is_active_rejects_forged_proof_with_invalid_hmac(): void
+	{
+		$expires        = time() + 300;
+		$attacker_cookie = 'attacker-chosen-cookie';
+		$forged          = array(
+			hash('sha256', '') => array(
+				'token'   => hash('sha256', $attacker_cookie), // matches attacker cookie
+				'expires' => $expires,
+				'hmac'    => 'forged-hmac-the-attacker-cannot-really-compute',
+			),
+		);
+
+		Functions\when('get_current_user_id')->justReturn(1);
+		Functions\when('get_user_meta')->alias(function ($uid, $key, $single) use ($forged, $expires) {
+			if (Sudo_Session::PROOF_META_KEY === $key) {
+				return $forged;
+			}
+			if (Sudo_Session::META_KEY === $key) {
+				return $expires;
+			}
+			return '';
+		});
+
+		$_COOKIE[Sudo_Session::TOKEN_COOKIE] = $attacker_cookie;
+
+		$this->assertFalse(Sudo_Session::is_active(1));
+	}
+
+	/**
+	 * #278: a direct-DB-write attacker extends `expires` on an otherwise-valid
+	 * record. Because the HMAC covers `expires`, the tampered record is rejected.
+	 */
+	public function test_is_active_rejects_tampered_expires(): void
+	{
+		$signed_expires  = time() + 300;
+		$cookie          = 'legit-cookie-value';
+		$verifier_hash   = hash('sha256', '');
+		$map             = $this->valid_proof_record(1, $cookie, $signed_expires);
+		// Attacker pushes this browser's entry expiry far into the future without
+		// re-signing the HMAC.
+		$tampered_expires                       = time() + YEAR_IN_SECONDS;
+		$map[$verifier_hash]['expires']         = $tampered_expires;
+
+		Functions\when('get_current_user_id')->justReturn(1);
+		Functions\when('get_user_meta')->alias(function ($uid, $key, $single) use ($map, $tampered_expires) {
+			if (Sudo_Session::PROOF_META_KEY === $key) {
+				return $map;
+			}
+			if (Sudo_Session::META_KEY === $key) {
+				return $tampered_expires;
+			}
+			return '';
+		});
+
+		$_COOKIE[Sudo_Session::TOKEN_COOKIE] = $cookie;
+
+		$this->assertFalse(Sudo_Session::is_active(1));
+	}
+
+	/**
+	 * #278 Option B: the enforcement path must read the proof cache-bypassed so a
+	 * poisoned persistent object cache cannot serve a forged value. Mirrors the
+	 * role-audit cache-bypass (wp_cache_delete then re-read).
+	 */
+	public function test_is_active_reads_proof_cache_bypassed(): void
+	{
+		$expires = time() + 300;
+		$cookie  = 'legit-cookie-value';
+		$record  = $this->valid_proof_record(1, $cookie, $expires);
+
+		Functions\when('get_current_user_id')->justReturn(1);
+		Functions\when('get_user_meta')->alias(function ($uid, $key, $single) use ($record, $expires) {
+			if (Sudo_Session::PROOF_META_KEY === $key) {
+				return $record;
+			}
+			if (Sudo_Session::META_KEY === $key) {
+				return $expires;
+			}
+			return '';
+		});
+
+		$_COOKIE[Sudo_Session::TOKEN_COOKIE] = $cookie;
+
+		// Capture the cache-bypass call. The enforcement path must drop the
+		// user_meta cache entry before re-reading so a poisoned persistent object
+		// cache cannot serve a forged proof.
+		$bypassed = false;
+		Functions\when('wp_cache_delete')->alias(function ($key, $group) use (&$bypassed) {
+			if (1 === $key && 'user_meta' === $group) {
+				$bypassed = true;
+			}
+			return true;
+		});
+
+		$this->assertTrue(Sudo_Session::is_active(1));
+		$this->assertTrue($bypassed, 'is_active() must read the proof cache-bypassed (wp_cache_delete before get_user_meta).');
+	}
+
+	/**
+	 * #278/defense-in-depth: a valid record for user 1 must not authorize a
+	 * different current user (get_current_user_id() !== $user_id).
+	 */
+	public function test_is_active_rejects_when_current_user_differs(): void
+	{
+		$expires = time() + 300;
+		$cookie  = 'legit-cookie-value';
+		$record  = $this->valid_proof_record(1, $cookie, $expires);
+
+		Functions\when('get_current_user_id')->justReturn(2); // Someone else.
+		Functions\when('get_user_meta')->alias(function ($uid, $key, $single) use ($record, $expires) {
+			if (Sudo_Session::PROOF_META_KEY === $key) {
+				return $record;
+			}
+			if (Sudo_Session::META_KEY === $key) {
+				return $expires;
+			}
+			return '';
+		});
+
+		$_COOKIE[Sudo_Session::TOKEN_COOKIE] = $cookie;
+
+		$this->assertFalse(Sudo_Session::is_active(1));
+	}
+
+	// =================================================================
+	// #279 — per-login-session proof keying (concurrent browsers)
+	// =================================================================
+
+	/**
+	 * Wire a stateful in-memory user_meta store onto Brain\Monkey so a test can
+	 * drive real activate()/is_active() flows that read-modify-write the proof map.
+	 *
+	 * @param array<string, mixed> $store Reference to the backing meta store.
+	 * @return void
+	 */
+	private function stub_stateful_user_meta(array &$store): void
+	{
+		Functions\when('get_user_meta')->alias(function ($uid, $key, $single = false) use (&$store) {
+			return $store[$key] ?? '';
+		});
+		Functions\when('update_user_meta')->alias(function ($uid, $key, $value) use (&$store) {
+			$store[$key] = $value;
+			return true;
+		});
+		Functions\when('delete_user_meta')->alias(function ($uid, $key) use (&$store) {
+			unset($store[$key]);
+			return true;
+		});
+		Functions\when('add_user_meta')->justReturn(true);
+		Functions\when('get_option')->justReturn(array('session_duration' => 15));
+		Functions\when('is_ssl')->justReturn(false);
+		// headers_sent = true keeps set_token from calling setcookie(); it still
+		// populates $_COOKIE, which each phase overrides explicitly below.
+		Functions\when('headers_sent')->justReturn(true);
+	}
+
+	/**
+	 * #279: activating sudo in a second browser must NOT revoke the first.
+	 *
+	 * Browser A activates under login-session verifier A; browser B then activates
+	 * under verifier B. Because proofs are keyed per verifier, B's activation adds
+	 * its own entry without overwriting A's, so both browsers keep an active,
+	 * independent sudo session.
+	 */
+	public function test_concurrent_browsers_keep_independent_sudo(): void
+	{
+		$user  = 7;
+		$store = array();
+		$this->stub_stateful_user_meta($store);
+		Functions\when('get_current_user_id')->justReturn($user);
+
+		// Two distinct cookie tokens, one per activation.
+		$tokens = array('cookie-A', 'cookie-B');
+		Functions\when('wp_generate_password')->alias(function () use (&$tokens) {
+			return array_shift($tokens);
+		});
+
+		// Browser A activates under verifier A.
+		Functions\when('wp_get_session_token')->justReturn('verifier-A');
+		Sudo_Session::activate($user);
+
+		// Browser B activates under verifier B (its own login session).
+		Functions\when('wp_get_session_token')->justReturn('verifier-B');
+		Sudo_Session::activate($user);
+
+		// The stored proof map must contain BOTH verifiers' entries.
+		$map = $store[Sudo_Session::PROOF_META_KEY];
+		$this->assertIsArray($map);
+		$this->assertArrayHasKey(hash('sha256', 'verifier-A'), $map, "Browser A's proof was overwritten by B's activation.");
+		$this->assertArrayHasKey(hash('sha256', 'verifier-B'), $map);
+
+		// Browser A's request: its cookie + its verifier -> still active.
+		Sudo_Session::reset_cache();
+		$_COOKIE[Sudo_Session::TOKEN_COOKIE] = 'cookie-A';
+		Functions\when('wp_get_session_token')->justReturn('verifier-A');
+		$this->assertTrue(Sudo_Session::is_active($user), 'Browser A lost its sudo after B reauthenticated.');
+
+		// Browser B's request: its cookie + its verifier -> also active.
+		Sudo_Session::reset_cache();
+		$_COOKIE[Sudo_Session::TOKEN_COOKIE] = 'cookie-B';
+		Functions\when('wp_get_session_token')->justReturn('verifier-B');
+		$this->assertTrue(Sudo_Session::is_active($user));
+	}
+
+	/**
+	 * #279: a browser presenting its own valid cookie under a login session that
+	 * has no proof entry is not active — the proof is scoped to the session that
+	 * earned it, not shared across every login session of the user.
+	 */
+	public function test_proof_is_scoped_to_the_login_session_that_earned_it(): void
+	{
+		$user  = 7;
+		$store = array();
+		$this->stub_stateful_user_meta($store);
+		Functions\when('get_current_user_id')->justReturn($user);
+		Functions\when('wp_generate_password')->justReturn('cookie-A');
+
+		// Activate only under verifier A.
+		Functions\when('wp_get_session_token')->justReturn('verifier-A');
+		Sudo_Session::activate($user);
+
+		// A third login session (verifier C) presents A's cookie: no proof entry
+		// for C -> not active, even though the cookie value itself is legitimate.
+		Sudo_Session::reset_cache();
+		$_COOKIE[Sudo_Session::TOKEN_COOKIE] = 'cookie-A';
+		Functions\when('wp_get_session_token')->justReturn('verifier-C');
+		$this->assertFalse(Sudo_Session::is_active($user));
+	}
+
+	/**
+	 * Re-sign a proof-map entry after mutating its expiry, so resolve_valid_proof()
+	 * still trusts it. build_hmac() is private; reach it via reflection (the suite's
+	 * PHP 8.0/8.5-safe @setAccessible pattern).
+	 *
+	 * @param array<string, array{token:string,expires:int,hmac:string}> $map      Proof map (by reference).
+	 * @param int                                                          $user_id  User ID.
+	 * @param string                                                       $verifier Login-session verifier (plaintext).
+	 * @param int                                                          $expires  New expiry to set + sign.
+	 * @return void
+	 */
+	private function backdate_proof_entry(array &$map, int $user_id, string $verifier, int $expires): void
+	{
+		$key = hash('sha256', $verifier);
+		$this->assertArrayHasKey($key, $map, 'backdate_proof_entry: verifier not present in map');
+		$map[$key]['expires'] = $expires;
+
+		$hmac = new \ReflectionMethod(Sudo_Session::class, 'build_hmac');
+		@$hmac->setAccessible(true); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+		$map[$key]['hmac'] = $hmac->invoke(null, $user_id, $verifier, $map[$key]['token'], $expires);
+	}
+
+	/**
+	 * #279 grace regression: a second browser's activation runs set_token()
+	 * housekeeping over the shared proof map. That sweep must NOT evict another
+	 * login session's entry that expired only moments ago and is still inside its
+	 * GRACE_SECONDS window — doing so redirects that browser's in-flight gated
+	 * form and defeats the lost-work protection this concurrent-browser design
+	 * exists to preserve.
+	 *
+	 * RED before the fix: housekeeping drops any entry with expires < now, so A's
+	 * just-expired entry is deleted by B's activation and is_within_grace(A) fails.
+	 */
+	public function test_set_token_housekeeping_preserves_other_verifier_in_grace(): void
+	{
+		$user  = 7;
+		$store = array();
+		$this->stub_stateful_user_meta($store);
+		Functions\when('get_current_user_id')->justReturn($user);
+		Functions\when('wp_generate_password')->justReturn('cookie-A');
+
+		// Browser A activates under verifier-A.
+		Functions\when('wp_get_session_token')->justReturn('verifier-A');
+		Sudo_Session::activate($user);
+
+		// Age A's proof 30 s into the past — expired, but well within GRACE_SECONDS (120 s).
+		$this->backdate_proof_entry($store[Sudo_Session::PROOF_META_KEY], $user, 'verifier-A', time() - 30);
+
+		// Browser B activates under its own verifier — this triggers set_token() housekeeping.
+		Functions\when('wp_generate_password')->justReturn('cookie-B');
+		Functions\when('wp_get_session_token')->justReturn('verifier-B');
+		Sudo_Session::activate($user);
+
+		$map = $store[Sudo_Session::PROOF_META_KEY];
+		$this->assertArrayHasKey(
+			hash('sha256', 'verifier-A'),
+			$map,
+			"Browser A's grace-window proof was swept by B's activation."
+		);
+
+		// A's request: its cookie + verifier -> expired but still in grace.
+		Sudo_Session::reset_cache();
+		$_COOKIE[Sudo_Session::TOKEN_COOKIE] = 'cookie-A';
+		Functions\when('wp_get_session_token')->justReturn('verifier-A');
+		$this->assertFalse(Sudo_Session::is_active($user), 'A is expired, so is_active() must be false.');
+		$this->assertTrue(Sudo_Session::is_within_grace($user), 'A must still be within its grace window.');
+	}
+
+	/**
+	 * The grace-aware retention must not become an unbounded leak: an entry
+	 * expired beyond its GRACE_SECONDS window is still swept by the next
+	 * activation's housekeeping.
+	 */
+	public function test_set_token_housekeeping_sweeps_verifier_past_grace(): void
+	{
+		$user  = 7;
+		$store = array();
+		$this->stub_stateful_user_meta($store);
+		Functions\when('get_current_user_id')->justReturn($user);
+		Functions\when('wp_generate_password')->justReturn('cookie-A');
+
+		Functions\when('wp_get_session_token')->justReturn('verifier-A');
+		Sudo_Session::activate($user);
+
+		// Age A past expiry + grace (GRACE_SECONDS + 60 s ago).
+		$this->backdate_proof_entry(
+			$store[Sudo_Session::PROOF_META_KEY],
+			$user,
+			'verifier-A',
+			time() - (Sudo_Session::GRACE_SECONDS + 60)
+		);
+
+		Functions\when('wp_generate_password')->justReturn('cookie-B');
+		Functions\when('wp_get_session_token')->justReturn('verifier-B');
+		Sudo_Session::activate($user);
+
+		$this->assertArrayNotHasKey(
+			hash('sha256', 'verifier-A'),
+			$store[Sudo_Session::PROOF_META_KEY],
+			"A's beyond-grace entry should have been swept."
+		);
+	}
+
+	/**
+	 * The rewritten predicate must keep dropping malformed entries
+	 * unconditionally — a non-array or expires-less row must never survive the
+	 * grace-aware retention (it can never be a valid grace record and would
+	 * otherwise linger forever).
+	 */
+	public function test_set_token_housekeeping_drops_malformed_entries(): void
+	{
+		$user  = 7;
+		$store = array(
+			Sudo_Session::PROOF_META_KEY => array(
+				'garbage-non-array'    => 'not-an-array',
+				'garbage-no-expires'   => array('token' => 'x', 'hmac' => 'y'),
+			),
+		);
+		$this->stub_stateful_user_meta($store);
+		Functions\when('get_current_user_id')->justReturn($user);
+		Functions\when('wp_generate_password')->justReturn('cookie-B');
+		Functions\when('wp_get_session_token')->justReturn('verifier-B');
+
+		Sudo_Session::activate($user);
+
+		$map = $store[Sudo_Session::PROOF_META_KEY];
+		$this->assertArrayNotHasKey('garbage-non-array', $map);
+		$this->assertArrayNotHasKey('garbage-no-expires', $map);
+		$this->assertArrayHasKey(hash('sha256', 'verifier-B'), $map, 'The fresh activation entry must remain.');
+	}
+
+	/**
+	 * #278: the read-modify-write that preserves other browsers' proofs must
+	 * source the existing map from the DATABASE, not the object cache.
+	 *
+	 * Enforcement already reads cache-bypassed, so a stale or poisoned cached
+	 * map cannot be trusted there. But if activation merges onto that same
+	 * cached map and writes the whole thing back, it PERSISTS the stale entries
+	 * — laundering them into the database, where the cache-bypassed enforcement
+	 * read will then honor them. A revoked browser that still holds its cookies
+	 * would have its entry resurrected by an unrelated activation.
+	 *
+	 * Modelled by making get_user_meta() serve a stale map until
+	 * wp_cache_delete() runs, after which it serves the true (revoked) state.
+	 */
+	public function test_set_token_sources_the_existing_map_cache_bypassed(): void
+	{
+		$user       = 7;
+		$stale_key  = hash('sha256', 'verifier-REVOKED');
+		$cache_live = true; // Flipped by wp_cache_delete().
+		$written    = null;
+
+		$stale_map = array(
+			$stale_key => array(
+				'token'   => hash('sha256', 'cookie-REVOKED'),
+				'expires' => time() + 900,
+				'hmac'    => 'whatever-it-was-signed-with',
+			),
+		);
+
+        // The database no longer holds that entry — it was revoked.
+		Functions\when('get_user_meta')->alias(
+			function ($uid, $key, $single = false) use (&$cache_live, $stale_map) {
+				if (Sudo_Session::PROOF_META_KEY !== $key) {
+					return '';
+				}
+				return $cache_live ? $stale_map : '';
+			}
+		);
+		Functions\when('wp_cache_delete')->alias(
+			function () use (&$cache_live) {
+				$cache_live = false; // Forced re-read now hits the DB.
+				return true;
+			}
+		);
+		Functions\when('update_user_meta')->alias(
+			function ($uid, $key, $value) use (&$written) {
+				if (Sudo_Session::PROOF_META_KEY === $key) {
+					$written = $value;
+				}
+				return true;
+			}
+		);
+		Functions\when('delete_user_meta')->justReturn(true);
+		Functions\when('get_option')->justReturn(array('session_duration' => 15));
+		Functions\when('is_ssl')->justReturn(false);
+		Functions\when('headers_sent')->justReturn(true);
+		Functions\when('get_current_user_id')->justReturn($user);
+		Functions\when('wp_generate_password')->justReturn('cookie-NEW');
+		Functions\when('wp_get_session_token')->justReturn('verifier-NEW');
+
+		Sudo_Session::activate($user);
+
+		$this->assertIsArray($written);
+		$this->assertArrayHasKey(hash('sha256', 'verifier-NEW'), $written);
+		$this->assertArrayNotHasKey(
+			$stale_key,
+			$written,
+			'A revoked proof entry present only in the object cache was written back to the database.'
+		);
 	}
 
 	// =================================================================
@@ -284,11 +789,12 @@ class SudoSessionTest extends TestCase
 		Functions\when('is_ssl')->justReturn(false);
 		Functions\when('headers_sent')->justReturn(false);
 		Functions\when('setcookie')->justReturn(true);
+		Functions\when('get_user_meta')->justReturn('');
 		Functions\when('delete_user_meta')->justReturn(true);
 		Functions\when('get_user_meta')->justReturn(''); // reset_failed_attempts() IP-pointer lookup (#280).
 
 		Functions\expect('update_user_meta')
-			->twice(); // Expiry + token hash.
+			->twice(); // Liveness scalar + proof map.
 
 		Actions\expectDone('wp_sudo_activated')
 			->once()
@@ -306,6 +812,7 @@ class SudoSessionTest extends TestCase
 		Functions\when('is_ssl')->justReturn(false);
 		Functions\when('headers_sent')->justReturn(false);
 		Functions\when('setcookie')->justReturn(true);
+		Functions\when('get_user_meta')->justReturn('');
 		Functions\when('update_user_meta')->justReturn(true);
 		Functions\when('delete_user_meta')->justReturn(true);
 		Functions\when('get_user_meta')->justReturn(''); // reset_failed_attempts() IP-pointer lookup (#280).
@@ -320,6 +827,7 @@ class SudoSessionTest extends TestCase
 		Functions\when('get_option')->justReturn(array('session_duration' => 5));
 		Functions\when('wp_generate_password')->justReturn('headers-sent-token');
 		Functions\when('headers_sent')->justReturn(true);
+		Functions\when('get_user_meta')->justReturn('');
 		Functions\when('delete_user_meta')->justReturn(true);
 		Functions\when('get_user_meta')->justReturn(''); // reset_failed_attempts() IP-pointer lookup (#280).
 
@@ -343,7 +851,7 @@ class SudoSessionTest extends TestCase
 		Functions\when('setcookie')->justReturn(true);
 
 		Functions\expect('delete_user_meta')
-			->times(3); // META_KEY + TOKEN_META_KEY + SESSION_BIND_META_KEY
+			->times(4); // META_KEY + PROOF_META_KEY + legacy TOKEN_META_KEY + SESSION_BIND_META_KEY
 
 		Actions\expectDone('wp_sudo_deactivated')
 			->once()
@@ -383,7 +891,7 @@ class SudoSessionTest extends TestCase
 		Functions\when('get_current_user_id')->justReturn(2);
 		Functions\when('headers_sent')->justReturn(false);
 
-		Functions\expect('delete_user_meta')->times(3); // target META, TOKEN, BIND.
+		Functions\expect('delete_user_meta')->times(4); // target META, PROOF, legacy TOKEN, BIND.
 		Functions\expect('setcookie')->never();
 
 		Sudo_Session::deactivate(9);
@@ -1152,15 +1660,16 @@ class SudoSessionTest extends TestCase
 	{
 		$past = time() - 30;
 		$token = 'grace-valid-token';
+		$record = $this->valid_proof_record(1, $token, $past);
 
 		Functions\when('get_current_user_id')->justReturn(1);
 
-		Functions\when('get_user_meta')->alias(function ($uid, $key, $single) use ($past, $token) {
+		Functions\when('get_user_meta')->alias(function ($uid, $key, $single) use ($past, $record) {
 			if (Sudo_Session::META_KEY === $key) {
 				return $past;
 			}
-			if (Sudo_Session::TOKEN_META_KEY === $key) {
-				return hash('sha256', $token);
+			if (Sudo_Session::PROOF_META_KEY === $key) {
+				return $record;
 			}
 			return '';
 		});
@@ -1247,12 +1756,24 @@ class SudoSessionTest extends TestCase
 	 */
 	public function test_is_active_defers_cleanup_during_grace_window(): void
 	{
-		$past = time() - 30; // Expired 30 s ago — still within GRACE_SECONDS (120 s).
+		$past   = time() - 30; // Expired 30 s ago — still within GRACE_SECONDS (120 s).
+		$cookie = 'grace-defer-cookie';
+		$record = $this->valid_proof_record(1, $cookie, $past);
 
-		Functions\when('get_user_meta')->justReturn($past);
+		Functions\when('get_current_user_id')->justReturn(1);
+		Functions\when('get_user_meta')->alias(function ($uid, $key, $single) use ($past, $record) {
+			if (Sudo_Session::PROOF_META_KEY === $key) {
+				return $record;
+			}
+			if (Sudo_Session::META_KEY === $key) {
+				return $past;
+			}
+			return '';
+		});
 		Functions\when('is_ssl')->justReturn(false);
 		Functions\when('headers_sent')->justReturn(false);
 		Functions\when('setcookie')->justReturn(true);
+		$_COOKIE[Sudo_Session::TOKEN_COOKIE] = $cookie;
 
 		// Cleanup must be deferred — meta must survive for is_within_grace() to read.
 		Functions\expect('delete_user_meta')->never();
@@ -1270,15 +1791,28 @@ class SudoSessionTest extends TestCase
 	 */
 	public function test_is_active_cleans_up_after_grace_window(): void
 	{
-		$past = time() - (Sudo_Session::GRACE_SECONDS + 60); // Well beyond grace.
+		$past   = time() - (Sudo_Session::GRACE_SECONDS + 60); // Well beyond grace.
+		$cookie = 'expired-beyond-grace';
+		$record = $this->valid_proof_record(1, $cookie, $past);
 
-		Functions\when('get_user_meta')->justReturn($past);
+		Functions\when('get_current_user_id')->justReturn(1);
+		Functions\when('get_user_meta')->alias(function ($uid, $key, $single) use ($past, $record) {
+			if (Sudo_Session::PROOF_META_KEY === $key) {
+				return $record;
+			}
+			if (Sudo_Session::META_KEY === $key) {
+				return $past;
+			}
+			return '';
+		});
 		Functions\when('is_ssl')->justReturn(false);
 		Functions\when('headers_sent')->justReturn(false);
 		Functions\when('setcookie')->justReturn(true);
+		$_COOKIE[Sudo_Session::TOKEN_COOKIE] = $cookie;
 
+		// Per-browser prune empties the map, so PROOF_META_KEY + META_KEY are deleted.
 		Functions\expect('delete_user_meta')
-			->times(3); // META_KEY + TOKEN_META_KEY + SESSION_BIND_META_KEY
+			->times(2);
 
 		$result = Sudo_Session::is_active(1);
 
@@ -1412,8 +1946,8 @@ class SudoSessionTest extends TestCase
 		Functions\when( 'get_option' )->justReturn( array() );
 
 		// reset_failed_attempts deletes: legacy lockout + lockout_until + failure_event + throttle (4).
-		// set_token() also clears SESSION_BIND_META_KEY when no login-session token resolves (+1).
-		Functions\expect( 'delete_user_meta' )->times( 5 );
+		// set_token() also clears the two legacy pre-4.9.0 proof keys (TOKEN + BIND) (+2).
+		Functions\expect( 'delete_user_meta' )->times( 6 );
 
 		Sudo_Session::activate( 1 );
 	}
@@ -2271,7 +2805,7 @@ class SudoSessionTest extends TestCase
 			->andReturn(array(2, 3));
 
 		Functions\expect('delete_user_meta')
-			->times(6) // 2 users x (META_KEY + TOKEN_META_KEY + SESSION_BIND_META_KEY).
+			->times(8) // 2 users x (META_KEY + PROOF_META_KEY + legacy TOKEN_META_KEY + SESSION_BIND_META_KEY).
 			->with(\Mockery::type('int'), \Mockery::type('string'));
 
 		Functions\expect('do_action')
@@ -2290,7 +2824,7 @@ class SudoSessionTest extends TestCase
 		Functions\when('get_users')->justReturn(array(2, 3, 5));
 
 		Functions\expect('delete_user_meta')
-			->times(6) // users 2 and 5 only x (META_KEY + TOKEN_META_KEY + SESSION_BIND_META_KEY).
+			->times(8) // users 2 and 5 only x (META_KEY + PROOF_META_KEY + legacy TOKEN_META_KEY + SESSION_BIND_META_KEY).
 			->with(\Mockery::type('int'), \Mockery::type('string'));
 
 		Functions\expect('do_action')

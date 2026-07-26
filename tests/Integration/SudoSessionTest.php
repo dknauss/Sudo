@@ -46,15 +46,18 @@ class SudoSessionTest extends TestCase {
 	}
 
 	/**
-	 * INTG-03: activate() stores a SHA-256 token hash in user meta.
+	 * INTG-03: activate() stores a SHA-256 token hash inside the proof map.
 	 */
 	public function test_activate_stores_token_hash_in_user_meta(): void {
 		$user = $this->make_admin();
 
 		Sudo_Session::activate( $user->ID );
 
-		$stored_hash = get_user_meta( $user->ID, Sudo_Session::TOKEN_META_KEY, true );
-		$this->assertNotEmpty( $stored_hash, 'Token hash should be stored in user meta.' );
+		$map = get_user_meta( $user->ID, Sudo_Session::PROOF_META_KEY, true );
+		$this->assertIsArray( $map, 'Proof map should be stored in user meta.' );
+		$entry = $map[ hash( 'sha256', wp_get_session_token() ) ] ?? null;
+		$this->assertIsArray( $entry, 'A proof entry should exist for the current login session.' );
+		$this->assertNotEmpty( $entry['token'], 'Token hash should be stored in the proof entry.' );
 
 		$expiry = get_user_meta( $user->ID, Sudo_Session::META_KEY, true );
 		$this->assertGreaterThan( time(), (int) $expiry, 'Expiry should be in the future.' );
@@ -83,12 +86,13 @@ class SudoSessionTest extends TestCase {
 		Sudo_Session::activate( $user->ID );
 
 		$cookie_token = $_COOKIE[ Sudo_Session::TOKEN_COOKIE ];
-		$stored_hash  = get_user_meta( $user->ID, Sudo_Session::TOKEN_META_KEY, true );
+		$map          = get_user_meta( $user->ID, Sudo_Session::PROOF_META_KEY, true );
+		$stored_hash  = $map[ hash( 'sha256', wp_get_session_token() ) ]['token'] ?? '';
 
 		$this->assertSame(
 			hash( 'sha256', $cookie_token ),
 			$stored_hash,
-			'SHA-256 of cookie token should match stored meta hash.'
+			'SHA-256 of cookie token should match the stored proof-entry token hash.'
 		);
 	}
 
@@ -131,8 +135,11 @@ class SudoSessionTest extends TestCase {
 		Sudo_Session::activate( $user->ID );
 		$this->assertTrue( Sudo_Session::is_active( $user->ID ) );
 
-		// Force expiry to the past.
-		update_user_meta( $user->ID, Sudo_Session::META_KEY, time() - 60 );
+		// Force this browser's proof entry to expire in the past, re-signing the
+		// HMAC so the record still authenticates — enforcement now reads the
+		// per-browser proof expiry, not the liveness scalar. Push it beyond the
+		// grace window so is_active() is false (not merely in grace).
+		$this->force_proof_expiry( $user->ID, time() - ( Sudo_Session::GRACE_SECONDS + 60 ) );
 		Sudo_Session::reset_cache();
 
 		$this->assertFalse( Sudo_Session::is_active( $user->ID ) );
@@ -151,7 +158,7 @@ class SudoSessionTest extends TestCase {
 		Sudo_Session::deactivate( $user->ID );
 		Sudo_Session::reset_cache();
 
-		$this->assertEmpty( get_user_meta( $user->ID, Sudo_Session::TOKEN_META_KEY, true ) );
+		$this->assertEmpty( get_user_meta( $user->ID, Sudo_Session::PROOF_META_KEY, true ) );
 		$this->assertEmpty( get_user_meta( $user->ID, Sudo_Session::META_KEY, true ) );
 		$this->assertArrayNotHasKey( Sudo_Session::TOKEN_COOKIE, $_COOKIE );
 		$this->assertFalse( Sudo_Session::is_active( $user->ID ) );
@@ -239,10 +246,12 @@ class SudoSessionTest extends TestCase {
 		Sudo_Session::activate( $user->ID );
 		Sudo_Session::reset_cache();
 		$this->assertTrue( Sudo_Session::is_active( $user->ID ), 'Active within the binding session.' );
-		$this->assertSame(
+		$map = get_user_meta( $user->ID, Sudo_Session::PROOF_META_KEY, true );
+		$this->assertIsArray( $map );
+		$this->assertArrayHasKey(
 			hash( 'sha256', $token_a ),
-			get_user_meta( $user->ID, Sudo_Session::SESSION_BIND_META_KEY, true ),
-			'The stored bind is the SHA-256 of the login-session token.'
+			$map,
+			'The proof is keyed by the SHA-256 of the login-session token.'
 		);
 
 		// Switch to a different login session (token B). The sudo proof cookie is
@@ -280,8 +289,8 @@ class SudoSessionTest extends TestCase {
 
 		$this->assertFalse( Sudo_Session::is_active( $user->ID ), 'Logout must end the sudo window.' );
 		$this->assertEmpty(
-			get_user_meta( $user->ID, Sudo_Session::TOKEN_META_KEY, true ),
-			'Logout clears the sudo token meta.'
+			get_user_meta( $user->ID, Sudo_Session::PROOF_META_KEY, true ),
+			'Logout clears the sudo proof meta.'
 		);
 	}
 
@@ -341,8 +350,8 @@ class SudoSessionTest extends TestCase {
 		// WP Sudo's own state was NOT proactively cleared: the next-request auth
 		// failure is the only thing standing between a stale proof and replay.
 		$this->assertNotEmpty(
-			get_user_meta( $user->ID, Sudo_Session::TOKEN_META_KEY, true ),
-			'destroy_all() does not clear WP Sudo token meta (no wp_logout / password change).'
+			get_user_meta( $user->ID, Sudo_Session::PROOF_META_KEY, true ),
+			'destroy_all() does not clear WP Sudo proof meta (no wp_logout / password change).'
 		);
 
 		// Model the next request: the invalid cookie means WordPress resolves no

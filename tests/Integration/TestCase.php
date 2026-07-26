@@ -118,6 +118,42 @@ class TestCase extends \WP_UnitTestCase {
 	}
 
 	/**
+	 * Age the current login session's sudo proof to a chosen expiry timestamp.
+	 *
+	 * Enforcement (is_active/is_within_grace) reads each browser's own expiry from
+	 * its HMAC-signed entry in the `_wp_sudo_proofs` map — NOT the `_wp_sudo_expires`
+	 * liveness scalar. To simulate expiry (or move a session into/out of the grace
+	 * window) a test must re-stamp that entry AND re-sign its HMAC, exactly as
+	 * production would if time had passed. Overwriting only the scalar leaves the
+	 * proof "live" and is_active() stays true. The scalar is updated in lockstep so
+	 * enumeration (is_session_live / "Sudo Active (N)") stays consistent.
+	 *
+	 * @param int $user_id User whose active proof to age. Must already have an
+	 *                     active session (call Sudo_Session::activate() first).
+	 * @param int $expires Expiry timestamp to stamp on this browser's proof entry.
+	 * @return void
+	 */
+	protected function force_proof_expiry( int $user_id, int $expires ): void {
+		$map      = get_user_meta( $user_id, Sudo_Session::PROOF_META_KEY, true );
+		$verifier = wp_get_session_token();
+		$key      = hash( 'sha256', is_string( $verifier ) ? $verifier : '' );
+
+		$this->assertIsArray( $map, 'force_proof_expiry(): no proof map — activate() first.' );
+		$this->assertArrayHasKey( $key, $map, 'force_proof_expiry(): no proof entry for the current login session.' );
+
+		$map[ $key ]['expires'] = $expires;
+		$map[ $key ]['hmac']    = hash_hmac(
+			'sha256',
+			$user_id . '|' . ( is_string( $verifier ) ? $verifier : '' ) . '|' . $map[ $key ]['token'] . '|' . $expires,
+			wp_salt( 'auth' )
+		);
+
+		update_user_meta( $user_id, Sudo_Session::PROOF_META_KEY, $map );
+		update_user_meta( $user_id, Sudo_Session::META_KEY, $expires );
+		Sudo_Session::reset_cache();
+	}
+
+	/**
 	 * Trigger the plugin's activation hook explicitly.
 	 *
 	 * The plugin is loaded via muplugins_loaded in the bootstrap, which does not

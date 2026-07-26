@@ -148,15 +148,16 @@ class RestBackstopTest extends TestCase {
 	public function test_rest_backstop_allows_when_sudo_active(): void {
 		$future = time() + 300;
 		$token  = 'valid-token';
+		$record = $this->make_proof_map( 1, $token, $future );
 
 		Functions\when( 'get_current_user_id' )->justReturn( 1 );
 		Functions\when( 'get_user_meta' )->alias(
-			static function ( $uid, $key, $single ) use ( $future, $token ) {
+			static function ( $uid, $key, $single ) use ( $future, $record ) {
 				if ( Sudo_Session::META_KEY === $key ) {
 					return $future;
 				}
-				if ( Sudo_Session::TOKEN_META_KEY === $key ) {
-					return hash( 'sha256', $token );
+				if ( Sudo_Session::PROOF_META_KEY === $key ) {
+					return $record;
 				}
 				return '';
 			}

@@ -157,7 +157,7 @@ class PluginLifecycleTest extends TestCase {
 		$this->assertFalse( get_role( 'editor' )->has_cap( 'unfiltered_html' ), 'Precondition: editor stripped after activation.' );
 		$this->assertTrue( get_option( 'wp_sudo_activated' ), 'Precondition: activated flag set.' );
 		$this->assertSame( 1, $this->count_scheduled( 'wp_sudo_prune_events' ), 'Precondition: prune cron scheduled.' );
-		$this->assertNotEmpty( get_user_meta( $admin->ID, '_wp_sudo_token', true ), 'Precondition: session token meta exists.' );
+		$this->assertNotEmpty( get_user_meta( $admin->ID, '_wp_sudo_proofs', true ), 'Precondition: session proof meta exists.' );
 
 		$this->deactivate_plugin();
 
@@ -171,7 +171,7 @@ class PluginLifecycleTest extends TestCase {
 
 		// Preserved — cleanup is uninstall's responsibility, not deactivation's.
 		$this->assertNotFalse( get_option( 'wp_sudo_settings' ), 'Deactivation preserves wp_sudo_settings.' );
-		$this->assertNotEmpty( get_user_meta( $admin->ID, '_wp_sudo_token', true ), 'Deactivation preserves session token meta.' );
+		$this->assertNotEmpty( get_user_meta( $admin->ID, '_wp_sudo_proofs', true ), 'Deactivation preserves session proof meta.' );
 	}
 
 	/**
