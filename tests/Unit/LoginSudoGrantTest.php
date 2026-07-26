@@ -77,6 +77,7 @@ class LoginSudoGrantTest extends TestCase {
 		Functions\when( 'delete_user_meta' )->justReturn( true );
 		Functions\when( 'get_user_meta' )->justReturn( array() ); // set_token() reads the proof map (#279) before writing.
 		Functions\when( 'update_user_meta' )->justReturn( true );
+		Functions\when( 'get_user_meta' )->justReturn( '' ); // reset_failed_attempts() IP-pointer lookup (#280).
 
 		// activate() fires wp_sudo_activated — its presence proves activate() ran with user 7.
 		Actions\expectDone( 'wp_sudo_activated' )
@@ -104,6 +105,7 @@ class LoginSudoGrantTest extends TestCase {
 		Functions\when( 'delete_user_meta' )->justReturn( true );
 		Functions\when( 'get_user_meta' )->justReturn( array() ); // set_token() reads the proof map (#279) before writing.
 		Functions\when( 'update_user_meta' )->justReturn( true );
+		Functions\when( 'get_user_meta' )->justReturn( '' ); // reset_failed_attempts() IP-pointer lookup (#280).
 
 		// Must fire with user ID 42 — not some value derived from the login string.
 		Actions\expectDone( 'wp_sudo_activated' )
@@ -133,6 +135,7 @@ class LoginSudoGrantTest extends TestCase {
 		Functions\when( 'delete_user_meta' )->justReturn( true );
 		Functions\when( 'get_user_meta' )->justReturn( array() ); // set_token() reads the proof map (#279) before writing.
 		Functions\when( 'update_user_meta' )->justReturn( true );
+		Functions\when( 'get_user_meta' )->justReturn( '' ); // reset_failed_attempts() IP-pointer lookup (#280).
 
 		Filters\expectApplied( 'wp_sudo_grant_session_on_login' )
 			->once()
