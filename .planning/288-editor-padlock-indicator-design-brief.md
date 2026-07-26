@@ -73,8 +73,12 @@ editor header do not change background colour. Verified against Gutenberg trunk
 - **Semantic background colour has no core precedent here.** The only background
   change core applies to a pinned-item button is `.is-pressed` →
   `background: $components-color-foreground`, a neutral near-black
-  (`packages/components/src/button/style.scss` L342-348). The single coloured
-  element in that header is the Publish CTA.
+  (`packages/components/src/button/style.scss` L342-348). Colour in that header belongs
+  to the two calls to action — the Inserter toggle and the Publish CTA, both on the WP
+  admin blue — and not to the pinned sidebar controls this feature lives among. (An
+  earlier draft said Publish was the only coloured element in the header; the Inserter
+  is visibly the same blue in `.wordpress-org/screenshot-12.png`. Corrected after
+  review.)
 - **A state-driven glyph does have precedent, on this exact control.** Core swaps this
   button's icon conditionally itself — `icon={ showIconLabels ? check : icon }`
   (`packages/interface/src/components/complementary-area/index.js` L280, the
@@ -99,6 +103,22 @@ editor header do not change background colour. Verified against Gutenberg trunk
     CSS, so the default view keeps no semantic colour but the urgent red. INDICATOR-09
     pins both directions: the chip appears under the preference, and does not appear
     without it.
+
+### Verification sources for this amendment
+
+All fetched 2026-07-26 and read in context, not grepped for a line number:
+
+- `button/style.scss` L342-348 — `.is-pressed` → `background: $components-color-foreground`
+  <https://raw.githubusercontent.com/WordPress/gutenberg/trunk/packages/components/src/button/style.scss>
+- `complementary-area/index.js` L280-281 — `icon={ showIconLabels ? check : icon }`
+  and `showTooltip={ ! showIconLabels }`; L293 is the Options-menu item; L326 is the
+  pin/unpin star in the panel header
+  <https://raw.githubusercontent.com/WordPress/gutenberg/trunk/packages/interface/src/components/complementary-area/index.js>
+- `complementary-area-toggle/index.js` L58 — `icon={ selectedIcon && isSelected ?
+  selectedIcon : icon }`
+  <https://raw.githubusercontent.com/WordPress/gutenberg/trunk/packages/interface/src/components/complementary-area-toggle/index.js>
+- `@wordpress/data` `registry.ts` L62-86 — `subscribe( listener, storeNameOrDescriptor )`
+  <https://raw.githubusercontent.com/WordPress/gutenberg/trunk/packages/data/src/registry.ts>
 
 So the shipped design had it backwards: it invented a convention for the states that
 did not need one, and the *glyph* swap — the part that was already idiomatic — was

@@ -406,7 +406,8 @@ test.describe( 'In-editor sudo session indicator', () => {
 
 		// Active — the OPEN padlock, on the stock button. Colour is deliberately NOT
 		// spent here: a green chip would sit in the header for the whole session, and
-		// core reserves that header's colour for the Publish CTA. The panel stays CLOSED
+		// core gives that header's colour to its calls to action (the Inserter toggle
+		// and Publish), not to the pinned sidebar controls. The panel stays CLOSED
 		// throughout: the point of #288 is that state is legible without opening it.
 		await expect( button ).toHaveAttribute( 'aria-expanded', 'false' );
 		await expect( button ).toHaveCSS( 'background-color', STOCK_BG );

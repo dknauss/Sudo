@@ -407,13 +407,17 @@ class Plugin {
 		);
 		wp_set_script_translations( 'wp-sudo-session-indicator', 'wp-sudo' );
 
-		// #288 (at-a-glance padlock): paints the indicator's PINNED HEADER button with
-		// the admin bar's own tokens — green while active, red in the final 60 s — off a
-		// class the module above toggles on <body> at each state transition. Without it
-		// the editor's most security-relevant transient state is invisible to a sighted
-		// user editing full-screen, where the admin-bar chip never renders. Enqueued
-		// unconditionally: below WP 6.6 no pinned button exists, the module falls back to
-		// the Part A snackbar, and the stylesheet's selectors simply match nothing.
+		// #288 (at-a-glance padlock): the indicator's PINNED HEADER button carries state
+		// mainly through its GLYPH — closed padlock inactive, open padlock active,
+		// warning in the final 60 s — which is what core does on that control. This
+		// stylesheet is the colour half, off classes the module above toggles on <body>
+		// at each state transition: the admin bar's red in the final 60 s, plus its green
+		// for the active state ONLY under core's "Show button text labels" preference,
+		// where core replaces our glyph with its own and colour is the one channel left.
+		// Without any of this the editor's most security-relevant transient state is
+		// invisible to a sighted user editing full-screen, where the admin-bar chip never
+		// renders. Enqueued unconditionally: below WP 6.6 no pinned button exists, the
+		// module falls back to the Part A snackbar, and the selectors match nothing.
 		wp_enqueue_style(
 			'wp-sudo-editor-indicator',
 			WP_SUDO_PLUGIN_URL . 'admin/css/wp-sudo-editor-indicator.css',
