@@ -1647,12 +1647,19 @@ class Sudo_Session {
 	}
 
 	/**
-	 * Whether any reauth failure tracking is currently stored for a user.
+	 * Whether any PER-USER reauth failure tracking is currently stored.
 	 *
 	 * True when there is at least one failure event, a throttle timestamp, or a
 	 * lockout timestamp — including a lockout that has already expired but was
 	 * never cleared, since the rolling window behind it is what would re-lock
 	 * the user.
+	 *
+	 * Scope limit worth knowing: this reads user meta only. The per-(ip, user)
+	 * rolling windows are transients keyed by a hash of the IP, so they cannot
+	 * be enumerated without knowing the IP, and a user whose per-user meta is
+	 * clean can still have one outstanding. Erring that way is deliberate: the
+	 * caller then treats the unlock as a no-op and leaves a brute-force window
+	 * intact, rather than clearing defenses for a user who is not blocked.
 	 *
 	 * Lets the WP-CLI clear (#280) tell "there is nothing to do" apart from
 	 * "there are pre-lockout counters here", so it neither erases a live

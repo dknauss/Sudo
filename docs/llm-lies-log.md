@@ -755,6 +755,44 @@ Repos:   wp-sudo, wordpress-2fa-ecosystem
            agent's output is NOT exempt from verify-against-source; treat cited third-party
            behavior as unverified until checked against live code.
 
+54. THREE WRONG ROOT CAUSES ASSERTED AS FINDINGS — #341 visual-baseline timeout
+   Files:  GitHub issue #341 comment ("Root cause (trace read of run …)"), plus the
+           rationale comments committed into
+           `tests/e2e/specs/visual/regression-baselines.spec.ts` on `fix/341-visn-timeout`.
+   Claim:  Posted, in order, as definitive diagnoses: (1) "the cause is
+           `page.clock.install()` — it freezes requestAnimationFrame, which
+           `toHaveScreenshot`'s stability check polls on"; (2) "the page-level clip is the
+           problem — every element-level baseline passes"; (3) "the dashboard's
+           welcome-panel images and Events widget keep reflowing, so element stability
+           never settles". Each was written up as the root cause, and (1) was posted to
+           the issue under the heading "Root cause".
+   Reality: All three were falsified by CI — the hang was byte-identical after each
+           change. The actual cause, found only by measuring: after the challenge
+           interaction the page permanently stops producing compositor frames, so
+           requestAnimationFrame never fires on it again (0/s, vs 65-71/s before
+           activation), and it does not recover on `reload()` or `bringToFront()`. A
+           fresh page in the same context with the same session reports 66/s. Blocking
+           the plugin's own admin-bar script changed nothing, so WP Sudo was never
+           implicated. Aggravating detail: hypothesis (1) named the right MECHANISM
+           (rAF starvation) but my replacement helper cleared the whole timer id range —
+           setTimeout and setInterval share one id space — so it reproduced the same
+           starvation, and I read "no change" as exonerating the mechanism.
+   Source:  rAF-counting probe run locally against wp-env across the activation flow
+           (A settings 65/s, B challenge 71/s, C post-activation 0/s, E post-reload 0/s,
+           F admin-bar JS blocked 0/s, G fresh page 66/s, I bringToFront 0/s); fix
+           verified on the Linux runner — 7 passed in assert mode, run 30218629628.
+   Notes:  Not a fabricated citation: every individual observation was real. The failure
+           was CAUSAL — treating "this is consistent with X" as "X is the cause", and
+           publishing it. The tell was available from the start: each "fix" was shipped
+           without a control that would distinguish it from the alternatives. What
+           finally worked was the cheap control (does rAF fire on a test that PASSES?),
+           which took one run and settled it. Lesson: an explanation that predicts the
+           symptom is a hypothesis, not a finding; a finding needs a measurement that
+           would have come out differently if the explanation were wrong. Also: remote
+           CI cycles at ~10 minutes each are the wrong instrument for a differential
+           diagnosis — the local repro converged in minutes.
+
+
 ROOT CAUSE
 ----------
 All errors have stemmed from patterns that boil down to *not checking the 

@@ -192,7 +192,7 @@ class CliCommandTest extends TestCase {
 
 		Functions\expect( 'do_action' )
 			->once()
-			->with( 'wp_sudo_lockout_cleared', 9 );
+			->with( 'wp_sudo_lockout_cleared', 9, true );
 
 		$command = new CLI_Command();
 		$command->unlock( array(), array( 'user' => '9' ) );
@@ -212,7 +212,7 @@ class CliCommandTest extends TestCase {
 		Functions\when( 'update_user_meta' )->justReturn( true );
 
 		Functions\expect( 'do_action' )
-			->with( 'wp_sudo_lockout_cleared', \Mockery::any() )
+			->with( 'wp_sudo_lockout_cleared', \Mockery::any(), \Mockery::any() )
 			->never();
 
 		$command = new CLI_Command();
@@ -223,10 +223,14 @@ class CliCommandTest extends TestCase {
 	}
 
 	/**
-	 * An already-expired lockout (natural expiry, never explicitly cleared)
-	 * must also report as a no-op, not "cleared" — has_unexpired_lockout()
-	 * reads the raw timestamp with no auto-reset side effect, so the check
-	 * accurately reflects that nothing was actively blocking this user.
+	 * An already-expired lockout (natural expiry, never explicitly cleared) is
+	 * NOT reported as a lockout clear — has_unexpired_lockout() reads the raw
+	 * timestamp with no auto-reset side effect, so it correctly reports that
+	 * nothing was actively blocking this user.
+	 *
+	 * It is still residual state, though: the rolling window behind that stale
+	 * timestamp is what would re-lock the user, so the command does clear it,
+	 * says so, and fires the audit hook with $was_locked = false.
 	 */
 	public function test_unlock_reports_no_op_for_an_already_expired_lockout(): void {
 		Functions\when( 'get_user_meta' )->alias(
@@ -241,11 +245,17 @@ class CliCommandTest extends TestCase {
 		Functions\when( 'delete_transient' )->justReturn( true );
 		Functions\when( 'update_user_meta' )->justReturn( true );
 
+		Functions\expect( 'do_action' )
+			->once()
+			->with( 'wp_sudo_lockout_cleared', 9, false );
+
 		$command = new CLI_Command();
 		$command->unlock( array(), array( 'user' => '9' ) );
 
 		$this->assertSame( 'log', \WP_CLI::$messages[0]['type'] ?? null );
 		$this->assertStringContainsString( 'No active reauth lockout for user 9', \WP_CLI::$messages[0]['message'] ?? '' );
+		$this->assertStringContainsString( 'cleared pre-lockout failure counters', \WP_CLI::$messages[0]['message'] ?? '' );
+		$this->assertStringNotContainsString( 'Cleared reauth lockout', \WP_CLI::$messages[0]['message'] ?? '' );
 	}
 
 	/**
@@ -288,13 +298,13 @@ class CliCommandTest extends TestCase {
 
 		Functions\expect( 'do_action' )
 			->once()
-			->with( 'wp_sudo_lockout_cleared', 9 );
+			->with( 'wp_sudo_lockout_cleared', 9, false );
 
 		$command = new CLI_Command();
 		$command->unlock( array(), array( 'user' => '9' ) );
 
 		$this->assertStringContainsString( 'No active reauth lockout for user 9', \WP_CLI::$messages[0]['message'] ?? '' );
-		$this->assertStringContainsString( 'cleared', \WP_CLI::$messages[0]['message'] ?? '' );
+		$this->assertStringContainsString( 'cleared pre-lockout failure counters', \WP_CLI::$messages[0]['message'] ?? '' );
 	}
 
 	public function test_unlock_errors_when_no_target_user_is_available(): void {
