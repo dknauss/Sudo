@@ -15,6 +15,25 @@ import { wpEnvRunArgv, containerBash } from '../fixtures/wp-env';
 const HOSTILE = [ 'a b', 'a"b', "a'b", 'a;b', '$(id)', '`id`', 'a|b', 'a&&b', 'a>b', '../x' ];
 
 test.describe( 'wp-env command helpers — argv safety', () => {
+	// CI exports WP_ENV_CONFIG_PATH=.wp-env.e2e.json for the whole E2E run, which
+	// makes wpEnvRunArgv() inject `--config …`. Neutralize it per-test so the argv
+	// shape is deterministic regardless of the ambient environment; WPENV-02 sets it
+	// back explicitly to exercise the --config path.
+	let savedConfigPath: string | undefined;
+
+	test.beforeEach( () => {
+		savedConfigPath = process.env.WP_ENV_CONFIG_PATH;
+		delete process.env.WP_ENV_CONFIG_PATH;
+	} );
+
+	test.afterEach( () => {
+		if ( savedConfigPath === undefined ) {
+			delete process.env.WP_ENV_CONFIG_PATH;
+		} else {
+			process.env.WP_ENV_CONFIG_PATH = savedConfigPath;
+		}
+	} );
+
 	test( 'WPENV-01: wpEnvRunArgv keeps each value one literal element after --', () => {
 		for ( const value of HOSTILE ) {
 			const argv = wpEnvRunArgv( 'cli', [ 'wp', 'user', 'meta', 'update', '1', value ] );
@@ -37,31 +56,23 @@ test.describe( 'wp-env command helpers — argv safety', () => {
 	} );
 
 	test( 'WPENV-02: wpEnvRunArgv threads --config from WP_ENV_CONFIG_PATH ahead of run', () => {
-		const previous = process.env.WP_ENV_CONFIG_PATH;
-		try {
-			process.env.WP_ENV_CONFIG_PATH = '.wp-env.e2e.json';
-			expect( wpEnvRunArgv( 'cli', [ 'wp', 'option', 'get', 'siteurl' ] ) ).toEqual( [
-				'wp-env',
-				'--config',
-				'.wp-env.e2e.json',
-				'run',
-				'cli',
-				'--',
-				'wp',
-				'option',
-				'get',
-				'siteurl',
-			] );
+		// beforeEach cleared the ambient value; afterEach restores it.
+		process.env.WP_ENV_CONFIG_PATH = '.wp-env.e2e.json';
+		expect( wpEnvRunArgv( 'cli', [ 'wp', 'option', 'get', 'siteurl' ] ) ).toEqual( [
+			'wp-env',
+			'--config',
+			'.wp-env.e2e.json',
+			'run',
+			'cli',
+			'--',
+			'wp',
+			'option',
+			'get',
+			'siteurl',
+		] );
 
-			delete process.env.WP_ENV_CONFIG_PATH;
-			expect( wpEnvRunArgv( 'cli', [ 'wp' ] ) ).toEqual( [ 'wp-env', 'run', 'cli', '--', 'wp' ] );
-		} finally {
-			if ( previous === undefined ) {
-				delete process.env.WP_ENV_CONFIG_PATH;
-			} else {
-				process.env.WP_ENV_CONFIG_PATH = previous;
-			}
-		}
+		delete process.env.WP_ENV_CONFIG_PATH;
+		expect( wpEnvRunArgv( 'cli', [ 'wp' ] ) ).toEqual( [ 'wp-env', 'run', 'cli', '--', 'wp' ] );
 	} );
 
 	test( 'WPENV-03: containerBash keeps the script constant and values as trailing positionals', () => {
