@@ -26,14 +26,18 @@
  *     }
  *
  * That is the same short-circuit shape as `pre_delete_post` — a filter whose
- * non-null/error return aborts the operation AND becomes the return value. So
- * the entire Group-A code-execution closure is reachable from a plugin today.
+ * non-null/error return aborts the operation AND becomes the return value, so
+ * the Group-A code-execution seam is reachable from a plugin today.
  *
  * WHAT IT DELIBERATELY DOES NOT DO
  *
- * - No stash, no auto-replay. A blocked install returns the WP_Error that the
- *   installer UI already knows how to render; the operator re-runs the action
- *   after proving intent. Auto-replay is the defect tracked as #315.
+ * - No stash, no auto-replay. A blocked install returns a WP_Error on the path
+ *   callers already handle; the operator re-runs the action after proving
+ *   intent. Auto-replay is the defect tracked as #315. (How each surface
+ *   renders that error is not audited here.)
+ * - The proof is not action- or target-bound (#308) and the record is not
+ *   HMAC-signed (#310). Both are deliberate omissions for a slice, and both are
+ *   requirements for anything real — stated so they are not mistaken for done.
  * - No policy for non-interactive callers. Per #320 the v1 scope is interactive
  *   cookie sessions only; cron/CLI/API-credential callers pass through exactly
  *   as they do in stock WordPress. That is a deliberate v1 gap, not an oversight.
@@ -65,7 +69,11 @@ const PROOF_TTL = 900;
  * bypass.
  */
 const ACTOR_INTERACTIVE = 'interactive';
+const ACTOR_REVOKED     = 'revoked';
 const ACTOR_NONE        = 'none';
+
+/** Cookie carrying this session's proof secret. */
+const PROOF_COOKIE = 'wp_sudo_poc_proof';
 
 /**
  * Resolve the actor class for the current request.
@@ -78,9 +86,21 @@ const ACTOR_NONE        = 'none';
  * @return string One of the ACTOR_* constants.
  */
 function actor_class(): string {
-	// A verified login session is the only thing that makes a request
-	// interactive. Note this is verified, not merely parsed: see proof_key().
-	return '' !== verified_session_token() ? ACTOR_INTERACTIVE : ACTOR_NONE;
+	if ( '' !== verified_session_token() ) {
+		return ACTOR_INTERACTIVE;
+	}
+
+	// A request that CARRIES a login cookie but whose token no longer verifies —
+	// revoked by "log out everywhere", expired, or forged — is still a browser
+	// request. Folding it into ACTOR_NONE would be a fail-open: the caller would
+	// drop into the out-of-v1-scope branch and the write would be allowed. That
+	// inverts the intent of session revocation, so it gets its own class and is
+	// refused below.
+	if ( ! empty( $_COOKIE[ LOGGED_IN_COOKIE ] ) ) {
+		return ACTOR_REVOKED;
+	}
+
+	return ACTOR_NONE;
 }
 
 /**
@@ -129,7 +149,20 @@ function proof_key(): string {
 }
 
 /**
- * Record that the actor proved intent in this session.
+ * Record that the actor proved intent, issuing a secret only this browser holds.
+ *
+ * Session binding alone is NOT enough, and this is the subtle part. An attacker
+ * who copies the victim's login cookie presents the *same* session token, so a
+ * proof keyed on the token alone resolves to the same record and the copy
+ * inherits it. Isolating two independent sessions is a weaker property than
+ * resisting a copied cookie, and only the second is what the proposal claims
+ * (§4: "the proof secret lives only in the browser that answered the
+ * challenge", stored server-side only as a hash).
+ *
+ * So the proof is a fresh random secret returned to the browser in its own
+ * cookie, with only its hash stored server-side. A cookie copied *before* the
+ * challenge does not carry it and cannot pass. A cookie copied *after* does —
+ * that residual is inherent, and is why the TTL is short.
  *
  * In a real implementation this is what the challenge handler calls on a
  * successful password/2FA answer. The slice exposes it directly so tests can
@@ -138,10 +171,23 @@ function proof_key(): string {
 function grant_proof(): bool {
 	$key = proof_key();
 	if ( '' === $key ) {
-		return false; // No session ⇒ nothing to bind a proof to.
+		return false; // No verified session ⇒ nothing to bind a proof to.
 	}
 
-	return (bool) set_transient( $key, time(), PROOF_TTL );
+	$secret = wp_generate_password( 43, false, false );
+
+	if ( ! set_transient( $key, hash( 'sha256', $secret ), PROOF_TTL ) ) {
+		return false;
+	}
+
+	// A real implementation sets this with setcookie() — httponly, secure,
+	// scoped to COOKIEPATH so it also reaches cookie-authenticated /wp-json —
+	// and must treat a failed write as a failed grant (#319). The slice assigns
+	// the superglobal directly because there is no challenge request to respond
+	// to and headers are already sent under the test runner.
+	$_COOKIE[ PROOF_COOKIE ] = $secret;
+
+	return true;
 }
 
 /** Revoke this session's proof. */
@@ -150,13 +196,31 @@ function revoke_proof(): void {
 	if ( '' !== $key ) {
 		delete_transient( $key );
 	}
+
+	unset( $_COOKIE[ PROOF_COOKIE ] );
 }
 
-/** @return bool Whether this session currently holds a valid proof of intent. */
+/**
+ * @return bool Whether this request holds a valid proof of intent — meaning
+ *              both a verified session AND the browser secret issued to it.
+ */
 function has_proof(): bool {
 	$key = proof_key();
+	if ( '' === $key ) {
+		return false;
+	}
 
-	return '' !== $key && false !== get_transient( $key );
+	$stored = get_transient( $key );
+	if ( ! is_string( $stored ) || '' === $stored ) {
+		return false;
+	}
+
+	$presented = isset( $_COOKIE[ PROOF_COOKIE ] ) ? (string) $_COOKIE[ PROOF_COOKIE ] : '';
+	if ( '' === $presented ) {
+		return false; // Right session, but not the browser that answered.
+	}
+
+	return hash_equals( $stored, hash( 'sha256', $presented ) );
 }
 
 /**
@@ -183,7 +247,7 @@ function gate_install_package( $response, $hook_extra = array() ) {
 	// security updates working — WP_Automatic_Updater reuses Plugin_Upgrader and
 	// adds no marker of its own to $hook_extra, so the only sound signal is the
 	// absence of a session on the request, not anything in the payload.
-	if ( ACTOR_INTERACTIVE !== actor_class() ) {
+	if ( ACTOR_NONE === actor_class() ) {
 		return $response;
 	}
 

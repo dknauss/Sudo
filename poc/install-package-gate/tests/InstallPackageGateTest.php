@@ -58,7 +58,7 @@ final class InstallPackageGateTest extends WP_UnitTestCase {
 	}
 
 	public function tear_down(): void {
-		unset( $_COOKIE[ LOGGED_IN_COOKIE ] );
+		unset( $_COOKIE[ LOGGED_IN_COOKIE ], $_COOKIE[ \WP_Sudo\PoC\InstallPackageGate\PROOF_COOKIE ] );
 		foreach ( array( $this->source, $this->destination ) as $dir ) {
 			if ( is_dir( $dir ) ) {
 				array_map( 'unlink', glob( $dir . '/*' ) ?: array() );
@@ -134,12 +134,16 @@ final class InstallPackageGateTest extends WP_UnitTestCase {
 	}
 
 	/**
-	 * THE test the proposal stands or falls on: a second session holding a copy
-	 * of the same account's cookie must not inherit the elevation the first one
-	 * earned. A per-user proof would pass this account through; a session-bound
-	 * one must not.
+	 * A *second, independent* session on the same account does not inherit the
+	 * proof.
+	 *
+	 * Note what this does and does not prove. start_session() mints a NEW token
+	 * for the second browser, so this is two separate logins — the weaker
+	 * property. Resistance to a genuinely COPIED cookie is a different and
+	 * harder claim, covered by
+	 * test_a_copied_login_cookie_does_not_inherit_the_proof().
 	 */
-	public function test_a_cloned_session_does_not_inherit_the_proof(): void {
+	public function test_a_second_independent_session_does_not_inherit_the_proof(): void {
 		// Browser A proves intent.
 		$this->start_session( $this->admin_id );
 		grant_proof();
@@ -153,6 +157,73 @@ final class InstallPackageGateTest extends WP_UnitTestCase {
 		$result = $this->install();
 
 		$this->assertWPError( $result );
+		$this->assertSame( 'wp_sudo_reauth_required', $result->get_error_code() );
+		$this->assertDirectoryDoesNotExist( $this->destination );
+	}
+
+	/**
+	 * THE test the proposal stands or falls on (§4).
+	 *
+	 * An attacker who copies the victim's actual login cookie presents the SAME
+	 * session token, so a proof keyed on the token alone would resolve to the
+	 * same record and the copy would inherit it. Session binding does not close
+	 * this; a separate browser-held secret does.
+	 *
+	 * Here browser B replays browser A's exact login cookie — captured before A
+	 * answered the challenge, as a thief's copy would be — and must still be
+	 * refused, because it does not carry the proof secret A was issued.
+	 */
+	public function test_a_copied_login_cookie_does_not_inherit_the_proof(): void {
+		$this->start_session( $this->admin_id );
+
+		// The thief's copy: taken before the challenge.
+		$stolen_cookie = $_COOKIE[ LOGGED_IN_COOKIE ];
+
+		grant_proof();
+		$this->assertTrue( has_proof(), 'sanity: browser A holds the proof' );
+
+		// Browser B: identical login cookie, no proof cookie.
+		$_COOKIE[ LOGGED_IN_COOKIE ] = $stolen_cookie;
+		unset( $_COOKIE[ \WP_Sudo\PoC\InstallPackageGate\PROOF_COOKIE ] );
+
+		$this->assertSame(
+			$stolen_cookie,
+			$_COOKIE[ LOGGED_IN_COOKIE ],
+			'sanity: this is the same cookie, not a second login'
+		);
+		$this->assertFalse( has_proof(), 'a copied cookie must not inherit the proof' );
+
+		$result = $this->install();
+
+		$this->assertWPError( $result );
+		$this->assertSame( 'wp_sudo_reauth_required', $result->get_error_code() );
+		$this->assertDirectoryDoesNotExist( $this->destination );
+	}
+
+	/**
+	 * Fail-open regression: a revoked session must be REFUSED, not reclassified
+	 * as actorless and waved through.
+	 *
+	 * "Log out everywhere" destroys the token while the request may still hold a
+	 * loaded current user. If that collapses to "no actor", the out-of-v1-scope
+	 * branch allows the write — inverting the intent of revocation.
+	 */
+	public function test_a_revoked_session_is_refused_not_treated_as_actorless(): void {
+		$this->start_session( $this->admin_id );
+		grant_proof();
+		$this->assertTrue( has_proof() );
+
+		// Log out everywhere: the cookie is still on the request, the token is not.
+		WP_Session_Tokens::get_instance( $this->admin_id )->destroy_all();
+
+		$this->assertFalse( has_proof(), 'a destroyed session cannot still hold a proof' );
+
+		$result = $this->install();
+
+		$this->assertWPError(
+			$result,
+			'a revoked session must be refused, not reclassified as actorless'
+		);
 		$this->assertSame( 'wp_sudo_reauth_required', $result->get_error_code() );
 		$this->assertDirectoryDoesNotExist( $this->destination );
 	}
