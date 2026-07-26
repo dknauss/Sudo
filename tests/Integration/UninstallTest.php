@@ -127,7 +127,7 @@ class UninstallTest extends TestCase {
 
 		// Verify the data exists before uninstall.
 		$this->assertNotEmpty( get_user_meta( $user->ID, '_wp_sudo_expires', true ), 'Expiry meta should exist before uninstall.' );
-		$this->assertNotEmpty( get_user_meta( $user->ID, '_wp_sudo_token', true ), 'Token meta should exist before uninstall.' );
+		$this->assertNotEmpty( get_user_meta( $user->ID, '_wp_sudo_proofs', true ), 'Proof meta should exist before uninstall.' );
 		$this->assertNotEmpty( get_user_meta( $user->ID, '_wp_sudo_failure_event', false ), 'Failure event meta should exist before uninstall.' );
 		$this->assertNotEmpty( get_user_meta( $user->ID, '_wp_sudo_throttle_until', true ), 'Throttle meta should exist before uninstall.' );
 
@@ -176,7 +176,7 @@ class UninstallTest extends TestCase {
 
 		// Assert: user meta is removed.
 		$this->assertEmpty( get_user_meta( $user->ID, '_wp_sudo_expires', true ), 'Expiry meta should be deleted.' );
-		$this->assertEmpty( get_user_meta( $user->ID, '_wp_sudo_token', true ), 'Token meta should be deleted.' );
+		$this->assertEmpty( get_user_meta( $user->ID, '_wp_sudo_proofs', true ), 'Proof meta should be deleted.' );
 		$this->assertEmpty( get_user_meta( $user->ID, '_wp_sudo_failed_attempts', true ), 'Legacy failed attempts meta should be deleted.' );
 		$this->assertEmpty( get_user_meta( $user->ID, '_wp_sudo_failure_event', false ), 'Failure event meta should be deleted.' );
 		$this->assertEmpty( get_user_meta( $user->ID, '_wp_sudo_throttle_until', true ), 'Throttle meta should be deleted.' );
@@ -220,7 +220,7 @@ class UninstallTest extends TestCase {
 
 		// Verify meta exists.
 		$this->assertNotEmpty( get_user_meta( $user->ID, '_wp_sudo_expires', true ), 'Expiry meta should exist before uninstall.' );
-		$this->assertNotEmpty( get_user_meta( $user->ID, '_wp_sudo_token', true ), 'Token meta should exist before uninstall.' );
+		$this->assertNotEmpty( get_user_meta( $user->ID, '_wp_sudo_proofs', true ), 'Proof meta should exist before uninstall.' );
 		$this->assertNotEmpty( get_user_meta( $user->ID, '_wp_sudo_failure_event', false ), 'Failure event meta should exist before uninstall.' );
 		$this->assertNotEmpty( get_user_meta( $user->ID, '_wp_sudo_throttle_until', true ), 'Throttle meta should exist before uninstall.' );
 
@@ -245,7 +245,7 @@ class UninstallTest extends TestCase {
 
 		// Assert: user meta is cleaned network-wide.
 		$this->assertEmpty( get_user_meta( $user->ID, '_wp_sudo_expires', true ), 'Expiry meta should be deleted on multisite.' );
-		$this->assertEmpty( get_user_meta( $user->ID, '_wp_sudo_token', true ), 'Token meta should be deleted on multisite.' );
+		$this->assertEmpty( get_user_meta( $user->ID, '_wp_sudo_proofs', true ), 'Proof meta should be deleted on multisite.' );
 		$this->assertEmpty( get_user_meta( $user->ID, '_wp_sudo_failed_attempts', true ), 'Legacy failed attempts meta should be deleted on multisite.' );
 		$this->assertEmpty( get_user_meta( $user->ID, '_wp_sudo_failure_event', false ), 'Failure event meta should be deleted on multisite.' );
 		$this->assertEmpty( get_user_meta( $user->ID, '_wp_sudo_throttle_until', true ), 'Throttle meta should be deleted on multisite.' );

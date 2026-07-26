@@ -340,10 +340,14 @@ class Site_Health {
 
 		$count = count( $stale_users );
 
-		// Clean up stale sessions automatically.
+		// Clean up stale sessions automatically. The scalar expiry marker is
+		// >= every proof's expiry, so a stale scalar means all proofs are stale
+		// too; clear the whole proof record plus any legacy pre-4.9.0 rows.
 		foreach ( $stale_users as $uid ) {
 			delete_user_meta( $uid, Sudo_Session::META_KEY );
+			delete_user_meta( $uid, Sudo_Session::PROOF_META_KEY );
 			delete_user_meta( $uid, Sudo_Session::TOKEN_META_KEY );
+			delete_user_meta( $uid, Sudo_Session::SESSION_BIND_META_KEY );
 		}
 
 		return array(

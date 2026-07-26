@@ -35,7 +35,7 @@ class Public_API {
 	 * Grace-window sessions are treated as active for gating purposes.
 	 *
 	 * Only the current request's authenticated user can be checked: sudo
-	 * sessions are bound to a per-browser cookie, and Sudo_Session::verify_token()
+	 * sessions are bound to a per-browser cookie, and Sudo_Session::resolve_valid_proof()
 	 * rejects any call where $user_id does not match get_current_user_id().
 	 * Passing a different user ID therefore always returns false.
 	 *
@@ -55,7 +55,7 @@ class Public_API {
 
 		// Explicit cross-user isolation guard: sudo sessions are cookie-bound
 		// to the current request's authenticated user. Without this guard the
-		// isolation relied solely on verify_token() rejecting cross-user calls;
+		// isolation relied solely on the proof resolver rejecting cross-user calls;
 		// a future fast-path refactor to Sudo_Session could accidentally open a
 		// cross-user read path. Make the invariant explicit at this boundary.
 		if ( get_current_user_id() !== $target_user_id ) {
@@ -73,7 +73,7 @@ class Public_API {
 	 *
 	 * Only the current request's authenticated user is ever recognized as
 	 * already-authenticated — sudo sessions are bound to a per-browser cookie
-	 * and Sudo_Session::verify_token() rejects any check where the target
+	 * and Sudo_Session::resolve_valid_proof() rejects any check where the target
 	 * user differs from get_current_user_id(). Supplying a `user_id` arg that
 	 * does not match the current user therefore always triggers the gated
 	 * flow (audit hook + challenge redirect or `false` return), even when

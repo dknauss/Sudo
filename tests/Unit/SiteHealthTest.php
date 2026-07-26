@@ -334,9 +334,9 @@ class SiteHealthTest extends TestCase {
 		Functions\when( 'get_users' )->justReturn( array( 10, 20 ) );
 		Functions\when( 'get_user_meta' )->justReturn( $expired_time );
 
-		// Expect delete_user_meta for each stale user: META_KEY + TOKEN_META_KEY = 2 per user = 4 total.
+		// Expect delete_user_meta for each stale user: META_KEY + PROOF_META_KEY + TOKEN_META_KEY + SESSION_BIND_META_KEY = 4 per user = 8 total.
 		Functions\expect( 'delete_user_meta' )
-			->times( 4 );
+			->times( 8 );
 
 		$result = $this->health->test_stale_sessions();
 
@@ -375,9 +375,9 @@ class SiteHealthTest extends TestCase {
 
 		Functions\when( 'get_user_meta' )->justReturn( $expired_time );
 
-		// 105 stale users × 2 meta keys each = 210 deletions.
+		// 105 stale users × 4 meta keys each (META_KEY + PROOF_META_KEY + TOKEN_META_KEY + SESSION_BIND_META_KEY) = 420 deletions.
 		Functions\expect( 'delete_user_meta' )
-			->times( 210 );
+			->times( 420 );
 
 		$result = $this->health->test_stale_sessions();
 

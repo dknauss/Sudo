@@ -36,24 +36,63 @@ class Sudo_Session {
 	public const META_KEY = '_wp_sudo_expires';
 
 	/**
-	 * User-meta key that stores the session binding token.
+	 * Self-authenticating sudo proof map (user meta), keyed per login session.
+	 *
+	 * Stores an array keyed by the SHA-256 of the login-session verifier
+	 * (wp_get_session_token()), so each of a user's concurrent browsers has an
+	 * independent proof and one browser reauthenticating does not overwrite
+	 * another's (#279). Each entry is a record:
+	 *   - `token`   — SHA-256 of that browser's wp_sudo_token cookie value.
+	 *   - `expires` — Unix timestamp when that browser's session expires.
+	 *   - `hmac`    — hash_hmac('sha256', "$user_id|$verifier|$token|$expires",
+	 *                 wp_salt('auth')), where $verifier is the raw login-session
+	 *                 token.
+	 *
+	 * The HMAC makes each record self-authenticating: the enforcement path
+	 * recomputes it and rejects any record it did not sign. This defeats a
+	 * direct-DB-*write* attacker who cannot reproduce the HMAC without the auth
+	 * salt, and — combined with the cache-bypassed read on the enforcement path
+	 * — a cache-*poisoning* attacker who forges the token hash for a cookie they
+	 * control (#278). Binding the HMAC to the raw verifier also subsumes the old
+	 * session-bind: a cookie replayed under a different login session hashes to a
+	 * map key with no entry (and, even if planted, recomputes a different HMAC).
+	 *
+	 * Concurrency note: the map is one user-meta row updated read-modify-write,
+	 * so two activations completing in the same instant carry the same
+	 * lost-update window as WordPress core's own WP_User_Meta_Session_Tokens
+	 * (which stores all session tokens in a single `session_tokens` meta the same
+	 * way). Reauth is human-paced, so the window is negligible; #279 is
+	 * eliminated for the realistic case and no worse than core for the rest.
+	 * Core rewrites its whole `session_tokens` row the same way — see
+	 * GB-CORE-SESSION-RMW in docs/upstream-sources.md.
+	 *
+	 * Degradation: when the AUTH_SALT family lives in wp_options rather than
+	 * wp-config.php, a DB-write attacker can read the salt and forge the HMAC;
+	 * the cache-bypass read still defends the cache-poison-only attacker. See
+	 * proposal #310 and docs/security-model.md.
+	 *
+	 * @since 4.9.0
+	 * @var string
+	 */
+	public const PROOF_META_KEY = '_wp_sudo_proofs';
+
+	/**
+	 * Legacy user-meta key: pre-4.9.0 session binding token (SHA-256 of cookie).
+	 *
+	 * Superseded by PROOF_META_KEY. No longer read or written on the enforcement
+	 * path; retained only so teardown (clear_session_data), Site Health cleanup,
+	 * and uninstall can delete stale rows from sites upgraded from earlier
+	 * versions.
 	 *
 	 * @var string
 	 */
 	public const TOKEN_META_KEY = '_wp_sudo_token';
 
 	/**
-	 * User-meta key that binds the sudo proof to a WordPress login session.
+	 * Legacy user-meta key: pre-4.9.0 login-session bind (SHA-256 of verifier).
 	 *
-	 * Stores a SHA-256 hash of the login-session token (the value returned by
-	 * wp_get_session_token()) captured when the sudo session was activated. The
-	 * Gate rejects a sudo proof whose stored bind no longer matches the current
-	 * login session, so a captured cookie cannot be replayed from another login
-	 * session, and the window ends on logout (the plugin also hooks wp_logout).
-	 * Note: the bind compares the cookie's token *string*, which does not consult
-	 * the session-token store, so WP_Session_Tokens::destroy_all() takes effect
-	 * on the *next* request — when WordPress re-validates the auth cookie against
-	 * the now-empty store — not within the request that destroys the sessions.
+	 * Superseded by the HMAC binding inside PROOF_META_KEY. No longer read or
+	 * written; retained only for teardown/uninstall cleanup of upgraded sites.
 	 *
 	 * @since 4.1.0
 	 * @var string
@@ -176,6 +215,19 @@ class Sudo_Session {
 	private static array $active_cache = array();
 
 	/**
+	 * Per-request cache of the cache-bypassed proof-record read, keyed by user ID.
+	 *
+	 * The enforcement path reads the proof meta cache-bypassed (wp_cache_delete
+	 * then get_user_meta) so a poisoned persistent object cache cannot forge a
+	 * session. That read is forced once per request and memoized here — this is
+	 * PHP request memory, not the shared object cache, so it cannot itself be
+	 * poisoned. Invalidated on activate/deactivate and reset_cache().
+	 *
+	 * @var array<int, mixed>
+	 */
+	private static array $proof_cache = array();
+
+	/**
 	 * Request-scoped login-session token captured at set_logged_in_cookie time.
 	 *
 	 * During a login request the logged-in cookie is issued via header but
@@ -205,25 +257,25 @@ class Sudo_Session {
 			return self::$active_cache[ $user_id ];
 		}
 
-		$expires = (int) get_user_meta( $user_id, self::META_KEY, true );
+		// Resolve the self-authenticating proof record cache-bypassed: the HMAC
+		// and cookie-token must both check out before we trust anything the
+		// (potentially poisoned) object cache served. Returns null when there is
+		// no valid record for the current browser/user.
+		$record = self::resolve_valid_proof( $user_id );
 
-		if ( ! $expires ) {
+		if ( null === $record ) {
 			self::$active_cache[ $user_id ] = false;
 			return false;
 		}
 
-		if ( time() > $expires ) {
-			// Session expired. Defer meta cleanup until the grace window has also
-			// elapsed — is_within_grace() still needs the meta to verify the token.
-			if ( time() > $expires + self::GRACE_SECONDS ) {
-				self::clear_session_data( $user_id );
+		if ( time() > $record['expires'] ) {
+			// Session expired. Defer cleanup until the grace window has also
+			// elapsed — is_within_grace() still needs the record to verify the
+			// token. Prune only THIS browser's entry; other concurrent browsers
+			// keep their independent sessions (#279).
+			if ( time() > $record['expires'] + self::GRACE_SECONDS ) {
+				self::prune_proof_entry( $user_id );
 			}
-			self::$active_cache[ $user_id ] = false;
-			return false;
-		}
-
-		// Verify the session is bound to this browser via cookie token.
-		if ( ! self::verify_token( $user_id ) ) {
 			self::$active_cache[ $user_id ] = false;
 			return false;
 		}
@@ -258,24 +310,26 @@ class Sudo_Session {
 			return false;
 		}
 
-		$expires = (int) get_user_meta( $user_id, self::META_KEY, true );
+		// Grace does not relax proof verification: the HMAC and cookie token must
+		// still check out (cache-bypassed), so a forged or stolen-cookie record
+		// gains nothing from the grace window.
+		$record = self::resolve_valid_proof( $user_id );
 
-		if ( ! $expires ) {
+		if ( null === $record ) {
 			return false;
 		}
 
 		$now = time();
 
-		if ( $now <= $expires ) {
+		if ( $now <= $record['expires'] ) {
 			return false; // Still active — not in grace yet.
 		}
 
-		if ( $now > $expires + self::GRACE_SECONDS ) {
+		if ( $now > $record['expires'] + self::GRACE_SECONDS ) {
 			return false; // Grace window has closed — full re-auth required.
 		}
 
-		// Token must still match: grace does not relax session binding.
-		return self::verify_token( $user_id );
+		return true;
 	}
 
 	/**
@@ -285,16 +339,24 @@ class Sudo_Session {
 	 * @return bool True on success.
 	 */
 	public static function activate( int $user_id ): bool {
-		// Invalidate the is_active() cache for this user.
-		unset( self::$active_cache[ $user_id ] );
+		// Invalidate the per-request caches for this user.
+		unset( self::$active_cache[ $user_id ], self::$proof_cache[ $user_id ] );
 
 		$duration = (int) Admin::get( 'session_duration', 15 );
 		$expires  = time() + ( $duration * MINUTE_IN_SECONDS );
 
-		update_user_meta( $user_id, self::META_KEY, $expires );
+		// The scalar is the per-user liveness marker used by enumeration (the
+		// "Sudo Active (N)" count, the dashboard widget, bulk revoke, and
+		// is_session_live). Keep it at the furthest live expiry across this user's
+		// concurrent browsers so activating a shorter session in one browser does
+		// not shrink the marker for another (#279). Enforcement uses the
+		// per-browser proof record, not this scalar.
+		$existing = (int) get_user_meta( $user_id, self::META_KEY, true );
+		$scalar   = $existing > time() ? max( $existing, $expires ) : $expires;
+		update_user_meta( $user_id, self::META_KEY, $scalar );
 
-		// Bind session to this browser with a random token.
-		self::set_token( $user_id );
+		// Write the self-authenticating proof for this browser and set the cookie.
+		self::set_token( $user_id, $expires );
 
 		// Clear any failed-attempt counters on successful activation.
 		self::reset_failed_attempts( $user_id );
@@ -320,8 +382,8 @@ class Sudo_Session {
 	 * @return void
 	 */
 	public static function deactivate( int $user_id ): void {
-		// Invalidate the is_active() cache for this user.
-		unset( self::$active_cache[ $user_id ] );
+		// Invalidate the per-request caches for this user.
+		unset( self::$active_cache[ $user_id ], self::$proof_cache[ $user_id ] );
 
 		self::clear_session_data( $user_id );
 
@@ -344,6 +406,7 @@ class Sudo_Session {
 	 */
 	public static function reset_cache(): void {
 		self::$active_cache        = array();
+		self::$proof_cache         = array();
 		self::$pending_login_token = null;
 	}
 
@@ -388,6 +451,18 @@ class Sudo_Session {
 	 * @return int
 	 */
 	public static function time_remaining( int $user_id ): int {
+		// Prefer this browser's own proof-record expiry so the countdown reflects
+		// the session the current browser actually holds. Display-only — no HMAC
+		// enforcement here; callers gate on is_active() first. Falls back to the
+		// per-user liveness scalar on cookie-less surfaces (CLI: `wp sudo status`).
+		$map = self::read_proof( $user_id, false );
+		if ( is_array( $map ) ) {
+			$record = $map[ hash( 'sha256', self::current_session_token() ) ] ?? null;
+			if ( is_array( $record ) && isset( $record['expires'] ) ) {
+				return max( 0, (int) $record['expires'] - time() );
+			}
+		}
+
 		$expires = (int) get_user_meta( $user_id, self::META_KEY, true );
 
 		if ( ! $expires ) {
@@ -839,34 +914,83 @@ class Sudo_Session {
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Generate and store a random token, set it in a cookie.
+	 * Generate a random cookie token, store the self-authenticating proof, and
+	 * set the cookie.
 	 *
-	 * This binds the sudo session to the browser that activated it,
-	 * preventing a stolen session cookie on a different device from
-	 * inheriting the sudo session.
+	 * The proof record (PROOF_META_KEY) binds the sudo session to (a) the browser
+	 * that activated it, via the cookie token hash, and (b) the WordPress login
+	 * session that created it, via the HMAC over the raw verifier. A stolen
+	 * cookie replayed from a different login session recomputes a different HMAC
+	 * and is rejected, and a poisoned-cache / DB-write attacker cannot forge a
+	 * record without the auth salt (#278).
 	 *
 	 * @param int $user_id User ID.
+	 * @param int $expires Session expiry timestamp for this browser.
 	 * @return void
 	 */
-	private static function set_token( int $user_id ): void {
-		$token = wp_generate_password( 64, false );
+	private static function set_token( int $user_id, int $expires ): void {
+		$token      = wp_generate_password( 64, false );
+		$token_hash = hash( 'sha256', $token );
 
-		update_user_meta( $user_id, self::TOKEN_META_KEY, hash( 'sha256', $token ) );
-
-		// Bind the sudo proof to the WordPress login session that created it,
-		// when one is resolvable. On cookie-less surfaces (CLI/cron/app-password/
-		// WPGraphQL) there is no login-session token; binding is intentionally
-		// absent there, so clear any stale bind to keep the empty-bind skip path
-		// clean. The pending token is single-use — consume it afterwards.
-		$session_token = self::current_session_token();
-		if ( '' !== $session_token ) {
-			update_user_meta( $user_id, self::SESSION_BIND_META_KEY, hash( 'sha256', $session_token ) );
-		} else {
-			delete_user_meta( $user_id, self::SESSION_BIND_META_KEY );
-		}
+		// Raw login-session verifier. On cookie-less surfaces (CLI/cron/app-
+		// password/WPGraphQL) this is '' and the record keys under a shared slot;
+		// verification there still fails at the cookie check, so nothing is gained
+		// by an empty-verifier record. The pending token is single-use.
+		$verifier                  = self::current_session_token();
 		self::$pending_login_token = null;
 
-		$duration = (int) Admin::get( 'session_duration', 15 );
+		// Read-modify-write the per-login-session proof map so a second browser's
+		// activation adds its own entry instead of overwriting the first's (#279).
+		//
+		// Sourced cache-BYPASSED, for the same reason enforcement is: this path
+		// writes the merged map back, so anything it reads from a stale or
+		// poisoned object cache would be laundered into the database, where the
+		// cache-bypassed enforcement read would then honor it. A browser whose
+		// proof was revoked but whose cached entry survived (failed
+		// invalidation) would have that entry resurrected by an unrelated
+		// activation. Reading through the same seam keeps the database, not the
+		// cache, authoritative on both paths.
+		$map = self::read_proof( $user_id, true );
+		if ( ! is_array( $map ) ) {
+			$map = array();
+		}
+
+		// Housekeeping: drop entries for login sessions whose sudo has expired,
+		// so the map does not accumulate a row per historical login session.
+		// Retain a just-expired entry through its GRACE_SECONDS window, though:
+		// another concurrent browser's proof may have expired seconds ago and
+		// still be replaying an in-flight gated form under is_within_grace()
+		// (#279). Evicting it here — as `expires < now` did — redirects that
+		// form and defeats the lost-work grace protection. Malformed rows (a
+		// non-array, or one missing `expires`) can never be a valid grace record
+		// and are dropped unconditionally so they cannot linger forever. The
+		// strict `<` mirrors is_within_grace()'s own closing boundary
+		// (`now > expires + GRACE_SECONDS`), so an entry is swept one second
+		// after grace closes, never while it is still grace-eligible.
+		$now = time();
+		foreach ( $map as $key => $entry ) {
+			if ( ! is_array( $entry ) || ! isset( $entry['expires'] )
+				|| (int) $entry['expires'] + self::GRACE_SECONDS < $now ) {
+				unset( $map[ $key ] );
+			}
+		}
+
+		$map[ hash( 'sha256', $verifier ) ] = array(
+			'token'   => $token_hash,
+			'expires' => $expires,
+			'hmac'    => self::build_hmac( $user_id, $verifier, $token_hash, $expires ),
+		);
+
+		update_user_meta( $user_id, self::PROOF_META_KEY, $map );
+
+		// Cleanup: drop pre-4.9.0 token/bind rows from upgraded sites. Harmless
+		// no-ops once removed; nothing on the enforcement path reads them.
+		delete_user_meta( $user_id, self::TOKEN_META_KEY );
+		delete_user_meta( $user_id, self::SESSION_BIND_META_KEY );
+
+		// The cache-bypassed read is memoized per request; invalidate it so a
+		// later is_active() in this same request sees the freshly written proof.
+		unset( self::$proof_cache[ $user_id ] );
 
 		// Only send Set-Cookie headers when the HTTP response is not yet started.
 		// In CLI, cron, and PHPUnit integration test contexts, headers_sent() returns
@@ -877,7 +1001,7 @@ class Sudo_Session {
 			// Expire any stale cookie from the old ADMIN_COOKIE_PATH scope.
 			// Without this, browsers that still hold the old /wp-admin cookie
 			// may send it instead of (or alongside) the new COOKIEPATH one,
-			// causing verify_token() to fail on admin pages.
+			// causing proof verification to fail on admin pages.
 			// phpcs:ignore WordPressVIPMinimum.Functions.RestrictedFunctions.cookies_setcookie
 			setcookie(
 				self::TOKEN_COOKIE,
@@ -897,7 +1021,7 @@ class Sudo_Session {
 				self::TOKEN_COOKIE,
 				$token,
 				array(
-					'expires'  => time() + ( $duration * MINUTE_IN_SECONDS ),
+					'expires'  => $expires,
 					'path'     => COOKIEPATH,
 					'domain'   => COOKIE_DOMAIN,
 					'secure'   => self::cookie_secure(),
@@ -912,52 +1036,157 @@ class Sudo_Session {
 	}
 
 	/**
-	 * Verify the cookie token matches the stored hash.
+	 * Compute the HMAC that makes a proof record self-authenticating.
+	 *
+	 * Binds the record to the user, the raw login-session verifier, the cookie
+	 * token hash, and the expiry, keyed with wp_salt('auth'). Any change to those
+	 * fields — a forged token hash, an extended expiry, or a replay under a
+	 * different login session — yields a different HMAC and is rejected.
+	 *
+	 * @param int    $user_id    User ID.
+	 * @param string $verifier   Raw login-session verifier (may be '').
+	 * @param string $token_hash SHA-256 of the cookie token.
+	 * @param int    $expires    Session expiry timestamp.
+	 * @return string
+	 */
+	private static function build_hmac( int $user_id, string $verifier, string $token_hash, int $expires ): string {
+		return hash_hmac(
+			'sha256',
+			$user_id . '|' . $verifier . '|' . $token_hash . '|' . $expires,
+			wp_salt( 'auth' )
+		);
+	}
+
+	/**
+	 * Read the proof record, optionally bypassing the object cache.
+	 *
+	 * On the enforcement path ($bypass_cache = true) the persistent user_meta
+	 * cache entry is dropped before re-reading, forcing get_user_meta() to
+	 * repopulate from the database. This defeats a cache-poisoning attacker who
+	 * plants a forged proof in a persistent object cache (#278, Option B),
+	 * mirroring the role-audit drift-detection reads. The forced read is memoized
+	 * in PHP request memory (not the shared cache, so it cannot be poisoned).
+	 *
+	 * @param int  $user_id      User ID.
+	 * @param bool $bypass_cache Whether to force a database read.
+	 * @return mixed The stored record (array), or a falsy value when absent.
+	 */
+	private static function read_proof( int $user_id, bool $bypass_cache ) {
+		if ( ! $bypass_cache ) {
+			return get_user_meta( $user_id, self::PROOF_META_KEY, true );
+		}
+
+		if ( array_key_exists( $user_id, self::$proof_cache ) ) {
+			return self::$proof_cache[ $user_id ];
+		}
+
+		wp_cache_delete( $user_id, 'user_meta' );
+		$record = get_user_meta( $user_id, self::PROOF_META_KEY, true );
+
+		self::$proof_cache[ $user_id ] = $record;
+
+		return $record;
+	}
+
+	/**
+	 * Resolve and validate the proof record for the current browser/user.
+	 *
+	 * Returns the normalized record only when all of the following hold:
+	 *  1. the record belongs to the current request's user (defense-in-depth);
+	 *  2. the stored value is a well-formed record (guarded before any hash op);
+	 *  3. the HMAC recomputes and matches (self-authentication, #278);
+	 *  4. the browser presents the matching wp_sudo_token cookie.
+	 *
+	 * Expiry is NOT checked here — callers apply their own window (is_active vs
+	 * is_within_grace) against the returned, HMAC-protected `expires`.
 	 *
 	 * @param int $user_id User ID.
-	 * @return bool
+	 * @return array{token: string, expires: int, hmac: string}|null
 	 */
-	private static function verify_token( int $user_id ): bool {
-		// Defense-in-depth: ensure the token belongs to the current request's user.
-		$current_user_id = get_current_user_id();
-		if ( $current_user_id !== $user_id ) {
-			return false;
+	private static function resolve_valid_proof( int $user_id ): ?array {
+		// Defense-in-depth: the proof only authorizes the current request's user.
+		if ( get_current_user_id() !== $user_id ) {
+			return null;
 		}
 
-		$stored_hash = get_user_meta( $user_id, self::TOKEN_META_KEY, true );
+		$verifier = self::current_session_token();
 
-		if ( ! $stored_hash ) {
-			return false;
+		$map = self::read_proof( $user_id, true );
+		if ( ! is_array( $map ) ) {
+			return null;
 		}
 
+		// Look up the entry for THIS login session. A cookie replayed under a
+		// different login session hashes to a key with no entry (#278/#279).
+		$record = $map[ hash( 'sha256', $verifier ) ] ?? null;
+
+		// Reject anything that is not a well-formed record. A poisoned cache or
+		// raw DB write could plant a non-array or an entry with non-string/
+		// non-numeric fields, which would otherwise fatal in hash_hmac()/
+		// hash_equals().
+		if ( ! is_array( $record )
+			|| ! isset( $record['token'], $record['expires'], $record['hmac'] )
+			|| ! is_string( $record['token'] )
+			|| ! is_string( $record['hmac'] )
+			|| ! is_numeric( $record['expires'] )
+		) {
+			return null;
+		}
+
+		$token_hash = $record['token'];
+		$expires    = (int) $record['expires'];
+
+		// Self-authentication: reject any record we did not sign.
+		$expected_hmac = self::build_hmac( $user_id, $verifier, $token_hash, $expires );
+		if ( ! hash_equals( $expected_hmac, $record['hmac'] ) ) {
+			return null;
+		}
+
+		// The browser must still present the matching cookie.
 		// phpcs:ignore WordPressVIPMinimum.Variables.RestrictedVariables.cache_constraints___COOKIE
 		$cookie_token = isset( $_COOKIE[ self::TOKEN_COOKIE ] ) ? sanitize_text_field( wp_unslash( $_COOKIE[ self::TOKEN_COOKIE ] ) ) : '';
-
-		if ( ! $cookie_token ) {
-			return false;
+		if ( '' === $cookie_token || ! hash_equals( $token_hash, hash( 'sha256', $cookie_token ) ) ) {
+			return null;
 		}
 
-		if ( ! hash_equals( $stored_hash, hash( 'sha256', $cookie_token ) ) ) {
-			return false;
+		return array(
+			'token'   => $token_hash,
+			'expires' => $expires,
+			'hmac'    => $record['hmac'],
+		);
+	}
+
+	/**
+	 * Remove the current login session's proof entry (per-browser self-heal).
+	 *
+	 * Called from is_active() once a browser's session has expired beyond the
+	 * grace window. Unlike clear_session_data() (kill-all), this drops only the
+	 * current verifier's entry so other concurrent browsers keep their sessions
+	 * (#279). When the map empties, the whole record and the liveness scalar are
+	 * deleted so the user self-heals out of the "Sudo Active" enumeration.
+	 *
+	 * @param int $user_id User ID.
+	 * @return void
+	 */
+	private static function prune_proof_entry( int $user_id ): void {
+		$map = get_user_meta( $user_id, self::PROOF_META_KEY, true );
+		if ( ! is_array( $map ) ) {
+			// No map to prune; drop a dangling scalar so enumeration self-heals.
+			delete_user_meta( $user_id, self::META_KEY );
+			unset( self::$proof_cache[ $user_id ] );
+			return;
 		}
 
-		// Enforce login-session binding when present. Sessions minted before this
-		// guard existed — or on cookie-less surfaces — store no bind value and
-		// skip the check, so upgrades need no migration. A non-empty bind fails
-		// when it no longer matches the current login-session token — a captured
-		// cookie replayed from another session, or (across requests) once the
-		// bound session is gone and WordPress hands us a different token or none.
-		$bound_session = get_user_meta( $user_id, self::SESSION_BIND_META_KEY, true );
-		if ( is_string( $bound_session ) && '' !== $bound_session ) {
-			$current_session = self::current_session_token();
-			if ( '' === $current_session
-				|| ! hash_equals( $bound_session, hash( 'sha256', $current_session ) )
-			) {
-				return false;
-			}
+		unset( $map[ hash( 'sha256', self::current_session_token() ) ] );
+
+		if ( empty( $map ) ) {
+			delete_user_meta( $user_id, self::PROOF_META_KEY );
+			delete_user_meta( $user_id, self::META_KEY );
+		} else {
+			update_user_meta( $user_id, self::PROOF_META_KEY, $map );
 		}
 
-		return true;
+		unset( self::$proof_cache[ $user_id ] );
 	}
 
 	/**
@@ -968,8 +1197,14 @@ class Sudo_Session {
 	 */
 	private static function clear_session_data( int $user_id ): void {
 		delete_user_meta( $user_id, self::META_KEY );
+		delete_user_meta( $user_id, self::PROOF_META_KEY );
+		// Legacy pre-4.9.0 keys — cleaned up on any teardown of an upgraded site.
 		delete_user_meta( $user_id, self::TOKEN_META_KEY );
 		delete_user_meta( $user_id, self::SESSION_BIND_META_KEY );
+
+		// Drop the memoized cache-bypassed read so a later is_active() in this
+		// same request does not see the now-deleted record.
+		unset( self::$proof_cache[ $user_id ] );
 
 		// The wp_sudo_token cookie is browser-scoped — it belongs to whoever is
 		// making THIS request, not to $user_id. Only expire it when clearing the

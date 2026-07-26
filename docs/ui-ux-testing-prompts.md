@@ -389,7 +389,7 @@ Why a mu-plugin rather than `defineWpConfigConsts`: the Sudo settings page is re
 
 This blueprint installs the [User Switching](https://wordpress.org/plugins/user-switching/) plugin and lands on the Users list. The demo seed creates additional administrators (`carlosadmin`, `mariadev`), so an admin can "Switch To" another admin and observe that sudo privileges do **not** follow the switched identity. The blueprint sets `carlosadmin`'s password to `carlos-sudo` (distinct from the shared `password` used by every other seeded account) so the per-user reauth requirement is actually demonstrable.
 
-**The property under test:** holding a valid authenticated session for a user does not grant sudo. A gated action still demands a fresh reauth with *that user's* password, enforced by `Sudo_Session::verify_token()` (which requires `get_current_user_id() === $user_id` and a per-user token cookie). This models session/cookie theft: an attacker who assumes another user's authenticated session still cannot perform gated actions.
+**The property under test:** holding a valid authenticated session for a user does not grant sudo. A gated action still demands a fresh reauth with *that user's* password, enforced by the proof resolver (which requires `get_current_user_id() === $user_id`, a matching per-browser token cookie, and a valid HMAC keyed to the login session). This models session/cookie theft: an attacker who assumes another user's authenticated session still cannot perform gated actions.
 
 - [ ] As `admin`, activate a sudo session (confirm via the admin-bar countdown timer).
 - [ ] From Users › Switch To, switch to `carlosadmin` (an administrator).

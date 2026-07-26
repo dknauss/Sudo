@@ -1826,9 +1826,9 @@ msgstr ""
 #: includes/class-site-health.php:292
 #: includes/class-site-health.php:304
 #: includes/class-site-health.php:333
-#: includes/class-site-health.php:362
-#: includes/class-site-health.php:397
-#: includes/class-site-health.php:456
+#: includes/class-site-health.php:366
+#: includes/class-site-health.php:401
+#: includes/class-site-health.php:460
 msgid "Security"
 msgstr ""
 
@@ -1925,7 +1925,7 @@ msgid "All sudo session tokens are either active or have been cleaned up. No act
 msgstr ""
 
 #. translators: %d: number of stale sessions cleaned
-#: includes/class-site-health.php:352
+#: includes/class-site-health.php:356
 #, php-format
 msgid "%d stale Sudo session cleaned up"
 msgid_plural "%d stale Sudo sessions cleaned up"
@@ -1933,60 +1933,60 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. translators: %d: number of stale sessions
-#: includes/class-site-health.php:367
+#: includes/class-site-health.php:371
 #, php-format
 msgid "Found and cleaned %d expired sudo session token. This is normal — tokens expire naturally but are only cleaned on the next page load."
 msgid_plural "Found and cleaned %d expired sudo session tokens. This is normal — tokens expire naturally but are only cleaned on the next page load."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/class-site-health.php:403
+#: includes/class-site-health.php:407
 msgid "Break-glass recovery mode is not active"
 msgstr ""
 
-#: includes/class-site-health.php:406
+#: includes/class-site-health.php:410
 msgid "WP Sudo break-glass recovery mode (WP_SUDO_RECOVERY_MODE) is not defined. The governance capability model is fully in force."
 msgstr ""
 
-#: includes/class-site-health.php:412
+#: includes/class-site-health.php:416
 msgid "It is unscoped: while it stays defined, any user who still holds administrator authority (network administrator on multisite) regains full Sudo governance access."
 msgstr ""
 
-#: includes/class-site-health.php:417
+#: includes/class-site-health.php:421
 msgid "It is scoped to a value that does not resolve to any existing user, so no one is granted access — check WP_SUDO_RECOVERY_MODE for a typo."
 msgstr ""
 
 #. translators: 1: user login, 2: user ID
-#: includes/class-site-health.php:423
+#: includes/class-site-health.php:427
 #, php-format
 msgid "It is scoped to the user \"%1$s\" (ID %2$d), who alone regains Sudo governance access while it stays defined — provided that user still holds administrator authority (manage_options, or manage_network_options on multisite); a scoped target who lacks it is still denied."
 msgstr ""
 
-#: includes/class-site-health.php:431
+#: includes/class-site-health.php:435
 msgid "Break-glass recovery mode is active"
 msgstr ""
 
-#: includes/class-site-health.php:434
+#: includes/class-site-health.php:438
 msgid "Remove WP_SUDO_RECOVERY_MODE from wp-config.php as soon as normal access is restored — leaving it enabled weakens the governance model."
 msgstr ""
 
-#: includes/class-site-health.php:462
+#: includes/class-site-health.php:466
 msgid "Reauthentication can resume your action"
 msgstr ""
 
-#: includes/class-site-health.php:465
+#: includes/class-site-health.php:469
 msgid "This site is served over HTTPS, so WP Sudo can safely resume the action you were performing once you reauthenticate. The resume is bound to your own browser, so an action started elsewhere can never be completed by your confirmation."
 msgstr ""
 
-#: includes/class-site-health.php:471
+#: includes/class-site-health.php:475
 msgid "Reauthentication will not resume your action"
 msgstr ""
 
-#: includes/class-site-health.php:474
+#: includes/class-site-health.php:478
 msgid "This site is not served over HTTPS. WP Sudo binds a resumed action to the browser that started it using a cookie browsers accept only over HTTPS, so on this site nothing is resumed after reauthentication: you will be returned to the page you came from and will need to perform the action again."
 msgstr ""
 
-#: includes/class-site-health.php:475
+#: includes/class-site-health.php:479
 msgid "This is the safe fallback, not a fault — the confirmation you give can never complete an action someone else started. Serving the admin over HTTPS restores the smoother flow."
 msgstr ""
 

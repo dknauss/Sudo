@@ -489,8 +489,8 @@ class ChallengeTest extends TestCase
 			if (\WP_Sudo\Sudo_Session::META_KEY === $key) {
 				return $expires;
 			}
-			if (\WP_Sudo\Sudo_Session::TOKEN_META_KEY === $key) {
-				return hash('sha256', 'browser-token');
+			if (\WP_Sudo\Sudo_Session::PROOF_META_KEY === $key) {
+				return $this->make_proof_map((int) $uid, 'browser-token', $expires);
 			}
 			return '';
 		});
@@ -602,8 +602,8 @@ class ChallengeTest extends TestCase
 			if (\WP_Sudo\Sudo_Session::META_KEY === $key) {
 				return $expires;
 			}
-			if (\WP_Sudo\Sudo_Session::TOKEN_META_KEY === $key) {
-				return hash('sha256', 'browser-token');
+			if (\WP_Sudo\Sudo_Session::PROOF_META_KEY === $key) {
+				return $this->make_proof_map((int) $uid, 'browser-token', $expires);
 			}
 			return '';
 		});
@@ -2185,8 +2185,8 @@ class ChallengeTest extends TestCase
 			if (\WP_Sudo\Sudo_Session::META_KEY === $key) {
 				return $expires;
 			}
-			if (\WP_Sudo\Sudo_Session::TOKEN_META_KEY === $key) {
-				return hash('sha256', 'browser-token');
+			if (\WP_Sudo\Sudo_Session::PROOF_META_KEY === $key) {
+				return $this->make_proof_map((int) $uid, 'browser-token', $expires);
 			}
 			if (\WP_Sudo\Sudo_Session::THROTTLE_UNTIL_META_KEY === $key || \WP_Sudo\Sudo_Session::LOCKOUT_UNTIL_META_KEY === $key) {
 				return '';
@@ -2367,8 +2367,8 @@ class ChallengeTest extends TestCase
 			if (\WP_Sudo\Sudo_Session::META_KEY === $key) {
 				return $expires;
 			}
-			if (\WP_Sudo\Sudo_Session::TOKEN_META_KEY === $key) {
-				return hash('sha256', 'browser-token');
+			if (\WP_Sudo\Sudo_Session::PROOF_META_KEY === $key) {
+				return $this->make_proof_map((int) $uid, 'browser-token', $expires);
 			}
 			return '';
 		});
