@@ -27,7 +27,7 @@ use Brain\Monkey\Filters;
 
 /**
  * @covers \WP_Sudo\Sudo_Session::set_token
- * @covers \WP_Sudo\Sudo_Session::verify_token
+ * @covers \WP_Sudo\Sudo_Session::resolve_valid_proof
  * @covers \WP_Sudo\Gate::register_interactive_backstop
  * @covers \WP_Sudo\Plugin::deactivate_session_on_logout
  * @covers \WP_Sudo\Plugin::capture_login_session_token
