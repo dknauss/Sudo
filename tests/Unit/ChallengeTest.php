@@ -673,6 +673,13 @@ class ChallengeTest extends TestCase
 		));
 		$this->stash->shouldReceive('delete')->once();
 
+		Functions\when('add_query_arg')->alias(
+			static function ( string $key, string $value, string $url ): string {
+				$separator = str_contains($url, '?') ? '&' : '?';
+				return $url . $separator . $key . '=' . $value;
+			}
+		);
+
 		$captured = null;
 		Functions\expect('wp_send_json_success')
 			->once()
@@ -1490,14 +1497,25 @@ class ChallengeTest extends TestCase
 
 		Functions\when('wp_validate_redirect')->returnArg();
 
-		// Should return success with redirect for GET replay.
+		Functions\when('add_query_arg')->alias(
+			static function ( string $key, string $value, string $url ): string {
+				$separator = str_contains($url, '?') ? '&' : '?';
+				return $url . $separator . $key . '=' . $value;
+			}
+		);
+
+		// #322: reauth lands on a neutral admin URL + blocked-replay notice.
 		Functions\expect('wp_send_json_success')
 			->once()
 			->with(\Mockery::on(function ($data) {
 				return is_array($data)
 					&& 'success' === ($data['code'] ?? '')
 					&& isset($data['redirect'])
-					&& str_contains($data['redirect'], 'plugins.php');
+					// #322: lands on the originating screen (plugins.php) WITHOUT the
+					// action query, plus the blocked-replay notice — never a replay.
+					&& str_contains($data['redirect'], 'plugins.php')
+					&& ! str_contains($data['redirect'], 'action=activate')
+					&& str_contains($data['redirect'], 'wp_sudo_blocked_replay=1');
 			}));
 
 		$this->challenge->handle_ajax_2fa();
@@ -1528,6 +1546,7 @@ class ChallengeTest extends TestCase
 			->once()
 			->with('redacted-stash-key', 42);
 
+		Functions\when('admin_url')->justReturn('https://example.com/wp-admin/');
 		Functions\when('wp_validate_redirect')->returnArg();
 		Functions\when('add_query_arg')->alias(
 			static function ( string $key, string $value, string $url ): string {
@@ -1546,7 +1565,9 @@ class ChallengeTest extends TestCase
 
 		$this->assertSame('success', $data['code']);
 		$this->assertArrayHasKey('redirect', $data);
-		$this->assertStringContainsString('profile.php', $data['redirect']);
+		// #322: redirect is a neutral admin URL, NOT the attacker-controllable return_url.
+		$this->assertStringNotContainsString('profile.php', $data['redirect']);
+		$this->assertStringContainsString('/wp-admin/', $data['redirect']);
 		$this->assertStringContainsString('wp_sudo_redacted_replay=1', $data['redirect']);
 		$this->assertTrue($data['redacted_fields_omitted']);
 		$this->assertArrayNotHasKey('replay', $data);
@@ -1575,6 +1596,7 @@ class ChallengeTest extends TestCase
 			->once()
 			->with('blocked-stash-key', 42);
 
+		Functions\when('admin_url')->justReturn('https://example.com/wp-admin/');
 		Functions\when('wp_validate_redirect')->returnArg();
 		Functions\when('add_query_arg')->alias(
 			static function ( string $key, string $value, string $url ): string {
@@ -1593,7 +1615,9 @@ class ChallengeTest extends TestCase
 
 		$this->assertSame('success', $data['code']);
 		$this->assertArrayHasKey('redirect', $data);
-		$this->assertStringContainsString('plugin-install.php', $data['redirect']);
+		// #322: redirect is a neutral admin URL, NOT the attacker-controllable return_url.
+		$this->assertStringNotContainsString('plugin-install.php', $data['redirect']);
+		$this->assertStringContainsString('/wp-admin/', $data['redirect']);
 		$this->assertStringContainsString('wp_sudo_blocked_replay=1', $data['redirect']);
 		$this->assertFalse($data['redacted_fields_omitted']);
 		$this->assertTrue($data['post_replay_blocked']);
@@ -1628,6 +1652,7 @@ class ChallengeTest extends TestCase
 
 		$this->stash->shouldReceive('delete')->once()->with('planted-post', 42);
 
+		Functions\when('admin_url')->justReturn('https://example.com/wp-admin/');
 		Functions\when('wp_validate_redirect')->returnArg();
 		Functions\when('add_query_arg')->alias(
 			static function ( string $key, string $value, string $url ): string {
@@ -1667,6 +1692,7 @@ class ChallengeTest extends TestCase
 
 		$this->stash->shouldReceive('delete')->once()->with('planted-get', 42);
 
+		Functions\when('admin_url')->justReturn('https://example.com/wp-admin/');
 		Functions\when('wp_validate_redirect')->returnArg();
 		Functions\when('add_query_arg')->alias(
 			static function ( string $key, string $value, string $url ): string {
@@ -1689,6 +1715,10 @@ class ChallengeTest extends TestCase
 			$data['redirect'],
 			'Must not redirect the victim browser to the stashed action URL.'
 		);
+		// #322 v1 soft landing: returns to the originating screen (the admin page),
+		// minus the effect-bearing query — one re-click, no replay.
+		$this->assertStringContainsString('plugins.php', $data['redirect']);
+		$this->assertStringContainsString('wp_sudo_blocked_replay=1', $data['redirect']);
 	}
 
 	// -----------------------------------------------------------------
