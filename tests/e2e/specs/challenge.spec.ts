@@ -46,14 +46,26 @@
  */
 import { test, expect, activateSudoSession } from '../fixtures/test';
 import type { Page } from '@playwright/test';
-import { exec } from 'child_process';
 import path from 'path';
-import { promisify } from 'util';
-import { wpEnvRun } from '../fixtures/wp-env';
+import { wpEnvRunCli, containerBash } from '../fixtures/wp-env';
 
-const execAsync = promisify( exec );
-const WP_ENV_RUN_CLI = wpEnvRun( 'cli' );
-const WP_ENV_RUN_WP_SKIP_PLUGINS = `${ WP_ENV_RUN_CLI } wp --skip-plugins`;
+// 'cli' targets the dev site (port 8889) — the same site the browser uses.
+const WP_SKIP_PLUGINS = [ 'wp', '--skip-plugins' ];
+
+/** Run a WP-CLI command in the dev-site 'cli' container (no shell); returns trimmed stdout. */
+async function cli( args: string[], timeout = 15_000 ): Promise<string> {
+    const { stdout } = await wpEnvRunCli( 'cli', args, { timeout } );
+    return stdout.trim();
+}
+
+/** Run a WP-CLI command whose failure is non-fatal (the trailing `|| true` equivalent). */
+async function cliAllowFail( args: string[], timeout = 15_000 ): Promise<void> {
+    try {
+        await wpEnvRunCli( 'cli', args, { timeout } );
+    } catch {
+        // Non-fatal — matches the previous trailing `2>/dev/null || true`.
+    }
+}
 const WP_BASE_URL = process.env.WP_BASE_URL ?? 'http://localhost:8889';
 const E2E_TWO_FACTOR_MU_PLUGIN = 'wp-sudo-e2e-two-factor.php';
 const E2E_TWO_FACTOR_REQUIRE_META = '_wp_sudo_e2e_require_two_factor';
@@ -175,14 +187,7 @@ async function clearSudoSession( page: Page ): Promise<void> {
  * Source: includes/class-sudo-session.php — IP_LOCKOUT_UNTIL_TRANSIENT_PREFIX (verified)
  */
 async function clearSudoIpTransients(): Promise<void> {
-    try {
-        await execAsync(
-            `${ WP_ENV_RUN_CLI } wp transient delete --all --quiet 2>/dev/null || true`,
-            { timeout: 15_000 }
-        );
-    } catch {
-        // Ignore — if wp transient delete fails, the test may still pass.
-    }
+    await cliAllowFail( [ 'wp', 'transient', 'delete', '--all', '--quiet' ] );
 }
 
 /**
@@ -196,10 +201,7 @@ async function clearSudoFailureMeta(): Promise<void> {
         '_wp_sudo_throttle_until',
         E2E_LOCKOUT_SECONDS_META,
     ] ) {
-        await execAsync(
-            `${ WP_ENV_RUN_CLI } wp user meta delete 1 ${ metaKey } --quiet 2>/dev/null || true`,
-            { timeout: 15_000 }
-        );
+        await cliAllowFail( [ 'wp', 'user', 'meta', 'delete', '1', metaKey, '--quiet' ] );
     }
 }
 
@@ -210,15 +212,20 @@ async function clearSudoFailureMeta(): Promise<void> {
  * so it does not affect unrelated browser tests.
  */
 async function installE2eTwoFactorBridge(): Promise<void> {
-    await execAsync(
-        `${ WP_ENV_RUN_CLI } bash -lc 'mkdir -p /var/www/html/wp-content/mu-plugins && cp /var/www/html/wp-content/plugins/${ WP_ENV_PLUGIN_DIR }/tests/e2e/fixtures/${ E2E_TWO_FACTOR_MU_PLUGIN } /var/www/html/wp-content/mu-plugins/${ E2E_TWO_FACTOR_MU_PLUGIN }'`,
+    await wpEnvRunCli(
+        'cli',
+        containerBash(
+            'mkdir -p /var/www/html/wp-content/mu-plugins && cp "/var/www/html/wp-content/plugins/$1/tests/e2e/fixtures/$2" "/var/www/html/wp-content/mu-plugins/$2"',
+            [ WP_ENV_PLUGIN_DIR, E2E_TWO_FACTOR_MU_PLUGIN ]
+        ),
         { timeout: 30_000 }
     );
 
-    const { stdout } = await execAsync(
-        `${ WP_ENV_RUN_CLI } wp eval 'echo has_filter( "wp_sudo_requires_two_factor" ) ? "loaded" : "missing"; echo PHP_EOL;'`,
-        { timeout: 15_000 }
-    );
+    const stdout = await cli( [
+        'wp',
+        'eval',
+        'echo has_filter( "wp_sudo_requires_two_factor" ) ? "loaded" : "missing"; echo PHP_EOL;',
+    ] );
 
     if ( ! stdout.includes( 'loaded' ) ) {
         throw new Error( 'Failed to load the test-only 2FA bridge in wp-env.' );
@@ -229,8 +236,9 @@ async function installE2eTwoFactorBridge(): Promise<void> {
  * Remove the test-only 2FA bridge from wp-env.
  */
 async function removeE2eTwoFactorBridge(): Promise<void> {
-    await execAsync(
-        `${ WP_ENV_RUN_CLI } bash -lc 'rm -f /var/www/html/wp-content/mu-plugins/${ E2E_TWO_FACTOR_MU_PLUGIN }'`,
+    await wpEnvRunCli(
+        'cli',
+        containerBash( 'rm -f "/var/www/html/wp-content/mu-plugins/$1"', [ E2E_TWO_FACTOR_MU_PLUGIN ] ),
         { timeout: 30_000 }
     );
 }
@@ -239,8 +247,12 @@ async function removeE2eTwoFactorBridge(): Promise<void> {
  * Install the inert plugin fixture used by stash-replay activation tests.
  */
 async function installE2eActivatablePlugin(): Promise<void> {
-    await execAsync(
-        `${ WP_ENV_RUN_CLI } bash -lc 'mkdir -p /var/www/html/wp-content/plugins/${ E2E_ACTIVATABLE_PLUGIN_DIR } && cp /var/www/html/wp-content/plugins/${ WP_ENV_PLUGIN_DIR }/tests/e2e/fixtures/${ E2E_ACTIVATABLE_PLUGIN_FILE } /var/www/html/wp-content/plugins/${ E2E_ACTIVATABLE_PLUGIN_FILE }'`,
+    await wpEnvRunCli(
+        'cli',
+        containerBash(
+            'mkdir -p "/var/www/html/wp-content/plugins/$1" && cp "/var/www/html/wp-content/plugins/$2/tests/e2e/fixtures/$3" "/var/www/html/wp-content/plugins/$3"',
+            [ E2E_ACTIVATABLE_PLUGIN_DIR, WP_ENV_PLUGIN_DIR, E2E_ACTIVATABLE_PLUGIN_FILE ]
+        ),
         { timeout: 30_000 }
     );
 }
@@ -249,13 +261,14 @@ async function installE2eActivatablePlugin(): Promise<void> {
  * Remove the inert plugin fixture from wp-env.
  */
 async function removeE2eActivatablePlugin(): Promise<void> {
-    await execAsync(
-        `${ WP_ENV_RUN_WP_SKIP_PLUGINS } plugin deactivate ${ E2E_ACTIVATABLE_PLUGIN_DIR } --quiet 2>/dev/null || true`,
-        { timeout: 30_000 }
+    await cliAllowFail(
+        [ ...WP_SKIP_PLUGINS, 'plugin', 'deactivate', E2E_ACTIVATABLE_PLUGIN_DIR, '--quiet' ],
+        30_000
     );
 
-    await execAsync(
-        `${ WP_ENV_RUN_CLI } bash -lc 'rm -rf /var/www/html/wp-content/plugins/${ E2E_ACTIVATABLE_PLUGIN_DIR }'`,
+    await wpEnvRunCli(
+        'cli',
+        containerBash( 'rm -rf "/var/www/html/wp-content/plugins/$1"', [ E2E_ACTIVATABLE_PLUGIN_DIR ] ),
         { timeout: 30_000 }
     );
 }
@@ -264,78 +277,52 @@ async function removeE2eActivatablePlugin(): Promise<void> {
  * Enable the test-only 2FA provider for the default admin user.
  */
 async function enableE2eTwoFactor(): Promise<void> {
-    await execAsync(
-        `${ WP_ENV_RUN_CLI } wp user meta update 1 ${ E2E_TWO_FACTOR_REQUIRE_META } 1 --quiet`,
-        { timeout: 15_000 }
-    );
-    await execAsync(
-        `${ WP_ENV_RUN_CLI } wp user meta update 1 ${ E2E_TWO_FACTOR_CODE_META } ${ E2E_TWO_FACTOR_CODE } --quiet`,
-        { timeout: 15_000 }
-    );
+    await cli( [ 'wp', 'user', 'meta', 'update', '1', E2E_TWO_FACTOR_REQUIRE_META, '1', '--quiet' ] );
+    await cli( [ 'wp', 'user', 'meta', 'update', '1', E2E_TWO_FACTOR_CODE_META, E2E_TWO_FACTOR_CODE, '--quiet' ] );
 }
 
 /**
  * Disable the test-only 2FA provider for the default admin user.
  */
 async function disableE2eTwoFactor(): Promise<void> {
-    await execAsync(
-        `${ WP_ENV_RUN_CLI } wp user meta delete 1 ${ E2E_TWO_FACTOR_REQUIRE_META } --quiet 2>/dev/null || true`,
-        { timeout: 15_000 }
-    );
-    await execAsync(
-        `${ WP_ENV_RUN_CLI } wp user meta delete 1 ${ E2E_TWO_FACTOR_CODE_META } --quiet 2>/dev/null || true`,
-        { timeout: 15_000 }
-    );
-    await execAsync(
-        `${ WP_ENV_RUN_CLI } wp user meta delete 1 ${ E2E_TWO_FACTOR_PROVIDER_META } --quiet 2>/dev/null || true`,
-        { timeout: 15_000 }
-    );
-    await execAsync(
-        `${ WP_ENV_RUN_CLI } wp user meta delete 1 ${ E2E_TWO_FACTOR_HIDDEN_FIELDS_META } --quiet 2>/dev/null || true`,
-        { timeout: 15_000 }
-    );
-    await execAsync(
-        `${ WP_ENV_RUN_CLI } wp user meta delete 1 ${ E2E_TWO_FACTOR_PROVIDER_EVENT_META } --quiet 2>/dev/null || true`,
-        { timeout: 15_000 }
-    );
+    await cliAllowFail( [ 'wp', 'user', 'meta', 'delete', '1', E2E_TWO_FACTOR_REQUIRE_META, '--quiet' ] );
+    await cliAllowFail( [ 'wp', 'user', 'meta', 'delete', '1', E2E_TWO_FACTOR_CODE_META, '--quiet' ] );
+    await cliAllowFail( [ 'wp', 'user', 'meta', 'delete', '1', E2E_TWO_FACTOR_PROVIDER_META, '--quiet' ] );
+    await cliAllowFail( [ 'wp', 'user', 'meta', 'delete', '1', E2E_TWO_FACTOR_HIDDEN_FIELDS_META, '--quiet' ] );
+    await cliAllowFail( [ 'wp', 'user', 'meta', 'delete', '1', E2E_TWO_FACTOR_PROVIDER_EVENT_META, '--quiet' ] );
 }
 
 /**
  * Override the next lockout window to a short test-only duration.
  */
 async function setE2eLockoutSeconds( seconds: number ): Promise<void> {
-    await execAsync(
-        `${ WP_ENV_RUN_CLI } wp user meta update 1 ${ E2E_LOCKOUT_SECONDS_META } ${ seconds } --quiet`,
-        { timeout: 15_000 }
-    );
+    await cli( [ 'wp', 'user', 'meta', 'update', '1', E2E_LOCKOUT_SECONDS_META, String( seconds ), '--quiet' ] );
 }
 
 /**
  * Enable provider-style hidden action/_wpnonce fields in the 2FA step.
  */
 async function enableE2eTwoFactorProviderHiddenFields(): Promise<void> {
-    await execAsync(
-        `${ WP_ENV_RUN_CLI } wp user meta update 1 ${ E2E_TWO_FACTOR_HIDDEN_FIELDS_META } 1 --quiet`,
-        { timeout: 15_000 }
-    );
+    await cli( [ 'wp', 'user', 'meta', 'update', '1', E2E_TWO_FACTOR_HIDDEN_FIELDS_META, '1', '--quiet' ] );
 }
 
 /**
  * Route the 2FA flow through the test-only provider branch.
  */
 async function enableE2eTwoFactorProvider(): Promise<void> {
-    await execAsync(
-        `${ WP_ENV_RUN_CLI } wp user meta update 1 ${ E2E_TWO_FACTOR_PROVIDER_META } 1 --quiet`,
-        { timeout: 15_000 }
-    );
+    await cli( [ 'wp', 'user', 'meta', 'update', '1', E2E_TWO_FACTOR_PROVIDER_META, '1', '--quiet' ] );
 }
 
 /**
  * Read the last provider event marker written by the test-only fixture.
  */
 async function getE2eTwoFactorProviderEvent(): Promise<string> {
-    const { stdout } = await execAsync(
-        `${ WP_ENV_RUN_CLI } bash -lc 'wp user meta get 1 ${ E2E_TWO_FACTOR_PROVIDER_EVENT_META } --quiet 2>/dev/null || true'`,
+    const { stdout } = await wpEnvRunCli(
+        'cli',
+        containerBash(
+            'wp user meta get 1 "$1" --quiet 2>/dev/null || true',
+            [ E2E_TWO_FACTOR_PROVIDER_EVENT_META ]
+        ),
         { timeout: 15_000 }
     );
 
@@ -426,9 +413,9 @@ async function expireCurrentTwoFactorChallenge( page: Page ): Promise<void> {
  * Ensure the inert fixture plugin is inactive so a real activate link exists.
  */
 async function ensureE2eActivatablePluginInactive(): Promise<void> {
-    await execAsync(
-        `${ WP_ENV_RUN_WP_SKIP_PLUGINS } plugin deactivate ${ E2E_ACTIVATABLE_PLUGIN_DIR } --quiet 2>/dev/null || true`,
-        { timeout: 30_000 }
+    await cliAllowFail(
+        [ ...WP_SKIP_PLUGINS, 'plugin', 'deactivate', E2E_ACTIVATABLE_PLUGIN_DIR, '--quiet' ],
+        30_000
     );
 }
 
@@ -459,22 +446,24 @@ async function reachStashedPluginActivationChallenge(
  * Read the current configured sudo session duration from wp-env.
  */
 async function getWpSudoSessionDuration(): Promise<number> {
-    const { stdout } = await execAsync(
-        `${ WP_ENV_RUN_WP_SKIP_PLUGINS } eval 'echo (int) ( get_option( "${ 'wp_sudo_settings' }", array() )["session_duration"] ?? 15 ); echo PHP_EOL;'`,
-        { timeout: 15_000 }
-    );
+    const stdout = await cli( [
+        ...WP_SKIP_PLUGINS,
+        'eval',
+        `echo (int) ( get_option( "wp_sudo_settings", array() )["session_duration"] ?? 15 ); echo PHP_EOL;`,
+    ] );
 
-    return Number.parseInt( stdout.trim(), 10 ) || 15;
+    return Number.parseInt( stdout, 10 ) || 15;
 }
 
 /**
  * Set the sudo session duration directly in wp-env for settings-form replay tests.
  */
 async function setWpSudoSessionDuration( minutes: number ): Promise<void> {
-    await execAsync(
-        `${ WP_ENV_RUN_WP_SKIP_PLUGINS } eval '$settings = get_option( "${ 'wp_sudo_settings' }", array() ); if ( ! is_array( $settings ) ) { $settings = array(); } $settings["session_duration"] = ${ minutes }; update_option( "${ 'wp_sudo_settings' }", $settings );'`,
-        { timeout: 15_000 }
-    );
+    await cli( [
+        ...WP_SKIP_PLUGINS,
+        'eval',
+        `$settings = get_option( "wp_sudo_settings", array() ); if ( ! is_array( $settings ) ) { $settings = array(); } $settings["session_duration"] = ${ minutes }; update_option( "wp_sudo_settings", $settings );`,
+    ] );
 }
 
 test.describe( 'Challenge flow', () => {
