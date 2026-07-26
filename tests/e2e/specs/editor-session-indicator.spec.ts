@@ -79,13 +79,16 @@ const PINNED_BUTTON =
  * greyscale, colour-vision deficiency, and forced-colors mode by construction,
  * instead of relying on the red chip to carry the expiring state alone.
  *
- * NOT covered here, deliberately: core's `showIconLabels` preference replaces this
- * icon with its own `check` for every state (the L280 line above), collapsing active
- * and inactive to one appearance. That is core overriding the icon slot, not this
- * module misbehaving — see the KNOWN GAP note in the module. Asserting it would pin
- * core's behaviour, not ours.
+ * THE ONE EXCEPTION, pinned by INDICATOR-09: core's `showIconLabels` preference
+ * replaces this icon with its own `check` for every state (the L280 line above) and
+ * suppresses the tooltip with it (`showTooltip={ ! showIconLabels }`, L281). That
+ * leaves the cohort using that preference with no shape channel and no hover
+ * affordance, so active and inactive would be indistinguishable. There the active
+ * chip comes back — colour is the only channel core has left us. It stays out of the
+ * default view entirely.
  */
-const EXPIRING_BG = 'rgb(198, 40, 40)'; // #c62828 — admin-bar parity, the only chip left
+const ACTIVE_BG = 'rgb(46, 125, 50)'; // #2e7d32 — admin-bar parity; icon-labels mode only
+const EXPIRING_BG = 'rgb(198, 40, 40)'; // #c62828 — admin-bar parity, every mode
 const STOCK_BG = 'rgba(0, 0, 0, 0)'; // Gutenberg's `.components-button { background: none }`
 
 type NoticeSnapshot = { content: string };
@@ -483,5 +486,75 @@ test.describe( 'In-editor sudo session indicator', () => {
 		// expiring state, so without this a stuck `wp-sudo-editor-session-expiring`
 		// would leave a red chip on a full-length session with nothing failing.
 		await expect( button ).toHaveCSS( 'background-color', STOCK_BG );
+	} );
+
+	test( 'INDICATOR-09: under core icon labels the active chip returns, and only there', async ( {
+		page,
+	} ) => {
+		// Core's "Show button text labels" preference takes the icon slot on this
+		// button — `icon={ showIconLabels ? check : icon }` — and suppresses the
+		// tooltip alongside it. Verified in a live editor: every state renders the
+		// same `check` SVG, `.dashicon` is absent, and the button has no text. So for
+		// that cohort the glyph vocabulary does not exist and active/inactive would be
+		// identical, which is the #288 bug this feature exists to fix.
+		//
+		// The fix is scoped, and this test is mostly here to keep it scoped: the chip
+		// must appear ONLY when the preference is on, so colour cannot leak back into
+		// the default view it was deliberately removed from.
+		await openEditor( page );
+		test.skip(
+			! ( await hasUnifiedSidebar( page ) ),
+			'Part B requires the unified PluginSidebar (WP 6.6+).'
+		);
+
+		const button = page.locator( PINNED_BUTTON );
+		const setIconLabels = ( on: boolean ) =>
+			page.evaluate( ( value ) => {
+				( window as any ).wp.data
+					.dispatch( 'core/preferences' )
+					.set( 'core', 'showIconLabels', value );
+			}, on );
+
+		try {
+			// Default mode: active stays the stock button. This is the guard against
+			// the mitigation leaking — if it ever paints here, #288's whole premise
+			// (core puts no semantic colour on these buttons) is broken again.
+			await seedRemaining( page, 600 );
+			await expect( button ).toHaveCSS( 'background-color', STOCK_BG );
+			await expect( button.locator( '.dashicon' ) ).toHaveClass(
+				/dashicons-unlock/
+			);
+
+			// Preference on: core swaps in its own glyph, so the chip carries the state.
+			await setIconLabels( true );
+			await expect( button ).toHaveCSS( 'background-color', ACTIVE_BG );
+			// Core really has taken the glyph — no dashicon left to read state from.
+			await expect( button.locator( '.dashicon' ) ).toHaveCount( 0 );
+
+			// Inactive must NOT paint, even here: the chip means "elevated", and a
+			// permanently-green button would say the opposite of the truth at rest.
+			await seedRemaining( page, 2 );
+			await expect( button ).toHaveCSS( 'background-color', STOCK_BG, {
+				timeout: 8_000,
+			} );
+
+			// Expiring still wins over active in this mode (admin-bar parity).
+			await seedRemaining( page, 45 );
+			await expect( button ).toHaveCSS( 'background-color', EXPIRING_BG );
+
+			// Turning the preference back off drops the chip live, without a reload:
+			// the glyph is back, so colour is not needed to tell the states apart.
+			await seedRemaining( page, 600 );
+			await expect( button ).toHaveCSS( 'background-color', ACTIVE_BG );
+			await setIconLabels( false );
+			await expect( button ).toHaveCSS( 'background-color', STOCK_BG );
+			await expect( button.locator( '.dashicon' ) ).toHaveClass(
+				/dashicons-unlock/
+			);
+		} finally {
+			// The preference persists per user (server-side), so leaving it on would
+			// silently break INDICATOR-06/07/08 on the next run — they assert dashicons.
+			await setIconLabels( false ).catch( () => {} );
+		}
 	} );
 } );

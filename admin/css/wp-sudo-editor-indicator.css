@@ -84,7 +84,38 @@
  * @package WP_Sudo
  */
 
-/* Expiring — red chip in the final 60 s. The only painted state. */
+/*
+ * Active — green chip, but ONLY under core's "Show button text labels" preference,
+ * where core replaces this button's icon with its own `check` for every state and
+ * kills the tooltip too. There the glyph vocabulary does not exist, so colour is the
+ * only channel left to separate active from inactive; everywhere else the open
+ * padlock does that job and this rule must not match. Both classes are required, and
+ * `wp-sudo-editor-icon-labels` is only ever set while that preference is on.
+ *
+ * Contrast against the white glyph: 5.13:1, and 7.87:1 on hover — both clear WCAG
+ * 1.4.11 (3:1 for a meaningful icon) and the stricter 1.4.3 (4.5:1). Same tokens as
+ * the admin-bar chip (admin/css/wp-sudo-admin-bar.css, verified).
+ */
+body.wp-sudo-editor-icon-labels.wp-sudo-editor-session-active
+	.interface-pinned-items
+	button[aria-controls="wp-sudo-session-indicator:wp-sudo-session-indicator"]:not(.is-pressed) {
+	background: #2e7d32;
+	color: #fff;
+}
+
+body.wp-sudo-editor-icon-labels.wp-sudo-editor-session-active
+	.interface-pinned-items
+	button[aria-controls="wp-sudo-session-indicator:wp-sudo-session-indicator"]:not(.is-pressed):hover {
+	background: #1b5e20;
+	color: #fff;
+}
+
+/*
+ * Expiring — red chip in the final 60 s. Paints in every mode, and cannot collide
+ * with the active rule above: the two body classes are mutually exclusive (the JS
+ * sets `-active` on exactly the 'active' state), so this needs no source-order
+ * tiebreak.
+ */
 body.wp-sudo-editor-session-expiring
 	.interface-pinned-items
 	button[aria-controls="wp-sudo-session-indicator:wp-sudo-session-indicator"]:not(.is-pressed) {

@@ -51,8 +51,11 @@
 	// The admin bar's own expiring threshold (wp-sudo-admin-bar.js: if (r <= 60)),
 	// reused verbatim so the two surfaces flip red at the same moment.
 	var EXPIRING_THRESHOLD = 60;
-	// Only the expiring state paints a chip, so it is the only state CSS needs to see.
+	// The expiring chip paints in every mode; the active chip paints only where core
+	// has taken the glyph away (see syncIconLabels below), so CSS needs all three.
 	var BODY_CLASS_EXPIRING = 'wp-sudo-editor-session-expiring';
+	var BODY_CLASS_ACTIVE = 'wp-sudo-editor-session-active';
+	var BODY_CLASS_ICON_LABELS = 'wp-sudo-editor-icon-labels';
 	// Two page loads of the SAME session compute deadlines within a few seconds of
 	// each other; a genuinely new (re-granted) session extends the deadline by the
 	// full duration (>= 60 s), so this tolerance separates "same session, reloaded"
@@ -290,10 +293,51 @@
 			return;
 		}
 		lastState = state;
-		document.body.classList.toggle( BODY_CLASS_EXPIRING, 'expiring' === state );
+		var classes = document.body.classList;
+		classes.toggle( BODY_CLASS_EXPIRING, 'expiring' === state );
+		// EXACTLY 'active', not "not inactive": the two classes are mutually exclusive,
+		// so the stylesheet needs no source-order tiebreak between them.
+		classes.toggle( BODY_CLASS_ACTIVE, 'active' === state );
 	}
 	subscribe( syncBodyState );
 	syncBodyState();
+
+	// --- the one place the active state still earns colour ---------------------
+	// Core's "Show button text labels" preference takes this button's icon slot for
+	// its own `check` glyph — `icon={ showIconLabels ? check : icon }` — and disables
+	// the tooltip in the same breath (`showTooltip={ ! showIconLabels }`,
+	// complementary-area/index.js L280-281, trunk, fetched 2026-07-26). Verified in a
+	// live WP 7.0 editor: with it on, all three states render that same `check` SVG,
+	// `.dashicon` is gone, and the button renders no visible text.
+	//
+	// So for that cohort the glyph vocabulary does not exist and there is no hover
+	// affordance either — active and inactive would be one appearance, which is the
+	// #288 bug this feature exists to fix. Colour is the only channel core leaves,
+	// so the active chip comes back THERE and only there: the default view keeps no
+	// semantic colour but the urgent red, which is the whole point of the redesign.
+	//
+	// A body class again rather than a React prop: the paint is CSS either way, and
+	// this keeps the preference out of IndicatorPanel's per-second render path.
+	var lastIconLabels = null;
+	function syncIconLabels() {
+		var prefs = wp.data.select( 'core/preferences' );
+		// `core/preferences` is registered by the editor, not by wp.data itself, and
+		// this module also loads on the widgets screen — hence the capability check
+		// rather than an assumption. Absent store reads as "preference off", which is
+		// the safe default: no chip.
+		var on = !! ( prefs && prefs.get && prefs.get( 'core', 'showIconLabels' ) );
+		if ( on === lastIconLabels ) {
+			return;
+		}
+		lastIconLabels = on;
+		document.body.classList.toggle( BODY_CLASS_ICON_LABELS, on );
+	}
+	// Scoped to the preferences store (`subscribe( listener, storeNameOrDescriptor )`,
+	// @wordpress/data registry.ts L62-86) so this does not run on every editor
+	// keystroke. The `lastIconLabels` guard makes it a no-op even where an older
+	// registry ignores the second argument and subscribes globally.
+	wp.data.subscribe( syncIconLabels, 'core/preferences' );
+	syncIconLabels();
 
 	function IndicatorPanel() {
 		var st = useState( currentRemaining() );
@@ -357,16 +401,13 @@
 		// accessible name above cannot discharge 1.4.1 (a name is programmatic, not
 		// visual), so it tracks the same three states rather than substituting for them.
 		//
-		// KNOWN GAP — core's "Show button text labels" preference (core.showIconLabels)
-		// discards this icon entirely and substitutes its own `check` glyph (the L280
-		// line above), rendering no visible text for a pinned item. Verified in a live
-		// WP 7.0 editor: with that preference on, all three states render the same
-		// `check` SVG and `.dashicon` is absent, so active and inactive become visually
-		// identical and only the expiring red chip still distinguishes anything. The
-		// accessible name stays correct in that mode, so AT users are unaffected. Not
-		// worked around here: any fix means either fighting core for the icon slot or
-		// reintroducing an active-state chip for that cohort alone, and both cost more
-		// than the gap. Revisit if core stops overriding the icon.
+		// This channel is unavailable under core's "Show button text labels" preference,
+		// which discards the icon for its own `check` glyph (the L280 line above) and
+		// renders no visible text for a pinned item. That is handled by falling back to
+		// colour in exactly that mode — see syncIconLabels() above and the paired rules
+		// in admin/css/wp-sudo-editor-indicator.css — because a shape channel core has
+		// taken away cannot carry the vocabulary. The accessible name is unaffected in
+		// either mode.
 		//
 		// Per-transition, not per-second — the churn the design brief forbids is a value
 		// that changes on every tick, which is why the compact M:SS stays out of `title`.

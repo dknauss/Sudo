@@ -88,21 +88,30 @@ editor header do not change background colour. Verified against Gutenberg trunk
     a different node in a different container. L293 is the Options-menu item, not the
     toggle. The toggle gets its icon at L280.
   - Cost of core owning that icon slot: with the **Show button text labels** preference
-    on, core discards our icon for its own `check` in every state and renders no visible
-    text, so active and inactive look identical for that cohort (verified in a live WP
-    7.0 editor). Only the expiring red chip still distinguishes anything there. Accepted
-    as a documented gap rather than worked around — see the KNOWN GAP note in
-    `admin/js/wp-sudo-session-indicator.js`.
+    on, core discards our icon for its own `check` in every state, renders no visible
+    text, and suppresses the tooltip (L281). Verified in a live WP 7.0 editor. That
+    cohort would have neither shape nor hover to read state from, so active and inactive
+    would collapse to one appearance — the bug this feature exists to fix.
+  - **Resolved by a scoped fallback, not accepted as a gap.** In that mode — and only
+    there — the green active chip returns, because colour is the only channel core
+    leaves. Two orthogonal body classes (`wp-sudo-editor-icon-labels`, set from a
+    `core/preferences` subscription, and `wp-sudo-editor-session-active`) compose in
+    CSS, so the default view keeps no semantic colour but the urgent red. INDICATOR-09
+    pins both directions: the chip appears under the preference, and does not appear
+    without it.
 
 So the shipped design had it backwards: it invented a convention for the states that
 did not need one, and the *glyph* swap — the part that was already idiomatic — was
 used only for the edge state. Amended vocabulary:
 
-| State | #288 as shipped | Amended |
-|---|---|---|
-| No session | `unlock`, no chip | **`lock`**, no chip |
-| Active | `unlock` + green chip | `unlock`, **no chip** |
-| Final 60 s | `warning` + red chip | `warning` + red chip (unchanged) |
+| State | #288 as shipped | Amended | Under `showIconLabels` |
+|---|---|---|---|
+| No session | `unlock`, no chip | **`lock`**, no chip | core `check`, no chip |
+| Active | `unlock` + green chip | `unlock`, **no chip** | core `check` + **green chip** |
+| Final 60 s | `warning` + red chip | `warning` + red chip (unchanged) | core `check` + red chip |
+
+The last column is core's doing, not a second design: it owns the icon slot in that
+mode, so the chip is the only channel left there.
 
 Two independent gains. The at-rest state no longer shows an *unlocked* padlock while
 sudo is inactive — which asserted the opposite of the truth for the state the header
@@ -115,8 +124,11 @@ Cost, stated plainly: a 20 px glyph change is less noticeable peripherally than 
 green→red chip, so this trades some at-a-glance salience — the original point of
 #288 — for fitting the surface. The maintainer made that call knowing the trade.
 
-`wp-sudo-editor-session-active` is removed entirely: with no rule consuming it, keeping
-it would be dead state. Only `wp-sudo-editor-session-expiring` remains.
+`wp-sudo-editor-session-active` survives, but for one job only: composed with
+`wp-sudo-editor-icon-labels` it paints the active chip in the mode where core has taken
+the glyph (above). It no longer paints anything on its own, and it now means exactly
+'active' rather than "not inactive", so the two state classes are mutually exclusive and
+the stylesheet needs no source-order tiebreak between them.
 
 ## Resolutions (design review completed — implemented in the #288 branch)
 
