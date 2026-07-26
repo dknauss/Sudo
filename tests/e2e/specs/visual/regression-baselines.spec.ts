@@ -182,7 +182,7 @@ test.describe( 'Visual regression baselines', () => {
     /**
      * VISN-03: Admin bar in active session state.
      *
-     * Activate a sudo session and navigate to the admin dashboard.
+     * Activate a sudo session and navigate to a quiet admin screen (not the dashboard).
      * Take an element screenshot of the frozen Sudo node with the timer text masked.
      *
      * WHY an element screenshot (like every other passing baseline in this file):
@@ -209,7 +209,12 @@ test.describe( 'Visual regression baselines', () => {
     } ) => {
         // Activate the session (real timers — the AJAX challenge flow needs a real clock).
         await activateSudoSession( page );
-        await page.goto( '/wp-admin/' );
+        // NOT the dashboard (/wp-admin/): its welcome-panel images and the "Events and
+        // News" widget keep reflowing the page, so Playwright's "waiting for element to
+        // be stable" step never settles and the screenshot times out (#341). The admin
+        // bar — and the Sudo node — render on every admin screen; this one is quiet and
+        // is already proven stable by VISN-02.
+        await page.goto( '/wp-admin/options-general.php?page=wp-sudo-settings' );
 
         // Source: class-admin-bar.php — li#wp-admin-bar-wp-sudo-active (verified)
         const timerNode = page.locator( adminBarTimerSelector );
@@ -268,7 +273,12 @@ test.describe( 'Visual regression baselines', () => {
     } ) => {
         // Activate the session (real timers for the AJAX challenge flow).
         await activateSudoSession( page );
-        await page.goto( '/wp-admin/' );
+        // NOT the dashboard (/wp-admin/): its welcome-panel images and the "Events and
+        // News" widget keep reflowing the page, so Playwright's "waiting for element to
+        // be stable" step never settles and the screenshot times out (#341). The admin
+        // bar — and the Sudo node — render on every admin screen; this one is quiet and
+        // is already proven stable by VISN-02.
+        await page.goto( '/wp-admin/options-general.php?page=wp-sudo-settings' );
 
         const timerNode = page.locator( adminBarTimerSelector );
         await expect( timerNode ).toBeVisible();
