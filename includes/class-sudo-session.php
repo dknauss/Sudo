@@ -107,6 +107,35 @@ class Sudo_Session {
 	public const LOCKOUT_DURATION = 300;
 
 	/**
+	 * User-meta key pointing at the IP-scoped lockout-until transient set
+	 * alongside a lockout (see ip_lockout_transient_key()).
+	 *
+	 * Lets an out-of-band clear (WP-CLI `wp sudo unlock`, #280) find and
+	 * delete the specific transient a lockout episode created, without
+	 * needing to store the raw triggering IP address in user meta.
+	 *
+	 * @since TBD
+	 * @var string
+	 */
+	public const LOCKOUT_IP_TRANSIENT_META_KEY = '_wp_sudo_lockout_ip_transient';
+
+	/**
+	 * User-meta key pointing at the IP-scoped rolling failure-event transient
+	 * set alongside a lockout (see ip_failure_event_transient_key()).
+	 *
+	 * This transient tracks the last 24h of failures for the (ip, user) pair
+	 * and is what decides whether the *next* wrong password re-triggers a
+	 * lockout. Clearing only the lockout-until transient without also
+	 * clearing this one would leave a stale rolling count in place, so a
+	 * single further wrong password from the same IP would immediately
+	 * re-lock the user right after an out-of-band clear (#280).
+	 *
+	 * @since TBD
+	 * @var string
+	 */
+	public const LOCKOUT_IP_FAILURE_TRANSIENT_META_KEY = '_wp_sudo_lockout_ip_failure_transient';
+
+	/**
 	 * User-meta key for tracking failed reauth events (append-only).
 	 *
 	 * @var string
@@ -1043,10 +1072,24 @@ class Sudo_Session {
 				$now + self::LOCKOUT_DURATION
 			);
 
+			$ip_lockout_key = self::ip_lockout_transient_key( $ip, $user_id );
 			set_transient(
-				self::ip_lockout_transient_key( $ip, $user_id ),
+				$ip_lockout_key,
 				$now + self::LOCKOUT_DURATION,
 				self::LOCKOUT_DURATION
+			);
+
+			// Remember pointers to both IP-scoped transients this lockout just
+			// wrote (the lockout-until transient above, and the rolling
+			// failure-event window read via record_failed_attempt_for_ip()), so
+			// an out-of-band clear (#280) can fully undo this lockout episode —
+			// not just the user-meta half — instead of leaving a stale rolling
+			// count that would immediately re-lock on the next wrong password.
+			update_user_meta( $user_id, self::LOCKOUT_IP_TRANSIENT_META_KEY, $ip_lockout_key );
+			update_user_meta(
+				$user_id,
+				self::LOCKOUT_IP_FAILURE_TRANSIENT_META_KEY,
+				self::ip_failure_event_transient_key( $ip, $user_id )
 			);
 
 			/**
@@ -1212,6 +1255,57 @@ class Sudo_Session {
 		delete_user_meta( $user_id, self::LOCKOUT_UNTIL_META_KEY );
 		delete_user_meta( $user_id, self::FAILURE_EVENT_META_KEY );
 		delete_user_meta( $user_id, self::THROTTLE_UNTIL_META_KEY );
+
+		// Also clear the IP-scoped transients a lockout may have written,
+		// via the pointers stored alongside them. Presence-gated: on the
+		// (much more common) non-lockout reset — e.g. every successful
+		// activate() — these pointer keys are absent, so this is a no-op.
+		self::clear_ip_lockout_pointer( $user_id, self::LOCKOUT_IP_TRANSIENT_META_KEY );
+		self::clear_ip_lockout_pointer( $user_id, self::LOCKOUT_IP_FAILURE_TRANSIENT_META_KEY );
+	}
+
+	/**
+	 * Delete the IP-scoped transient named by a stored pointer meta value,
+	 * then clear the pointer itself.
+	 *
+	 * @since TBD
+	 *
+	 * @param int    $user_id          User ID.
+	 * @param string $pointer_meta_key One of the LOCKOUT_IP_*_META_KEY constants.
+	 * @return void
+	 */
+	private static function clear_ip_lockout_pointer( int $user_id, string $pointer_meta_key ): void {
+		$transient_key = get_user_meta( $user_id, $pointer_meta_key, true );
+
+		if ( ! is_string( $transient_key ) || '' === $transient_key ) {
+			return;
+		}
+
+		delete_transient( $transient_key );
+		delete_user_meta( $user_id, $pointer_meta_key );
+	}
+
+	/**
+	 * Whether a user currently has an unexpired hard lockout, without the
+	 * auto-reset side effect of is_locked_out().
+	 *
+	 * The is_locked_out() method resets failure tracking as a side effect once
+	 * the lockout timestamp is in the past — useful for the normal reauth flow,
+	 * but wrong for a caller (the WP-CLI `wp sudo unlock` command, #280)
+	 * that needs to know whether the user WAS locked out at the moment of
+	 * invocation before it calls reset_failed_attempts() itself, so it can
+	 * report an accurate outcome instead of the check silently clearing
+	 * state ahead of the report.
+	 *
+	 * @since TBD
+	 *
+	 * @param int $user_id User ID.
+	 * @return bool True when a lockout is currently active (not yet expired).
+	 */
+	public static function has_unexpired_lockout( int $user_id ): bool {
+		$until = (int) get_user_meta( $user_id, self::LOCKOUT_UNTIL_META_KEY, true );
+
+		return $until > time();
 	}
 
 	// -------------------------------------------------------------------------

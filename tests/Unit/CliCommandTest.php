@@ -119,6 +119,157 @@ class CliCommandTest extends TestCase {
 		$command->revoke( array(), array() );
 	}
 
+	// ---- --user=<id|login> resolution (#280) ----
+
+	/**
+	 * A non-numeric --user value is looked up as a login, not silently cast
+	 * to 0. Verified through revoke() (resolve_user_id() is shared across
+	 * status/revoke/unlock).
+	 */
+	public function test_revoke_resolves_user_by_login(): void {
+		Functions\when( 'headers_sent' )->justReturn( true );
+		Functions\when( 'delete_user_meta' )->justReturn( true );
+
+		Functions\expect( 'get_user_by' )
+			->once()
+			->with( 'login', 'jane' )
+			->andReturn( new \WP_User( 55 ) );
+
+		Functions\expect( 'do_action' )
+			->once()
+			->with( 'wp_sudo_deactivated', 55 );
+
+		$command = new CLI_Command();
+		$command->revoke( array(), array( 'user' => 'jane' ) );
+
+		$this->assertStringContainsString( 'user 55', \WP_CLI::$messages[0]['message'] ?? '' );
+	}
+
+	/**
+	 * A login that resolves to no existing user must NOT silently fall back
+	 * to any other user — it errors exactly like an unresolvable numeric ID.
+	 */
+	public function test_revoke_errors_when_login_does_not_resolve(): void {
+		Functions\expect( 'get_user_by' )
+			->once()
+			->with( 'login', 'no-such-user' )
+			->andReturn( false );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessage( 'No target user' );
+
+		$command = new CLI_Command();
+		$command->revoke( array(), array( 'user' => 'no-such-user' ) );
+	}
+
+	// ---- unlock (#280) ----
+
+	/**
+	 * An active lockout is fully cleared: reset_failed_attempts() runs (user
+	 * meta + any IP-scoped transient pointers), the wp_sudo_lockout_cleared
+	 * audit hook fires, and the operator sees a success message naming the
+	 * unlocked user.
+	 */
+	public function test_unlock_clears_active_lockout_for_explicit_user(): void {
+		Functions\when( 'get_user_meta' )->alias(
+			static function ( int $user_id, string $key, bool $single ) {
+				if ( 9 === $user_id && Sudo_Session::LOCKOUT_UNTIL_META_KEY === $key ) {
+					return time() + 200;
+				}
+				return '';
+			}
+		);
+		Functions\when( 'delete_user_meta' )->justReturn( true );
+		Functions\when( 'delete_transient' )->justReturn( true );
+
+		Functions\expect( 'do_action' )
+			->once()
+			->with( 'wp_sudo_lockout_cleared', 9 );
+
+		$command = new CLI_Command();
+		$command->unlock( array(), array( 'user' => '9' ) );
+
+		$this->assertSame( 'success', \WP_CLI::$messages[0]['type'] ?? null );
+		$this->assertStringContainsString( 'Cleared reauth lockout for user 9', \WP_CLI::$messages[0]['message'] ?? '' );
+	}
+
+	/**
+	 * A user with no active lockout gets an accurate no-op report, and the
+	 * wp_sudo_lockout_cleared hook must NOT fire for a no-op.
+	 */
+	public function test_unlock_reports_no_op_when_not_locked(): void {
+		Functions\when( 'get_user_meta' )->justReturn( '' );
+		Functions\when( 'delete_user_meta' )->justReturn( true );
+
+		Functions\expect( 'do_action' )
+			->with( 'wp_sudo_lockout_cleared', \Mockery::any() )
+			->never();
+
+		$command = new CLI_Command();
+		$command->unlock( array(), array( 'user' => '9' ) );
+
+		$this->assertSame( 'log', \WP_CLI::$messages[0]['type'] ?? null );
+		$this->assertStringContainsString( 'No active reauth lockout for user 9', \WP_CLI::$messages[0]['message'] ?? '' );
+	}
+
+	/**
+	 * An already-expired lockout (natural expiry, never explicitly cleared)
+	 * must also report as a no-op, not "cleared" — has_unexpired_lockout()
+	 * reads the raw timestamp with no auto-reset side effect, so the check
+	 * accurately reflects that nothing was actively blocking this user.
+	 */
+	public function test_unlock_reports_no_op_for_an_already_expired_lockout(): void {
+		Functions\when( 'get_user_meta' )->alias(
+			static function ( int $user_id, string $key, bool $single ) {
+				if ( Sudo_Session::LOCKOUT_UNTIL_META_KEY === $key ) {
+					return time() - 60; // Expired, not yet reset.
+				}
+				return '';
+			}
+		);
+		Functions\when( 'delete_user_meta' )->justReturn( true );
+
+		$command = new CLI_Command();
+		$command->unlock( array(), array( 'user' => '9' ) );
+
+		$this->assertSame( 'log', \WP_CLI::$messages[0]['type'] ?? null );
+		$this->assertStringContainsString( 'No active reauth lockout for user 9', \WP_CLI::$messages[0]['message'] ?? '' );
+	}
+
+	public function test_unlock_errors_when_no_target_user_is_available(): void {
+		Functions\when( 'get_current_user_id' )->justReturn( 0 );
+
+		$this->expectException( \RuntimeException::class );
+		$this->expectExceptionMessage( 'No target user' );
+
+		$command = new CLI_Command();
+		$command->unlock( array(), array() );
+	}
+
+	public function test_unlock_resolves_user_by_login(): void {
+		Functions\expect( 'get_user_by' )
+			->once()
+			->with( 'login', 'jane' )
+			->andReturn( new \WP_User( 55 ) );
+
+		Functions\when( 'get_user_meta' )->alias(
+			static function ( int $user_id, string $key, bool $single ) {
+				if ( 55 === $user_id && Sudo_Session::LOCKOUT_UNTIL_META_KEY === $key ) {
+					return time() + 100;
+				}
+				return '';
+			}
+		);
+		Functions\when( 'delete_user_meta' )->justReturn( true );
+		Functions\when( 'delete_transient' )->justReturn( true );
+		Functions\when( 'do_action' )->justReturn( null );
+
+		$command = new CLI_Command();
+		$command->unlock( array(), array( 'user' => 'jane' ) );
+
+		$this->assertStringContainsString( 'user 55', \WP_CLI::$messages[0]['message'] ?? '' );
+	}
+
 	// ---- manifest (#179) ----
 
 	/**

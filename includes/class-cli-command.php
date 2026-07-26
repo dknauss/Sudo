@@ -101,6 +101,81 @@ class CLI_Command {
 	}
 
 	/**
+	 * Clear an active reauth lockout for a user (#280).
+	 *
+	 * There is no in-product (web/admin) way to lift a reauth lockout — that
+	 * is deliberate, since the lockout defends against exhaustive password
+	 * guessing. This command is an OUT-OF-BAND escape hatch for an operator
+	 * who already holds WP-CLI (shell / hosting-config) access; it is not
+	 * reachable from any web, REST, AJAX, or admin-UI surface. Registration
+	 * of the whole `wp sudo` command tree is itself gated on
+	 * `defined( 'WP_CLI' ) && WP_CLI` (see Plugin::maybe_register_cli()).
+	 *
+	 * Clears both halves of a lockout episode: the per-user hard lockout and
+	 * the per-(ip, user) rolling failure window that would otherwise
+	 * re-trigger a fresh lockout on the very next wrong password from the
+	 * same IP (Sudo_Session::reset_failed_attempts()).
+	 *
+	 * A cleared lockout is a bounded escape hatch, not full remediation — if
+	 * an attacker still holds the target user's login session, they can
+	 * re-trigger a fresh lockout immediately. Revoke the session
+	 * (`wp sudo revoke --user=<id>`) or rotate the password as well.
+	 *
+	 * ## OPTIONS
+	 *
+	 * [--user=<id|login>]
+	 * : Target user. A purely numeric value always resolves as a user ID
+	 *   (even if some user's login happens to be numeric); any other value
+	 *   is looked up as a login. Defaults to the current WP-CLI user context.
+	 *
+	 * ## EXAMPLES
+	 *
+	 *     wp sudo unlock --user=1
+	 *     wp sudo unlock --user=jane
+	 *
+	 * @since TBD
+	 *
+	 * @param array<int, string>   $args       Positional args (unused).
+	 * @param array<string, mixed> $assoc_args Assoc args.
+	 * @return void
+	 */
+	public function unlock( array $args, array $assoc_args ): void { // phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter.FoundAfterLastUsed
+		$user_id = $this->resolve_user_id( $assoc_args );
+
+		if ( $user_id <= 0 ) {
+			\WP_CLI::error( 'No target user. Pass --user=<id|login> or run with a WP-CLI --user context.' );
+		}
+
+		// Captured BEFORE reset_failed_attempts() runs: has_unexpired_lockout()
+		// is a pure read (unlike is_locked_out(), it has no auto-reset side
+		// effect), so this reflects what was actually true at invocation time.
+		$was_locked = Sudo_Session::has_unexpired_lockout( $user_id );
+
+		Sudo_Session::reset_failed_attempts( $user_id );
+
+		if ( ! $was_locked ) {
+			\WP_CLI::log( sprintf( 'No active reauth lockout for user %d.', $user_id ) );
+			return;
+		}
+
+		/**
+		 * Fires when an operator clears a reauth lockout via WP-CLI.
+		 *
+		 * @since TBD
+		 *
+		 * @param int $user_id The unlocked user.
+		 */
+		do_action( 'wp_sudo_lockout_cleared', $user_id );
+
+		\WP_CLI::success(
+			sprintf(
+				'Cleared reauth lockout for user %1$d. If an attacker still holds this user\'s session, the lockout can retrigger — consider `wp sudo revoke --user=%1$d` or a password reset.',
+				$user_id
+			)
+		);
+	}
+
+	/**
 	 * Generate or diff the role/capability lockdown manifest (#179).
 	 *
 	 * ## OPTIONS
@@ -219,13 +294,28 @@ class CLI_Command {
 	/**
 	 * Resolve target user ID from assoc args or CLI auth context.
 	 *
+	 * Accepts `--user=<id|login>`: a numeric value always resolves as a user
+	 * ID (matching pre-existing behavior — a non-numeric string previously
+	 * cast to 0 via `(int)` and was already treated as "no target user"), any
+	 * other value is looked up as a login. WP-CLI assoc-arg values are always
+	 * strings (or booleans for a bare flag), never PHP ints, so numeric
+	 * detection uses `is_numeric()` rather than an `is_int()` type check.
+	 *
+	 * @since TBD Accepts a login, not just a numeric ID (#280).
+	 *
 	 * @param array<string, mixed> $assoc_args Command assoc args.
 	 * @return int Positive user ID or 0.
 	 */
 	private function resolve_user_id( array $assoc_args ): int {
 		if ( isset( $assoc_args['user'] ) && is_scalar( $assoc_args['user'] ) ) {
-			$user_id = (int) $assoc_args['user'];
-			return max( 0, $user_id );
+			$value = $assoc_args['user'];
+
+			if ( is_numeric( $value ) ) {
+				return max( 0, (int) $value );
+			}
+
+			$user = get_user_by( 'login', (string) $value );
+			return $user ? (int) $user->ID : 0;
 		}
 
 		return (int) get_current_user_id();

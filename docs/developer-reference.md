@@ -533,6 +533,13 @@ do_action( 'wp_sudo_deactivated', int $user_id ); // Also fires on password chan
 // Authentication failures.
 do_action( 'wp_sudo_reauth_failed', int $user_id, int $attempts );
 do_action( 'wp_sudo_lockout', int $user_id, int $attempts, string $ip );
+// Fires when an operator clears an active reauth lockout via the WP-CLI
+// `wp sudo unlock --user=<id|login>` command (#280) — the only out-of-band
+// way to lift a lockout before its 300s expiry. Reachable only from a
+// WP-CLI process (shell/config access); no web, REST, AJAX, or admin-UI
+// surface can trigger it. Does not fire for a no-op unlock (user was not
+// locked out) or for the lockout's own natural expiry.
+do_action( 'wp_sudo_lockout_cleared', int $user_id );
 
 // Action gating.
 // $surface values: 'admin', 'ajax', 'rest' (cookie-auth REST), 'rest_app_password',
