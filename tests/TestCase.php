@@ -46,9 +46,19 @@ abstract class TestCase extends PHPUnitTestCase {
 
 		// Default stub for the login-session token used by Sudo_Session binding.
 		// Empty by default so binding stays inert for tests that do not exercise
-		// it (no SESSION_BIND_META_KEY value => verify_token skips the check, and
-		// set_token clears any bind). Binding tests override this with when().
+		// it. The empty verifier keys the proof record under a shared slot and the
+		// HMAC binds to it. Binding/concurrency tests override this with when().
 		Functions\when( 'wp_get_session_token' )->justReturn( '' );
+
+		// Default stub for the auth-salt used to HMAC-sign the sudo proof record.
+		// A fixed value keeps activation/verification deterministic across tests;
+		// forgery tests rely on an attacker being unable to reproduce this value.
+		Functions\when( 'wp_salt' )->justReturn( 'unit-test-auth-salt' );
+
+		// Default stub for the enforcement-path object-cache bypass. Production
+		// deletes the user_meta cache entry before re-reading the proof record so
+		// a poisoned persistent cache cannot forge a session; a no-op is fine here.
+		Functions\when( 'wp_cache_delete' )->justReturn( true );
 
 		// Default stub for application password UUID — null means not app-password auth.
 		// Individual tests can override with Functions\when() for specific UUIDs.
@@ -190,6 +200,39 @@ abstract class TestCase extends PHPUnitTestCase {
 
 		Monkey\tearDown();
 		parent::tearDown();
+	}
+
+	/**
+	 * Build a valid, HMAC-signed sudo proof record matching production's schema.
+	 *
+	 * Mirrors Sudo_Session::set_token()/resolve_valid_proof(): the record stored
+	 * under Sudo_Session::PROOF_META_KEY is an array of the cookie-token hash,
+	 * the expiry, and an HMAC over "$user_id|$verifier|$token_hash|$expires"
+	 * keyed with wp_salt('auth') (stubbed to 'unit-test-auth-salt' in setUp()).
+	 * Pass this back from a get_user_meta() stub for the PROOF_META_KEY branch to
+	 * simulate an active session for the current browser/user.
+	 *
+	 * @param int    $user_id  User the record belongs to.
+	 * @param string $cookie   Plaintext wp_sudo_token cookie value.
+	 * @param int    $expires  Session expiry timestamp.
+	 * @param string $verifier Raw login-session verifier bound into the HMAC.
+	 * @param string $salt     Auth salt used for the HMAC.
+	 * @return array{token: string, expires: int, hmac: string}
+	 */
+	protected function make_proof_record(
+		int $user_id,
+		string $cookie,
+		int $expires,
+		string $verifier = '',
+		string $salt = 'unit-test-auth-salt'
+	): array {
+		$token_hash = hash( 'sha256', $cookie );
+
+		return array(
+			'token'   => $token_hash,
+			'expires' => $expires,
+			'hmac'    => hash_hmac( 'sha256', "{$user_id}|{$verifier}|{$token_hash}|{$expires}", $salt ),
+		);
 	}
 
 }

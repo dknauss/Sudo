@@ -3717,16 +3717,18 @@ class AdminTest extends TestCase {
 	 * to return true. $user_id defaults to 1.
 	 */
 	private function mock_active_sudo_session( int $user_id = 1 ): void {
-		$token = 'test-sudo-token';
+		$token   = 'test-sudo-token';
+		$expires = time() + 600;
+		$record  = $this->make_proof_record( $user_id, $token, $expires );
 		Functions\when( 'get_current_user_id' )->justReturn( $user_id );
 		Functions\when( 'get_user_meta' )->alias(
-			static function ( int $uid, string $key, bool $single ) use ( $user_id, $token ) {
+			static function ( int $uid, string $key, bool $single ) use ( $user_id, $expires, $record ) {
 				if ( $uid === $user_id ) {
 					if ( \WP_Sudo\Sudo_Session::META_KEY === $key ) {
-						return time() + 600;
+						return $expires;
 					}
-					if ( \WP_Sudo\Sudo_Session::TOKEN_META_KEY === $key ) {
-						return hash( 'sha256', $token );
+					if ( \WP_Sudo\Sudo_Session::PROOF_META_KEY === $key ) {
+						return $record;
 					}
 				}
 				return '';
@@ -4254,14 +4256,15 @@ class AdminTest extends TestCase {
 		// Operator (2) holds a token-bound active sudo session (is_active) AND the
 		// target (9) session is live. is_active(2) requires the expiry meta, a
 		// stored token hash, and a matching request cookie token.
-		$operator_token = 'operator-sudo-token';
+		$operator_token  = 'operator-sudo-token';
+		$operator_record = $this->make_proof_record( 2, $operator_token, time() + 120 );
 		Functions\when( 'get_user_meta' )->alias(
-			static function ( int $uid, string $key ) use ( $operator_token ) {
+			static function ( int $uid, string $key ) use ( $operator_record ) {
 				if ( \WP_Sudo\Sudo_Session::META_KEY === $key ) {
 					return time() + 120;
 				}
-				if ( 2 === $uid && \WP_Sudo\Sudo_Session::TOKEN_META_KEY === $key ) {
-					return hash( 'sha256', $operator_token );
+				if ( 2 === $uid && \WP_Sudo\Sudo_Session::PROOF_META_KEY === $key ) {
+					return $operator_record;
 				}
 				return '';
 			}
@@ -4380,7 +4383,7 @@ class AdminTest extends TestCase {
 				if ( \WP_Sudo\Sudo_Session::META_KEY === $key ) {
 					return time() + 600;
 				}
-				return ''; // no TOKEN_META_KEY hash -> verify_token() is false
+				return ''; // no PROOF_META_KEY record -> resolve_valid_proof()/is_active() is false
 			}
 		);
 
@@ -4468,14 +4471,15 @@ class AdminTest extends TestCase {
 		Functions\when( 'get_current_user_id' )->justReturn( 2 );
 		// Operator (2) holds a token-bound active sudo session (passes is_active),
 		// but the target's session has since expired (race) -> target_expired.
-		$operator_token = 'operator-sudo-token';
+		$operator_token  = 'operator-sudo-token';
+		$operator_record = $this->make_proof_record( 2, $operator_token, time() + 120 );
 		Functions\when( 'get_user_meta' )->alias(
-			static function ( int $user_id, string $key ) use ( $operator_token ) {
+			static function ( int $user_id, string $key ) use ( $operator_record ) {
 				if ( 2 === $user_id && \WP_Sudo\Sudo_Session::META_KEY === $key ) {
 					return time() + 120;
 				}
-				if ( 2 === $user_id && \WP_Sudo\Sudo_Session::TOKEN_META_KEY === $key ) {
-					return hash( 'sha256', $operator_token );
+				if ( 2 === $user_id && \WP_Sudo\Sudo_Session::PROOF_META_KEY === $key ) {
+					return $operator_record;
 				}
 				return time() - 60;
 			}
@@ -4719,13 +4723,14 @@ class AdminTest extends TestCase {
 		Functions\when( 'wp_sudo_can' )->justReturn( true );
 		$this->mock_active_sudo_session( 2 );
 		Functions\when( 'is_user_member_of_blog' )->justReturn( true );
+		$operator_record = $this->make_proof_record( 2, 'test-sudo-token', time() + 600 );
 		Functions\when( 'get_user_meta' )->alias(
-			static function ( int $uid, string $key ) {
+			static function ( int $uid, string $key ) use ( $operator_record ) {
 				if ( \WP_Sudo\Sudo_Session::META_KEY === $key ) {
 					return time() + 600;
 				}
-				if ( \WP_Sudo\Sudo_Session::TOKEN_META_KEY === $key && 2 === $uid ) {
-					return hash( 'sha256', 'test-sudo-token' );
+				if ( \WP_Sudo\Sudo_Session::PROOF_META_KEY === $key && 2 === $uid ) {
+					return $operator_record;
 				}
 				return '';
 			}
@@ -4773,13 +4778,14 @@ class AdminTest extends TestCase {
 		Functions\when( 'is_user_member_of_blog' )->alias(
 			static fn( int $uid ): bool => 11 === $uid
 		);
+		$operator_record = $this->make_proof_record( 2, 'test-sudo-token', time() + 600 );
 		Functions\when( 'get_user_meta' )->alias(
-			static function ( int $uid, string $key ) {
+			static function ( int $uid, string $key ) use ( $operator_record ) {
 				if ( \WP_Sudo\Sudo_Session::META_KEY === $key ) {
 					return time() + 600; // Both live network-wide…
 				}
-				if ( \WP_Sudo\Sudo_Session::TOKEN_META_KEY === $key && 2 === $uid ) {
-					return hash( 'sha256', 'test-sudo-token' );
+				if ( \WP_Sudo\Sudo_Session::PROOF_META_KEY === $key && 2 === $uid ) {
+					return $operator_record;
 				}
 				return '';
 			}
@@ -4960,13 +4966,14 @@ class AdminTest extends TestCase {
 		// Operator (2) token-bound active (cookie + hash from the helper) …
 		$this->mock_active_sudo_session( 2 );
 		// … and the selected targets (9, 11) hold live sessions too.
+		$operator_record = $this->make_proof_record( 2, 'test-sudo-token', time() + 600 );
 		Functions\when( 'get_user_meta' )->alias(
-			static function ( int $uid, string $key ) {
+			static function ( int $uid, string $key ) use ( $operator_record ) {
 				if ( \WP_Sudo\Sudo_Session::META_KEY === $key ) {
 					return time() + 600;
 				}
-				if ( \WP_Sudo\Sudo_Session::TOKEN_META_KEY === $key && 2 === $uid ) {
-					return hash( 'sha256', 'test-sudo-token' );
+				if ( \WP_Sudo\Sudo_Session::PROOF_META_KEY === $key && 2 === $uid ) {
+					return $operator_record;
 				}
 				return '';
 			}

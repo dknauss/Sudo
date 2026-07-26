@@ -58,25 +58,25 @@ class ActionGatingCompletenessTest extends TestCase {
 	// =====================================================================
 
 	/**
-	 * A non-empty stored bind that does not match the current login-session
-	 * token rejects the session — the captured-cookie replay path.
+	 * A proof signed for one login session is rejected under a different current
+	 * login session — the captured-cookie replay path. Binding is now expressed
+	 * through the HMAC over the raw verifier, so a different verifier recomputes a
+	 * different HMAC and fails.
 	 */
 	public function test_is_active_rejects_when_login_session_bind_mismatches(): void {
 		$future = time() + 300;
 		$token  = 'valid-token';
+		$record = $this->make_proof_record( 1, $token, $future, 'session-A' );
 
 		Functions\when( 'get_current_user_id' )->justReturn( 1 );
 		Functions\when( 'wp_get_session_token' )->justReturn( 'session-B' );
 		Functions\when( 'get_user_meta' )->alias(
-			static function ( $uid, $key, $single ) use ( $future, $token ) {
+			static function ( $uid, $key, $single ) use ( $future, $record ) {
 				if ( Sudo_Session::META_KEY === $key ) {
 					return $future;
 				}
-				if ( Sudo_Session::TOKEN_META_KEY === $key ) {
-					return hash( 'sha256', $token );
-				}
-				if ( Sudo_Session::SESSION_BIND_META_KEY === $key ) {
-					return hash( 'sha256', 'session-A' );
+				if ( Sudo_Session::PROOF_META_KEY === $key ) {
+					return $record;
 				}
 				return '';
 			}
@@ -88,25 +88,23 @@ class ActionGatingCompletenessTest extends TestCase {
 	}
 
 	/**
-	 * A non-empty stored bind that matches the current login-session token is
-	 * accepted — the legitimate same-session path.
+	 * A proof whose HMAC was signed for the current login session is accepted —
+	 * the legitimate same-session path.
 	 */
 	public function test_is_active_accepts_when_login_session_bind_matches(): void {
 		$future = time() + 300;
 		$token  = 'valid-token';
+		$record = $this->make_proof_record( 1, $token, $future, 'session-A' );
 
 		Functions\when( 'get_current_user_id' )->justReturn( 1 );
 		Functions\when( 'wp_get_session_token' )->justReturn( 'session-A' );
 		Functions\when( 'get_user_meta' )->alias(
-			static function ( $uid, $key, $single ) use ( $future, $token ) {
+			static function ( $uid, $key, $single ) use ( $future, $record ) {
 				if ( Sudo_Session::META_KEY === $key ) {
 					return $future;
 				}
-				if ( Sudo_Session::TOKEN_META_KEY === $key ) {
-					return hash( 'sha256', $token );
-				}
-				if ( Sudo_Session::SESSION_BIND_META_KEY === $key ) {
-					return hash( 'sha256', 'session-A' );
+				if ( Sudo_Session::PROOF_META_KEY === $key ) {
+					return $record;
 				}
 				return '';
 			}
@@ -118,24 +116,26 @@ class ActionGatingCompletenessTest extends TestCase {
 	}
 
 	/**
-	 * An empty stored bind (pre-patch session, or cookie-less activation) skips
-	 * the binding check entirely — graceful degradation, no migration required.
+	 * A proof signed with an empty verifier (cookie-less activation) verifies when
+	 * the current verifier is also empty — the HMAC binds to '' on both sides, so
+	 * no migration is required and the degradation is graceful.
 	 */
 	public function test_is_active_skips_binding_when_bind_value_empty(): void {
 		$future = time() + 300;
 		$token  = 'valid-token';
+		$record = $this->make_proof_record( 1, $token, $future, '' );
 
 		Functions\when( 'get_current_user_id' )->justReturn( 1 );
-		// wp_get_session_token must NOT be consulted on the empty-bind path.
+		Functions\when( 'wp_get_session_token' )->justReturn( '' );
 		Functions\when( 'get_user_meta' )->alias(
-			static function ( $uid, $key, $single ) use ( $future, $token ) {
+			static function ( $uid, $key, $single ) use ( $future, $record ) {
 				if ( Sudo_Session::META_KEY === $key ) {
 					return $future;
 				}
-				if ( Sudo_Session::TOKEN_META_KEY === $key ) {
-					return hash( 'sha256', $token );
+				if ( Sudo_Session::PROOF_META_KEY === $key ) {
+					return $record;
 				}
-				return ''; // SESSION_BIND_META_KEY → empty.
+				return '';
 			}
 		);
 
@@ -145,7 +145,8 @@ class ActionGatingCompletenessTest extends TestCase {
 	}
 
 	/**
-	 * set_token() records the login-session bind when a session token resolves.
+	 * set_token() binds the proof to the login session via the HMAC over the raw
+	 * verifier when a session token resolves.
 	 */
 	public function test_set_token_stores_login_session_bind_when_token_present(): void {
 		Functions\when( 'get_option' )->justReturn( array() );
@@ -162,36 +163,56 @@ class ActionGatingCompletenessTest extends TestCase {
 			}
 		);
 
-		$this->invoke_set_token( 1 );
+		$expires = time() + 300;
+		$this->invoke_set_token( 1, $expires );
 
 		$this->assertContains(
-			array( 1, Sudo_Session::SESSION_BIND_META_KEY, hash( 'sha256', 'login-session-1' ) ),
+			array( 1, Sudo_Session::PROOF_META_KEY, $this->make_proof_record( 1, 'sudo-token', $expires, 'login-session-1' ) ),
 			$writes
 		);
 	}
 
 	/**
-	 * set_token() clears any stale bind when no login-session token resolves
-	 * (cookie-less surfaces), so the empty-bind skip path applies cleanly.
+	 * set_token() on a cookie-less surface (no login-session token) writes a proof
+	 * whose HMAC binds to the empty verifier, and clears the legacy pre-4.9.0 bind
+	 * row so upgraded sites are cleaned up.
 	 */
 	public function test_set_token_clears_bind_when_no_session_token(): void {
 		Functions\when( 'get_option' )->justReturn( array() );
 		Functions\when( 'wp_generate_password' )->justReturn( 'sudo-token' );
 		Functions\when( 'headers_sent' )->justReturn( true );
 		Functions\when( 'wp_get_session_token' )->justReturn( '' );
-		Functions\when( 'update_user_meta' )->justReturn( true );
 
-		Functions\expect( 'delete_user_meta' )
-			->once()
-			->with( 1, Sudo_Session::SESSION_BIND_META_KEY );
+		$writes = array();
+		Functions\when( 'update_user_meta' )->alias(
+			static function ( $uid, $key, $value ) use ( &$writes ) {
+				$writes[] = array( $uid, $key, $value );
+				return true;
+			}
+		);
 
-		$this->invoke_set_token( 1 );
+		$deleted = array();
+		Functions\when( 'delete_user_meta' )->alias(
+			static function ( $uid, $key ) use ( &$deleted ) {
+				$deleted[] = array( $uid, $key );
+				return true;
+			}
+		);
+
+		$expires = time() + 300;
+		$this->invoke_set_token( 1, $expires );
+
+		$this->assertContains(
+			array( 1, Sudo_Session::PROOF_META_KEY, $this->make_proof_record( 1, 'sudo-token', $expires, '' ) ),
+			$writes
+		);
+		$this->assertContains( array( 1, Sudo_Session::SESSION_BIND_META_KEY ), $deleted );
 	}
 
 	/**
 	 * A pending login-session token (captured at set_logged_in_cookie time)
 	 * takes precedence over wp_get_session_token(), which returns empty during
-	 * the login request before $_COOKIE is populated.
+	 * the login request before $_COOKIE is populated — the proof HMAC binds to it.
 	 */
 	public function test_pending_login_token_is_used_when_session_token_empty(): void {
 		Functions\when( 'get_option' )->justReturn( array() );
@@ -208,11 +229,12 @@ class ActionGatingCompletenessTest extends TestCase {
 			}
 		);
 
+		$expires = time() + 300;
 		Sudo_Session::set_pending_login_token( 'grant-session' );
-		$this->invoke_set_token( 1 );
+		$this->invoke_set_token( 1, $expires );
 
 		$this->assertContains(
-			array( 1, Sudo_Session::SESSION_BIND_META_KEY, hash( 'sha256', 'grant-session' ) ),
+			array( 1, Sudo_Session::PROOF_META_KEY, $this->make_proof_record( 1, 'sudo-token', $expires, 'grant-session' ) ),
 			$writes
 		);
 	}
@@ -279,11 +301,12 @@ class ActionGatingCompletenessTest extends TestCase {
 			}
 		);
 
+		$expires = time() + 300;
 		( new Plugin() )->capture_login_session_token( 'cookie', 0, 0, 12, 'logged_in', 'captured-session' );
-		$this->invoke_set_token( 12 );
+		$this->invoke_set_token( 12, $expires );
 
 		$this->assertContains(
-			array( 12, Sudo_Session::SESSION_BIND_META_KEY, hash( 'sha256', 'captured-session' ) ),
+			array( 12, Sudo_Session::PROOF_META_KEY, $this->make_proof_record( 12, 'sudo-token', $expires, 'captured-session' ) ),
 			$writes
 		);
 	}
@@ -368,16 +391,17 @@ class ActionGatingCompletenessTest extends TestCase {
 	public function test_backstop_allows_delete_user_with_active_sudo(): void {
 		$future = time() + 300;
 		$token  = 'valid-token';
+		$record = $this->make_proof_record( 1, $token, $future, 'session-A' );
 
 		Functions\when( 'get_current_user_id' )->justReturn( 1 );
 		Functions\when( 'wp_get_session_token' )->justReturn( 'session-A' );
 		Functions\when( 'get_user_meta' )->alias(
-			static function ( $uid, $key, $single ) use ( $future, $token ) {
+			static function ( $uid, $key, $single ) use ( $future, $record ) {
 				if ( Sudo_Session::META_KEY === $key ) {
 					return $future;
 				}
-				if ( Sudo_Session::TOKEN_META_KEY === $key ) {
-					return hash( 'sha256', $token );
+				if ( Sudo_Session::PROOF_META_KEY === $key ) {
+					return $record;
 				}
 				return '';
 			}
@@ -614,19 +638,20 @@ class ActionGatingCompletenessTest extends TestCase {
 	public function test_is_active_rejects_when_bind_present_but_session_token_empty(): void {
 		$future = time() + 300;
 		$token  = 'valid-token';
+		// Proof signed for a real login session ('session-A')...
+		$record = $this->make_proof_record( 1, $token, $future, 'session-A' );
 
 		Functions\when( 'get_current_user_id' )->justReturn( 1 );
-		Functions\when( 'wp_get_session_token' )->justReturn( '' ); // No current login session.
+		// ...but the current request has no login session (destroyed/cookie-less),
+		// so the recomputed HMAC (over '') no longer matches.
+		Functions\when( 'wp_get_session_token' )->justReturn( '' );
 		Functions\when( 'get_user_meta' )->alias(
-			static function ( $uid, $key, $single ) use ( $future, $token ) {
+			static function ( $uid, $key, $single ) use ( $future, $record ) {
 				if ( Sudo_Session::META_KEY === $key ) {
 					return $future;
 				}
-				if ( Sudo_Session::TOKEN_META_KEY === $key ) {
-					return hash( 'sha256', $token );
-				}
-				if ( Sudo_Session::SESSION_BIND_META_KEY === $key ) {
-					return hash( 'sha256', 'session-A' );
+				if ( Sudo_Session::PROOF_META_KEY === $key ) {
+					return $record;
 				}
 				return '';
 			}
@@ -661,10 +686,13 @@ class ActionGatingCompletenessTest extends TestCase {
 	 * @param int $user_id User ID.
 	 * @return void
 	 */
-	private function invoke_set_token( int $user_id ): void {
+	private function invoke_set_token( int $user_id, int $expires = 0 ): void {
+		if ( 0 === $expires ) {
+			$expires = time() + 300;
+		}
 		$method = new \ReflectionMethod( Sudo_Session::class, 'set_token' );
 		@$method->setAccessible( true ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
-		$method->invoke( null, $user_id );
+		$method->invoke( null, $user_id, $expires );
 	}
 
 	/**

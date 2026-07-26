@@ -141,8 +141,9 @@ function wp_sudo_cleanup_mu_shim(): void {
  */
 function wp_sudo_cleanup_user_meta(): void {
 	delete_metadata( 'user', 0, '_wp_sudo_expires', '', true );
-	delete_metadata( 'user', 0, '_wp_sudo_token', '', true );
-	delete_metadata( 'user', 0, '_wp_sudo_session_bind', '', true );
+	delete_metadata( 'user', 0, '_wp_sudo_proof', '', true );
+	delete_metadata( 'user', 0, '_wp_sudo_token', '', true ); // Legacy pre-4.9.0.
+	delete_metadata( 'user', 0, '_wp_sudo_session_bind', '', true ); // Legacy pre-4.9.0.
 	delete_metadata( 'user', 0, '_wp_sudo_failed_attempts', '', true );
 	delete_metadata( 'user', 0, '_wp_sudo_failure_event', '', true );
 	delete_metadata( 'user', 0, '_wp_sudo_throttle_until', '', true );

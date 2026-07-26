@@ -134,8 +134,8 @@ class AdminBarTest extends TestCase {
 			if ( Sudo_Session::META_KEY === $key ) {
 				return $future;
 			}
-			if ( Sudo_Session::TOKEN_META_KEY === $key ) {
-				return hash( 'sha256', $token );
+			if ( Sudo_Session::PROOF_META_KEY === $key ) {
+				return $this->make_proof_record( (int) $uid, $token, $future );
 			}
 			return '';
 		} );
@@ -197,8 +197,8 @@ class AdminBarTest extends TestCase {
 				if ( Sudo_Session::META_KEY === $key ) {
 					return $future;
 				}
-				if ( Sudo_Session::TOKEN_META_KEY === $key ) {
-					return hash( 'sha256', $token );
+				if ( Sudo_Session::PROOF_META_KEY === $key ) {
+					return $this->make_proof_record( (int) $uid, $token, $future );
 				}
 				return '';
 			}
@@ -341,8 +341,8 @@ class AdminBarTest extends TestCase {
 			if ( Sudo_Session::META_KEY === $key ) {
 				return $future;
 			}
-			if ( Sudo_Session::TOKEN_META_KEY === $key ) {
-				return hash( 'sha256', $token );
+			if ( Sudo_Session::PROOF_META_KEY === $key ) {
+				return $this->make_proof_record( (int) $uid, $token, $future );
 			}
 			return '';
 		} );
