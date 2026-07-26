@@ -1,5 +1,85 @@
 # Session handoff — 2026-07-26 (core-gate reconciliation + doc consolidation)
 
+## ⇢⇢⇢ RESUME HERE (updated 2026-07-26 late — plugin security lane CLOSED: #278/#279/#280)
+
+**Scope of this block: the plugin lane only.** It closes out the "Plugin lane (parallel,
+user launches separate sessions)" line in the core-gate block below — that lane is now
+**done**, so ignore its kickoff instructions. Everything else in the blocks below
+(core-gate, #322, process/CI) is untouched by this session and still current.
+
+**Merged, and all three issues closed:**
+
+| PR | Issue | What landed |
+|---|---|---|
+| **#348** | #278, #279 | Forge-resistant, **per-login-session** sudo proof. `_wp_sudo_proofs` is a map keyed by `sha256(verifier)`, entries `{token, expires, hmac}`, HMAC over `"$user_id\|$verifier\|$token\|$expires"` with `wp_salt('auth')`, read **cache-bypassed** on enforcement. Subsumes the old `_wp_sudo_session_bind`. `_wp_sudo_expires` demoted to a liveness/enumeration marker that no longer decides enforcement. Concurrent browsers now hold independent sudo sessions. |
+| **#343** | #280 | `wp sudo unlock --user=<id\|login>`, plus the mechanism that makes it actually clear the **whole** episode (below). |
+
+**The #280 mechanism, because it is non-obvious and easy to "simplify" wrongly.** A
+lockout fires on `max(user_attempts, ip_attempts)`, but the stored pointers name only the
+IP that submitted the *threshold* attempt — so 4 failures from IP A then the 5th from B
+left A's rolling window intact and A re-locked on the next wrong password. `delete_transient()`
+is also per-blog while user meta is network-global, so a lockout raised on subsite A could
+not be cleared from B. Both are closed by a per-user **failure epoch**
+(`_wp_sudo_ip_failure_epoch`) folded into both IP transient-key builders: one bump orphans
+every key derived from the old value, across every IP and every blog, and orphans die on
+their own TTL. **Epoch 0 omits the segment entirely, so keys are byte-identical to the
+pre-epoch scheme — no migration.** A design review rejected the obvious alternative (a
+roster of every IP touched): the serialized read-modify-write reintroduces a lost-update
+race, and pruning a *sliding* 24 h window by first-seen can drop a still-live entry. Key
+versioning has neither hazard — a doubled increment is harmless.
+
+**Follow-ups filed from review** (verified real, deliberately out of scope):
+- **#354 (open)** — Site Health `find_stale_sessions()` classifies from the *cached*
+  `_wp_sudo_expires` and then deletes `PROOF_META_KEY`, so the same failed-invalidation
+  scenario #278 exists to tolerate can delete every live proof for a user. Fail-closed, but
+  an availability bug.
+- **#355 (open)** — `Sudo_Session::activate()` called before the logged-in cookie exists
+  (SSO / programmatic login) stores the proof under `sha256('')` and returns success; the
+  next request looks under the real verifier and the grant is silently unusable. Relevant to
+  the passwordless-SSO fallback in `docs/FAQ.md`.
+- **#356 (closed)** — uninstall left the IP-scoped transients behind. Fixed in-flight by a
+  concurrent session inside #343 (prefix `DELETE` on `wp_options`, since the keys are hashed
+  and cannot be enumerated for a `delete_transient()` loop).
+- **Running in a separate session:** `bin/verify-sources.sh` walks the working tree rather
+  than tracked files, so a local (gitignored) `reviewer-approved` flag containing an upstream
+  URL fails `composer verify:sources` while CI passes. Not yet an issue/PR.
+
+**Traps this session hit — read before merging `main` into any open branch:**
+
+1. **The CHANGELOG conflict silently reverts #332's citation migration.** It happened on
+   *both* branches: resolving in favour of the branch's older copy of the #288 in-editor entry
+   swapped `GB-PRESSED-FILL` / `GB-ICON-SWAP` / `GB-SELECTED-ICON` / `GB-NO-TOOLTIP` back to
+   duplicated Gutenberg paths and snippets. Both were caught by review, not by CI —
+   `verify:sources` only *warns* on `CHANGELOG.md` (grandfathered). **Resolve the Unreleased
+   list additively and then `grep -o "GB-[A-Z-]*" CHANGELOG.md` to confirm nothing was lost.**
+2. **`uninstall.php` can only be `require`d once per PHP process.** The two existing require
+   sites never collide because one is single-site and the other multisite. A *second*
+   single-site integration test that requires it fatals with "Cannot redeclare
+   `wp_sudo_cleanup_governance_caps()`". Fold new uninstall assertions into
+   `test_single_site_uninstall_cleans_all_data` rather than adding a test — `@runInSeparateProcess`
+   re-bootstraps WordPress, and `function_exists()` guards in `uninstall.php` would be a
+   production test-shim, which `CLAUDE.md` forbids.
+3. **`composer verify:i18n` now runs in CI** (Code Quality job, first wired in #332) and the
+   POT carries **line references**, so any edit that shifts lines in a file with translatable
+   strings makes it stale. Regenerate with `composer i18n:make-pot` — check `wp --version`
+   reports **WP-CLI 2.12.0**, matching the pin in `phpunit.yml`, or the output will not match CI.
+4. **A `PHPUnit` red is often a cascade.** It is a summary job; when Code Quality fails
+   (i18n, lint, static analysis), PHPUnit reports `dependency did not succeed`. Read the
+   Code Quality log first.
+5. **Branches here can be shared.** Another session pushed to `fix/280-lockout-clear` while
+   this one was working it. **Merge their commits, never force-push** — and re-run the gates
+   after, since their new integration test arrived red.
+
+**Release-state note:** `main` is still `4.8.0` at all five version-sync points, but the
+4.9.0 proof format is already named in code docblocks and `docs/security-model.md`.
+**PR #364 (blocked)** does the bump and records the lanes — land it before anything reads the
+version as authoritative. Counts (tests, LOC, hooks) move constantly; `docs/current-metrics.md`
+is the source of truth and `composer verify:metrics` is the gate.
+
+Main is at `3ebd2e6`.
+
+---
+
 ## ⇢⇢ RESUME HERE (updated 2026-07-27 — design-review panel + decisions + #322 lane)
 
 **This block supersedes the older "⇢ RESUME HERE" below.** In particular it **overrides that block's #322 mitigation** ("add a `replay_mode: none` … method-independent"): the six-model panel proved a per-class `replay_mode` denylist **fails open** and misses GET replay — see the decided fix below.
@@ -31,11 +111,11 @@
   5. Full `composer test` + `analyse` + `lint`; pre-commit reviewer agent; open the #322 PR (green commit on top of `6093f05`).
 - **Coupling correction:** #322 does **NOT** share #279's key — the clone shares the login-session verifier, so #322's later origin-binding needs a *pre-challenge browser-instance secret*, distinct machinery. They can proceed independently.
 
-**Plugin lane (parallel, user launches separate sessions):** kickoff prompts drafted this session (in chat) — **Session 1 = #278 then #279** (same `class-sudo-session.php` token machinery, sequential, two PRs), **Session 2 = #280** (independent lockout clear + `wp sudo unlock` WP-CLI). Each: own worktree, Pre-Impl Design Review + TDD + pre-commit reviewer.
+**Plugin lane (parallel, user launches separate sessions):** ~~kickoff prompts drafted this session (in chat) — **Session 1 = #278 then #279**, **Session 2 = #280**.~~ **DONE — see the newest RESUME block at the top of this file.** #278/#279 shipped as #348, #280 as #343; all three issues closed. Follow-ups #354/#355 remain open.
 
 ---
 
-Main is at `2c3b16c`. A fresh session can resume from here alone. (Earlier session detail is in "Done this session" further down; the **Latest** section below has the core-gate design-review record.)
+Main was at `2c3b16c` when this block was written (it is `3ebd2e6` now — see the newest block at the top). A fresh session picking up the core-gate lane can resume from here alone. (Earlier session detail is in "Done this session" further down; the **Latest** section below has the core-gate design-review record.)
 
 ## ⇢ RESUME HERE — process/CI hygiene + editor-UX lane (2026-07-26)
 
