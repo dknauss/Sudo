@@ -864,10 +864,12 @@ using them would fail silently or throw errors.
 44. FALSE SUMMARY OF THE SESSION'S OWN WORK — "all to prose, none to code"
    Files:  AGENTS.md (Prose Discipline, opening paragraph).
    Claim:  "PR #317 alone needed three rounds of corrections, all to prose, none to code."
-   Reality: Seven non-merge follow-up commits, not three. And 7292448 was a behaviour
-           change: +195/-38 across CSS, JS and E2E specs, adding a new rendering path
-           (the active chip returning under core's icon-labels preference) plus
-           INDICATOR-09.
+   Reality: The falsifiable half is "none to code": 7292448 was a behaviour change —
+           +195/-38 across CSS, JS and E2E specs, adding a new rendering path (the active
+           chip returning under core's icon-labels preference) plus INDICATOR-09. The
+           "three rounds" half is NOT refuted by the seven non-merge follow-up commits,
+           since one review round can produce several commits; git cannot settle a round
+           count, so the original claim was unfalsifiable rather than false.
    Source:  `git log` on the #317 branch; the diffstat of 7292448. Verified 2026-07-26.
    Notes:  Written by the same agent that had authored 7292448 an hour earlier. Recent
            first-hand memory was treated as a source in place of `git log`, and "all"
@@ -896,7 +898,9 @@ using them would fail silently or throw errors.
    Claim:  Two comments directed the reader to a `glyphFor()` helper.
    Reality: No such function. The icon selection is an inline if/else chain inside
            `IndicatorPanel`; the real helper is `sessionState()`.
-   Source:  The file itself proves `glyphFor()` never existed. That two comments once
+   Source:  The committed file shows no `glyphFor()` in any revision reachable from the
+           branch — which is not the same as proving it never existed, since the state
+           in question was never committed. That two comments once
            referred to it is NOT verifiable from git — the fix was applied to staged,
            uncommitted work, so no commit contains the original text; the evidence is
            the session transcript alone. Recorded as unverifiable rather than sourced,
@@ -921,8 +925,11 @@ using them would fail silently or throw errors.
 
 48. SCOPE WORD IN A REGISTRY CLAIM — "core's only background change"
    Files:  Shipped to `main` in #317 — CHANGELOG.md, admin/css/wp-sudo-editor-indicator.css,
-           admin/js/wp-sudo-session-indicator.js, tests/e2e/specs/editor-session-indicator.spec.ts
-           — and repeated in docs/upstream-sources.md, GB-PRESSED-FILL row (#332).
+           admin/js/wp-sudo-session-indicator.js, tests/e2e/specs/editor-session-indicator.spec.ts,
+           and .planning/288-editor-padlock-indicator-design-brief.md (L74-76) — plus
+           docs/upstream-sources.md, GB-PRESSED-FILL row (#332). Five copies on `main`,
+           found across THREE successive sweeps: the registry row, then four files, then
+           the brief. Each sweep believed it was complete.
    Claim:  "Core's only background change on a pinned-item button is a neutral pressed
            fill."
    Reality: The cited snippet establishes that the pressed fill exists, not that it is
