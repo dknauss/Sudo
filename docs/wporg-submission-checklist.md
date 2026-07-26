@@ -2,7 +2,18 @@
 
 A repeatable checklist for preparing and submitting **Sudo** to the WordPress.org
 plugin directory. This document **describes the process — it does not perform the
-submission.** Submission is intentionally delayed/on hold, but this checklist should stay ready to execute at any time. Run the pre-tag/core release gates before any public release tag, and run the WordPress.org-only gates only when the maintainer explicitly approves publication.
+submission.**
+
+> **Status: WordPress.org submission is not planned** (maintainer decision; see
+> *WordPress.org publication status* in [`release-status.md`](release-status.md) for
+> the dated record). This is **not** a delay awaiting approval, and the repository
+> carries no obligation to stay "submission-ready". Nothing in §2 is a live gate.
+>
+> This document is retained as **reference**: if the decision is ever revisited, the
+> process is written down rather than rediscovered.
+>
+> **§1 still applies.** Those gates protect the GitHub tag and the release ZIP, and
+> are required before any public release tag regardless of where it is distributed.
 
 > Canonical release-state source: [`docs/release-status.md`](release-status.md).
 > Canonical counts source: [`docs/current-metrics.md`](current-metrics.md).
@@ -86,7 +97,7 @@ These gates protect the GitHub/package release itself. They are required before 
 
 ## 2. WordPress.org-only submission/upload gates
 
-These gates are required only when publication is explicitly approved. WordPress.org publication remains delayed/on hold until that approval exists; do not perform SVN upload, asset upload, or final submission as part of ordinary release-readiness work.
+**None of these are live gates.** WordPress.org submission is not planned (see the status note at the top of this file), so nothing in this section gates a release today. It applies only if that decision is reversed and publication is explicitly approved. Do not perform SVN upload, asset upload, or final submission as part of ordinary release-readiness work.
 
 ### 2.1 Validation specific to the directory
 
@@ -97,8 +108,11 @@ These gates are required only when publication is explicitly approved. WordPress
   `License`, `License URI`).
 - [ ] **Plugin Check (PCP) green against a clean production package** — run the
   official Plugin Check plugin against the package/SVN candidate, not a dirty dev
-  tree. The repo's `plugin-check` CI lane does this via `wp-env`. No
-  `stable_tag_mismatch`, no `plugin_name_mismatch`, no errors.
+  tree. The repo's `plugin-check` CI lane does this via `wp-env`, but that lane is
+  **not** among `main`'s required status checks — Plugin Check is otherwise used
+  only for occasional local testing, and a finding there does not block a release.
+  Were publication ever approved: no `stable_tag_mismatch`, no
+  `plugin_name_mismatch`, no errors.
 
 ### 2.2 Listing asset requirements
 

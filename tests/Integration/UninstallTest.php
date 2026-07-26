@@ -125,11 +125,28 @@ class UninstallTest extends TestCase {
 		add_user_meta( $user->ID, '_wp_sudo_failure_event', time() );
 		update_user_meta( $user->ID, '_wp_sudo_throttle_until', time() + 30 );
 
+		// Seed the IP-transient lockout pointers (#280) — normally written by
+		// record_failed_attempt() alongside a real lockout; seeded directly
+		// here since this test's uninstall exercise does not itself trigger one.
+		update_user_meta( $user->ID, Sudo_Session::LOCKOUT_IP_TRANSIENT_META_KEY, 'wp_sudo_ip_lockout_until_test' );
+		update_user_meta( $user->ID, Sudo_Session::LOCKOUT_IP_FAILURE_TRANSIENT_META_KEY, 'wp_sudo_ip_failure_event_test' );
+
+		// Seed the IP-failure epoch (#280) — written by clear_reauth_lockout().
+		update_user_meta( $user->ID, Sudo_Session::IP_FAILURE_EPOCH_META_KEY, 3 );
+
 		// Verify the data exists before uninstall.
 		$this->assertNotEmpty( get_user_meta( $user->ID, '_wp_sudo_expires', true ), 'Expiry meta should exist before uninstall.' );
 		$this->assertNotEmpty( get_user_meta( $user->ID, '_wp_sudo_proofs', true ), 'Proof meta should exist before uninstall.' );
 		$this->assertNotEmpty( get_user_meta( $user->ID, '_wp_sudo_failure_event', false ), 'Failure event meta should exist before uninstall.' );
 		$this->assertNotEmpty( get_user_meta( $user->ID, '_wp_sudo_throttle_until', true ), 'Throttle meta should exist before uninstall.' );
+		$this->assertNotEmpty(
+			get_user_meta( $user->ID, Sudo_Session::LOCKOUT_IP_TRANSIENT_META_KEY, true ),
+			'IP-lockout-transient pointer meta should exist before uninstall.'
+		);
+		$this->assertNotEmpty(
+			get_user_meta( $user->ID, Sudo_Session::LOCKOUT_IP_FAILURE_TRANSIENT_META_KEY, true ),
+			'IP-failure-transient pointer meta should exist before uninstall.'
+		);
 
 		// Set an option so we can verify deletion.
 		update_option( 'wp_sudo_settings', array( 'session_duration' => 5 ) );
@@ -151,12 +168,54 @@ class UninstallTest extends TestCase {
 
 		$this->assertTrue( $this->ensure_events_table(), 'Events table should exist before uninstall.' );
 
+
+		// Seed two realistic IP-scoped rate-limit transients (#280). These live
+		// outside user meta and outside the pointer scheme — an explicit unlock
+		// ORPHANS them (by bumping the epoch that versions their keys) rather
+		// than deleting them, so without a sweep an uninstall + reinstall inside
+		// their TTL, with the epoch meta wiped back to its identity value 0,
+		// would derive these exact keys again and revive a cleared failure
+		// count. Seeded directly because Sudo_Session has no public writer, and
+		// asserted against raw wp_options rows rather than get_transient(),
+		// which also returns false once naturally expired and so cannot tell
+		// "swept" from "not yet checked".
+		global $wpdb;
+
+		$wp_sudo_key_material = '203.0.113.77|321';
+		$wp_sudo_failure_key  = 'wp_sudo_ip_failure_event_' . hash( 'sha256', $wp_sudo_key_material );
+		$wp_sudo_lockout_key  = 'wp_sudo_ip_lockout_until_' . hash( 'sha256', $wp_sudo_key_material );
+
+		set_transient( $wp_sudo_failure_key, array( time() - 10, time() - 5 ), DAY_IN_SECONDS );
+		set_transient( $wp_sudo_lockout_key, time() + 300, 300 );
+
+		$wp_sudo_transient_options = array(
+			'_transient_' . $wp_sudo_failure_key,
+			'_transient_timeout_' . $wp_sudo_failure_key,
+			'_transient_' . $wp_sudo_lockout_key,
+			'_transient_timeout_' . $wp_sudo_lockout_key,
+		);
+
+		foreach ( $wp_sudo_transient_options as $wp_sudo_option_name ) {
+			$this->assertNotNull(
+				$wpdb->get_var( $wpdb->prepare( "SELECT option_id FROM {$wpdb->options} WHERE option_name = %s", $wp_sudo_option_name ) ), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $wpdb->options is a safe core-provided identifier.
+				"Precondition: {$wp_sudo_option_name} should exist in wp_options before uninstall."
+			);
+		}
+
 		// Act: run uninstall.
 		if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
 			define( 'WP_UNINSTALL_PLUGIN', 'wp-sudo/wp-sudo.php' );
 		}
 		$this->assertTrue( \WP_Sudo\Uninstall_Guard::is_authorized(), 'Uninstall must be authorized before loading uninstall.php — it exits the process otherwise.' );
 		require dirname( __DIR__, 2 ) . '/uninstall.php';
+
+		// Assert: the IP-scoped rate-limit transients are swept from wp_options (#280).
+		foreach ( $wp_sudo_transient_options as $wp_sudo_option_name ) {
+			$this->assertNull(
+				$wpdb->get_var( $wpdb->prepare( "SELECT option_id FROM {$wpdb->options} WHERE option_name = %s", $wp_sudo_option_name ) ), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $wpdb->options is a safe core-provided identifier.
+				"{$wp_sudo_option_name} should be swept from wp_options on uninstall (#280)."
+			);
+		}
 
 		// Assert: options are removed.
 		$this->assertFalse( get_option( 'wp_sudo_settings' ), 'wp_sudo_settings should be deleted.' );
@@ -181,6 +240,18 @@ class UninstallTest extends TestCase {
 		$this->assertEmpty( get_user_meta( $user->ID, '_wp_sudo_failure_event', false ), 'Failure event meta should be deleted.' );
 		$this->assertEmpty( get_user_meta( $user->ID, '_wp_sudo_throttle_until', true ), 'Throttle meta should be deleted.' );
 		$this->assertEmpty( get_user_meta( $user->ID, '_wp_sudo_lockout_until', true ), 'Lockout meta should be deleted.' );
+		$this->assertEmpty(
+			get_user_meta( $user->ID, Sudo_Session::LOCKOUT_IP_TRANSIENT_META_KEY, true ),
+			'IP-lockout-transient pointer meta should be deleted (#280).'
+		);
+		$this->assertEmpty(
+			get_user_meta( $user->ID, Sudo_Session::LOCKOUT_IP_FAILURE_TRANSIENT_META_KEY, true ),
+			'IP-failure-transient pointer meta should be deleted (#280).'
+		);
+		$this->assertEmpty(
+			get_user_meta( $user->ID, Sudo_Session::IP_FAILURE_EPOCH_META_KEY, true ),
+			'IP-failure epoch meta should be deleted (#280).'
+		);
 
 		// Assert: unfiltered_html restored to editors.
 		$editor = get_role( 'editor' );
@@ -218,6 +289,14 @@ class UninstallTest extends TestCase {
 		add_user_meta( $user->ID, '_wp_sudo_failure_event', time() );
 		update_user_meta( $user->ID, '_wp_sudo_throttle_until', time() + 30 );
 
+		// Seed the IP-transient lockout pointers (#280) — see the single-site
+		// test above for why these are seeded directly rather than triggered.
+		update_user_meta( $user->ID, Sudo_Session::LOCKOUT_IP_TRANSIENT_META_KEY, 'wp_sudo_ip_lockout_until_test' );
+		update_user_meta( $user->ID, Sudo_Session::LOCKOUT_IP_FAILURE_TRANSIENT_META_KEY, 'wp_sudo_ip_failure_event_test' );
+
+		// Seed the IP-failure epoch (#280) — written by clear_reauth_lockout().
+		update_user_meta( $user->ID, Sudo_Session::IP_FAILURE_EPOCH_META_KEY, 3 );
+
 		// Verify meta exists.
 		$this->assertNotEmpty( get_user_meta( $user->ID, '_wp_sudo_expires', true ), 'Expiry meta should exist before uninstall.' );
 		$this->assertNotEmpty( get_user_meta( $user->ID, '_wp_sudo_proofs', true ), 'Proof meta should exist before uninstall.' );
@@ -250,6 +329,18 @@ class UninstallTest extends TestCase {
 		$this->assertEmpty( get_user_meta( $user->ID, '_wp_sudo_failure_event', false ), 'Failure event meta should be deleted on multisite.' );
 		$this->assertEmpty( get_user_meta( $user->ID, '_wp_sudo_throttle_until', true ), 'Throttle meta should be deleted on multisite.' );
 		$this->assertEmpty( get_user_meta( $user->ID, '_wp_sudo_lockout_until', true ), 'Lockout meta should be deleted on multisite.' );
+		$this->assertEmpty(
+			get_user_meta( $user->ID, Sudo_Session::LOCKOUT_IP_TRANSIENT_META_KEY, true ),
+			'IP-lockout-transient pointer meta should be deleted on multisite (#280).'
+		);
+		$this->assertEmpty(
+			get_user_meta( $user->ID, Sudo_Session::LOCKOUT_IP_FAILURE_TRANSIENT_META_KEY, true ),
+			'IP-failure-transient pointer meta should be deleted on multisite (#280).'
+		);
+		$this->assertEmpty(
+			get_user_meta( $user->ID, Sudo_Session::IP_FAILURE_EPOCH_META_KEY, true ),
+			'IP-failure epoch meta should be deleted on multisite (#280).'
+		);
 
 		// Assert: network options are cleaned.
 		$this->assertFalse( get_site_option( 'wp_sudo_settings' ), 'Network settings option should be deleted.' );

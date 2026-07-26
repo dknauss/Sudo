@@ -791,6 +791,7 @@ class SudoSessionTest extends TestCase
 		Functions\when('setcookie')->justReturn(true);
 		Functions\when('get_user_meta')->justReturn('');
 		Functions\when('delete_user_meta')->justReturn(true);
+		Functions\when('get_user_meta')->justReturn(''); // reset_failed_attempts() IP-pointer lookup (#280).
 
 		Functions\expect('update_user_meta')
 			->twice(); // Liveness scalar + proof map.
@@ -814,6 +815,7 @@ class SudoSessionTest extends TestCase
 		Functions\when('get_user_meta')->justReturn('');
 		Functions\when('update_user_meta')->justReturn(true);
 		Functions\when('delete_user_meta')->justReturn(true);
+		Functions\when('get_user_meta')->justReturn(''); // reset_failed_attempts() IP-pointer lookup (#280).
 
 		Sudo_Session::activate(3);
 
@@ -827,6 +829,7 @@ class SudoSessionTest extends TestCase
 		Functions\when('headers_sent')->justReturn(true);
 		Functions\when('get_user_meta')->justReturn('');
 		Functions\when('delete_user_meta')->justReturn(true);
+		Functions\when('get_user_meta')->justReturn(''); // reset_failed_attempts() IP-pointer lookup (#280).
 
 		Functions\expect('setcookie')->never();
 		Functions\expect('update_user_meta')->twice();
@@ -1913,6 +1916,15 @@ class SudoSessionTest extends TestCase
 			->once()
 			->with( 1, Sudo_Session::LOCKOUT_UNTIL_META_KEY, \Mockery::type( 'int' ) );
 
+		// Lockout also stores pointers to the two IP-scoped transients it set,
+		// so an out-of-band clear (#280) can find and clear them later.
+		Functions\expect( 'update_user_meta' )
+			->once()
+			->with( 1, Sudo_Session::LOCKOUT_IP_TRANSIENT_META_KEY, \Mockery::type( 'string' ) );
+		Functions\expect( 'update_user_meta' )
+			->once()
+			->with( 1, Sudo_Session::LOCKOUT_IP_FAILURE_TRANSIENT_META_KEY, \Mockery::type( 'string' ) );
+
 		Actions\expectDone( 'wp_sudo_lockout' )
 			->once()
 			->with( 1, 5, \Mockery::type( 'string' ) );
@@ -1934,7 +1946,7 @@ class SudoSessionTest extends TestCase
 		Functions\when( 'get_option' )->justReturn( array() );
 
 		// reset_failed_attempts deletes: legacy lockout + lockout_until + failure_event + throttle (4).
-		// set_token() also clears the two legacy pre-4.9.0 proof keys (TOKEN + BIND) (+2).
+		// set_token() also clears the two legacy pre-5.0.0 proof keys (TOKEN + BIND) (+2).
 		Functions\expect( 'delete_user_meta' )->times( 6 );
 
 		Sudo_Session::activate( 1 );
@@ -2226,6 +2238,8 @@ class SudoSessionTest extends TestCase
 	{
 		$_SERVER['REMOTE_ADDR'] = '203.0.113.50';
 
+		// The transient key builder reads the failure epoch (#280).
+		Functions\when('get_user_meta')->justReturn('');
 		Functions\when('get_transient')->alias(
 			static function () {
 				throw new \RuntimeException('cache down');
@@ -2268,6 +2282,15 @@ class SudoSessionTest extends TestCase
 			->with(1, Sudo_Session::LOCKOUT_UNTIL_META_KEY, \Mockery::type('int'))
 			->andReturn(true);
 
+		Functions\expect('update_user_meta')
+			->once()
+			->with(1, Sudo_Session::LOCKOUT_IP_TRANSIENT_META_KEY, \Mockery::type('string'))
+			->andReturn(true);
+		Functions\expect('update_user_meta')
+			->once()
+			->with(1, Sudo_Session::LOCKOUT_IP_FAILURE_TRANSIENT_META_KEY, \Mockery::type('string'))
+			->andReturn(true);
+
 		Actions\expectDone('wp_sudo_lockout')
 			->once()
 			->with(1, 5, '198.51.100.11');
@@ -2275,6 +2298,459 @@ class SudoSessionTest extends TestCase
 		$delay = Sudo_Session::record_failed_attempt(1);
 
 		$this->assertSame(0, $delay);
+	}
+
+	// =================================================================
+	// Out-of-band lockout clear (#280) — IP-transient pointers +
+	// has_unexpired_lockout()
+	// =================================================================
+
+	public function test_lockout_ip_pointer_constants(): void
+	{
+		$this->assertSame('_wp_sudo_lockout_ip_transient', Sudo_Session::LOCKOUT_IP_TRANSIENT_META_KEY);
+		$this->assertSame('_wp_sudo_lockout_ip_failure_transient', Sudo_Session::LOCKOUT_IP_FAILURE_TRANSIENT_META_KEY);
+	}
+
+	/**
+	 * When a lockout triggers, record_failed_attempt() must remember pointers
+	 * to BOTH IP-scoped transients it just wrote — the lockout-until transient
+	 * AND the rolling 24h failure-event transient — so an out-of-band clear
+	 * (WP-CLI `wp sudo unlock`, #280) can fully undo this lockout episode, not
+	 * just the user-meta half. Without the failure-event pointer, the very
+	 * next wrong password from the same IP would immediately re-trigger a
+	 * fresh lockout (the rolling window still shows >= MAX_FAILED_ATTEMPTS).
+	 */
+	public function test_record_failed_attempt_stores_ip_transient_pointers_on_lockout(): void
+	{
+		$_SERVER['REMOTE_ADDR'] = '198.51.100.77';
+
+		Functions\when('get_user_meta')->alias(
+			static function ($uid, $key, $single = true) {
+				if (Sudo_Session::FAILURE_EVENT_META_KEY === $key && !$single) {
+					return array_fill(0, 4, time() - 1);
+				}
+				return '';
+			}
+		);
+		Functions\when('add_user_meta')->justReturn(true);
+		Functions\when('delete_user_meta')->justReturn(true);
+		Functions\when('set_transient')->justReturn(true);
+		Functions\when('get_transient')->alias(
+			static function ($key) {
+				if (str_starts_with($key, 'wp_sudo_ip_failure_event_')) {
+					return array_fill(0, 4, time() - 1);
+				}
+				return false;
+			}
+		);
+
+		$expected_lockout_key = 'wp_sudo_ip_lockout_until_' . hash('sha256', '198.51.100.77|1');
+		$expected_failure_key = 'wp_sudo_ip_failure_event_' . hash('sha256', '198.51.100.77|1');
+
+		$captured = array();
+		Functions\expect('update_user_meta')
+			->atLeast()->once()
+			->with(1, \Mockery::type('string'), \Mockery::type('string'))
+			->andReturnUsing(
+				static function ($uid, $key, $value) use (&$captured) {
+					$captured[$key] = $value;
+					return true;
+				}
+			);
+		// The scalar lockout timestamp write uses an int value — a separate
+		// expectation since the string-typed one above would not match it.
+		Functions\expect('update_user_meta')
+			->once()
+			->with(1, Sudo_Session::LOCKOUT_UNTIL_META_KEY, \Mockery::type('int'));
+
+		Sudo_Session::record_failed_attempt(1);
+
+		$this->assertSame($expected_lockout_key, $captured[Sudo_Session::LOCKOUT_IP_TRANSIENT_META_KEY] ?? null);
+		$this->assertSame($expected_failure_key, $captured[Sudo_Session::LOCKOUT_IP_FAILURE_TRANSIENT_META_KEY] ?? null);
+	}
+
+	/**
+	 * reset_failed_attempts() must clear both IP-scoped transients pointed to
+	 * by the stored pointer meta — deleting the transient itself and the
+	 * pointer meta that named it — so a subsequent wrong password does not
+	 * immediately re-lock via a stale rolling failure count.
+	 */
+	public function test_reset_failed_attempts_clears_ip_transient_pointers_when_present(): void
+	{
+		$lockout_key = 'wp_sudo_ip_lockout_until_' . hash('sha256', '203.0.113.9|1');
+		$failure_key = 'wp_sudo_ip_failure_event_' . hash('sha256', '203.0.113.9|1');
+
+		Functions\when('get_user_meta')->alias(
+			static function ($uid, $key, $single = true) use ($lockout_key, $failure_key) {
+				if (Sudo_Session::LOCKOUT_IP_TRANSIENT_META_KEY === $key) {
+					return $lockout_key;
+				}
+				if (Sudo_Session::LOCKOUT_IP_FAILURE_TRANSIENT_META_KEY === $key) {
+					return $failure_key;
+				}
+				return '';
+			}
+		);
+
+		$deleted_meta_keys  = array();
+		$deleted_transients = array();
+
+		Functions\when('delete_user_meta')->alias(
+			static function ($uid, $key) use (&$deleted_meta_keys) {
+				$deleted_meta_keys[] = $key;
+				return true;
+			}
+		);
+		Functions\when('delete_transient')->alias(
+			static function ($key) use (&$deleted_transients) {
+				$deleted_transients[] = $key;
+				return true;
+			}
+		);
+
+		Sudo_Session::reset_failed_attempts(1);
+
+		$this->assertContains($lockout_key, $deleted_transients, 'The IP-lockout transient must be deleted.');
+		$this->assertContains($failure_key, $deleted_transients, 'The IP-failure-event transient must be deleted.');
+		$this->assertContains(
+			Sudo_Session::LOCKOUT_IP_TRANSIENT_META_KEY,
+			$deleted_meta_keys,
+			'The lockout-transient pointer meta itself must be cleared.'
+		);
+		$this->assertContains(
+			Sudo_Session::LOCKOUT_IP_FAILURE_TRANSIENT_META_KEY,
+			$deleted_meta_keys,
+			'The failure-transient pointer meta itself must be cleared.'
+		);
+	}
+
+	/**
+	 * When no pointer meta is stored (never locked, or already cleared),
+	 * reset_failed_attempts() must not call delete_transient at all — proves
+	 * the clear is a targeted, presence-gated operation, not a blind sweep.
+	 */
+	public function test_reset_failed_attempts_is_a_no_op_for_ip_transients_when_absent(): void
+	{
+		Functions\when('get_user_meta')->justReturn('');
+		Functions\when('delete_user_meta')->justReturn(true);
+
+		Functions\expect('delete_transient')->never();
+
+		Sudo_Session::reset_failed_attempts(1);
+	}
+
+	public function test_has_unexpired_lockout_returns_true_while_lockout_is_active(): void
+	{
+		Functions\when('get_user_meta')->justReturn(time() + 120);
+
+		$this->assertTrue(Sudo_Session::has_unexpired_lockout(1));
+	}
+
+	public function test_has_unexpired_lockout_returns_false_when_expired(): void
+	{
+		Functions\when('get_user_meta')->justReturn(time() - 60);
+
+		$this->assertFalse(Sudo_Session::has_unexpired_lockout(1));
+	}
+
+	public function test_has_unexpired_lockout_returns_false_when_absent(): void
+	{
+		Functions\when('get_user_meta')->justReturn('');
+
+		$this->assertFalse(Sudo_Session::has_unexpired_lockout(1));
+	}
+
+	/**
+	 * Unlike is_locked_out(), has_unexpired_lockout() must be a pure read with
+	 * no auto-reset side effect — the WP-CLI unlock command (#280) needs to
+	 * capture "was this locked at the moment of invocation" BEFORE calling
+	 * reset_failed_attempts() itself, so it must not trigger a reset as a
+	 * side effect of merely checking.
+	 */
+	public function test_has_unexpired_lockout_has_no_reset_side_effect_when_expired(): void
+	{
+		Functions\when('get_user_meta')->justReturn(time() - 60);
+
+		Functions\expect('delete_user_meta')->never();
+		Functions\expect('delete_transient')->never();
+
+		Sudo_Session::has_unexpired_lockout(1);
+	}
+
+	// =================================================================
+	// Failure epoch (#280) — complete lockout clear across every IP and,
+	// on multisite, every blog
+	// =================================================================
+
+	/**
+	 * Invoke one of the private IP transient-key builders.
+	 *
+	 * @param string $method  'ip_failure_event_transient_key' or 'ip_lockout_transient_key'.
+	 * @param string $ip      Request IP.
+	 * @param int    $user_id User ID.
+	 * @return string
+	 */
+	private function invoke_ip_key(string $method, string $ip, int $user_id): string
+	{
+		$ref = new \ReflectionMethod(Sudo_Session::class, $method);
+		@$ref->setAccessible(true); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+
+		return $ref->invoke(null, $ip, $user_id);
+	}
+
+	public function test_failure_epoch_meta_key_constant(): void
+	{
+		$this->assertSame('_wp_sudo_ip_failure_epoch', Sudo_Session::IP_FAILURE_EPOCH_META_KEY);
+	}
+
+	/**
+	 * Backward compatibility: with no epoch stored (every existing install, and
+	 * every user who has never been explicitly unlocked), the transient keys must
+	 * be byte-identical to the pre-epoch scheme. An in-flight lockout created by
+	 * the old code therefore stays reachable — and clearable — after upgrade,
+	 * with no migration.
+	 */
+	public function test_ip_transient_keys_are_unchanged_at_epoch_zero(): void
+	{
+		Functions\when('get_user_meta')->justReturn('');
+
+		$this->assertSame(
+			'wp_sudo_ip_failure_event_' . hash('sha256', '198.51.100.5|1'),
+			$this->invoke_ip_key('ip_failure_event_transient_key', '198.51.100.5', 1)
+		);
+		$this->assertSame(
+			'wp_sudo_ip_lockout_until_' . hash('sha256', '198.51.100.5|1'),
+			$this->invoke_ip_key('ip_lockout_transient_key', '198.51.100.5', 1)
+		);
+	}
+
+	/**
+	 * The core of the fix: once the epoch is bumped, BOTH key builders produce
+	 * different keys for the same (ip, user). Every rolling failure window and
+	 * IP lockout written under the previous epoch — from any IP, and on
+	 * multisite from any blog, since the epoch lives in network-global user
+	 * meta — is orphaned at once and expires on its own TTL.
+	 */
+	public function test_bumping_the_epoch_changes_both_ip_transient_keys(): void
+	{
+		Functions\when('get_user_meta')->justReturn('');
+		$before_failure = $this->invoke_ip_key('ip_failure_event_transient_key', '203.0.113.7', 4);
+		$before_lockout = $this->invoke_ip_key('ip_lockout_transient_key', '203.0.113.7', 4);
+
+		Functions\when('get_user_meta')->justReturn(1);
+		$after_failure = $this->invoke_ip_key('ip_failure_event_transient_key', '203.0.113.7', 4);
+		$after_lockout = $this->invoke_ip_key('ip_lockout_transient_key', '203.0.113.7', 4);
+
+		$this->assertNotSame($before_failure, $after_failure);
+		$this->assertNotSame($before_lockout, $after_lockout);
+	}
+
+	/**
+	 * clear_reauth_lockout() must bump the stored epoch (0 -> 1) and run the
+	 * ordinary reset. The bump is what makes the clear COMPLETE: the pointer
+	 * scheme alone only clears the single IP that submitted the threshold
+	 * attempt, so a second IP that had accumulated failures below the threshold
+	 * would re-lock on its very next wrong password.
+	 */
+	public function test_clear_reauth_lockout_bumps_the_epoch(): void
+	{
+		Functions\when('get_user_meta')->justReturn('');
+		Functions\when('delete_user_meta')->justReturn(true);
+		Functions\when('delete_transient')->justReturn(true);
+
+		Functions\expect('update_user_meta')
+			->once()
+			->with(9, Sudo_Session::IP_FAILURE_EPOCH_META_KEY, 1)
+			->andReturn(true);
+
+		Sudo_Session::clear_reauth_lockout(9);
+	}
+
+	public function test_clear_reauth_lockout_increments_an_existing_epoch(): void
+	{
+		Functions\when('get_user_meta')->alias(
+			static function ($uid, $key, $single = true) {
+				return Sudo_Session::IP_FAILURE_EPOCH_META_KEY === $key ? 6 : '';
+			}
+		);
+		Functions\when('delete_user_meta')->justReturn(true);
+		Functions\when('delete_transient')->justReturn(true);
+
+		Functions\expect('update_user_meta')
+			->once()
+			->with(9, Sudo_Session::IP_FAILURE_EPOCH_META_KEY, 7)
+			->andReturn(true);
+
+		Sudo_Session::clear_reauth_lockout(9);
+	}
+
+	/**
+	 * clear_reauth_lockout() must still perform the ordinary reset — the epoch
+	 * bump orphans the IP-scoped transients, but the per-user meta half of a
+	 * lockout (lockout-until, failure events, throttle) is cleared exactly as
+	 * reset_failed_attempts() has always done.
+	 */
+	public function test_clear_reauth_lockout_still_resets_user_meta_failure_state(): void
+	{
+		Functions\when('get_user_meta')->justReturn('');
+		Functions\when('update_user_meta')->justReturn(true);
+		Functions\when('delete_transient')->justReturn(true);
+
+		$deleted = array();
+		Functions\when('delete_user_meta')->alias(
+			static function ($uid, $key) use (&$deleted) {
+				$deleted[] = $key;
+				return true;
+			}
+		);
+
+		Sudo_Session::clear_reauth_lockout(9);
+
+		$this->assertContains(Sudo_Session::LOCKOUT_UNTIL_META_KEY, $deleted);
+		$this->assertContains(Sudo_Session::FAILURE_EVENT_META_KEY, $deleted);
+		$this->assertContains(Sudo_Session::THROTTLE_UNTIL_META_KEY, $deleted);
+	}
+
+	/**
+	 * The regression this whole mechanism exists to prevent, end to end.
+	 *
+	 * IP A submits 4 wrong passwords; IP B submits the 5th. The global per-user
+	 * count trips the lockout, so the pointer meta names only B. After an
+	 * operator clears the lockout, a further wrong password from A must NOT
+	 * re-lock — under the pointer-only scheme A's rolling window still held 4
+	 * events and the next failure made 5.
+	 */
+	public function test_clear_reauth_lockout_prevents_immediate_relock_from_a_second_ip(): void
+	{
+		$user       = 1;
+		$epoch      = 0;
+		$transients = array();
+		$now        = time();
+
+		// Stateful transients; user meta only needs to serve the epoch.
+		Functions\when('get_transient')->alias(
+			static function ($key) use (&$transients) {
+				return $transients[$key] ?? false;
+			}
+		);
+		Functions\when('set_transient')->alias(
+			static function ($key, $value) use (&$transients) {
+				$transients[$key] = $value;
+				return true;
+			}
+		);
+		Functions\when('delete_transient')->alias(
+			static function ($key) use (&$transients) {
+				unset($transients[$key]);
+				return true;
+			}
+		);
+		Functions\when('get_user_meta')->alias(
+			static function ($uid, $key, $single = true) use (&$epoch) {
+				return Sudo_Session::IP_FAILURE_EPOCH_META_KEY === $key ? $epoch : '';
+			}
+		);
+		Functions\when('update_user_meta')->alias(
+			static function ($uid, $key, $value) use (&$epoch) {
+				if (Sudo_Session::IP_FAILURE_EPOCH_META_KEY === $key) {
+					$epoch = $value;
+				}
+				return true;
+			}
+		);
+		Functions\when('delete_user_meta')->justReturn(true);
+
+		$record_for_ip = new \ReflectionMethod(Sudo_Session::class, 'record_failed_attempt_for_ip');
+		@$record_for_ip->setAccessible(true); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+
+		// IP A accumulates 4 failures — one short of MAX_FAILED_ATTEMPTS, so A's
+		// own per-IP window has NOT itself tripped a lockout. (In the scenario
+		// this models, the 5th failure arrives from IP B and trips the lockout
+		// via the per-user count, so the stored pointer names B, not A.)
+		for ($i = 1; $i <= 4; $i++) {
+			$count = $record_for_ip->invoke(null, '198.51.100.10', $now, $user);
+		}
+		$this->assertSame(4, $count);
+		$this->assertLessThan(Sudo_Session::MAX_FAILED_ATTEMPTS, $count);
+
+		// The operator clears the lockout out of band.
+		Sudo_Session::clear_reauth_lockout($user);
+
+		// A further wrong password from IP A must start a FRESH window, not resume
+		// the pre-clear count — otherwise the clear did not actually clear.
+		$after = $record_for_ip->invoke(null, '198.51.100.10', $now, $user);
+		$this->assertSame(
+			1,
+			$after,
+			"IP A's rolling failure window survived the clear — the next wrong password would re-lock immediately."
+		);
+		$this->assertLessThan(Sudo_Session::MAX_FAILED_ATTEMPTS, $after);
+	}
+
+	/**
+	 * has_failure_state() reports whether ANY reauth failure tracking is
+	 * present — failure events, a throttle, or a lockout timestamp — so the
+	 * WP-CLI unlock command can tell "nothing to do" apart from "cleared
+	 * pre-lockout counters" instead of silently erasing brute-force defenses
+	 * while reporting a no-op (#280).
+	 */
+	public function test_has_failure_state_is_false_when_nothing_is_tracked(): void
+	{
+		Functions\when('get_user_meta')->justReturn('');
+
+		$this->assertFalse(Sudo_Session::has_failure_state(3));
+	}
+
+	public function test_has_failure_state_is_true_for_sub_threshold_failure_events(): void
+	{
+		Functions\when('get_user_meta')->alias(
+			static function ($uid, $key, $single = true) {
+				if (Sudo_Session::FAILURE_EVENT_META_KEY === $key && !$single) {
+					return array(time() - 5, time() - 3);
+				}
+				return '';
+			}
+		);
+
+		$this->assertTrue(Sudo_Session::has_failure_state(3));
+	}
+
+	public function test_has_failure_state_is_true_for_an_active_throttle(): void
+	{
+		Functions\when('get_user_meta')->alias(
+			static function ($uid, $key, $single = true) {
+				return Sudo_Session::THROTTLE_UNTIL_META_KEY === $key ? time() + 5 : '';
+			}
+		);
+
+		$this->assertTrue(Sudo_Session::has_failure_state(3));
+	}
+
+	/**
+	 * A lockout timestamp that has passed but was never cleared still counts as
+	 * residual state: the rolling window behind it is what would re-lock the
+	 * user, so the operator clear must still have something to do.
+	 */
+	public function test_has_failure_state_is_true_for_an_expired_but_uncleared_lockout(): void
+	{
+		Functions\when('get_user_meta')->alias(
+			static function ($uid, $key, $single = true) {
+				return Sudo_Session::LOCKOUT_UNTIL_META_KEY === $key ? time() - 60 : '';
+			}
+		);
+
+		$this->assertTrue(Sudo_Session::has_failure_state(3));
+	}
+
+	public function test_has_failure_state_has_no_side_effects(): void
+	{
+		Functions\when('get_user_meta')->justReturn(time() - 60);
+
+		Functions\expect('delete_user_meta')->never();
+		Functions\expect('update_user_meta')->never();
+		Functions\expect('delete_transient')->never();
+
+		Sudo_Session::has_failure_state(3);
 	}
 
 	// =================================================================

@@ -142,7 +142,7 @@ remote-site safety", and user-level `~/AGENTS.md`):
 - `docs/sudo-architecture-comparison-matrix.md` — competitive comparison with other sudo/reauth approaches.
 - `docs/ROADMAP.md` — forward-only roadmap (Now/Next/Later/Non-goals). The design analyses that used to live here are now standalone docs: `docs/testing-strategy.md` (integration/TDD/coverage/mutation/exit-path), `docs/collaboration-analysis.md`, `docs/sudo-design-notes.md` (core design), plus archives `docs/archive/wp-7.0-prep.md` and `docs/archive/accessibility-audit.md`. The feature backlog now lives in GitHub issues (see the roadmap's Backlog section).
 - `docs/release-status.md` — canonical current release status: stable tag, unreleased `main` work, and WordPress forward-lane posture.
-- `docs/wporg-submission-checklist.md` — WordPress.org submission process: validation gates, asset specs, SVN trunk/tags layout, and the version-sync gate.
+- `docs/wporg-submission-checklist.md` — §1 pre-tag/core release gates (live: version-sync, blueprint, test/lint/analysis, external-claim audit). Its §2 WordPress.org submission process (validator, Plugin Check, SVN layout, listing assets) is **dormant reference** — wp.org submission is not planned, and Plugin Check is not a gate.
 
 ## Verification Requirements
 
