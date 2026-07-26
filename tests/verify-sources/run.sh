@@ -149,7 +149,7 @@ URL2='https://raw.githubusercontent.com/WordPress/gutenberg/trunk/packages/y.js'
 start "happy path passes"
 new_sandbox happy
 registry "$HDR
-| GB-A | $URL | 2 | needle here | someSymbol | it works |"
+| GB-ONE | $URL | 2 | needle here | \`first\` | it works |"
 fixture "$URL" 200 0 $'first line\nneedle here\nthird line'
 run
 expect_rc 0
@@ -159,20 +159,20 @@ expect_out "all snippets present"
 start "duplicate IDs fail"
 new_sandbox dup
 registry "$HDR
-| GB-A | $URL | 2 | needle here | sym | claim one |
-| GB-A | $URL2 | 2 | other thing | sym | claim two |"
+| GB-ONE | $URL | 2 | needle here | \`x\` | claim one |
+| GB-ONE | $URL2 | 2 | other thing | \`x\` | claim two |"
 fixture "$URL" 200 0 $'x\nneedle here'
 fixture "$URL2" 200 0 $'x\nother thing'
 run
 expect_rc 1
-expect_out "GB-A"
+expect_out "GB-ONE"
 expect_out "duplicate"
 
 # 3a. Incomplete row: missing Line.
 start "missing Line fails"
 new_sandbox noline
 registry "$HDR
-| GB-A | $URL |  | needle here | sym | a claim |"
+| GB-ONE | $URL |  | needle here | \`x\` | a claim |"
 fixture "$URL" 200 0 $'x\nneedle here'
 run
 expect_rc 1
@@ -182,7 +182,7 @@ expect_out "line"
 start "missing claim fails"
 new_sandbox noclaim
 registry "$HDR
-| GB-A | $URL | 2 | needle here | sym |  |"
+| GB-ONE | $URL | 2 | needle here | \`x\` |  |"
 fixture "$URL" 200 0 $'x\nneedle here'
 run
 expect_rc 1
@@ -192,17 +192,57 @@ expect_out "claim"
 start "ambiguous match fails"
 new_sandbox ambig
 registry "$HDR
-| GB-A | $URL | 2 | needle here | sym | a claim |"
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
 fixture "$URL" 200 0 $'needle here\nneedle here\nneedle here'
 run
 expect_rc 1
 expect_out "ambiguous"
 
+# 4b. The Enclosing symbol column must carry at least one backticked anchor token, and
+#     that token must still exist upstream at or before the matched line. Without this
+#     the column is decorative: it was used only in error messages, so an upstream
+#     rename or deletion of the enclosing component left the row silently green.
+start "symbol anchor missing upstream fails"
+new_sandbox anchorgone
+registry "$HDR
+| GB-ONE | $URL | 3 | needle here | \`SomeComponent\` | a claim |"
+fixture "$URL" 200 0 $'line one\nline two\nneedle here'
+run
+expect_rc 1
+expect_out "enclosing symbol"
+
+start "symbol anchor appearing only AFTER the match fails"
+new_sandbox anchorafter
+registry "$HDR
+| GB-ONE | $URL | 1 | needle here | \`SomeComponent\` | a claim |"
+fixture "$URL" 200 0 $'needle here\nfunction SomeComponent() {}'
+run
+expect_rc 1
+expect_out "enclosing symbol"
+
+start "symbol anchor before the match passes"
+new_sandbox anchorok
+registry "$HDR
+| GB-ONE | $URL | 2 | needle here | \`SomeComponent\` | a claim |"
+fixture "$URL" 200 0 $'function SomeComponent() {\nneedle here\n}'
+run
+expect_rc 0
+expect_out "all snippets present"
+
+start "symbol column with no backticked anchor token fails"
+new_sandbox noanchor
+registry "$HDR
+| GB-ONE | $URL | 2 | needle here | the header area | a claim |"
+fixture "$URL" 200 0 $'x\nneedle here'
+run
+expect_rc 1
+expect_out "backtick"
+
 # 5. Snippet vanished from upstream body must fail.
 start "vanished snippet fails"
 new_sandbox gone
 registry "$HDR
-| GB-A | $URL | 2 | needle here | sym | a claim |"
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
 fixture "$URL" 200 0 $'nothing to see\nhere at all'
 run
 expect_rc 1
@@ -212,7 +252,7 @@ expect_out "no longer present"
 start "http 404 fails"
 new_sandbox http404
 registry "$HDR
-| GB-A | $URL | 2 | needle here | sym | a claim |"
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
 fixture "$URL" 404 0 ""
 run
 expect_rc 1
@@ -223,7 +263,7 @@ expect_out "HTTP 404"
 start "http 404 with curl error still fails as http"
 new_sandbox http404err
 registry "$HDR
-| GB-A | $URL | 2 | needle here | sym | a claim |"
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
 fixture "$URL" 404 18 ""
 run
 expect_rc 1
@@ -233,7 +273,7 @@ expect_out "HTTP 404"
 start "http 404 with curl error is not suppressed by --offline-ok"
 new_sandbox http404offline
 registry "$HDR
-| GB-A | $URL | 2 | needle here | sym | a claim |"
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
 fixture "$URL" 404 18 ""
 run --offline-ok
 expect_rc 1
@@ -244,7 +284,7 @@ expect_out "HTTP 404"
 start "transient 5xx is not reported as deleted"
 new_sandbox http503
 registry "$HDR
-| GB-A | $URL | 2 | needle here | sym | a claim |"
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
 fixture "$URL" 503 0 ""
 run
 expect_rc 1
@@ -254,7 +294,7 @@ expect_not_out "deleted"
 start "transient 5xx suppressed by --offline-ok"
 new_sandbox http503offline
 registry "$HDR
-| GB-A | $URL | 2 | needle here | sym | a claim |"
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
 fixture "$URL" 503 0 ""
 run --offline-ok
 expect_rc 0
@@ -263,7 +303,7 @@ expect_out "SKIPPED"
 start "rate-limit 429 suppressed by --offline-ok"
 new_sandbox http429offline
 registry "$HDR
-| GB-A | $URL | 2 | needle here | sym | a claim |"
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
 fixture "$URL" 429 0 ""
 run --offline-ok
 expect_rc 0
@@ -273,17 +313,57 @@ expect_rc 0
 start "410 Gone is permanent drift, not suppressed by --offline-ok"
 new_sandbox http410
 registry "$HDR
-| GB-A | $URL | 2 | needle here | sym | a claim |"
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
 fixture "$URL" 410 0 ""
 run --offline-ok
 expect_rc 1
 expect_out "410"
 
+# 7e. A 2xx whose body transfer was truncated/reset (nonzero curl exit) must NOT be
+#     accepted: the partial body can still contain the snippet, falsely verifying the
+#     citation. The anchor token is deliberately present in the partial body so this
+#     case can ONLY fail via the truncation guard — otherwise it would pass for the
+#     wrong reason (a missing anchor) and survive removal of the guard.
+start "truncated 2xx body is not accepted as verified"
+new_sandbox trunc200
+registry "$HDR
+| GB-ONE | $URL | 1 | needle here | \`needle\` | a claim |"
+fixture "$URL" 200 18 $'needle here\npartial'
+run
+expect_rc 1
+expect_out "incomplete transfer"
+expect_not_out "all snippets present"
+
+start "truncated 2xx body is an availability failure, suppressed by --offline-ok"
+new_sandbox trunc200offline
+registry "$HDR
+| GB-ONE | $URL | 1 | needle here | \`needle\` | a claim |"
+fixture "$URL" 200 18 $'needle here\npartial'
+run --offline-ok
+expect_rc 0
+expect_out "SKIPPED"
+
+# 7f. A partial body must not be CACHED. Two rows citing the same URL: if the truncated
+#     fetch leaves its file in the cache dir, the second row reads that partial file as
+#     a cache hit and verifies against it. Live analogue: three registry rows share
+#     complementary-area/index.js, so one truncated fetch would silently "verify" two
+#     other claims.
+start "truncated 2xx body is not cached for a second row on the same URL"
+new_sandbox trunc200cache
+registry "$HDR
+| GB-ONE | $URL | 1 | needle here | \`needle\` | claim one |
+| GB-TWO | $URL | 1 | needle here | \`needle\` | claim two |"
+fixture "$URL" 200 18 $'needle here\npartial'
+run
+expect_rc 1
+expect_out "GB-ONE"
+expect_out "GB-TWO"
+
 # 8. True network outage: fails normally, but --offline-ok skips it.
 start "network outage fails without flag"
 new_sandbox net
 registry "$HDR
-| GB-A | $URL | 2 | needle here | sym | a claim |"
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
 fixture "$URL" 000 6 ""
 run
 expect_rc 1
@@ -291,7 +371,7 @@ expect_rc 1
 start "network outage skipped with --offline-ok"
 new_sandbox netok
 registry "$HDR
-| GB-A | $URL | 2 | needle here | sym | a claim |"
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
 fixture "$URL" 000 6 ""
 run --offline-ok
 expect_rc 0
@@ -302,8 +382,8 @@ expect_out "SKIPPED"
 start "content failure preserved under --offline-ok"
 new_sandbox mixedoffline
 registry "$HDR
-| GB-A | $URL | 2 | needle here | sym | claim a |
-| GB-B | $URL2 | 2 | needle here | sym | claim b |"
+| GB-ONE | $URL | 2 | needle here | \`x\` | claim a |
+| GB-TWO | $URL2 | 2 | needle here | \`x\` | claim b |"
 fixture "$URL" 404 0 ""
 fixture "$URL2" 000 6 ""
 run --offline-ok
@@ -314,7 +394,7 @@ expect_out "HTTP 404"
 start "dangling GB id fails"
 new_sandbox dangle
 registry "$HDR
-| GB-A | $URL | 2 | needle here | sym | a claim |"
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
 fixture "$URL" 200 0 $'x\nneedle here'
 printf 'see GB-NOPE in docs/upstream-sources.md\n' > "$SANDBOX/docs/note.md"
 run
@@ -323,21 +403,64 @@ expect_out "GB-NOPE"
 
 # 11. Registry ID that does not use the GB- prefix must be rejected, so a
 #     dangling reference cannot arise outside the scanned prefix.
-start "non-GB registry id rejected"
+start "registry id outside the known prefixes is rejected"
 new_sandbox badprefix
 registry "$HDR
-| WPCORE-A | $URL | 2 | needle here | sym | a claim |"
+| WPCORE-A | $URL | 2 | needle here | \`x\` | a claim |"
 fixture "$URL" 200 0 $'x\nneedle here'
 run
 expect_rc 1
-expect_out "prefix"
+expect_out "invalid registry ID"
+
+# 11a. Both prefixes in the closed set are accepted. FT- rows are live on main (the
+#      Snicco Fortress docs), so a change that narrowed ID_REGEX back to GB- only would
+#      break them; this pins the set rather than leaving it to review.
+start "FT- prefix is accepted"
+new_sandbox ftprefix
+registry "$HDR
+| FT-ONE | $URL | 2 | needle here | \`x\` | a claim |"
+fixture "$URL" 200 0 $'x\nneedle here'
+run
+expect_rc 0
+expect_out "all snippets present"
+
+start "dangling FT- reference is detected"
+new_sandbox ftdangle
+registry "$HDR
+| FT-ONE | $URL | 2 | needle here | \`x\` | a claim |"
+fixture "$URL" 200 0 $'x\nneedle here'
+printf 'see FT-NOPE in docs/upstream-sources.md\n' > "$SANDBOX/docs/note.md"
+run
+expect_rc 1
+expect_out "FT-NOPE"
+
+# 11b. An ID matching the GB- prefix but NOT the reference-scan regex (lowercase, or
+#      too short) must be rejected: prose using it would never be scanned, so deleting
+#      the row would leave an undetected dangling citation.
+start "GB- id that the reference scan cannot match is rejected"
+new_sandbox lowerid
+registry "$HDR
+| GB-a | $URL | 2 | needle here | \`x\` | a claim |"
+fixture "$URL" 200 0 $'x\nneedle here'
+run
+expect_rc 1
+expect_out "GB-a"
+
+start "single-character GB- id is rejected"
+new_sandbox shortid
+registry "$HDR
+| GB-X | $URL | 2 | needle here | \`x\` | a claim |"
+fixture "$URL" 200 0 $'x\nneedle here'
+run
+expect_rc 1
+expect_out "GB-X"
 
 # 12. Self-link filtering: a line with BOTH a self-link and a third-party raw URL
 #     must still be reported as an orphan (the third-party citation is not dropped).
 start "self-link does not drop co-located third-party citation"
 new_sandbox selflink
 registry "$HDR
-| GB-A | $URL | 2 | needle here | sym | a claim |"
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
 fixture "$URL" 200 0 $'x\nneedle here'
 printf 'compare https://github.com/dknauss/Sudo/blob/main/x.php with https://raw.githubusercontent.com/WordPress/gutenberg/trunk/z.js\n' \
 	> "$SANDBOX/docs/compare.md"
@@ -350,17 +473,50 @@ expect_out "compare.md"
 start "pure self-link is not an orphan"
 new_sandbox selfonly
 registry "$HDR
-| GB-A | $URL | 2 | needle here | sym | a claim |"
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
 fixture "$URL" 200 0 $'x\nneedle here'
 printf 'see https://github.com/dknauss/Sudo/blob/main/x.php\n' > "$SANDBOX/docs/selfonly.md"
 run
 expect_rc 0
 
+# 12c. The self-link filter must test the matched URL, not the whole `path:url` grep
+#      record — otherwise a checkout whose own directory path contains `dknauss/Sudo`
+#      (e.g. ~/dknauss/Sudo) silently drops every third-party orphan.
+start "self-link filter is not fooled by a repo-named checkout path"
+SANDBOX="$TMP_ROOT/sandbox/dknauss/Sudo"
+IO_DIR="$TMP_ROOT/io/pathname"
+rm -rf "$SANDBOX" "$IO_DIR"
+mkdir -p "$SANDBOX/bin" "$SANDBOX/docs" "$IO_DIR"
+ln -s "$REAL_SCRIPT" "$SANDBOX/bin/verify-sources.sh"
+: > "$IO_DIR/manifest.tsv"
+export FAKE_CURL_MANIFEST="$IO_DIR/manifest.tsv"
+registry "$HDR
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
+fixture "$URL" 200 0 $'x\nneedle here'
+printf 'see https://raw.githubusercontent.com/WordPress/gutenberg/trunk/z.js\n' > "$SANDBOX/docs/newcite.md"
+run
+expect_rc 1
+expect_out "newcite.md"
+
+# 12d. Grandfathering is per CITATION, not per file: a NEW upstream URL added to a
+#      grandfathered file must still be a hard failure.
+start "new citation in a grandfathered file still fails"
+new_sandbox grandnew
+registry "$HDR
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
+fixture "$URL" 200 0 $'x\nneedle here'
+mkdir -p "$SANDBOX/docs"
+printf 'legacy https://raw.githubusercontent.com/WordPress/two-factor/master/a.php\nbrand new https://raw.githubusercontent.com/WordPress/gutenberg/trunk/z.js\n' \
+	> "$SANDBOX/docs/two-factor-integration.md"
+run
+expect_rc 1
+expect_out "two-factor-integration.md"
+
 # 13. Non-raw host URL (rendered blob) is rejected.
 start "rendered blob url rejected"
 new_sandbox blob
 registry "$HDR
-| GB-A | https://github.com/WordPress/gutenberg/blob/trunk/x.js | 2 | needle here | sym | a claim |"
+| GB-ONE | https://github.com/WordPress/gutenberg/blob/trunk/x.js | 2 | needle here | \`x\` | a claim |"
 run
 expect_rc 1
 expect_out "raw-text source"
@@ -375,7 +531,7 @@ new_sandbox gitignored
 git -C "$SANDBOX" init -q
 printf 'reviewer-approved\n' > "$SANDBOX/.gitignore"
 registry "$HDR
-| GB-A | $URL | 2 | needle here | sym | a claim |"
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
 fixture "$URL" 200 0 $'x\nneedle here'
 printf 'verified https://raw.githubusercontent.com/WordPress/gutenberg/trunk/z.js\n' \
 	> "$SANDBOX/reviewer-approved"
@@ -391,7 +547,7 @@ new_sandbox gitkept
 git -C "$SANDBOX" init -q
 printf 'reviewer-approved\n' > "$SANDBOX/.gitignore"
 registry "$HDR
-| GB-A | $URL | 2 | needle here | sym | a claim |"
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
 fixture "$URL" 200 0 $'x\nneedle here'
 printf 'verified https://raw.githubusercontent.com/WordPress/gutenberg/trunk/z.js\n' \
 	> "$SANDBOX/docs/new-note.md"

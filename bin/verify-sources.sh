@@ -45,6 +45,15 @@ failures=()
 warnings=()
 checked=0
 
+# The one definition of a registry ID: a per-source-family prefix from a closed set,
+# then two or more upper-case letters, digits or hyphens.
+#   GB- Gutenberg / wordpress-develop     FT- Snicco Fortress
+# Used BOTH to validate each row's ID and to scan the repo for references, so the two
+# can never drift apart — a row whose ID the scan cannot match is rejected, which is
+# what makes the dangling-reference check complete. Registering another source family
+# is one edit here, not two that can fall out of step.
+ID_REGEX='(GB|FT)-[A-Z0-9][A-Z0-9-]+'
+
 add_failure() {
 	failures+=("$1")
 	hard_failures=$((hard_failures + 1))
@@ -106,9 +115,10 @@ fetch() {
 	# Mapping exit codes therefore misfiled the single most important case — a
 	# deleted upstream file — as "no network", where --offline-ok would swallow it.
 	# The status line is unambiguous, so read that.
-	local status
+	local status code
 	set +e
 	status="$(curl -sSL --max-time 30 -o "$path" -w '%{http_code}' "$url" 2>/dev/null)"
+	code=$?
 	set -e
 
 	# The HTTP status is authoritative whenever the server answered at all — branch on
@@ -120,7 +130,8 @@ fetch() {
 	# network outage, where --offline-ok would swallow it.
 	#
 	# Three outcomes, not two:
-	#   - 2xx           the file is there; check the snippet.
+	#   - 2xx           the file is there; check the snippet — but ONLY if the transfer
+	#                   also completed (see below).
 	#   - 404 / 410     the file is gone for good. Permanent drift, a hard failure —
 	#                   --offline-ok must NOT swallow a deleted upstream file.
 	#   - anything else the server answered but not with the file (429, 5xx, a 403 rate
@@ -133,6 +144,19 @@ fetch() {
 	# instead of being flattened to a generic error.
 	case "$status" in
 		2??)
+			# 200 headers do not mean the body arrived. A truncated or reset transfer
+			# (curl exit 18/56) leaves a PARTIAL file on disk that can still contain the
+			# snippet if it happens to sit before the cutoff — which would report the
+			# citation verified, and cache that answer for the rest of the run, on
+			# evidence that is only part of the file. A snippet's ABSENCE cannot be
+			# concluded from a partial file either, so this is an availability failure
+			# in both directions, not drift.
+			if [ "$code" -ne 0 ]; then
+				rm -f "$path"
+				FETCH_ERR="unavailable"
+				FETCH_STATUS="$status (incomplete transfer, curl exit $code)"
+				return 1
+			fi
 			FETCH_PATH="$path"
 			return 0
 			;;
@@ -171,6 +195,18 @@ ESC=$'\001' # stand-in for an escaped pipe while we split on real ones
 while IFS= read -r raw_row; do
 	# Only real table rows. Prose in this file legitimately contains pipes (the
 	# instruction about escaping them, for one), so leading `|` is the row test.
+	#
+	# Scoping this to the `## Registry` section was tried and REVERTED. It would let the
+	# document carry an ordinary markdown table (a prefix table parsed as three bogus
+	# rows, which is how the constraint was found), but the obvious implementation fails
+	# SILENTLY: a registry whose heading is renamed, or reorganized so rows precede it,
+	# reports "0 citations checked, all snippets present" and exits 0 — a checker that
+	# verifies nothing while manufacturing confidence, the exact pathology this repo has
+	# been removing elsewhere (a visual job green over four failing baselines; a POT
+	# check wired into no workflow). Parsing every `|`-leading line fails loudly instead.
+	# Revisiting it needs a floor guard (fail when zero rows parse, and/or assert the
+	# heading exists), a test pinning that guard, and a design review — this is an
+	# enforcement path.
 	case "$raw_row" in '|'*) ;; *) continue ;; esac
 
 	row="${raw_row//\\|/$ESC}"
@@ -181,19 +217,17 @@ while IFS= read -r raw_row; do
 	[ "$id" != "ID" ] || continue
 	case "$id" in ---*|:--*) continue ;; esac
 
-	# Registry IDs use a per-source-family prefix from a closed set. That is what makes
-	# the dangling-reference
-	# scan below provably complete: a reference outside the scanned prefix cannot exist,
-	# because a row that would mint one is rejected here. To add another source family,
-	# widen this list AND the scan's regex together (search: GB-).
-	#   GB- Gutenberg / wordpress-develop     FT- Snicco Fortress
-	case "$id" in
-		GB-*|FT-*) ;;
-		*)
-			add_failure "$id: registry IDs must use a known prefix (GB-, FT-) — the dangling-reference scan looks for those and would never find a reference to this ID"
-			continue
-			;;
-	esac
+	# Every registry ID must match ID_REGEX — the SAME pattern the dangling-reference
+	# scan below uses, which is what makes that scan provably complete: an ID the scan
+	# could not find a reference to is rejected here, at the row. Validating a looser
+	# syntax than the scan searches for (a bare prefix test accepts `GB-a` and the
+	# one-character `GB-X`, neither of which the scan matches) reopens exactly the
+	# dangling-reference hole the prefix rule exists to close. To register another
+	# source family, widen ID_REGEX — one edit, both uses.
+	if ! printf '%s' "$id" | grep -qE "^${ID_REGEX}$"; then
+		add_failure "$id: invalid registry ID — must match ${ID_REGEX} (the same pattern the dangling-reference scan searches for; an ID outside it could be deleted while prose still cites it, undetected)"
+		continue
+	fi
 
 	# A duplicated ID gives one prose reference two competing canonical rows, and
 	# --fix-lines would rewrite whichever row it reached first. Each ID must be unique.
@@ -208,6 +242,10 @@ while IFS= read -r raw_row; do
 	url="$(clean_field "$url")"
 	line="$(clean_field "$line")"
 	snippet="$(clean_field "$snippet")"
+	# Keep the symbol column's backticks: they delimit the machine-checkable anchor
+	# tokens. clean_field strips the outer pair, which is right for the other columns
+	# and wrong here.
+	symbol_raw="${symbol//$ESC/|}"
 	symbol="$(clean_field "$symbol")"
 	claim="$(clean_field "${claim:-}")"
 
@@ -251,6 +289,15 @@ while IFS= read -r raw_row; do
 		# The whole point of the enclosing-symbol column: you cannot fill it in from a
 		# grep hit, so requiring it forces the file to actually be read.
 		add_failure "$id: no enclosing symbol recorded — cite what CONTAINS the line"
+		continue
+	fi
+
+	# The column has to be checkable, not just present. At least one `backticked` token
+	# is required so there is something to look for upstream; the surrounding prose
+	# ("… rendered inside …", "NOT the three-line Fill at L11-13") stays free-form.
+	symbol_anchors="$(printf '%s' "$symbol_raw" | grep -oE '`[^`]+`' | tr -d '`' || true)"
+	if [ -z "$symbol_anchors" ]; then
+		add_failure "$id: enclosing symbol has no \`backticked\` anchor token — wrap the symbol's upstream name in backticks so it can be checked against the file"
 		continue
 	fi
 
@@ -300,6 +347,45 @@ while IFS= read -r raw_row; do
 
 	hit="$matches"
 	actual_line="${hit%%:*}"
+
+	# The recorded enclosing symbol must still be there, and must still open at or
+	# before the matched line — an enclosing scope is always declared before the line it
+	# encloses, in every language cited here. Until this check existed, $symbol was
+	# used only inside error strings: upstream could rename or delete the component the
+	# claim is *about* and the row stayed green because the snippet survived elsewhere
+	# in the file.
+	#
+	# What this proves and what it does not. It catches the enclosing symbol being
+	# renamed, removed, or moved below the cited line. It does NOT prove the match sits
+	# inside that symbol's body: verifying containment needs a real parser for SCSS, JS
+	# and TS, which is a different tool. The residual case — an identical unique line
+	# relocating into a *different* symbol whose recorded anchor still appears earlier in
+	# the file — shows up as a drift WARN, because such a move almost always changes the
+	# line number. Anchors are OR'd: the column may carry several tokens (`PinnedItems`
+	# alongside `PinnedItemsSlot`) and only the enclosing one need be positioned.
+	anchor_ok=0
+	anchor_seen=""
+	while IFS= read -r anchor; do
+		[ -n "$anchor" ] || continue
+		anchor_line="$(grep -nF -- "$anchor" "$file_path" | head -n1 || true)"
+		anchor_line="${anchor_line%%:*}"
+		if [ -n "$anchor_line" ]; then
+			anchor_seen="$anchor_seen $anchor(L$anchor_line)"
+			if [ "$anchor_line" -le "$actual_line" ]; then
+				anchor_ok=1
+				break
+			fi
+		fi
+	done <<< "$symbol_anchors"
+
+	if [ "$anchor_ok" -eq 0 ]; then
+		add_failure "$id: recorded enclosing symbol not found upstream at or before line $actual_line — $url
+        symbol: $symbol
+        found:${anchor_seen:- none of its anchor tokens appear in the file}
+        the snippet is still present, so either it moved into different code or the symbol was renamed — re-read the file and fix the row"
+		continue
+	fi
+
 	if [ -n "$line" ] && [ "$actual_line" != "$line" ]; then
 		add_warning "$id: line drifted $line -> $actual_line (snippet still present)"
 		if [ "$FIX_LINES" = "1" ]; then
@@ -322,11 +408,11 @@ done < "$SOURCES_FILE"
 # comment must be caught too (the registry's how-to section once pointed at an ID that
 # did not exist, and an example there would have been just as invisible), which is why
 # this comment names no ID. Two directories are excluded: .claude holds sibling
-# worktree checkouts (a branch that added a GB-* row absent here would otherwise read
+# worktree checkouts (a branch that added a registry row absent here would otherwise read
 # as a dangling failure against a valid tree), and verify-sources holds this checker's
-# own regression harness, whose fixtures necessarily contain example GB-* IDs — the
+# own regression harness, whose fixtures necessarily contain example registry IDs — the
 # same self-reference exemption bin/verify-sources.sh gets in the orphan scan below.
-referenced="$(grep -rhoIE '\b(GB|FT)-[A-Z0-9][A-Z0-9-]+' \
+referenced="$(grep -rhoIE "\\b${ID_REGEX}" \
 	--exclude-dir={vendor,node_modules,.git,vendor_test,.tmp,.claude,verify-sources} \
 	"$REPO_ROOT" 2>/dev/null | sort -u || true)"
 while IFS= read -r ref; do
@@ -350,13 +436,16 @@ done <<< "$referenced"
 # CLAUDE.md carry example URLs inside the rules themselves. `.claude` holds sibling
 # worktree checkouts (see the dangling-ID scan above).
 #
-# The patterns capture the OWNER, so the self-link filter runs per matched URL, not
-# per line: a comparison-table row that cites both this repo and a third-party file
-# keeps the third-party citation instead of the whole line being dropped because
-# `dknauss/Sudo` appears somewhere on it. `-o` emits one line per match, so filtering
-# by URL and mapping back to the file are the same pipeline.
+# The patterns capture the whole upstream path, and every filter below runs on the
+# MATCHED URL or on the path RELATIVE to the repo root — never on the raw
+# `/abs/path:match` grep record. Both distinctions are load-bearing:
+#   - filtering the record would drop a third-party citation that merely shares a line
+#     with a link to this repo (a comparison-table row);
+#   - filtering on the absolute path would silently disable the whole check for anyone
+#     whose checkout happens to live under a directory named `dknauss/Sudo`, because
+#     the self-link test would then match every record's filename.
 #
-# Three things are not third-party claims and can never become registry rows:
+# Four things are not third-party claims and can never become registry rows:
 #   - links to THIS repo (readme badges, the Playground blueprint, docs cross-links)
 #   - a tool download in the test-environment installer
 #   - this checker's own documentation, which necessarily contains the patterns
@@ -365,36 +454,66 @@ done <<< "$referenced"
 #
 # A new orphan is a FAIL: the registry is mandatory for third-party citations, and a
 # warning-only check leaves that rule unenforced while the scheduled job stays green.
-# The existing corpus is grandfathered below (warn, not fail) so adopting the rule did
-# not turn a migration backlog into a red build on day one; shrink that list as files
-# migrate. A first cut matched per file and warned about 14, of which 6 were noise —
-# including verify-sources.yml, i.e. the tool warning about itself.
-# Shrinks as files are migrated. docs/sudo-architecture-comparison-matrix.md was migrated
-# (FT-* rows). The two-factor files cite upstream at PINNED COMMIT SHAs
-# (bea876d…, c515462…, abf9109…), which are immutable: a registry row cannot protect
-# against drift that cannot happen. They stay listed so the scan does not fail on them,
-# not because they are owed a migration.
-GRANDFATHERED_ORPHANS="CHANGELOG.md
-docs/abilities-api-assessment.md
-docs/two-factor-authentication-flow.md
-docs/two-factor-ecosystem.md
-docs/two-factor-integration.md
-tests/Unit/RequestStashTest.php"
+# The pre-existing corpus is grandfathered (warn, not fail) so adopting the rule did not
+# turn a migration backlog into a red build on day one.
+#
+# Grandfathering is keyed on `relative-path<TAB>upstream-URL`, i.e. per CITATION, not
+# per file. Keying it on the filename alone would have exempted the file forever: a
+# contributor could add a brand-new unregistered claim to CHANGELOG.md and still exit 0,
+# which is the same "rule documented but unenforced" hole the fail-on-orphan change
+# above exists to close. Migrating a citation means deleting its line here.
+#
+# Shrinks as citations are migrated. The Fortress docs were migrated to FT-* rows (#363),
+# so docs/sudo-architecture-comparison-matrix.md (#363) and
+# docs/core-sudo-gate-implementation-spec.md (#369) are gone from this list.
+#
+# The 13 entries split two ways, and the split matters — the immutability rationale
+# covers only the first group:
+#   - NINE pinned to an immutable commit SHA (bea876d…, abf9109…, c515462…). A registry
+#     row cannot protect against drift that cannot happen, so these stay listed because
+#     migrating them would buy nothing, not because they are owed a migration.
+#   - FOUR that track a MUTABLE ref and are ordinary migration backlog: CHANGELOG.md and
+#     tests/Unit/RequestStashTest.php (wordpress-develop `blob/trunk`),
+#     docs/abilities-api-assessment.md (abilities-api `blob/trunk`), and
+#     docs/two-factor-ecosystem.md (Subversion `/trunk/`). These CAN drift silently,
+#     which is exactly what the registry exists to catch.
+GRANDFATHERED_CITATIONS="$(cat <<'EOF'
+CHANGELOG.md	github.com/WordPress/wordpress-develop/blob/trunk/src/wp-includes/option.php
+docs/abilities-api-assessment.md	github.com/WordPress/abilities-api/blob/trunk/includes/abilities-api/class-wp-ability.php
+docs/two-factor-authentication-flow.md	github.com/WordPress/two-factor/blob/bea876d72062626f830c6b39f5348836e58472da/class-two-factor-core.php
+docs/two-factor-authentication-flow.md	github.com/WordPress/two-factor/blob/bea876d72062626f830c6b39f5348836e58472da/providers/class-two-factor-provider.php
+docs/two-factor-authentication-flow.md	github.com/WordPress/wordpress-develop/blob/abf9109166099011904710d1e8c63f444d0b862a/src/wp-includes/class-wp-session-tokens.php
+docs/two-factor-authentication-flow.md	github.com/WordPress/wordpress-develop/blob/abf9109166099011904710d1e8c63f444d0b862a/src/wp-includes/default-filters.php
+docs/two-factor-authentication-flow.md	github.com/WordPress/wordpress-develop/blob/abf9109166099011904710d1e8c63f444d0b862a/src/wp-includes/pluggable.php
+docs/two-factor-authentication-flow.md	github.com/WordPress/wordpress-develop/blob/abf9109166099011904710d1e8c63f444d0b862a/src/wp-includes/user.php
+docs/two-factor-ecosystem.md	plugins.svn.wordpress.org/patchstack/trunk/includes/login.php
+docs/two-factor-integration.md	github.com/WordPress/two-factor/blob/c515462d51ac92941685e39293673c08538e16c8/class-two-factor-core.php
+docs/two-factor-integration.md	github.com/WordPress/two-factor/blob/c515462d51ac92941685e39293673c08538e16c8/providers/class-two-factor-backup-codes.php
+docs/two-factor-integration.md	github.com/WordPress/two-factor/blob/c515462d51ac92941685e39293673c08538e16c8/providers/class-two-factor-totp.php
+tests/Unit/RequestStashTest.php	github.com/WordPress/wordpress-develop/blob/trunk/src/wp-includes/formatting.php
+EOF
+)"
 
-orphans="$(grep -roIE \
-	-e 'raw\.githubusercontent\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+' \
-	-e 'plugins\.svn\.wordpress\.org/[A-Za-z0-9_.-]+' \
-	-e 'github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/blob/' \
+# Normalize: strip trailing sentence punctuation the URL pattern greedily absorbs, so a
+# citation's identity does not change when the prose around it is reworded.
+orphan_records="$(grep -roIE \
+	-e 'raw\.githubusercontent\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/[A-Za-z0-9_./-]*' \
+	-e 'plugins\.svn\.wordpress\.org/[A-Za-z0-9_./-]*' \
+	-e 'github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/blob/[A-Za-z0-9_./-]*' \
 	--exclude-dir={vendor,node_modules,.git,vendor_test,.tmp,.planning,.claude,verify-sources} \
-	"$REPO_ROOT" 2>/dev/null \
-	| grep -viE 'dknauss(/|%2f)sudo' \
-	| grep -vE '^[^:]*/docs/archive/' \
-	| grep -vE '^[^:]*/(docs/upstream-sources\.md|docs/llm-lies-log\.md|AGENTS\.md|CLAUDE\.md):' \
-	| grep -vE '^[^:]*/(bin/verify-sources\.sh|bin/install-wp-tests\.sh):' \
-	| grep -vE '^[^:]*/\.github/workflows/verify-sources\.yml:' \
-	| cut -d: -f1 | sort -u || true)"
-while IFS= read -r f; do
-	[ -n "$f" ] || continue
+	"$REPO_ROOT" 2>/dev/null || true)"
+
+# Normalize each grep record to `relative-path<TAB>url`, then dedupe: a file that cites
+# the same upstream file eight times is one citation to migrate, not eight findings.
+orphan_pairs="$(while IFS= read -r record; do
+	[ -n "$record" ] || continue
+
+	# The matched URL never contains a colon (the patterns carry no scheme), so the
+	# last colon splits path from match even if the checkout path itself has colons.
+	orphan_url="${record##*:}"
+	orphan_path="${record%:*}"
+	rel="${orphan_path#"$REPO_ROOT/"}"
+
 	# The scan walks the WORKING TREE, which holds files git does not: `reviewer-approved`,
 	# the pre-commit reviewer agent's approval flag, is gitignored and routinely records the
 	# upstream URLs the reviewer verified. It made `composer verify:sources` fail for any
@@ -409,16 +528,45 @@ while IFS= read -r f; do
 	# a TRACKED file that also matches an ignore rule stays in scope. Outside a git work
 	# tree git exits 128, nothing is skipped, and the scan behaves exactly as it did before
 	# — the failure mode here is a false positive, so degrading toward loud is correct.
-	if git -C "$REPO_ROOT" check-ignore -q -- "$f" 2>/dev/null; then
+	#
+	# Tests against $orphan_path (the absolute path split off the grep record) rather than
+	# the $f in #374, because this loop normalizes records to path+URL pairs before
+	# filtering. No apostrophes in this comment: bash 3.2 mis-parses a quote inside a
+	# comment inside $( ), the same class of quirk as the leading-paren case patterns below.
+	if git -C "$REPO_ROOT" check-ignore -q -- "$orphan_path" 2>/dev/null; then
 		continue
 	fi
-	rel="${f#"$REPO_ROOT/"}"
-	if printf '%s\n' "$GRANDFATHERED_ORPHANS" | grep -qxF -- "$rel"; then
-		add_warning "$rel cites upstream code outside the registry (grandfathered — migrate as you touch it)"
+
+	orphan_url="$(printf '%s' "$orphan_url" | sed -E 's/[).,;:>]+$//')"
+
+	# Self-link: tested against the URL alone, never the filename.
+	# The leading `(` on each pattern is required, not style: bash 3.2 mis-parses a
+	# bare `pattern)` inside `$( … )` and dies with "syntax error near unexpected token".
+	case "$(printf '%s' "$orphan_url" | tr '[:upper:]' '[:lower:]')" in
+		(*dknauss/sudo*|*dknauss%2fsudo*) continue ;;
+	esac
+
+	# Files that carry citation patterns for reasons other than making a claim.
+	case "$rel" in
+		(docs/archive/*) continue ;;
+		(docs/upstream-sources.md|docs/llm-lies-log.md|AGENTS.md|CLAUDE.md) continue ;;
+		(bin/verify-sources.sh|bin/install-wp-tests.sh) continue ;;
+		(.github/workflows/verify-sources.yml) continue ;;
+	esac
+
+	printf '%s\t%s\n' "$rel" "$orphan_url"
+done <<< "$orphan_records" | sort -u)"
+
+while IFS= read -r pair; do
+	[ -n "$pair" ] || continue
+	rel="${pair%%	*}"
+	orphan_url="${pair#*	}"
+	if printf '%s\n' "$GRANDFATHERED_CITATIONS" | grep -qxF -- "$pair"; then
+		add_warning "$rel cites $orphan_url outside the registry (grandfathered — migrate as you touch it)"
 	else
-		add_failure "$rel cites upstream code outside the registry — add a row to docs/upstream-sources.md and reference its registry ID instead of the raw URL"
+		add_failure "$rel cites $orphan_url outside the registry — add a row to docs/upstream-sources.md and reference its registry ID instead of the raw URL"
 	fi
-done <<< "$orphans"
+done <<< "$orphan_pairs"
 
 for w in "${warnings[@]:-}"; do
 	[ -n "$w" ] && echo "WARN: $w"

@@ -304,11 +304,10 @@
 
 	// --- the one place the active state still earns colour ---------------------
 	// Core's "Show button text labels" preference takes this button's icon slot for
-	// its own `check` glyph — `icon={ showIconLabels ? check : icon }` — and disables
-	// the tooltip in the same breath (`showTooltip={ ! showIconLabels }`,
-	// complementary-area/index.js L280-281, trunk, fetched 2026-07-26). Verified in a
-	// live WP 7.0 editor: with it on, all three states render that same `check` SVG,
-	// `.dashicon` is gone, and the button renders no visible text.
+	// its own `check` glyph (GB-ICON-SWAP) and disables the tooltip in the same breath
+	// (GB-NO-TOOLTIP). Verified in a live WP 7.0 editor: with it on, all three states
+	// render that same `check` SVG, `.dashicon` is gone, and the button renders no
+	// visible text.
 	//
 	// So for that cohort the glyph vocabulary does not exist and there is no hover
 	// affordance either — active and inactive would be one appearance, which is the
@@ -381,18 +380,17 @@
 		//   expiring   warning   a third, non-padlock shape for the final 60 s
 		//
 		// A state-driven icon on this control is a core pattern, not an invention. Core
-		// swaps this button's icon conditionally itself — `icon={ showIconLabels ? check
-		// : icon }` (packages/interface/src/components/complementary-area/index.js L280)
-		// — and the component it renders takes a second, state-selected icon by design:
-		// `icon={ selectedIcon && isSelected ? selectedIcon : icon }`
-		// (packages/interface/src/components/complementary-area-toggle/index.js L58).
-		// Both Gutenberg trunk, fetched 2026-07-26. (The `isPinned ? starFilled :
-		// starEmpty` swap at complementary-area/index.js L326 is a DIFFERENT control —
-		// the pin/unpin star inside the panel header — so it is not the precedent here.)
-		// Semantic BACKGROUND colour has no such precedent: core's background changes on
-		// these buttons encode no meaning — a neutral `.is-pressed` fill
-		// (packages/components/src/button/style.scss L342-348), which is why colour here
-		// is spent on the expiring state alone.
+		// swaps this button's icon conditionally itself (GB-ICON-SWAP), and the
+		// component it renders takes a second, state-selected icon by design
+		// (GB-SELECTED-ICON). (The pin/unpin star inside the panel header, GB-PIN-STAR,
+		// is a DIFFERENT control and is NOT the precedent here — it was miscited as one
+		// in #317's first commit.) Semantic BACKGROUND colour has no such precedent:
+		// core's pressed state takes a neutral fill, not a status colour
+		// (GB-PRESSED-FILL), which is why colour here is spent on the expiring state
+		// alone.
+		//
+		// Each GB-* ID resolves to a row in docs/upstream-sources.md with the raw URL,
+		// line, snippet, and enclosing symbol, checked live by `composer verify:sources`.
 		//
 		// Carrying state on shape also settles WCAG 1.4.1 by construction rather than by
 		// supplement: #2e7d32 and #c62828 are 1.09:1 against EACH OTHER, so a colour-led
