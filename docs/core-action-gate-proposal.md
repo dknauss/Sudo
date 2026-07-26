@@ -160,7 +160,7 @@ Everything above is the gate. This section is the **companion** the earlier draf
 
 ### 8.1 Why a registry has standalone value
 
-Security and policy plugins today each reinvent their own ad-hoc catalog of "dangerous operations," with different identifiers and no interoperability surface. A shared registry gives the ecosystem a stable taxonomy, execution hooks for audit/observability, queryable metadata for UI and diagnostics, and a foundation for later manifests or AI-agent boundaries — **without** requiring core to standardize challenge UX, recent-auth semantics, replay, or non-interactive policy in the same release. That is what makes it a cheap, low-risk first primitive on its own track.
+Security and policy plugins today each reinvent their own ad-hoc catalog of "dangerous operations," with different identifiers and no interoperability surface. A shared registry gives the ecosystem a stable taxonomy, queryable metadata for UI and diagnostics, and a foundation for later manifests or AI-agent boundaries — **without** requiring core to standardize challenge UX, recent-auth semantics, replay, or non-interactive policy in the same release. Observation hooks for audit tooling are a reasonable **later** addition, deliberately not part of Phase 1: an earlier draft listed them here and the spec listed a pure-data registry, which is a materially different product. If they are added, they must be documented as **observational only and never a gate** — spec §4.1.1 rejects the Abilities API's execution hook as an enforcement point for exactly that reason, and §6 rejects `do_action` seams on the same ground. A hook that looks like it can refuse, and cannot, is the failure mode this design has spent the most effort removing. That is what makes it a cheap, low-risk first primitive on its own track.
 
 ### 8.2 Naming and the relationship to the Abilities API
 
@@ -200,7 +200,7 @@ do_action( 'wp_before_execute_action', 'core/activate-plugin', $context );      
 do_action( 'wp_after_execute_action', 'core/activate-plugin', $context, $result );  // not a gate — see §8.2
 ```
 
-Phase 1 (the registry) should register, expose metadata, and fire execution hooks; it should **not** require challenge UI, stash/replay, sudo sessions, or non-interactive policy. A Site Health consumer that reports the registered actions and whether gating is enabled demonstrates value before any enforcement exists.
+Phase 1 (the registry) should register and expose metadata — **a pure-data catalog, no hooks and no enforcement**, matching the spec (§4.1). It should **not** require challenge UI, stash/replay, sudo sessions, or non-interactive policy. A Site Health consumer that reports the registered actions and whether gating is enabled demonstrates value before any enforcement exists.
 
 ### 8.4 The initial catalog
 
