@@ -1068,7 +1068,15 @@ class Challenge {
 			// A bare numeric id ("user_id=5") tells an admin nothing about WHO they are
 			// authorizing — and this line is the only control left in the same-origin
 			// lure case, so resolve it to something a human can actually judge.
-			if ( 'user_id' === $key ) {
+			//
+			// Capability-gated: this is the one target value that is a SERVER-SIDE
+			// lookup rather than an echo of what the requester already supplied. The
+			// Gate is role-agnostic (it intercepts any logged-in user, leaving
+			// capability checks to the target handler) and the challenge page renders
+			// at 'read', so without this check any subscriber could walk
+			// users.php?action=promote&user_id=N and enumerate every account's login.
+			// Core deliberately never exposes user_login via the REST users endpoint.
+			if ( 'user_id' === $key && current_user_can( 'list_users' ) ) {
 				$user = get_userdata( (int) $value );
 
 				if ( $user && ! empty( $user->user_login ) ) {

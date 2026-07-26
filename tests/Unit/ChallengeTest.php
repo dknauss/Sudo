@@ -1779,6 +1779,84 @@ class ChallengeTest extends TestCase
 	}
 
 	/**
+	 * Invoke the target-description helper directly.
+	 *
+	 * @param array<string, mixed>|null $stash Stash data.
+	 */
+	private function describeTarget(?array $stash): string
+	{
+		$method = new \ReflectionMethod($this->challenge, 'describe_stash_target');
+		if ( PHP_VERSION_ID < 80100 ) {
+			$method->setAccessible(true);
+		}
+		return (string) $method->invoke($this->challenge, $stash);
+	}
+
+	/**
+	 * #322 v2: the Target line actually names the action (the PRIMARY control).
+	 *
+	 * Without this, describe_stash_target() could be reduced to `return ''` and the
+	 * whole informed-confirmation control would vanish with a green suite.
+	 */
+	public function test_describe_stash_target_names_the_concrete_action(): void
+	{
+		Functions\when('current_user_can')->justReturn(false);
+
+		$out = $this->describeTarget(array('target' => array('plugin' => 'evil/evil.php')));
+
+		$this->assertStringContainsString('evil/evil.php', $out, 'The Target line must name what is being authorized.');
+		$this->assertStringContainsString('plugin', $out);
+	}
+
+	/**
+	 * #322 v2: empty/malformed targets degrade quietly, not fatally.
+	 */
+	public function test_describe_stash_target_handles_missing_target(): void
+	{
+		Functions\when('current_user_can')->justReturn(false);
+
+		$this->assertSame('', $this->describeTarget(null));
+		$this->assertSame('', $this->describeTarget(array()));
+		$this->assertSame('', $this->describeTarget(array('target' => 'not-an-array')));
+		$this->assertSame('', $this->describeTarget(array('target' => array('k' => array('nested')))));
+	}
+
+	/**
+	 * #322 N1: user_id resolves to a login ONLY for viewers entitled to see it.
+	 *
+	 * The Gate is role-agnostic and the challenge page renders at 'read', so an
+	 * unprivileged user could otherwise walk users.php?action=promote&user_id=N and
+	 * enumerate every account's login name.
+	 */
+	public function test_describe_stash_target_does_not_leak_user_login_without_capability(): void
+	{
+		Functions\when('current_user_can')->justReturn(false);
+		Functions\expect('get_userdata')->never();
+
+		$out = $this->describeTarget(array('target' => array('user_id' => '1')));
+
+		$this->assertStringNotContainsString('admin', $out, 'user_login must not leak to an unentitled viewer.');
+		$this->assertStringContainsString('1', $out, 'The bare id is still shown.');
+	}
+
+	/**
+	 * #322 F3: an entitled viewer DOES get the readable login.
+	 */
+	public function test_describe_stash_target_resolves_user_login_with_capability(): void
+	{
+		Functions\when('current_user_can')->justReturn(true);
+
+		$user = new \WP_User(1);
+		$user->user_login = 'admin';
+		Functions\expect('get_userdata')->once()->with(1)->andReturn($user);
+
+		$out = $this->describeTarget(array('target' => array('user_id' => '1')));
+
+		$this->assertStringContainsString('admin', $out, 'An entitled viewer must see WHO is being changed.');
+		$this->assertStringContainsString('#1', $out);
+	}
+
+	/**
 	 * #322 v2: the legitimate same-browser flow replays again (UX restored).
 	 */
 	public function test_bound_stash_replays_after_credential_verified(): void

@@ -269,6 +269,103 @@ class RequestStashTest extends TestCase {
 	}
 
 	/**
+	 * #322 F4: a target param listed as sensitive is NOT recorded.
+	 *
+	 * capture_target() bypasses the per-rule POST allowlist, so it must run values
+	 * through the same filterable sensitive-key check that redaction uses.
+	 */
+	public function test_capture_target_skips_sensitive_params(): void {
+		$this->stub_stash_index_meta_io();
+
+		$_SERVER['REQUEST_METHOD'] = 'GET';
+		$_SERVER['HTTP_HOST']      = 'example.com';
+		$_SERVER['REQUEST_URI']    = '/wp-admin/options.php';
+		$_GET['option']            = 'super-secret-value';
+		$_GET['plugin']            = 'hello.php';
+
+		Functions\when( 'wp_generate_password' )->justReturn( 'abc123def456ghij' );
+		Functions\when( 'esc_url_raw' )->returnArg();
+		Functions\when( 'is_ssl' )->justReturn( true );
+		Functions\when( 'sanitize_text_field' )->returnArg();
+		// A site adds 'option' to the sensitive list via the documented filter.
+		Functions\when( 'apply_filters' )->alias(
+			static function ( $hook, $value ) {
+				if ( 'wp_sudo_sensitive_stash_keys' === $hook ) {
+					return array( 'option' );
+				}
+				return $value;
+			}
+		);
+
+		$stored = null;
+		Functions\expect( 'set_transient' )
+			->once()
+			->andReturnUsing(
+				function ( $key, $value ) use ( &$stored ) {
+					$stored = $value;
+					return true;
+				}
+			);
+
+		$this->stash->save( 1, array( 'id' => 'options.general', 'label' => 'Change settings' ) );
+
+		$this->assertArrayNotHasKey( 'option', $stored['target'], 'A sensitive param must not be recorded as a target.' );
+		$this->assertSame( 'hello.php', $stored['target']['plugin'] ?? null, 'Non-sensitive params are still captured.' );
+
+		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'], $_GET['option'], $_GET['plugin'] );
+	}
+
+	/**
+	 * #322 F5: truncation must not split a UTF-8 sequence.
+	 *
+	 * substr() can cut mid-codepoint; esc_html() then returns '' via
+	 * wp_check_invalid_utf8, silently blanking the Target line — i.e. removing the
+	 * primary control with no error. The stored value must survive escaping.
+	 */
+	public function test_capture_target_truncates_multibyte_safely(): void {
+		$this->stub_stash_index_meta_io();
+
+		// A THREE-byte character is required to make this test bite: the cap is 100,
+		// so a 2-byte char (é) would have substr() cut exactly on a boundary and stay
+		// valid UTF-8. At 3 bytes, byte 100 lands mid-codepoint (33 chars = 99 bytes),
+		// so a byte-wise substr() produces invalid UTF-8 and esc_html() blanks it.
+		$long = str_repeat( 'あ', 120 );
+
+		$_SERVER['REQUEST_METHOD'] = 'GET';
+		$_SERVER['HTTP_HOST']      = 'example.com';
+		$_SERVER['REQUEST_URI']    = '/wp-admin/plugins.php';
+		$_GET['plugin']            = $long;
+
+		Functions\when( 'wp_generate_password' )->justReturn( 'abc123def456ghij' );
+		Functions\when( 'esc_url_raw' )->returnArg();
+		Functions\when( 'is_ssl' )->justReturn( true );
+		Functions\when( 'sanitize_text_field' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		$stored = null;
+		Functions\expect( 'set_transient' )
+			->once()
+			->andReturnUsing(
+				function ( $key, $value ) use ( &$stored ) {
+					$stored = $value;
+					return true;
+				}
+			);
+
+		$this->stash->save( 1, array( 'id' => 'plugin.activate', 'label' => 'Activate plugin' ) );
+
+		$captured = $stored['target']['plugin'] ?? '';
+
+		$this->assertNotSame( '', $captured );
+		$this->assertTrue(
+			mb_check_encoding( $captured, 'UTF-8' ),
+			'Truncated target must remain valid UTF-8 or esc_html() will blank the Target line.'
+		);
+
+		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'], $_GET['plugin'] );
+	}
+
+	/**
 	 * Test save() still returns the key when transient storage fails.
 	 */
 	public function test_save_returns_key_when_set_transient_fails(): void {
