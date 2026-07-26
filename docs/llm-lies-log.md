@@ -644,6 +644,32 @@ Repos:   wp-sudo, wordpress-2fa-ecosystem
            before reporting an item "addressed/done," verify the artifact exists; do not
            treat thread-resolution or a merge as proof the work shipped.
 
+36. MISATTRIBUTED ACKNOWLEDGMENTS — public credit to real WordPress contributors
+   Files:  docs/core-sudo-gate-implementation-spec.md § Acknowledgments.
+   Claim:  Credited Tim Nash with the "gate the effect, not the field" framing;
+           credited John Blackbourn only as owner of Trac #16470 (email-change);
+           credited Timothy Jacobs for "the REST API architecture this spec builds
+           on"; and credited J.J. Jacoby / Jeremy Felt (#37593/#39174) as relevant
+           prior art.
+   Reality: Wrong or unsourced, and several contradicted the maintainer's own
+           recorded attributions. Per Dan: Blackbourn gave the ACTION-GATING CONCEPT
+           (the foundational idea), not merely an email-change ticket; Tim Nash gave
+           the ROLES/PERMISSIONS LOCKDOWN idea and must NOT be tied to "gate the
+           effect, not the field" (a deliberately uncredited WP Sudo concept).
+           Timothy Jacobs was a general WP-security educator years ago, nothing
+           Sudo-specific; JJJ/Felt are "on various tickets but not clearly related."
+           The one real acknowledgment — Calvin Alkan's critical feedback, Fortress
+           inspiration, the "a plugin can't do this -> needs core" argument, and the
+           "becoming a SIEM" critique behind the not-a-SIEM non-goal — was flattened
+           to a vague "scoping challenge."
+   Rule:   A project memory (sudo-contributor-attributions) recorded the correct
+           attributions specifically to prevent this; the section was written against
+           it anyway. Getting public credit to a prominent contributor wrong is
+           harmful and hard to walk back.
+   Fix:    Rewrote to the maintainer-confirmed attributions (Blackbourn = concept,
+           Nash = lockdown, Alkan = feedback/Fortress/why-core/SIEM), removed Timothy
+           Jacobs and JJJ/Felt, left "gate the effect, not the field" uncredited.
+
 ROOT CAUSE
 ----------
 All errors have stemmed from patterns that boil down to *not checking the 
