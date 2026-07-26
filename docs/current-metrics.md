@@ -42,7 +42,7 @@ profiling — a precise Query Monitor figure would confirm but not change the sh
 Per-user meta (`_wp_sudo_*`: session token/expiry/bind + ephemeral rate-limit counters)
 and transients (request stash, rate-limit keys, active-count cache) are written only for
 users who hold a session or trigger gating. Uninstall removes the options, per-user meta,
-and the events table; the transients are left to self-expire (`uninstall.php` deletes no transients).
+and the events table, plus the IP-scoped rate-limit transients, which `uninstall.php` sweeps from `wp_options` by prefix (their keys are hashed, so they cannot be enumerated for a `delete_transient()` loop). The remaining transients are left to self-expire, and an external object cache keeps its own copies until they lapse — the sweep clears database rows, not another backend's store.
 
 ### Per-request cost (front-end)
 
