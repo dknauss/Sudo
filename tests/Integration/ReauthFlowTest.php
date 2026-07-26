@@ -71,9 +71,10 @@ class ReauthFlowTest extends TestCase {
 		// Step 6: Session is now active (real meta + cookie binding).
 		$this->assertTrue( Sudo_Session::is_active( $user->ID ), 'Session should be active after authentication.' );
 
-		// Verify the token binding chain.
+		// Verify the token binding chain via the per-login-session proof entry.
 		$cookie_token = $_COOKIE[ Sudo_Session::TOKEN_COOKIE ];
-		$stored_hash  = get_user_meta( $user->ID, Sudo_Session::TOKEN_META_KEY, true );
+		$map          = get_user_meta( $user->ID, Sudo_Session::PROOF_META_KEY, true );
+		$stored_hash  = $map[ hash( 'sha256', wp_get_session_token() ) ]['token'] ?? '';
 		$this->assertSame( hash( 'sha256', $cookie_token ), $stored_hash );
 
 		// Step 7: Retrieve stash (real transient).

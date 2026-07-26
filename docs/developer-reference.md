@@ -959,7 +959,7 @@ Returns `true` if the user has an unexpired sudo session with a valid token. Thi
 
 Returns `true` when the session has expired **within the last `GRACE_SECONDS` (120 s)** and the session token still matches the cookie. Used by the Gate at interactive decision points (admin UI, REST, WPGraphQL) to allow in-flight form submissions to complete after the session timer expires.
 
-Session binding is enforced during the grace window — `verify_token()` is called before returning `true`. A stolen cookie on a different browser does not gain grace access.
+Session binding is enforced during the grace window — the self-authenticating proof (HMAC + cookie match, read cache-bypassed) is verified before returning `true`. A stolen cookie on a different browser, or a forged proof, does not gain grace access.
 
 The admin bar UI uses `is_active()` only; it always reflects the true session state.
 

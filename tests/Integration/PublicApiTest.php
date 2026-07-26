@@ -17,8 +17,9 @@ class PublicApiTest extends TestCase {
 		wp_set_current_user( $user->ID );
 
 		Sudo_Session::activate( $user->ID );
-		update_user_meta( $user->ID, Sudo_Session::META_KEY, time() - 30 );
-		Sudo_Session::reset_cache();
+		// Age the per-browser proof into the grace window (enforcement reads the
+		// proof entry's expiry, not the liveness scalar).
+		$this->force_proof_expiry( $user->ID, time() - 30 );
 
 		$this->assertFalse( Sudo_Session::is_active( $user->ID ), 'Session should be expired before helper check.' );
 		Sudo_Session::reset_cache();

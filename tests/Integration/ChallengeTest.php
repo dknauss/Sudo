@@ -71,14 +71,15 @@ class ChallengeTest extends TestCase {
 		$this->assertArrayHasKey( Sudo_Session::TOKEN_COOKIE, $_COOKIE, 'Token cookie should be set after activation.' );
 
 		$cookie_value = $_COOKIE[ Sudo_Session::TOKEN_COOKIE ];
-		$stored_hash  = get_user_meta( $user->ID, Sudo_Session::TOKEN_META_KEY, true );
+		$map          = get_user_meta( $user->ID, Sudo_Session::PROOF_META_KEY, true );
+		$stored_hash  = $map[ hash( 'sha256', wp_get_session_token() ) ]['token'] ?? '';
 
 		$this->assertNotEmpty( $cookie_value, 'Cookie value should not be empty.' );
 		$this->assertNotEmpty( $stored_hash, 'Stored token hash should not be empty.' );
 		$this->assertSame(
 			hash( 'sha256', $cookie_value ),
 			$stored_hash,
-			'SHA-256 hash of cookie should match stored meta value.'
+			'SHA-256 hash of cookie should match the stored proof-entry token.'
 		);
 	}
 

@@ -231,10 +231,10 @@ class ExitPathTest extends TestCase {
 		$token = $_COOKIE[ Sudo_Session::TOKEN_COOKIE ] ?? '';
 		$this->assertNotEmpty( $token, 'Token cookie should be set after activation.' );
 
-		// Move the expiry into the past (30 s ago) — within GRACE_SECONDS (120 s).
-		$expired_at = time() - 30;
-		update_user_meta( $user->ID, Sudo_Session::META_KEY, $expired_at );
-		Sudo_Session::reset_cache();
+		// Age this browser's proof entry into the past (30 s ago) — within
+		// GRACE_SECONDS (120 s). Enforcement reads the per-browser proof expiry,
+		// so re-stamp+re-sign the entry rather than only the liveness scalar.
+		$this->force_proof_expiry( $user->ID, time() - 30 );
 
 		// Verify preconditions: session is NOT active but IS within grace.
 		$this->assertFalse( Sudo_Session::is_active( $user->ID ), 'Session should not be active (expired).' );
@@ -286,10 +286,8 @@ class ExitPathTest extends TestCase {
 		$token = $_COOKIE[ Sudo_Session::TOKEN_COOKIE ] ?? '';
 		$this->assertNotEmpty( $token, 'Token cookie should be set after activation.' );
 
-		// Move the expiry well beyond the grace window (180 s ago).
-		$expired_at = time() - 180;
-		update_user_meta( $user->ID, Sudo_Session::META_KEY, $expired_at );
-		Sudo_Session::reset_cache();
+		// Age this browser's proof entry well beyond the grace window (180 s ago).
+		$this->force_proof_expiry( $user->ID, time() - 180 );
 
 		// Verify preconditions: session is NOT active and NOT within grace.
 		$this->assertFalse( Sudo_Session::is_active( $user->ID ), 'Session should not be active.' );
@@ -342,10 +340,8 @@ class ExitPathTest extends TestCase {
 		// Activate a real session.
 		Sudo_Session::activate( $user->ID );
 
-		// Move expiry into grace window (30 s ago).
-		$expired_at = time() - 30;
-		update_user_meta( $user->ID, Sudo_Session::META_KEY, $expired_at );
-		Sudo_Session::reset_cache();
+		// Age this browser's proof entry into the grace window (30 s ago).
+		$this->force_proof_expiry( $user->ID, time() - 30 );
 
 		// Register the Gate's rest_pre_dispatch filter.
 		add_filter( 'rest_pre_dispatch', array( $this->gate, 'intercept_rest' ), 10, 3 );
