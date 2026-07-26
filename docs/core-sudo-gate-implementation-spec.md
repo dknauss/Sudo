@@ -33,7 +33,7 @@ The security boundary is **recent, deliberate authentication of the actor at the
 | XSS running in an authed admin origin | yes | yes | **Partially** — cannot silently satisfy an interactive reauth, but in-origin XSS can free-ride on (or trigger, or keylog) any window already open |
 | Walk-away / shared workstation | yes | yes | **Yes** — window expires; consequential action re-challenges |
 | Malicious Editor escalating to Admin | yes | no promote cap — reaches the path via a broken-access-control bug | **Partial** — a *hijacked* Editor session is blocked (the attacker can't pass the Editor's own reauth); a legitimately-authenticated malicious insider who *can* pass their own reauth is **not** stopped — the gate only forces a fresh, loggable step. Fixing the BAC bug is the authz layer's job (rows below); the gate is defense-in-depth for the stolen-session case, not a substitute |
-| Attacker who knows the password | yes | yes | Partially — reauth still forces a deliberate, loggable step and blocks silent replay |
+| Attacker who knows the password | yes | yes | **Partially** — reauth still forces a deliberate, loggable step and blocks silent replay |
 | Stolen Application Password / API credential | yes (API credential, not a human session) | yes | **Block-and-log** — no interactive reauth is possible over a credential channel, so these surfaces are hard-blocked, not challenged (§9) |
 | Compromised plugin executing in-process | n/a | n/a | **No** — out of scope (needs runtime isolation) |
 | Missing `current_user_can()` in a handler | n/a | n/a | **No** — that's an authz bug, orthogonal |
