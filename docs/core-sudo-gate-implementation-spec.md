@@ -158,6 +158,9 @@ Mechanics — each numbered point is a required invariant, not an implementation
 3. **Self-authenticating (HMAC), binding the proof hash.** `session_tokens` is stored in `user_meta`, a **persistent, poisonable** object-cache group, so an unsigned `reauth_at` is forgeable by a cache-poisoning primitive — exactly the wp2shell class (SQLi used to poison the object cache). Bind the record with `hash_hmac( 'sha256', "$user_id|$verifier|$reauth_at|$scope|$proof_hash", wp_salt( 'auth' ) )`, where `$proof_hash` is the stored `hash('sha256', $proof)` of the browser proof secret, and reject on mismatch. The MAC **must** cover `$proof_hash`: otherwise an attacker who can poison the record keeps its valid signature and swaps in the hash of a cookie they hold, defeating the separate-proof requirement. **A cache-bypassing `$wpdb` read on the enforcement path is REQUIRED, not a complement.** The motivating primitive (wp2shell, §10) is a SQLi *read* used to poison the **object cache** — not a DB-row write — so reading the row directly defeats it **regardless of where the salts live**. The HMAC additionally defends the direct-DB-*write* attacker, who is already out of scope (§2).
    Salt placement is therefore **defense-in-depth, not a precondition**: verified against trunk, when the salt constants are undefined `wp_salt()` reads `get_site_option( "{$scheme}_{$type}" )` and, when empty, generates one with `wp_generate_password( 64, true, true )` and persists it with `update_site_option()` — so on those installs the same SQLi read can obtain the salt and forge the MAC. Surface that state in Site Health; do **not** make the gate's security claim conditional on it, and do not chase a salt-independent binding against a DB-read adversary (any stored key is readable — the scope of the claim is what needs stating, not the key).
 4. **Only the challenge handler writes it.** Core must strip reserved `reauth_*` keys from the `attach_session_information` filter result (that filter sets the *base* session array on every `WP_Session_Tokens::create()`, so any registered callback could otherwise pre-elevate every new session), and the HMAC must cover the verifier so an injected stamp cannot validate.
+4b. **The session store is pluggable, so the proof record must not assume it (#328).** `WP_Session_Tokens::get_instance()` resolves its class through the `session_token_manager` filter (`class-wp-session-tokens.php:58`, `:222`, verified), and Redis/Memcached/DB-backed managers are free to persist only the fields they know about. If a manager silently drops the proof record, `wp_redeem_action_proof()` never succeeds and — under default-on fail-closed — **every gated action becomes an unsatisfiable loop**: the user is challenged, passes, and is challenged again, with no in-product escape. That is a worse outcome than the gap the gate closes.
+   Required: **detect the capability rather than assume it.** Write a probe record through the active manager and read it back at activation (and in Site Health); if the round-trip fails, enter a **documented degraded mode that is not fail-closed** — log, surface the condition prominently, and allow — or use a dedicated store instead of `WP_Session_Tokens` (§11-Q2). A security control that cannot be satisfied is not a control; it is an outage, and it will be removed by whoever is on call.
+
 5. **Redemption consults the session store, not a cookie string.** `wp_redeem_action_proof()` reads the pending proof record from the store and checks the presented proof hash, the HMAC, the bound digest, and single-use state. Because it reads the store, `destroy_all()` revokes outstanding proofs within the same request (an improvement over the plugin's cookie-string bind, which lags one request — issue #279).
 6. **A fresh `login` timestamp is not proof.** `wp_signon( '', '' )` mints a new session token with a current `login` stamp from a *held cookie* with no credential entered (and SSO / magic-link plugins call `wp_set_auth_cookie()` with no password). So a "forced-login" variant that infers freshness from the new session's `login` time is the rejected shared-token approach in another form. Freshness must come from the explicit, challenge-written record above.
 7. **Teardown on credential change clears only `reauth_*` for the target user — never `destroy_all()`.** A password change (`after_password_reset`, and the password path of `wp_update_user()` / `wp_set_password()`, which leave the token record intact) must end the window. Clear the `reauth_*` keys for the affected user's sessions; do **not** call `destroy_all()` (that logs the user out of the very request that changed the password), and do **not** hook `profile_update` blindly — it fires when an admin edits *another* user and on non-password writes (WP Sudo guards this by comparing the password hash; core must too).
@@ -273,6 +276,31 @@ The terminal code routes are gated at **two shared sinks plus one effect**, not 
 
 ---
 
+### 5.5 Direct option writes reach the same effects without the named seam (#327)
+
+Every code/capability seam in §5.4 has an option-shaped back door, because core reads
+the option rather than asking the function that normally writes it. Gating
+`activate_plugin()` and `switch_theme()` while leaving their options writable gates the
+*front door of a room with two doors*.
+
+| Option | Effect reached without the seam |
+|---|---|
+| `active_plugins` / `active_sitewide_plugins` | **Plugin activation.** Verified: `wp_get_active_and_valid_plugins()` reads `get_option( 'active_plugins', array() )` (`load.php:1015`) and loads what it finds. A direct write activates code on the next request without `activate_plugin()` ever running — so §6 row 14c's seam is bypassed entirely. |
+| `template` / `stylesheet` | **Theme switch**, without `switch_theme()` and therefore without row 15's guard. |
+| `wp_user_roles` | **Capability grant.** Rewriting the role definitions adds capabilities to existing roles, which defeats both the escalation guard (§5.3, which watches the per-user caps meta) and the registration-default invariant. |
+| `admin_email` / `new_admin_email` | Site-owner identity, the recovery-address pivot. |
+
+**Gate the option write itself** for these keys, via `pre_update_option_{$option}`. §6.3 records
+why that mechanism is adequate *here* and not for `switch_theme()`: it is adequate exactly
+when the option write **is** the whole effect, which is the case for every row above — the
+attacker's goal is the stored value, and nothing else needs to happen. The known limitation
+still applies (a refusal is reported as `false`, indistinguishable from "no change needed"),
+so the gate must not infer success from the return.
+
+Alternatively, **explicitly bracket** any of these as out of scope — but bracket them in §5
+by name, with the reason. What is not acceptable is the current silence, which reads as
+coverage the design does not have.
+
 ## 6. Concrete core change list
 
 | # | File | Function / hook | Change |
@@ -381,6 +409,35 @@ Explicitly deferred: WebAuthn ceremonies, external IdP redirects, multi-step TOT
 - **Multisite terminology** (#37593/#39174): "network administrator" for ordinary network authority, "super admin" only for core's technical concept, "sudo mode" for the temporary window. No permanent role is introduced.
 
 ---
+
+### 8.1 Fail-closed recovery — the triggers need hardening (#329)
+
+Fail-closed gating is only safe if the escapes are reachable and the carve-outs cannot be
+turned on by an attacker. Three of them do not currently hold up.
+
+- **`wp_installing()` is a mutable runtime switch, not a constant.** Verified: it holds a
+  `static $installing` seeded from `WP_INSTALLING` but reassignable by any caller passing
+  an argument (`load.php:1634`), and core itself flips it `true` during DB-upgrade
+  routines. So the §6.2 install carve-out must **not** rest on `wp_installing()` alone —
+  anything running in-process can set it and walk through the exemption. Pair it with the
+  actor test that carve-out actually means (**no authenticated actor**), and treat
+  `wp_installing()` as a hint about context, never as authorisation.
+- **The catalog filter must union with the built-ins, not replace them.** A
+  `wp_consequential_actions` callback returning a reduced array silently disables gating
+  for everything it omitted; returning an empty array disables the gate site-wide while CI
+  and Site Health still report it enabled. Core must re-add any missing built-in entry
+  after filtering. This is not hypothetical — WP Sudo ships exactly this guard in
+  `normalize_filtered_rules()` for the same filter, after the same reasoning.
+- **`wp_action_gate_enabled` cannot rescue an early failure.** The catalog registers at
+  file load (§6 row 2) so that fail-closed gating cannot be defeated by a plugin
+  unhooking `init`. A filter cannot exist that early, so at file-load time only
+  `WP_DISABLE_ACTION_GATE` — a constant in `wp-config.php` — can disable the gate. Say so:
+  documenting a filter as the recovery path, when the failure it must recover from happens
+  before filters exist, is a recovery path that does not work when it is needed.
+
+The general rule behind all three: **an escape hatch is part of the security design, not an
+afterthought.** Each one needs to be reachable by the operator who is locked out, and
+unreachable by the attacker who caused it.
 
 ## 9. Non-interactive callers: branch on actor class, not transport
 
