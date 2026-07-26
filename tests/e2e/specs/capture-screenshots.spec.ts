@@ -42,13 +42,12 @@
  *                        only while WP_SUDO_RECOVERY_MODE is set
  */
 import { test, activateSudoSession } from '../fixtures/test';
-import { execSync } from 'child_process';
-import { wpEnvRun } from '../fixtures/wp-env';
+import { wpEnvRunCliSync } from '../fixtures/wp-env';
 import * as path from 'path';
 
 const CAPTURE = !! process.env.WP_SUDO_CAPTURE;
 const OUT_DIR = path.resolve( __dirname, '../../../.wordpress-org' );
-const CLI = wpEnvRun( 'cli' ); // dev site (port 8889) — the site the browser uses
+// dev site (port 8889) — the site the browser uses
 
 const shot = ( n: number ): string => path.join( OUT_DIR, `screenshot-${ n }.png` );
 
@@ -105,7 +104,7 @@ test.describe( 'WordPress.org listing screenshots (ORG-02)', () => {
 		// 9 — Break-glass recovery notice. Toggle WP_SUDO_RECOVERY_MODE on for this one
 		// shot only; the try/finally guarantees it is removed even if the shot fails.
 		try {
-			execSync( `${ CLI } wp config set WP_SUDO_RECOVERY_MODE true --raw`, { stdio: 'ignore' } );
+			wpEnvRunCliSync( 'cli', [ 'wp', 'config', 'set', 'WP_SUDO_RECOVERY_MODE', 'true', '--raw' ], { stdio: 'ignore' } );
 			// PHP opcache can serve a stale wp-config (without the new constant) for up to
 			// opcache.revalidate_freq seconds, so the notice may miss the first load. Poll:
 			// reload the settings page until the recovery notice renders.
@@ -130,7 +129,7 @@ test.describe( 'WordPress.org listing screenshots (ORG-02)', () => {
 			await page.screenshot( { path: shot( 9 ), fullPage: true } );
 		} finally {
 			try {
-				execSync( `${ CLI } wp config delete WP_SUDO_RECOVERY_MODE`, { stdio: 'ignore' } );
+				wpEnvRunCliSync( 'cli', [ 'wp', 'config', 'delete', 'WP_SUDO_RECOVERY_MODE' ], { stdio: 'ignore' } );
 			} catch {
 				// already absent — nothing to clean up
 			}

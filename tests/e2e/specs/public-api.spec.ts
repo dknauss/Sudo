@@ -6,13 +6,10 @@
  */
 import { test, expect, activateSudoSession } from '../fixtures/test';
 import type { Page } from '@playwright/test';
-import { exec } from 'child_process';
+import * as fs from 'fs';
 import path from 'path';
-import { promisify } from 'util';
-import { wpEnvRun } from '../fixtures/wp-env';
+import { wpEnvRunCli, containerBash } from '../fixtures/wp-env';
 
-const execAsync = promisify( exec );
-const WP_ENV_RUN_CLI = wpEnvRun( 'cli' );
 const DEFAULT_PASSWORD = process.env.WP_PASSWORD ?? 'password';
 const E2E_PUBLIC_API_MU_PLUGIN = 'wp-sudo-e2e-public-api.php';
 const LOCAL_SITE_PATH = ( process.env.WP_E2E_SITE_PATH ?? '' ).trim();
@@ -20,30 +17,38 @@ const WP_ENV_PLUGIN_DIR = process.env.WP_E2E_PLUGIN_DIR?.trim() || path.basename
 
 async function installPublicApiMuPlugin(): Promise<void> {
     if ( LOCAL_SITE_PATH ) {
-        await execAsync(
-            `mkdir -p '${ LOCAL_SITE_PATH }/wp-content/mu-plugins' && cp '${ process.cwd() }/tests/e2e/fixtures/${ E2E_PUBLIC_API_MU_PLUGIN }' '${ LOCAL_SITE_PATH }/wp-content/mu-plugins/${ E2E_PUBLIC_API_MU_PLUGIN }'`,
-            { timeout: 30_000 }
+        // Host-side file ops on a real Local/Studio site — use fs, never a shell.
+        const muDir = path.join( LOCAL_SITE_PATH, 'wp-content', 'mu-plugins' );
+        fs.mkdirSync( muDir, { recursive: true } );
+        fs.copyFileSync(
+            path.join( process.cwd(), 'tests', 'e2e', 'fixtures', E2E_PUBLIC_API_MU_PLUGIN ),
+            path.join( muDir, E2E_PUBLIC_API_MU_PLUGIN )
         );
         return;
     }
 
-    await execAsync(
-        `${ WP_ENV_RUN_CLI } bash -lc 'mkdir -p /var/www/html/wp-content/mu-plugins && cp /var/www/html/wp-content/plugins/${ WP_ENV_PLUGIN_DIR }/tests/e2e/fixtures/${ E2E_PUBLIC_API_MU_PLUGIN } /var/www/html/wp-content/mu-plugins/${ E2E_PUBLIC_API_MU_PLUGIN }'`,
+    await wpEnvRunCli(
+        'cli',
+        containerBash(
+            'mkdir -p /var/www/html/wp-content/mu-plugins && cp "/var/www/html/wp-content/plugins/$1/tests/e2e/fixtures/$2" "/var/www/html/wp-content/mu-plugins/$2"',
+            [ WP_ENV_PLUGIN_DIR, E2E_PUBLIC_API_MU_PLUGIN ]
+        ),
         { timeout: 30_000 }
     );
 }
 
 async function removePublicApiMuPlugin(): Promise<void> {
     if ( LOCAL_SITE_PATH ) {
-        await execAsync(
-            `rm -f '${ LOCAL_SITE_PATH }/wp-content/mu-plugins/${ E2E_PUBLIC_API_MU_PLUGIN }'`,
-            { timeout: 30_000 }
+        fs.rmSync(
+            path.join( LOCAL_SITE_PATH, 'wp-content', 'mu-plugins', E2E_PUBLIC_API_MU_PLUGIN ),
+            { force: true }
         );
         return;
     }
 
-    await execAsync(
-        `${ WP_ENV_RUN_CLI } bash -lc 'rm -f /var/www/html/wp-content/mu-plugins/${ E2E_PUBLIC_API_MU_PLUGIN }'`,
+    await wpEnvRunCli(
+        'cli',
+        containerBash( 'rm -f "/var/www/html/wp-content/mu-plugins/$1"', [ E2E_PUBLIC_API_MU_PLUGIN ] ),
         { timeout: 30_000 }
     );
 }

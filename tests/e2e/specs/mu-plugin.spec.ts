@@ -44,12 +44,7 @@
  *   Remove:  wp-env run cli bash -c "rm -f /var/www/html/wp-content/mu-plugins/wp-sudo-gate.php"
  */
 import { test, expect, activateSudoSession } from '../fixtures/test';
-import { exec } from 'child_process';
-import { promisify } from 'util';
-import { wpEnvRun } from '../fixtures/wp-env';
-
-const execAsync = promisify( exec );
-const WP_ENV_RUN_CLI = wpEnvRun( 'cli' );
+import { wpEnvRunCli, containerBash } from '../fixtures/wp-env';
 
 /**
  * Run a WP-CLI command inside the wp-env cli container (targets port 8889 dev site).
@@ -57,11 +52,8 @@ const WP_ENV_RUN_CLI = wpEnvRun( 'cli' );
  *
  * Source: Wave-02 key decision — 'cli' container for browser test site (port 8889) (verified)
  */
-async function wpCli( command: string ): Promise<string> {
-    const { stdout } = await execAsync(
-        `${ WP_ENV_RUN_CLI } ${ command }`,
-        { timeout: 30_000 }
-    );
+async function wpCli( args: string[] ): Promise<string> {
+    const { stdout } = await wpEnvRunCli( 'cli', args, { timeout: 30_000 } );
     return stdout.trim();
 }
 
@@ -72,7 +64,7 @@ async function wpCli( command: string ): Promise<string> {
  */
 async function removeMuPlugin(): Promise<void> {
     await wpCli(
-        'bash -c "rm -f /var/www/html/wp-content/mu-plugins/wp-sudo-gate.php"'
+        containerBash( 'rm -f /var/www/html/wp-content/mu-plugins/wp-sudo-gate.php' )
     );
 }
 
@@ -86,9 +78,11 @@ async function removeMuPlugin(): Promise<void> {
  * Source: class-admin.php render_mu_plugin_status() — defined( 'WP_SUDO_MU_LOADED' ) for install status (verified)
  */
 async function getMuPluginState(): Promise<string> {
-    const result = await wpCli(
-        `wp eval "echo file_exists(WPMU_PLUGIN_DIR.'/wp-sudo-gate.php') ? 'installed' : 'not-installed';"`
-    );
+    const result = await wpCli( [
+        'wp',
+        'eval',
+        `echo file_exists(WPMU_PLUGIN_DIR.'/wp-sudo-gate.php') ? 'installed' : 'not-installed';`,
+    ] );
     // wp-env run prepends a status line; extract just the last non-empty word
     const match = result.match( /(installed|not-installed)/ );
     return match ? match[ 1 ] : result;
