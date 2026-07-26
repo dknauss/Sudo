@@ -47,16 +47,13 @@
  * fails loudly if that happens. Locale-independent, unlike matching `aria-label`.
  *
  * UPSTREAM SOURCE for that construction (this selector depends on Gutenberg internals,
- * so record where it was verified rather than only that it was):
- *   packages/interface/src/components/complementary-area-toggle/index.js
- *     L45  const identifier = identifierProp || `${ context.name }/${ name }`;
- *     L59  aria-controls={ identifier.replace( '/', ':' ) }
- *   packages/interface/src/components/pinned-items/index.js
- *     L21-23  className={ clsx( className, 'interface-pinned-items' ) }
- * — https://raw.githubusercontent.com/WordPress/gutenberg/trunk/packages/interface/src/components/complementary-area-toggle/index.js
- * — https://raw.githubusercontent.com/WordPress/gutenberg/trunk/packages/interface/src/components/pinned-items/index.js
- * (fetched 2026-07-26), and confirmed against the live WP 7.0 editor DOM. Note
- * `.replace()` swaps only the FIRST `/`, so this holds while neither name contains one.
+ * so record where it was verified rather than only that it was): registry IDs
+ * GB-AREA-IDENTIFIER and GB-AREA-ARIA-CONTROLS (the `{plugin}:{sidebar}` identifier and
+ * the `aria-controls` it feeds) and GB-PINNED-CLASS (the container class), all in
+ * docs/upstream-sources.md — which `composer verify:sources` re-checks against live
+ * upstream, unlike a URL pasted into a comment. Confirmed against the live WP 7.0
+ * editor DOM as well. Note `.replace()` swaps only the FIRST `/`, so this holds while
+ * neither name contains one.
  *
  * `.interface-pinned-items` is load-bearing, not decoration: the Options menu renders
  * the SAME toggle component with the SAME `aria-controls`, so dropping the container

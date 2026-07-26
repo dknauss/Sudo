@@ -15,12 +15,13 @@ source of truth for its topic; this index never restates content (see
 | Use the hooks, filters, and custom-rule API | [`developer-reference.md`](developer-reference.md) |
 | See how WP Sudo compares to other reauth/sudo approaches | [`sudo-architecture-comparison-matrix.md`](sudo-architecture-comparison-matrix.md) |
 
-## Canonical state — check these before writing any count or release claim
+## Canonical state — check these before writing any count, release, or upstream claim
 
 | Question | Canonical source |
 |---|---|
 | How many surfaces / rules / hooks / fields are there right now? | [`current-metrics.md`](current-metrics.md) |
 | What's the stable tag / unreleased `main` work / forward-lane posture? | [`release-status.md`](release-status.md) |
+| What does WordPress/Gutenberg actually do at the line we cite? | [`upstream-sources.md`](upstream-sources.md) |
 
 ## The core proposal — "propose this primitive to WordPress core"
 

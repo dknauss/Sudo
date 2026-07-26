@@ -211,6 +211,83 @@ changed since the last release. Use the project size commands above.
 
 And update `Stable tag` in `readme.txt`.
 
+## Prose Discipline
+
+Every rule below exists because the failure it describes has already shipped in this
+repo. `docs/llm-lies-log.md` is the record; PR #317 alone needed three rounds of
+corrections, all to prose, none to code. Prose is the least-tested artifact here and the
+one an LLM produces fastest — treat a sentence about behaviour as seriously as a line of
+code that asserts it.
+
+### Cite the enclosing symbol, never a bare line number
+
+- **MUST** name the function, component, or selector that *contains* the cited line:
+  "`ComplementaryAreaToggle` inside `<PinnedItems>` (complementary-area/index.js L280)",
+  not "complementary-area/index.js L326".
+- If you cannot name the enclosing scope, you have not read the file — a `grep` hit
+  proves a token's address, not that it belongs to the thing you are describing. #288
+  cited `isPinned ? starFilled : starEmpty` as precedent for the pinned toolbar button;
+  the line was real, but it belongs to the pin/unpin star in a different container.
+  Six files, including the user-facing changelog, carried that error to `main`.
+- Line numbers are a convenience, not the identity. The snippet plus the symbol is the
+  identity, because upstream trunk moves under you.
+
+### Register third-party claims once, in `docs/upstream-sources.md`
+
+- **MUST** add a row to that registry for any new claim about code this repo does not
+  own, then run `composer verify:sources`.
+- Prose carries a one-line summary and the registry ID. It does not carry a second copy
+  of the URL, the line, and the argument. The Gutenberg-precedent argument in #317 was
+  duplicated across seven files; correcting it meant finding all seven, and the eighth
+  copy — in the one language the change had not touched — was missed twice.
+- Same arrangement as `docs/current-metrics.md` for counts, for the same reason.
+
+### Scope words are claims and need evidence
+
+- *only, sole, never, always, every, none, the single* — about third-party behaviour or
+  anything outside the file you are editing — **MUST** be backed by a command that would
+  falsify them, or rewritten narrower.
+- Every false statement found in #317 was a true narrow observation inflated by one of
+  these words. "Core applies no semantic background to pinned-item buttons" was verified
+  and correct. "The sole colour in that header is the Publish button" was the same
+  sentence with a scope word bolted on, and it was contradicted by a screenshot **in the
+  same commit**.
+- The citation lends its credibility to the whole sentence, including the part nothing
+  checked. That is what makes this failure mode hard to see while writing.
+
+### Write decisions, not state inventories
+
+- Prefer "carried on the glyph rather than a chip, because core applies no semantic
+  background here" over "the only painted state is expiring".
+- A decision plus its reason stays true. A description of current behaviour rots at the
+  next commit, and no test fails when it does. "The only painted state" survived four
+  hours.
+- If current state must be described, describe it in **one** place and point at that
+  place from everywhere else.
+
+### After any behaviour change, sweep every file type
+
+- **MUST** grep the changed concept across the whole repo — `.php`, `.js`, `.css`,
+  `.ts`, `.md`, `.txt`, `.pot` — with particular attention to languages the change did
+  **not** touch. Those are where stale prose hides, because they are outside the diff
+  you are looking at.
+- **MUST** open any regenerated binary artifact (screenshot, visual baseline) before
+  writing prose about it. In #317 the screenshot that disproved a claim shipped in the
+  same commit as the claim.
+- Marking a superseded section HISTORICAL, with the specific statements that no longer
+  hold, is preferred over silently rewriting it — the reasoning usually still has value
+  even when the description does not.
+
+### Run the mechanical checks after *every* edit, including comment-only ones
+
+- `composer verify:metrics` after any change that adds or removes lines in tracked
+  paths. A four-line PHP comment moved three coupled rows in `docs/current-metrics.md`
+  and broke CI in #317; it did not feel like a change that needed the metrics check.
+- `bash bin/make-pot.sh` after touching translatable strings **or the lines above them**
+  — `.pot` carries line references. Hand-patching those references, as #317 did three
+  times, is slower and less reliable than regenerating.
+- `composer verify:sources` after adding or editing any third-party citation.
+
 ## Test-Driven Development
 
 All new code must follow TDD:

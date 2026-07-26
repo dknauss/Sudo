@@ -1,0 +1,30 @@
+name: Upstream Source Drift
+
+# Nightly and on demand — deliberately NOT a pull-request gate. This job fetches
+# raw.githubusercontent.com, so as a required check a GitHub or network blip would
+# block merges for reasons unrelated to the change, and a required check that fails
+# for unrelated reasons is one people learn to force past.
+#
+# It is also NOT continue-on-error. This repo already learned what that produces:
+# e2e-visual.yml carried `continue-on-error` and reported "success" for weeks while
+# four baselines failed, so nobody looked. If this job goes red, a claim in the repo
+# is no longer supported by the code it cites — fix it.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '15 5 * * *'
+
+# Least-privilege default for GITHUB_TOKEN (CodeQL actions hardening).
+permissions:
+  contents: read
+
+jobs:
+  verify-sources:
+    name: "Upstream citations still say what we claim"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Verify every citation in docs/upstream-sources.md
+        run: bash bin/verify-sources.sh
