@@ -1,0 +1,15 @@
+<?xml version="1.0"?>
+<phpunit
+	bootstrap="bootstrap.php"
+	backupGlobals="false"
+	colors="true"
+	beStrictAboutTestsThatDoNotTestAnything="true"
+	beStrictAboutOutputDuringTests="true"
+	failOnWarning="true"
+	>
+	<testsuites>
+		<testsuite name="install-package-gate">
+			<directory suffix="Test.php">./tests</directory>
+		</testsuite>
+	</testsuites>
+</phpunit>
