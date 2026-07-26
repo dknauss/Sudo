@@ -308,6 +308,14 @@ jobs:
       - name: Verify metrics file drift
         run: composer verify:metrics
 
+      # Regression tests for bin/verify-sources.sh. Offline by design (a fake curl on
+      # PATH, driven by per-case fixtures), so they exercise the checker's parsing,
+      # HTTP-status classification, offline behavior, and repo-wide scans on every
+      # code PR — unlike the live verify-sources.yml job, which is nightly-only because
+      # it fetches raw.githubusercontent.com.
+      - name: Verify source-checker regression tests
+        run: composer test:sources
+
       # The script existed but ran nowhere, so a stale POT reached main in #317:
       # line references had been hand-patched instead of regenerated, and one was
       # missed. Cheap to run, and it only fails when the POT is genuinely out of date.

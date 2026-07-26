@@ -45,6 +45,7 @@
         "test:unit": "phpunit --configuration phpunit.xml.dist",
         "test:integration": "bash bin/run-integration-tests.sh phpunit-integration.xml.dist",
         "test:coverage": "phpunit --configuration phpunit.xml.dist --coverage-clover coverage.xml --coverage-text",
+        "test:sources": "bash tests/verify-sources/run.sh",
         "verify:metrics": "bash bin/verify-metrics.sh",
         "verify:i18n": "bash bin/verify-i18n.sh",
         "verify:sources": "bash bin/verify-sources.sh",

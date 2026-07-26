@@ -30,5 +30,11 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # Exercise the checker's own logic (offline, deterministic) before trusting it
+      # against the live upstream. If the checker itself is broken, the citation run
+      # below is meaningless.
+      - name: Run the source-checker regression tests
+        run: bash tests/verify-sources/run.sh
+
       - name: Verify every citation in docs/upstream-sources.md
         run: bash bin/verify-sources.sh
