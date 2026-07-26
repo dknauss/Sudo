@@ -157,6 +157,27 @@
 		);
 	}
 
+	/**
+	 * Notify the in-editor session indicator (#262) of a fresh grant via a
+	 * `wp-sudo-session-granted` window CustomEvent carrying the seconds remaining.
+	 *
+	 * This is the ONLY coupling between this modal and the indicator module — they
+	 * are otherwise decoupled (neither imports the other). Best-effort: if
+	 * CustomEvent is unavailable the indicator still seeds from its page-load feed.
+	 *
+	 * @param {number} remaining Seconds left in the granted session (from the AJAX body).
+	 * @return {void}
+	 */
+	function dispatchGranted( remaining ) {
+		try {
+			window.dispatchEvent( new CustomEvent( 'wp-sudo-session-granted', {
+				detail: { remaining: parseInt( remaining, 10 ) || 0 },
+			} ) );
+		} catch ( e ) {
+			/* no-op: the indicator falls back to its page-load feed. */
+		}
+	}
+
 	// ---------------------------------------------------------------------
 	// In-editor grant modal
 	// ---------------------------------------------------------------------
@@ -210,7 +231,9 @@
 					return { ok: false, code: 'unexpected', message: __( 'Unexpected server response.', 'wp-sudo' ) };
 				}
 				if ( json && json.success && json.data ) {
-					return { ok: true, code: json.data.code, message: '' };
+					// #262: carry `remaining` so a successful grant can re-seed the
+					// in-editor session indicator's countdown (feed #2) without a reload.
+					return { ok: true, code: json.data.code, message: '', remaining: parseInt( json.data.remaining, 10 ) || 0 };
 				}
 				var msg = ( json && json.data && json.data.message ) || __( 'Authentication failed.', 'wp-sudo' );
 				return { ok: false, code: ( json && json.data && json.data.code ) || 'error', message: msg };
@@ -371,7 +394,8 @@
 					return { ok: false, code: 'unexpected', status: status, message: __( 'Unexpected server response.', 'wp-sudo' ) };
 				}
 				if ( json && json.success && json.data ) {
-					return { ok: true, code: json.data.code, status: status, message: '' };
+					// #262: carry `remaining` for the session indicator's feed #2.
+					return { ok: true, code: json.data.code, status: status, message: '', remaining: parseInt( json.data.remaining, 10 ) || 0 };
 				}
 				var msg = ( json && json.data && json.data.message ) || __( 'Authentication failed.', 'wp-sudo' );
 				return { ok: false, code: ( json && json.data && json.data.code ) || 'error', status: status, message: msg };
@@ -461,6 +485,7 @@
 			refreshNonce().then( function ( nonce ) {
 				return postPassword( password, nonce ).then( function ( res ) {
 					if ( res.ok && 'authenticated' === res.code ) {
+						dispatchGranted( res.remaining ); // #262 feed #2 (before resolve).
 						props.resolve( true );
 						return undefined;
 					}
@@ -495,6 +520,7 @@
 			refreshNonce().then( function ( nonce ) {
 				return postTwoFactor( fields, nonce ).then( function ( res ) {
 					if ( res.ok && 'authenticated' === res.code ) {
+						dispatchGranted( res.remaining ); // #262 feed #2 (before resolve).
 						props.resolve( true );
 						return;
 					}

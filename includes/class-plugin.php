@@ -385,6 +385,27 @@ class Plugin {
 		);
 
 		wp_set_script_translations( 'wp-sudo-editor-reauth', 'wp-sudo' );
+
+		// #262 (in-editor session-status indicator): a SEPARATE, decoupled module
+		// that surfaces the active sudo session inside the full-screen editor, where
+		// the admin-bar countdown never renders. It reads the SAME wpSudoEditorReauth
+		// global localized above (the `remaining` seconds seed a client-side countdown
+		// — feed #1) and re-seeds on a fresh grant via the `wp-sudo-session-granted`
+		// window CustomEvent the reauth modal dispatches (feed #2), so it needs NO
+		// separate wp_localize_script and NO read endpoint or polling. `wp-plugins` +
+		// `wp-editor` back the feature-detected PluginSidebar (Part B, WP 6.6+); on
+		// 6.4–6.5 the module degrades to the announce-once snackbar (Part A), which is
+		// why `wp-notices` is an explicit dep here rather than inherited from the reauth
+		// handle. `wp-dom-ready` defers the page-load snackbar until the notices UI is
+		// mounted. Informational only: it never mints, extends, or refreshes a session.
+		wp_enqueue_script(
+			'wp-sudo-session-indicator',
+			WP_SUDO_PLUGIN_URL . 'admin/js/wp-sudo-session-indicator.js',
+			array( 'wp-element', 'wp-data', 'wp-notices', 'wp-i18n', 'wp-plugins', 'wp-editor', 'wp-dom-ready' ),
+			WP_SUDO_VERSION,
+			true
+		);
+		wp_set_script_translations( 'wp-sudo-session-indicator', 'wp-sudo' );
 	}
 
 	/**

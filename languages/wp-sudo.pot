@@ -2,7 +2,7 @@
 # This file is distributed under the GPL-2.0-or-later.
 msgid ""
 msgstr ""
-"Project-Id-Version: Sudo – Admin Action Gating 4.7.0\n"
+"Project-Id-Version: Sudo – Admin Action Gating 4.8.0\n"
 "Report-Msgid-Bugs-To: https://github.com/dknauss/Sudo/issues\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -138,95 +138,95 @@ msgid "Delete user"
 msgstr ""
 
 #: includes/class-action-registry.php:301
-#: includes/class-action-registry.php:332
+#: includes/class-action-registry.php:338
 #: includes/class-gate.php:839
 msgid "Change user role"
 msgstr ""
 
-#: includes/class-action-registry.php:355
+#: includes/class-action-registry.php:361
 msgid "Change password"
 msgstr ""
 
-#: includes/class-action-registry.php:390
+#: includes/class-action-registry.php:399
 msgid "Change email address"
 msgstr ""
 
-#: includes/class-action-registry.php:441
+#: includes/class-action-registry.php:450
 #: includes/class-gate.php:824
 msgid "Create new user"
 msgstr ""
 
-#: includes/class-action-registry.php:458
+#: includes/class-action-registry.php:467
 msgid "Create application password"
 msgstr ""
 
-#: includes/class-action-registry.php:482
+#: includes/class-action-registry.php:491
 msgid "Edit plugin file"
 msgstr ""
 
-#: includes/class-action-registry.php:498
+#: includes/class-action-registry.php:507
 msgid "Edit theme file"
 msgstr ""
 
-#: includes/class-action-registry.php:516
+#: includes/class-action-registry.php:525
 #: includes/class-gate.php:854
 msgid "Change critical site setting"
 msgstr ""
 
-#: includes/class-action-registry.php:553
+#: includes/class-action-registry.php:567
 msgid "Update connector credentials"
 msgstr ""
 
-#: includes/class-action-registry.php:570
-#: includes/class-action-registry.php:791
+#: includes/class-action-registry.php:584
+#: includes/class-action-registry.php:805
 #: includes/class-gate.php:873
 #: includes/class-gate.php:885
 msgid "Change Sudo settings"
 msgstr ""
 
-#: includes/class-action-registry.php:589
+#: includes/class-action-registry.php:603
 msgid "Change Sudo access controls"
 msgstr ""
 
-#: includes/class-action-registry.php:610
+#: includes/class-action-registry.php:624
 msgid "Update WordPress core"
 msgstr ""
 
-#: includes/class-action-registry.php:626
+#: includes/class-action-registry.php:640
 #: includes/class-gate.php:373
 #: includes/class-gate.php:898
 msgid "Export site data"
 msgstr ""
 
-#: includes/class-action-registry.php:664
+#: includes/class-action-registry.php:678
 msgid "Network enable theme"
 msgstr ""
 
-#: includes/class-action-registry.php:681
+#: includes/class-action-registry.php:695
 msgid "Network disable theme"
 msgstr ""
 
-#: includes/class-action-registry.php:698
+#: includes/class-action-registry.php:712
 msgid "Delete site"
 msgstr ""
 
-#: includes/class-action-registry.php:711
+#: includes/class-action-registry.php:725
 msgid "Deactivate site"
 msgstr ""
 
-#: includes/class-action-registry.php:724
+#: includes/class-action-registry.php:738
 msgid "Mark site as spam"
 msgstr ""
 
-#: includes/class-action-registry.php:737
+#: includes/class-action-registry.php:751
 msgid "Archive site"
 msgstr ""
 
-#: includes/class-action-registry.php:750
+#: includes/class-action-registry.php:764
 msgid "Grant or revoke super admin"
 msgstr ""
 
-#: includes/class-action-registry.php:770
+#: includes/class-action-registry.php:784
 msgid "Change network settings"
 msgstr ""
 
@@ -260,924 +260,940 @@ msgstr ""
 msgid "Revoke other users' active sessions"
 msgstr ""
 
-#: includes/class-admin.php:405
-#: includes/class-admin.php:425
+#: includes/class-admin.php:412
+#: includes/class-admin.php:432
 msgid "Sudo Settings"
 msgstr ""
 
-#: includes/class-admin.php:406
-#: includes/class-admin.php:426
+#: includes/class-admin.php:413
+#: includes/class-admin.php:433
 msgid "Sudo"
 msgstr ""
 
-#: includes/class-admin.php:450
+#: includes/class-admin.php:457
 msgid "Unauthorized"
 msgstr ""
 
-#: includes/class-admin.php:506
+#: includes/class-admin.php:513
 msgid "Start Here"
 msgstr ""
 
-#: includes/class-admin.php:508
+#: includes/class-admin.php:515
 msgid "What Sudo does"
 msgstr ""
 
-#: includes/class-admin.php:509
+#: includes/class-admin.php:516
 msgid "Sudo verifies that the current user is still the account holder; WordPress still decides whether that user is allowed to perform the action."
 msgstr ""
 
-#: includes/class-admin.php:511
+#: includes/class-admin.php:518
 msgid "<strong>Browser requests</strong> (admin, AJAX, cookie-auth REST) get an interactive challenge."
 msgstr ""
 
-#: includes/class-admin.php:512
+#: includes/class-admin.php:519
 msgid "<strong>Non-interactive requests</strong> (WP-CLI, Cron, XML-RPC, App Passwords, WPGraphQL) follow surface policies."
 msgstr ""
 
-#: includes/class-admin.php:514
+#: includes/class-admin.php:521
 msgid "Shortcut: Ctrl+Shift+S (Windows/Linux) or Cmd+Shift+S (Mac) opens the challenge on demand."
 msgstr ""
 
-#: includes/class-admin.php:521
+#: includes/class-admin.php:528
 msgid "Modes &amp; Policies"
 msgstr ""
 
-#: includes/class-admin.php:523
+#: includes/class-admin.php:530
 msgid "Session duration + mode defaults"
 msgstr ""
 
-#: includes/class-admin.php:524
+#: includes/class-admin.php:531
 msgid "Use a short session window (1–15 minutes) and keep non-interactive surfaces on Limited by default."
 msgstr ""
 
-#: includes/class-admin.php:525
+#: includes/class-admin.php:532
 msgid "Surface modes"
 msgstr ""
 
-#: includes/class-admin.php:527
+#: includes/class-admin.php:534
 msgid "<strong>Disabled</strong> — surface off."
 msgstr ""
 
-#: includes/class-admin.php:528
+#: includes/class-admin.php:535
 msgid "<strong>Limited</strong> — default; blocks gated actions on that surface."
 msgstr ""
 
-#: includes/class-admin.php:529
+#: includes/class-admin.php:536
 msgid "<strong>Unrestricted</strong> — no Sudo checks on that surface."
 msgstr ""
 
-#: includes/class-admin.php:532
+#: includes/class-admin.php:539
 msgid "WPGraphQL note: in Limited mode, mutations are blocked at the surface level unless sudo is active."
 msgstr ""
 
-#: includes/class-admin.php:533
+#: includes/class-admin.php:540
 msgid "WPGraphQL policy appears here when WPGraphQL is installed."
 msgstr ""
 
-#: includes/class-admin.php:534
+#: includes/class-admin.php:541
 msgid "Named modes"
 msgstr ""
 
-#: includes/class-admin.php:536
+#: includes/class-admin.php:543
 msgid "<strong>Normal</strong> — all surfaces Limited."
 msgstr ""
 
-#: includes/class-admin.php:537
+#: includes/class-admin.php:544
 msgid "<strong>Incident Lockdown</strong> — most remote surfaces Disabled for containment."
 msgstr ""
 
-#: includes/class-admin.php:538
+#: includes/class-admin.php:545
 msgid "<strong>Headless Friendly</strong> — REST/GraphQL Unrestricted; others tightened."
 msgstr ""
 
-#: includes/class-admin.php:540
+#: includes/class-admin.php:547
 msgid "Connectors note: credential writes are gated by <code>connectors.update_credentials</code>. Database-backed connector credentials are per-site; env/wp-config values can apply network-wide."
 msgstr ""
 
-#: includes/class-admin.php:547
-#: includes/class-admin.php:1794
+#: includes/class-admin.php:554
+#: includes/class-admin.php:1927
 msgid "Rule Tester"
 msgstr ""
 
-#: includes/class-admin.php:549
+#: includes/class-admin.php:556
 msgid "Safe request diagnostics"
 msgstr ""
 
-#: includes/class-admin.php:550
+#: includes/class-admin.php:557
 msgid "Rule Tester evaluates request shape without executing the request."
 msgstr ""
 
-#: includes/class-admin.php:552
+#: includes/class-admin.php:559
 msgid "<strong>Admin</strong>: screen/action simulation"
 msgstr ""
 
-#: includes/class-admin.php:553
+#: includes/class-admin.php:560
 msgid "<strong>AJAX</strong>: action-name simulation"
 msgstr ""
 
-#: includes/class-admin.php:554
+#: includes/class-admin.php:561
 msgid "<strong>REST</strong>: method/route + auth mode + optional JSON params"
 msgstr ""
 
-#: includes/class-admin.php:556
+#: includes/class-admin.php:563
 msgid "Use REST Params for callback-based rules such as <code>connectors.update_credentials</code>."
 msgstr ""
 
-#: includes/class-admin.php:563
+#: includes/class-admin.php:570
 msgid "Incident Response"
 msgstr ""
 
-#: includes/class-admin.php:565
+#: includes/class-admin.php:572
 msgid "Quick response playbook"
 msgstr ""
 
-#: includes/class-admin.php:567
+#: includes/class-admin.php:574
 msgid "Apply <strong>Incident Lockdown</strong>."
 msgstr ""
 
-#: includes/class-admin.php:568
+#: includes/class-admin.php:575
 msgid "Review recent Sudo activity and logging-plugin events."
 msgstr ""
 
-#: includes/class-admin.php:569
+#: includes/class-admin.php:576
 msgid "Revoke exposed application passwords and sudo sessions."
 msgstr ""
 
-#: includes/class-admin.php:570
+#: includes/class-admin.php:577
 msgid "Return to Normal or a reviewed Custom mode after containment."
 msgstr ""
 
-#: includes/class-admin.php:572
+#: includes/class-admin.php:579
 msgid "Sudo audit hooks are designed for external logging systems (for example, WP Activity Log or Stream)."
 msgstr ""
 
-#: includes/class-admin.php:579
+#: includes/class-admin.php:586
 msgid "Security Boundaries"
 msgstr ""
 
-#: includes/class-admin.php:581
+#: includes/class-admin.php:588
 msgid "What Sudo is strong at"
 msgstr ""
 
-#: includes/class-admin.php:583
+#: includes/class-admin.php:590
 msgid "<strong>Compromised sessions</strong> — stolen cookies cannot perform gated actions."
 msgstr ""
 
-#: includes/class-admin.php:584
+#: includes/class-admin.php:591
 msgid "<strong>Destructive admin operations</strong> — reauthentication required before high-risk actions."
 msgstr ""
 
-#: includes/class-admin.php:585
+#: includes/class-admin.php:592
 msgid "<strong>Headless surface control</strong> — each non-interactive entry point has an explicit mode."
 msgstr ""
 
-#: includes/class-admin.php:587
+#: includes/class-admin.php:594
 msgid "Out of scope"
 msgstr ""
 
-#: includes/class-admin.php:589
+#: includes/class-admin.php:596
 msgid "<strong>Direct database access</strong> — SQL changes bypass all hooks."
 msgstr ""
 
-#: includes/class-admin.php:590
+#: includes/class-admin.php:597
 msgid "<strong>Server/file access</strong> — operations outside WordPress hooks."
 msgstr ""
 
-#: includes/class-admin.php:591
+#: includes/class-admin.php:598
 msgid "<strong>Broken third-party authorization</strong> inside already-active sudo windows."
 msgstr ""
 
-#: includes/class-admin.php:593
+#: includes/class-admin.php:600
 msgid "MU-plugin hardening, multisite scope, and environment assumptions are in the Security Model."
 msgstr ""
 
-#: includes/class-admin.php:600
+#: includes/class-admin.php:607
 msgid "Developers"
 msgstr ""
 
-#: includes/class-admin.php:602
+#: includes/class-admin.php:609
 msgid "Extension points"
 msgstr ""
 
-#: includes/class-admin.php:603
+#: includes/class-admin.php:610
 msgid "Add custom gated actions with <code>wp_sudo_gated_actions</code> and tune behavior with filters."
 msgstr ""
 
-#: includes/class-admin.php:604
+#: includes/class-admin.php:611
 msgid "2FA integration hooks"
 msgstr ""
 
-#: includes/class-admin.php:611
+#: includes/class-admin.php:618
 msgid "Audit hooks"
 msgstr ""
 
-#: includes/class-admin.php:619
+#: includes/class-admin.php:626
 msgid "See Developer Reference for full signatures and examples."
 msgstr ""
 
-#: includes/class-admin.php:624
+#: includes/class-admin.php:631
 msgid "For more information:"
 msgstr ""
 
-#: includes/class-admin.php:625
+#: includes/class-admin.php:632
 msgid "FAQ"
 msgstr ""
 
-#: includes/class-admin.php:626
+#: includes/class-admin.php:633
 msgid "Security Model"
 msgstr ""
 
-#: includes/class-admin.php:627
+#: includes/class-admin.php:634
 msgid "Developer Reference"
 msgstr ""
 
-#: includes/class-admin.php:628
+#: includes/class-admin.php:635
 msgid "Connectors Reference"
 msgstr ""
 
-#: includes/class-admin.php:629
+#: includes/class-admin.php:636
 msgid "Two-Factor Integration"
 msgstr ""
 
-#: includes/class-admin.php:668
+#: includes/class-admin.php:675
 msgid "Policy Presets"
 msgstr ""
 
-#: includes/class-admin.php:675
+#: includes/class-admin.php:682
 msgid "Quick Presets"
 msgstr ""
 
-#: includes/class-admin.php:687
+#: includes/class-admin.php:694
 msgid "Session Settings"
 msgstr ""
 
-#: includes/class-admin.php:694
+#: includes/class-admin.php:701
 msgid "Session Duration (minutes)"
 msgstr ""
 
-#: includes/class-admin.php:704
+#: includes/class-admin.php:711
 msgid "Entry Point Policies"
 msgstr ""
 
-#: includes/class-admin.php:711
-#: includes/class-site-health.php:132
+#: includes/class-admin.php:718
+#: includes/class-site-health.php:216
 msgid "REST API (App Passwords)"
 msgstr ""
 
-#: includes/class-admin.php:718
+#: includes/class-admin.php:725
 msgid "Controls non-cookie-auth REST requests (Application Passwords, Bearer tokens, OAuth). Cookie-auth browser requests always get the sudo challenge. In multisite, Connectors credentials saved in the database remain per-site, but env or wp-config.php-backed connector keys may still apply across the whole install/network. Default: Limited."
 msgstr ""
 
-#: includes/class-admin.php:724
+#: includes/class-admin.php:731
 #: includes/class-dashboard-widget.php:424
 #: includes/class-dashboard-widget.php:799
-#: includes/class-site-health.php:133
+#: includes/class-site-health.php:217
 msgid "WP-CLI"
 msgstr ""
 
-#: includes/class-admin.php:731
+#: includes/class-admin.php:738
 msgid "Disabled blocks all WP-CLI commands. Limited blocks only gated operations. Unrestricted allows everything. The wp cron subcommand also respects the Cron policy. Default: Limited."
 msgstr ""
 
-#: includes/class-admin.php:737
+#: includes/class-admin.php:744
 #: includes/class-dashboard-widget.php:425
 #: includes/class-dashboard-widget.php:800
-#: includes/class-site-health.php:134
+#: includes/class-site-health.php:218
 msgid "Cron"
 msgstr ""
 
-#: includes/class-admin.php:744
+#: includes/class-admin.php:751
 msgid "Disabled stops all cron execution (WP-Cron and server-level cron). Limited blocks only gated scheduled events. Unrestricted allows everything. Default: Limited."
 msgstr ""
 
-#: includes/class-admin.php:750
+#: includes/class-admin.php:757
 #: includes/class-dashboard-widget.php:426
 #: includes/class-dashboard-widget.php:801
-#: includes/class-site-health.php:135
+#: includes/class-site-health.php:219
 msgid "XML-RPC"
 msgstr ""
 
-#: includes/class-admin.php:757
+#: includes/class-admin.php:764
 msgid "Disabled shuts off the entire XML-RPC protocol. Limited blocks only gated operations. Unrestricted allows everything. Default: Limited."
 msgstr ""
 
-#: includes/class-admin.php:767
-#: includes/class-site-health.php:138
+#: includes/class-admin.php:774
+#: includes/class-site-health.php:222
 msgid "WPGraphQL"
 msgstr ""
 
-#: includes/class-admin.php:774
+#: includes/class-admin.php:781
 msgid "Controls WPGraphQL. Disabled blocks all GraphQL requests. Limited blocks mutations without an active sudo session; queries always pass through. Unrestricted allows everything. Default: Limited."
 msgstr ""
 
-#: includes/class-admin.php:825
+#: includes/class-admin.php:832
 msgid "Normal"
 msgstr ""
 
-#: includes/class-admin.php:826
+#: includes/class-admin.php:833
 msgid "Restore the recommended baseline: every remote surface remains available, but only gated operations are blocked."
 msgstr ""
 
-#: includes/class-admin.php:836
+#: includes/class-admin.php:843
 msgid "Incident Lockdown"
 msgstr ""
 
-#: includes/class-admin.php:837
+#: includes/class-admin.php:844
 msgid "Clamp down remote entry points during incident response while keeping scheduled jobs in Limited mode so routine maintenance can continue."
 msgstr ""
 
-#: includes/class-admin.php:847
+#: includes/class-admin.php:854
 msgid "Headless Friendly"
 msgstr ""
 
-#: includes/class-admin.php:848
+#: includes/class-admin.php:855
 msgid "Keep intentional API-driven workflows open while tightening legacy or optional remote surfaces. Warning: Unrestricted REST also lets non-cookie callers update database-backed connector credentials without sudo on the current site."
 msgstr ""
 
-#: includes/class-admin.php:873
-#: includes/class-admin.php:2845
+#: includes/class-admin.php:880
+#: includes/class-admin.php:2978
 msgid "Current settings do not match any preset. Selecting a preset will overwrite the entry-point policy fields below."
 msgstr ""
 
-#: includes/class-admin.php:1119
+#: includes/class-admin.php:1126
 #: includes/class-challenge.php:249
 msgid "An error occurred."
 msgstr ""
 
-#: includes/class-admin.php:1120
+#: includes/class-admin.php:1127
 #: includes/class-challenge.php:250
 msgid "A network error occurred. Please try again."
 msgstr ""
 
-#: includes/class-admin.php:1123
+#: includes/class-admin.php:1130
 msgid "Done."
 msgstr ""
 
-#: includes/class-admin.php:1124
+#: includes/class-admin.php:1131
 msgid "Select a user."
 msgstr ""
 
-#: includes/class-admin.php:1144
-#: includes/class-admin.php:1792
+#: includes/class-admin.php:1151
+#: includes/class-admin.php:1925
 msgid "Settings"
 msgstr ""
 
-#: includes/class-admin.php:1177
+#: includes/class-admin.php:1252
+msgid "Sudo capabilities"
+msgstr ""
+
+#: includes/class-admin.php:1255
+msgid "Directly granted"
+msgstr ""
+
+#: includes/class-admin.php:1272
+msgid "Manage Sudo capabilities"
+msgstr ""
+
+#: includes/class-admin.php:1275
+msgid "These capabilities are managed by a Sudo manager."
+msgstr ""
+
+#: includes/class-admin.php:1310
 msgid "Sudo Active"
 msgstr ""
 
-#: includes/class-admin.php:1335
+#: includes/class-admin.php:1468
 msgid "Revoke sudo session"
 msgstr ""
 
-#: includes/class-admin.php:1498
+#: includes/class-admin.php:1631
 msgid "Revoke sudo sessions"
 msgstr ""
 
-#: includes/class-admin.php:1695
+#: includes/class-admin.php:1828
 msgid "You don't have permission to revoke sudo sessions."
 msgstr ""
 
-#: includes/class-admin.php:1700
+#: includes/class-admin.php:1833
 msgid "Start a sudo session before revoking others."
 msgstr ""
 
-#: includes/class-admin.php:1705
+#: includes/class-admin.php:1838
 msgid "You cannot revoke your own session."
 msgstr ""
 
-#: includes/class-admin.php:1710
+#: includes/class-admin.php:1843
 msgid "That user no longer has an active sudo session."
 msgstr ""
 
-#: includes/class-admin.php:1715
+#: includes/class-admin.php:1848
 msgid "That user is not a member of this site."
 msgstr ""
 
-#: includes/class-admin.php:1720
+#: includes/class-admin.php:1853
 msgid "Rate limit exceeded. You may revoke at most 10 sessions per hour."
 msgstr ""
 
-#: includes/class-admin.php:1725
+#: includes/class-admin.php:1858
 msgid "None of the selected users had an active sudo session."
 msgstr ""
 
 #. translators: %d: number of sudo sessions revoked.
-#: includes/class-admin.php:1730
+#: includes/class-admin.php:1863
 #, php-format
 msgid "%d active sudo session revoked."
 msgid_plural "%d active sudo sessions revoked."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/class-admin.php:1732
+#: includes/class-admin.php:1865
 msgid "Sudo session revoked."
 msgstr ""
 
-#: includes/class-admin.php:1736
+#: includes/class-admin.php:1869
 msgid "Your own session was skipped."
 msgstr ""
 
-#: includes/class-admin.php:1782
+#: includes/class-admin.php:1915
 msgid "Settings saved."
 msgstr ""
 
-#: includes/class-admin.php:1786
+#: includes/class-admin.php:1919
 msgid "Sudo adds a reauthentication step before dangerous operations like activating plugins, deleting users, or changing critical settings. Any user who attempts a gated action must re-enter their password — and complete two-factor authentication if enabled — before proceeding."
 msgstr ""
 
-#: includes/class-admin.php:1789
+#: includes/class-admin.php:1922
 msgid "Sudo settings sections"
 msgstr ""
 
-#: includes/class-admin.php:1793
-#: includes/class-admin.php:1866
+#: includes/class-admin.php:1926
+#: includes/class-admin.php:1999
 msgid "Gated Actions"
 msgstr ""
 
-#: includes/class-admin.php:1795
+#: includes/class-admin.php:1928
 msgid "Access"
 msgstr ""
 
-#: includes/class-admin.php:1828
-#: includes/class-admin.php:1838
+#: includes/class-admin.php:1961
+#: includes/class-admin.php:1971
 msgid "Save Settings"
 msgstr ""
 
-#: includes/class-admin.php:1868
+#: includes/class-admin.php:2001
 msgid "The following actions require reauthentication before execution. The surfaces shown (Admin, AJAX, REST) reflect interactive entry points where WordPress provides APIs. WP-CLI, Cron, and XML-RPC Limited mode use Sudo's built-in function-hook coverage for core rules; custom non-interactive workflows need an explicit integration or a stricter surface policy. Application Password requests are covered when a rule defines REST criteria. WPGraphQL is governed separately at the surface level — when the WPGraphQL policy is Limited, all mutations require an active sudo session regardless of which operation is being performed. Developers can add custom rules via the wp_sudo_gated_actions filter."
 msgstr ""
 
-#: includes/class-admin.php:1871
+#: includes/class-admin.php:2004
 msgid "Gated actions requiring reauthentication, grouped by category"
 msgstr ""
 
-#: includes/class-admin.php:1874
+#: includes/class-admin.php:2007
 msgid "Category"
 msgstr ""
 
-#: includes/class-admin.php:1875
-#: includes/class-admin.php:2151
+#: includes/class-admin.php:2008
+#: includes/class-admin.php:2284
 #: includes/class-dashboard-widget.php:458
 msgid "Action"
 msgstr ""
 
-#: includes/class-admin.php:1876
+#: includes/class-admin.php:2009
 msgid "Surfaces"
 msgstr ""
 
-#: includes/class-admin.php:1887
+#: includes/class-admin.php:2020
 #: includes/class-dashboard-widget.php:420
 msgid "Admin"
 msgstr ""
 
-#: includes/class-admin.php:1890
+#: includes/class-admin.php:2023
 #: includes/class-dashboard-widget.php:421
 msgid "AJAX"
 msgstr ""
 
-#: includes/class-admin.php:1893
+#: includes/class-admin.php:2026
 #: includes/class-dashboard-widget.php:422
 msgid "REST"
 msgstr ""
 
-#: includes/class-admin.php:1911
-#: includes/class-admin.php:1913
+#: includes/class-admin.php:2044
+#: includes/class-admin.php:2046
 #: includes/class-dashboard-widget.php:427
 #: includes/class-dashboard-widget.php:806
 msgid "GraphQL"
 msgstr ""
 
-#: includes/class-admin.php:1912
+#: includes/class-admin.php:2045
 msgid "All mutations (surface-level policy — see WPGraphQL setting above)"
 msgstr ""
 
-#: includes/class-admin.php:1939
+#: includes/class-admin.php:2072
 msgid "Access Control"
 msgstr ""
 
-#: includes/class-admin.php:1941
+#: includes/class-admin.php:2074
 msgid "Users listed here hold one or more Sudo governance capabilities. Use grant and revoke controls to manage access. All changes require an active sudo session and are logged via audit hooks."
 msgstr ""
 
-#: includes/class-admin.php:1945
+#: includes/class-admin.php:2078
 msgid "No users currently hold any Sudo governance capabilities."
 msgstr ""
 
-#: includes/class-admin.php:1948
+#: includes/class-admin.php:2081
 msgid "Users with Sudo governance capabilities"
 msgstr ""
 
-#: includes/class-admin.php:1951
-#: includes/class-admin.php:2028
-#: includes/class-admin.php:2150
+#: includes/class-admin.php:2084
+#: includes/class-admin.php:2161
+#: includes/class-admin.php:2283
 #: includes/class-dashboard-widget.php:456
 msgid "User"
 msgstr ""
 
-#: includes/class-admin.php:1952
+#: includes/class-admin.php:2085
 msgid "Capabilities"
 msgstr ""
 
 #. translators: %s: governance capability label.
-#: includes/class-admin.php:2010
+#: includes/class-admin.php:2143
 #, php-format
 msgid "Revoke %s capability"
 msgstr ""
 
 #. translators: %s: governance capability label.
-#: includes/class-admin.php:2011
+#: includes/class-admin.php:2144
 msgid "Revoke"
 msgstr ""
 
-#: includes/class-admin.php:2021
-#: includes/class-admin.php:2061
+#: includes/class-admin.php:2154
+#: includes/class-admin.php:2194
 msgid "Grant Capability"
 msgstr ""
 
-#: includes/class-admin.php:2023
+#: includes/class-admin.php:2156
 msgid "Grant a Sudo capability to an administrator. Select a user and capability."
 msgstr ""
 
-#: includes/class-admin.php:2031
+#: includes/class-admin.php:2164
 msgid "Search administrators by name or username"
 msgstr ""
 
-#: includes/class-admin.php:2032
+#: includes/class-admin.php:2165
 msgid "Search filters the administrator list by name or username."
 msgstr ""
 
-#: includes/class-admin.php:2034
+#: includes/class-admin.php:2167
 msgid "— Select a user —"
 msgstr ""
 
-#: includes/class-admin.php:2044
+#: includes/class-admin.php:2177
 msgid "Capability"
 msgstr ""
 
-#: includes/class-admin.php:2134
+#: includes/class-admin.php:2267
 msgid "Sudo governance coverage"
 msgstr ""
 
 #. translators: %s: the capability the panel scanned for (manage_options on single-site, manage_network_options on multisite).
-#: includes/class-admin.php:2140
+#: includes/class-admin.php:2273
 #, php-format
 msgid "These administrators hold %s but not manage_wp_sudo, so they cannot access Sudo settings. This is often intentional — review the list to confirm each separation is deliberate rather than an accidental gap."
 msgstr ""
 
-#: includes/class-admin.php:2147
+#: includes/class-admin.php:2280
 msgid "Users with admin capabilities but without Sudo management access"
 msgstr ""
 
-#: includes/class-admin.php:2166
+#: includes/class-admin.php:2299
 msgid "Grant manage_wp_sudo"
 msgstr ""
 
-#: includes/class-admin.php:2187
-#: includes/class-admin.php:2237
+#: includes/class-admin.php:2320
+#: includes/class-admin.php:2370
 msgid "Insufficient permissions."
 msgstr ""
 
-#: includes/class-admin.php:2197
-#: includes/class-admin.php:2247
+#: includes/class-admin.php:2330
+#: includes/class-admin.php:2380
 msgid "Invalid capability."
 msgstr ""
 
-#: includes/class-admin.php:2203
-#: includes/class-admin.php:2262
+#: includes/class-admin.php:2336
+#: includes/class-admin.php:2395
 msgid "User not found."
 msgstr ""
 
-#: includes/class-admin.php:2221
+#: includes/class-admin.php:2354
 msgid "Capability granted."
 msgstr ""
 
-#: includes/class-admin.php:2254
+#: includes/class-admin.php:2387
 msgid "Cannot remove the last Sudo manager. Define WP_SUDO_RECOVERY_MODE in wp-config.php to restore access if needed."
 msgstr ""
 
-#: includes/class-admin.php:2280
+#: includes/class-admin.php:2413
 msgid "Capability revoked."
 msgstr ""
 
-#: includes/class-admin.php:2452
+#: includes/class-admin.php:2585
 msgid "Request / Rule Tester"
 msgstr ""
 
-#: includes/class-admin.php:2454
+#: includes/class-admin.php:2587
 msgid "See how Sudo would evaluate a representative request without executing it. This diagnostic tool is for admin, AJAX, and REST request shapes only."
 msgstr ""
 
-#: includes/class-admin.php:2461
+#: includes/class-admin.php:2594
 #: includes/class-dashboard-widget.php:459
 #: includes/class-dashboard-widget.php:793
 msgid "Surface"
 msgstr ""
 
-#: includes/class-admin.php:2471
+#: includes/class-admin.php:2604
 msgid "Method"
 msgstr ""
 
-#: includes/class-admin.php:2481
+#: includes/class-admin.php:2614
 msgid "URL"
 msgstr ""
 
-#: includes/class-admin.php:2483
+#: includes/class-admin.php:2616
 msgid "https://example.com/wp-admin/plugins.php?action=activate"
 msgstr ""
 
-#: includes/class-admin.php:2487
+#: includes/class-admin.php:2620
 msgid "Context"
 msgstr ""
 
-#: includes/class-admin.php:2489
+#: includes/class-admin.php:2622
 msgid "Authenticated user"
 msgstr ""
 
-#: includes/class-admin.php:2490
+#: includes/class-admin.php:2623
 msgid "Active sudo session"
 msgstr ""
 
-#: includes/class-admin.php:2491
+#: includes/class-admin.php:2624
 msgid "Network admin context"
 msgstr ""
 
-#: includes/class-admin.php:2495
+#: includes/class-admin.php:2628
 msgid "REST auth mode"
 msgstr ""
 
-#: includes/class-admin.php:2500
+#: includes/class-admin.php:2633
 msgid "Cookie / browser nonce"
 msgstr ""
 
-#: includes/class-admin.php:2501
+#: includes/class-admin.php:2634
 msgid "Application Password"
 msgstr ""
 
-#: includes/class-admin.php:2502
+#: includes/class-admin.php:2635
 msgid "Bearer / other headless auth"
 msgstr ""
 
-#: includes/class-admin.php:2503
+#: includes/class-admin.php:2636
 msgid "None / unknown"
 msgstr ""
 
-#: includes/class-admin.php:2510
+#: includes/class-admin.php:2643
 msgid "Only used for REST simulations. Admin and AJAX requests ignore this field."
 msgstr ""
 
-#: includes/class-admin.php:2514
+#: includes/class-admin.php:2647
 msgid "REST Params"
 msgstr ""
 
-#: includes/class-admin.php:2517
+#: includes/class-admin.php:2650
 msgid "Optional JSON body for REST requests. Used by callback-based rules like connectors.update_credentials."
 msgstr ""
 
-#: includes/class-admin.php:2522
+#: includes/class-admin.php:2655
 msgid "Evaluate Request"
 msgstr ""
 
-#: includes/class-admin.php:2527
+#: includes/class-admin.php:2660
 msgid "Matched rule:"
 msgstr ""
 
-#: includes/class-admin.php:2533
+#: includes/class-admin.php:2666
 msgid "Decision:"
 msgstr ""
 
-#: includes/class-admin.php:2534
+#: includes/class-admin.php:2667
 msgid "Surface:"
 msgstr ""
 
-#: includes/class-admin.php:2535
+#: includes/class-admin.php:2668
 msgid "Stash/replay eligible:"
 msgstr ""
 
-#: includes/class-admin.php:2535
+#: includes/class-admin.php:2668
 msgid "Yes"
 msgstr ""
 
-#: includes/class-admin.php:2535
+#: includes/class-admin.php:2668
 msgid "No"
 msgstr ""
 
-#: includes/class-admin.php:2564
+#: includes/class-admin.php:2697
 msgid "Early Gate (MU-Plugin)"
 msgstr ""
 
-#: includes/class-admin.php:2566
+#: includes/class-admin.php:2699
 msgid "The optional MU-plugin shim ensures gate hooks are registered before any regular plugin loads. This prevents other plugins from deregistering or bypassing the gate. The shim delegates to a loader inside the plugin directory, so it never needs updating — regular plugin updates handle it automatically."
 msgstr ""
 
-#: includes/class-admin.php:2571
+#: includes/class-admin.php:2704
 msgid "Status"
 msgstr ""
 
-#: includes/class-admin.php:2576
+#: includes/class-admin.php:2709
 msgid "Installed"
 msgstr ""
 
-#: includes/class-admin.php:2579
+#: includes/class-admin.php:2712
 msgid "Not installed"
 msgstr ""
 
-#: includes/class-admin.php:2584
+#: includes/class-admin.php:2717
 msgid "Remove MU-Plugin"
 msgstr ""
 
-#: includes/class-admin.php:2588
+#: includes/class-admin.php:2721
 msgid "Install MU-Plugin"
 msgstr ""
 
-#: includes/class-admin.php:2591
-#: includes/class-admin.php:2607
+#: includes/class-admin.php:2724
+#: includes/class-admin.php:2740
 msgid "Manual install instructions"
 msgstr ""
 
-#: includes/class-admin.php:2594
-#: includes/class-admin.php:2613
+#: includes/class-admin.php:2727
+#: includes/class-admin.php:2746
 msgid "Locate the shim file inside the plugin directory:"
 msgstr ""
 
-#: includes/class-admin.php:2598
-#: includes/class-admin.php:2617
+#: includes/class-admin.php:2731
+#: includes/class-admin.php:2750
 msgid "Copy it into your mu-plugins directory:"
 msgstr ""
 
-#: includes/class-admin.php:2601
-#: includes/class-admin.php:2620
+#: includes/class-admin.php:2734
+#: includes/class-admin.php:2753
 msgid "Create the mu-plugins directory first if it does not exist."
 msgstr ""
 
-#: includes/class-admin.php:2602
-#: includes/class-admin.php:2621
+#: includes/class-admin.php:2735
+#: includes/class-admin.php:2754
 msgid "The mu-plugin will be active on the next page load."
 msgstr ""
 
-#: includes/class-admin.php:2609
+#: includes/class-admin.php:2742
 msgid "Your hosting environment does not allow writing to the mu-plugins directory. Install the mu-plugin manually:"
 msgstr ""
 
-#: includes/class-admin.php:2625
+#: includes/class-admin.php:2758
 msgid "Processing…"
 msgstr ""
 
-#: includes/class-admin.php:2658
-#: includes/class-admin.php:2716
-#: includes/class-admin.php:3513
-#: includes/class-admin.php:3537
+#: includes/class-admin.php:2791
+#: includes/class-admin.php:2849
+#: includes/class-admin.php:3646
+#: includes/class-admin.php:3670
 msgid "Unauthorized."
 msgstr ""
 
-#: includes/class-admin.php:2666
-#: includes/class-admin.php:2724
-#: includes/class-admin.php:3470
-#: includes/class-admin.php:3522
+#: includes/class-admin.php:2799
+#: includes/class-admin.php:2857
+#: includes/class-admin.php:3603
+#: includes/class-admin.php:3655
 msgid "A sudo session is required. Activate one then try again."
 msgstr ""
 
-#: includes/class-admin.php:2677
+#: includes/class-admin.php:2810
 msgid "Source shim file not found."
 msgstr ""
 
-#: includes/class-admin.php:2684
+#: includes/class-admin.php:2817
 msgid "Could not create mu-plugins directory. Check file permissions."
 msgstr ""
 
-#: includes/class-admin.php:2691
+#: includes/class-admin.php:2824
 msgid "Could not read source shim file."
 msgstr ""
 
-#: includes/class-admin.php:2699
+#: includes/class-admin.php:2832
 msgid "Could not write to mu-plugins directory. Check file permissions."
 msgstr ""
 
-#: includes/class-admin.php:2702
+#: includes/class-admin.php:2835
 msgid "MU-plugin installed. It will be active on the next page load."
 msgstr ""
 
-#: includes/class-admin.php:2733
+#: includes/class-admin.php:2866
 msgid "MU-plugin is already removed."
 msgstr ""
 
-#: includes/class-admin.php:2739
+#: includes/class-admin.php:2872
 msgid "Could not remove MU-plugin file. Check file permissions."
 msgstr ""
 
-#: includes/class-admin.php:2742
+#: includes/class-admin.php:2875
 msgid "MU-plugin removed. It will be inactive on the next page load."
 msgstr ""
 
-#: includes/class-admin.php:2772
+#: includes/class-admin.php:2905
 msgid "Configure how long a sudo session lasts after reauthentication."
 msgstr ""
 
-#: includes/class-admin.php:2781
+#: includes/class-admin.php:2914
 msgid "Apply one-click policy bundles for incident response or headless environments. Presets only affect the remote and non-interactive surface settings below."
 msgstr ""
 
-#: includes/class-admin.php:2790
+#: includes/class-admin.php:2923
 msgid "Control how non-interactive entry points handle gated operations. Disabled shuts off the entire surface. Limited (default) blocks only gated actions and logs them. Unrestricted lets everything through with no blocking checks; allowed gated actions are still logged for audit visibility. Browser-based requests (admin UI, AJAX, REST with cookie auth) always get the interactive reauthentication challenge regardless of these settings."
 msgstr ""
 
-#: includes/class-admin.php:2805
+#: includes/class-admin.php:2938
 msgid "How long a sudo session lasts before automatically expiring. Range: 1–15 minutes. Default: 15 minutes."
 msgstr ""
 
-#: includes/class-admin.php:2835
-#: includes/class-admin.php:3355
-#: includes/class-admin.php:3359
+#: includes/class-admin.php:2968
+#: includes/class-admin.php:3488
+#: includes/class-admin.php:3492
 #: includes/class-dashboard-widget.php:864
 msgid "Custom"
 msgstr ""
 
-#: includes/class-admin.php:2872
-#: includes/class-admin.php:3370
-#: includes/class-admin.php:3465
+#: includes/class-admin.php:3005
+#: includes/class-admin.php:3503
+#: includes/class-admin.php:3598
 msgid "Disabled"
 msgstr ""
 
-#: includes/class-admin.php:2877
+#: includes/class-admin.php:3010
 msgid "Limited (default)"
 msgstr ""
 
-#: includes/class-admin.php:2882
-#: includes/class-admin.php:3371
-#: includes/class-admin.php:3467
+#: includes/class-admin.php:3015
+#: includes/class-admin.php:3504
+#: includes/class-admin.php:3600
 msgid "Unrestricted"
 msgstr ""
 
 #. translators: 1: preset label, 2: policy value (e.g. "limited").
-#: includes/class-admin.php:3158
+#: includes/class-admin.php:3291
 #, php-format
 msgid "%1$s preset applied. All surfaces are now %2$s."
 msgstr ""
 
 #. translators: 1: surface names, 2: is/are, 3: policy value.
-#: includes/class-admin.php:3171
+#: includes/class-admin.php:3304
 #, php-format
 msgid "%1$s %2$s now %3$s"
 msgstr ""
 
 #. translators: 1: preset label, 2: semicolon-separated policy summary.
-#: includes/class-admin.php:3179
+#: includes/class-admin.php:3312
 #, php-format
 msgid "%1$s preset applied. %2$s."
 msgstr ""
 
-#: includes/class-admin.php:3201
+#: includes/class-admin.php:3334
 msgid "Passed event logging is disabled by code override (constant/filter). Actions performed during active sudo sessions will not appear in dashboard event history."
 msgstr ""
 
-#: includes/class-admin.php:3222
+#: includes/class-admin.php:3355
 msgid "Sudo break-glass recovery mode is active (WP_SUDO_RECOVERY_MODE is defined in wp-config.php). While it is set, any user who holds the manage_options capability — manage_network_options on multisite — regains full Sudo governance access, regardless of role. Remove the constant as soon as normal access is restored — leaving it enabled weakens the governance model."
 msgstr ""
 
-#: includes/class-admin.php:3311
+#: includes/class-admin.php:3444
 msgid "Sudo removed a leftover permission-mode setting left over from before version 4.0.0. Sudo now always enforces strict, role-based permission checks. No action is needed."
 msgstr ""
 
-#: includes/class-admin.php:3372
-#: includes/class-admin.php:3466
+#: includes/class-admin.php:3505
+#: includes/class-admin.php:3599
 msgid "Limited"
 msgstr ""
 
-#: includes/class-admin.php:3464
+#: includes/class-admin.php:3597
 msgid "Global default"
 msgstr ""
 
-#: includes/class-admin.php:3471
+#: includes/class-admin.php:3604
 msgid "Sudo policy for this application password"
 msgstr ""
 
-#: includes/class-admin.php:3472
-#: includes/class-admin.php:3473
+#: includes/class-admin.php:3605
+#: includes/class-admin.php:3606
 msgid "Sudo Policy"
 msgstr ""
 
-#: includes/class-admin.php:3474
-#: includes/class-admin.php:3594
+#: includes/class-admin.php:3607
+#: includes/class-admin.php:3727
 msgid "Policy saved."
 msgstr ""
 
-#: includes/class-admin.php:3475
+#: includes/class-admin.php:3608
 msgid "Policy could not be saved."
 msgstr ""
 
-#: includes/class-admin.php:3532
+#: includes/class-admin.php:3665
 msgid "Invalid user."
 msgstr ""
 
-#: includes/class-admin.php:3547
+#: includes/class-admin.php:3680
 msgid "Invalid application password UUID."
 msgstr ""
 
-#: includes/class-admin.php:3553
+#: includes/class-admin.php:3686
 msgid "Invalid application password UUID format."
 msgstr ""
 
-#: includes/class-admin.php:3561
+#: includes/class-admin.php:3694
 msgid "Application password not found."
 msgstr ""
 
@@ -1199,8 +1215,8 @@ msgid "The server returned an unexpected response. Check the browser console for
 msgstr ""
 
 #: includes/class-challenge.php:251
-#: admin/js/wp-sudo-editor-reauth.js:215
-#: admin/js/wp-sudo-editor-reauth.js:376
+#: admin/js/wp-sudo-editor-reauth.js:238
+#: admin/js/wp-sudo-editor-reauth.js:400
 msgid "Authentication failed."
 msgstr ""
 
@@ -1305,7 +1321,7 @@ msgid "Please wait %d seconds before trying again."
 msgstr ""
 
 #: includes/class-challenge.php:367
-#: admin/js/wp-sudo-editor-reauth.js:582
+#: admin/js/wp-sudo-editor-reauth.js:608
 msgid "Password"
 msgstr ""
 
@@ -1316,8 +1332,8 @@ msgstr ""
 
 #: includes/class-challenge.php:377
 #: includes/class-challenge.php:406
-#: includes/class-challenge.php:948
-#: admin/js/wp-sudo-editor-reauth.js:531
+#: includes/class-challenge.php:966
+#: admin/js/wp-sudo-editor-reauth.js:557
 msgid "Cancel"
 msgstr ""
 
@@ -1331,12 +1347,12 @@ msgstr ""
 
 #: includes/class-challenge.php:539
 #: includes/class-challenge.php:637
-#: includes/class-challenge.php:727
+#: includes/class-challenge.php:733
 msgid "Invalid request."
 msgstr ""
 
 #: includes/class-challenge.php:545
-#: includes/class-challenge.php:742
+#: includes/class-challenge.php:748
 msgid "Your authentication session has expired. Please start over."
 msgstr ""
 
@@ -1353,46 +1369,46 @@ msgid "Your challenge session has expired. Please try again."
 msgstr ""
 
 #. translators: %d: seconds remaining
-#: includes/class-challenge.php:682
-#: includes/class-challenge.php:769
-#: includes/class-challenge.php:789
-#: includes/class-challenge.php:845
+#: includes/class-challenge.php:688
+#: includes/class-challenge.php:775
+#: includes/class-challenge.php:795
+#: includes/class-challenge.php:851
 #, php-format
 msgid "Too many failed attempts. Please wait %d seconds."
 msgstr ""
 
-#: includes/class-challenge.php:694
+#: includes/class-challenge.php:700
 msgid "You are not allowed to perform this action."
 msgstr ""
 
-#: includes/class-challenge.php:700
-#: includes/class-challenge.php:709
+#: includes/class-challenge.php:706
+#: includes/class-challenge.php:715
 msgid "Incorrect password. Please try again."
 msgstr ""
 
 #. translators: %d: seconds remaining
-#: includes/class-challenge.php:753
+#: includes/class-challenge.php:759
 #, php-format
 msgid "Too many attempts. Please wait %d seconds."
 msgstr ""
 
-#: includes/class-challenge.php:811
+#: includes/class-challenge.php:817
 msgid "Too many resend attempts. Please try your current code or wait."
 msgstr ""
 
-#: includes/class-challenge.php:856
+#: includes/class-challenge.php:862
 msgid "Invalid authentication code. Please try again."
 msgstr ""
 
-#: includes/class-challenge.php:938
+#: includes/class-challenge.php:956
 msgid "Session already confirmed"
 msgstr ""
 
-#: includes/class-challenge.php:941
+#: includes/class-challenge.php:959
 msgid "Your sudo session is already active. Continuing…"
 msgstr ""
 
-#: includes/class-challenge.php:945
+#: includes/class-challenge.php:963
 msgid "Continue"
 msgstr ""
 
@@ -1740,7 +1756,7 @@ msgstr ""
 
 #: includes/class-gate.php:2862
 #: includes/class-gate.php:2922
-#: admin/js/wp-sudo-editor-reauth.js:607
+#: admin/js/wp-sudo-editor-reauth.js:633
 msgid "Confirm your identity"
 msgstr ""
 
@@ -1766,85 +1782,116 @@ msgstr ""
 msgid "Sudo Gated Action Integrity"
 msgstr ""
 
-#: includes/class-site-health.php:84
-msgid "Sudo MU-Plugin is installed"
+#: includes/class-site-health.php:72
+msgid "Sudo Role/Capability Manifest"
 msgstr ""
 
-#: includes/class-site-health.php:87
-#: includes/class-site-health.php:99
-#: includes/class-site-health.php:155
-#: includes/class-site-health.php:167
-#: includes/class-site-health.php:198
-#: includes/class-site-health.php:210
+#: includes/class-site-health.php:110
+#: includes/class-site-health.php:171
+#: includes/class-site-health.php:183
 #: includes/class-site-health.php:239
-#: includes/class-site-health.php:268
+#: includes/class-site-health.php:251
+#: includes/class-site-health.php:282
+#: includes/class-site-health.php:294
+#: includes/class-site-health.php:323
+#: includes/class-site-health.php:352
 msgid "Security"
 msgstr ""
 
-#: includes/class-site-health.php:90
+#: includes/class-site-health.php:116
+msgid "Sudo role manifest is unreadable"
+msgstr ""
+
+#: includes/class-site-health.php:119
+msgid "A role/capability manifest path is configured but the file is missing or invalid. The lockdown audit is inactive until it is regenerated with \"wp sudo manifest generate\"."
+msgstr ""
+
+#: includes/class-site-health.php:133
+msgid "Sudo detected role/capability drift"
+msgstr ""
+
+#. translators: 1: number of unauthorized principals, 2: number of drifted role definitions
+#: includes/class-site-health.php:138
+#, php-format
+msgid "Stored privileged state has drifted from the trusted manifest: %1$d unauthorized principal(s) and %2$d changed role definition(s). Review with \"wp sudo manifest diff\", then remediate or re-baseline with \"wp sudo manifest generate\"."
+msgstr ""
+
+#: includes/class-site-health.php:147
+msgid "Sudo role/capability state matches the manifest"
+msgstr ""
+
+#: includes/class-site-health.php:150
+msgid "All trusted administrators, super admins, governance-cap holders, and watched role definitions match the manifest. No drift detected."
+msgstr ""
+
+#: includes/class-site-health.php:168
+msgid "Sudo MU-Plugin is installed"
+msgstr ""
+
+#: includes/class-site-health.php:174
 msgid "The Sudo MU-Plugin is installed, ensuring gate hooks are registered before any regular plugin loads."
 msgstr ""
 
-#: includes/class-site-health.php:96
+#: includes/class-site-health.php:180
 msgid "Sudo MU-Plugin is not installed"
 msgstr ""
 
-#: includes/class-site-health.php:102
+#: includes/class-site-health.php:186
 msgid "The optional Sudo MU-Plugin is not installed. While the plugin works without it, the MU-Plugin ensures gate hooks are registered before any regular plugin can interfere."
 msgstr ""
 
 #. translators: %s: URL to the Sudo settings page
-#: includes/class-site-health.php:105
+#: includes/class-site-health.php:189
 #, php-format
 msgid "Install the MU-Plugin with one click from <a href=\"%s\">Settings &rarr; Sudo</a>."
 msgstr ""
 
-#: includes/class-site-health.php:152
+#: includes/class-site-health.php:236
 msgid "All Sudo entry point policies are secure"
 msgstr ""
 
-#: includes/class-site-health.php:158
+#: includes/class-site-health.php:242
 msgid "All non-interactive entry points are set to \"limited\" or \"disabled\", preventing unrestricted access to gated operations via CLI, Cron, XML-RPC, and Application Passwords."
 msgstr ""
 
-#: includes/class-site-health.php:164
+#: includes/class-site-health.php:248
 msgid "Some Sudo entry point policies are unrestricted"
 msgstr ""
 
 #. translators: %s: comma-separated list of unrestricted policy names
-#: includes/class-site-health.php:172
+#: includes/class-site-health.php:256
 #, php-format
 msgid "The following entry points are set to \"unrestricted\": %s. Consider using \"limited\" (blocks only gated actions) or \"disabled\" (shuts off the entire surface) for better security."
 msgstr ""
 
-#: includes/class-site-health.php:195
+#: includes/class-site-health.php:279
 msgid "All built-in Sudo gated actions are registered"
 msgstr ""
 
-#: includes/class-site-health.php:201
+#: includes/class-site-health.php:285
 msgid "The filtered gated action registry still includes the built-in Sudo protection set."
 msgstr ""
 
-#: includes/class-site-health.php:207
+#: includes/class-site-health.php:291
 msgid "Some built-in Sudo gated actions are not registered"
 msgstr ""
 
 #. translators: %s: comma-separated list of missing built-in gated action IDs
-#: includes/class-site-health.php:215
+#: includes/class-site-health.php:299
 #, php-format
 msgid "A wp_sudo_gated_actions filter removed these built-in rules: %s. Confirm this is intentional; otherwise, restore the default rules so dangerous actions remain gated."
 msgstr ""
 
-#: includes/class-site-health.php:236
+#: includes/class-site-health.php:320
 msgid "No stale Sudo sessions found"
 msgstr ""
 
-#: includes/class-site-health.php:242
+#: includes/class-site-health.php:326
 msgid "All sudo session tokens are either active or have been cleaned up. No action needed."
 msgstr ""
 
 #. translators: %d: number of stale sessions cleaned
-#: includes/class-site-health.php:258
+#: includes/class-site-health.php:342
 #, php-format
 msgid "%d stale Sudo session cleaned up"
 msgid_plural "%d stale Sudo sessions cleaned up"
@@ -1852,7 +1899,7 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. translators: %d: number of stale sessions
-#: includes/class-site-health.php:273
+#: includes/class-site-health.php:357
 #, php-format
 msgid "Found and cleaned %d expired sudo session token. This is normal — tokens expire naturally but are only cleaned on the next page load."
 msgid_plural "Found and cleaned %d expired sudo session tokens. This is normal — tokens expire naturally but are only cleaned on the next page load."
@@ -1867,34 +1914,58 @@ msgstr ""
 msgid "This action requires reauthentication."
 msgstr ""
 
-#: admin/js/wp-sudo-editor-reauth.js:210
-#: admin/js/wp-sudo-editor-reauth.js:371
+#: admin/js/wp-sudo-editor-reauth.js:231
+#: admin/js/wp-sudo-editor-reauth.js:394
 msgid "Unexpected server response."
 msgstr ""
 
-#: admin/js/wp-sudo-editor-reauth.js:219
-#: admin/js/wp-sudo-editor-reauth.js:380
+#: admin/js/wp-sudo-editor-reauth.js:242
+#: admin/js/wp-sudo-editor-reauth.js:404
 msgid "Network error. Please try again."
 msgstr ""
 
-#: admin/js/wp-sudo-editor-reauth.js:482
-#: admin/js/wp-sudo-editor-reauth.js:520
+#: admin/js/wp-sudo-editor-reauth.js:507
+#: admin/js/wp-sudo-editor-reauth.js:546
 msgid "Unexpected error. Please try again."
 msgstr ""
 
-#: admin/js/wp-sudo-editor-reauth.js:506
+#: admin/js/wp-sudo-editor-reauth.js:532
 msgid "A new code was sent to your email."
 msgstr ""
 
-#: admin/js/wp-sudo-editor-reauth.js:545
+#: admin/js/wp-sudo-editor-reauth.js:571
 msgid "Enter your two-factor authentication code to continue."
 msgstr ""
 
-#: admin/js/wp-sudo-editor-reauth.js:566
-#: admin/js/wp-sudo-editor-reauth.js:597
+#: admin/js/wp-sudo-editor-reauth.js:592
+#: admin/js/wp-sudo-editor-reauth.js:623
 msgid "Confirm"
 msgstr ""
 
-#: admin/js/wp-sudo-editor-reauth.js:578
+#: admin/js/wp-sudo-editor-reauth.js:604
 msgid "This action requires reauthentication. Enter your password to continue."
+msgstr ""
+
+#. translators: %d: whole minutes remaining in the sudo session
+#: admin/js/wp-sudo-session-indicator.js:177
+#, js-format
+msgid "Reauthenticated — sudo active for about %d min."
+msgstr ""
+
+#: admin/js/wp-sudo-session-indicator.js:245
+msgid "Sudo · active"
+msgstr ""
+
+#: admin/js/wp-sudo-session-indicator.js:246
+msgid "Sudo · inactive"
+msgstr ""
+
+#. translators: %s: time remaining in M:SS format
+#: admin/js/wp-sudo-session-indicator.js:263
+#, js-format
+msgid "Sudo active — %s remaining."
+msgstr ""
+
+#: admin/js/wp-sudo-session-indicator.js:267
+msgid "No active sudo session."
 msgstr ""
