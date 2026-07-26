@@ -1857,6 +1857,34 @@ class ChallengeTest extends TestCase
 	}
 
 	/**
+	 * #322: a QUERYLESS stashed GET must land on the neutral page, not the stash URL.
+	 *
+	 * With no query to strip, "the originating screen" IS the action URL — so an
+	 * extensibility rule gating an effect that fires on path load alone would still be
+	 * carried out by the victim's reauth. Only a URL we actually stripped is safe.
+	 */
+	public function test_queryless_get_stash_lands_neutral_not_on_the_action_url(): void
+	{
+		$this->stash->shouldReceive('get')->once()->andReturn(array(
+			'method' => 'GET',
+			'url' => 'https://example.com/wp-admin/admin.php/destructive-path-action',
+			'rule_id' => 'thirdparty.path_action',
+		));
+		$this->stash->shouldReceive('delete')->once();
+		$this->stubReplayEnv();
+
+		$data = $this->invokeReplay('queryless-key', true);
+
+		$this->assertArrayNotHasKey('replay', $data);
+		$this->assertStringNotContainsString(
+			'destructive-path-action',
+			$data['redirect'],
+			'A queryless GET stash must not be used as the landing URL.'
+		);
+		$this->assertStringContainsString('wp_sudo_blocked_replay=1', $data['redirect']);
+	}
+
+	/**
 	 * #322 v2: the legitimate same-browser flow replays again (UX restored).
 	 */
 	public function test_bound_stash_replays_after_credential_verified(): void

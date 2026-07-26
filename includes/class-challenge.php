@@ -1255,8 +1255,15 @@ class Challenge {
 			// keep the same-origin admin page, re-validate. Never the full action URL.
 			$origin    = wp_validate_redirect( $stash['url'], $neutral_url );
 			$query_pos = strpos( $origin, '?' );
-			$screen    = false === $query_pos ? $origin : substr( $origin, 0, $query_pos );
-			$target    = wp_validate_redirect( $screen, $neutral_url );
+
+			// A queryless stashed GET must NOT be used as the landing spot: with no
+			// query to strip, "the originating screen" IS the action URL, so an
+			// extensibility rule gating an effect that fires on path load alone would
+			// still be carried out by the victim's reauth — the confused deputy this
+			// whole change removes. Only a URL we actually stripped is safe to return
+			// to; otherwise fall back to the neutral admin page.
+			$screen = false === $query_pos ? $neutral_url : substr( $origin, 0, $query_pos );
+			$target = wp_validate_redirect( $screen, $neutral_url );
 		}
 
 		$notice_arg = ! empty( $stash['redacted_fields_omitted'] )

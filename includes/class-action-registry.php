@@ -481,7 +481,13 @@ class Action_Registry {
 					'route'   => '#^/wp/v2/users/(?:\d+|me)/application-passwords$#',
 					'methods' => array( 'POST' ),
 				),
-				'stash'    => self::stash_allowlist( array( 'approve', 'app_name', 'app_id', 'reject_url' ) ), // #322: 'success_url' NOT stashed — it is the exfil sink for an app-password mint; the user's own fresh resubmit still carries it.
+				// #322: never replayed. This POST MINTS A CREDENTIAL and hands it to
+				// success_url, so it is the exfil sink in the stash confused deputy.
+				// Dropping success_url alone was not enough: without post_mode 'none'
+				// the approval itself would still be auto-submitted under v2's bound
+				// replay, minting a password the attacker planted the request for.
+				// The user re-approves themselves; their own submit carries success_url.
+				'stash'    => self::stash_no_replay(),
 			),
 
 			// ── File Editors ────────────────────────────────────────────

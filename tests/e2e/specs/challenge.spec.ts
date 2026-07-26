@@ -1732,20 +1732,26 @@ test.describe( 'Challenge flow', () => {
 
             await page.fill( '#wp-sudo-e2e-two-factor-code', E2E_TWO_FACTOR_CODE );
 
+            // #322: after the lockout clears and 2FA succeeds, the stashed POST is NOT
+            // replayed — a cloned session could otherwise plant one and the victim's
+            // reauth would apply it. The recovery path proves the lockout cleared and
+            // the user got out of the challenge, not that the stash was executed.
             await Promise.all( [
-                page.waitForURL( /page=wp-sudo-settings/, { timeout: 15_000 } ),
+                page.waitForURL( /wp_sudo_blocked_replay=1/, { timeout: 15_000 } ),
                 submitTwoFactorChallenge( page ),
             ] );
 
             await expect(
                 page,
-                'The recovered POST replay flow must return to the WP Sudo settings page'
-            ).toHaveURL( /page=wp-sudo-settings/ );
+                'The recovered flow must leave the challenge page'
+            ).not.toHaveURL( /page=wp-sudo-challenge/ );
 
+            // The gated change must NOT have been applied.
+            await page.goto( '/wp-admin/options-general.php?page=wp-sudo-settings' );
             await expect(
                 page.locator( '#session_duration' ),
-                'The stashed POST replay should save the new session duration value'
-            ).toHaveValue( String( updatedDuration ) );
+                'The stashed POST must not be replayed after reauth (#322)'
+            ).toHaveValue( String( originalDuration ) );
         } finally {
             await setWpSudoSessionDuration( originalDuration );
             await disableE2eTwoFactor();

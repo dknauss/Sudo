@@ -111,12 +111,24 @@ test.describe( 'WP Sudo multisite alternative stack smoke tests', () => {
         );
         await page.fill( '#wp-sudo-challenge-password', DEFAULT_PASSWORD );
 
+        // #322: the stashed POST is NOT replayed after reauth — a cloned session could
+        // otherwise plant one and the victim's reauth would apply it. The user returns
+        // and submits again; the now-active sudo session passes that through.
+        await Promise.all( [
+            page.waitForURL( /wp_sudo_blocked_replay=1/, { timeout: NAV_TIMEOUT } ),
+            forceClick( page.locator( '#wp-sudo-challenge-submit' ) ),
+        ] );
+
+        await page.goto( '/wp-admin/network/settings.php?page=wp-sudo-settings' );
+        await expect( sessionDuration ).toHaveValue( originalValue );
+
+        await sessionDuration.fill( updatedValue );
         await Promise.all( [
             page.waitForURL(
                 /\/wp-admin\/network\/settings\.php\?page=wp-sudo-settings(?:&updated=true)?$/,
                 { timeout: NAV_TIMEOUT }
             ),
-            forceClick( page.locator( '#wp-sudo-challenge-submit' ) ),
+            forceClick( page.locator( '#submit' ) ),
         ] );
 
         await expect( sessionDuration ).toHaveValue( updatedValue );

@@ -69,7 +69,28 @@ class Request_Stash {
 	 *
 	 * @var string[]
 	 */
-	private const TARGET_PARAMS = array( 'plugin', 'theme', 'stylesheet', 'template', 'user_id', 'users', 'option', 'file', 'id', 'post', 'blog_id', 'app_name' );
+	private const TARGET_PARAMS = array(
+		'plugin',
+		'theme',
+		'stylesheet',
+		'template',
+		'user_id',
+		'users',
+		'option',
+		'file',
+		'id',
+		'post',
+		'blog_id',
+		'app_name',
+		// options.critical stashes these; without them the most dangerous settings
+		// change (site URL takeover, admin email, default role) would render an EMPTY
+		// target — i.e. no informed confirmation exactly where it matters most.
+		'siteurl',
+		'home',
+		'admin_email',
+		'default_role',
+		'users_can_register',
+	);
 
 	/**
 	 * Maximum stored length of a single target value.
@@ -216,13 +237,7 @@ class Request_Stash {
 			// phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- Display metadata only, never used to route or replay; sanitized below.
 			$raw = $_GET[ $param ] ?? $_POST[ $param ] ?? null;
 
-			if ( null === $raw || is_array( $raw ) || '' === $raw ) {
-				continue;
-			}
-
-			$value = sanitize_text_field( wp_unslash( (string) $raw ) );
-
-			if ( '' === $value ) {
+			if ( null === $raw || '' === $raw ) {
 				continue;
 			}
 
@@ -233,15 +248,64 @@ class Request_Stash {
 				continue;
 			}
 
-			// mb_substr, not substr: splitting a UTF-8 sequence makes esc_html() emit
-			// '' (wp_check_invalid_utf8), which would silently blank the Target line —
-			// i.e. quietly remove the primary #322 control instead of erroring.
-			$target[ $param ] = function_exists( 'mb_substr' )
-				? mb_substr( $value, 0, self::TARGET_MAX_LENGTH )
-				: substr( $value, 0, self::TARGET_MAX_LENGTH );
+			// Bulk actions ('users' on bulk delete / role change) arrive as ARRAYS.
+			// Discarding them left the target EMPTY exactly where the action is most
+			// destructive — no informed confirmation on a bulk user delete.
+			if ( is_array( $raw ) ) {
+				$parts = array();
+
+				foreach ( $raw as $item ) {
+					if ( ! is_scalar( $item ) ) {
+						continue;
+					}
+
+					$item = sanitize_text_field( wp_unslash( (string) $item ) );
+
+					if ( '' !== $item ) {
+						$parts[] = $item;
+					}
+				}
+
+				if ( ! $parts ) {
+					continue;
+				}
+
+				$value = implode( ', ', $parts );
+			} else {
+				$value = sanitize_text_field( wp_unslash( (string) $raw ) );
+			}
+
+			if ( '' === $value ) {
+				continue;
+			}
+
+			$target[ $param ] = $this->truncate_target_value( $value );
 		}
 
 		return $target;
+	}
+
+	/**
+	 * Truncate a target value without breaking UTF-8.
+	 *
+	 * Splitting a multibyte sequence makes esc_html() emit '' (wp_check_invalid_utf8),
+	 * which silently blanks the Target line — quietly removing the primary #322
+	 * control instead of erroring. mbstring is optional even on supported PHP, so the
+	 * fallback trims any trailing partial sequence rather than truncating by bytes.
+	 *
+	 * @param string $value Sanitized target value.
+	 * @return string
+	 */
+	private function truncate_target_value( string $value ): string {
+		if ( function_exists( 'mb_substr' ) ) {
+			return mb_substr( $value, 0, self::TARGET_MAX_LENGTH );
+		}
+
+		$cut = substr( $value, 0, self::TARGET_MAX_LENGTH );
+
+		// Drop a trailing incomplete multibyte sequence (lead byte + any continuation
+		// bytes) so the result is always valid UTF-8.
+		return (string) preg_replace( '/[\xC0-\xFF][\x80-\xBF]*$/', '', $cut );
 	}
 
 	/**
@@ -253,11 +317,11 @@ class Request_Stash {
 	 *
 	 * Deliberately refuses to mint (returns '') unless ALL hold:
 	 *  - the gated request was same-origin initiated (`Sec-Fetch-Site: same-origin`).
-	 *    WordPress nonces are bound to the session token, NOT the browser, so an
-	 *    attacker holding a stolen login cookie can mint a valid nonce and lure the
-	 *    victim into issuing the gated request — which would otherwise mint the
-	 *    binding in the VICTIM's browser and defeat the whole mechanism. A missing or
-	 *    cross-site/same-site header fails closed.
+	 *    WordPress nonces are bound to the session token, NOT the browser (GB-NONCE-TOKEN,
+	 *    GB-SESSION-TOKEN-COOKIE), so an attacker holding a stolen login cookie can mint
+	 *    a valid nonce and lure the victim into issuing the gated request — which would
+	 *    otherwise mint the binding in the VICTIM's browser and defeat the whole
+	 *    mechanism. A missing or cross-site/same-site header fails closed.
 	 *  - cookies are Secure (`__Host-` requires it; without TLS there is no binding
 	 *    worth trusting anyway).
 	 *  - headers are not already sent, so the cookie can actually reach the browser.

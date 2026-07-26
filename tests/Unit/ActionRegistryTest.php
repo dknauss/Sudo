@@ -110,6 +110,14 @@ class ActionRegistryTest extends TestCase {
 			$rule['stash']['post_fields'] ?? array(),
 			'success_url must not be stashable (#322 exfil sink).'
 		);
+		// Dropping success_url is not sufficient on its own: without post_mode 'none'
+		// the approval POST would still be auto-submitted by #322 v2's bound replay,
+		// minting a credential for a request the attacker planted.
+		$this->assertSame(
+			'none',
+			$rule['stash']['post_mode'] ?? null,
+			'The app-password approval must never be replayed (#322).'
+		);
 	}
 
 	/**

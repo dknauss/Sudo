@@ -366,6 +366,104 @@ class RequestStashTest extends TestCase {
 	}
 
 	/**
+	 * #322: bulk actions send arrays — the target must name the accounts, not vanish.
+	 *
+	 * Discarding array values left the confirmation EMPTY exactly where the action is
+	 * most destructive (bulk user delete / role change).
+	 */
+	public function test_capture_target_records_array_values(): void {
+		$this->stub_stash_index_meta_io();
+
+		$_SERVER['REQUEST_METHOD'] = 'POST';
+		$_SERVER['HTTP_HOST']      = 'example.com';
+		$_SERVER['REQUEST_URI']    = '/wp-admin/users.php';
+		$_POST['users']            = array( '5', '6', '7' );
+
+		$this->stub_target_env();
+
+		$stored = null;
+		Functions\expect( 'set_transient' )->once()->andReturnUsing(
+			function ( $key, $value ) use ( &$stored ) {
+				$stored = $value;
+				return true;
+			}
+		);
+
+		$this->stash->save( 1, array( 'id' => 'user.delete', 'label' => 'Delete user' ) );
+
+		$this->assertSame( '5, 6, 7', $stored['target']['users'] ?? null, 'Bulk targets must be named.' );
+
+		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'], $_POST['users'] );
+	}
+
+	/**
+	 * #322: critical option names must appear in the confirmation.
+	 *
+	 * options.critical stashes siteurl/home/admin_email/default_role; without them the
+	 * most dangerous settings change would render an empty target.
+	 */
+	public function test_capture_target_records_critical_option_names(): void {
+		$this->stub_stash_index_meta_io();
+
+		$_SERVER['REQUEST_METHOD'] = 'POST';
+		$_SERVER['HTTP_HOST']      = 'example.com';
+		$_SERVER['REQUEST_URI']    = '/wp-admin/options.php';
+		$_POST['siteurl']          = 'https://evil.example';
+		$_POST['admin_email']      = 'attacker@example.com';
+
+		$this->stub_target_env();
+
+		$stored = null;
+		Functions\expect( 'set_transient' )->once()->andReturnUsing(
+			function ( $key, $value ) use ( &$stored ) {
+				$stored = $value;
+				return true;
+			}
+		);
+
+		$this->stash->save( 1, array( 'id' => 'options.critical', 'label' => 'Change critical settings' ) );
+
+		$this->assertSame( 'https://evil.example', $stored['target']['siteurl'] ?? null );
+		$this->assertSame( 'attacker@example.com', $stored['target']['admin_email'] ?? null );
+
+		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'], $_POST['siteurl'], $_POST['admin_email'] );
+	}
+
+	/**
+	 * #322: the no-mbstring fallback must still produce valid UTF-8.
+	 *
+	 * mbstring is optional even on supported PHP; a byte-wise cut would blank the
+	 * Target line via esc_html()/wp_check_invalid_utf8.
+	 */
+	public function test_truncate_target_value_is_utf8_safe_without_mbstring(): void {
+		\Patchwork\redefine(
+			'function_exists',
+			function ( string $name ) {
+				return 'mb_substr' === $name ? false : \Patchwork\relay();
+			}
+		);
+
+		$method = new \ReflectionMethod( $this->stash, 'truncate_target_value' );
+		@$method->setAccessible( true ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+
+		$out = $method->invoke( $this->stash, str_repeat( 'あ', 120 ) );
+
+		$this->assertNotSame( '', $out );
+		$this->assertTrue( mb_check_encoding( $out, 'UTF-8' ), 'Fallback truncation must stay valid UTF-8.' );
+	}
+
+	/**
+	 * Shared stubs for target-capture tests.
+	 */
+	private function stub_target_env(): void {
+		Functions\when( 'wp_generate_password' )->justReturn( 'abc123def456ghij' );
+		Functions\when( 'esc_url_raw' )->returnArg();
+		Functions\when( 'is_ssl' )->justReturn( true );
+		Functions\when( 'sanitize_text_field' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+	}
+
+	/**
 	 * Test save() still returns the key when transient storage fails.
 	 */
 	public function test_save_returns_key_when_set_transient_fails(): void {
