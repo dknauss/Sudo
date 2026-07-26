@@ -490,7 +490,7 @@ class ChallengeTest extends TestCase
 				return $expires;
 			}
 			if (\WP_Sudo\Sudo_Session::PROOF_META_KEY === $key) {
-				return $this->make_proof_record((int) $uid, 'browser-token', $expires);
+				return $this->make_proof_map((int) $uid, 'browser-token', $expires);
 			}
 			return '';
 		});
@@ -603,7 +603,7 @@ class ChallengeTest extends TestCase
 				return $expires;
 			}
 			if (\WP_Sudo\Sudo_Session::PROOF_META_KEY === $key) {
-				return $this->make_proof_record((int) $uid, 'browser-token', $expires);
+				return $this->make_proof_map((int) $uid, 'browser-token', $expires);
 			}
 			return '';
 		});
@@ -1767,7 +1767,7 @@ class ChallengeTest extends TestCase
 				return $expires;
 			}
 			if (\WP_Sudo\Sudo_Session::PROOF_META_KEY === $key) {
-				return $this->make_proof_record((int) $uid, 'browser-token', $expires);
+				return $this->make_proof_map((int) $uid, 'browser-token', $expires);
 			}
 			if (\WP_Sudo\Sudo_Session::THROTTLE_UNTIL_META_KEY === $key || \WP_Sudo\Sudo_Session::LOCKOUT_UNTIL_META_KEY === $key) {
 				return '';
@@ -1949,7 +1949,7 @@ class ChallengeTest extends TestCase
 				return $expires;
 			}
 			if (\WP_Sudo\Sudo_Session::PROOF_META_KEY === $key) {
-				return $this->make_proof_record((int) $uid, 'browser-token', $expires);
+				return $this->make_proof_map((int) $uid, 'browser-token', $expires);
 			}
 			return '';
 		});

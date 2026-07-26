@@ -520,11 +520,12 @@ class Plugin {
 	/**
 	 * Expire the sudo session when the user logs out.
 	 *
-	 * The sudo proof is bound to the login session that created it
-	 * (Sudo_Session::SESSION_BIND_META_KEY), so a stale cookie would already
-	 * fail verification once the login session is gone. Deactivating here makes
-	 * logout a clean boundary: the meta and cookie are cleared immediately
-	 * rather than lingering until the next is_active() check or expiry.
+	 * The sudo proof is bound to the login session that created it (its entry in
+	 * Sudo_Session::PROOF_META_KEY is keyed by, and HMAC-signed over, the login-
+	 * session verifier), so a stale cookie would already fail verification once
+	 * the login session is gone. Deactivating here makes logout a clean boundary:
+	 * the meta and cookie are cleared immediately rather than lingering until the
+	 * next is_active() check or expiry.
 	 *
 	 * @since 4.1.0
 	 *

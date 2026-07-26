@@ -41,7 +41,7 @@ class PublicApiTest extends TestCase {
 
 		$_COOKIE[ Sudo_Session::TOKEN_COOKIE ] = $token;
 
-		$record = $this->make_proof_record( $user_id, $token, time() + 300 );
+		$record = $this->make_proof_map( $user_id, $token, time() + 300 );
 
 		Functions\when( 'get_user_meta' )->alias(
 			static function ( int $uid, string $meta_key, bool $single ) use ( $user_id, $record ) {
@@ -81,7 +81,7 @@ class PublicApiTest extends TestCase {
 
 		$_COOKIE[ Sudo_Session::TOKEN_COOKIE ] = $token;
 
-		$record = $this->make_proof_record( $other_user_id, $token, time() + 300 );
+		$record = $this->make_proof_map( $other_user_id, $token, time() + 300 );
 
 		Functions\when( 'get_user_meta' )->alias(
 			static function ( int $uid, string $meta_key, bool $single ) use ( $other_user_id, $record ) {
@@ -136,7 +136,7 @@ class PublicApiTest extends TestCase {
 
 		$_COOKIE[ Sudo_Session::TOKEN_COOKIE ] = $token;
 
-		$record = $this->make_proof_record( $other_user_id, $token, time() + 300 );
+		$record = $this->make_proof_map( $other_user_id, $token, time() + 300 );
 
 		Functions\when( 'get_user_meta' )->alias(
 			static function ( int $uid, string $meta_key, bool $single ) use ( $other_user_id, $record ) {

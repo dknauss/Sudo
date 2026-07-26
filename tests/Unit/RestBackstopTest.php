@@ -148,7 +148,7 @@ class RestBackstopTest extends TestCase {
 	public function test_rest_backstop_allows_when_sudo_active(): void {
 		$future = time() + 300;
 		$token  = 'valid-token';
-		$record = $this->make_proof_record( 1, $token, $future );
+		$record = $this->make_proof_map( 1, $token, $future );
 
 		Functions\when( 'get_current_user_id' )->justReturn( 1 );
 		Functions\when( 'get_user_meta' )->alias(

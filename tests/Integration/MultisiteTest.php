@@ -90,19 +90,19 @@ class MultisiteTest extends TestCase {
 		$user    = $this->make_admin();
 		$blog_id = self::factory()->blog->create();
 
-		// Activate sudo session on main site — writes token hash to usermeta.
+		// Activate sudo session on main site — writes the proof map to usermeta.
 		Sudo_Session::activate( $user->ID );
 
-		$token_hash = get_user_meta( $user->ID, Sudo_Session::TOKEN_META_KEY, true );
-		$this->assertNotEmpty( $token_hash, 'Token hash should be set after activation.' );
+		$proof_map = get_user_meta( $user->ID, Sudo_Session::PROOF_META_KEY, true );
+		$this->assertNotEmpty( $proof_map, 'Proof map should be set after activation.' );
 
 		// Switch to subsite — usermeta should still be readable.
 		switch_to_blog( $blog_id );
 
 		$this->assertSame(
-			$token_hash,
-			get_user_meta( $user->ID, Sudo_Session::TOKEN_META_KEY, true ),
-			'User meta (token hash) should be network-wide on multisite.'
+			$proof_map,
+			get_user_meta( $user->ID, Sudo_Session::PROOF_META_KEY, true ),
+			'User meta (proof map) should be network-wide on multisite.'
 		);
 
 		restore_current_blog();

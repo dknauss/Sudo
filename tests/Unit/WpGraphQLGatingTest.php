@@ -289,7 +289,7 @@ class WpGraphQLGatingTest extends TestCase {
 
 		// Simulate Sudo_Session::is_active( 1 ) === true.
 		$token  = 'test-graphql-gate-token';
-		$record = $this->make_proof_record( 1, $token, time() + 600 );
+		$record = $this->make_proof_map( 1, $token, time() + 600 );
 		Functions\when( 'get_user_meta' )->alias(
 			static function ( int $uid, string $key ) use ( $record ): mixed {
 				if ( Sudo_Session::META_KEY === $key ) {

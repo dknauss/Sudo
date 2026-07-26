@@ -235,4 +235,30 @@ abstract class TestCase extends PHPUnitTestCase {
 		);
 	}
 
+	/**
+	 * Build the per-login-session proof MAP that Sudo_Session::PROOF_META_KEY
+	 * actually stores: a single entry keyed by the SHA-256 of the verifier.
+	 *
+	 * Return this from a get_user_meta() stub for the PROOF_META_KEY branch to
+	 * simulate an active session for one browser/login session.
+	 *
+	 * @param int    $user_id  User the record belongs to.
+	 * @param string $cookie   Plaintext wp_sudo_token cookie value.
+	 * @param int    $expires  Session expiry timestamp.
+	 * @param string $verifier Raw login-session verifier (map key + HMAC input).
+	 * @param string $salt     Auth salt used for the HMAC.
+	 * @return array<string, array{token: string, expires: int, hmac: string}>
+	 */
+	protected function make_proof_map(
+		int $user_id,
+		string $cookie,
+		int $expires,
+		string $verifier = '',
+		string $salt = 'unit-test-auth-salt'
+	): array {
+		return array(
+			hash( 'sha256', $verifier ) => $this->make_proof_record( $user_id, $cookie, $expires, $verifier, $salt ),
+		);
+	}
+
 }

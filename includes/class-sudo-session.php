@@ -36,23 +36,33 @@ class Sudo_Session {
 	public const META_KEY = '_wp_sudo_expires';
 
 	/**
-	 * Self-authenticating sudo proof record (user meta).
+	 * Self-authenticating sudo proof map (user meta), keyed per login session.
 	 *
-	 * Stores an associative array describing the reauthentication proof:
-	 *   - `token`   — SHA-256 of the browser's wp_sudo_token cookie value.
-	 *   - `expires` — Unix timestamp when this browser's session expires.
+	 * Stores an array keyed by the SHA-256 of the login-session verifier
+	 * (wp_get_session_token()), so each of a user's concurrent browsers has an
+	 * independent proof and one browser reauthenticating does not overwrite
+	 * another's (#279). Each entry is a record:
+	 *   - `token`   — SHA-256 of that browser's wp_sudo_token cookie value.
+	 *   - `expires` — Unix timestamp when that browser's session expires.
 	 *   - `hmac`    — hash_hmac('sha256', "$user_id|$verifier|$token|$expires",
 	 *                 wp_salt('auth')), where $verifier is the raw login-session
-	 *                 token (wp_get_session_token()).
+	 *                 token.
 	 *
-	 * The HMAC makes the record self-authenticating: the enforcement path
+	 * The HMAC makes each record self-authenticating: the enforcement path
 	 * recomputes it and rejects any record it did not sign. This defeats a
 	 * direct-DB-*write* attacker who cannot reproduce the HMAC without the auth
 	 * salt, and — combined with the cache-bypassed read on the enforcement path
 	 * — a cache-*poisoning* attacker who forges the token hash for a cookie they
 	 * control (#278). Binding the HMAC to the raw verifier also subsumes the old
-	 * session-bind: a cookie replayed under a different login session recomputes
-	 * a different HMAC and is rejected.
+	 * session-bind: a cookie replayed under a different login session hashes to a
+	 * map key with no entry (and, even if planted, recomputes a different HMAC).
+	 *
+	 * Concurrency note: the map is one user-meta row updated read-modify-write,
+	 * so two activations completing in the same instant carry the same
+	 * lost-update window as WordPress core's own WP_User_Meta_Session_Tokens
+	 * (which stores all session tokens in a single `session_tokens` meta the same
+	 * way). Reauth is human-paced, so the window is negligible; #279 is
+	 * eliminated for the realistic case and no worse than core for the rest.
 	 *
 	 * Degradation: when the AUTH_SALT family lives in wp_options rather than
 	 * wp-config.php, a DB-write attacker can read the salt and forge the HMAC;
@@ -62,7 +72,7 @@ class Sudo_Session {
 	 * @since 4.9.0
 	 * @var string
 	 */
-	public const PROOF_META_KEY = '_wp_sudo_proof';
+	public const PROOF_META_KEY = '_wp_sudo_proofs';
 
 	/**
 	 * Legacy user-meta key: pre-4.9.0 session binding token (SHA-256 of cookie).
@@ -257,10 +267,12 @@ class Sudo_Session {
 		}
 
 		if ( time() > $record['expires'] ) {
-			// Session expired. Defer meta cleanup until the grace window has also
-			// elapsed — is_within_grace() still needs the record to verify the token.
+			// Session expired. Defer cleanup until the grace window has also
+			// elapsed — is_within_grace() still needs the record to verify the
+			// token. Prune only THIS browser's entry; other concurrent browsers
+			// keep their independent sessions (#279).
 			if ( time() > $record['expires'] + self::GRACE_SECONDS ) {
-				self::clear_session_data( $user_id );
+				self::prune_proof_entry( $user_id );
 			}
 			self::$active_cache[ $user_id ] = false;
 			return false;
@@ -331,7 +343,15 @@ class Sudo_Session {
 		$duration = (int) Admin::get( 'session_duration', 15 );
 		$expires  = time() + ( $duration * MINUTE_IN_SECONDS );
 
-		update_user_meta( $user_id, self::META_KEY, $expires );
+		// The scalar is the per-user liveness marker used by enumeration (the
+		// "Sudo Active (N)" count, the dashboard widget, bulk revoke, and
+		// is_session_live). Keep it at the furthest live expiry across this user's
+		// concurrent browsers so activating a shorter session in one browser does
+		// not shrink the marker for another (#279). Enforcement uses the
+		// per-browser proof record, not this scalar.
+		$existing = (int) get_user_meta( $user_id, self::META_KEY, true );
+		$scalar   = $existing > time() ? max( $existing, $expires ) : $expires;
+		update_user_meta( $user_id, self::META_KEY, $scalar );
 
 		// Write the self-authenticating proof for this browser and set the cookie.
 		self::set_token( $user_id, $expires );
@@ -433,9 +453,12 @@ class Sudo_Session {
 		// the session the current browser actually holds. Display-only — no HMAC
 		// enforcement here; callers gate on is_active() first. Falls back to the
 		// per-user liveness scalar on cookie-less surfaces (CLI: `wp sudo status`).
-		$record = self::read_proof( $user_id, false );
-		if ( is_array( $record ) && isset( $record['expires'] ) ) {
-			return max( 0, (int) $record['expires'] - time() );
+		$map = self::read_proof( $user_id, false );
+		if ( is_array( $map ) ) {
+			$record = $map[ hash( 'sha256', self::current_session_token() ) ] ?? null;
+			if ( is_array( $record ) && isset( $record['expires'] ) ) {
+				return max( 0, (int) $record['expires'] - time() );
+			}
 		}
 
 		$expires = (int) get_user_meta( $user_id, self::META_KEY, true );
@@ -914,15 +937,29 @@ class Sudo_Session {
 		$verifier                  = self::current_session_token();
 		self::$pending_login_token = null;
 
-		update_user_meta(
-			$user_id,
-			self::PROOF_META_KEY,
-			array(
-				'token'   => $token_hash,
-				'expires' => $expires,
-				'hmac'    => self::build_hmac( $user_id, $verifier, $token_hash, $expires ),
-			)
+		// Read-modify-write the per-login-session proof map so a second browser's
+		// activation adds its own entry instead of overwriting the first's (#279).
+		$map = get_user_meta( $user_id, self::PROOF_META_KEY, true );
+		if ( ! is_array( $map ) ) {
+			$map = array();
+		}
+
+		// Housekeeping: drop entries for login sessions whose sudo has expired,
+		// so the map does not accumulate a row per historical login session.
+		$now = time();
+		foreach ( $map as $key => $entry ) {
+			if ( ! is_array( $entry ) || ! isset( $entry['expires'] ) || (int) $entry['expires'] < $now ) {
+				unset( $map[ $key ] );
+			}
+		}
+
+		$map[ hash( 'sha256', $verifier ) ] = array(
+			'token'   => $token_hash,
+			'expires' => $expires,
+			'hmac'    => self::build_hmac( $user_id, $verifier, $token_hash, $expires ),
 		);
+
+		update_user_meta( $user_id, self::PROOF_META_KEY, $map );
 
 		// Cleanup: drop pre-4.9.0 token/bind rows from upgraded sites. Harmless
 		// no-ops once removed; nothing on the enforcement path reads them.
@@ -1050,12 +1087,21 @@ class Sudo_Session {
 			return null;
 		}
 
-		$record = self::read_proof( $user_id, true );
+		$verifier = self::current_session_token();
 
-		// Reject anything that is not a well-formed record. get_user_meta()
-		// returns mixed; a poisoned cache or raw DB write could plant a non-array
-		// or an entry with non-string/non-numeric fields, which would otherwise
-		// fatal in hash_hmac()/hash_equals().
+		$map = self::read_proof( $user_id, true );
+		if ( ! is_array( $map ) ) {
+			return null;
+		}
+
+		// Look up the entry for THIS login session. A cookie replayed under a
+		// different login session hashes to a key with no entry (#278/#279).
+		$record = $map[ hash( 'sha256', $verifier ) ] ?? null;
+
+		// Reject anything that is not a well-formed record. A poisoned cache or
+		// raw DB write could plant a non-array or an entry with non-string/
+		// non-numeric fields, which would otherwise fatal in hash_hmac()/
+		// hash_equals().
 		if ( ! is_array( $record )
 			|| ! isset( $record['token'], $record['expires'], $record['hmac'] )
 			|| ! is_string( $record['token'] )
@@ -1067,7 +1113,6 @@ class Sudo_Session {
 
 		$token_hash = $record['token'];
 		$expires    = (int) $record['expires'];
-		$verifier   = self::current_session_token();
 
 		// Self-authentication: reject any record we did not sign.
 		$expected_hmac = self::build_hmac( $user_id, $verifier, $token_hash, $expires );
@@ -1087,6 +1132,39 @@ class Sudo_Session {
 			'expires' => $expires,
 			'hmac'    => $record['hmac'],
 		);
+	}
+
+	/**
+	 * Remove the current login session's proof entry (per-browser self-heal).
+	 *
+	 * Called from is_active() once a browser's session has expired beyond the
+	 * grace window. Unlike clear_session_data() (kill-all), this drops only the
+	 * current verifier's entry so other concurrent browsers keep their sessions
+	 * (#279). When the map empties, the whole record and the liveness scalar are
+	 * deleted so the user self-heals out of the "Sudo Active" enumeration.
+	 *
+	 * @param int $user_id User ID.
+	 * @return void
+	 */
+	private static function prune_proof_entry( int $user_id ): void {
+		$map = get_user_meta( $user_id, self::PROOF_META_KEY, true );
+		if ( ! is_array( $map ) ) {
+			// No map to prune; drop a dangling scalar so enumeration self-heals.
+			delete_user_meta( $user_id, self::META_KEY );
+			unset( self::$proof_cache[ $user_id ] );
+			return;
+		}
+
+		unset( $map[ hash( 'sha256', self::current_session_token() ) ] );
+
+		if ( empty( $map ) ) {
+			delete_user_meta( $user_id, self::PROOF_META_KEY );
+			delete_user_meta( $user_id, self::META_KEY );
+		} else {
+			update_user_meta( $user_id, self::PROOF_META_KEY, $map );
+		}
+
+		unset( self::$proof_cache[ $user_id ] );
 	}
 
 	/**

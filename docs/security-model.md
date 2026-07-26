@@ -273,7 +273,7 @@ For a mutation to pass through in Limited mode, two conditions must be met simul
 
 1. **WordPress must identify the requesting user** — `get_current_user_id()` must return a non-zero value. This requires the request to carry valid WordPress authentication: a session cookie (browser-based admin access), an Application Password (`Authorization` header), or a JWT token if a JWT plugin is active.
 
-2. **The sudo session cookie must be present** — the `_wp_sudo_token` cookie must accompany the request and match the token hash in user meta. This cookie is only set when the user completes a sudo challenge in the WordPress admin UI. Since 4.1.0 the proof is additionally bound to the WordPress login session that created it (`_wp_sudo_session_bind`): a captured cookie replayed from a different login session is rejected, the window ends on logout, and a bound proof stops verifying once its login session is no longer valid (e.g. after `WP_Session_Tokens::destroy_all()` the user is no longer authenticated, so the window is unreachable). Binding is enforced only when a bind value is present, so cookie-less surfaces and pre-4.1.0 sessions are unaffected and need no migration.
+2. **The sudo session cookie must be present** — the `wp_sudo_token` cookie must accompany the request and match the token hash stored in the user's proof entry. This cookie is only set when the user completes a sudo challenge in the WordPress admin UI. Since 4.9.0 the proof is a self-authenticating record keyed per login session (`_wp_sudo_proofs`, keyed by `sha256(verifier)`): each entry's HMAC binds it to the WordPress login session that created it, so a captured cookie replayed from a different login session is rejected, the window ends on logout, and a proof stops verifying once its login session is no longer valid (e.g. after `WP_Session_Tokens::destroy_all()` the user is no longer authenticated, so the window is unreachable). Because the proof is keyed per login session, a user's concurrent browsers hold independent sudo sessions — reauthenticating in one does not revoke another. Pre-4.9.0 sessions simply have no proof entry and require one reauthentication after upgrade; no migration is needed.
 
 **Why this matters for headless deployments.** A frontend running at a different origin from the WordPress backend (e.g. a SvelteKit app at `localhost:5173` calling WordPress at `site.wp.local`) cannot automatically share the sudo session cookie. Cross-origin requests do not carry cookies unless CORS is configured with `Access-Control-Allow-Credentials: true` and a matching origin, and the frontend fetch uses `credentials: 'include'`. Without this, `get_current_user_id()` returns `0` and the sudo session cookie is absent — mutations are blocked by the Limited policy regardless of whether the frontend user is "logged in" from the application's perspective.
 
@@ -313,9 +313,8 @@ the risks and mitigations for each caching layer.
 
 | Meta key | Purpose | Written by | Read by |
 |----------|---------|------------|---------|
-| `_wp_sudo_token` | Hashed session token | `Sudo_Session::activate()` | `Sudo_Session::verify_token()` |
-| `_wp_sudo_session_bind` | Hashed WordPress login-session token the sudo proof is bound to (4.1.0) | `Sudo_Session::activate()` | `Sudo_Session::verify_token()` |
-| `_wp_sudo_expires` | Session expiry timestamp | `Sudo_Session::activate()` | `Sudo_Session::is_active()`, `is_within_grace()` |
+| `_wp_sudo_proofs` | Per-login-session proof map keyed by `sha256(verifier)`; each entry is `{ token, expires, hmac }`, self-authenticating via `hash_hmac('sha256', "$user_id\|$verifier\|$token\|$expires", wp_salt('auth'))` (4.9.0) | `Sudo_Session::activate()` | `Sudo_Session::is_active()`, `is_within_grace()` (read cache-bypassed) |
+| `_wp_sudo_expires` | Per-user liveness marker (furthest live expiry); drives enumeration/display, NOT the enforcement decision | `Sudo_Session::activate()` | Admin "Sudo Active (N)" count, dashboard widget, `is_session_live()`, bulk revoke |
 | `_wp_sudo_failure_event` | Append-row failed auth event timestamps | `Sudo_Session::record_failed_attempt()` | `Sudo_Session::get_failed_attempts()`, `Sudo_Session::is_locked_out()` |
 | `_wp_sudo_throttle_until` | Throttle expiry timestamp for non-blocking retry delay | `Sudo_Session::record_failed_attempt()` | `Sudo_Session::throttle_remaining()`, `Sudo_Session::attempt_activation()` |
 | `_wp_sudo_lockout_until` | Lockout expiry timestamp | `Sudo_Session::record_failed_attempt()` | `Sudo_Session::is_locked_out()` |
@@ -325,23 +324,35 @@ querying the database. Writes go through `add_user_meta()` /
 `update_user_meta()` / `delete_user_meta()`, which call `wp_cache_delete()` to
 invalidate the cached value.
 
-**Risk: Stale session state after revocation.** If a persistent object cache
-returns a stale `_wp_sudo_token` or `_wp_sudo_expires` value after it has been
-updated or deleted, a revoked sudo session could briefly appear active. This is
-a **fail-open** condition — the gate would allow a gated action that should have
-been blocked.
+**Risk: Forged assurance via object-cache poisoning.** `user_meta` is a
+persistent, global object-cache group. A cache-poisoning primitive (e.g. the
+wp2shell SQLi→cache-poison class) could plant a `_wp_sudo_proofs` entry whose
+`token` is the SHA-256 of a cookie the attacker controls, forging an active sudo
+session with no challenge. This is a **fail-open** condition.
 
-**Mitigations:**
+**Mitigations (4.9.0):**
 
-- WordPress core's metadata API invalidates the object cache on every write. A
-  properly configured persistent object cache (Redis, Memcached) is safe.
-- The risk only materializes with misconfigured or custom cache setups that do not
-  honor `wp_cache_delete()` calls — for example, a read-replica cache that has
-  eventual consistency, or a cache plugin that batches invalidations.
-- External cache flushes (Redis restart, Memcached eviction under memory pressure)
-  remove the cached value entirely, causing a database read on the next request.
-  This is a **fail-closed** condition (session data is re-fetched from the source
-  of truth) and is not a security risk.
+- **Self-authenticating proof (HMAC).** Each proof entry carries
+  `hash_hmac('sha256', "$user_id|$verifier|$token|$expires", wp_salt('auth'))`.
+  The enforcement path recomputes it and rejects any entry it did not sign, so a
+  forged token hash, a tampered expiry, or a cookie replayed under a different
+  login session all fail. This defeats a direct-DB-**write** attacker who cannot
+  reproduce the HMAC without the auth salt.
+- **Cache-bypassed enforcement read.** `is_active()` / `is_within_grace()` drop
+  the `user_meta` cache entry (`wp_cache_delete()`) and re-read the proof from the
+  database before trusting it, so a poisoned persistent object cache cannot serve
+  a forged value. This defeats the cache-**poison**-only attacker regardless of
+  where the salt lives. (Mirrors the role-audit drift-detection reads.)
+- **Degradation:** when the `AUTH_SALT` family lives in `wp_options` rather than
+  `wp-config.php`, a DB-write attacker can read the salt and forge the HMAC; the
+  cache-bypass read still defends the cache-poison-only attacker, and the attacker
+  still needs the victim's `wp_sudo_token` cookie. Prefer salts in `wp-config.php`
+  (ties to the salt-relocation proposal, #310).
+
+**Risk: Stale liveness marker.** `_wp_sudo_expires` is a per-user enumeration
+hint, not the enforcement value; a stale cached copy can only mis-report the
+"Sudo Active" count (benign — revoking a phantom is a no-op). Enforcement always
+goes through the cache-bypassed, HMAC-verified proof.
 
 **Risk: Stale rate-limit state.** If append-row failure events
 (`_wp_sudo_failure_event`) or lockout/throttle timestamps
@@ -463,7 +474,7 @@ exclusions for `/wp-admin/` and `/wp-json/` does not trigger any of these risks.
 
 ## Session Binding
 
-When sudo is activated, a cryptographic token is stored in a secure httponly cookie and its hash is saved in user meta. On every gated request, both must match. A stolen session cookie on a different browser will not have a valid sudo session.
+When sudo is activated, a cryptographic token is stored in a secure httponly cookie and its hash is saved in the user's self-authenticating proof entry (keyed by the login-session verifier, HMAC-signed with `wp_salt('auth')`). On every gated request the enforcement path re-reads the proof cache-bypassed, recomputes the HMAC, and requires the cookie to match. A stolen session cookie on a different browser — or a forged entry planted by cache poisoning or a direct DB write — will not have a valid sudo session.
 
 ## Login Auto-Grant
 

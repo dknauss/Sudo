@@ -1614,7 +1614,7 @@ class GateTest extends TestCase {
 				return time() + 600;
 			}
 			if ( Sudo_Session::PROOF_META_KEY === $key ) {
-				return $this->make_proof_record( (int) $uid, $token, time() + 600 );
+				return $this->make_proof_map( (int) $uid, $token, time() + 600 );
 			}
 			return '';
 		} );
@@ -1881,7 +1881,7 @@ class GateTest extends TestCase {
 				return time() + 600;
 			}
 			if ( Sudo_Session::PROOF_META_KEY === $key ) {
-				return $this->make_proof_record( (int) $uid, $token, time() + 600 );
+				return $this->make_proof_map( (int) $uid, $token, time() + 600 );
 			}
 			return '';
 		} );
@@ -3007,7 +3007,7 @@ class GateTest extends TestCase {
 				return time() + 600;
 			}
 			if ( Sudo_Session::PROOF_META_KEY === $key ) {
-				return $this->make_proof_record( (int) $uid, $token, time() + 600 );
+				return $this->make_proof_map( (int) $uid, $token, time() + 600 );
 			}
 			return '';
 		} );
@@ -3105,7 +3105,7 @@ class GateTest extends TestCase {
 				return time() + 600;
 			}
 			if ( Sudo_Session::PROOF_META_KEY === $key ) {
-				return $this->make_proof_record( (int) $uid, $token, time() + 600 );
+				return $this->make_proof_map( (int) $uid, $token, time() + 600 );
 			}
 			return '';
 		} );
@@ -3338,7 +3338,7 @@ class GateTest extends TestCase {
 				return time() + 600;
 			}
 			if ( Sudo_Session::PROOF_META_KEY === $key ) {
-				return $this->make_proof_record( (int) $uid, $token, time() + 600 );
+				return $this->make_proof_map( (int) $uid, $token, time() + 600 );
 			}
 			return '';
 		} );
@@ -3414,7 +3414,7 @@ class GateTest extends TestCase {
 				return time() + 600;
 			}
 			if ( Sudo_Session::PROOF_META_KEY === $key ) {
-				return $this->make_proof_record( (int) $uid, $token, time() + 600 );
+				return $this->make_proof_map( (int) $uid, $token, time() + 600 );
 			}
 			return '';
 		} );
@@ -4039,7 +4039,7 @@ class GateTest extends TestCase {
 				return time() + 600;
 			}
 			if ( Sudo_Session::PROOF_META_KEY === $key ) {
-				return $this->make_proof_record( (int) $uid, $token, time() + 600 );
+				return $this->make_proof_map( (int) $uid, $token, time() + 600 );
 			}
 			return '';
 		} );
@@ -4080,7 +4080,7 @@ class GateTest extends TestCase {
 				return time() + 600;
 			}
 			if ( Sudo_Session::PROOF_META_KEY === $key ) {
-				return $this->make_proof_record( (int) $uid, $token, time() + 600 );
+				return $this->make_proof_map( (int) $uid, $token, time() + 600 );
 			}
 			return '';
 		} );
@@ -4616,7 +4616,7 @@ class GateTest extends TestCase {
 	public function test_escalation_guard_blocks_admin_grant_when_actor_lacks_authority(): void {
 		$this->prime_escalation_env( true );
 		$token  = 'authority-test-token';
-		$record = $this->make_proof_record( 5, $token, time() + 600 );
+		$record = $this->make_proof_map( 5, $token, time() + 600 );
 		// Actor 5 has an active sudo session (is_active true)...
 		Functions\when( 'get_current_user_id' )->justReturn( 5 );
 		Functions\when( 'get_user_meta' )->alias(
@@ -4689,7 +4689,7 @@ class GateTest extends TestCase {
 		);
 
 		$token  = 'authority-test-token';
-		$record = $this->make_proof_record( 5, $token, time() + 600 );
+		$record = $this->make_proof_map( 5, $token, time() + 600 );
 		Functions\when( 'get_current_user_id' )->justReturn( 5 );
 		Functions\when( 'get_user_meta' )->alias(
 			static function ( $uid, $key, $single = true ) use ( $record ) { // phpcs:ignore VariableAnalysis.CodeAnalysis.VariableAnalysis.UnusedVariable -- signature parity.
@@ -4783,7 +4783,7 @@ class GateTest extends TestCase {
 		// Neither target (7) nor actor (5) is a super admin.
 		Functions\when( 'is_super_admin' )->justReturn( false );
 		$token  = 'authority-test-token';
-		$record = $this->make_proof_record( 5, $token, time() + 600 );
+		$record = $this->make_proof_map( 5, $token, time() + 600 );
 		// Actor 5 nonetheless holds an active sudo session (is_active true).
 		Functions\when( 'get_current_user_id' )->justReturn( 5 );
 		Functions\when( 'get_user_meta' )->alias(

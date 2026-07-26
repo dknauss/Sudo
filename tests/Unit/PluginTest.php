@@ -229,7 +229,7 @@ class PluginTest extends TestCase {
 				return time() + 600;
 			}
 			if ( Sudo_Session::PROOF_META_KEY === $key ) {
-				return $this->make_proof_record( (int) $uid, $token, time() + 600 );
+				return $this->make_proof_map( (int) $uid, $token, time() + 600 );
 			}
 			return '';
 		} );
@@ -497,7 +497,7 @@ class PluginTest extends TestCase {
 				return time() + 600;
 			}
 			if ( Sudo_Session::PROOF_META_KEY === $key ) {
-				return $this->make_proof_record( (int) $uid, $token, time() + 600 );
+				return $this->make_proof_map( (int) $uid, $token, time() + 600 );
 			}
 			return '';
 		} );
@@ -824,7 +824,7 @@ class PluginTest extends TestCase {
 				return time() + 600; // Active session.
 			}
 			if ( Sudo_Session::PROOF_META_KEY === $key ) {
-				return $this->make_proof_record( (int) $uid, $token, time() + 600 );
+				return $this->make_proof_map( (int) $uid, $token, time() + 600 );
 			}
 			return '';
 		} );
@@ -876,7 +876,7 @@ class PluginTest extends TestCase {
 				return time() + 420; // Active: 7 min left.
 			}
 			if ( Sudo_Session::PROOF_META_KEY === $key ) {
-				return $this->make_proof_record( (int) $uid, $token, time() + 420 );
+				return $this->make_proof_map( (int) $uid, $token, time() + 420 );
 			}
 			return '';
 		} );
@@ -953,7 +953,7 @@ class PluginTest extends TestCase {
 				return time() + 420; // Future expiry from another browser's session.
 			}
 			if ( Sudo_Session::PROOF_META_KEY === $key ) {
-				return $this->make_proof_record( (int) $uid, 'the-other-browser-token', time() + 420 );
+				return $this->make_proof_map( (int) $uid, 'the-other-browser-token', time() + 420 );
 			}
 			return '';
 		} );

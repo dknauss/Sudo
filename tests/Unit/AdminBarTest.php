@@ -135,7 +135,7 @@ class AdminBarTest extends TestCase {
 				return $future;
 			}
 			if ( Sudo_Session::PROOF_META_KEY === $key ) {
-				return $this->make_proof_record( (int) $uid, $token, $future );
+				return $this->make_proof_map( (int) $uid, $token, $future );
 			}
 			return '';
 		} );
@@ -198,7 +198,7 @@ class AdminBarTest extends TestCase {
 					return $future;
 				}
 				if ( Sudo_Session::PROOF_META_KEY === $key ) {
-					return $this->make_proof_record( (int) $uid, $token, $future );
+					return $this->make_proof_map( (int) $uid, $token, $future );
 				}
 				return '';
 			}
@@ -342,7 +342,7 @@ class AdminBarTest extends TestCase {
 				return $future;
 			}
 			if ( Sudo_Session::PROOF_META_KEY === $key ) {
-				return $this->make_proof_record( (int) $uid, $token, $future );
+				return $this->make_proof_map( (int) $uid, $token, $future );
 			}
 			return '';
 		} );

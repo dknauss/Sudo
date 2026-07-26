@@ -66,7 +66,7 @@ class ActionGatingCompletenessTest extends TestCase {
 	public function test_is_active_rejects_when_login_session_bind_mismatches(): void {
 		$future = time() + 300;
 		$token  = 'valid-token';
-		$record = $this->make_proof_record( 1, $token, $future, 'session-A' );
+		$record = $this->make_proof_map( 1, $token, $future, 'session-A' );
 
 		Functions\when( 'get_current_user_id' )->justReturn( 1 );
 		Functions\when( 'wp_get_session_token' )->justReturn( 'session-B' );
@@ -94,7 +94,7 @@ class ActionGatingCompletenessTest extends TestCase {
 	public function test_is_active_accepts_when_login_session_bind_matches(): void {
 		$future = time() + 300;
 		$token  = 'valid-token';
-		$record = $this->make_proof_record( 1, $token, $future, 'session-A' );
+		$record = $this->make_proof_map( 1, $token, $future, 'session-A' );
 
 		Functions\when( 'get_current_user_id' )->justReturn( 1 );
 		Functions\when( 'wp_get_session_token' )->justReturn( 'session-A' );
@@ -123,7 +123,7 @@ class ActionGatingCompletenessTest extends TestCase {
 	public function test_is_active_skips_binding_when_bind_value_empty(): void {
 		$future = time() + 300;
 		$token  = 'valid-token';
-		$record = $this->make_proof_record( 1, $token, $future, '' );
+		$record = $this->make_proof_map( 1, $token, $future, '' );
 
 		Functions\when( 'get_current_user_id' )->justReturn( 1 );
 		Functions\when( 'wp_get_session_token' )->justReturn( '' );
@@ -153,6 +153,7 @@ class ActionGatingCompletenessTest extends TestCase {
 		Functions\when( 'wp_generate_password' )->justReturn( 'sudo-token' );
 		Functions\when( 'headers_sent' )->justReturn( true );
 		Functions\when( 'wp_get_session_token' )->justReturn( 'login-session-1' );
+		Functions\when( 'get_user_meta' )->justReturn( '' ); // Empty proof map to start.
 		Functions\when( 'delete_user_meta' )->justReturn( true );
 
 		$writes = array();
@@ -167,7 +168,7 @@ class ActionGatingCompletenessTest extends TestCase {
 		$this->invoke_set_token( 1, $expires );
 
 		$this->assertContains(
-			array( 1, Sudo_Session::PROOF_META_KEY, $this->make_proof_record( 1, 'sudo-token', $expires, 'login-session-1' ) ),
+			array( 1, Sudo_Session::PROOF_META_KEY, $this->make_proof_map( 1, 'sudo-token', $expires, 'login-session-1' ) ),
 			$writes
 		);
 	}
@@ -182,6 +183,7 @@ class ActionGatingCompletenessTest extends TestCase {
 		Functions\when( 'wp_generate_password' )->justReturn( 'sudo-token' );
 		Functions\when( 'headers_sent' )->justReturn( true );
 		Functions\when( 'wp_get_session_token' )->justReturn( '' );
+		Functions\when( 'get_user_meta' )->justReturn( '' ); // Empty proof map to start.
 
 		$writes = array();
 		Functions\when( 'update_user_meta' )->alias(
@@ -203,7 +205,7 @@ class ActionGatingCompletenessTest extends TestCase {
 		$this->invoke_set_token( 1, $expires );
 
 		$this->assertContains(
-			array( 1, Sudo_Session::PROOF_META_KEY, $this->make_proof_record( 1, 'sudo-token', $expires, '' ) ),
+			array( 1, Sudo_Session::PROOF_META_KEY, $this->make_proof_map( 1, 'sudo-token', $expires, '' ) ),
 			$writes
 		);
 		$this->assertContains( array( 1, Sudo_Session::SESSION_BIND_META_KEY ), $deleted );
@@ -219,6 +221,7 @@ class ActionGatingCompletenessTest extends TestCase {
 		Functions\when( 'wp_generate_password' )->justReturn( 'sudo-token' );
 		Functions\when( 'headers_sent' )->justReturn( true );
 		Functions\when( 'wp_get_session_token' )->justReturn( '' );
+		Functions\when( 'get_user_meta' )->justReturn( '' ); // Empty proof map to start.
 		Functions\when( 'delete_user_meta' )->justReturn( true );
 
 		$writes = array();
@@ -234,7 +237,7 @@ class ActionGatingCompletenessTest extends TestCase {
 		$this->invoke_set_token( 1, $expires );
 
 		$this->assertContains(
-			array( 1, Sudo_Session::PROOF_META_KEY, $this->make_proof_record( 1, 'sudo-token', $expires, 'grant-session' ) ),
+			array( 1, Sudo_Session::PROOF_META_KEY, $this->make_proof_map( 1, 'sudo-token', $expires, 'grant-session' ) ),
 			$writes
 		);
 	}
@@ -291,6 +294,7 @@ class ActionGatingCompletenessTest extends TestCase {
 		Functions\when( 'wp_generate_password' )->justReturn( 'sudo-token' );
 		Functions\when( 'headers_sent' )->justReturn( true );
 		Functions\when( 'wp_get_session_token' )->justReturn( '' );
+		Functions\when( 'get_user_meta' )->justReturn( '' ); // Empty proof map to start.
 		Functions\when( 'delete_user_meta' )->justReturn( true );
 
 		$writes = array();
@@ -306,7 +310,7 @@ class ActionGatingCompletenessTest extends TestCase {
 		$this->invoke_set_token( 12, $expires );
 
 		$this->assertContains(
-			array( 12, Sudo_Session::PROOF_META_KEY, $this->make_proof_record( 12, 'sudo-token', $expires, 'captured-session' ) ),
+			array( 12, Sudo_Session::PROOF_META_KEY, $this->make_proof_map( 12, 'sudo-token', $expires, 'captured-session' ) ),
 			$writes
 		);
 	}
@@ -391,7 +395,7 @@ class ActionGatingCompletenessTest extends TestCase {
 	public function test_backstop_allows_delete_user_with_active_sudo(): void {
 		$future = time() + 300;
 		$token  = 'valid-token';
-		$record = $this->make_proof_record( 1, $token, $future, 'session-A' );
+		$record = $this->make_proof_map( 1, $token, $future, 'session-A' );
 
 		Functions\when( 'get_current_user_id' )->justReturn( 1 );
 		Functions\when( 'wp_get_session_token' )->justReturn( 'session-A' );
@@ -639,7 +643,7 @@ class ActionGatingCompletenessTest extends TestCase {
 		$future = time() + 300;
 		$token  = 'valid-token';
 		// Proof signed for a real login session ('session-A')...
-		$record = $this->make_proof_record( 1, $token, $future, 'session-A' );
+		$record = $this->make_proof_map( 1, $token, $future, 'session-A' );
 
 		Functions\when( 'get_current_user_id' )->justReturn( 1 );
 		// ...but the current request has no login session (destroyed/cookie-less),
