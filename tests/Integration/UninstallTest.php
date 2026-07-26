@@ -217,6 +217,73 @@ class UninstallTest extends TestCase {
 	}
 
 	/**
+	 * Uninstall sweeps orphaned IP-scoped lockout transients (#280).
+	 *
+	 * These transients are keyed from (ip, user_id, epoch) rather than from
+	 * user meta, so the network-wide user-meta wipe never reaches them, and
+	 * an out-of-band `wp sudo unlock` only orphans them (bumps the epoch so
+	 * they stop being read) rather than deleting them outright — they are
+	 * expected to sit until their own TTL elapses. If uninstall does not also
+	 * sweep them, an uninstall + reinstall inside that TTL combined with the
+	 * failure-epoch meta being wiped back to its identity value (0) lets a
+	 * reinstalled site derive the exact same pre-unlock transient key for a
+	 * matching (ip, user_id) pair, reviving a failure count an operator
+	 * already cleared. Seeds two realistic transients directly (bypassing
+	 * Sudo_Session, which has no public writer for them) and checks the raw
+	 * options-table rows — not get_transient(), which would also read false
+	 * once naturally expired and so cannot distinguish "swept" from
+	 * "not yet checked".
+	 */
+	public function test_uninstall_removes_orphaned_ip_lockout_transients(): void {
+		if ( is_multisite() ) {
+			$this->markTestSkipped( 'Single-site test — skipped on multisite.' );
+		}
+
+		global $wpdb;
+
+		$this->purge_events_table_all_provenances();
+		$this->activate_plugin();
+
+		// Epoch 0 (never explicitly unlocked) omits the epoch segment entirely —
+		// see Sudo_Session::ip_key_material() — so this is "ip|user_id", matching
+		// the pre-epoch key byte-for-byte.
+		$key_material = '203.0.113.77|321';
+		$failure_key  = 'wp_sudo_ip_failure_event_' . hash( 'sha256', $key_material );
+		$lockout_key  = 'wp_sudo_ip_lockout_until_' . hash( 'sha256', $key_material );
+
+		set_transient( $failure_key, array( time() - 10, time() - 5 ), DAY_IN_SECONDS );
+		set_transient( $lockout_key, time() + 300, 300 );
+
+		$transient_option_names = array(
+			'_transient_' . $failure_key,
+			'_transient_timeout_' . $failure_key,
+			'_transient_' . $lockout_key,
+			'_transient_timeout_' . $lockout_key,
+		);
+
+		foreach ( $transient_option_names as $option_name ) {
+			$this->assertNotNull(
+				$wpdb->get_var( $wpdb->prepare( "SELECT option_id FROM {$wpdb->options} WHERE option_name = %s", $option_name ) ), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $wpdb->options is a safe core-provided identifier.
+				"Precondition: {$option_name} should exist in wp_options before uninstall."
+			);
+		}
+
+		// Act: run uninstall.
+		if ( ! defined( 'WP_UNINSTALL_PLUGIN' ) ) {
+			define( 'WP_UNINSTALL_PLUGIN', 'wp-sudo/wp-sudo.php' );
+		}
+		$this->assertTrue( \WP_Sudo\Uninstall_Guard::is_authorized(), 'Uninstall must be authorized before loading uninstall.php — it exits the process otherwise.' );
+		require dirname( __DIR__, 2 ) . '/uninstall.php';
+
+		foreach ( $transient_option_names as $option_name ) {
+			$this->assertNull(
+				$wpdb->get_var( $wpdb->prepare( "SELECT option_id FROM {$wpdb->options} WHERE option_name = %s", $option_name ) ), // phpcs:ignore WordPress.DB.PreparedSQL.InterpolatedNotPrepared -- $wpdb->options is a safe core-provided identifier.
+				"{$option_name} should be swept from wp_options on uninstall (#280)."
+			);
+		}
+	}
+
+	/**
 	 * Multisite uninstall cleans user meta network-wide.
 	 *
 	 * On multisite, user meta is stored in a shared table. By the time
