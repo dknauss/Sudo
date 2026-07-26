@@ -82,7 +82,7 @@ dispatch for SSO providers in the challenge flow. Would need a provider interfac
 Add an optional `action_id` field to each `Action_Registry` rule that points at a
 core/CA-style semantic action ID (e.g. `user.promote` → `core/promote-user`), while
 keeping the per-surface matching (`admin`/`ajax`/`rest`/`stash`) local to the rule.
-This is the **union** the [registry-vs-Abilities decision memo](core-actions-registry-vs-abilities-decision.md)
+This is the **union** the [registry-vs-Abilities decision](core-sudo-gate-implementation-spec.md) (spec §4.1.1; full memo archived at [`archive/core-actions-registry-vs-abilities-decision.md`](archive/core-actions-registry-vs-abilities-decision.md))
 anticipates: WP Sudo becomes a *consumer* of the proposed core Actions API's identity
 layer while remaining the enforcement + stash-and-replay layer that core defers.
 Additive, breaks nothing, and does **not** mean adopting the `consequential-actions`

@@ -563,8 +563,9 @@ Repos:   wp-sudo, wordpress-2fa-ecosystem
            surface-specific callers.
 
 33. CONFABULATED WP-ENFORCEMENT SEAM — wp_before_execute_ability as a gate
-   Files:  docs/core-actions-registry-vs-abilities-decision.md (the "enforcement
-           economy" argument for Option B), docs/abilities-api-assessment.md
+   Files:  docs/archive/core-actions-registry-vs-abilities-decision.md (the "enforcement
+           economy" argument for Option B; archived July 2026, decision folded into
+           docs/core-sudo-gate-implementation-spec.md §4.1.1), docs/abilities-api-assessment.md
            (PHP-path gating strategy, including a "return a WP_Error to block"
            implementation note).
    Claim:  A destructive Ability could be gated by hooking

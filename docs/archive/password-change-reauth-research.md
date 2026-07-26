@@ -2,7 +2,7 @@
 
 **Status:** internal research brief · **Date:** 2026-07-09
 **Author context:** WP Sudo maintainer (dpknauss is the reporter of [#20140 comment:31](https://core.trac.wordpress.org/ticket/20140#comment:31))
-**Companion doc:** [`core-action-gate-proposal.md`](core-action-gate-proposal.md)
+**Companion doc:** [`core-action-gate-proposal.md`](../core-action-gate-proposal.md)
 
 All Trac quotes below were read directly from live Trac (via browser, 2026-07-09),
 not from training data, per this repo's verification rules. Trac serves a JS
@@ -215,7 +215,7 @@ WP Sudo is a working existence proof of the #20140 direction. Concrete lessons:
 to be secure and too entangled to land. Instead:
 
 **Primary recommendation — split the problem, lead with vocabulary.**
-Pursue the two-layer path in [`core-action-gate-proposal.md`](core-action-gate-proposal.md):
+Pursue the two-layer path in [`core-action-gate-proposal.md`](../core-action-gate-proposal.md):
 
 1. **Layer 1 — a core "consequential actions" registry** (an Actions API): give
    core + plugins a stable way to *name and observe* actions like
