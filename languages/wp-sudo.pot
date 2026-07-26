@@ -1974,23 +1974,23 @@ msgstr ""
 msgid "Remove WP_SUDO_RECOVERY_MODE from wp-config.php as soon as normal access is restored — leaving it enabled weakens the governance model."
 msgstr ""
 
-#: includes/class-site-health.php:466
+#: includes/class-site-health.php:471
 msgid "Reauthentication can resume your action"
 msgstr ""
 
-#: includes/class-site-health.php:469
+#: includes/class-site-health.php:474
 msgid "This site is served over HTTPS, so WP Sudo can safely resume the action you were performing once you reauthenticate. The resume is bound to your own browser, so an action started elsewhere can never be completed by your confirmation."
 msgstr ""
 
-#: includes/class-site-health.php:475
+#: includes/class-site-health.php:480
 msgid "Reauthentication will not resume your action"
 msgstr ""
 
-#: includes/class-site-health.php:478
+#: includes/class-site-health.php:483
 msgid "This site is not served over HTTPS. WP Sudo binds a resumed action to the browser that started it using a cookie browsers accept only over HTTPS, so on this site nothing is resumed after reauthentication: you will be returned to the page you came from and will need to perform the action again."
 msgstr ""
 
-#: includes/class-site-health.php:479
+#: includes/class-site-health.php:484
 msgid "This is the safe fallback, not a fault — the confirmation you give can never complete an action someone else started. Serving the admin over HTTPS restores the smoother flow."
 msgstr ""
 

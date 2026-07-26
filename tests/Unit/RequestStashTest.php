@@ -397,6 +397,43 @@ class RequestStashTest extends TestCase {
 	}
 
 	/**
+	 * #322: the confirmation must name the value that will actually be replayed.
+	 *
+	 * A POST replay submits the stashed BODY, so reading the query first would let
+	 * `?plugin=benign.php` with a body of `plugin=evil.php` display the benign value
+	 * while the other is replayed — defeating informed confirmation entirely. The body
+	 * wins, and a disagreeing query value is surfaced rather than hidden.
+	 */
+	public function test_capture_target_prefers_the_replayed_value_and_flags_conflicts(): void {
+		$this->stub_stash_index_meta_io();
+
+		$_SERVER['REQUEST_METHOD'] = 'POST';
+		$_SERVER['HTTP_HOST']      = 'example.com';
+		$_SERVER['REQUEST_URI']    = '/wp-admin/plugins.php?plugin=benign.php';
+		$_GET['plugin']            = 'benign.php';
+		$_POST['plugin']           = 'evil.php';
+
+		$this->stub_target_env();
+
+		$stored = null;
+		Functions\expect( 'set_transient' )->once()->andReturnUsing(
+			function ( $key, $value ) use ( &$stored ) {
+				$stored = $value;
+				return true;
+			}
+		);
+
+		$this->stash->save( 1, array( 'id' => 'plugin.activate', 'label' => 'Activate plugin' ) );
+
+		$shown = $stored['target']['plugin'] ?? '';
+
+		$this->assertStringContainsString( 'evil.php', $shown, 'Must name the value that will be replayed.' );
+		$this->assertStringContainsString( 'benign.php', $shown, 'A conflicting value must be surfaced, not hidden.' );
+
+		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'], $_GET['plugin'], $_POST['plugin'] );
+	}
+
+	/**
 	 * #322: critical option names must appear in the confirmation.
 	 *
 	 * options.critical stashes siteurl/home/admin_email/default_role; without them the

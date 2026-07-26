@@ -234,8 +234,20 @@ class Request_Stash {
 		$sensitive = $this->sensitive_field_keys();
 
 		foreach ( self::TARGET_PARAMS as $param ) {
+			// Read the source that will actually be REPLAYED first. A POST replay
+			// submits the stashed body, so preferring the query would let
+			// `plugins.php?plugin=benign.php` with a body of `plugin=evil.php` display
+			// the benign value and replay the other — defeating the whole point of
+			// informed confirmation. When both are present and disagree, show both
+			// rather than silently picking one.
 			// phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- Display metadata only, never used to route or replay; sanitized below.
-			$raw = $_GET[ $param ] ?? $_POST[ $param ] ?? null;
+			$from_query = $_GET[ $param ] ?? null;
+			// phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- Display metadata only, never used to route or replay; sanitized below.
+			$from_body = $_POST[ $param ] ?? null;
+
+			$is_post = 'POST' === strtoupper( $this->get_request_method() );
+			$raw     = $is_post ? ( $from_body ?? $from_query ) : ( $from_query ?? $from_body );
+			$other   = $is_post ? $from_query : $from_body;
 
 			if ( null === $raw || '' === $raw ) {
 				continue;
@@ -277,6 +289,16 @@ class Request_Stash {
 
 			if ( '' === $value ) {
 				continue;
+			}
+
+			// Surface a query/body disagreement instead of hiding it — the confirmation
+			// must not name one value while another is replayed.
+			if ( null !== $other && ! is_array( $other ) && ! is_array( $raw ) ) {
+				$other_value = sanitize_text_field( wp_unslash( (string) $other ) );
+
+				if ( '' !== $other_value && $other_value !== $value ) {
+					$value .= ' (conflicting value in request: ' . $other_value . ')';
+				}
 			}
 
 			$target[ $param ] = $this->truncate_target_value( $value );
