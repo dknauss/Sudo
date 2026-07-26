@@ -337,7 +337,7 @@ attacker controls, forging an active sudo session with no challenge. This is a
 specific named exploit: the mitigations below do not depend on which primitive
 supplies the write.)
 
-**Mitigations (5.0.0):**
+**Mitigations (4.9.0):**
 
 - **Self-authenticating proof (HMAC).** Each proof entry carries
   `hash_hmac('sha256', "$user_id|$verifier|$token|$expires", wp_salt('auth'))`.
