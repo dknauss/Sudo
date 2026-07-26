@@ -12,8 +12,8 @@
  * nothing. See the rule's own comment below for why that mode is the exception.
  *
  * Deliberately not a chip per state. Core applies no semantic background colour to
- * these buttons: the only background change on a pinned-item button is the neutral
- * `.is-pressed` fill, `background: $components-color-foreground`
+ * these buttons: the pressed state fills with a neutral token,
+ * `background: $components-color-foreground`
  * (packages/components/src/button/style.scss L342-348, Gutenberg trunk, fetched
  * 2026-07-26). A green chip for the whole session would both invent a convention and
  * hold colour in the header for the full session duration; the active and inactive
