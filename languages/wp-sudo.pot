@@ -2000,25 +2000,29 @@ msgid "This action requires reauthentication. Enter your password to continue."
 msgstr ""
 
 #. translators: %d: whole minutes remaining in the sudo session
-#: admin/js/wp-sudo-session-indicator.js:177
+#: admin/js/wp-sudo-session-indicator.js:202
 #, js-format
 msgid "Reauthenticated — sudo active for about %d min."
 msgstr ""
 
-#: admin/js/wp-sudo-session-indicator.js:245
+#: admin/js/wp-sudo-session-indicator.js:322
+msgid "Sudo · expiring"
+msgstr ""
+
+#: admin/js/wp-sudo-session-indicator.js:324
 msgid "Sudo · active"
 msgstr ""
 
-#: admin/js/wp-sudo-session-indicator.js:246
+#: admin/js/wp-sudo-session-indicator.js:326
 msgid "Sudo · inactive"
 msgstr ""
 
 #. translators: %s: time remaining in M:SS format
-#: admin/js/wp-sudo-session-indicator.js:263
+#: admin/js/wp-sudo-session-indicator.js:359
 #, js-format
 msgid "Sudo active — %s remaining."
 msgstr ""
 
-#: admin/js/wp-sudo-session-indicator.js:267
+#: admin/js/wp-sudo-session-indicator.js:363
 msgid "No active sudo session."
 msgstr ""

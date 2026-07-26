@@ -25,7 +25,18 @@
  * admin/js/wp-sudo-session-indicator.js. Renaming either there silently unpaints
  * this chip; tests/e2e/specs/editor-session-indicator.spec.ts INDICATOR-07 is what
  * fails loudly if that happens. Locale-independent, unlike matching `aria-label`.
- * Verified against the live WP 7.0 editor DOM.
+ *
+ * UPSTREAM SOURCE for that construction (this selector depends on Gutenberg internals,
+ * so record where it was verified rather than only that it was):
+ *   packages/interface/src/components/complementary-area-toggle/index.js
+ *     L45  const identifier = identifierProp || `${ context.name }/${ name }`;
+ *     L59  aria-controls={ identifier.replace( '/', ':' ) }
+ *   packages/interface/src/components/pinned-items/index.js
+ *     L21-23  className={ clsx( className, 'interface-pinned-items' ) }
+ * — https://raw.githubusercontent.com/WordPress/gutenberg/trunk/packages/interface/src/components/complementary-area-toggle/index.js
+ * — https://raw.githubusercontent.com/WordPress/gutenberg/trunk/packages/interface/src/components/pinned-items/index.js
+ * (fetched 2026-07-26), and confirmed against the live WP 7.0 editor DOM. Note
+ * `.replace()` swaps only the FIRST `/`, so this holds while neither name contains one.
  *
  * `.interface-pinned-items` is load-bearing, not decoration: the Options menu renders
  * the SAME toggle component with the SAME `aria-controls`, so dropping the container
