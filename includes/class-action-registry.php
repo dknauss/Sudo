@@ -481,7 +481,7 @@ class Action_Registry {
 					'route'   => '#^/wp/v2/users/(?:\d+|me)/application-passwords$#',
 					'methods' => array( 'POST' ),
 				),
-				'stash'    => self::stash_allowlist( array( 'approve', 'app_name', 'app_id', 'success_url', 'reject_url' ) ),
+				'stash'    => self::stash_allowlist( array( 'approve', 'app_name', 'app_id', 'reject_url' ) ), // #322: 'success_url' NOT stashed — it is the exfil sink for an app-password mint; the user's own fresh resubmit still carries it.
 			),
 
 			// ── File Editors ────────────────────────────────────────────

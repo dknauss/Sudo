@@ -968,6 +968,16 @@ class Challenge {
 				</p>
 			</div>
 		</div>
+		<?php
+		/*
+		 * #322 v1: this auto-submit branch is DORMANT — build_replay_response_data()
+		 * fails closed and can no longer return `replay`/`url`/`post_data`, so only
+		 * the `else` redirect below runs. It is retained (not deleted) because #322 v2
+		 * (origin-bound replay) re-activates it for the same-browser case, where the
+		 * stash's binding cookie proves the replaying browser is the one that created
+		 * it. If v2 is abandoned, delete this branch and render_hidden_fields().
+		 */
+		?>
 		<?php if ( ! empty( $data['replay'] ) && ! empty( $data['url'] ) ) : ?>
 			<form id="wp-sudo-resume-form" method="<?php echo esc_attr( (string) ( $data['method'] ?? 'POST' ) ); ?>" action="<?php echo esc_url( (string) $data['url'] ); ?>" hidden>
 				<?php $this->render_hidden_fields( $data['post_data'] ?? array() ); ?>
@@ -1033,53 +1043,52 @@ class Challenge {
 			);
 		}
 
-		$safe_url = wp_validate_redirect( $stash['url'], $fallback_url );
-
 		// Consume the stash (one-time use).
 		$this->stash->delete( $stash_key, $user_id );
 
-		if ( ! empty( $stash['redacted_fields_omitted'] ) || ! empty( $stash['post_replay_blocked'] ) ) {
-			$return_url = ! empty( $stash['return_url'] ) && is_string( $stash['return_url'] )
-				? $stash['return_url']
-				: $safe_url;
-
-			$redirect_url = wp_validate_redirect( $return_url, $safe_url );
-			$notice_arg   = ! empty( $stash['redacted_fields_omitted'] )
-				? self::REDACTED_REPLAY_QUERY_ARG
-				: self::BLOCKED_REPLAY_QUERY_ARG;
-			$redirect_url = add_query_arg( $notice_arg, '1', $redirect_url );
-
-			return array(
-				'code'                    => 'success',
-				'redirect'                => $redirect_url,
-				'redacted_fields_omitted' => ! empty( $stash['redacted_fields_omitted'] ),
-				'post_replay_blocked'     => ! empty( $stash['post_replay_blocked'] ),
-			);
-		}
-
-		/**
-		 * Fires when a stashed request is about to be replayed.
+		/*
+		 * #322 — fail closed, with a soft landing. The stashed action is NEVER
+		 * auto-executed or auto-submitted after reauth, and we never redirect to the
+		 * stashed action URL or the (attacker-controllable) return_url. That
+		 * auto-resume-without-confirmation primitive was a confused deputy: the stash
+		 * is keyed to user_id alone, so a cloned session (stolen cookie, no password)
+		 * could plant one, lure the victim to the challenge URL, and have the victim's
+		 * reauth carry out the attacker's transaction — GET actions worst of all,
+		 * since replaying a GET was a plain redirect to the destructive URL.
 		 *
-		 * @since 2.0.0
-		 *
-		 * @param int    $user_id The user who reauthenticated.
-		 * @param string $rule_id The rule ID that was gated.
+		 * Nothing is ever replayed; only the safe landing spot differs by method. A
+		 * GET action returns the user to its *originating screen* — the admin page the
+		 * action lives on, with its query (the action + nonce, i.e. the effect)
+		 * stripped and re-validated same-origin — so re-performing it is a single
+		 * re-click that the now-active sudo session passes straight through. POST
+		 * actions land on the dashboard (their re-submit needs the form re-filled
+		 * regardless). Both carry the "review and submit again" notice (the redacted
+		 * variant when secret fields were dropped at stash time). No per-rule taxonomy
+		 * is involved. #322 v2 (origin-bound replay) restores seamless auto-replay for
+		 * the same-browser case without reopening this hole.
 		 */
-		do_action( 'wp_sudo_action_replayed', $user_id, $stash['rule_id'] ?? '' );
+		$neutral_url = is_network_admin() ? network_admin_url() : admin_url();
+		$target      = $neutral_url;
 
-		if ( 'GET' === ( $stash['method'] ?? 'GET' ) ) {
-			return array(
-				'code'     => 'success',
-				'redirect' => $safe_url,
-			);
+		if ( 'GET' === strtoupper( (string) ( $stash['method'] ?? 'GET' ) ) && ! empty( $stash['url'] ) && is_string( $stash['url'] ) ) {
+			// Originating screen only: drop the query (action + nonce = the effect),
+			// keep the same-origin admin page, re-validate. Never the full action URL.
+			$origin    = wp_validate_redirect( $stash['url'], $neutral_url );
+			$query_pos = strpos( $origin, '?' );
+			$screen    = false === $query_pos ? $origin : substr( $origin, 0, $query_pos );
+			$target    = wp_validate_redirect( $screen, $neutral_url );
 		}
+
+		$notice_arg = ! empty( $stash['redacted_fields_omitted'] )
+			? self::REDACTED_REPLAY_QUERY_ARG
+			: self::BLOCKED_REPLAY_QUERY_ARG;
+		$target     = add_query_arg( $notice_arg, '1', $target );
 
 		return array(
-			'code'      => 'success',
-			'replay'    => true,
-			'method'    => $stash['method'],
-			'url'       => $safe_url,
-			'post_data' => $stash['post'] ?? array(),
+			'code'                    => 'success',
+			'redirect'                => $target,
+			'redacted_fields_omitted' => ! empty( $stash['redacted_fields_omitted'] ),
+			'post_replay_blocked'     => true,
 		);
 	}
 }
