@@ -534,7 +534,7 @@ test.describe( 'Challenge flow', () => {
      * does not matter for CHAL-01; what matters is that the challenge page was shown,
      * password was accepted, and the stash was replayed to plugins.php).
      */
-    test( 'CHAL-01: gated action redirects to challenge, correct password replays action', async ( {
+    test( 'CHAL-01: gated action redirects to challenge, correct password returns without replaying', async ( {
         page,
     } ) => {
         // Step 1: Get a real activate URL with a valid nonce.
@@ -585,11 +585,20 @@ test.describe( 'Challenge flow', () => {
             .evaluate( ( form ) => ( form as HTMLFormElement ).requestSubmit() );
         await expect( page ).toHaveURL( /plugins\.php/, { timeout: 15_000 } );
 
-        // Step 8: Verify we landed on plugins.php (stash replayed).
+        // Step 8 (#322): back on the ORIGINATING screen, with the action NOT
+        // performed. Auto-resume was a confused deputy — a cloned session could plant
+        // a stash and the victim's reauth would carry it out — so the stashed action
+        // is never replayed. The effect-bearing query (action + nonce) must be gone,
+        // and the "review and submit again" notice must be present.
         await expect(
             page,
-            'Must be back on plugins.php after stash-replay'
+            'Must return to the originating screen after reauth'
         ).toHaveURL( /plugins\.php/ );
+        await expect(
+            page,
+            'The stashed action must NOT be replayed'
+        ).not.toHaveURL( /action=activate/ );
+        await expect( page ).toHaveURL( /wp_sudo_blocked_replay=1/ );
     } );
 
     /**

@@ -32,7 +32,21 @@ test.describe( 'WP Sudo alternative stack smoke tests', () => {
         ).toBeDefined();
     } );
 
-    test( 'STACK-03: stashed settings POST replays after password auth', async ( {
+    /**
+     * STACK-03 (#322): a stashed settings POST is NOT replayed after reauth.
+     *
+     * Was "replays after password auth". The stash was keyed to user_id alone, so a
+     * cloned session could plant one and the victim's reauth would carry out the
+     * attacker's transaction (confused deputy). Auto-resume is therefore removed:
+     * reauth lands on a neutral admin page with the "review and submit again" notice
+     * and the change is NOT applied — the user re-submits it themselves.
+     *
+     * #322 v2 restores seamless replay for the same browser, but only where the
+     * binding cookie can be set: it is `__Host-` prefixed and so requires Secure.
+     * These stacks run over plain HTTP, so no binding is ever minted here and the
+     * fail-closed path above is the correct expectation for this suite.
+     */
+    test( 'STACK-03: stashed settings POST is not replayed after password auth', async ( {
         page,
     } ) => {
         await page.goto( '/wp-admin/options-general.php?page=wp-sudo-settings' );
@@ -59,15 +73,19 @@ test.describe( 'WP Sudo alternative stack smoke tests', () => {
         await page
             .locator( '#wp-sudo-challenge-password-form' )
             .evaluate( ( form ) => ( form as HTMLFormElement ).requestSubmit() );
-        await expect( page ).toHaveURL(
-            /\/wp-admin\/options-general\.php\?page=wp-sudo-settings(?:&updated=true)?$/,
-            { timeout: 15_000 }
-        );
 
-        await expect( sessionDuration ).toHaveValue( updatedValue );
+        // Leaves the challenge, but NOT to a replayed action: a neutral admin page
+        // carrying the blocked-replay notice.
+        await page.waitForURL( /wp_sudo_blocked_replay=1/, { timeout: 15_000 } );
+        await expect( page ).not.toHaveURL( /page=wp-sudo-challenge/ );
 
-        // Restore the original setting so stack smoke runs stay side-effect-light.
-        await sessionDuration.fill( originalValue );
+        // The gated change was NOT applied — the user must submit it again.
+        await page.goto( '/wp-admin/options-general.php?page=wp-sudo-settings' );
+        await expect( sessionDuration ).toHaveValue( originalValue );
+
+        // The session is now active, so the user's own re-submit passes straight
+        // through the gate (one re-do, not a second password).
+        await sessionDuration.fill( updatedValue );
         await page
             .locator( '#submit' )
             .evaluate( ( button ) => ( button as HTMLInputElement ).form?.requestSubmit() );
@@ -75,6 +93,13 @@ test.describe( 'WP Sudo alternative stack smoke tests', () => {
             /\/wp-admin\/options-general\.php\?page=wp-sudo-settings(?:&updated=true)?$/,
             { timeout: 15_000 }
         );
+        await expect( sessionDuration ).toHaveValue( updatedValue );
+
+        // Restore the original setting so stack smoke runs stay side-effect-light.
+        await sessionDuration.fill( originalValue );
+        await page
+            .locator( '#submit' )
+            .evaluate( ( button ) => ( button as HTMLInputElement ).form?.requestSubmit() );
         await expect( sessionDuration ).toHaveValue( originalValue );
     } );
 
