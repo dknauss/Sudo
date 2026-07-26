@@ -59,7 +59,7 @@ and this file's own rule is not to encode unverified manager behavior. Decide it
 during the manual pass, with a repro showing it changes autofill for a real
 manager.
 
-## Per-manager autofill matrix — PARTIAL (iCloud Keychain verified 2026-07-24)
+## Per-manager autofill matrix — PARTIAL (iCloud Passwords Chrome extension, offer-only, 2026-07-24)
 
 Fill each cell only with a concrete manager version + reproduction. Do not infer.
 
@@ -67,12 +67,24 @@ Fill each cell only with a concrete manager version + reproduction. Do not infer
 |---|---|---|---|
 | 1Password | not tested (2026-07-24) — see note | pending (see todo — reproduce the "harder with 2FA" report with a version) | not tested (2026-07-24) — see note |
 | Bitwarden | pending | pending | pending |
-| iCloud Keychain | ✅ **offers** (2026-07-24) | pending — no 2FA-enabled account tested | ✅ **offers** (2026-07-24) |
+| iCloud Keychain (iCloud Passwords Chrome ext. only)¹ | ✅ **offers**, fill/submit pending² (2026-07-24) | pending — no 2FA-enabled account tested | ✅ **offers**, fill/submit pending² (2026-07-24) |
 | Chrome/Edge/Firefox built-in | not isolated (2026-07-24) — see note | pending | not isolated (2026-07-24) — see note |
 | Dashlane | pending | pending | pending |
 
 For each filled cell, state whether a miss is a **manager limitation** or a
 **fixable-markup** issue on our side, and link the repro.
+
+¹ **Scope:** only the **iCloud Passwords Chrome extension** (Chrome 150) was
+exercised. Safari's native iCloud Keychain integration and other Apple browser
+contexts use different autofill surfaces and were **not** tested — pending. The
+extension version is not exposed to page scripts, so this file's "concrete version"
+boundary cannot be met for this manager; treat the result as extension-build-agnostic
+and re-verify after major macOS/extension updates.
+
+² **Offer-only:** the autofill *offer* appearing is verified; the full **offer →
+accept-fill → submit → sudo grant** chain is **not** — a controlled React
+`TextControl` may show an offer yet not update the field's state until the tester
+accepts the fill (Touch ID) at the machine.
 
 ### Verified results — iCloud Keychain (2026-07-24)
 
@@ -111,11 +123,17 @@ For each filled cell, state whether a miss is a **manager limitation** or a
   that the "Candidate cheap fix" `autocomplete="username"` hint is **not required
   for iCloud Keychain** (it may still help managers that key on the username
   field to pick *which* credential — verify per-manager before concluding).
-- **Classification:** not a miss — both surfaces are a **pass** for iCloud
-  Keychain. No markup change needed for this manager.
+- **Classification:** the autofill **offer** is verified on both surfaces (no
+  markup change is needed for the offer to appear); the full **offer → accept-fill
+  → submit → sudo grant** chain is **not yet verified**, and the result is scoped to
+  the **iCloud Passwords Chrome extension only** — Safari's native iCloud Keychain
+  and other Apple contexts remain pending.
 - **Not tested:** the **Full-page TOTP** cell (the test account has no Two Factor
-  provider enabled, so the Two Factor plugin renders no `one-time-code` field);
-  the in-editor modal has no 2FA step by design (`2fa_pending` links out).
+  provider enabled, so the Two Factor plugin renders no `one-time-code` field); and
+  the **in-editor modal 2FA** surface — the modal now hosts an in-place second factor
+  for modal-capable providers (TOTP / email / backup codes, Milestone B) and links
+  out only for non-modal-capable providers, so its autofill/TOTP behavior with any
+  manager is untested here.
 
 ### Notes on the untested rows (2026-07-24)
 
