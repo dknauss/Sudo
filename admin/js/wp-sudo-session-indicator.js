@@ -389,8 +389,8 @@
 		// Both Gutenberg trunk, fetched 2026-07-26. (The `isPinned ? starFilled :
 		// starEmpty` swap at complementary-area/index.js L326 is a DIFFERENT control —
 		// the pin/unpin star inside the panel header — so it is not the precedent here.)
-		// Semantic BACKGROUND colour has no such precedent: core's only background change
-		// on these buttons is the neutral `.is-pressed` fill
+		// Semantic BACKGROUND colour has no such precedent: core's background changes on
+		// these buttons encode no meaning — a neutral `.is-pressed` fill
 		// (packages/components/src/button/style.scss L342-348), which is why colour here
 		// is spent on the expiring state alone.
 		//

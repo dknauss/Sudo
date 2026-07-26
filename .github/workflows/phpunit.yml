@@ -308,6 +308,41 @@ jobs:
       - name: Verify metrics file drift
         run: composer verify:metrics
 
+      # Regression tests for bin/verify-sources.sh. Offline by design (a fake curl on
+      # PATH, driven by per-case fixtures), so they exercise the checker's parsing,
+      # HTTP-status classification, offline behavior, and repo-wide scans on every
+      # code PR — unlike the live verify-sources.yml job, which is nightly-only because
+      # it fetches raw.githubusercontent.com.
+      - name: Verify source-checker regression tests
+        run: composer test:sources
+
+      # The script existed but ran nowhere, so a stale POT reached main in #317:
+      # line references had been hand-patched instead of regenerated, and one was
+      # missed. Cheap to run, and it only fails when the POT is genuinely out of date.
+      #
+      # bin/make-pot.sh shells out to WP-CLI, which ubuntu-latest does not ship, so
+      # install it here. Deliberately NOT made optional in the script: a check that
+      # skips itself when a dependency is missing reports success while verifying
+      # nothing, which is how the stale POT survived to main in the first place.
+      #
+      # PINNED with a checksum, because this job feeds the required PHPUnit gate. An
+      # unpinned `gh-pages/phar/wp-cli.phar` is whatever WP-CLI shipped this morning:
+      # a release that changes `i18n make-pot` output would turn every open PR red at
+      # once, for a reason unrelated to any of them. Bump deliberately.
+      - name: Install WP-CLI (required by bin/make-pot.sh)
+        env:
+          WP_CLI_VERSION: '2.12.0'
+          WP_CLI_SHA256: 'ce34ddd838f7351d6759068d09793f26755463b4a4610a5a5c0a97b68220d85c'
+        run: |
+          curl -sSLo /tmp/wp-cli.phar \
+            "https://github.com/wp-cli/wp-cli/releases/download/v${WP_CLI_VERSION}/wp-cli-${WP_CLI_VERSION}.phar"
+          echo "${WP_CLI_SHA256}  /tmp/wp-cli.phar" | sha256sum --check --strict
+          sudo install -m 0755 /tmp/wp-cli.phar /usr/local/bin/wp
+          wp --version --allow-root
+
+      - name: Verify POT file drift
+        run: composer verify:i18n
+
       - name: Run PHPCS
         run: composer lint
 
