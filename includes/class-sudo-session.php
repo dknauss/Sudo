@@ -1594,7 +1594,29 @@ class Sudo_Session {
 	 */
 	public static function clear_reauth_lockout( int $user_id ): void {
 		self::reset_failed_attempts( $user_id );
+		self::clear_ip_failure_generation( $user_id );
+	}
 
+	/**
+	 * Bump the failure epoch, orphaning every IP-scoped transient key derived
+	 * from the previous value.
+	 *
+	 * Split out from clear_reauth_lockout() because it is the only half that
+	 * can reach state this process cannot enumerate: the IP-scoped windows are
+	 * per-blog transients keyed by a hash that includes the IP, while every
+	 * predicate that decides "is there anything to clear" reads network-global
+	 * user meta. An operator clearing a user who reads as clean here may still
+	 * be freeing them on another site, so the bump is worth running on its own.
+	 *
+	 * Safe to call when there was nothing to invalidate: the epoch is a
+	 * monotonic counter, and bumping it discards no per-user counter.
+	 *
+	 * @since TBD
+	 *
+	 * @param int $user_id User ID.
+	 * @return void
+	 */
+	public static function clear_ip_failure_generation( int $user_id ): void {
 		update_user_meta(
 			$user_id,
 			self::IP_FAILURE_EPOCH_META_KEY,

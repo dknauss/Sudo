@@ -167,13 +167,31 @@ class CLI_Command {
 		$was_locked = Sudo_Session::has_unexpired_lockout( $user_id );
 		$had_state  = Sudo_Session::has_failure_state( $user_id );
 
-		// Nothing tracked at all: report and leave the user untouched. Clearing
-		// here would write an epoch bump for a user who never had a lockout.
+		// No per-user tracking to clear — but still invalidate the IP-scoped
+		// generation, and do NOT delete any counters. The generation bump is the
+		// only lever that reaches windows this process cannot see or enumerate:
+		// they are per-blog transients keyed by a hash of (ip, user, epoch),
+		// while every predicate above reads network-global user meta. A lockout
+		// raised on subsite A and then orphaned by a login on subsite B —
+		// activate() clears the global counters and pointers but cannot reach
+		// A's transients — reads as "nothing tracked" here while still blocking
+		// the user on A. Refusing to act on that reading would leave the escape
+		// hatch unable to open the one door it exists for. The bump costs one
+		// monotonic counter write and discards no per-user counter, so it is
+		// safe when there was in fact nothing to invalidate.
 		if ( ! $was_locked && ! $had_state ) {
-			\WP_CLI::log( sprintf( 'No active reauth lockout for user %d.', $user_id ) );
+			Sudo_Session::clear_ip_failure_generation( $user_id );
+
+			\WP_CLI::log(
+				sprintf(
+					'No active reauth lockout for user %d — invalidated any residual per-IP failure windows (including ones raised on other sites).',
+					$user_id
+				)
+			);
 			return;
 		}
 
+		// Full clear: per-user counters AND the generation bump.
 		Sudo_Session::clear_reauth_lockout( $user_id );
 
 		/**

@@ -295,22 +295,33 @@ class CliCommandTest extends TestCase {
 	}
 
 	/**
-	 * A user with NO lockout and no residual failure tracking must be left
-	 * completely untouched — the command must not write the epoch or delete
-	 * meta just to report "nothing to do".
+	 * A user with no lockout and no residual per-user tracking must not have
+	 * their counters deleted — but the epoch bump still runs, because it is the
+	 * only lever that reaches IP-scoped windows this process cannot enumerate
+	 * (per-blog transients keyed by a hash of the IP, while the predicates read
+	 * network-global meta). A lockout raised on subsite A and then orphaned by
+	 * a login on subsite B reads as "nothing tracked" here yet still blocks the
+	 * user on A; refusing to act would leave the escape hatch unable to open
+	 * the one door it exists for.
 	 */
-	public function test_unlock_does_not_mutate_state_when_there_is_nothing_to_clear(): void {
+	public function test_unlock_bumps_the_epoch_but_clears_no_counters_when_nothing_is_tracked(): void {
 		Functions\when( 'get_user_meta' )->justReturn( '' );
 
+		// No per-user counter is discarded...
 		Functions\expect( 'delete_user_meta' )->never();
-		Functions\expect( 'update_user_meta' )->never();
 		Functions\expect( 'delete_transient' )->never();
+		// ...but the generation is invalidated.
+		Functions\expect( 'update_user_meta' )
+			->once()
+			->with( 9, Sudo_Session::IP_FAILURE_EPOCH_META_KEY, 1 )
+			->andReturn( true );
 
 		$command = new CLI_Command();
 		$command->unlock( array(), array( 'user' => '9' ) );
 
 		$this->assertSame( 'log', \WP_CLI::$messages[0]['type'] ?? null );
 		$this->assertStringContainsString( 'No active reauth lockout for user 9', \WP_CLI::$messages[0]['message'] ?? '' );
+		$this->assertStringContainsString( 'residual per-IP failure windows', \WP_CLI::$messages[0]['message'] ?? '' );
 	}
 
 	/**
