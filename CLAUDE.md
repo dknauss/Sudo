@@ -146,80 +146,31 @@ remote-site safety", and user-level `~/AGENTS.md`):
 
 ## Verification Requirements
 
-LLM-generated content has a documented history of confabulation in this project.
-See `docs/llm-lies-log.md` for the full record. These rules exist to prevent recurrence.
+Full rules live in this repo's `AGENTS.md` → "Verification Requirements". Single
+source of truth: keeping a second copy here is what let the two files drift — for
+months `CLAUDE.md` carried the `blueprint.json` release step and `AGENTS.md` did
+not, so which rules you got depended on which agent you were (see #333).
 
-### External code references (method names, class names, meta keys, hooks)
+**Summary (authoritative version in `AGENTS.md`):** LLM-generated content has a
+documented history of confabulation in this project — `docs/llm-lies-log.md` is the
+record, and these rules exist to prevent recurrence.
 
-- **MUST** verify against the live source before writing: WordPress.org SVN trunk,
-  GitHub raw file URL, or the plugin's own codebase.
-- **MUST** include the verification source in the commit message when adding or
-  updating technical details about third-party code.
-- If unable to verify, **MUST** say so explicitly — never guess or rely on training data.
+- **External code references** (method/class names, meta keys, hooks) MUST be
+  verified against live source before writing, with the source named in the commit
+  message. If you cannot verify, say so — never guess.
+- **Statistics and counts** MUST come from the authoritative API, never training
+  data, with the query date noted.
+- **Internal architectural counts** MUST be checked against `docs/current-metrics.md`,
+  and **release-state claims** against `docs/release-status.md`. Update those files
+  FIRST when a change moves them.
+- **Every release** bumps `WP_SUDO_VERSION` in four places, `Stable tag` in
+  `readme.txt`, and the `blueprint.json` Playground install target — the badges point
+  at `main/blueprint.json`, so skipping it silently serves a stale demo.
+- **Before tagging**, re-verify every external claim added since the last tag and
+  append new findings to `docs/llm-lies-log.md`.
 
-### Statistics and counts (install numbers, version numbers, dates)
-
-- **MUST** query the authoritative API or source. For WordPress.org plugins:
-  ```bash
-  curl -s "https://api.wordpress.org/plugins/info/1.2/?action=plugin_information&slug=SLUG" | jq '.active_installs'
-  ```
-- **MUST** note the query date when the number is first written or updated.
-- Never use training data for statistics. If the API is unreachable, say so.
-
-### Internal architectural counts (surfaces, rules, fields, tabs, hooks)
-
-- **MUST** check `docs/current-metrics.md` before writing any current count
-  that appears there (surfaces, gated rules, help tabs, settings fields,
-  audit hooks, E2E tests, etc.).
-- When adding a feature that changes a count, update `docs/current-metrics.md`
-  FIRST. Prefer linking to that file instead of copying counts into prose.
-- **MUST** check `docs/release-status.md` before writing current release-state
-  claims (stable tag, unreleased `main` work, latest supported WordPress
-  release, forward-lane version, or delayed/final release dates).
-- Never hardcode a volatile count or release date in prose unless the file is
-  itself the canonical source for that fact.
-
-### Verification commands for this project
-
-```bash
-# Plugin install counts
-curl -s "https://api.wordpress.org/plugins/info/1.2/?action=plugin_information&slug=two-factor" | jq '.active_installs'
-
-# Verify a method/class in a WordPress.org plugin (example: AIOS/Simba TFA)
-curl -s "https://plugins.svn.wordpress.org/all-in-one-wp-security-and-firewall/trunk/classes/wp-security-two-factor-login.php" | grep "class "
-curl -s "https://plugins.svn.wordpress.org/all-in-one-wp-security-and-firewall/trunk/classes/simba-tfa/simba-tfa.php" | grep "function "
-
-# Verify a GitHub-hosted plugin (example: Two Factor)
-curl -s "https://raw.githubusercontent.com/WordPress/two-factor/master/class-two-factor-core.php" | grep "function "
-
-# Project size (update readme.md table when line counts change significantly)
-find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/.git/*" ! -path "*/.claude/*" -print0 | xargs -0 wc -l | tail -1  # total PHP (excludes .claude/ worktree checkouts)
-find ./includes ./wp-sudo.php ./uninstall.php ./mu-plugin ./bridges -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1  # production
-find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1                                             # tests
-```
-
-### Pre-release audit
-
-Before tagging a release, re-verify all external claims added or modified since the
-last tag. Append any new findings to `docs/llm-lies-log.md`. If new fabrications are
-found, fix them before tagging.
-
-Update the project size table in `readme.md` if production or test line counts
-changed since the last release. Use the project size commands above.
-
-**Version sync checklist** — every release, bump `WP_SUDO_VERSION` in ALL four places:
-1. `wp-sudo.php` — plugin header `Version:` line
-2. `wp-sudo.php` — `define( 'WP_SUDO_VERSION', ... )` constant
-3. `phpstan-bootstrap.php` — `define( 'WP_SUDO_VERSION', ... )` constant
-4. `tests/bootstrap.php` — `define( 'WP_SUDO_VERSION', ... )` constant
-
-And update `Stable tag` in `readme.txt`.
-
-Also bump the Playground stable-demo install target in `blueprint.json` — the
-`archive/refs/tags/vX.Y.Z.zip` URL in its `installPlugin` step — to the new tag.
-The release badges point at `main/blueprint.json` (not a frozen tag), so this one
-edit keeps "Try the latest release in Playground" installing the current release.
-(`blueprint-main.json` tracks `archive/refs/heads/main.zip` and needs no bump.)
+See also `AGENTS.md` → "Prose Discipline" for the rules on citing, scope words, and
+state-vs-decision phrasing.
 
 ## Test-Driven Development
 

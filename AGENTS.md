@@ -166,14 +166,18 @@ See `docs/llm-lies-log.md` for the full record. These rules exist to prevent rec
   ```
 - **MUST** note the query date when the number is first written or updated.
 - Never use training data for statistics. If the API is unreachable, say so.
-- **MUST** treat `docs/current-metrics.md` as the canonical source for current
-  repository counts (tests, assertions, LOC, ratios). Update that file first,
-  then reference it from other docs instead of duplicating live counts.
-- **MUST** treat `docs/release-status.md` as the canonical source for current
-  release state (stable tag, unreleased `main` work, WordPress target version,
-  and forward-lane posture). Update it first when release state changes.
-- Avoid hardcoding volatile counts or release dates in prose unless the file is
-  itself the canonical source for that fact. Prefer links to the canonical docs.
+### Internal architectural counts (surfaces, rules, fields, tabs, hooks)
+
+- **MUST** check `docs/current-metrics.md` before writing any current count
+  that appears there (surfaces, gated rules, help tabs, settings fields,
+  audit hooks, E2E tests, etc.).
+- When adding a feature that changes a count, update `docs/current-metrics.md`
+  FIRST. Prefer linking to that file instead of copying counts into prose.
+- **MUST** check `docs/release-status.md` before writing current release-state
+  claims (stable tag, unreleased `main` work, latest supported WordPress
+  release, forward-lane version, or delayed/final release dates).
+- Never hardcode a volatile count or release date in prose unless the file is
+  itself the canonical source for that fact.
 
 ### Verification commands for this project
 
@@ -210,6 +214,12 @@ changed since the last release. Use the project size commands above.
 4. `tests/bootstrap.php` — `define( 'WP_SUDO_VERSION', ... )` constant
 
 And update `Stable tag` in `readme.txt`.
+
+Also bump the Playground stable-demo install target in `blueprint.json` — the
+`archive/refs/tags/vX.Y.Z.zip` URL in its `installPlugin` step — to the new tag.
+The release badges point at `main/blueprint.json` (not a frozen tag), so this one
+edit keeps "Try the latest release in Playground" installing the current release.
+(`blueprint-main.json` tracks `archive/refs/heads/main.zip` and needs no bump.)
 
 ## Test-Driven Development
 
