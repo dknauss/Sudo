@@ -1063,7 +1063,20 @@ class Challenge {
 				continue;
 			}
 
-			$parts[] = $key . '=' . (string) $value;
+			$value = (string) $value;
+
+			// A bare numeric id ("user_id=5") tells an admin nothing about WHO they are
+			// authorizing — and this line is the only control left in the same-origin
+			// lure case, so resolve it to something a human can actually judge.
+			if ( 'user_id' === $key ) {
+				$user = get_userdata( (int) $value );
+
+				if ( $user && ! empty( $user->user_login ) ) {
+					$value = $user->user_login . ' (#' . (int) $value . ')';
+				}
+			}
+
+			$parts[] = $key . ': ' . $value;
 		}
 
 		return implode( ', ', $parts );

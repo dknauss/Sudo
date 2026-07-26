@@ -1853,6 +1853,52 @@ class ChallengeTest extends TestCase
 	}
 
 	/**
+	 * #322 v2 CALLER CONTRACT: the already-active-session AJAX path must not
+	 * request a bound replay, even with a perfectly valid proof cookie.
+	 *
+	 * `may_replay_bound_stash()` enforces this at the callee, but that alone does not
+	 * stop a future edit from passing `true` from `complete_active_session_request()`.
+	 * This drives the real entry point (handle_ajax_auth with an active session) so
+	 * flipping that caller is caught.
+	 */
+	public function test_active_session_ajax_path_never_bound_replays(): void
+	{
+		$secret = 'super-secret-proof';
+		$_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE] = $secret;
+
+		Functions\when('__')->returnArg();
+		$this->stubReplayEnv();
+
+		$this->stash->shouldReceive('exists')->once()->with('active-key', 42)->andReturn(true);
+		$this->stash->shouldReceive('get')->once()->andReturn($this->boundPostStash($secret));
+		$this->stash->shouldReceive('delete')->once();
+
+		$captured = null;
+		Functions\when('wp_send_json_success')->alias(
+			function ($data) use (&$captured) {
+				$captured = $data;
+			}
+		);
+
+		// Drive the caller itself — this is what a regression would flip.
+		$method = new \ReflectionMethod($this->challenge, 'complete_active_session_request');
+		if ( PHP_VERSION_ID < 80100 ) {
+			$method->setAccessible(true);
+		}
+		$method->invoke($this->challenge, 42, 'active-key');
+
+		$this->assertIsArray($captured);
+		$this->assertArrayNotHasKey(
+			'replay',
+			$captured,
+			'The already-active (no credential this request) path must never bound-replay.'
+		);
+		$this->assertArrayNotHasKey('post_data', $captured);
+
+		unset($_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE]);
+	}
+
+	/**
 	 * #322 v2: a redacted/blocked stash is never replayed, binding or not.
 	 */
 	public function test_bound_but_redacted_stash_is_not_replayed(): void

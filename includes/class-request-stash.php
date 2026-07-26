@@ -209,7 +209,8 @@ class Request_Stash {
 	 * @return array<string, string>
 	 */
 	private function capture_target(): array {
-		$target = array();
+		$target    = array();
+		$sensitive = $this->sensitive_field_keys();
 
 		foreach ( self::TARGET_PARAMS as $param ) {
 			// phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- Display metadata only, never used to route or replay; sanitized below.
@@ -225,7 +226,19 @@ class Request_Stash {
 				continue;
 			}
 
-			$target[ $param ] = substr( $value, 0, self::TARGET_MAX_LENGTH );
+			// Never record a secret-shaped value, even though no default target param
+			// is secret-shaped: a site may add one via the sensitive-key filter, and
+			// this path bypasses the per-rule POST allowlist and redaction.
+			if ( $this->is_sensitive_key( $param, $sensitive ) ) {
+				continue;
+			}
+
+			// mb_substr, not substr: splitting a UTF-8 sequence makes esc_html() emit
+			// '' (wp_check_invalid_utf8), which would silently blank the Target line —
+			// i.e. quietly remove the primary #322 control instead of erroring.
+			$target[ $param ] = function_exists( 'mb_substr' )
+				? mb_substr( $value, 0, self::TARGET_MAX_LENGTH )
+				: substr( $value, 0, self::TARGET_MAX_LENGTH );
 		}
 
 		return $target;
@@ -688,6 +701,31 @@ class Request_Stash {
 	 * @return string[] Lowercase sensitive field key names.
 	 */
 	private function sensitive_field_keys(): array {
+		// Memoized per request: the list is consulted by sanitize_params() (which
+		// recurses) and by capture_target(), and the filter should be applied once per
+		// stash, not once per nested field.
+		if ( null !== $this->sensitive_keys_cache ) {
+			return $this->sensitive_keys_cache;
+		}
+
+		$this->sensitive_keys_cache = $this->build_sensitive_field_keys();
+
+		return $this->sensitive_keys_cache;
+	}
+
+	/**
+	 * Memoized sensitive-key list for this instance.
+	 *
+	 * @var string[]|null
+	 */
+	private ?array $sensitive_keys_cache = null;
+
+	/**
+	 * Build the filterable sensitive-key list.
+	 *
+	 * @return string[] Lowercase sensitive field key names.
+	 */
+	private function build_sensitive_field_keys(): array {
 		/**
 		 * Filter the list of POST parameter keys that should be
 		 * omitted from the request stash before storage.

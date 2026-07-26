@@ -118,9 +118,17 @@ class RequestStashTest extends TestCase {
 			$_SERVER['HTTP_SEC_FETCH_SITE'] = $fetch_site;
 		}
 
+		// CRITICAL: under PHPUnit CLI headers_sent() is always true (progress dots),
+		// which would short-circuit mint_binding_proof() at the headers guard and make
+		// this assertion pass for the WRONG reason. Stub it false so the Sec-Fetch-Site
+		// guard is genuinely the thing under test.
+		Functions\when( 'headers_sent' )->justReturn( false );
+		Functions\when( 'setcookie' )->justReturn( true );
 		Functions\when( 'wp_generate_password' )->justReturn( 'abc123def456ghij' );
 		Functions\when( 'esc_url_raw' )->returnArg();
 		Functions\when( 'is_ssl' )->justReturn( true );
+		Functions\when( 'force_ssl_admin' )->justReturn( true );
+		Functions\when( 'apply_filters' )->returnArg( 2 );
 		Functions\when( 'sanitize_text_field' )->returnArg();
 
 		$stored = null;
@@ -140,6 +148,71 @@ class RequestStashTest extends TestCase {
 			$stored['binding_hash'] ?? 'MISSING',
 			'A lured (non-same-origin) request must not mint a browser binding.'
 		);
+
+		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'], $_SERVER['HTTP_SEC_FETCH_SITE'] );
+	}
+
+	/**
+	 * #322 v2: a genuine same-origin request DOES mint a binding.
+	 *
+	 * The positive counterpart to the lure test above. Without this, deleting the
+	 * Sec-Fetch-Site guard entirely would go undetected — every negative case would
+	 * still pass because nothing asserts the guard ever lets anything through.
+	 */
+	public function test_save_binds_when_same_origin_initiated(): void {
+		$this->stub_stash_index_meta_io();
+
+		$_SERVER['REQUEST_METHOD']      = 'GET';
+		$_SERVER['HTTP_HOST']           = 'example.com';
+		$_SERVER['REQUEST_URI']         = '/wp-admin/plugins.php?action=activate&plugin=hello.php';
+		$_SERVER['HTTP_SEC_FETCH_SITE'] = 'same-origin';
+
+		Functions\when( 'headers_sent' )->justReturn( false );
+		Functions\when( 'wp_generate_password' )->justReturn( 'abc123def456ghij' );
+		Functions\when( 'esc_url_raw' )->returnArg();
+		Functions\when( 'is_ssl' )->justReturn( true );
+		Functions\when( 'force_ssl_admin' )->justReturn( true );
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+		Functions\when( 'sanitize_text_field' )->returnArg();
+
+		$cookie = array();
+		Functions\when( 'setcookie' )->alias(
+			function ( $name, $value, $options ) use ( &$cookie ) {
+				$cookie = array(
+					'name'    => $name,
+					'value'   => $value,
+					'options' => $options,
+				);
+				return true;
+			}
+		);
+
+		$stored = null;
+		Functions\expect( 'set_transient' )
+			->once()
+			->andReturnUsing(
+				function ( $key, $value ) use ( &$stored ) {
+					$stored = $value;
+					return true;
+				}
+			);
+
+		$this->stash->save( 1, array( 'id' => 'plugin.activate', 'label' => 'Activate plugin' ) );
+
+		$this->assertNotSame( '', $stored['binding_hash'] ?? '', 'A same-origin request must mint a binding.' );
+
+		// The cookie carries the PLAINTEXT secret; the stash stores only its hash.
+		$this->assertSame( Request_Stash::BINDING_COOKIE, $cookie['name'] ?? null );
+		$this->assertStringStartsWith( '__Host-', (string) ( $cookie['name'] ?? '' ), 'Must be __Host- prefixed (host-only, no Domain).' );
+		$this->assertSame( hash( 'sha256', (string) ( $cookie['value'] ?? '' ) ), $stored['binding_hash'] );
+		$this->assertNotSame( $cookie['value'] ?? '', $stored['binding_hash'], 'The plaintext secret must never be persisted.' );
+
+		// __Host- requires path=/ and no domain; the proof must not be script-readable.
+		$this->assertSame( '/', $cookie['options']['path'] ?? null );
+		$this->assertArrayNotHasKey( 'domain', $cookie['options'] ?? array() );
+		$this->assertTrue( $cookie['options']['secure'] ?? false );
+		$this->assertTrue( $cookie['options']['httponly'] ?? false );
+		$this->assertSame( 'Strict', $cookie['options']['samesite'] ?? null );
 
 		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'], $_SERVER['HTTP_SEC_FETCH_SITE'] );
 	}
