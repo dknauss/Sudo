@@ -194,7 +194,7 @@ Traditional security plugins focus on **step 1** (blocking initial access). Sudo
 
 - Broken Access Control remains #1, found in 100% of tested applications
 
-**Kill chain analysis:** XSS (47.7% of WP vulnerabilities) is primarily dangerous because it enables session hijacking → authenticated admin actions. Sudo blocks the downstream exploitation even when XSS succeeds.
+**Kill chain analysis:** XSS (47.7% of WP vulnerabilities) is primarily dangerous because it enables session hijacking → authenticated admin actions. Sudo contains the *stolen-session* downstream — a cookie without the password cannot silently drive a covered operation. It does **not** neutralize an XSS that is *live at the reauthentication moment*: an active same-origin script can ride an open sudo window, observe or keylog the challenge, or initiate the user's own gated request. The containment is against a session-only thief, not against active same-origin script present during reauth.
 
 ### Risk reduction estimates
 

@@ -2,7 +2,7 @@
 
 **Status:** Working threat model. Complements [`security-model.md`](security-model.md) (the general boundaries) with a single worked adversary: an attacker holding a valid Administrator auth cookie, whose goal is server-side code execution.
 
-**Why this adversary:** it is the concrete endpoint of the XSS-in-`wp-admin` class the WordPress security team now routinely classifies as RCE-facilitating — steal an admin's cookie, then walk one of several routes to the plugin/theme editor or installer. It is also the exact adversary WP Sudo exists to frustrate.
+**Why this adversary:** it is the concrete endpoint of the XSS-in-`wp-admin` class the WordPress security team now routinely classifies as RCE-facilitating: steal an admin's cookie, then walk one of several routes to the plugin/theme editor or installer. It is also the exact adversary WP Sudo exists to frustrate.
 
 ---
 
@@ -10,7 +10,7 @@
 
 A stolen Administrator cookie gives the attacker **an authenticated session**:
 
-- they can load any `wp-admin` page, so **nonces are not a defense** — any nonce the UI would generate, they can harvest;
+- they can load any `wp-admin` page, so **nonces are not a defense**: any nonce the UI would generate, they can harvest;
 - they can call REST and AJAX as that administrator.
 
 What the cookie does **not** carry:
@@ -22,7 +22,7 @@ That gap is the entire basis of the defense:
 
 > **Every sudo challenge demands the *actor's current password* (optionally plus a second factor). A cookie thief has neither.**
 
-Therefore the model holds **if and only if there is no ungated route by which the attacker can obtain or set a credential** — because a credential the attacker controls lets them answer the challenge and every gate downstream of it collapses. The rest of this document is a search for such a route.
+Therefore the model holds **if and only if there is no ungated route by which the attacker can obtain or set a credential**: a credential the attacker controls lets them answer the challenge, and every gate downstream of it collapses. The rest of this document is a search for such a route.
 
 ---
 
@@ -46,7 +46,7 @@ These write or execute PHP directly. All are gated in the built-in registry (`in
 
 ### Route multiplicity is handled by effect-level backstops, not by enumeration
 
-The concern "there are too many routes to the installer" is answered architecturally. Beyond request-pattern rules, the Gate arms **effect-level backstops** (`arm_effect_guards`, `classify_upgrader_effect`, `register_rest_backstop`, since 4.1.0) that hard-block unambiguous install/activate/delete **effects reached through non-enumerated handlers** — a custom AJAX action, an unusual admin-post target, or the core REST route `POST /wp/v2/plugins` (WP 5.5+, install+activate by slug). The guard sits on the *effect*, so a new or obscure route to the same effect is still caught. (Confirming test worth having: `POST /wp/v2/plugins` with `slug` + `status:active`.)
+The concern "there are too many routes to the installer" is answered architecturally. Beyond request-pattern rules, the Gate arms **effect-level backstops** (`arm_effect_guards`, `classify_upgrader_effect`, `register_rest_backstop`, since 4.1.0) that hard-block unambiguous install/activate/delete **effects reached through non-enumerated handlers**: a custom AJAX action, an unusual admin-post target, or the core REST route `POST /wp/v2/plugins` (WP 5.5+, install+activate by slug). The guard sits on the *effect*, so a new or obscure route to the same effect is still caught. (A confirming test worth adding: `POST /wp/v2/plugins` with `slug` + `status:active`.)
 
 **Tier 1 verdict:** well covered.
 
@@ -71,13 +71,13 @@ Because Tier 1 is gated, the attacker's real move is to **mint an account whose 
 
 ## 4. Finding: account-email change was not gated — closed in 4.8.0
 
-`user.change_password` **deliberately narrows to password-only**: its admin callback returns true only when `pass1`/`pass2` is present, with a source comment noting that `profile.php`/`user-edit.php` handle "bio, email, role, etc." under the same `action=update`. Before this change there was **no `user.change_email` rule**, and `options.critical` matches only the **site** `admin_email`/`new_admin_email` option — not a user's per-account email.
+`user.change_password` **deliberately narrows to password-only**: its admin callback returns true only when `pass1`/`pass2` is present, with a source comment noting that `profile.php`/`user-edit.php` handle "bio, email, role, etc." under the same `action=update`. Before this change there was **no `user.change_email` rule**, and `options.critical` matches only the **site** `admin_email`/`new_admin_email` option, not a user's per-account email.
 
-So the following **was ungated** — the attack this rule (added below) closes:
+So the following **was ungated**; this is the attack the rule added below closes:
 
 1. Cookie thief opens `user-edit.php` for another admin (or their own `profile.php`) and changes the **email** only (no password field) → the change commits with no challenge.
    - Editing *another* user's email via `user-edit.php` commits **immediately**, no confirmation.
-   - Self-service email change on `profile.php` sends a confirmation link — but to the **new**, attacker-controlled address, so it is one extra click, not a mitigation.
+   - Self-service email change on `profile.php` sends a confirmation link, but to the **new**, attacker-controlled address, so it is one extra click, not a mitigation.
 2. Attacker triggers "Lost your password?" → the reset email lands in their inbox → they set a password **they now know**.
 3. Fresh login as that admin → they answer every sudo challenge (change-password, editor, installer, …) → **RCE**.
 
@@ -90,18 +90,18 @@ A `user.change_email` rule now gates the pivot on both surfaces:
 - **admin** — `pagenow` in `profile.php` / `user-edit.php`, `action=update`, gated when the submitted `email` differs (sanitized, case-insensitive) from the stored email of the edited user (self on `profile.php`, `user_id` target on `user-edit.php`);
 - **rest** — `#^/wp/v2/users/(?:\d+|me)$#`, `POST`/`PUT`/`PATCH` (core's `WP_REST_Server::EDITABLE`), gated when an `email` param is present and differs from the stored email.
 
-Comparing against the stored value (rather than gating any submit that merely *contains* an `email` field) avoids challenging no-op profile saves — the email field is always present and pre-filled, so a presence-only check would gate every save. The comparator **fails closed**: if an email is submitted but the target user or stored address can't be read, the request is gated. It is side-effect-free, so it is safe under the diagnostic request simulator.
+Comparing against the stored value (rather than gating any submit that merely *contains* an `email` field) avoids challenging no-op profile saves: the email field is always present and pre-filled, so a presence-only check would gate every save. The comparator **fails closed**: if an email is submitted but the target user or stored address cannot be read, the request is gated. It is side-effect-free, so it is safe under the diagnostic request simulator.
 
 Two design points, from the pre-implementation review:
 
-- **Silent-drop fix (non-replayable profile saves).** `Gate::match_request()` returns the *first* matching rule, and on `user-edit.php` a role+email change matches `user.promote_profile` before `user.change_email`; a narrow per-rule allowlist would silently drop the email on replay. A shared "comprehensive" allowlist was tried but does not actually work — the profile form always submits empty `pass1`/`pass2`, which the stash redacts by field name, so replay is blocked for *every* gated profile save regardless. So `user.promote_profile`, `user.change_password`, and `user.change_email` are now explicitly **non-replayable** (`stash_no_replay()`): after reauth the user re-submits the form. This is honest, silent-drop-free, and simpler. (Independently flagged by two post-implementation reviews.)
+- **Silent-drop fix (non-replayable profile saves).** `Gate::match_request()` returns the *first* matching rule, and on `user-edit.php` a role+email change matches `user.promote_profile` before `user.change_email`; a narrow per-rule allowlist would silently drop the email on replay. A shared "comprehensive" allowlist was tried but does not actually work: the profile form always submits empty `pass1`/`pass2`, which the stash redacts by field name, so replay is blocked for *every* gated profile save regardless. So `user.promote_profile`, `user.change_password`, and `user.change_email` are now explicitly **non-replayable** (`stash_no_replay()`): after reauth the user re-submits the form. This is honest, silent-drop-free, and simpler. (Independently flagged by two post-implementation reviews.)
 - **Two-step confirmation.** Gating the *initiating* POST is sufficient: on `profile.php` that POST is what writes the pending `_new_email` and sends the confirmation link, so a challenged attacker never creates a pending change and the commit GET has nothing to act on. The confirm/dismiss GETs are intentionally left ungated.
 
-**Scope:** admin UI + cookie-authenticated REST only, matching `user.change_password`'s non-interactive parity — a `wp user update --user_email=` under CLI/cron is governed by those surfaces' policy, not by a new function hook.
+**Scope:** admin UI + cookie-authenticated REST only, matching `user.change_password`'s non-interactive parity: a `wp user update --user_email=` under CLI/cron is governed by those surfaces' policy, not by a new function hook.
 
 ### Cross-check
 
-The `consequential-actions` MVP and the core-gate spec both already list `core/change-own-email` / `core/change-user-email` — so the *proposal* catalog is more complete on email than the shipping plugin. This finding brings WP Sudo's own registry in line with them.
+The `consequential-actions` MVP and the core-gate spec both already list `core/change-own-email` / `core/change-user-email`, so the *proposal* catalog is more complete on email than the shipping plugin. This finding brings WP Sudo's own registry in line with them.
 
 ---
 
@@ -116,7 +116,7 @@ The `consequential-actions` MVP and the core-gate spec both already list `core/c
 
 ## 6. Summary
 
-- The **terminal RCE actions** (editor, install, upload, update, activate — plugin and theme) are gated and backstopped at the effect level, so route multiplicity does not require exhaustive enumeration.
+- The **terminal RCE actions** (editor, install, upload, update, activate; plugin and theme) are gated and backstopped at the effect level, so route multiplicity does not require exhaustive enumeration.
 - The **credential-manufacturing pivots** are gated: account-email change is closed by the `user.change_email` rule (§4), and the sibling `user.change_password` / `user.promote` REST rules gate **`POST` as well as `PUT`/`PATCH`** (core's `WP_REST_Server::EDITABLE = 'POST, PUT, PATCH'`) — **all shipped in 4.8.0**. A stolen cookie can no longer change a password, email, or role via `POST /wp/v2/users/{id}` ungated.
-- **Critical-settings REST matcher (closed by #215):** on REST, `POST /wp/v2/settings` writes to critical options were gated **only** by the enumerated `options.critical` rule — the effect-level `pre_update_option_{opt}` backstop is armed for the CLI/cron/XML-RPC policy surfaces (`register_function_hooks()`), not for REST (the REST/interactive `arm_effect_guards()` covers named effect functions like `wp_delete_user()`/`delete_plugins()`, not option writes). That enumerated rule matched raw option names (`siteurl`, `admin_email`) while core keys the endpoint by `show_in_rest` names (`url`, `email`), so a cookie-authenticated `POST /wp/v2/settings {"url":"…"}` was **ungated** and repointing `siteurl` yielded the XSS-as-RCE primitive. PR #215 fixes the matcher to also match the `show_in_rest` aliases, closing the gap.
+- **Critical-settings REST matcher (closed by #215):** on REST, `POST /wp/v2/settings` writes to critical options were gated **only** by the enumerated `options.critical` rule; the effect-level `pre_update_option_{opt}` backstop is armed for the CLI/cron/XML-RPC policy surfaces (`register_function_hooks()`), not for REST (the REST/interactive `arm_effect_guards()` covers named effect functions like `wp_delete_user()`/`delete_plugins()`, not option writes). That enumerated rule matched raw option names (`siteurl`, `admin_email`) while core keys the endpoint by `show_in_rest` names (`url`, `email`), so a cookie-authenticated `POST /wp/v2/settings {"url":"…"}` was **ungated** and repointing `siteurl` yielded the XSS-as-RCE primitive. PR #215 fixes the matcher to also match the `show_in_rest` aliases, closing the gap.
 - The defense works because a cookie thief holds a session but not a password, and every gate demands the actor's password. **Scope (per [`security-model.md`](security-model.md)):** this invariant holds for the **enumerated core routes and effect-backstopped operations** above; it does *not* extend to custom plugin endpoints, direct database writes, or code already executing in-process. The claim is "no *gated core route* to RCE avoids a challenge," not an absolute one.

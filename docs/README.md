@@ -30,6 +30,7 @@ source of truth for its topic; this index never restates content (see
 | *What* exactly would change in core (files, functions, APIs; the registry-vs-Abilities decision; the recent-auth session design)? | [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md) |
 | What do the actual patches look like at the chokepoints? | [`core-sudo-gate-poc-patches.md`](core-sudo-gate-poc-patches.md) |
 | How does WordPress core authentication actually work? | [`wordpress-core-authentication.md`](wordpress-core-authentication.md) |
+| Strategic context: which WordPress architectural future, and where the gate fits (not part of the proposal) | [`core-gate-architectural-context.md`](core-gate-architectural-context.md) |
 
 *Archived core-proposal artifacts (see [`archive/`](archive/README.md)): the registry-vs-Abilities decision memo (folded into the spec §4.1.1), the `consequential-actions` MVP-vs-spec reconciliation, and password-change reauth research.*
 
