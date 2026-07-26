@@ -3339,12 +3339,14 @@ class Admin {
 	/**
 	 * Render a permanent, non-dismissible notice while recovery mode is active.
 	 *
-	 * Break-glass recovery (WP_SUDO_RECOVERY_MODE) is uncontained by design: it
-	 * re-opens Sudo governance to every administrator for as long as the
-	 * constant is defined. This notice makes that state impossible to miss on
-	 * the Sudo settings screen so operators remove the constant promptly.
+	 * Break-glass recovery (WP_SUDO_RECOVERY_MODE) relaxes Sudo governance for as
+	 * long as the constant is defined. This notice makes that state impossible to
+	 * miss on the Sudo settings screen so operators remove the constant promptly.
+	 * The copy reflects the actual scope: unscoped (any admin), scoped to a named
+	 * target, or scoped to an unresolvable value that grants no one (#240).
 	 *
 	 * @since 3.4.0
+	 * @since TBD Branches copy on scoped vs unscoped recovery mode.
 	 * @return void
 	 */
 	private function render_recovery_mode_notice(): void {
@@ -3352,7 +3354,29 @@ class Admin {
 			return;
 		}
 
-		$message = __( 'Sudo break-glass recovery mode is active (WP_SUDO_RECOVERY_MODE is defined in wp-config.php). While it is set, any user who holds the manage_options capability — manage_network_options on multisite — regains full Sudo governance access, regardless of role. Remove the constant as soon as normal access is restored — leaving it enabled weakens the governance model.', 'wp-sudo' );
+		if ( wp_sudo_recovery_mode_is_unscoped() ) {
+			$scope = __( 'It is unscoped: while it is set, any user who holds the manage_options capability — manage_network_options on multisite — regains full Sudo governance access, regardless of role.', 'wp-sudo' );
+		} else {
+			$target = wp_sudo_recovery_mode_user();
+
+			if ( null === $target ) {
+				$scope = __( 'It is scoped to a value that does not match any existing user, so no one is granted access — check WP_SUDO_RECOVERY_MODE in wp-config.php for a typo.', 'wp-sudo' );
+			} else {
+				$user  = get_userdata( $target );
+				$login = ( $user && isset( $user->user_login ) ) ? (string) $user->user_login : (string) $target;
+				$scope = sprintf(
+					/* translators: 1: user login, 2: user ID */
+					__( 'It is scoped to the user "%1$s" (ID %2$d), who alone regains Sudo governance access while it is set — provided that user still holds administrator authority (manage_options, or manage_network_options on multisite); a scoped target who lacks it is still denied.', 'wp-sudo' ),
+					// Not pre-escaped: the whole message is esc_html()'d at output below.
+					$login,
+					(int) $target
+				);
+			}
+		}
+
+		$intro   = __( 'Sudo break-glass recovery mode is active (WP_SUDO_RECOVERY_MODE is defined in wp-config.php).', 'wp-sudo' );
+		$outro   = __( 'Remove the constant as soon as normal access is restored — leaving it enabled weakens the governance model.', 'wp-sudo' );
+		$message = $intro . ' ' . $scope . ' ' . $outro;
 
 		echo '<div class="notice notice-warning wp-sudo-notice"><p>' . esc_html( $message ) . '</p></div>';
 	}

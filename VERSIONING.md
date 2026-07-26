@@ -18,7 +18,9 @@ of what is *covered*:
 
 - **Global functions** — `wp_sudo()`, `wp_sudo_check()`, `wp_sudo_require()`,
   `wp_sudo_can()`, `wp_sudo_governance_caps()`, `wp_sudo_map_governance_meta_cap()`,
-  `wp_sudo_is_recovery_mode()`, `wp_sudo_build_challenge_url()`.
+  `wp_sudo_is_recovery_mode()`, `wp_sudo_recovery_mode_is_unscoped()`,
+  `wp_sudo_recovery_mode_user()`, `wp_sudo_user_matches_recovery()`,
+  `wp_sudo_build_challenge_url()`.
 - **Filters** — e.g. `wp_sudo_gated_actions`, `wp_sudo_guard_escalation`,
   `wp_sudo_allow_escalation`, `wp_sudo_cookie_secure`, `wp_sudo_grant_session_on_login`,
   `wp_sudo_requires_two_factor`, `wp_sudo_two_factor_window`, `wp_sudo_validate_two_factor`,

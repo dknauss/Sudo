@@ -216,6 +216,8 @@
       <code><![CDATA[wp_sudo_can( 'revoke_wp_sudo_sessions' )]]></code>
       <code><![CDATA[wp_sudo_is_recovery_mode()]]></code>
       <code><![CDATA[wp_sudo_is_recovery_mode()]]></code>
+      <code><![CDATA[wp_sudo_recovery_mode_is_unscoped()]]></code>
+      <code><![CDATA[wp_sudo_recovery_mode_user()]]></code>
     </UndefinedFunction>
   </file>
   <file src="includes/class-challenge.php">
@@ -319,6 +321,13 @@
     <InvalidArgument>
       <code><![CDATA[$_POST]]></code>
     </InvalidArgument>
+  </file>
+  <file src="includes/class-site-health.php">
+    <UndefinedFunction>
+      <code><![CDATA[wp_sudo_is_recovery_mode()]]></code>
+      <code><![CDATA[wp_sudo_recovery_mode_is_unscoped()]]></code>
+      <code><![CDATA[wp_sudo_recovery_mode_user()]]></code>
+    </UndefinedFunction>
   </file>
   <file src="includes/class-sudo-session.php">
     <UndefinedClass>

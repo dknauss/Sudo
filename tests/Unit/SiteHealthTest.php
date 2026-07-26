@@ -43,7 +43,7 @@ class SiteHealthTest extends TestCase {
 
 	// ── register_tests() ─────────────────────────────────────────────
 
-	public function test_register_tests_adds_four_tests(): void {
+	public function test_register_tests_adds_five_tests(): void {
 		Functions\when( '__' )->returnArg();
 
 		$tests = array( 'direct' => array(), 'async' => array() );
@@ -53,6 +53,7 @@ class SiteHealthTest extends TestCase {
 		$this->assertArrayHasKey( 'wp_sudo_policies', $result['direct'] );
 		$this->assertArrayHasKey( 'wp_sudo_stale_sessions', $result['direct'] );
 		$this->assertArrayHasKey( 'wp_sudo_gated_action_integrity', $result['direct'] );
+		$this->assertArrayHasKey( 'wp_sudo_recovery_mode', $result['direct'] );
 	}
 
 	public function test_register_tests_preserves_existing(): void {
@@ -65,7 +66,7 @@ class SiteHealthTest extends TestCase {
 		$result = $this->health->register_tests( $tests );
 
 		$this->assertArrayHasKey( 'existing_test', $result['direct'] );
-		$this->assertCount( 5, $result['direct'] );
+		$this->assertCount( 6, $result['direct'] );
 	}
 
 	// ── test_role_manifest() (#179) ──────────────────────────────────
@@ -379,5 +380,64 @@ class SiteHealthTest extends TestCase {
 		$result = $this->health->test_stale_sessions();
 
 		$this->assertSame( 'good', $result['status'] );
+	}
+
+	// ── test_recovery_mode() (#240) ──────────────────────────────────
+
+	public function test_recovery_mode_good_when_inactive(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( false );
+
+		$result = $this->health->test_recovery_mode();
+
+		$this->assertSame( 'good', $result['status'] );
+		$this->assertSame( 'wp_sudo_recovery_mode', $result['test'] );
+	}
+
+	public function test_recovery_mode_critical_when_unscoped(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( true );
+		Functions\when( 'wp_sudo_recovery_mode_is_unscoped' )->justReturn( true );
+
+		$result = $this->health->test_recovery_mode();
+
+		$this->assertSame( 'critical', $result['status'] );
+		$this->assertSame( 'wp_sudo_recovery_mode', $result['test'] );
+		// Unscoped names the any-administrator blast radius.
+		$this->assertStringContainsString( 'administrator', $result['description'] );
+	}
+
+	public function test_recovery_mode_critical_when_scoped_resolved(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( true );
+		Functions\when( 'wp_sudo_recovery_mode_is_unscoped' )->justReturn( false );
+		Functions\when( 'wp_sudo_recovery_mode_user' )->justReturn( 12 );
+
+		$user             = new \stdClass();
+		$user->user_login = 'jane';
+		Functions\when( 'get_userdata' )->justReturn( $user );
+
+		$result = $this->health->test_recovery_mode();
+
+		$this->assertSame( 'critical', $result['status'] );
+		// The resolved target is named so the operator can verify scope.
+		$this->assertStringContainsString( 'jane', $result['description'] );
+	}
+
+	public function test_recovery_mode_critical_when_scoped_unresolvable(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'esc_html' )->returnArg();
+		Functions\when( 'wp_sudo_is_recovery_mode' )->justReturn( true );
+		Functions\when( 'wp_sudo_recovery_mode_is_unscoped' )->justReturn( false );
+		Functions\when( 'wp_sudo_recovery_mode_user' )->justReturn( null );
+
+		$result = $this->health->test_recovery_mode();
+
+		$this->assertSame( 'critical', $result['status'] );
+		// An unresolvable target grants nobody — the operator is told to check
+		// for a typo rather than left with a silent no-op.
+		$this->assertStringContainsString( 'no one', strtolower( $result['description'] ) );
 	}
 }

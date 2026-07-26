@@ -520,7 +520,7 @@ msgid "Entry Point Policies"
 msgstr ""
 
 #: includes/class-admin.php:718
-#: includes/class-site-health.php:216
+#: includes/class-site-health.php:221
 msgid "REST API (App Passwords)"
 msgstr ""
 
@@ -531,7 +531,7 @@ msgstr ""
 #: includes/class-admin.php:731
 #: includes/class-dashboard-widget.php:424
 #: includes/class-dashboard-widget.php:799
-#: includes/class-site-health.php:217
+#: includes/class-site-health.php:222
 msgid "WP-CLI"
 msgstr ""
 
@@ -542,7 +542,7 @@ msgstr ""
 #: includes/class-admin.php:744
 #: includes/class-dashboard-widget.php:425
 #: includes/class-dashboard-widget.php:800
-#: includes/class-site-health.php:218
+#: includes/class-site-health.php:223
 msgid "Cron"
 msgstr ""
 
@@ -553,7 +553,7 @@ msgstr ""
 #: includes/class-admin.php:757
 #: includes/class-dashboard-widget.php:426
 #: includes/class-dashboard-widget.php:801
-#: includes/class-site-health.php:219
+#: includes/class-site-health.php:224
 msgid "XML-RPC"
 msgstr ""
 
@@ -562,7 +562,7 @@ msgid "Disabled shuts off the entire XML-RPC protocol. Limited blocks only gated
 msgstr ""
 
 #: includes/class-admin.php:774
-#: includes/class-site-health.php:222
+#: includes/class-site-health.php:227
 msgid "WPGraphQL"
 msgstr ""
 
@@ -1041,15 +1041,15 @@ msgstr ""
 
 #: includes/class-admin.php:2791
 #: includes/class-admin.php:2849
-#: includes/class-admin.php:3646
 #: includes/class-admin.php:3670
+#: includes/class-admin.php:3694
 msgid "Unauthorized."
 msgstr ""
 
 #: includes/class-admin.php:2799
 #: includes/class-admin.php:2857
-#: includes/class-admin.php:3603
-#: includes/class-admin.php:3655
+#: includes/class-admin.php:3627
+#: includes/class-admin.php:3679
 msgid "A sudo session is required. Activate one then try again."
 msgstr ""
 
@@ -1102,15 +1102,15 @@ msgid "How long a sudo session lasts before automatically expiring. Range: 1–1
 msgstr ""
 
 #: includes/class-admin.php:2968
-#: includes/class-admin.php:3488
-#: includes/class-admin.php:3492
+#: includes/class-admin.php:3512
+#: includes/class-admin.php:3516
 #: includes/class-dashboard-widget.php:864
 msgid "Custom"
 msgstr ""
 
 #: includes/class-admin.php:3005
-#: includes/class-admin.php:3503
-#: includes/class-admin.php:3598
+#: includes/class-admin.php:3527
+#: includes/class-admin.php:3622
 msgid "Disabled"
 msgstr ""
 
@@ -1119,8 +1119,8 @@ msgid "Limited (default)"
 msgstr ""
 
 #: includes/class-admin.php:3015
-#: includes/class-admin.php:3504
-#: includes/class-admin.php:3600
+#: includes/class-admin.php:3528
+#: includes/class-admin.php:3624
 msgid "Unrestricted"
 msgstr ""
 
@@ -1146,54 +1146,72 @@ msgstr ""
 msgid "Passed event logging is disabled by code override (constant/filter). Actions performed during active sudo sessions will not appear in dashboard event history."
 msgstr ""
 
-#: includes/class-admin.php:3355
-msgid "Sudo break-glass recovery mode is active (WP_SUDO_RECOVERY_MODE is defined in wp-config.php). While it is set, any user who holds the manage_options capability — manage_network_options on multisite — regains full Sudo governance access, regardless of role. Remove the constant as soon as normal access is restored — leaving it enabled weakens the governance model."
+#: includes/class-admin.php:3358
+msgid "It is unscoped: while it is set, any user who holds the manage_options capability — manage_network_options on multisite — regains full Sudo governance access, regardless of role."
 msgstr ""
 
-#: includes/class-admin.php:3444
+#: includes/class-admin.php:3363
+msgid "It is scoped to a value that does not match any existing user, so no one is granted access — check WP_SUDO_RECOVERY_MODE in wp-config.php for a typo."
+msgstr ""
+
+#. translators: 1: user login, 2: user ID
+#: includes/class-admin.php:3369
+#, php-format
+msgid "It is scoped to the user \"%1$s\" (ID %2$d), who alone regains Sudo governance access while it is set — provided that user still holds administrator authority (manage_options, or manage_network_options on multisite); a scoped target who lacks it is still denied."
+msgstr ""
+
+#: includes/class-admin.php:3377
+msgid "Sudo break-glass recovery mode is active (WP_SUDO_RECOVERY_MODE is defined in wp-config.php)."
+msgstr ""
+
+#: includes/class-admin.php:3378
+msgid "Remove the constant as soon as normal access is restored — leaving it enabled weakens the governance model."
+msgstr ""
+
+#: includes/class-admin.php:3468
 msgid "Sudo removed a leftover permission-mode setting left over from before version 4.0.0. Sudo now always enforces strict, role-based permission checks. No action is needed."
 msgstr ""
 
-#: includes/class-admin.php:3505
-#: includes/class-admin.php:3599
+#: includes/class-admin.php:3529
+#: includes/class-admin.php:3623
 msgid "Limited"
 msgstr ""
 
-#: includes/class-admin.php:3597
+#: includes/class-admin.php:3621
 msgid "Global default"
 msgstr ""
 
-#: includes/class-admin.php:3604
+#: includes/class-admin.php:3628
 msgid "Sudo policy for this application password"
 msgstr ""
 
-#: includes/class-admin.php:3605
-#: includes/class-admin.php:3606
+#: includes/class-admin.php:3629
+#: includes/class-admin.php:3630
 msgid "Sudo Policy"
 msgstr ""
 
-#: includes/class-admin.php:3607
-#: includes/class-admin.php:3727
+#: includes/class-admin.php:3631
+#: includes/class-admin.php:3751
 msgid "Policy saved."
 msgstr ""
 
-#: includes/class-admin.php:3608
+#: includes/class-admin.php:3632
 msgid "Policy could not be saved."
 msgstr ""
 
-#: includes/class-admin.php:3665
+#: includes/class-admin.php:3689
 msgid "Invalid user."
 msgstr ""
 
-#: includes/class-admin.php:3680
+#: includes/class-admin.php:3704
 msgid "Invalid application password UUID."
 msgstr ""
 
-#: includes/class-admin.php:3686
+#: includes/class-admin.php:3710
 msgid "Invalid application password UUID format."
 msgstr ""
 
-#: includes/class-admin.php:3694
+#: includes/class-admin.php:3718
 msgid "Application password not found."
 msgstr ""
 
@@ -1782,116 +1800,121 @@ msgstr ""
 msgid "Sudo Gated Action Integrity"
 msgstr ""
 
-#: includes/class-site-health.php:72
+#: includes/class-site-health.php:69
+msgid "Sudo Break-Glass Recovery Mode"
+msgstr ""
+
+#: includes/class-site-health.php:77
 msgid "Sudo Role/Capability Manifest"
 msgstr ""
 
-#: includes/class-site-health.php:110
-#: includes/class-site-health.php:171
-#: includes/class-site-health.php:183
-#: includes/class-site-health.php:239
-#: includes/class-site-health.php:251
-#: includes/class-site-health.php:282
-#: includes/class-site-health.php:294
-#: includes/class-site-health.php:323
-#: includes/class-site-health.php:352
+#: includes/class-site-health.php:115
+#: includes/class-site-health.php:176
+#: includes/class-site-health.php:188
+#: includes/class-site-health.php:244
+#: includes/class-site-health.php:256
+#: includes/class-site-health.php:287
+#: includes/class-site-health.php:299
+#: includes/class-site-health.php:328
+#: includes/class-site-health.php:357
+#: includes/class-site-health.php:392
 msgid "Security"
 msgstr ""
 
-#: includes/class-site-health.php:116
+#: includes/class-site-health.php:121
 msgid "Sudo role manifest is unreadable"
 msgstr ""
 
-#: includes/class-site-health.php:119
+#: includes/class-site-health.php:124
 msgid "A role/capability manifest path is configured but the file is missing or invalid. The lockdown audit is inactive until it is regenerated with \"wp sudo manifest generate\"."
 msgstr ""
 
-#: includes/class-site-health.php:133
+#: includes/class-site-health.php:138
 msgid "Sudo detected role/capability drift"
 msgstr ""
 
 #. translators: 1: number of unauthorized principals, 2: number of drifted role definitions
-#: includes/class-site-health.php:138
+#: includes/class-site-health.php:143
 #, php-format
 msgid "Stored privileged state has drifted from the trusted manifest: %1$d unauthorized principal(s) and %2$d changed role definition(s). Review with \"wp sudo manifest diff\", then remediate or re-baseline with \"wp sudo manifest generate\"."
 msgstr ""
 
-#: includes/class-site-health.php:147
+#: includes/class-site-health.php:152
 msgid "Sudo role/capability state matches the manifest"
 msgstr ""
 
-#: includes/class-site-health.php:150
+#: includes/class-site-health.php:155
 msgid "All trusted administrators, super admins, governance-cap holders, and watched role definitions match the manifest. No drift detected."
 msgstr ""
 
-#: includes/class-site-health.php:168
+#: includes/class-site-health.php:173
 msgid "Sudo MU-Plugin is installed"
 msgstr ""
 
-#: includes/class-site-health.php:174
+#: includes/class-site-health.php:179
 msgid "The Sudo MU-Plugin is installed, ensuring gate hooks are registered before any regular plugin loads."
 msgstr ""
 
-#: includes/class-site-health.php:180
+#: includes/class-site-health.php:185
 msgid "Sudo MU-Plugin is not installed"
 msgstr ""
 
-#: includes/class-site-health.php:186
+#: includes/class-site-health.php:191
 msgid "The optional Sudo MU-Plugin is not installed. While the plugin works without it, the MU-Plugin ensures gate hooks are registered before any regular plugin can interfere."
 msgstr ""
 
 #. translators: %s: URL to the Sudo settings page
-#: includes/class-site-health.php:189
+#: includes/class-site-health.php:194
 #, php-format
 msgid "Install the MU-Plugin with one click from <a href=\"%s\">Settings &rarr; Sudo</a>."
 msgstr ""
 
-#: includes/class-site-health.php:236
+#: includes/class-site-health.php:241
 msgid "All Sudo entry point policies are secure"
 msgstr ""
 
-#: includes/class-site-health.php:242
+#: includes/class-site-health.php:247
 msgid "All non-interactive entry points are set to \"limited\" or \"disabled\", preventing unrestricted access to gated operations via CLI, Cron, XML-RPC, and Application Passwords."
 msgstr ""
 
-#: includes/class-site-health.php:248
+#: includes/class-site-health.php:253
 msgid "Some Sudo entry point policies are unrestricted"
 msgstr ""
 
 #. translators: %s: comma-separated list of unrestricted policy names
-#: includes/class-site-health.php:256
+#: includes/class-site-health.php:261
 #, php-format
 msgid "The following entry points are set to \"unrestricted\": %s. Consider using \"limited\" (blocks only gated actions) or \"disabled\" (shuts off the entire surface) for better security."
 msgstr ""
 
-#: includes/class-site-health.php:279
+#: includes/class-site-health.php:284
 msgid "All built-in Sudo gated actions are registered"
 msgstr ""
 
-#: includes/class-site-health.php:285
+#: includes/class-site-health.php:290
 msgid "The filtered gated action registry still includes the built-in Sudo protection set."
 msgstr ""
 
-#: includes/class-site-health.php:291
+#: includes/class-site-health.php:296
 msgid "Some built-in Sudo gated actions are not registered"
 msgstr ""
 
 #. translators: %s: comma-separated list of missing built-in gated action IDs
-#: includes/class-site-health.php:299
+#: includes/class-site-health.php:304
 #, php-format
 msgid "A wp_sudo_gated_actions filter removed these built-in rules: %s. Confirm this is intentional; otherwise, restore the default rules so dangerous actions remain gated."
 msgstr ""
 
-#: includes/class-site-health.php:320
+#: includes/class-site-health.php:325
 msgid "No stale Sudo sessions found"
 msgstr ""
 
-#: includes/class-site-health.php:326
+#: includes/class-site-health.php:331
 msgid "All sudo session tokens are either active or have been cleaned up. No action needed."
 msgstr ""
 
 #. translators: %d: number of stale sessions cleaned
-#: includes/class-site-health.php:342
+#: includes/class-site-health.php:347
 #, php-format
 msgid "%d stale Sudo session cleaned up"
 msgid_plural "%d stale Sudo sessions cleaned up"
@@ -1899,12 +1922,42 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. translators: %d: number of stale sessions
-#: includes/class-site-health.php:357
+#: includes/class-site-health.php:362
 #, php-format
 msgid "Found and cleaned %d expired sudo session token. This is normal — tokens expire naturally but are only cleaned on the next page load."
 msgid_plural "Found and cleaned %d expired sudo session tokens. This is normal — tokens expire naturally but are only cleaned on the next page load."
 msgstr[0] ""
 msgstr[1] ""
+
+#: includes/class-site-health.php:398
+msgid "Break-glass recovery mode is not active"
+msgstr ""
+
+#: includes/class-site-health.php:401
+msgid "WP Sudo break-glass recovery mode (WP_SUDO_RECOVERY_MODE) is not defined. The governance capability model is fully in force."
+msgstr ""
+
+#: includes/class-site-health.php:407
+msgid "It is unscoped: while it stays defined, any user who still holds administrator authority (network administrator on multisite) regains full Sudo governance access."
+msgstr ""
+
+#: includes/class-site-health.php:412
+msgid "It is scoped to a value that does not resolve to any existing user, so no one is granted access — check WP_SUDO_RECOVERY_MODE for a typo."
+msgstr ""
+
+#. translators: 1: user login, 2: user ID
+#: includes/class-site-health.php:418
+#, php-format
+msgid "It is scoped to the user \"%1$s\" (ID %2$d), who alone regains Sudo governance access while it stays defined — provided that user still holds administrator authority (manage_options, or manage_network_options on multisite); a scoped target who lacks it is still denied."
+msgstr ""
+
+#: includes/class-site-health.php:426
+msgid "Break-glass recovery mode is active"
+msgstr ""
+
+#: includes/class-site-health.php:429
+msgid "Remove WP_SUDO_RECOVERY_MODE from wp-config.php as soon as normal access is restored — leaving it enabled weakens the governance model."
+msgstr ""
 
 #: admin/js/wp-sudo-editor-reauth.js:141
 msgid "Reauthenticate"

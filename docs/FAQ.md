@@ -138,17 +138,26 @@ Break-glass recovery mode is an emergency escape hatch for the "last manager loc
 
 This is WP Sudo's break-glass governance recovery path, not WordPress core's `WP_Recovery_Mode`.
 
+Prefer the **scoped** form, which grants a single named user:
+
 ```php
-define( 'WP_SUDO_RECOVERY_MODE', true );
+define( 'WP_SUDO_RECOVERY_MODE', 'the_locked_out_login' ); // or a numeric user ID
+```
+
+The legacy **unscoped** form grants the current user (any `manage_options` holder):
+
+```php
+define( 'WP_SUDO_RECOVERY_MODE', true ); // strictly boolean true; note define(..., 1) means user ID 1
 ```
 
 When active:
-- The current user gains effective `manage_wp_sudo` access **only if they also hold site/network admin authority** — `manage_options` on single-site, `manage_network_options` on multisite. The break-glass recovery check is role-gated: a locked-out manager who kept their administrator role recovers, but subscribers, editors, and other non-admins gain nothing. (Multisite super admins always pass regardless.)
-- A **permanent, non-dismissible warning notice** is shown on the Sudo settings screen while break-glass recovery mode is active, and the `wp_sudo_recovery_mode_active` audit hook fires (recorded as a sampled `recovery_mode` event) so the usage is visible to logging tools.
+- The matched user gains effective `manage_wp_sudo` access **only if they also hold site/network admin authority** — `manage_options` on single-site, `manage_network_options` on multisite. The break-glass recovery check is role-gated: a locked-out manager who kept their administrator role recovers, but subscribers, editors, and other non-admins gain nothing. (Multisite super admins always pass regardless.)
+- **Scoped** (`<user_id_or_login>`) limits recovery to that one user. An integer is a user ID; a string is a login (network-global on multisite). A value that matches **no existing user** grants nobody — it fails closed rather than falling back to any admin, so fix a typo in `wp-config.php` if recovery seems to grant no one.
+- A **permanent, non-dismissible warning notice** is shown on the Sudo settings screen while break-glass recovery mode is active (its copy names the scope), a **Site Health critical status** flags it on the health dashboard, and the `wp_sudo_recovery_mode_active` audit hook fires (recorded as a sampled `recovery_mode` event) so the usage is visible to logging tools.
 
 Break-glass recovery mode **does not** bypass the reauthentication challenge itself. A user using break-glass recovery mode must still complete the sudo challenge on gated actions — they just regain access to the Sudo settings and Access tab.
 
-Defining the constant requires `wp-config.php` write access, so the practical risk is operator error rather than remote escalation. The role gate contains the blast radius, but while the constant is set **every administrator** (every `manage_options` holder) regains full Sudo governance — and can self-grant the other capabilities and change gating policy from the Access tab. **Remove the constant the moment normal access is restored.**
+Defining the constant requires `wp-config.php` write access, so the practical risk is operator error rather than remote escalation. With the **unscoped** form, while the constant is set **every administrator** (every `manage_options` holder) regains full Sudo governance — and can self-grant the other capabilities and change gating policy from the Access tab; the scoped form avoids this by naming a single user. **Remove the constant the moment normal access is restored.**
 
 One limitation: because the gate requires an admin capability, break-glass recovery mode does **not** rescue a Sudo manager who was deliberately granted `manage_wp_sudo` *without* a WordPress admin role. Recover such a user another way — for example `wp user add-cap <user> manage_wp_sudo` via WP-CLI, or temporarily grant them `manage_options`.
 
