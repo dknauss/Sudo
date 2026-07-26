@@ -175,13 +175,21 @@ test.describe( 'WP Sudo multisite alternative stack smoke tests', () => {
                 );
                 await page.fill( '#wp-sudo-challenge-password', DEFAULT_PASSWORD );
 
+                // #322: reauth does not apply the stashed preset — a cloned session
+                // could have planted it. The user returns and submits again; the
+                // now-active sudo session passes that second submit through.
                 await Promise.all( [
-                    page.waitForURL(
-                        /\/wp-admin\/network\/settings\.php\?page=wp-sudo-settings(?:&updated=true)?$/,
-                        { timeout: NAV_TIMEOUT }
-                    ),
+                    page.waitForURL( /wp_sudo_blocked_replay=1/, { timeout: NAV_TIMEOUT } ),
                     forceClick( page.locator( '#wp-sudo-challenge-submit' ) ),
                 ] );
+
+                await page.goto( '/wp-admin/network/settings.php?page=wp-sudo-settings' );
+                await presetSelection.selectOption( preset );
+                await forceClick( page.locator( '#submit' ) );
+                await page.waitForURL(
+                    /\/wp-admin\/network\/settings\.php\?page=wp-sudo-settings/,
+                    { timeout: NAV_TIMEOUT }
+                );
             }
 
             await expect(

@@ -1427,7 +1427,8 @@ test.describe( 'Challenge flow', () => {
     } );
 
     /**
-     * CHAL-15: A stashed gated action should replay after the 2FA lockout countdown expires.
+     * CHAL-15 (#322): the 2FA lockout-recovery path still lets the user through; the
+     * stashed action is NOT replayed (a cloned session could have planted it).
      */
     test( 'CHAL-15: stash replay survives 2FA lockout expiry recovery', async ( {
         page,
@@ -1506,10 +1507,15 @@ test.describe( 'Challenge flow', () => {
                 'The recovered stash-backed 2FA flow must return to plugins.php'
             ).toHaveURL( /plugins\.php/ );
 
+            // #322: what this test pins is the LOCKOUT RECOVERY path — that a user can
+            // still get through after the 2FA lockout expires. The stashed action is
+            // deliberately NOT carried out: a cloned session could have planted it, so
+            // reauth returns the user to the originating screen to re-perform it.
+            await expect( page ).toHaveURL( /wp_sudo_blocked_replay=1/ );
             await expect(
                 page.locator( `.deactivate a[href*="${ E2E_ACTIVATABLE_PLUGIN_DIR }"]` ),
-                'The stashed fixture plugin activation should complete after 2FA lockout recovery'
-            ).toBeVisible( { timeout: 10_000 } );
+                'The stashed activation must NOT be replayed after reauth (#322)'
+            ).toHaveCount( 0 );
         } finally {
             await disableE2eTwoFactor();
         }
@@ -1635,10 +1641,13 @@ test.describe( 'Challenge flow', () => {
                 'The recovered provider-backed stash flow must return to plugins.php'
             ).toHaveURL( /plugins\.php/ );
 
+            // #322: as in CHAL-15, this pins the resend + lockout-recovery path, not a
+            // replay. The stashed action is never carried out by the reauth.
+            await expect( page ).toHaveURL( /wp_sudo_blocked_replay=1/ );
             await expect(
                 page.locator( `.deactivate a[href*="${ E2E_ACTIVATABLE_PLUGIN_DIR }"]` ),
-                'The stashed fixture plugin activation should complete after provider resend and 2FA lockout recovery'
-            ).toBeVisible( { timeout: 10_000 } );
+                'The stashed activation must NOT be replayed after reauth (#322)'
+            ).toHaveCount( 0 );
         } finally {
             await disableE2eTwoFactor();
         }
