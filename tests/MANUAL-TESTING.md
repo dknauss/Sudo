@@ -1051,8 +1051,11 @@ no stash transients are written, and no audit hooks fire.
 5. **Expected:**
    - Matched rule: `plugin.activate`
    - Decision: `gate`
-   - Stash/replay eligible: yes
-   - A note indicates that interactive admin requests use challenge + stash/replay.
+   - Replay permitted by this rule: `Yes — subject to the conditions below`
+   - A note states that the rule permits replay but the action only resumes
+     automatically when the same browser that started it completes the
+     reauthentication over HTTPS and the challenge could name the whole action —
+     otherwise the user is returned to the page and performs it again (#322).
 
 #### Test B — AJAX surface: install plugin
 

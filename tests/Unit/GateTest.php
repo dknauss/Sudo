@@ -2679,6 +2679,32 @@ class GateTest extends TestCase {
 	}
 
 	/**
+	 * #322: the rule-level replay property must survive the active-sudo early return.
+	 *
+	 * evaluate_diagnostic_request() returns as soon as an active sudo session would
+	 * allow the request, before the admin-surface block. Deriving eligibility only in
+	 * that block left the array default of false, so a replayable rule reported
+	 * "never replayed" with the box ticked and the opposite with it cleared.
+	 */
+	public function test_evaluate_diagnostic_reports_rule_replay_permission_with_active_sudo(): void {
+		$result = $this->gate->evaluate_diagnostic_request(
+			array(
+				'surface'          => 'admin',
+				'method'           => 'GET',
+				'url'              => 'https://example.com/wp-admin/plugins.php?action=activate',
+				'is_authenticated' => true,
+				'has_active_sudo'  => true,
+			)
+		);
+
+		$this->assertSame( 'plugin.activate', $result['matched_rule_id'] );
+		$this->assertTrue(
+			$result['stash_replay_eligible'],
+			'A replayable rule must report the same permission regardless of the active-sudo checkbox.'
+		);
+	}
+
+	/**
 	 * Test the diagnostic reports a non-replayable admin rule (stash_no_replay)
 	 * as NOT replay-eligible — it must not claim challenge+stash/replay for rules
 	 * that require reauth-then-resubmit (profile email/password/role saves).

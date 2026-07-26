@@ -1530,6 +1530,16 @@ class Gate {
 			$result['matched_rule_id']    = $matched_rule['id'] ?? null;
 			$result['matched_rule_label'] = $matched_rule['label'] ?? ( $matched_rule['id'] ?? null );
 			$result['matched_surface']    = $surface;
+			// Whether the RULE permits replay is a property of the rule, so derive it
+			// as soon as one matches — not after the early returns below. Otherwise a
+			// replayable rule checked with "active sudo session" (which returns early)
+			// keeps the array default of false and reports "never replayed", the
+			// opposite of what the same rule reports with the box cleared. Scoped to
+			// the admin surface because stash/replay only exists there: AJAX and REST
+			// return a sudo_required error and are never replayed, so false is right.
+			if ( 'admin' === $surface ) {
+				$result['stash_replay_eligible'] = 'none' !== ( $matched_rule['stash']['post_mode'] ?? 'allowlist' );
+			}
 		}
 
 		if ( ! $is_authenticated ) {
@@ -1554,13 +1564,10 @@ class Gate {
 			// reauthentication is the one that created it — so reporting a plain "Yes"
 			// here would tell an operator the action resumes when, on an HTTP site or
 			// from a different browser, it never will.
-			$stash_mode = $matched_rule['stash']['post_mode'] ?? 'allowlist';
-			if ( 'none' === $stash_mode ) {
-				$result['stash_replay_eligible'] = false;
-				$result['notes'][]               = __( 'Interactive admin request: gated, and this rule is never replayed — after reauthentication the user re-submits the form.', 'wp-sudo' );
+			if ( empty( $result['stash_replay_eligible'] ) ) {
+				$result['notes'][] = __( 'Interactive admin request: gated, and this rule is never replayed — after reauthentication the user re-submits the form.', 'wp-sudo' );
 			} else {
-				$result['stash_replay_eligible'] = true;
-				$result['notes'][]               = __( 'Interactive admin request: gated. This rule permits replay, but the action only resumes automatically when the same browser that started it completes the reauthentication over HTTPS and the challenge was able to name the whole action. Otherwise the user is returned to the page and performs it again.', 'wp-sudo' );
+				$result['notes'][] = __( 'Interactive admin request: gated. This rule permits replay, but the action only resumes automatically when the same browser that started it completes the reauthentication over HTTPS and the challenge was able to name the whole action. Otherwise the user is returned to the page and performs it again.', 'wp-sudo' );
 			}
 			return $result;
 		}
