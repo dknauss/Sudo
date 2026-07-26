@@ -63,12 +63,8 @@ class Sudo_Session {
 	 * (which stores all session tokens in a single `session_tokens` meta the same
 	 * way). Reauth is human-paced, so the window is negligible; #279 is
 	 * eliminated for the realistic case and no worse than core for the rest.
-	 * Verified in core `wp-includes/class-wp-user-meta-session-tokens.php`:
-	 * `get_sessions()` reads the single `session_tokens` meta, `update_session()`
-	 * mutates one verifier's entry, and `update_sessions()` writes the whole
-	 * array back with `update_user_meta()` — a read-modify-write on one row:
-	 * <https://github.com/WordPress/wordpress-develop/blob/trunk/src/wp-includes/class-wp-user-meta-session-tokens.php>
-	 * (retrieved 2026-07-26).
+	 * Core rewrites its whole `session_tokens` row the same way — see
+	 * GB-CORE-SESSION-RMW in docs/upstream-sources.md.
 	 *
 	 * Degradation: when the AUTH_SALT family lives in wp_options rather than
 	 * wp-config.php, a DB-write attacker can read the salt and forge the HMAC;
