@@ -81,8 +81,8 @@ Three safeguards make the window visible:
 - A **permanent, non-dismissible warning notice** appears on the Sudo settings
   screen while break-glass recovery mode is active. Its copy reflects the actual
   scope (unscoped, the named target, or "resolves to no user — check for a typo").
-- A **Site Health critical status** (`Settings → Site Health`, and
-  `wp cli site-health`) flags that recovery mode is active whenever the constant
+- A **Site Health critical status** (under `Tools → Site Health`) flags that
+  recovery mode is active whenever the constant
   is defined, naming the scope so a forgotten constant is caught on the health
   dashboard, not only on a Sudo screen.
 - The `wp_sudo_recovery_mode_active` **audit hook** fires on every Sudo

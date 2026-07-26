@@ -415,7 +415,7 @@ class Site_Health {
 				$login = ( $user && isset( $user->user_login ) ) ? (string) $user->user_login : (string) $target;
 				$scope = sprintf(
 					/* translators: 1: user login, 2: user ID */
-					__( 'It is scoped to the user "%1$s" (ID %2$d), who alone regains Sudo governance access while it stays defined.', 'wp-sudo' ),
+					__( 'It is scoped to the user "%1$s" (ID %2$d), who alone regains Sudo governance access while it stays defined — provided that user still holds administrator authority (manage_options, or manage_network_options on multisite); a scoped target who lacks it is still denied.', 'wp-sudo' ),
 					esc_html( $login ),
 					$target
 				);
