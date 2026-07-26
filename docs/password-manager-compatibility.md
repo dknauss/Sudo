@@ -4,12 +4,14 @@ Status of password-manager autofill on WP Sudo's reauthentication surfaces.
 
 > **Verification boundary.** The *markup audit* below is factual and cited to
 > source (verifiable from the code). The *per-manager autofill matrix* is
-> **NOT** filled in: per this repo's verification rules (`CLAUDE.md` →
-> Verification Requirements; the password-manager 2FA interaction research todo
-> under `.planning/todos/pending/`), a
-> specific manager's autofill/TOTP behavior must not be recorded as fact without a
-> concrete manager version + reproduction. Those cells require manual verification
-> on a machine with each manager installed — they are left as `pending`.
+> **partially verified**: as of 2026-07-24 the **iCloud Keychain** row is filled
+> from a real observed reproduction (see "Verified results" below); every other
+> manager's cells remain `pending` or `not tested`. Per this repo's verification
+> rules (`CLAUDE.md` → Verification Requirements; the password-manager 2FA
+> interaction research todo under `.planning/todos/pending/`), a specific
+> manager's autofill/TOTP behavior must not be recorded as fact without a concrete
+> manager version + reproduction. Untested cells require manual verification on a
+> machine with each manager installed and are left as `pending` / `not tested`.
 
 ## Reauth surfaces
 
@@ -57,20 +59,97 @@ and this file's own rule is not to encode unverified manager behavior. Decide it
 during the manual pass, with a repro showing it changes autofill for a real
 manager.
 
-## Per-manager autofill matrix — PENDING MANUAL VERIFICATION
+## Per-manager autofill matrix — PARTIAL (iCloud Passwords Chrome extension, offer-only, 2026-07-24)
 
 Fill each cell only with a concrete manager version + reproduction. Do not infer.
 
 | Manager | Full-page: password | Full-page: TOTP | Modal: password |
 |---|---|---|---|
-| 1Password | pending | pending (see todo — reproduce the "harder with 2FA" report with a version) | pending |
+| 1Password | not tested (2026-07-24) — see note | pending (see todo — reproduce the "harder with 2FA" report with a version) | not tested (2026-07-24) — see note |
 | Bitwarden | pending | pending | pending |
-| iCloud Keychain | pending | pending | pending |
-| Chrome/Edge/Firefox built-in | pending | pending | pending |
+| iCloud Keychain (iCloud Passwords Chrome ext. only)¹ | ✅ **offers**, fill/submit pending² (2026-07-24) | pending — no 2FA-enabled account tested | ✅ **offers**, fill/submit pending² (2026-07-24) |
+| Chrome/Edge/Firefox built-in | not isolated (2026-07-24) — see note | pending | not isolated (2026-07-24) — see note |
 | Dashlane | pending | pending | pending |
 
 For each filled cell, state whether a miss is a **manager limitation** or a
 **fixable-markup** issue on our side, and link the repro.
+
+¹ **Scope:** only the **iCloud Passwords Chrome extension** (Chrome 150) was
+exercised. Safari's native iCloud Keychain integration and other Apple browser
+contexts use different autofill surfaces and were **not** tested — pending. The
+extension version is not exposed to page scripts, so this file's "concrete version"
+boundary cannot be met for this manager; treat the result as extension-build-agnostic
+and re-verify after major macOS/extension updates.
+
+² **Offer-only:** the autofill *offer* appearing is verified; the full **offer →
+accept-fill → submit → sudo grant** chain is **not** — a controlled React
+`TextControl` may show an offer yet not update the field's state until the tester
+accepts the fill (Touch ID) at the machine.
+
+### Verified results — iCloud Keychain (2026-07-24)
+
+- **Manager / environment:** iCloud Passwords Chrome extension (ships with the OS;
+  exact extension version not exposed to page scripts — not captured) on **macOS 26**,
+  **Google Chrome 150** (both read from the live browser: `navigator.userAgent` +
+  `userAgentData` high-entropy `platformVersion`). **Site:** local WordPress Studio
+  at `http://localhost:8881`, **WP Sudo 4.8.0**, WordPress 7.0.2 / PHP 8.5.8, admin
+  account with **no** Two Factor enabled. Observed by the human tester on the real
+  screen (the native autofill popup renders in a compositor layer that automation
+  screenshots capture as blank).
+- **Coverage status (partial):** the cells record that iCloud Keychain **offers**
+  autofill on both password surfaces (the primary markup-compatibility question).
+  NOT yet verified: the full **offer → accept-fill → submit → sudo grant** chain
+  end-to-end (requires the human tester's Touch ID acceptance at the machine), and
+  the **Full-page TOTP** cell (needs a Two Factor-enabled account with the secret
+  stored in iCloud). Both are pending a live tester session at the test machine.
+- **Full-page challenge — password → OFFERS.** On focusing
+  `#wp-sudo-challenge-password` (real `<form method=post>`, `type=password`,
+  `autocomplete="current-password"`, associated "Password" label), iCloud
+  Passwords surfaced its autofill suggestion. Trigger: the Plugins-screen
+  "Confirm your identity" link → `admin.php?page=wp-sudo-challenge`.
+- **In-editor modal — password → OFFERS.** The `wp.components.Modal`
+  (`.wp-sudo-reauth-modal`) password field (`type=password`,
+  `autocomplete="current-password"`, real `<form>`, "Password" label,
+  `id="inspector-text-control-N"`) also drew an iCloud Passwords offer. Trigger:
+  a gated `apiFetch({ path:'/wp/v2/plugins/hello', method:'PUT', data:{status:'active'} })`
+  fired from the block editor — the `plugin.activate` rule intercepts with
+  `sudo_required` *before* the controller runs (nothing is actually activated),
+  opening the modal (the same mechanism as E2E `editor-reauth.spec.ts` EDITOR-01).
+- **Live-markup observations (both surfaces):** the password input carries an
+  **empty `name`** attribute and there is **no `autocomplete="username"` hint
+  field** — yet iCloud Keychain offered on both surfaces regardless. This is
+  direct evidence that the standards-minimal set (real form + `type=password` +
+  `current-password` + label + submit) is **sufficient for iCloud Keychain**, and
+  that the "Candidate cheap fix" `autocomplete="username"` hint is **not required
+  for iCloud Keychain** (it may still help managers that key on the username
+  field to pick *which* credential — verify per-manager before concluding).
+- **Classification:** the autofill **offer** is verified on both surfaces (no
+  markup change is needed for the offer to appear); the full **offer → accept-fill
+  → submit → sudo grant** chain is **not yet verified**, and the result is scoped to
+  the **iCloud Passwords Chrome extension only** — Safari's native iCloud Keychain
+  and other Apple contexts remain pending.
+- **Not tested:** the **Full-page TOTP** cell (the test account has no Two Factor
+  provider enabled, so the Two Factor plugin renders no `one-time-code` field); and
+  the **in-editor modal 2FA** surface — the modal now hosts an in-place second factor
+  for modal-capable providers (TOTP / email / backup codes, Milestone B) and links
+  out only for non-modal-capable providers, so its autofill/TOTP behavior with any
+  manager is untested here.
+
+### Notes on the untested rows (2026-07-24)
+
+- **1Password — not tested this pass.** The 1Password extension was **absent from
+  the available Chrome profile** ("Home Mac Mini" identity). No DOM injection
+  (no injected iframe, no `1password`/`op-` field attributes or inline-menu
+  container) was detected on either surface, consistent with the extension not
+  running in that profile. The priority "1Password + Two Factor" repro target
+  (below) remains **pending** a Chrome profile with 1Password installed and
+  unlocked.
+- **Chrome/Edge/Firefox built-in — not isolated this pass.** In the test profile
+  **iCloud Passwords was the active autofill provider**; Chrome's own dropdown
+  did not surface a saved credential (`:autofill` pseudo-class was false, no
+  Chrome suggestion observed). A clean test of Chrome's built-in manager needs a
+  profile **without** iCloud Passwords intercepting, with a credential for
+  `localhost:8881` saved in Chrome.
 
 ## Manual verification protocol
 
