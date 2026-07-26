@@ -36,6 +36,12 @@ export interface WpEnvRunOptions {
  * The trailing `--` makes wp-env/yargs forward every remaining token verbatim to
  * the container command (documented "double dash" passthrough), so tokens like
  * `--skip-plugins`, `--quiet`, or `-lc` are never parsed as wp-env options.
+ *
+ * Verification source (@wordpress/env 11.11.0, the pinned devDependency):
+ * lib/cli.js configures yargs with `populate--: true` + `unknown-options-as-args:
+ * true` and documents the double dash ("Use a double dash to pass arguments to
+ * it"); lib/commands/run.js forwards the post-`--` tokens to the container command
+ * via `command.push( ...doubleDashedArgs )`.
  */
 export function wpEnvRunArgv( container: string, args: string[] ): string[] {
 	const configPath = process.env.WP_ENV_CONFIG_PATH?.trim();
