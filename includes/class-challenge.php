@@ -1120,6 +1120,14 @@ class Challenge {
 			return false;
 		}
 
+		// Never replay more than the confirmation described. `target_complete` is false
+		// when a displayed value was truncated (the first few of a bulk delete shown,
+		// the rest hidden) or when the payload carries an effect field the target does
+		// not name. Consent to a partial description is not consent to the whole effect.
+		if ( empty( $stash['target_complete'] ) ) {
+			return false;
+		}
+
 		$expected = isset( $stash['binding_hash'] ) && is_string( $stash['binding_hash'] ) ? $stash['binding_hash'] : '';
 
 		if ( '' === $expected ) {
@@ -1213,8 +1221,14 @@ class Challenge {
 
 				if ( 'GET' === strtoupper( (string) ( $stash['method'] ?? 'GET' ) ) ) {
 					return array(
-						'code'     => 'success',
-						'redirect' => $safe_url,
+						'code'      => 'success',
+						'redirect'  => $safe_url,
+						// Navigating here EXECUTES the action, so it is a replay even
+						// though it carries no form. Without this the client cannot tell
+						// it apart from a fail-closed redirect and would announce
+						// "returning you to your page" while the action runs — worst for
+						// screen-reader users, who have no other signal.
+						'replaying' => true,
 					);
 				}
 

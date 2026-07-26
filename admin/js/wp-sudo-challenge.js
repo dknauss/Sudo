@@ -308,7 +308,7 @@
 		// responses now carry a plain redirect (the action is NOT resumed), and
 		// announcing a replay there tells screen-reader users the opposite of what
 		// happened — the one cohort that cannot see the notice on the next page.
-		var willReplay = !!(data && data.replay);
+		var willReplay = !!(data && (data.replay || data.replaying));
 		var message = willReplay ? strings.replayingAction : strings.returningToPage;
 
 		loadingOverlay.hidden = false;

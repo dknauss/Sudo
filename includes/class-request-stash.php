@@ -90,6 +90,31 @@ class Request_Stash {
 		'admin_email',
 		'default_role',
 		'users_can_register',
+		// Effect fields for built-ins whose target is not the rule's own noun:
+		// plugin.delete identifies its plugins with checked[], user.promote its
+		// destination with new_role. Without these the confirmation is blank while the
+		// full payload replays.
+		'checked',
+		'new_role',
+	);
+
+	/**
+	 * Request fields that carry no effect and need not be described.
+	 *
+	 * Mirrors Action_Registry::DEFAULT_REPLAY_POST_FIELDS — nonces, referrers and
+	 * submit buttons say nothing about WHAT an action does, so their presence must not
+	 * make an otherwise-describable request undescribable.
+	 *
+	 * @var string[]
+	 */
+	private const NON_EFFECT_FIELDS = array(
+		'_wpnonce',
+		'_wp_http_referer',
+		'option_page',
+		'action',
+		'action2',
+		'submit',
+		'stash_key',
 	);
 
 	/**
@@ -188,6 +213,7 @@ class Request_Stash {
 		$redacted_fields_omitted  = false;
 		$post_replay_blocked      = false;
 		$post_replay_block_reason = '';
+		$target_complete          = true;
 		$method                   = $this->get_request_method();
 		$post                     = $this->build_stashed_post_params(
 			$matched_rule,
@@ -209,9 +235,16 @@ class Request_Stash {
 			'post_replay_blocked'      => $post_replay_blocked || $redacted_fields_omitted,
 			'post_replay_block_reason' => $redacted_fields_omitted ? 'redacted_fields_omitted' : $post_replay_block_reason,
 			'created'                  => time(),
-			'target'                   => $this->capture_target(),
+			'target'                   => $this->capture_target( $target_complete ),
+			'target_complete'          => $target_complete,
 			'binding_hash'             => $this->mint_binding_proof(),
 		);
+
+		// A replay may only run when the confirmation described the WHOLE effect. If a
+		// value was truncated for display, or the payload carries an effect field the
+		// target does not name (a custom rule's own field, say), the user would be
+		// confirming less than what executes — so fall back to the manual path.
+		$data['target_complete'] = $target_complete && $this->target_describes_payload( $data['target'], $post );
 
 		$this->set_stash_transient( self::TRANSIENT_PREFIX . $key, $data, self::TTL );
 
@@ -227,9 +260,13 @@ class Request_Stash {
 	 * Read-only, sanitized, length-capped. Never used to route or replay — it exists
 	 * solely so the challenge page can name the action the user is authorizing.
 	 *
+	 * @param bool $complete Set false when any value was truncated for display,
+	 *                            so the caller can refuse to replay more than the
+	 *                            confirmation described.
 	 * @return array<string, string>
 	 */
-	private function capture_target(): array {
+	private function capture_target( bool &$complete ): array {
+		$complete  = true;
 		$target    = array();
 		$sensitive = $this->sensitive_field_keys();
 
@@ -301,10 +338,47 @@ class Request_Stash {
 				}
 			}
 
-			$target[ $param ] = $this->truncate_target_value( $value );
+			$shown = $this->truncate_target_value( $value );
+
+			// Truncating the DISPLAY while replaying the FULL value would let a user
+			// approve the first few accounts of a bulk delete and silently remove the
+			// rest. Record that the description is partial.
+			if ( $shown !== $value ) {
+				$complete = false;
+			}
+
+			$target[ $param ] = $shown;
 		}
 
 		return $target;
+	}
+
+	/**
+	 * Whether the captured target names every effect-bearing field in the payload.
+	 *
+	 * TARGET_PARAMS is a fixed list, but rules are extensible: a custom rule (or a
+	 * built-in whose effect field is not in the list) can allowlist a field the target
+	 * never mentions. Replaying that would execute more than the confirmation showed,
+	 * so such a stash is not eligible for bound replay.
+	 *
+	 * @param array<string, string> $target Captured target.
+	 * @param array<string, mixed>  $post   Stashed POST payload.
+	 * @return bool
+	 */
+	private function target_describes_payload( array $target, array $post ): bool {
+		foreach ( array_keys( $post ) as $key ) {
+			$key = (string) $key;
+
+			if ( in_array( $key, self::NON_EFFECT_FIELDS, true ) ) {
+				continue;
+			}
+
+			if ( ! array_key_exists( $key, $target ) ) {
+				return false;
+			}
+		}
+
+		return true;
 	}
 
 	/**

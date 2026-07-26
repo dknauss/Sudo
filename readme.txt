@@ -98,7 +98,7 @@ Settings and sessions are network-wide. The action registry includes 8 additiona
 
 = How does sudo gating work? =
 
-For browser-admin requests, Sudo intercepts the request before WordPress processes the sensitive operation. In many common flows this happens on `admin_init`; other actions use surface-specific hooks. The original request is stashed, the user is redirected to a challenge page, and after successful reauthentication, the original request is replayed. For AJAX and REST requests, the browser receives a `sudo_required` error and an admin notice links to the challenge page.
+For browser-admin requests, Sudo intercepts the request before WordPress processes the sensitive operation. In many common flows this happens on `admin_init`; other actions use surface-specific hooks. The original request is stashed and the user is redirected to a challenge page that names the action and its concrete target. After successful reauthentication the request resumes automatically only when the browser presenting it is the one that started it (proven by a cookie browsers accept only over HTTPS) and the confirmation described the whole effect. Otherwise — including on any non-HTTPS site — nothing is resumed: the user is returned with a "review and submit again" notice and performs the action themselves under the now-active sudo session. Secrets are never stashed, and such requests are never resumed automatically.
 
 = Does this replace WordPress roles and capabilities? =
 

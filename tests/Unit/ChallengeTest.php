@@ -1743,6 +1743,9 @@ class ChallengeTest extends TestCase
 			'rule_id' => 'user.create',
 			'post' => array('role' => 'administrator'),
 			'binding_hash' => hash('sha256', $secret),
+			// The confirmation described the whole effect — required for bound replay.
+			'target' => array('role' => 'administrator'),
+			'target_complete' => true,
 		);
 	}
 
@@ -2000,6 +2003,38 @@ class ChallengeTest extends TestCase
 			'The already-active (no credential this request) path must never bound-replay.'
 		);
 		$this->assertArrayNotHasKey('post_data', $captured);
+
+		unset($_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE]);
+	}
+
+	/**
+	 * #322: never replay more than the confirmation described.
+	 *
+	 * `target_complete` is false when a displayed value was truncated (the first few
+	 * accounts of a bulk delete shown, the rest hidden) or when the payload carries an
+	 * effect field the target does not name. Consent to a partial description is not
+	 * consent to the whole effect, so bound replay must be refused.
+	 */
+	public function test_bound_stash_with_incomplete_target_is_not_replayed(): void
+	{
+		$secret = 'super-secret-proof';
+		$_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE] = $secret;
+
+		$stash = $this->boundPostStash($secret);
+		$stash['target'] = array('users' => '5, 6, 7');
+		$stash['target_complete'] = false;
+
+		$this->stash->shouldReceive('get')->once()->andReturn($stash);
+		$this->stash->shouldReceive('delete')->once();
+		$this->stubReplayEnv();
+
+		$data = $this->invokeReplay('partial-key', true);
+
+		$this->assertArrayNotHasKey(
+			'replay',
+			$data,
+			'A partially described effect must not be auto-replayed.'
+		);
 
 		unset($_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE]);
 	}
