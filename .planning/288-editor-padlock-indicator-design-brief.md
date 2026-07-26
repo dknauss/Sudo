@@ -65,7 +65,7 @@ see the amendment below).
   declared dependency of this script, so the 6.6 detect passes. Inert there: no button
   with the module's `aria-controls` renders outside the post/site editor.)
 
-## Amendment (post-merge follow-up): colour reduced to the expiring state only
+## Amendment (post-merge follow-up): state moves to the glyph, colour becomes the exception
 
 Raised by the maintainer after #288 merged, and correct: other icons in the block
 editor header do not change background colour. Verified against Gutenberg trunk
