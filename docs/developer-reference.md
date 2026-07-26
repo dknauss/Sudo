@@ -546,8 +546,13 @@ do_action( 'wp_sudo_lockout', int $user_id, int $attempts, string $ip );
 // only when a hard lockout was active at invocation. Do NOT read the hook
 // alone as "this user was locked out".
 //
-// Does not fire when the command found nothing to clear (that path mutates
-// nothing at all), nor for a lockout's own natural expiry.
+// Fires even when NO per-user counter is tracked: the command still bumps
+// the per-IP failure generation unconditionally in that case (the only lever
+// that reaches windows raised on another blog and orphaned there by an
+// ordinary login before this ran — Sudo_Session::clear_ip_failure_generation()),
+// and that too is a real state change worth auditing, even though it deletes
+// no per-user meta or transient. $was_locked is false on this path.
+// Only a lockout's own natural expiry (no operator action) never fires this.
 do_action( 'wp_sudo_lockout_cleared', int $user_id, bool $was_locked );
 
 // Action gating.
