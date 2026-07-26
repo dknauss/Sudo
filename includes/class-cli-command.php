@@ -177,13 +177,17 @@ class CLI_Command {
 		 *
 		 * Fires for a sub-threshold clear as well as a true lockout: both
 		 * discard accumulated failure tracking, so both are worth auditing.
-		 * $was_locked distinguishes them.
+		 * Subscribers that need to tell them apart must read $was_locked —
+		 * the hook firing does NOT by itself mean the user was locked out.
 		 *
 		 * @since TBD
 		 *
-		 * @param int $user_id The unlocked user.
+		 * @param int  $user_id    The unlocked user.
+		 * @param bool $was_locked True only when a hard lockout was active at
+		 *                         invocation; false when the command cleared
+		 *                         pre-lockout counters instead.
 		 */
-		do_action( 'wp_sudo_lockout_cleared', $user_id );
+		do_action( 'wp_sudo_lockout_cleared', $user_id, $was_locked );
 
 		// Not locked, but counters existed — clearing them discards a live
 		// brute-force defense (accumulated failures, an active throttle, or an
