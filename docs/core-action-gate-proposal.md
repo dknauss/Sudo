@@ -34,7 +34,7 @@ Two properties of a compromised session decide the defense:
 - It is **an authenticated session.** The attacker loads any admin page, so **nonces are not a defense** (any nonce the UI would render, they harvest), and REST/AJAX are reachable *(verified: `wp_create_nonce()` hashes the session token, so a session holder mints valid nonces)*.
 - It does **not** carry the account **password** or any **second factor**.
 
-The threat this closes is specific. WordPress auth cookies are **HttpOnly**, so an in-origin XSS usually *session-rides* the victim's browser rather than exfiltrating the cookie. Against session-riding, what closes the route is **the challenge plus a short window**, not any property of the session record; against genuine cookie *copy* (infostealer malware, header-logging proxies, backups/logs, shared devices), the session design in §4 denies replay. The result is bounded: possession of an ordinary admin session becomes **insufficient** to introduce executable code. It does not "solve XSS" — an active same-origin XSS can still act inside the window. The worked adversary and full route enumeration live in [`stolen-cookie-rce-attack-tree.md`](stolen-cookie-rce-attack-tree.md).
+The threat this closes is specific. WordPress auth cookies are **HttpOnly**, so an in-origin XSS usually *session-rides* the victim's browser rather than exfiltrating the cookie. Against session-riding, what closes the route is **the challenge plus a one-time, action-bound proof**, not any property of the session record; against genuine cookie *copy* (infostealer malware, header-logging proxies, backups/logs, shared devices), the session design in §4 denies replay. The result is bounded: possession of an ordinary admin session becomes **insufficient** to introduce executable code. It does not "solve XSS" — an active same-origin XSS can still drive the challenge and confirmation in the victim's own browser (spec §7.1). The worked adversary and full route enumeration live in [`stolen-cookie-rce-attack-tree.md`](stolen-cookie-rce-attack-tree.md).
 
 ---
 
@@ -88,8 +88,8 @@ The exact chokepoints, per-function return contracts, and the full catalog are i
 
 | Actor at the sink | Decision | In v1? |
 |---|---|---|
-| Interactive cookie session, no recent-auth window | **Challenge** (full-page; below) | ✅ **Yes — the v1 scope** |
-| API credential (Application Password) / REST, no window | **Block + log** | ❌ Deferred ([#306](https://github.com/dknauss/Sudo/issues/306)) — a default hard-block is a back-compat regression |
+| Interactive cookie session, no proof for this action | **Challenge + confirm** (full-page; below) | ✅ **Yes — the v1 scope** |
+| API credential (Application Password) / REST, no proof | **Block + log** | ❌ Deferred ([#306](https://github.com/dknauss/Sudo/issues/306)) — a default hard-block is a back-compat regression |
 | No actor **and** core's own automatic updater **and** package from the site's configured update source | **Allow** (background security updates keep working) — but `install_package()` receives an *unpacked local path*, not the source URL, so **provenance must be decided upstream** (at the update offer / `upgrader_pre_download`) and threaded in as a trusted flag | ❌ Deferred ([#307](https://github.com/dknauss/Sudo/issues/307)) — needs a provenance primitive core lacks |
 | WP-CLI | **Allow by default, operator-configurable** — shell access already dominates the gate; a CLI block is security theater with real deployment cost | ❌ Deferred |
 
@@ -235,9 +235,9 @@ A gate against illegitimate *sessions* is not a defense against a *pre-authentic
 ## 11. Open questions
 
 1. The public **name** for the registry API (the `do_action()` collision; §8.2) — cosmetic relative to the architecture, still unsettled.
-2. Should the recent-auth window build on `WP_Session_Tokens` or a **dedicated store**? Core already has a session-token abstraction that binds, revokes, and stores attached session info; a separate store may still be justified if gate state must be modeled apart from login sessions, at the cost of two session-adjacent models.
+2. Should the proof record build on `WP_Session_Tokens` or a **dedicated store**? Core already has a session-token abstraction that binds, revokes, and stores attached session info; a separate store may still be justified if gate state must be modeled apart from login sessions, at the cost of two session-adjacent models.
 3. Correct integration point for cookie-authenticated REST gating (the spec resolves this at the chokepoint; confirm against target core).
-4. Scope-bound sudo window vs. flat recent-auth freshness for v1 (the spec recommends flat freshness + optional scope tag).
+4. ~~Scope-bound sudo window vs. flat recent-auth freshness for v1.~~ **Closed** — the spec (§4.2) drops the reusable window for v1 in favour of per-action step-up, so there is no window to scope. Reopens only if a reusable window returns.
 5. What should replace the ambiguous `Disabled / Limited / Unrestricted` per-surface vocabulary if core later adds surface policy? (Kept **out** of core v1; core v1 is binary per action.)
 6. Which replay classes are supported early vs. deferred (the spec's stash/replay vs. reauth-then-resubmit split).
 7. The minimal challenge-provider contract core can support without overcommitting to every 2FA/passkey flow in v1.
