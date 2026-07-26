@@ -2018,11 +2018,11 @@ msgid "Sudo · inactive"
 msgstr ""
 
 #. translators: %s: time remaining in M:SS format
-#: admin/js/wp-sudo-session-indicator.js:381
+#: admin/js/wp-sudo-session-indicator.js:398
 #, js-format
 msgid "Sudo active — %s remaining."
 msgstr ""
 
-#: admin/js/wp-sudo-session-indicator.js:385
+#: admin/js/wp-sudo-session-indicator.js:402
 msgid "No active sudo session."
 msgstr ""

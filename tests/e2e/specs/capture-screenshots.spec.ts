@@ -10,7 +10,7 @@
  *   1 Challenge page · 2 Gated plugin activation · 3 Settings tab · 4 Gated Actions
  *   5 Rule Tester · 6 Access tab · 7 Dashboard widget · 8 Admin-bar timer
  *   9 Break-glass recovery notice
- *   11 In-editor indicator panel · 12 In-editor padlock chip + grant snackbar
+ *   11 In-editor indicator panel · 12 In-editor header padlock + grant snackbar
  *
  * KNOWN DRIFT (pre-existing, not introduced by the 11/12 addition): the committed
  * screenshot-9.png is the Users-list "Sudo Active" view, which is also what readme
@@ -138,7 +138,7 @@ test.describe( 'WordPress.org listing screenshots (ORG-02)', () => {
 	} );
 
 	/**
-	 * 11–12 — the in-editor session indicator (#262 / #277, padlock chip from #288).
+	 * 11–12 — the in-editor session indicator (#262 / #277, header padlock from #288).
 	 *
 	 * Filed as #284: the indicator shipped with no listing screenshot, so nothing in the
 	 * asset set showed the one surface that carries sudo state while the admin bar is

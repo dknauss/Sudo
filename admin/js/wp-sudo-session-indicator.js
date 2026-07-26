@@ -257,8 +257,8 @@
 	// ONLY the expiring state paints. State is otherwise carried by the glyph (the
 	// `icon` pick in IndicatorPanel below), because that is what core does here: the sole
 	// background change core applies to a pinned-item button is the neutral
-	// `.is-pressed` fill, never a semantic colour, while a state-driven icon is
-	// precedented (core swaps `isPinned ? starFilled : starEmpty` on this same toggle).
+	// `.is-pressed` fill, never a semantic colour, while a conditional icon on this very
+	// button is core's own construction (`icon={ showIconLabels ? check : icon }`).
 	// So a green chip for the whole session would invent a convention and park colour
 	// in the header for 15 minutes at a time; one red chip for the last 60 s spends it
 	// where it is earned.
@@ -336,11 +336,17 @@
 		//   active     unlock    the admin bar's own glyph (class-admin-bar.php)
 		//   expiring   warning   a third, non-padlock shape for the final 60 s
 		//
-		// A state-driven icon on this control is a core pattern, not an invention: core
-		// swaps `isPinned ? starFilled : starEmpty` on the very same toggle
-		// (packages/interface/src/components/complementary-area/index.js L326, Gutenberg
-		// trunk, fetched 2026-07-26). Semantic BACKGROUND colour is not — core's only
-		// background change on these buttons is the neutral `.is-pressed` fill
+		// A state-driven icon on this control is a core pattern, not an invention. Core
+		// swaps this button's icon conditionally itself — `icon={ showIconLabels ? check
+		// : icon }` (packages/interface/src/components/complementary-area/index.js L280)
+		// — and the component it renders takes a second, state-selected icon by design:
+		// `icon={ selectedIcon && isSelected ? selectedIcon : icon }`
+		// (packages/interface/src/components/complementary-area-toggle/index.js L58).
+		// Both Gutenberg trunk, fetched 2026-07-26. (The `isPinned ? starFilled :
+		// starEmpty` swap at complementary-area/index.js L326 is a DIFFERENT control —
+		// the pin/unpin star inside the panel header — so it is not the precedent here.)
+		// Semantic BACKGROUND colour has no such precedent: core's only background change
+		// on these buttons is the neutral `.is-pressed` fill
 		// (packages/components/src/button/style.scss L342-348), which is why colour here
 		// is spent on the expiring state alone.
 		//
@@ -350,6 +356,17 @@
 		// and in forced-colors mode. Three distinct shapes survive all three. The
 		// accessible name above cannot discharge 1.4.1 (a name is programmatic, not
 		// visual), so it tracks the same three states rather than substituting for them.
+		//
+		// KNOWN GAP — core's "Show button text labels" preference (core.showIconLabels)
+		// discards this icon entirely and substitutes its own `check` glyph (the L280
+		// line above), rendering no visible text for a pinned item. Verified in a live
+		// WP 7.0 editor: with that preference on, all three states render the same
+		// `check` SVG and `.dashicon` is absent, so active and inactive become visually
+		// identical and only the expiring red chip still distinguishes anything. The
+		// accessible name stays correct in that mode, so AT users are unaffected. Not
+		// worked around here: any fix means either fighting core for the icon slot or
+		// reintroducing an active-state chip for that cohort alone, and both cost more
+		// than the gap. Revisit if core stops overriding the icon.
 		//
 		// Per-transition, not per-second — the churn the design brief forbids is a value
 		// that changes on every tick, which is why the compact M:SS stays out of `title`.

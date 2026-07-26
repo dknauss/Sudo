@@ -66,14 +66,24 @@ const PINNED_BUTTON =
  * actually does on these controls: the only background change core applies to a
  * pinned-item button is the neutral `.is-pressed` fill (packages/components/src/
  * button/style.scss L342-348 — `background: $components-color-foreground`), never a
- * semantic colour. A state-driven GLYPH, by contrast, is precedented — core swaps
- * `isPinned ? starFilled : starEmpty` on this very toggle (packages/interface/src/
- * components/complementary-area/index.js L326). Verified against Gutenberg trunk,
- * fetched 2026-07-26.
+ * semantic colour. A state-driven GLYPH, by contrast, is precedented on this exact
+ * button: core swaps its icon conditionally itself — `icon={ showIconLabels ? check :
+ * icon }` (packages/interface/src/components/complementary-area/index.js L280) — and
+ * ComplementaryAreaToggle takes a state-selected icon by design, `icon={ selectedIcon
+ * && isSelected ? selectedIcon : icon }` (complementary-area-toggle/index.js L58).
+ * Verified against Gutenberg trunk, fetched 2026-07-26. (The `isPinned ? starFilled :
+ * starEmpty` swap at complementary-area/index.js L326 is the pin/unpin star inside the
+ * panel header — a different control, and not the precedent for this.)
  *
  * Distinguishing the three by shape rather than hue also means they survive
  * greyscale, colour-vision deficiency, and forced-colors mode by construction,
  * instead of relying on the red chip to carry the expiring state alone.
+ *
+ * NOT covered here, deliberately: core's `showIconLabels` preference replaces this
+ * icon with its own `check` for every state (the L280 line above), collapsing active
+ * and inactive to one appearance. That is core overriding the icon slot, not this
+ * module misbehaving — see the KNOWN GAP note in the module. Asserting it would pin
+ * core's behaviour, not ours.
  */
 const EXPIRING_BG = 'rgb(198, 40, 40)'; // #c62828 — admin-bar parity, the only chip left
 const STOCK_BG = 'rgba(0, 0, 0, 0)'; // Gutenberg's `.components-button { background: none }`
@@ -451,9 +461,11 @@ test.describe( 'In-editor sudo session indicator', () => {
 		await expect( button ).toHaveAttribute( 'aria-label', /inactive/ );
 
 		// active → open padlock. Distinct from BOTH other states without colour.
+		// (`dashicons-unlock` does not contain the substring `dashicons-lock` — the
+		// `-u` breaks it — so these two regexes cannot cross-match.)
 		await seedRemaining( page, 600 );
 		await expect( glyph ).toHaveClass( /dashicons-unlock/ );
-		await expect( glyph ).not.toHaveClass( /dashicons-lock\b/ );
+		await expect( glyph ).not.toHaveClass( /dashicons-lock/ );
 		await expect( button ).toHaveAttribute( 'aria-label', /active/ );
 
 		// expiring → a third, non-padlock shape.
@@ -466,5 +478,10 @@ test.describe( 'In-editor sudo session indicator', () => {
 		await seedRemaining( page, 600 );
 		await expect( glyph ).toHaveClass( /dashicons-unlock/ );
 		await expect( button ).toHaveAttribute( 'aria-label', /active/ );
+
+		// The chip must come OFF on the way back up too. INDICATOR-07 ends in the
+		// expiring state, so without this a stuck `wp-sudo-editor-session-expiring`
+		// would leave a red chip on a full-length session with nothing failing.
+		await expect( button ).toHaveCSS( 'background-color', STOCK_BG );
 	} );
 } );

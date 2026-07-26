@@ -13,9 +13,12 @@
  * 2026-07-26). A green chip for the whole session would both invent a convention and
  * hold colour in the header for the full session duration; the active and inactive
  * states are carried by the GLYPH instead (lock / unlock / warning in
- * admin/js/wp-sudo-session-indicator.js), which IS a core pattern — core swaps
- * `isPinned ? starFilled : starEmpty` on this very toggle. Colour here reinforces the
- * one urgent moment rather than encoding the whole vocabulary, so the states stay
+ * admin/js/wp-sudo-session-indicator.js), which IS a core pattern on this control —
+ * core itself swaps the icon out conditionally here (`icon={ showIconLabels ? check :
+ * icon }`, complementary-area/index.js L280), and ComplementaryAreaToggle takes a
+ * state-driven icon by design (`icon={ selectedIcon && isSelected ? selectedIcon :
+ * icon }`, complementary-area-toggle/index.js L58). Colour here reinforces the one
+ * urgent moment rather than encoding the whole vocabulary, so the states stay
  * distinguishable in greyscale, under colour-vision deficiency, and in forced-colors
  * mode without depending on this file at all.
  *
@@ -50,7 +53,7 @@
  *
  * `.interface-pinned-items` is load-bearing, not decoration: the Options menu renders
  * the SAME toggle component with the SAME `aria-controls`, so dropping the container
- * scope would paint a green chip on a menu item inside that dropdown.
+ * scope would paint the expiring chip on a menu item inside that dropdown.
  *
  * `:not(.is-pressed)` hands the button back to Gutenberg while the panel is OPEN.
  * These selectors otherwise out-specify core's pressed styling and would destroy the

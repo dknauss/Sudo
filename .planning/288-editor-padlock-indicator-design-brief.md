@@ -75,11 +75,24 @@ editor header do not change background colour. Verified against Gutenberg trunk
   `background: $components-color-foreground`, a neutral near-black
   (`packages/components/src/button/style.scss` L342-348). The single coloured
   element in that header is the Publish CTA.
-- **A state-driven glyph does have precedent, on this exact control.** Core renders
-  `icon={ isPinned ? starFilled : starEmpty }` for the pin toggle and
-  `icon={ showIconLabels ? check : icon }` for the label mode
-  (`packages/interface/src/components/complementary-area/index.js` L326, L280); the
-  `icon` prop flows through to the toggle at L293.
+- **A state-driven glyph does have precedent, on this exact control.** Core swaps this
+  button's icon conditionally itself — `icon={ showIconLabels ? check : icon }`
+  (`packages/interface/src/components/complementary-area/index.js` L280, the
+  `ComplementaryAreaToggle` rendered inside `<PinnedItems>`) — and that component takes
+  a state-selected icon by design: `icon={ selectedIcon && isSelected ? selectedIcon :
+  icon }` (`complementary-area-toggle/index.js` L58).
+  - Correction to an earlier draft of this brief: the `isPinned ? starFilled :
+    starEmpty` swap at L326 is **not** this control. It is the pin/unpin star
+    (`className="interface-complementary-area__pin-unpin-item"`, labels "Pin to
+    toolbar"/"Unpin from toolbar") rendered in the complementary-area **panel header**,
+    a different node in a different container. L293 is the Options-menu item, not the
+    toggle. The toggle gets its icon at L280.
+  - Cost of core owning that icon slot: with the **Show button text labels** preference
+    on, core discards our icon for its own `check` in every state and renders no visible
+    text, so active and inactive look identical for that cohort (verified in a live WP
+    7.0 editor). Only the expiring red chip still distinguishes anything there. Accepted
+    as a documented gap rather than worked around — see the KNOWN GAP note in
+    `admin/js/wp-sudo-session-indicator.js`.
 
 So the shipped design had it backwards: it invented a convention for the states that
 did not need one, and the *glyph* swap — the part that was already idiomatic — was
