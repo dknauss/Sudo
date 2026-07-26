@@ -311,6 +311,18 @@ jobs:
       # The script existed but ran nowhere, so a stale POT reached main in #317:
       # line references had been hand-patched instead of regenerated, and one was
       # missed. Cheap to run, and it only fails when the POT is genuinely out of date.
+      #
+      # bin/make-pot.sh shells out to WP-CLI, which ubuntu-latest does not ship, so
+      # install it here. Deliberately NOT made optional in the script: a check that
+      # skips itself when a dependency is missing reports success while verifying
+      # nothing, which is how the stale POT survived in the first place.
+      - name: Install WP-CLI (required by bin/make-pot.sh)
+        run: |
+          curl -sSLo /usr/local/bin/wp \
+            https://raw.githubusercontent.com/wp-cli/builds/gh-pages/phar/wp-cli.phar
+          chmod +x /usr/local/bin/wp
+          wp --info --allow-root
+
       - name: Verify POT file drift
         run: composer verify:i18n
 
