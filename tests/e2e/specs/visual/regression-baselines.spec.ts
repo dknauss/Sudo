@@ -36,9 +36,15 @@
  * ROOT CAUSE of #341 — measured, not inferred: **after the challenge interaction, the
  * page that performed it permanently stops producing compositor frames.**
  * requestAnimationFrame never fires on it again — not after `reload()`, not after
- * `bringToFront()`. Playwright's screenshot stability wait polls rAF, so
- * `toHaveScreenshot` on that page can only ever TIME OUT (5000ms, "waiting for element
- * to be stable"). It is never a pixel diff, which is why it survived `--update-snapshots`.
+ * `bringToFront()`. `toHaveScreenshot` waits for a DOUBLE rAF before every capture, so on
+ * that page it can only ever TIME OUT (5000ms, "waiting for element to be stable"). It is
+ * never a pixel diff, which is why it survived `--update-snapshots`.
+ *
+ * Source (verified against the installed package, playwright-core 1.61.1):
+ * `lib/coreBundle.js` — `Frame.rafrafTimeout()` awaits
+ * `new Promise(x => requestAnimationFrame(() => requestAnimationFrame(x)))`; the
+ * toHaveScreenshot path reaches it via `rafrafScreenshot` →
+ * `rafrafTimeoutScreenshotElementWithProgress` → `rafrafTimeout`.
  *
  * Evidence (probe counting rAF callbacks in 1s, on one page across the flow):
  *   settings page, no session ....... 65/s      challenge page loaded ..... 71/s
@@ -216,9 +222,8 @@ test.describe( 'Visual regression baselines', () => {
      * the `li#wp-sudo-active` element auto-sizes to its timer text, which is why a page
      * clip was tried first (element widths varied → "Expected 312px, received 315px").
      * But freezeAdminBarTimer() now pins the label to a fixed width, so the node is
-     * dimension-stable. The page clip was itself the bug: it captured the whole busy
-     * dashboard admin bar, which never settled for toHaveScreenshot's stability check
-     * (#341). An element screenshot of the frozen node is stable and isolated.
+     * dimension-stable, and an element screenshot is better isolated. Neither change
+     * fixed #341 — taking the shot on a FRESH page did; see the header.
      *
      * Timer text is masked to keep pixel-level text rendering out of the diff — what we
      * test is the presence and background color of the WP Sudo node (green = active).
@@ -228,8 +233,7 @@ test.describe( 'Visual regression baselines', () => {
      * Source: class-admin-bar.php — li#wp-admin-bar-wp-sudo-active is the element target (verified)
      *
      * Stability: freezeAdminBarTimer() makes the node dimension-stable; taking the shot
-     * on a quiet admin screen (not the reflowing dashboard) is what keeps Playwright's
-     * element-stability wait from timing out — see the header for #341's full history.
+     * on a FRESH page is what keeps Playwright's stability wait from timing out (#341).
      */
     test( 'VISN-03: admin bar node in active session state baseline', async ( {
         page,
@@ -257,14 +261,17 @@ test.describe( 'Visual regression baselines', () => {
         // and freezeAdminBarTimer() pins the label so the node no longer auto-sizes —
         // removing the original reason a page clip was used (#341).
         // Mask the .ab-label (timer text) so any text rendering stays out of the diff.
-        // threshold 0.1 / maxDiffPixels 200 — tolerate sub-pixel antialiasing.
+        // threshold 0.1 — tolerate sub-pixel antialiasing.
         // This baseline primarily asserts: WP Sudo node is visible with green background.
         await expect( timerNode ).toHaveScreenshot(
             'admin-bar-active.png',
             {
                 mask: [ timerNode.locator( '.ab-label' ) ],
                 threshold: 0.1,
-                maxDiffPixels: 200,
+                // Element snapshots are ~112x32 and ~105x32; the lock glyph is only
+                // ~170 non-background pixels, so a 200px budget could hide a whole-glyph
+                // regression. 20px (~0.6% of the image) still absorbs antialiasing.
+                maxDiffPixels: 20,
             }
         );
     } );
@@ -321,7 +328,10 @@ test.describe( 'Visual regression baselines', () => {
             {
                 mask: [ timerNode.locator( '.ab-label' ) ],
                 threshold: 0.1,
-                maxDiffPixels: 200,
+                // Element snapshots are ~112x32 and ~105x32; the lock glyph is only
+                // ~170 non-background pixels, so a 200px budget could hide a whole-glyph
+                // regression. 20px (~0.6% of the image) still absorbs antialiasing.
+                maxDiffPixels: 20,
             }
         );
     } );
