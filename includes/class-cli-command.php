@@ -129,12 +129,16 @@ class CLI_Command {
 	 * an attacker still holds the target user's WordPress LOGIN session (not
 	 * just their sudo proof), they can re-trigger a fresh lockout immediately.
 	 * `wp sudo revoke` does NOT help here: it calls Sudo_Session::deactivate(),
-	 * which clears only the sudo-layer proof, not the WordPress login session
-	 * the attacker actually holds. Reset the password instead
-	 * (`wp user reset-password <id>`) — the auth-cookie validation key is
-	 * derived in part from the password hash (GB-AUTH-COOKIE-PASSFRAG in
-	 * docs/upstream-sources.md), so a password change invalidates every
-	 * existing login cookie for the user, the attacker's included.
+	 * which clears only this plugin's own proof/session meta and never
+	 * touches WordPress login sessions, so the attacker keeps their cookie
+	 * and can simply reauthenticate. Two remedies that actually reach the
+	 * login session: destroy it directly (`wp user session destroy <id>
+	 * --all`, a real WP-CLI core command — verified against the live
+	 * wp-cli/handbook docs), or reset the password (`wp user reset-password
+	 * <id>`) — the auth-cookie validation key is derived in part from the
+	 * password hash (GB-AUTH-COOKIE-PASSFRAG in docs/upstream-sources.md), so
+	 * a password change invalidates every existing login cookie for the
+	 * user, the attacker's included.
 	 *
 	 * ## OPTIONS
 	 *
@@ -169,13 +173,31 @@ class CLI_Command {
 		$was_locked = Sudo_Session::has_unexpired_lockout( $user_id );
 		$had_state  = Sudo_Session::has_failure_state( $user_id );
 
-		// Nothing tracked at all: report and leave the user untouched. Clearing
-		// here would write an epoch bump for a user who never had a lockout.
+		// No per-user tracking to clear — but still invalidate the IP-scoped
+		// generation, and do NOT delete any counters. The generation bump is the
+		// only lever that reaches windows this process cannot see or enumerate:
+		// they are per-blog transients keyed by a hash of (ip, user, epoch),
+		// while every predicate above reads network-global user meta. A lockout
+		// raised on subsite A and then orphaned by a login on subsite B —
+		// activate() clears the global counters and pointers but cannot reach
+		// A's transients — reads as "nothing tracked" here while still blocking
+		// the user on A. Refusing to act on that reading would leave the escape
+		// hatch unable to open the one door it exists for. The bump costs one
+		// monotonic counter write and discards no per-user counter, so it is
+		// safe when there was in fact nothing to invalidate.
 		if ( ! $was_locked && ! $had_state ) {
-			\WP_CLI::log( sprintf( 'No active reauth lockout for user %d.', $user_id ) );
+			Sudo_Session::clear_ip_failure_generation( $user_id );
+
+			\WP_CLI::log(
+				sprintf(
+					'No active reauth lockout for user %d — invalidated any residual per-IP failure windows (including ones raised on other sites).',
+					$user_id
+				)
+			);
 			return;
 		}
 
+		// Full clear: per-user counters AND the generation bump.
 		Sudo_Session::clear_reauth_lockout( $user_id );
 
 		/**
@@ -211,7 +233,7 @@ class CLI_Command {
 
 		\WP_CLI::success(
 			sprintf(
-				'Cleared reauth lockout for user %1$d. If an attacker still holds this user\'s WordPress login session, the lockout can retrigger — `wp sudo revoke` will not stop that (it clears only the sudo proof, not the login session); reset the password instead (`wp user reset-password %1$d`).',
+				'Cleared reauth lockout for user %1$d. If an attacker still holds this user\'s WordPress login session, the lockout can retrigger — `wp sudo revoke` will not stop that (it clears only the sudo proof, not the login session); destroy their login sessions instead (`wp user session destroy %1$d --all`) or reset the password (`wp user reset-password %1$d`).',
 				$user_id
 			)
 		);
@@ -336,16 +358,18 @@ class CLI_Command {
 	/**
 	 * Resolve target user ID from assoc args or CLI auth context.
 	 *
-	 * Accepts `--user=<id|login>`: a digits-only value always resolves as a
-	 * user ID (matching pre-existing behavior — a non-numeric string
-	 * previously cast to 0 via `(int)` and was already treated as "no target
-	 * user"), any other value is looked up as a login. Uses `ctype_digit()`
-	 * rather than `is_numeric()` — `is_numeric()` also accepts floats ("1.5")
-	 * and scientific notation ("1e3"), either of which would `(int)`-cast to
-	 * a DIFFERENT, real user ID instead of looking up a login that happens to
-	 * look numeric — and rather than an `is_int()` check, because a WP-CLI
-	 * assoc-arg value is never a PHP int — see GB-CLI-ASSOC in
-	 * docs/upstream-sources.md.
+	 * Accepts `--user=<id|login>`: a **digits-only** value always resolves as a
+	 * user ID (matching pre-existing behavior — a non-numeric string previously
+	 * cast to 0 via `(int)` and was already treated as "no target user"), any
+	 * other value is looked up as a login.
+	 *
+	 * The digits-only test is `ctype_digit()`, deliberately narrower than
+	 * `is_numeric()`. `is_numeric()` also accepts floats, exponent notation,
+	 * and leading whitespace, so a legitimate login of `1.5` or `1e3` would
+	 * cast to user 1 or 1000 and the command would mutate the WRONG ACCOUNT —
+	 * unacceptable for `revoke` and `unlock`. A string check rather than an
+	 * `is_int()` type check is still correct here because a WP-CLI assoc-arg
+	 * value is never a PHP int — see GB-CLI-ASSOC in docs/upstream-sources.md.
 	 *
 	 * @since TBD Accepts a login, not just a numeric ID (#280).
 	 *
@@ -353,14 +377,17 @@ class CLI_Command {
 	 * @return int Positive user ID or 0.
 	 */
 	private function resolve_user_id( array $assoc_args ): int {
-		if ( isset( $assoc_args['user'] ) && is_scalar( $assoc_args['user'] ) ) {
+		if ( isset( $assoc_args['user'] ) ) {
 			$value = $assoc_args['user'];
 
-			// Digits-only, not is_numeric(): is_numeric() also accepts floats
-			// ("1.5") and scientific notation ("1e3"), either of which would
-			// (int)-cast to a DIFFERENT, real user ID (1, and 1000) instead of
-			// looking up a login that happens to look numeric.
-			if ( is_int( $value ) || ( is_string( $value ) && '' !== $value && ctype_digit( $value ) ) ) {
+			// A bare `--user` (or `--no-user`) arrives as a bool, which would
+			// otherwise stringify to '1'/'' and silently target user 1 or a
+			// login of ''. No target was named, so resolve nothing.
+			if ( is_bool( $value ) || ! is_scalar( $value ) ) {
+				return 0;
+			}
+
+			if ( is_int( $value ) || ctype_digit( (string) $value ) ) {
 				return max( 0, (int) $value );
 			}
 

@@ -215,6 +215,42 @@ class CliCommandTest extends TestCase {
 		$this->assertStringContainsString( 'user 9', \WP_CLI::$messages[0]['message'] ?? '' );
 	}
 
+	/**
+	 * Only a digits-only value is treated as a user ID. PHP's is_numeric()
+	 * also accepts floats and exponent notation, so a legitimate login like
+	 * "1.5" or "1e3" would have been cast to user 1 or 1000 and the command
+	 * would have mutated the WRONG ACCOUNT. Those must take the login path.
+	 *
+	 * @dataProvider non_digit_user_values
+	 */
+	public function test_non_digit_user_values_resolve_as_logins( string $value, int $resolved ): void {
+		Functions\when( 'headers_sent' )->justReturn( true );
+		Functions\when( 'delete_user_meta' )->justReturn( true );
+		Functions\when( 'do_action' )->justReturn( null );
+
+		Functions\expect( 'get_user_by' )
+			->once()
+			->with( 'login', $value )
+			->andReturn( new \WP_User( $resolved ) );
+
+		$command = new CLI_Command();
+		$command->revoke( array(), array( 'user' => $value ) );
+
+		$this->assertStringContainsString( 'user ' . $resolved, \WP_CLI::$messages[0]['message'] ?? '' );
+	}
+
+	/**
+	 * @return array<string, array{0: string, 1: int}>
+	 */
+	public static function non_digit_user_values(): array {
+		return array(
+			'float-like'    => array( '1.5', 41 ),
+			'exponent-like' => array( '1e3', 42 ),
+			'leading space' => array( ' 12', 43 ),
+			'negative'      => array( '-5', 44 ),
+		);
+	}
+
 	// ---- unlock (#280) ----
 
 	/**
@@ -312,22 +348,33 @@ class CliCommandTest extends TestCase {
 	}
 
 	/**
-	 * A user with NO lockout and no residual failure tracking must be left
-	 * completely untouched — the command must not write the epoch or delete
-	 * meta just to report "nothing to do".
+	 * A user with no lockout and no residual per-user tracking must not have
+	 * their counters deleted — but the epoch bump still runs, because it is the
+	 * only lever that reaches IP-scoped windows this process cannot enumerate
+	 * (per-blog transients keyed by a hash of the IP, while the predicates read
+	 * network-global meta). A lockout raised on subsite A and then orphaned by
+	 * a login on subsite B reads as "nothing tracked" here yet still blocks the
+	 * user on A; refusing to act would leave the escape hatch unable to open
+	 * the one door it exists for.
 	 */
-	public function test_unlock_does_not_mutate_state_when_there_is_nothing_to_clear(): void {
+	public function test_unlock_bumps_the_epoch_but_clears_no_counters_when_nothing_is_tracked(): void {
 		Functions\when( 'get_user_meta' )->justReturn( '' );
 
+		// No per-user counter is discarded...
 		Functions\expect( 'delete_user_meta' )->never();
-		Functions\expect( 'update_user_meta' )->never();
 		Functions\expect( 'delete_transient' )->never();
+		// ...but the generation is invalidated.
+		Functions\expect( 'update_user_meta' )
+			->once()
+			->with( 9, Sudo_Session::IP_FAILURE_EPOCH_META_KEY, 1 )
+			->andReturn( true );
 
 		$command = new CLI_Command();
 		$command->unlock( array(), array( 'user' => '9' ) );
 
 		$this->assertSame( 'log', \WP_CLI::$messages[0]['type'] ?? null );
 		$this->assertStringContainsString( 'No active reauth lockout for user 9', \WP_CLI::$messages[0]['message'] ?? '' );
+		$this->assertStringContainsString( 'residual per-IP failure windows', \WP_CLI::$messages[0]['message'] ?? '' );
 	}
 
 	/**
