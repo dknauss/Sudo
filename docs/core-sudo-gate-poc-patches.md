@@ -1,6 +1,24 @@
 # POC Patch Sketches: Recent-Auth Gate at the Core Chokepoints
 
-**Status:** Illustrative sketches, not tested against a core checkout. Companion to [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md). Signatures verified against WordPress core: `wp_update_user` / `wp_insert_user` (returns `WP_Error`) in `wp-includes/user.php` and `wp_delete_user` (returns `bool`) in `wp-admin/includes/user.php`; `wp_set_password` in `wp-includes/pluggable.php`; `WP_User::set_role` / `add_role` in `wp-includes/class-wp-user.php`; `wpmu_create_user` (returns `int|false`) in `wp-includes/ms-functions.php`; the users controller in `wp-includes/rest-api/endpoints/class-wp-rest-users-controller.php` (canonical: <https://github.com/WordPress/wordpress-develop/tree/trunk/src/wp-includes>). Line anchors are approximate.
+> # ⚠️ SUPERSEDED SECURITY SKETCH — DO NOT IMPLEMENT
+>
+> **This file predates the known-gaps review** ([`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md) §12) and the v1/provenance split decided in [#320](https://github.com/dknauss/Sudo/issues/320). It is retained to show the *shape* of a chokepoint insertion, not as a design to build. It is known to be vulnerable or out of date on every one of the following:
+>
+> | Defect in this sketch | Tracked as |
+> |---|---|
+> | `SameSite=Lax` ambient proof cookie | [#315](https://github.com/dknauss/Sudo/issues/315) |
+> | Server-side stash + **automatic replay** of consequential requests | [#315](https://github.com/dknauss/Sudo/issues/315) |
+> | Stash ownership is **per-user only**. The sketch ports `class-request-stash.php` near-verbatim, whose `Request_Stash::get()` does reject a different `user_id` — but per-user is the wrong granularity here: it is not bound to the browser that answered the challenge, nor to the specific action and target, so the victim's own reauth can release an attacker-planted stash | [#315](https://github.com/dknauss/Sudo/issues/315) |
+> | Pre-operation adapters on `do_action()` hooks that **cannot veto** (`delete_user`, `grant_super_admin`, `switch_theme`) | [#303](https://github.com/dknauss/Sudo/issues/303) |
+> | Proof issuance **not atomic** with cookie delivery (server state rotated, `setcookie()` return unchecked, `headers_sent()` skips silently) | [#319](https://github.com/dknauss/Sudo/issues/319) |
+> | Incomplete cookie paths (`PLUGINS_COOKIE_PATH` / `SITECOOKIEPATH` absent) | [#319](https://github.com/dknauss/Sudo/issues/319) |
+> | Non-interactive actor-class policy (App-Password hard-block, auto-updater provenance flag, CLI filter) shown as **v1** code | [#306](https://github.com/dknauss/Sudo/issues/306), [#307](https://github.com/dknauss/Sudo/issues/307) — moved out of v1 by [#320](https://github.com/dknauss/Sudo/issues/320) |
+> | **Missing the `update_core()` seam**, which #320 explicitly kept *in* v1 | [#302](https://github.com/dknauss/Sudo/issues/302) |
+> | Flat 15-minute freshness by default — scope binding is plumbed through the HMAC and checked, but is opt-in and unused by the v1 callers shown | [#308](https://github.com/dknauss/Sudo/issues/308) |
+>
+> **The next PoC should be generated as a real patch branch against `wordpress-develop` and tested** — not maintained as pseudocode drifting alongside an evolving spec.
+
+**Status:** **Superseded** (see banner above). Illustrative sketches, not tested against a core checkout. Companion to [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md). Signatures verified against WordPress core: `wp_update_user` / `wp_insert_user` (returns `WP_Error`) in `wp-includes/user.php` and `wp_delete_user` (returns `bool`) in `wp-admin/includes/user.php`; `wp_set_password` in `wp-includes/pluggable.php`; `WP_User::set_role` / `add_role` in `wp-includes/class-wp-user.php`; `wpmu_create_user` (returns `int|false`) in `wp-includes/ms-functions.php`; the users controller in `wp-includes/rest-api/endpoints/class-wp-rest-users-controller.php` (canonical: <https://github.com/WordPress/wordpress-develop/tree/trunk/src/wp-includes>). Line anchors are approximate.
 **Purpose:** Make the spec's central claim concrete: that gating a handful of *data-layer chokepoints* covers admin UI, REST, and programmatic callers in one insertion, using error paths those functions already return.
 
 ## In plain language (read this first)
@@ -393,6 +411,8 @@ The challenge page (`wp-login.php?action=reauth`) verifies the actor's password 
 
 ---
 
-## Why this is the whole thing
+## Why this was framed as "the whole thing" — and why it is not
+
+> **Superseded.** This section originally argued the sketch was a complete minimum viable enforcement core. It is not: as the banner at the top records, the replay path (#315), the pre-op adapters (#303), and proof issuance (#319) are each P1-broken, the non-interactive policy shown below was moved out of v1 by #320, and the `update_core()` seam #320 kept *in* v1 is missing entirely. The *chokepoint-insertion* argument below still holds; the security design carrying it does not.
 
 A handful of insertions at the core mutation chokepoints (`wp_update_user`, `wp_insert_user`, plugin actions) + the window/gate primitives. Most callers (REST, CLI, programmatic) are covered because they already handle the `WP_Error` these functions return. **The seam is not uniform**, though: `wp_delete_user()` returns `bool` (a returned `WP_Error` is truthy → gate it with a *pre-delete adapter*, not a return value), `WP_User::set_role()` returns `void`, and `wp_set_password()`/`reset_password()` bypass `wp_update_user()`; each of those chokepoints therefore specifies whether it pays the signature-change cost or an interstitial/`wp_die()` cost (see the §5.1 per-chokepoint caveat). That is the difference between gating the effect and gating the form: a bounded, per-chokepoint change, not a framework.
