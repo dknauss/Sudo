@@ -243,7 +243,7 @@ test.describe( 'Multisite network admin flow', () => {
         await expect( page.locator( '#wp-admin-bar-wp-sudo-active' ) ).toBeVisible();
     } );
 
-    test( 'MULTI-02: network settings POST replay survives 2FA lockout expiry recovery', async ( {
+    test( 'MULTI-02: network settings POST is never replayed after 2FA lockout recovery', async ( {
         page,
     } ) => {
         const configuredBaseUrl = process.env.WP_BASE_URL ?? '';
@@ -321,17 +321,24 @@ test.describe( 'Multisite network admin flow', () => {
 
             await page.fill( '#wp-sudo-e2e-two-factor-code', E2E_TWO_FACTOR_CODE );
 
+            // #322: the stashed network POST is NOT replayed after 2FA recovery. It
+            // lands in Network Admin (context derived from the stashed URL, not the
+            // completing request) carrying the non-replay notice, state unchanged.
             await Promise.all( [
-                page.waitForURL( /\/wp-admin\/network\/settings\.php\?page=wp-sudo-settings(?:&updated=true)?$/, {
-                    timeout: 15_000,
-                } ),
+                page.waitForURL( /wp_sudo_blocked_replay=1/, { timeout: 15_000 } ),
                 page.click( '#wp-sudo-challenge-2fa-submit' ),
             ] );
 
-            await expect( page ).toHaveURL(
-                /\/wp-admin\/network\/settings\.php\?page=wp-sudo-settings(?:&updated=true)?$/
-            );
-            await expect( page.locator( '#session_duration' ) ).toHaveValue( updatedValue );
+            await expect(
+                page,
+                'A network-admin action must not be dumped on the single-site dashboard'
+            ).toHaveURL( /\/wp-admin\/network\// );
+
+            await page.goto( '/wp-admin/network/settings.php?page=wp-sudo-settings' );
+            await expect(
+                page.locator( '#session_duration' ),
+                'The stashed network POST must not have been saved by the reauth'
+            ).toHaveValue( originalValue );
         } finally {
             await disableE2eTwoFactor( sitePath, configuredBaseUrl );
             await clearSudoFailureMeta( sitePath, configuredBaseUrl );

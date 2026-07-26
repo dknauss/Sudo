@@ -61,6 +61,16 @@ test.describe( 'WP Sudo smoke tests', () => {
                 await page
                     .locator( '#wp-sudo-challenge-password-form' )
                     .evaluate( ( form ) => ( form as HTMLFormElement ).requestSubmit() );
+
+                // #322: reauth grants the session and nothing more — the stashed
+                // preset POST is NOT replayed, so it must be re-submitted by hand.
+                await page.waitForURL( /wp_sudo_blocked_replay=1/, { timeout: 15_000 } );
+                await page.goto( '/wp-admin/options-general.php?page=wp-sudo-settings' );
+                await presetSelection.selectOption( preset );
+                await page
+                    .locator( '#submit' )
+                    .evaluate( ( button ) => ( button as HTMLInputElement ).form?.requestSubmit() );
+
                 await expect( page ).toHaveURL( isSettingsUrl, { timeout: 15_000 } );
                 await expect( successNotice ).toContainText( `${ expectedLabel } preset applied.`, {
                     timeout: 15_000,
