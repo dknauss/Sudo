@@ -20,7 +20,8 @@
  * the countdown timer in the admin bar. The timer text changes every second.
  * ALL visual snapshots on admin pages with an active session MUST either:
  *   a) Mask the #wp-admin-bar-wp-sudo-active element, OR
- *   b) Freeze time via page.clock.install() before navigation
+ *   b) Stop the countdown interval + pin the label (freezeAdminBarTimer below) —
+ *      NOT page.clock.install(), which hangs toHaveScreenshot's stability wait (#341)
  *
  * PITFALL (element-level screenshots of auto-sized elements):
  * The `li#wp-admin-bar-wp-sudo-active` element auto-sizes to its text content.
@@ -38,12 +39,17 @@
  * timer label text within the clip so pixel-level text differences don't cause failures.
  * The background color (green/red) and layout are stable and correctly captured.
  *
- * Source: admin-bar-timer.spec.ts TIMR-02/03/04 — clock pattern validated (verified)
- *   1. activateSudoSession(page)   — real timers for AJAX challenge flow
- *   2. page.clock.install()        — freeze setInterval before admin page load
- *   3. page.goto('/wp-admin/')     — setInterval runs under frozen clock
- *   4. [VISN-04 only] page.clock.runFor(840_000) — advance to expiring state
- *   5. page screenshot with clip + mask for stable baseline
+ * Approach for VISN-03/04 (see issue #341): do NOT use page.clock.install(). It freezes
+ * requestAnimationFrame, which Playwright's toHaveScreenshot stability check polls on, so
+ * the assertion hangs until timeout — both admin-bar baselines failed exactly this way.
+ * Instead, after loading the admin page, stop the countdown interval and pin the label to
+ * a fixed-width string via freezeAdminBarTimer(); the page clock stays live so stability
+ * settles, and the node no longer oscillates between runs.
+ *   1. activateSudoSession(page)   — real timers for the AJAX challenge flow
+ *   2. page.goto('/wp-admin/')     — countdown starts under the real clock
+ *   3. freezeAdminBarTimer(page[, {expiring:true}]) — stop the interval, fix the label,
+ *      and (VISN-04) apply wp-sudo-expiring directly instead of ticking 840s
+ *   4. page screenshot with clip + mask for a stable baseline
  *
  * PITFALL (platform differences): Snapshot pixel comparison can differ between macOS
  * (local) and Linux Docker (CI). The threshold values below are set to accommodate
@@ -60,6 +66,48 @@ import type { Page } from '@playwright/test';
 
 /** Locator for the admin bar timer node. */
 const adminBarTimerSelector = '#wp-admin-bar-wp-sudo-active';
+
+/**
+ * Make the admin-bar countdown node static for a stable screenshot WITHOUT freezing
+ * the page clock.
+ *
+ * `page.clock.install()` cannot be used here (issue #341): it also freezes
+ * requestAnimationFrame, which Playwright's `toHaveScreenshot` stability check polls
+ * on, so the assertion hangs until timeout instead of settling. Instead we stop the
+ * countdown interval — its id is closure-private in `wp-sudo-admin-bar.js`, so clear
+ * the whole live range — and pin the `.ab-label` to a fixed-width string so the
+ * auto-sizing node stops oscillating between runs. With the real clock left alone,
+ * `requestAnimationFrame` keeps firing and the stability check settles immediately.
+ *
+ * For the expiring baseline, apply `wp-sudo-expiring` directly rather than ticking to
+ * `r <= 60` (wp-sudo-admin-bar.js adds it at that threshold, verified).
+ */
+async function freezeAdminBarTimer(
+	page: Page,
+	{ expiring = false }: { expiring?: boolean } = {}
+): Promise< void > {
+	await page.evaluate( ( isExpiring ) => {
+		// The countdown's intervalId is private to the IIFE in wp-sudo-admin-bar.js,
+		// so clear the full live range to guarantee it stops.
+		const maxId = setInterval( () => {}, 1_000_000 ) as unknown as number;
+		for ( let id = 1; id <= maxId; id++ ) {
+			clearInterval( id );
+		}
+
+		const node = document.getElementById( 'wp-admin-bar-wp-sudo-active' );
+		if ( ! node ) {
+			return;
+		}
+		if ( isExpiring ) {
+			node.classList.add( 'wp-sudo-expiring' );
+		}
+		const label = node.querySelector( '.ab-label' );
+		if ( label ) {
+			// Fixed text → deterministic node width → stable clip outside the mask.
+			label.textContent = isExpiring ? 'Sudo: 0:42' : 'Sudo: 15:00';
+		}
+	}, expiring );
+}
 
 test.describe( 'Visual regression baselines', () => {
     /**
@@ -152,30 +200,28 @@ test.describe( 'Visual regression baselines', () => {
      * Source: admin/css/wp-sudo-admin-bar.css — .wp-sudo-active background: #2e7d32 (green) (verified)
      * Source: viewport 1280x900 → admin bar clip: x:0,y:0,w:1280,h:32 (verified from config)
      *
-     * CRITICAL (clock ordering): activateSudoSession() FIRST (real timers for AJAX),
-     * then page.clock.install() BEFORE goto('/wp-admin/') so setInterval runs under
-     * the fake clock (prevents real-time countdown during screenshot assertion).
+     * Stability: after load, freezeAdminBarTimer() stops the countdown interval and pins
+     * the label to a fixed width. page.clock.install() is deliberately NOT used — it
+     * freezes requestAnimationFrame and hangs toHaveScreenshot's stability wait (#341).
      */
     test( 'VISN-03: admin bar node in active session state baseline', async ( {
         page,
     } ) => {
-        // Step 1: Activate session with real timers (AJAX challenge flow requires real clock).
+        // Activate the session (real timers — the AJAX challenge flow needs a real clock).
         await activateSudoSession( page );
-
-        // Step 2: Freeze clock AFTER session activation but BEFORE admin page load.
-        // Prevents setInterval from firing during the screenshot assertion window.
-        await page.clock.install();
-
-        // Step 3: Navigate to admin dashboard — setInterval runs under frozen clock.
         await page.goto( '/wp-admin/' );
 
         // Source: class-admin-bar.php — li#wp-admin-bar-wp-sudo-active (verified)
         const timerNode = page.locator( adminBarTimerSelector );
         await expect( timerNode ).toBeVisible();
 
-        // Verify the node has the active class (green background).
         // Source: admin/css/wp-sudo-admin-bar.css — .wp-sudo-active selector (verified)
         await expect( timerNode ).toHaveClass( /wp-sudo-active/ );
+
+        // Freeze the countdown so the node is static for the screenshot. Do NOT use
+        // page.clock.install() (issue #341): it freezes requestAnimationFrame, which
+        // toHaveScreenshot's stability check polls on, hanging the assertion.
+        await freezeAdminBarTimer( page );
 
         // Snapshot the full admin bar (fixed 1280x32 clip) with timer text masked.
         // Clip dimensions: width=1280 (viewport), height=32 (WP admin bar standard height).
@@ -201,49 +247,45 @@ test.describe( 'Visual regression baselines', () => {
     /**
      * VISN-04: Admin bar in expiring state (wp-sudo-expiring class active).
      *
-     * Activate a session, freeze time, tick 840 seconds to reach <= 60s remaining,
-     * then take a page-level screenshot clipped to the admin bar region.
+     * Activate a session, force the wp-sudo-expiring state directly, then take a
+     * page-level screenshot clipped to the admin bar region.
      *
-     * At 60s remaining, the JS adds `wp-sudo-expiring` class to the li node, which
-     * triggers the CSS background change from green (#2e7d32) to red (#c62828).
+     * At 60s remaining the JS adds `wp-sudo-expiring` to the li node, which triggers the
+     * CSS background change from green (#2e7d32) to red (#c62828); we apply that class
+     * directly rather than ticking down to it.
      *
      * WHY page clip: same reason as VISN-03 — element auto-sizes to text content.
-     * After ticking 840s, the timer shows some value around "0:XX" depending on the
-     * initial remaining time, causing width variation. Fixed clip avoids this.
+     * freezeAdminBarTimer() pins the label to a fixed width; the fixed clip covers the
+     * whole admin bar so any residual width variation stays outside the assertion.
      *
      * Source: admin/js/wp-sudo-admin-bar.js — if (r <= 60) n.classList.add('wp-sudo-expiring') (verified)
      * Source: admin/css/wp-sudo-admin-bar.css — .wp-sudo-expiring background: #c62828 (red) (verified)
      *
-     * CRITICAL (clock ordering): activateSudoSession() FIRST, then page.clock.install()
-     * BEFORE goto('/wp-admin/'). Use runFor() (not tick()) — Playwright 1.58.2 has no tick().
-     *
-     * Source: admin-bar-timer.spec.ts TIMR-03 — runFor(840_000) validated (verified)
+     * Stability: freezeAdminBarTimer(page, { expiring: true }) applies the class and stops
+     * the countdown. page.clock.install()/runFor() are NOT used — install() freezes
+     * requestAnimationFrame and hangs toHaveScreenshot's stability wait (#341).
      */
     test( 'VISN-04: admin bar node in expiring state baseline', async ( {
         page,
     } ) => {
-        // Step 1: Activate session with real timers.
+        // Activate the session (real timers for the AJAX challenge flow).
         await activateSudoSession( page );
-
-        // Step 2: Freeze clock AFTER session activation but BEFORE admin page load.
-        await page.clock.install();
-
-        // Step 3: Navigate to admin dashboard.
         await page.goto( '/wp-admin/' );
 
         const timerNode = page.locator( adminBarTimerSelector );
         await expect( timerNode ).toBeVisible();
 
-        // Advance 840 seconds: if session started with >= 900s, this reaches <= 60s remaining.
-        // Use runFor() (not tick()) — Playwright 1.58.2 has no tick() method.
-        // Source: wp-sudo-admin-bar.js — expiring threshold at r <= 60 (verified)
-        // Source: admin-bar-timer.spec.ts TIMR-03 — runFor(840_000) validated (verified)
-        await page.clock.runFor( 840_000 );
+        // Force the expiring state directly and freeze the countdown. Ticking via
+        // page.clock.runFor() is unavailable here: page.clock.install() freezes the
+        // requestAnimationFrame that toHaveScreenshot's stability check polls on, which
+        // hangs the assertion (issue #341). The JS adds wp-sudo-expiring at r <= 60
+        // (wp-sudo-admin-bar.js, verified); freezeAdminBarTimer applies it deterministically.
+        await freezeAdminBarTimer( page, { expiring: true } );
 
         // Verify expiring class is applied.
         await expect(
             timerNode,
-            'wp-sudo-expiring class must be present after ticking to 60s remaining'
+            'wp-sudo-expiring class must be present for the expiring-state baseline'
         ).toHaveClass( /wp-sudo-expiring/ );
 
         // Snapshot the full admin bar (fixed 1280x32 clip) with timer text masked.
