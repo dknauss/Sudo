@@ -239,6 +239,46 @@ run --offline-ok
 expect_rc 1
 expect_out "HTTP 404"
 
+# 7c. A transient upstream status (429/5xx) is an availability failure, not drift:
+#     it must NOT be reported as a moved/deleted file, and --offline-ok may skip it.
+start "transient 5xx is not reported as deleted"
+new_sandbox http503
+registry "$HDR
+| GB-A | $URL | 2 | needle here | sym | a claim |"
+fixture "$URL" 503 0 ""
+run
+expect_rc 1
+expect_out "503"
+expect_not_out "deleted"
+
+start "transient 5xx suppressed by --offline-ok"
+new_sandbox http503offline
+registry "$HDR
+| GB-A | $URL | 2 | needle here | sym | a claim |"
+fixture "$URL" 503 0 ""
+run --offline-ok
+expect_rc 0
+expect_out "SKIPPED"
+
+start "rate-limit 429 suppressed by --offline-ok"
+new_sandbox http429offline
+registry "$HDR
+| GB-A | $URL | 2 | needle here | sym | a claim |"
+fixture "$URL" 429 0 ""
+run --offline-ok
+expect_rc 0
+
+# 7d. A 404 stays permanent drift even under --offline-ok (already covered above,
+#     asserted here alongside the 410 gone status).
+start "410 Gone is permanent drift, not suppressed by --offline-ok"
+new_sandbox http410
+registry "$HDR
+| GB-A | $URL | 2 | needle here | sym | a claim |"
+fixture "$URL" 410 0 ""
+run --offline-ok
+expect_rc 1
+expect_out "410"
+
 # 8. True network outage: fails normally, but --offline-ok skips it.
 start "network outage fails without flag"
 new_sandbox net

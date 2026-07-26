@@ -69,11 +69,12 @@ clean_field() {
 # Squeeze runs of whitespace so indentation changes upstream do not read as drift.
 squeeze() { tr '\t' ' ' | tr -s ' '; }
 
-# Sets FETCH_ERR to "network" (could not reach the host) or "http" (reached it, got
-# an error status). Keeping those apart is the whole reason this is not a one-liner:
-# a 404 on a deleted upstream file is the PRIMARY drift this tool exists to catch, and
-# conflating it with "no wifi" lets --offline-ok swallow exactly the failure that
-# matters.
+# Sets FETCH_ERR to "http" (a permanent 404/410 — the file is gone), "network" (could
+# not reach the host at all), or "unavailable" (a retryable answer: 429/5xx/403). See
+# the classification block below for why those are three cases and not two: a 404 on a
+# deleted upstream file is the PRIMARY drift this tool exists to catch, so conflating it
+# with "no wifi" or a transient 503 would let --offline-ok swallow the one failure that
+# matters — or, the other way, falsely brand a temporary outage a deleted file.
 # Results come back in FETCH_PATH / FETCH_ERR rather than on stdout: `$(fetch ...)`
 # runs the function in a SUBSHELL, so anything it assigns is discarded when that
 # subshell exits. An earlier revision returned the path on stdout and set FETCH_ERR as
@@ -116,27 +117,42 @@ fetch() {
 	# a local server that sends 404 headers and then cuts the body reproduces exit 18
 	# with status 404. An earlier revision tested the exit code first and so filed that
 	# 404 — a DELETED upstream file, the primary drift this tool exists to catch — as a
-	# network outage, where --offline-ok would swallow it. curl writes "000" for
-	# %{http_code} only when there was no HTTP response to read at all; that, and an
-	# empty status, are the sole genuinely-connectivity cases.
+	# network outage, where --offline-ok would swallow it.
+	#
+	# Three outcomes, not two:
+	#   - 2xx           the file is there; check the snippet.
+	#   - 404 / 410     the file is gone for good. Permanent drift, a hard failure —
+	#                   --offline-ok must NOT swallow a deleted upstream file.
+	#   - anything else the server answered but not with the file (429, 5xx, a 403 rate
+	#                   limit) or did not answer at all (000/empty). None of these prove
+	#                   the file is gone, and calling a transient 503 "moved or deleted"
+	#                   is exactly the kind of confabulated claim this tool exists to
+	#                   prevent. Treated as an availability failure: the run still fails
+	#                   without --offline-ok, but --offline-ok may skip it.
+	# `curl` here omits --fail on purpose, so %{http_code} carries the real status
+	# instead of being flattened to a generic error.
 	case "$status" in
 		2??)
 			FETCH_PATH="$path"
 			return 0
 			;;
+		404|410)
+			rm -f "$path"
+			FETCH_ERR="http"
+			FETCH_STATUS="$status"
+			return 1
+			;;
 		''|000)
-			# No HTTP response: DNS, connect, TLS, timeout, proxy, reset. Nothing can be
-			# concluded about the claim, so --offline-ok is allowed to skip it.
+			# No HTTP response: DNS, connect, TLS, timeout, proxy, reset.
 			rm -f "$path"
 			FETCH_ERR="network"
 			return 1
 			;;
 		*)
-			# The server answered and said no (404/403/5xx). That is a finding, not an
-			# outage, even if the body transfer then failed — so --offline-ok must NOT
-			# swallow it.
+			# The server answered, but not with the file (429/5xx/403…). Retryable, not
+			# proof of deletion.
 			rm -f "$path"
-			FETCH_ERR="http"
+			FETCH_ERR="unavailable"
 			FETCH_STATUS="$status"
 			return 1
 			;;
@@ -239,12 +255,21 @@ while IFS= read -r raw_row; do
 	checked=$((checked + 1))
 
 	if ! fetch "$url"; then
-		if [ "$FETCH_ERR" = "network" ]; then
-			add_network_failure "$id: could not reach $url (network)"
-		else
-			add_failure "$id: $url returned HTTP $FETCH_STATUS — the file has moved or been deleted upstream
+		case "$FETCH_ERR" in
+			network)
+				add_network_failure "$id: could not reach $url (network)"
+				;;
+			unavailable)
+				# A retryable status (429/5xx/403 rate limit). Counted with the network
+				# failures so --offline-ok can skip a temporary outage — but NOT called
+				# drift, because the file may be perfectly fine.
+				add_network_failure "$id: $url returned HTTP $FETCH_STATUS — upstream temporarily unavailable, not treated as drift"
+				;;
+			*)
+				add_failure "$id: $url returned HTTP $FETCH_STATUS — the file has moved or been deleted upstream
         claim now unsupported: $claim"
-		fi
+				;;
+		esac
 		continue
 	fi
 
