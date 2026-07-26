@@ -1602,6 +1602,96 @@ class ChallengeTest extends TestCase
 	}
 
 	// -----------------------------------------------------------------
+	// #322 — stash auto-replay is a confused deputy (fail-closed).
+	// The stash is bound to user_id only, so a cloned session can plant one
+	// and the victim's reauth would execute the attacker's transaction. The
+	// chokepoint (build_replay_response_data) must NOT auto-replay ANY gated
+	// stash and must NOT redirect to the stashed action URL — regardless of
+	// method or whether the rule was flagged no-replay/redacted.
+	// -----------------------------------------------------------------
+
+	/**
+	 * #322: a normal (non-flagged) POST stash must not auto-replay.
+	 */
+	public function test_gated_post_stash_does_not_auto_replay(): void
+	{
+		$this->stash->shouldReceive('get')
+			->once()
+			->with('planted-post', 42)
+			->andReturn(array(
+				'method' => 'POST',
+				'url' => 'https://example.com/wp-admin/users.php',
+				'return_url' => 'https://example.com/wp-admin/user-new.php',
+				'rule_id' => 'user.create',
+				'post' => array('role' => 'administrator'),
+			));
+
+		$this->stash->shouldReceive('delete')->once()->with('planted-post', 42);
+
+		Functions\when('wp_validate_redirect')->returnArg();
+		Functions\when('add_query_arg')->alias(
+			static function ( string $key, string $value, string $url ): string {
+				$separator = str_contains($url, '?') ? '&' : '?';
+				return $url . $separator . $key . '=' . $value;
+			}
+		);
+
+		$method = new \ReflectionMethod($this->challenge, 'build_replay_response_data');
+		if ( PHP_VERSION_ID < 80100 ) {
+			$method->setAccessible(true);
+		}
+		$data = $method->invoke($this->challenge, 42, 'planted-post', 'https://example.com/wp-admin/');
+
+		$this->assertSame('success', $data['code']);
+		$this->assertArrayNotHasKey('replay', $data, 'A planted POST stash must not auto-replay.');
+		$this->assertArrayNotHasKey('post_data', $data);
+		$this->assertArrayHasKey('redirect', $data);
+	}
+
+	/**
+	 * #322: a normal GET stash must not redirect to the stashed action URL
+	 * (the confused-deputy replay for GET actions: plugin activate, site delete).
+	 */
+	public function test_gated_get_stash_does_not_redirect_to_action_url(): void
+	{
+		$this->stash->shouldReceive('get')
+			->once()
+			->with('planted-get', 42)
+			->andReturn(array(
+				'method' => 'GET',
+				'url' => 'https://example.com/wp-admin/plugins.php?action=activate&plugin=evil%2Fevil.php&_wpnonce=abc',
+				'return_url' => 'https://example.com/wp-admin/plugins.php',
+				'rule_id' => 'plugin.activate',
+				'post' => array(),
+			));
+
+		$this->stash->shouldReceive('delete')->once()->with('planted-get', 42);
+
+		Functions\when('wp_validate_redirect')->returnArg();
+		Functions\when('add_query_arg')->alias(
+			static function ( string $key, string $value, string $url ): string {
+				$separator = str_contains($url, '?') ? '&' : '?';
+				return $url . $separator . $key . '=' . $value;
+			}
+		);
+
+		$method = new \ReflectionMethod($this->challenge, 'build_replay_response_data');
+		if ( PHP_VERSION_ID < 80100 ) {
+			$method->setAccessible(true);
+		}
+		$data = $method->invoke($this->challenge, 42, 'planted-get', 'https://example.com/wp-admin/');
+
+		$this->assertSame('success', $data['code']);
+		$this->assertArrayNotHasKey('replay', $data);
+		$this->assertArrayHasKey('redirect', $data);
+		$this->assertStringNotContainsString(
+			'action=activate',
+			$data['redirect'],
+			'Must not redirect the victim browser to the stashed action URL.'
+		);
+	}
+
+	// -----------------------------------------------------------------
 	// handle_ajax_2fa — Two Factor provider: pre_process_authentication resend
 	// -----------------------------------------------------------------
 
