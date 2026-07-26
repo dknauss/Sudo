@@ -2,6 +2,11 @@ name: E2E Visual Baselines
 
 on:
   workflow_dispatch:
+    inputs:
+      update_snapshots:
+        description: 'Regenerate the baselines on THIS runner and upload them as an artifact'
+        type: boolean
+        default: false
   schedule:
     - cron: '30 4 * * *'
 
@@ -40,9 +45,35 @@ jobs:
           WP_ENV_ASSERT_CONTAINERS: cli
         run: npm run env:assert-wp-version
 
-      - name: Run visual baseline tests (non-blocking)
+      # These baselines are ONLY ever asserted here, on Linux. Regenerating them on a
+      # developer laptop produces PNGs that can never match — macOS font metrics differ
+      # by a few pixels, which is enough because `threshold` is a per-pixel colour
+      # tolerance, not a pixel-count budget. That is how VISN-01..04 came to fail every
+      # nightly run while this job still reported success. Dispatch this workflow with
+      # update_snapshots=true, download the `visual-snapshots` artifact, and commit it.
+      - name: Regenerate baselines on this runner
+        if: ${{ inputs.update_snapshots }}
+        env:
+          WP_ENV_CONFIG_PATH: .wp-env.e2e.json
+        run: npm run test:e2e:visual -- --update-snapshots
+
+      - name: Upload regenerated baselines
+        if: ${{ inputs.update_snapshots }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: visual-snapshots
+          path: tests/e2e/specs/visual/__snapshots__/
+          retention-days: 7
+
+      # Not continue-on-error. Snapshot drift genuinely is not a runtime-compatibility
+      # failure — the rationale release-confidence.yml records — but swallowing the
+      # exit code made this job report "success" over four failing baselines on every
+      # nightly run for as long as anyone checked, which is indistinguishable from not
+      # running it. This workflow is scheduled and not a required check, so a red run
+      # blocks nobody; it is simply the signal that someone needs to look.
+      - name: Run visual baseline tests
         id: visual
-        continue-on-error: true
+        if: ${{ !inputs.update_snapshots }}
         env:
           WP_ENV_CONFIG_PATH: .wp-env.e2e.json
         run: npm run test:e2e:visual
