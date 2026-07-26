@@ -27,6 +27,7 @@ jobs:
             "docs/abilities-api-assessment.md"
             "docs/connectors-api-reference.md"
             "docs/core-action-gate-proposal.md"
+            "docs/core-sudo-gate-implementation-spec.md"
             "docs/current-metrics.md"
             "docs/collaboration-analysis.md"
             "docs/sudo-design-notes.md"
