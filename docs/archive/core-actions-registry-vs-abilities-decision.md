@@ -2,9 +2,9 @@
 
 **Status:** Draft decision memo, not adopted by WordPress core.
 **Drafted:** July 2026
-**Resolves:** open question #1 (a new registry vs. consequence-metadata on the Abilities API) in [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md) §12 — the "one blocking question" that must be settled before the first patch.
-**Companion to:** [`core-action-gate-proposal.md`](core-action-gate-proposal.md) (§6 the *why*), [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md) (the *what to change*), [`abilities-api-assessment.md`](abilities-api-assessment.md) (runtime posture toward the Abilities API).
-**Grounding for Abilities-API facts:** most are grounded in [`abilities-api-assessment.md`](abilities-api-assessment.md), which cites official make.wordpress.org / developer.wordpress.org sources. This memo adds **one** directly-verified claim of its own — the behavior of `WP_Ability::execute()` and its `wp_before_execute_ability` hook, verified against WordPress/abilities-api `class-wp-ability.php` and linked inline where used. Verify all of these against live source before quoting in a public post.
+**Resolves:** open question #1 (a new registry vs. consequence-metadata on the Abilities API) in [`core-sudo-gate-implementation-spec.md`](../core-sudo-gate-implementation-spec.md) §12 — the "one blocking question" that must be settled before the first patch.
+**Companion to:** [`core-action-gate-proposal.md`](../core-action-gate-proposal.md) (§6 the *why*), [`core-sudo-gate-implementation-spec.md`](../core-sudo-gate-implementation-spec.md) (the *what to change*), [`abilities-api-assessment.md`](../abilities-api-assessment.md) (runtime posture toward the Abilities API).
+**Grounding for Abilities-API facts:** most are grounded in [`abilities-api-assessment.md`](../abilities-api-assessment.md), which cites official make.wordpress.org / developer.wordpress.org sources. This memo adds **one** directly-verified claim of its own — the behavior of `WP_Ability::execute()` and its `wp_before_execute_ability` hook, verified against WordPress/abilities-api `class-wp-ability.php` and linked inline where used. Verify all of these against live source before quoting in a public post.
 
 ---
 

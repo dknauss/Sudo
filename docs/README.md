@@ -26,13 +26,12 @@ source of truth for its topic; this index never restates content (see
 
 | Question | Read |
 |---|---|
-| Security-team overview: close the XSS→RCE route with recent auth (start here) | [`core-sudo-gate-security-pitch.md`](core-sudo-gate-security-pitch.md) |
-| *Why* should core have an action gate, and in what phases? | [`core-action-gate-proposal.md`](core-action-gate-proposal.md) |
-| *What* exactly would change in core (files, functions, APIs)? | [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md) |
+| *Why* close the XSS→RCE route with a recent-auth gate, and how does it land? (start here — the security pitch is now merged in) | [`core-action-gate-proposal.md`](core-action-gate-proposal.md) |
+| *What* exactly would change in core (files, functions, APIs; the registry-vs-Abilities decision; B′ session design)? | [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md) |
 | What do the actual patches look like at the chokepoints? | [`core-sudo-gate-poc-patches.md`](core-sudo-gate-poc-patches.md) |
-| Should Layer 1 be a new registry or Abilities metadata? (decision) | [`core-actions-registry-vs-abilities-decision.md`](core-actions-registry-vs-abilities-decision.md) |
-| Does the `consequential-actions` MVP still argue the spec's thesis? | [`core-sudo-gate-vs-demo-reconciliation.md`](core-sudo-gate-vs-demo-reconciliation.md) |
 | How does WordPress core authentication actually work? | [`wordpress-core-authentication.md`](wordpress-core-authentication.md) |
+
+*Archived core-proposal artifacts (see [`archive/`](archive/README.md)): the registry-vs-Abilities decision memo (folded into the spec §4.1.1), the `consequential-actions` MVP-vs-spec reconciliation, and password-change reauth research.*
 
 ## WordPress 7.0 & AI-adjacent surfaces
 

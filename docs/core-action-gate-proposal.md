@@ -1,372 +1,182 @@
-# Action Gate for WordPress Core: An Actions API First, a Gate Second
+# A Recent-Authentication Gate for WordPress Core
 
-**Status:** Draft proposal, not adopted by WordPress core.  
-**Drafted:** 2026-04-17  
-**Author context:** Derived from WP Sudo's production implementation and its comparative analysis in `sudo-architecture-comparison-matrix.md`.  
-**Intended audience:** WordPress core contributors, plugin authors evaluating adoption, and WP Sudo operators assessing a plausible migration path.
+**Status:** Draft proposal, not adopted by WordPress core.
+**Drafted:** 2026-04-17 · **Consolidated:** July 2026 (the standalone security pitch was merged into this document; see the note below).
+**Author context:** Derived from WP Sudo's production implementation and its comparative analysis in [`sudo-architecture-comparison-matrix.md`](sudo-architecture-comparison-matrix.md).
+**Intended audience:** WordPress core contributors and security reviewers, plugin authors evaluating adoption, and WP Sudo operators assessing a plausible migration path.
 
----
-
-## Executive Summary
-
-WordPress has a mature capability system, a mature authentication system, and a mature hook system. What it does **not** have is a first-class registry of **consequential operations**: actions important enough that core, plugins, audit tools, UI surfaces, and policy systems may all want to identify them consistently.
-
-That missing registry forces each security tool to reinvent the notion of a "dangerous operation" in its own model — with different identifiers, different semantics, different enforcement models, and no shared interoperability surface. The result is duplication, inconsistent operator experience, and no standard way to declare that an operation is consequential enough to observe, decorate, audit, or eventually gate.
-
-This proposal argues that WordPress should solve that problem first.
-
-Specifically, core should introduce a small **Actions API** for consequential operations. The API would let core and plugins register namespaced action identifiers with metadata such as labels, capability expectations, consequence classes, scopes, and annotations like “destructive” or “requires recent authentication.” Core and plugins could then query that registry, emit before/after execution hooks, surface UI affordances, and layer audit or policy tooling on top of it **without** requiring WordPress to standardize reauthentication, challenge UX, replay, or non-interactive surface policy in the same release.
-
-Once such an Actions API exists, a second-layer **Action Gate** becomes much easier to reason about. At that point, WordPress could define a proof-of-intent primitive that consumes registered actions and, for selected operations, asks for fresh proof that a human user is intentionally performing the action now. That later gate layer could use browser reauthentication, passkeys, 2FA-aware handlers, or other challenge mechanisms, but those concerns would sit on top of the shared action vocabulary instead of being entangled with the registry from day one.
-
-The proposal is therefore intentionally phased:
-
-- **Phase 1:** a core **Actions API** that registers consequential operations with namespaced identifiers, metadata, and execution hooks.
-- **Phase 2:** an **Action Gate** that consumes those registered actions and adds proof-of-intent requirements for selected operations.
-- **Phase 3:** richer surface policy, challenge extensibility, and broader ecosystem adoption.
-
-This proposal does **not** attempt to solve WordPress’s deeper runtime trust problem. Malcolm Peralty’s April 17, 2026 “WP Next” series opens with the argument that WordPress’s plugin contract may require a structural split to repair. Joost de Valk argues that many of the same architectural problems can still be addressed through targeted refactoring within the existing project. Brian Coords’ writing on EmDash reinforces that these concerns are not abstract architecture talk; they are increasingly visible in day-to-day WordPress development and product work. This proposal takes no position on whether WordPress ultimately modernizes by split or by refactor. It makes the narrower claim that **proof of intent for consequential operations remains a distinct and useful primitive under either future**.
+> **Consolidation note (July 2026).** This document now leads with the *gate* — a built-in recent-authentication requirement for a small, provable closure of consequential effects — which is the security ask. The **Consequential-Actions registry** (an "Actions API") it originally opened with is retained as an **optional, independently-valuable companion** (§8), not as a mandatory Phase 1 the gate depends on. Rationale: a threat-motivated recent-auth gate is more landable in core than a speculative registry, and the gate enforces at the effect chokepoint whether or not the registry ships. The engineering detail lives in the companion docs (§12); this document is the *why* and the shape.
 
 ---
 
-## 1. The Problem: Capability Is Not Current Human Intent
+## 1. The ask
 
-WordPress’s capability system answers an important question:
+> Give WordPress core a built-in **recent-authentication ("sudo") gate** that stops an illegitimate administrator session from introducing attacker-controlled executable code or manufacturing a credential it controls — enforced at core's **shared effect sinks**, with the decision branching on **actor class** rather than transport.
 
-> **Is this principal authorized in general to perform this kind of action?**
+An XSS in a `wp-admin` origin is now routinely classified as *RCE-facilitating*, but only **indirectly**: compromise an admin session → reach the plugin/theme editor or the installer/uploader (or their REST equivalents) → write and execute PHP. Every XSS inherits an RCE severity because of a route WordPress leaves open by default, not because of the XSS itself. **Close the route and the whole class de-escalates.**
 
-That question is necessary, but it is not always sufficient.
+The gate requires **fresh proof of the actor's own factor** before a consequential effect proceeds — evaluated *at the effect*, regardless of the actor's capabilities or the transport the request arrived on. Possession of an ordinary admin session becomes **insufficient** to introduce executable code or take over an account. It is deliberately narrow: it is not a permission system, a sandbox, a 2FA framework, a WAF, or an audit log (§5, §6).
 
-For some operations, what matters is not only whether a principal is generally authorized, but whether the principal is **currently, intentionally, and interactively** performing that operation now. WordPress has no first-class primitive for expressing that distinction. It has capabilities, role mappings, and permission callbacks, but no built-in way to say:
-
-> “This operation is consequential enough that capability alone should not be the only authorization boundary.”
-
-That gap matters in ordinary failure modes:
-
-- **Stolen browser sessions.** If an attacker obtains a valid admin session cookie, WordPress treats the attacker as fully authorized until that session expires or is revoked.
-- **Walk-away devices and inherited trust.** An unlocked laptop, shared workstation, or long-lived admin session can carry broad privileges well beyond the moment the legitimate user last made a conscious trust decision.
-- **XSS in an authenticated origin.** If malicious JavaScript executes inside an authenticated admin session, it inherits the ambient authority of that origin.
-- **Credential-integrity failures.** Some operations are dangerous not because they reveal secrets but because they replace trusted state—for example, rotating connector or provider API keys.
-- **Delegated or long-lived API access.** Application passwords, automation scripts, and service credentials represent legitimate grants, but they do not themselves answer whether a specific consequential action should proceed without additional scrutiny.
-
-These are not hypothetical edge cases. They are common enough that WordPress security tools already compensate by maintaining their own ad-hoc catalogs of dangerous operations and their own enforcement logic, in incompatible tool-specific ways. WP Sudo is different in kind — the focused, single-purpose implementation of exactly this proof-of-intent primitive (§16) — which is why this proposal generalizes from it rather than from any broad security suite. The important point is not that any one implementation should be lifted into core unchanged. It is that **the repeated emergence of these systems is evidence of a missing shared primitive.**
-
-The deeper problem is that WordPress lacks a canonical way to talk about consequential operations at all.
-
-Core has actions and filters, but those are lifecycle and extension hooks, not a formal catalog of “this is an operation with outsized consequence.” Core has capabilities, but capabilities describe broad categories of authorization, not specific high-impact operations as first-class objects. Core now also has the Abilities API, which is relevant because it provides a namespaced registry model and execution hooks for callable abilities. But abilities are not yet the same thing as a shared catalog of consequential operations across core and plugin behavior.
-
-Without such a catalog:
-
-1. **Security and policy plugins duplicate each other’s work.** Each plugin builds its own list of operations to watch or gate.
-2. **Plugin interoperability is weak.** Plugins that want to declare “this refund,” “this credential rotation,” or “this user-role promotion” as consequential have no standard, core-defined vocabulary for doing so.
-3. **Downstream systems have no common taxonomy.** Audit logging, Site Health diagnostics, admin indicators, plugin permission manifests, and AI-agent boundaries all need a stable language for high-consequence actions if they are to interoperate cleanly.
-
-The missing primitive, then, is not “sudo” by itself. The missing primitive is:
-
-> **a first-class registry of consequential operations that WordPress can name, describe, observe, and later gate consistently.**
-
-That is why this proposal begins with an Actions API rather than jumping directly to a full gate framework.
+This is the failure mode behind Core Trac [#20140](https://core.trac.wordpress.org/ticket/20140) (recent auth for consequential actions), generalized past the account-change cases it argued to the full set of terminal effects. It is also the most-*exploited* vulnerability class in current data: Patchstack's [*State of WordPress Security 2026*](https://patchstack.com/whitepaper/state-of-wordpress-security-in-2026/) reports **broken access control as the single most-exploited category** of the 11,334 vulnerabilities found in 2025, and notes such exploits *"look like normal authenticated traffic with no obvious injection patterns"* — precisely why a proof-of-intent gate, not traffic inspection, is the right defense.
 
 ---
 
-## 2. Threat Model and Security Boundaries
+## 2. The problem
 
-This proposal is about **proof of human intent for consequential operations**. It is not a general security cure, and it should not be evaluated as one.
+WordPress's capability system answers *"is this principal authorized in general to perform this kind of action?"* That is necessary but not always sufficient. For some operations what matters is whether the principal is **currently, intentionally, and interactively** performing the action now — a distinction WordPress has no first-class primitive for.
 
-The proposal assumes that some actions are consequential enough that a normal capability check does not fully answer the security question being asked. The relevant question is not only “does this user have the capability?” but also “has this user or session recently and intentionally confirmed that they mean to do this now?”
+Two properties of a compromised session decide the defense:
 
-### In scope
+- It is **an authenticated session.** The attacker loads any admin page, so **nonces are not a defense** — any nonce the UI would render, they harvest — and REST/AJAX are reachable *(verified: `wp_create_nonce()` hashes the session token, so a session holder mints valid nonces)*.
+- It does **not** carry the account **password** or any **second factor**.
 
-The proposal is designed to address the following kinds of risk:
-
-#### 2.1 Stolen-session abuse of legitimate privileged operations
-
-If a session cookie is stolen, inherited, or reused on an unlocked device, an attacker can often perform privileged actions that the user would ordinarily be allowed to perform. The problem here is not a missing capability check; it is the absence of a fresh proof-of-intent boundary for selected actions.
-
-#### 2.2 High-consequence operations in authenticated browser contexts
-
-Some operations are simply more dangerous than others even when performed by authorized users. Examples include:
-
-- activating, installing, or deleting plugins **or themes**
-- promoting users to administrator
-- deleting users
-- editing code-bearing sources (the plugin/theme file editor — in scope as a *threat*, though deferred from the v1 gate catalog because it is commonly disabled via `DISALLOW_FILE_EDIT`; see the implementation spec §4.1)
-- rotating external credentials
-
-These operations are infrequent, high-impact, and amenable to a deliberate confirmation or recent-auth check.
-
-#### 2.3 Credential replacement and integrity-sensitive state changes
-
-Some admin operations are dangerous not because they reveal secrets but because they replace trusted state. Updating connector or provider API credentials is a good example. The risk is often an integrity failure—substituting attacker-controlled credentials or breaking the trust relationship to an external system—rather than a confidentiality failure alone.
-
-#### 2.4 Shared taxonomy for downstream tooling
-
-Even where no gate is enforced yet, a core registry of consequential actions provides immediate value to:
-
-- audit logging systems
-- diagnostics and Site Health-style reporting
-- admin UI warning indicators
-- plugin permission systems
-- AI-agent execution boundaries
-- policy and compliance tooling
-
-This proposal therefore treats naming and observing consequential operations as a security primitive in its own right.
-
-### Out of scope
-
-The proposal does **not** solve the broader WordPress runtime trust problem.
-
-#### 2.5 Plugin sandboxing and runtime isolation
-
-Malcolm Peralty’s April 17, 2026 WP Next series opens with the argument that WordPress’s plugin contract—effectively “trust everybody with the whole process”—cannot be fully repaired inside the current backwards-compatibility envelope. Joost de Valk argues that at least some of the same structural deficits can still be addressed by targeted refactoring. This proposal does not attempt to resolve that debate. It assumes only that, whichever path WordPress takes, a proof-of-intent layer remains a distinct concern.
-
-A gate or action registry running inside the same process as core does **not** prevent malicious or compromised plugin code from doing things that never pass through declared, registered, high-level actions.
-
-#### 2.6 Missing authorization checks
-
-If a plugin or core path fails to call `current_user_can()` where it should, this proposal does not fix that bug. The Actions API and any later Action Gate layer are additive to authorization, not replacements for it.
-
-#### 2.7 WAF-style exploit detection
-
-This proposal does not attempt to classify malicious requests, inspect payloads like a firewall, or detect exploit chains. Its purpose is to define and optionally gate **declared consequential operations**, not to detect arbitrary attack traffic.
-
-#### 2.8 Authentication replacement
-
-The proposal does not introduce a new login system. Any future gate layer would build on existing authenticated identities and existing session infrastructure, adding a fresh proof-of-intent requirement for selected operations rather than replacing WordPress login.
-
-#### 2.9 Audit logging, monitoring, and SIEM
-
-The Actions API gives audit and monitoring tools a shared vocabulary and consistent before/after events to consume (§2.4, §9.1) — but core itself does not become an audit log, event monitor, or SIEM. It **enforces** and **names**; it does not observe, correlate, retain, or alert on activity. Collecting, storing, and analyzing that stream is a separate concern that plugins and hosts provide (the implementation spec makes this an explicit core non-goal, §1). Bundling observability into core would be a much larger, separately contested project and is deliberately excluded here.
-
-### The core boundary claim
-
-The most important boundary claim in this proposal is this:
-
-> A shared Actions API, and later an Action Gate built on top of it, can reduce the risk of stolen-session abuse and integrity-sensitive state changes for declared consequential operations. It cannot, by itself, solve WordPress’s full plugin-runtime trust problem.
-
-That distinction is what keeps the proposal useful. It is not a substitute for structural modernization, but it is also not made irrelevant by structural modernization. Whether WordPress ultimately evolves by targeted refactor, by a split between Classic and Next, or by slower incremental change, **proof of intent for consequential operations remains a real and distinct security concern**.
+Be precise about the threat this closes. WordPress auth cookies are **HttpOnly**, so an in-origin XSS usually *session-rides* the victim's browser rather than exfiltrating the cookie. Against session-riding, what closes the route is **the challenge plus a short window**, not any property of the session record. Against genuine cookie *copy* (infostealer malware, header-logging proxies, backups/logs, shared devices), the session design in §4 is what denies replay. State it honestly: this makes possession of an ordinary admin session **insufficient** to introduce executable code; it does not "solve XSS," and an active same-origin XSS can still act inside the window. The worked adversary and full route enumeration live in [`stolen-cookie-rce-attack-tree.md`](stolen-cookie-rce-attack-tree.md).
 
 ---
 
-## 3. Why This Matters Now in the Broader WordPress Architecture Debate
+## 3. The invariant that keeps the scope small, and the minimal closure
 
-This proposal lands in the middle of a broader architectural debate about WordPress’s future. That debate is not just background context; it affects how a proof-of-intent primitive should be framed.
+The defense holds under one condition:
 
-### Malcolm Peralty: the strongest current split argument
+> **It holds iff there is no ungated route by which the attacker can obtain, set, or reset a credential**, and no ungated route to write/execute code. A credential the attacker controls lets them answer the challenge, and every gate downstream collapses.
 
-Between April 17 and May 26, 2026, Malcolm Peralty published a six-part series titled “What Might WP Next Look Like?” proposing a split between a long-supported “WP Classic” line and a modernized “WP Next.” Part 1 (April 17) opens with the diagnosis that this proposal was originally written against: WordPress’s plugin contract is still effectively “trust everybody with the whole process,” and Peralty argues that a clean structural split may be the only honest way to repair that.
+So the gated set is a **provable minimal closure**, not a wishlist: **{ routes that write/execute code } ∪ { routes that manufacture or take over a password-known principal }**. Anything outside it (gating posts, comments, general settings) is a different risk conversation and should be declined.
 
-Parts 4 and 5 (May 25) are the most directly relevant sections for this proposal. Part 4 (“Performance and Security”) is blunt about the runtime — a plugin can `exec()` whatever it wants, read every other plugin’s secrets, and exfiltrate anything, because (in Peralty’s words) “there is no permission model at the plugin boundary” — and proposes a four-phase manifest enforcement strategy — declared-but-not-enforced, API-level enforcement, static analysis, and eventual WASM isolation. That enforcement phasing maps almost exactly to this proposal’s Phase 1 (Actions API: registry and naming) → Phase 2 (Action Gate: enforcement) structure. Part 5 (“The Plugin Economy”) adds a “declared contracts” model with `@api` vs. `@internal` distinctions that directly supports the interoperability and taxonomy arguments in this proposal.
+**Group A — terminal code effects.** Gate at the shared sinks so route multiplicity is a non-issue *(verified sinks)*:
 
-This proposal agrees with Peralty’s runtime diagnosis while stopping well short of claiming that an Action Gate primitive is a substitute for the split he is proposing. If Peralty is right, then this proposal is not the answer to WordPress’s deepest trust problem. It is, at best, a backward-compatible hardening layer for consequential operations in the existing runtime — and, notably, one whose registry-first approach fits naturally within Peralty’s own declared-but-not-enforced Phase 1 model.
+| Effect | Shared sink to gate |
+|---|---|
+| Plugin/theme file editor (incl. AJAX) | `wp_edit_theme_plugin_file()` — the one function `plugin-editor.php`, `theme-editor.php`, and `wp_ajax_edit_theme_plugin_file()` all converge on |
+| Install / upload ZIP / update / bulk-update, plugin **and** theme, **and language packs** | `WP_Upgrader::install_package()` — the single package-write funnel beneath `Plugin_Upgrader`/`Theme_Upgrader` `install()`/`upgrade()`/`bulk_upgrade()`, `WP_Automatic_Updater`, `wp_ajax_update_plugin/theme`, and REST |
+| **Activate** a plugin (its activation hook runs PHP) | `activate_plugin()` — reachable directly via REST `update_item` on an already-installed plugin with only `install_plugins`+`activate_plugins` |
+| **Switch** to an installed theme (makes its code active) | `switch_theme()` — activating a malicious already-installed theme is a terminal code-execution effect, so it belongs alongside plugin activation |
 
-A full read of the series sharpens the relationship. Part 2 (“The Kernel”) describes WP Next as a **PSR-15 middleware pipeline** over a PSR-11 container with **PSR-14 typed events**; Part 6 (“The Migration Plan”) lists the shared `wp-kernel`’s security services as **CSRF protection, OAuth, and a phased plugin-manifest model**. Across all six parts, **proof of intent for consequential operations is never raised** — not in the kernel, not in the admin (Part 3 states plainly that “Next’s admin is Classic’s admin”), not in the manifest phasing. (Part 6 does propose WebAuthn/passkeys and OAuth/OIDC, but those are login-time *authentication*, not proof of intent for a consequential operation already inside an authenticated session — which only sharpens the point.) This matters in two directions. The kernel supplies precisely the seam an Action Gate needs — request middleware and typed effect events — so under WP Next the gate is a natural PSR-15 middleware / event consumer rather than a bolt-on. And the seam is left empty: even the most detailed WP Next plan omits a proof-of-intent layer, which is the clearest evidence that this primitive is orthogonal to the split rather than subsumed by it.
+Gating `install_package()` (not `Plugin_Upgrader::install()`) matters: `install()` alone misses bulk, update, the AJAX updaters, and the auto-updater, and the update package URL comes from mutable transient state, not a fixed .org constant. Provenance ("is this a .org slug") is the wrong key — `plugins_api()` results and the download link are filterable; key on the **package write**.
 
-### Joost de Valk: the strongest current refactor-without-split argument
+**Group B — credential/principal pivots (in v1, not deferrable).** A Group-A-only release is bypassable per the invariant: mint a known credential, log in fresh, pass every Group-A challenge.
 
-Joost de Valk’s [“WordPress needs to refactor, not redecorate”](https://joost.blog/wordpress-refactor-not-redecorate/) makes many of the same underlying architectural critiques as Peralty—especially around the plugin permission model, data model, and developer experience—but reaches a different conclusion. Instead of arguing for a split, de Valk argues for targeted, structural refactoring inside the existing project, citing precedents such as Yoast’s Indexables table and WooCommerce HPOS.
+| Pivot | Note |
+|---|---|
+| **Change own password** | Core requires *no old password* — a session holder sets one they now know. The single most important entry. |
+| Change any user's password / **email → reset** | email change on `user-edit.php` commits immediately; self-service confirms to the *attacker's* new address |
+| Create a code-capable user / promote into that authority (incl. bulk) | |
+| Create an **Application Password** (REST controller **and** `authorize-application.php` no-JS flow) | durable REST credential that can then change a main password |
+| (Multisite) grant Super Admin | on multisite only Super Admins can reach the code effects (`map_meta_cap` denies plugin/theme file caps to non-super-admins) — so gate Super-Admin grants and *their* credential changes, not ordinary site-admin ones |
+| Public registration with a code-capable default role | close with a server-side **invariant** (a code-capable role can never be the registration default), validated by effective capability, not role name |
 
-That view is especially relevant here because a small, layered primitive such as an Actions API is much more plausible under a refactor-in-place model than a much larger “WordPress must first split” frame. If de Valk is right, a shared registry of consequential actions is exactly the kind of low-level primitive core can introduce incrementally without resolving every other architectural question first.
+**"Code-capable" means effective capability across *every* gated execution route** — `edit_plugins`/`edit_themes`/`upload_plugins`/`upload_themes` (which map to `install_*`) **and** `activate_plugins` and theme-switch authority (`switch_themes`/`edit_theme_options`), **not** role names. Omitting activation would misclassify a custom registration-default role that can activate an already-installed plugin as "safe." This makes custom roles and the multisite distinction fall out correctly.
 
-### Brian Coords: the practitioner signal
+**Critical-origin settings are in the closure too.** A cookie-authenticated `POST /wp/v2/settings` repointing `siteurl`/`home` loads attacker-origin scripts **same-origin** in `wp-admin` — an XSS-as-RCE primitive whose script can *fake or keylog the full-page challenge itself*, which would otherwise defeat the gate ([`stolen-cookie-rce-attack-tree.md`](stolen-cookie-rce-attack-tree.md) §6). So the critical-option write (`siteurl`/`home`, and the connector-credential rotation) is gated — the same critical-settings chokepoint WP Sudo already gates as `options.critical`. It is not a "different primitive" set aside.
 
-Brian Coords’ [“EmDash: First thoughts and takeaways for WordPress”](https://www.briancoords.com/emdash-first-thoughts-and-takeaways-for-wordpress/) does not propose a mechanism like this one, but it matters because it shows that these concerns are already visible in ordinary WordPress product and development work. His observations about plugin trust, developer experience, decision fatigue, and the tradeoffs of WordPress’s current extensibility model are a practitioner signal: the architectural strain is not just theoretical, and it is not confined to a small number of architecture-focused commentators.
-
-### Why this proposal still matters under either future
-
-These three perspectives are useful because they triangulate the same reality from different angles:
-
-- Peralty: the strongest argument that WordPress may need a structural split
-- de Valk: the strongest argument that WordPress can still refactor its way toward a healthier architecture
-- Coords: the strongest practitioner signal that these problems are already affecting real development and product work
-
-This proposal does not require the WordPress project to choose among those futures before acting. Instead, it makes a narrower claim:
-
-> Whether WordPress modernizes by split, by targeted refactor, or by slower incremental change, it still lacks a shared vocabulary for consequential operations, and it still lacks a first-class proof-of-intent primitive for those operations.
-
-A split does not make that concern disappear. A refactor does not make it disappear either. In a more isolated future runtime, the gate becomes one layer above capability grants. In today’s runtime, it is a backward-compatible hardening measure. In both cases, the semantics of “this operation is consequential enough that it deserves first-class treatment” remain useful.
+The exact chokepoints, per-function return contracts, and the full catalog are in [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md) §4.1 / §5.
 
 ---
 
-## 4. What This Proposal Is—and Is Not
+## 4. How it lands in core
 
-The proposal is easier to evaluate when its layers are separated cleanly. One reason WordPress security discussions become muddled is that several different concerns are often collapsed into one argument: naming consequential operations, authorizing them, requiring fresh proof of intent, restricting plugin privileges, and isolating plugin runtime behavior. These are related, but they are not the same problem and they do not need to be solved in one proposal.
+**Enforce at the shared effect sinks, not at `map_meta_cap()`.** *(verified)* `upload_plugins`→`install_plugins` and `upload_themes`→`install_themes`, so a capability-layer gate cannot distinguish an attacker ZIP from a repository install and would disrupt CLI, automation, and introspection. Gate the effects in §3. This is the load-bearing design choice — **gate the effect, not the form field** — because a hijacked session skips the form and calls the mutation directly; the guard must sit at the data-layer chokepoint every surface funnels through, so browser, REST, and programmatic callers are covered by one insertion.
 
-This document therefore treats the work as a stack:
+**Branch the decision on actor class, not transport** — this is how non-interactive surfaces are handled without an exemption and without inventing a headless challenge UX:
 
-1. **Actions API** — a shared registry and vocabulary for consequential operations.
-2. **Action Gate** — a proof-of-intent layer that may consume that registry later.
-3. **Future policy and manifest systems** — higher-level consumers that may use the same taxonomy.
+| Actor at the sink | Decision |
+|---|---|
+| Interactive cookie session, no recent-auth window | **Challenge** (full-page; below) |
+| API credential (Application Password) / REST, no window | **Block + log** |
+| No actor **and** core's own automatic updater **and** package from the site's configured update source | **Allow** (background security updates keep working) — but `install_package()` receives an *unpacked local path*, not the source URL, so **provenance must be decided upstream** (at the update offer / `upgrader_pre_download`) and threaded in as a trusted flag |
+| WP-CLI | **Allow by default, operator-configurable** — shell access already dominates the gate; a CLI block is theater with real deploy cost |
 
-Keeping those layers distinct is not just editorial hygiene. It is the main design discipline that makes the proposal plausibly landable in core.
+The decision object never encodes transport: business functions return a decision (as a `WP_Error` in practice), and surface adapters localize the UX — admin UI redirects, REST returns 403, AJAX returns JSON. That keeps transport handling out of privileged business functions (the spec's §5.2 adapters).
 
-### 4.0 Terminology note: “action” here does not mean a hook action
+**Session / assurance design — a per-session, HMAC-signed, separate proof (no rotation).** The obvious designs fail, and two independent reviews rejected them:
 
-This proposal deliberately uses the word **action** to mean a **registered consequential operation**, not a WordPress Actions API hook such as `do_action()` or `add_action()`. That overlap is a real source of possible confusion, and readers should keep it in mind throughout the document.
+- *Rotate the session token on step-up* — breaks core: `wp_create_nonce()` hashes the token, so rotation invalidates every nonce in every open tab **and** the replayed POST's own nonce; core deliberately re-issues the cookie against the *same* token on password change to preserve nonces; and `WP_User_Meta_Session_Tokens` has a lost-update race that can silently drop the rotation, leaving the thief's copy valid.
+- *Stamp `reauth_at` on the shared session record* — the stolen cookie **is** that record; it elevates the thief too.
+- *Trust a fresh `login` timestamp* — `wp_signon('','')` mints a fresh stamp from a held cookie with no credential entered.
 
-The reason to keep the term for now is that it conveys what the registry is trying to capture: meaningful, named operations such as activating a plugin, deleting a user, or rotating external credentials. Still, if core contributors conclude that “Actions API” is too easily confused with the existing hook system, the name should change before any real proposal moves forward. Viable alternatives would include **Action Catalog API**, **Consequential Operations API**, or **Operation Registry API**.
+The design that survives (the spec calls it **B′**):
 
-### 4.1 Phase 1: Actions API
+1. The proof secret lives only in the browser that answered the challenge; stored server-side only as a hash, keyed to the **current login-session token verifier** (`hash('sha256', wp_get_session_token())`) — **not per-user**, so concurrent sessions do not overwrite each other. Its cookie is scoped to the site root (`COOKIEPATH`), not `/wp-admin`, so it also reaches cookie-authenticated `/wp-json` REST.
+2. The assurance record is **self-authenticating**, and the MAC must cover the **proof hash too**: `hash_hmac('sha256', "$user_id|$verifier|$reauth_at|$scope|$proof_hash", wp_salt('auth'))`, verified before any field is trusted. (Signing only user/verifier/time/scope would let a cache-poisoning attacker keep the valid MAC and swap in the hash of a cookie *they* hold — defeating the separate proof.) `session_tokens` lives in the persistent, poisonable `user_meta` cache group (the wp2shell class; §10), which is why the record must be signed at all. Degradation: weaker when the `AUTH_SALT` family lives in `wp_options` rather than `wp-config.php`.
+3. **Only the challenge handler writes it**; core strips reserved `reauth_*` keys from the `attach_session_information` filter result.
+4. The read consults the **session store**, so "log out everywhere" revokes within the same request.
+5. Teardown clears only the `reauth_*` keys, bound to a credential change **for the target user** — never `destroy_all()`, and never on an admin editing another user.
+6. Full-page **top-level** challenge — never a modal/iframe inside a possibly-XSS-compromised admin document. For AJAX/REST, return a stable `reauthentication_required` 403 + challenge URL; **never auto-replay** a password/role/email change or an executable upload.
 
-The Actions API is the smaller, more landable primitive. Its purpose is to let WordPress name consequential operations explicitly, attach metadata to them, and expose a stable registry that multiple systems can consume. In practical terms, it provides:
-
-- a shared registry of consequential operations
-- namespaced identifiers
-- metadata and annotations
-- before/after execution hooks
-- queryability for core, plugins, UI, and tooling
-
-Crucially, it does **not** require core to settle challenge UX, recent-auth semantics, replay behavior, non-interactive surface policy, or operator-facing configuration in the same release. That is what makes it useful as a first primitive rather than an all-at-once security framework.
-
-### 4.2 Phase 2: Action Gate
-
-The Action Gate is a consumer of the Actions API, not a replacement for it. It assumes that WordPress already has a stable way to say “this operation is consequential” and then asks a second question: should this request proceed immediately, should it require fresh proof of human intent, or should it be blocked by policy? At that point, the gate adds:
-
-- a decision object
-- a proof-of-intent requirement for selected registered actions
-- a recent-auth or sudo-session model
-- challenge transport and extensibility
-- eventually, surface-specific policy
-
-### 4.3 Not a capability overhaul
-
-This proposal does not replace `current_user_can()` or change the role/capability model. Capability checks still answer whether a principal is authorized in general. The gate layer, if added later, answers whether that principal has freshly demonstrated human intent for a selected consequential operation. The proposal therefore sits *above* capabilities, not in place of them.
-
-### 4.4 Not a plugin permission manifest
-
-A future plugin permission or capability-manifest system could use the Actions API’s taxonomy, but this proposal does not attempt to design that system. It only tries to create a registry and vocabulary that such a system could consume later. This distinction matters because a manifest system is a much larger governance and compatibility problem than a registry of consequential actions.
-
-### 4.5 Not runtime isolation
-
-The proposal does not claim to sandbox plugin code, restrict filesystem access, or solve WordPress’s shared-process trust problem. It is intentionally weaker than that. A shared registry of consequential actions, and even a later proof-of-intent gate, can only constrain *declared operations that pass through known enforcement points*. They do not repair the fact that today’s plugin contract still grants code running inside WordPress the effective privileges of the WordPress process itself.
-
-This explicit limitation is a strength. It keeps the proposal honest about what it can and cannot do, and it prevents the Action Gate layer from being misread as a substitute for broader runtime reform.
+If core wants the thief's existing session *gone*, offer rotation as an explicit "sign out other sessions" affordance after step-up — not an implicit side effect of every elevation. The full mechanics (per-verifier keying, atomic write, lockout-as-remediation-hazard) are in the spec's §4.2.
 
 ---
 
-## 5. Phase 1: A Core Actions API for Consequential Operations
+## 5. Non-goals — and what is *deferred* vs *excluded*
 
-The first thing WordPress should standardize is **naming and observing consequential operations**, not universal reauthentication behavior. That ordering is deliberate. A registry of consequential actions is valuable even if WordPress never adopts a full core-managed gate, and it is much easier to introduce incrementally than a challenge, replay, and policy framework that tries to standardize every privileged surface at once.
+Gate, not permission system. **Not** a `current_user_can()` replacement (it sits *above* capabilities and never grants authority), a sandbox, a 2FA framework, a WAF, or an audit log. It cannot stop code already running in-process, it does not fix a missing `current_user_can()` (that is an authz bug, orthogonal), and it does not inspect traffic. See §6 for the boundary claim.
 
-Put differently: if WordPress cannot yet agree on how to challenge a user before a sensitive action, it can still agree that the action is sensitive and deserves a first-class name.
+**Deferred to a later cut** (not excluded — do not frame them as safe): the per-surface **policy UI**, scope-bound windows, and any interactive challenge *rendering* on non-interactive surfaces. The non-interactive routes themselves are still **enforced** in v1 via the block/allow policy in §4.
 
-### Goals of Phase 1
-
-- Give core and plugins a shared vocabulary for consequential operations.
-- Let multiple systems consume that vocabulary without each inventing its own catalog.
-- Support admin UI, audit logging, diagnostics, plugin interop, and future proof-of-intent tooling.
-- Make the first primitive small enough that it could plausibly land in core without depending on challenge UX or non-interactive policy decisions.
-
-### Why an Actions API first
-
-An Actions API is valuable even if a universal gate never ships in core.
-
-It gives the ecosystem:
-
-- **a stable taxonomy** of consequential operations
-- **execution hooks** for audit and observability
-- **queryable metadata** for UI and diagnostics
-- **an interoperability surface** for plugins that want to declare consequential operations
-- **a foundation** for later gating, manifests, or AI-agent boundaries
-
-This is the strongest wedge because even people who are skeptical of core-managed reauthentication may still agree that WordPress needs a first-class catalog of consequential operations. It is also the part of the proposal most compatible with both of the broader modernization paths now being argued in public:
-
-- under a **refactor-in-place** model, it is exactly the kind of small, structural primitive core can introduce without waiting for total consensus on broader reform;
-- under a **split / WP Next** model, it is a semantic layer that remains useful even if the underlying runtime, permission model, and enforcement mechanisms eventually change.
-
-The Actions API is therefore the proposal’s lowest-risk, highest-leverage starting point.
-
-### Why not ship only a recent-auth primitive?
-
-A reasonable objection is that WordPress may not need an action registry first at all. Core could, in theory, introduce a small helper such as `wp_require_recent_auth()` and apply it selectively to a few high-risk browser flows.
-
-That would be a valid direction for a much narrower proposal, but it would leave several important benefits on the table:
-
-- it would not create a shared taxonomy of consequential operations
-- it would not help audit or logging systems converge on stable identifiers
-- it would not give plugins a standard way to declare that their own operations are consequential
-- it would not help future plugin-manifest systems or AI-agent boundaries classify sensitive operations consistently
-
-A recent-auth primitive is therefore a plausible **consumer** of this proposal’s Phase 1 registry, but it is a weaker substitute for the registry itself. The registry yields value whether or not core standardizes recent-auth behavior immediately. A recent-auth helper does not provide the same ecosystem-wide naming and interoperability benefits on its own.
+**Bracketed, on purpose** — a *different* primitive or *not reachable through the core code effects above*: media-upload-to-PHP (`upload_filetypes`, multisite); the WXR importer; `wp-config.php` / drop-ins / direct DB writes; and hosting/FTP/SSH access (which strictly dominates the gate). (The `siteurl`/`home` repointing pivot is **not** bracketed — it is gated as part of the closure, §3, because it can defeat the challenge.) **Not** bracketed: wordpress.org installs, updates, and activation — those are Group-A effects covered by the `install_package()`/`activate_plugin()` seams under the actor-class policy.
 
 ---
 
-## 6. Naming, Taxonomy, and Relationship to the Abilities API
+## 6. Threat model and security boundaries
 
-The Actions API should use namespaced, action-oriented identifiers, but it should not misstate the Abilities API convention. That matters because one of the proposal’s goals is to reduce conceptual duplication inside WordPress, not create unnecessary vocabulary drift.
+The gate addresses **proof of human intent for consequential operations**. It is not a general security cure and should not be evaluated as one. The row-by-row threat model (which actor classes are defended, and how completely) is maintained in [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md) §2; the concentrated value is on the interactive-session rows — stolen/replayed cookie, walk-away device, hijacked Editor/Admin — which are exactly the broken-access-control / privilege-escalation / session-hijack categories that dominate the exploited-vulnerability data (§1).
 
-The official Abilities API convention is `namespace/ability-name`, using lowercase alphanumerics, hyphens, and one forward slash. This proposal should align with that general shape unless it has a compelling reason to diverge. It should not claim that dotted identifiers such as `core/plugins.activate` are themselves the Abilities convention, because they are not.
+**In scope:** stolen-session abuse of legitimate privileged operations; high-consequence operations in authenticated browser contexts (plugin/theme install/activate/switch/delete, promotion, deletion, the file editor); and credential-**integrity** state changes such as rotating connector/provider API keys (an integrity failure, not a confidentiality one).
 
-### Recommended naming convention
+**Out of scope** (the runtime-trust problem the gate deliberately does *not* solve):
 
-Use:
+- **Plugin sandboxing and runtime isolation.** A gate running in the same process as core does not prevent malicious or compromised plugin code from doing things that never pass through declared chokepoints. Whichever way WordPress modernizes (§7), a proof-of-intent layer remains a distinct concern — it is not a substitute for isolation.
+- **Missing authorization checks.** If a path fails to call `current_user_can()` where it should, the gate does not fix that bug; it is additive to authorization, not a replacement.
+- **WAF-style exploit detection.** The gate names and gates *declared* consequential operations; it does not classify malicious requests or inspect payloads.
+- **Authentication replacement.** No new login system; the gate builds on existing authenticated identity and session infrastructure.
+- **Audit logging, monitoring, SIEM.** The gate **enforces** at the chokepoint; it does not observe, correlate, retain, or alert. Collecting and analyzing that stream is a plugin/host concern — an explicit core non-goal.
 
-- `namespace/action-name`
+**The boundary claim:**
 
-Examples:
+> A recent-auth gate can reduce the risk of stolen-session abuse and integrity-sensitive state changes for declared consequential operations. It cannot, by itself, solve WordPress's full plugin-runtime trust problem.
 
-- `core/activate-plugin`
-- `core/delete-user`
-- `core/promote-user`
-- `core/update-connector-credentials`
-- `woocommerce/refund-order`
-- `memberpress/manual-grant-membership`
-
-This keeps the structure familiar, interoperable, and easy to explain. It also lets the proposal reuse the general namespacing discipline WordPress is already introducing elsewhere instead of inventing a second, near-but-not-quite-compatible pattern.
-
-### Taxonomy fields
-
-An action registration may carry multiple layers of meaning, and those layers should be named distinctly:
-
-- **ID** — the namespaced identifier
-- **label** — human-readable text
-- **capabilities** — expected capability checks for the operation
-- **category** — broad grouping such as plugin management or user management
-- **consequence** — a *nested block* carrying the risk metadata, kept together so the same block is portable to a consequential ability's `consequence` annotation later (implementation spec §4.1):
-  - **class** — a risk-oriented classification: code execution, privilege escalation, account takeover, destructive deletion, or external credential mutation (the same five-value set as the spec §4.1 enum)
-  - **scope** — a grouping that a future gate layer may use when deciding how proof-of-intent is reused
-  - **annotations** — optional booleans or strings such as `destructive`, `requires_recent_auth`, or `consent_required`
-
-The top-level fields (`id`, `label`, `capabilities`, `category`) are ones a consequential ability would already carry; the nested `consequence` block is the portable addition. Keeping the risk metadata in one block is precisely what lets a future getter read a standalone entry and a consequence-annotated ability through one surface without reshaping.
-
-One reason to be explicit here is that WordPress has historically overloaded terminology in security and permissions discussions. This proposal should avoid doing that again. “Category,” “consequence class,” “scope,” and “annotation” are not interchangeable and should not be treated as such.
-
-The Abilities API remains relevant in two ways:
-
-1. It demonstrates a useful registry pattern and namespacing discipline.
-2. Some future actions may map directly to ability execution paths.
-
-But actions and abilities should not be forced into one object model too early. An ability is an executable unit with input, permission, and output behavior. An action, in this proposal, is a consequential operation worth naming, observing, and potentially gating. Some abilities may correspond directly to actions; some actions may wrap non-ability code paths; some may eventually be backed by ability execution. The important thing is that the proposal acknowledges the relationship without pretending the two concepts are already identical.
-
-### Why not just use the Abilities API?
-
-Another likely objection is that WordPress already has an Abilities API, so a second registry may look redundant. That objection deserves a direct answer.
-
-The best answer is not that abilities are irrelevant. They are highly relevant. But they serve a different primary purpose:
-
-- **Abilities** are executable units with registration, validation, permission, and execution semantics.
-- **Actions**, as used in this proposal, are a taxonomy of consequential operations that core and plugins may want to name, observe, audit, decorate, and later gate—even when those operations are not naturally modeled as one self-contained ability object.
-
-There is also a decisive *enforcement* reason the two cannot simply merge. Even where an action maps cleanly to an ability, the Abilities API's execution hook is **observational, not a gate**: `WP_Ability::execute()` fires `wp_before_execute_ability` and then calls the ability on the very next line, discarding whatever the hook returned — so a callback cannot return a `WP_Error` or a challenge to stop execution. (This is verified against `WordPress/abilities-api` and set out in [`core-actions-registry-vs-abilities-decision.md`](core-actions-registry-vs-abilities-decision.md).) A proof-of-intent gate therefore has to enforce at the **data-layer chokepoint**, regardless of whether an operation happens to be an ability; the registry is simply what lets it name that operation the same way in either case.
-
-Some future consequential actions may map one-to-one to abilities. Others may wrap long-standing core functions or mixed legacy flows that do not yet fit the ability model cleanly. That means the proposal should align with Abilities where possible without requiring every consequential operation to be reduced to an ability first.
-
-If WordPress later decides that the Abilities API can absorb this entire use case cleanly, then this proposal should collapse into that direction rather than create needless duplication. But today, the safer position is to acknowledge that Abilities are adjacent prior art, not yet a complete substitute.
-
-The concrete resolution of "align but don't collapse" is a **standalone** consequential-actions registry, Abilities-*aligned* only in its `namespace/name` ID convention so that reading consequence-annotated abilities stays a cheap *future* extension — not "abilities only," and not a registry needlessly incompatible with Abilities. The two-source union is deferred, not built up front: nothing populates the ability side today, and the gate enforces at the chokepoint regardless of an entry's source. See [`core-actions-registry-vs-abilities-decision.md`](core-actions-registry-vs-abilities-decision.md) for the decision and why the pure forms of both options fail. (The public *name* for the API is still open — see §4.0.)
+That distinction is what keeps the proposal useful: it is not a substitute for structural modernization, and it is not made irrelevant by it.
 
 ---
 
-## 7. Mock Actions API
+## 7. Why this matters now, under either architectural future
 
-### Registration
+This proposal lands in the middle of a broader debate about WordPress's future, and that debate affects how a proof-of-intent primitive should be framed. Three perspectives triangulate the same reality:
+
+**Malcolm Peralty — the strongest current split argument.** Between April 17 and May 26, 2026, Peralty published a six-part "What Might WP Next Look Like?" series proposing a split between a long-supported "WP Classic" and a modernized "WP Next." Part 4 ("Performance and Security", May 25) is blunt about the runtime: a plugin can `exec()` whatever it wants, read every other plugin's secrets, and exfiltrate anything, because — in Peralty's words — *"there is no permission model at the plugin boundary"*, and it proposes a four-phase manifest-enforcement strategy (declared-but-not-enforced → API-level enforcement → static analysis → eventual WASM isolation). Notably, across all six parts **proof of intent for consequential operations is never raised** — not in the kernel (Part 2 describes a PSR-15 middleware pipeline over a PSR-11 container with PSR-14 typed events), not in the admin (Part 3: "Next's admin is Classic's admin"), not in the manifest phasing, and Part 6's shared `wp-kernel` security services are CSRF, OAuth, and plugin manifests only. That cuts two ways: the kernel supplies exactly the seam the gate needs (request middleware + typed effect events), and the seam is left empty — the clearest evidence the primitive is orthogonal to the split rather than subsumed by it.
+
+**Joost de Valk — the strongest refactor-without-split argument.** [*"WordPress needs to refactor, not redecorate"*](https://joost.blog/wordpress-refactor-not-redecorate/) makes many of the same architectural critiques but argues for targeted refactoring inside the existing project (citing Yoast's Indexables table and WooCommerce HPOS). A small, layered recent-auth primitive is exactly the kind of low-level thing core can introduce incrementally under this model.
+
+**Brian Coords — the practitioner signal.** [*"EmDash: First thoughts and takeaways for WordPress"*](https://www.briancoords.com/emdash-first-thoughts-and-takeaways-for-wordpress/) does not propose a mechanism like this one, but it shows plugin-trust, developer-experience, and structured-content concerns are already active pressures in ordinary WordPress work — the strain is not confined to architecture commentators.
+
+Whether WordPress modernizes by split, by targeted refactor, or by slower incremental change, it still lacks a first-class proof-of-intent primitive for consequential operations. Concretely: even WP Next's `wp-kernel` has no proof-of-intent layer, and the gate is exactly the PSR-15 middleware that fills it — manifests answer *"is this plugin allowed to do this?"*, the gate answers *"is a human intending this right now?"*. The WP 7.0 Connectors credential-write path is the in-repo instance of that distinction: a single `POST /wp/v2/settings` swapping a `connectors_*_api_key` is a credential-integrity failure reachable with no filesystem access and no code execution, which WP Sudo already gates in production via its `connectors.update_credentials` rule (verified against WordPress 7.0 GA, released 2026-05-20; sources: the official [Connectors API dev note](https://make.wordpress.org/core/2026/03/18/introducing-the-connectors-api-in-wordpress-7-0/) and core `src/wp-includes/connectors.php`). A manifest declaring "this plugin may write settings" authorizes the *class* of operation; it says nothing about whether a human is intentionally replacing an API key *now*.
+
+---
+
+## 8. The optional companion: a Consequential-Actions registry
+
+Everything above is the gate. This section is the **companion** the earlier draft of this proposal led with: a small **registry** that names consequential operations so core, plugins, audit tools, UI, and policy systems can identify them consistently. It is **independently valuable and independently landable** — a queryable catalog has standalone value for auditability, Site Health, and admin UI even if the gate never ships — but it is **not a prerequisite** for the gate, which enforces at the effect chokepoint regardless of whether any entry is registered. Ship it alongside, before, or after the gate.
+
+### 8.1 Why a registry has standalone value
+
+Security and policy plugins today each reinvent their own ad-hoc catalog of "dangerous operations," with different identifiers and no interoperability surface. A shared registry gives the ecosystem a stable taxonomy, execution hooks for audit/observability, queryable metadata for UI and diagnostics, and a foundation for later manifests or AI-agent boundaries — **without** requiring core to standardize challenge UX, recent-auth semantics, replay, or non-interactive policy in the same release. That is what makes it a cheap, low-risk first primitive on its own track.
+
+### 8.2 Naming and the relationship to the Abilities API
+
+Use namespaced, action-oriented identifiers following the official Abilities API shape `namespace/action-name` (lowercase alphanumerics, hyphens, one forward slash) — e.g. `core/activate-plugin`, `core/delete-user`, `core/update-connector-credentials`, `woocommerce/refund-order`. Do **not** claim dotted identifiers like `core/plugins.activate` are the Abilities convention; they are not.
+
+A registration carries: **id**, **label**, **capabilities**, **category**, and a nested **`consequence`** block holding the risk metadata — `class` (a five-value set: code-execution, privilege-escalation, account-takeover, destructive-deletion, external-credential-mutation), `scope` (a reuse grouping a future gate may key on), and `annotations` (booleans/strings such as `destructive`, `requires_recent_auth`, `consent_required`). The `consequence` block is **nested** on purpose: the same block is portable to a consequential ability's `consequence` annotation later without reshaping.
+
+The Abilities API is adjacent prior art, not a substitute. Abilities are executable units (input, permission, output); "actions" here are consequential operations worth naming, observing, and gating even when they are not naturally one self-contained ability object. There is also a decisive *enforcement* reason the two cannot simply merge: the Abilities execution hook `wp_before_execute_ability` is **observational, not a gate** — `WP_Ability::execute()` fires it and then calls the ability on the very next line, discarding whatever the hook returned. A proof-of-intent gate must therefore enforce at the **data-layer chokepoint** regardless of whether an operation is an ability; the registry only lets it *name* the operation the same way either way. The settled architecture is a **standalone** consequential-actions registry, Abilities-*aligned* in its ID convention and its nested `consequence` block shape, with reading consequence-annotated abilities left as a cheap, deferred extension (nothing populates the ability side today). The full decision — including why both pure forms fail and the one-ID-one-record collision contract — is folded into [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md) §4.1.
+
+The public **name** for the API is still open: "action" collides with `do_action()`/`add_action()`, so a name that reads as "consequential operation" (e.g. `wp_register_consequential_action`) may be preferable to a bare "Actions API." Track as cosmetic relative to the architecture.
+
+### 8.3 Mock registry API
 
 ```php
 wp_register_action(
 	'core/activate-plugin',
 	[
 		'label'        => __( 'Activate a plugin' ),
-		'description'  => __( 'Enable plugin code that runs with site privileges.' ),
 		'capabilities' => [ 'activate_plugins' ],
 		'category'     => 'plugin-management',
 		'consequence'  => [
@@ -375,412 +185,86 @@ wp_register_action(
 			'annotations' => [
 				'destructive'          => false,
 				'requires_recent_auth' => true,
-				'consent_required'     => false,
 			],
 		],
 	]
 );
-```
 
-### Querying
-
-```php
 wp_get_action( 'core/activate-plugin' );    // array|null
 wp_get_actions();                           // array<string, array>
 wp_action_exists( 'core/activate-plugin' ); // bool
+
+do_action( 'wp_before_execute_action', 'core/activate-plugin', $context );          // observability only
+do_action( 'wp_after_execute_action', 'core/activate-plugin', $context, $result );  // not a gate — see §8.2
 ```
 
-### Execution hooks
+Phase 1 (the registry) should register, expose metadata, and fire execution hooks; it should **not** require challenge UI, stash/replay, sudo sessions, or non-interactive policy. A Site Health consumer that reports the registered actions and whether gating is enabled demonstrates value before any enforcement exists.
 
-```php
-do_action( 'wp_before_execute_action', 'core/activate-plugin', $context );
-do_action( 'wp_after_execute_action', 'core/activate-plugin', $context, $result );
-```
+### 8.4 The initial catalog
 
-### Optional wrapper helper
+Keep the first catalog small, explicit, and clearly human-driven — no generic `update_option()` mappings, no speculative "all destructive abilities" umbrella. The canonical catalog (account changes, the code effects, the credential/critical-setting/registration-policy pivots) is maintained in the spec's §4.1 so it stays in one place; it aligns with the closure in §3. The account-change entries reflect #20140: the security boundary is not the target user's old password but recent authentication by the *actor* performing the change.
 
-```php
-$result = wp_execute_action(
-	'core/activate-plugin',
-	[
-		'plugin'       => $plugin,
-		'network_wide' => $network_wide,
-	],
-	static function () use ( $plugin, $redirect, $network_wide, $silent ) {
-		return activate_plugin_internal( $plugin, $redirect, $network_wide, $silent );
-	}
-);
-```
+### 8.5 The gate as a consumer of the registry
 
-### What Phase 1 should and should not do
-
-**Phase 1 should:**
-
-- register consequential operations
-- expose metadata
-- fire execution hooks
-- support admin UI, diagnostics, manifests, and audit consumers
-
-**Phase 1 should not require:**
-
-- challenge UI
-- stash/replay
-- sudo sessions
-- non-interactive policy
-- universal redirect/403 behavior
+If both ship, the gate is a **consumer** of the registry, answering a narrower question — *given a registered consequential action, allow now, require fresh proof, or block by policy?* It builds on the action metadata rather than introducing a second registry. But the ordering is not load-bearing: because enforcement lives at the chokepoint (§4), the gate works whether or not the registry is present, which is why this proposal leads with the gate and keeps the registry optional.
 
 ---
 
-## 8. Initial Core Catalog for Phase 1
+## 9. Relationship to WP Sudo
 
-The initial catalog should be small, explicit, and focused on clearly human-driven, high-consequence actions. It should avoid generic low-level setters and speculative catch-all entries.
+WP Sudo is the most relevant production prior art. It already proves a catalog of consequential operations is useful, that a browser-scoped proof-of-intent model is operationally viable, that request interruption and later resumption can be made usable, that audit hooks for gate outcomes are valuable, and that per-surface policy is a real operator need.
 
-### Selection criteria for the initial catalog
+This document is **not** a verbatim transliteration of WP Sudo into core. It separates the registry from the gate, does not assume WP Sudo's storage model is automatically the right core choice, does not assume its `Disabled/Limited/Unrestricted` policy vocabulary should become the core surface language, and keeps early phases smaller and more browser-focused than WP Sudo's full multi-surface implementation.
 
-An operation is a good Phase 1 catalog candidate if most of the following are true:
-
-- it is **clearly human-initiated** in ordinary WordPress administration
-- it has **high consequence** if misused, replayed, or triggered by a stolen session
-- it is backed by a **stable privileged boundary** in core rather than a generic low-level primitive
-- it is **broadly understandable** to operators and plugin authors without deep internal context
-- it is realistic to **observe consistently** across requests and UI surfaces
-- it is useful even before enforcement exists because it benefits logging, UI, diagnostics, or future policy systems
-
-These criteria are intentionally narrower than “anything security-sensitive.” The first catalog should establish a durable pattern, not aim for total coverage.
-
-### Recommended initial core catalog
-
-| Action ID | Backing core function(s) or flow |
-|---|---|
-| `core/change-own-password` | profile password change flow and REST self-account updates |
-| `core/change-user-password` | privileged user-edit password change flow and REST user updates |
-| `core/change-own-email` | profile email change flow and REST self-account updates |
-| `core/change-user-email` | privileged user-edit email change flow and REST user updates |
-| `core/create-user` | `wp_insert_user()`, `wpmu_create_user()`, and admin user-creation flows |
-| `core/delete-user` | `wp_delete_user()` |
-| `core/promote-user` | role change to administrator, network-administrator, or super-admin-equivalent authority |
-| `core/activate-plugin` | `activate_plugin()`, plugin activation flows |
-| `core/install-plugin` | plugin upload and installer flows |
-| `core/delete-plugin` | `delete_plugins()` |
-| `core/install-theme` | theme upload and installer flows (`Theme_Upgrader::install()`) |
-| `core/switch-theme` | `switch_theme()`, theme activation flows |
-| `core/delete-theme` | `delete_theme()` |
-| `core/update-connector-credentials` | `/wp/v2/settings` writes containing `connectors_*_api_key` |
-
-The account-change entries reflect the long-running discussion in
-[Core Trac #20140](https://core.trac.wordpress.org/ticket/20140): the important
-security boundary is not the target user's old password, but recent
-authentication by the actor performing the change. A site owner changing their
-own password, an administrator changing another user's password, and a network
-administrator granting higher privileges are different authorization cases, but
-each benefits from a shared consequential-action identifier.
-
-For Multisite terminology, this proposal follows
-[Core Trac #37593](https://core.trac.wordpress.org/ticket/37593) and
-[#39174](https://core.trac.wordpress.org/ticket/39174): use
-**network administrator** for ordinary network-level authority, reserve
-**super admin** for Core's technical super-admin concept, and treat
-**sudo mode** as temporary reauthentication state rather than a permanent
-role.
-
-### Why keep it this small
-
-A first catalog should avoid:
-
-- generic `update_option()` mappings
-- speculative “all destructive abilities” umbrella entries
-- fuzzy export entries that are not clearly backed by one privileged function boundary
-- broad multisite coverage before network-session semantics are thought through
-
-The first goal is not catalog completeness. It is to establish a stable, credible pattern.
+**If core shipped this,** WP Sudo would evolve from "full sudo implementation" into: opinionated stricter defaults; operator UI and diagnostics; audit logging and privilege-drift / anomaly detection — the SIEM-adjacent observability core leaves out by design (§6), including the lockdown-audit backstop for out-of-band `$wpdb` privilege writes the gate cannot see; per-surface policy for the deferred surfaces; richer multisite and 2FA/passkey tooling; and compatibility bridges. The registry and the recent-auth primitive move to core; the policy and UX product stays in the plugin. Seen from the other side, once core owns the primitive this posture layer becomes WP Sudo's reason to exist for enterprise and multisite networks — the intended identity of what would otherwise look like scope-creep while the plugin has to *be* the primitive too.
 
 ---
 
-## 9. What an Actions API Enables Immediately
+## 10. Related: pre-authentication chains (e.g. wp2shell) and `WP_LANG_DIR`
 
-Even before any proof-of-intent enforcement exists, a shared action registry has immediate value.
+A gate against illegitimate *sessions* is not a defense against a *pre-authentication* core vulnerability, and this proposal does not claim to be one — but they intersect at the chokepoint.
 
-### 9.1 Audit logging
+**wp2shell** (CVE-2026-63030 batch-route auth bypass + CVE-2026-60137 `WP_Query` SQL injection; unauthenticated RCE, patched in the emergency 6.8.6 / 6.9.5 / 7.0.2 releases). Per public reconstructions — the original advisory **withheld detail** — the chain drives WordPress's **normal REST user-creation path** under the bypass (`401` then re-evaluated as admin → `201`), with the SQLi used as a *read* to poison the object cache; RCE then follows an ordinary plugin install. If that holds, the privileged step routes through the `core/create-user` chokepoint (§3) — defense-in-depth. **But the same object-cache-poisoning primitive is why §4 requires an HMAC-signed assurance**: an unsigned `reauth_at` in the `user_meta` cache group would be forgeable by exactly this primitive. The gate is a layer, subject to its own state being unforgeable — not a substitute for patching the bypass.
 
-Core and plugins can emit consistent before/after execution events using shared action IDs rather than plugin-specific guesses.
-
-### 9.2 Admin UX indicators
-
-Screens that invoke registered consequential operations can show warning markers, stronger affordances, or explanatory text.
-
-### 9.3 Diagnostics and Site Health
-
-Operator tooling can report which consequential operations exist, which plugins register their own actions, and where later gate policy would apply.
-
-### 9.4 Plugin interoperability
-
-Plugins with privileged operations can register them in a way that downstream tooling can understand without custom integrations.
-
-### 9.5 Foundation for future manifests and AI boundaries
-
-A future plugin capability-manifest system, or an AI-agent policy layer, needs a stable taxonomy of consequential operations. An Actions API provides it without forcing the full manifest or AI policy system to exist yet.
+**`WP_LANG_DIR` is a PHP-execution directory** *(verified against WP 7.0.2)*: `WP_Translation_File_PHP::parse_file()` loads a `.l10n.php` translation with `$result = include $this->file;` (default on WP 6.5+). Choosing `WP_Upgrader::install_package()` as the code-write seam (§3) covers language-pack installs, which write there — a plugin/theme-`install()`-only seam would miss them. To avoid overstating it: this is **not** a session-reachable route and **not** a new finding. Language-pack packages come from api.wordpress.org and are not cryptographically verified per package — the same long-standing, by-design property as WordPress's plugin/theme update paths (core updates are the exception: `Core_Upgrader` requests signature verification via `verify_file_signature()`, currently soft-fail). `.l10n.php` is a legitimate translation format that `Language_Pack_Upgrader::check_package()` correctly accepts; there is no validation flaw. A stolen-session attacker cannot control the bytes without a separate primitive it does not have. It matters only because the destination executes PHP — a defense-in-depth consideration for the update mechanism generally, not something this gate addresses or needs to. See [`stolen-cookie-rce-attack-tree.md`](stolen-cookie-rce-attack-tree.md) and the spec §4.1/§5.4.
 
 ---
 
-## 10. Phase 2: The Action Gate as a Consumer of the Actions API
+## 11. Open questions
 
-Once WordPress has a shared registry of consequential operations, a second-layer proof-of-intent system becomes much easier to define.
+1. The public **name** for the registry API (the `do_action()` collision; §8.2) — cosmetic relative to the architecture, still unsettled.
+2. Should the recent-auth window build on `WP_Session_Tokens` or a **dedicated store**? Core already has a session-token abstraction that binds, revokes, and stores attached session info; a separate store may still be justified if gate state must be modeled apart from login sessions, at the cost of two session-adjacent models.
+3. Correct integration point for cookie-authenticated REST gating (the spec resolves this at the chokepoint; confirm against target core).
+4. Scope-bound sudo window vs. flat recent-auth freshness for v1 (the spec recommends flat freshness + optional scope tag).
+5. What should replace the ambiguous `Disabled / Limited / Unrestricted` per-surface vocabulary if core later adds surface policy? (Kept **out** of core v1; core v1 is binary per action.)
+6. Which replay classes are supported early vs. deferred (the spec's stash/replay vs. reauth-then-resubmit split).
+7. The minimal challenge-provider contract core can support without overcommitting to every 2FA/passkey flow in v1.
 
-The Action Gate is not the first primitive. It is a **consumer** of the Actions API.
-
-Its job is to answer a narrower question:
-
-> Given a registered consequential action, should this request be allowed to proceed immediately, should it require fresh proof of human intent, or should it be blocked by policy?
-
-This means the gate layer should build on action metadata rather than introduce a second, unrelated registry.
-
----
-
-## 11. Mock Gate API
-
-### Enforcement
-
-```php
-$decision = wp_check_action_gate(
-	'core/activate-plugin',
-	[
-		'context' => [
-			'plugin'       => $plugin,
-			'network_wide' => $network_wide,
-		],
-	]
-);
-```
-
-### Decision object
-
-```php
-$decision->passed();           // bool
-$decision->needs_challenge();  // bool
-$decision->blocked();          // bool
-$decision->reason();           // 'passed' | 'no_recent_auth' | 'expired' | 'rate_limited' | 'blocked'
-$decision->challenge_url();    // string|null
-$decision->as_wp_error();      // WP_Error (transport-agnostic; adapters render it — see below)
-```
-
-### Transport separation
-
-A key design rule for the gate layer should be:
-
-- business logic receives a decision object
-- admin UI adapters decide redirect behavior
-- REST adapters decide 403 response behavior
-- AJAX adapters decide JSON error behavior
-
-That keeps transport handling out of privileged business functions as much as possible.
+The registry-vs-Abilities fork (formerly the headline open question) is **resolved** — a standalone, Abilities-aligned registry with union deferred; see the spec §4.1.
 
 ---
 
-## 12. Session Model Options for the Gate Layer
-
-The current WP Sudo implementation uses user meta plus a browser-bound cookie to represent the sudo session. That is valid prior art, but core should not assume that the plugin’s storage choice is automatically the best core design.
-
-### Option A: extend `WP_Session_Tokens`
-
-Core already has a session-token abstraction in [`WP_Session_Tokens`](https://developer.wordpress.org/reference/classes/wp_session_tokens/). It:
-
-- binds sessions to issued tokens
-- supports revocation
-- stores attached session information
-- already participates in WordPress’s existing session lifecycle
-
-Using that infrastructure for gate-related state may be a more core-native direction than inventing a fully parallel store.
-
-### Option B: separate gate or sudo session store
-
-A distinct store—whether user meta or a dedicated table—may still be justified if action-gate state needs to be modeled separately from normal login sessions. The tradeoff is that WordPress would then maintain two session-adjacent models.
-
-### Open design choice
-
-The proposal should not prematurely settle this question. It should present it as a genuine design decision for Phase 2.
-
----
-
-## 13. Challenge Model and Extensibility
-
-A future gate layer needs a challenge model, but Phase 2 should still start small.
-
-### Recommended Phase 2 baseline
-
-- browser-first
-- dedicated challenge endpoint or page
-- existing authenticated user context
-- minimal recent-password or recent-auth verification
-- redirect or restart path back to the interrupted action
-
-### What should be deferred initially
-
-The proposal should explicitly defer richer complexity until a later interface revision:
-
-- WebAuthn ceremony details
-- external IdP redirects
-- multi-step TOTP and recovery-code flows
-- asynchronous or pending challenges
-- consent overlays layered on top of a successful challenge
-
-### Why this matters
-
-The current ecosystem absolutely includes 2FA plugins, passkey plugins, and enterprise identity providers. But that does not mean a first core gate interface needs to standardize their entire lifecycle in v1.
-
----
-
-## 14. Surface Model: What Belongs in Early Phases and What Does Not
-
-One of the main weaknesses of all-at-once gate proposals is that they try to unify browser, REST, application-password, WP-CLI, cron, and XML-RPC behavior immediately.
-
-This proposal recommends a narrower approach.
-
-### Early-phase surfaces
-
-- browser-driven admin UI
-- possibly cookie-authenticated REST requests where the transport model is well understood
-
-### Later-phase surfaces
-
-- application-password-authenticated API requests
-- WP-CLI
-- wp-cron
-- XML-RPC
-
-### Why defer them
-
-These surfaces have materially different semantics and operator expectations. They should not be bundled into the first core proof-of-intent primitive unless there is a fully sourced, well-defined implementation story for each. Application Passwords, in particular, are broader than a REST-only concept; they are API credentials used for REST and, where enabled, XML-RPC.
-
-Third-party transports (WPGraphQL, custom REST/RPC endpoints) are deliberately *not* enumerated as core surfaces here: the gate lives at the data-layer chokepoint, so their mutations are covered regardless, and each request resolves to one of the two classes above — a human cookie session (challenge-capable) or an API credential / no actor (block-and-log). Per-surface policy for them is a plugin concern, not a core surface to phase.
-
----
-
-## 15. Rollout and Compatibility Strategy
-
-This proposal should be framed in phases rather than tied too tightly to speculative future WordPress version numbers.
-
-### Phase A
-
-Ship the Actions API with a small initial core catalog and execution hooks.
-
-### Phase B
-
-Encourage core and plugin adoption of the catalog for UI, audit, and diagnostics.
-
-### Phase C
-
-Introduce a browser-first Action Gate for selected actions, with minimal challenge behavior.
-
-### Phase D
-
-Expand surface support, challenge extensibility, and richer policy only after the initial model is proven.
-
-This makes the proposal more realistic than presenting a multi-release schedule with specific enforcement flips already mapped to future version numbers.
-
----
-
-## 16. Relationship to WP Sudo
-
-WP Sudo remains the most relevant production prior art for this proposal.
-
-### What WP Sudo already proves
-
-- a catalog of consequential operations is useful
-- a browser-scoped proof-of-intent model is operationally viable
-- request interruption and later resumption can be made usable
-- audit hooks for gate outcomes are valuable
-- per-surface policy is a real operator need
-
-### Where this proposal intentionally diverges
-
-This document is not a verbatim transliteration of WP Sudo into core. It intentionally diverges in several ways:
-
-- it separates the **registry** from the **gate**
-- it treats the Actions API as the first primitive, not the gate
-- it does not assume WP Sudo’s storage model is automatically the right core choice
-- it does not assume WP Sudo’s exact `Limited` policy semantics should become the core surface vocabulary
-- it keeps early phases smaller and more browser-focused than WP Sudo’s full multi-surface implementation
-
-### What WP Sudo would become if core shipped this
-
-If WordPress eventually shipped an Actions API, and later a core Action Gate, WP Sudo would likely evolve from “full sudo implementation” into:
-
-- opinionated policy defaults
-- operator UI and diagnostics
-- audit logging and privilege-drift / anomaly detection — the SIEM-adjacent observability core leaves out by design (implementation spec §11)
-- compatibility bridges
-- richer multisite and advanced-policy tooling
-- stricter defaults than core
-
----
-
-## 17. How This Fits Under Refactor, Split, or No Structural Reform
-
-This proposal is intentionally compatible with multiple possible futures for WordPress.
-
-### If de Valk’s refactor path is right
-
-A small Actions API is exactly the sort of primitive core can introduce incrementally while preserving compatibility.
-
-### If Peralty’s split / WP Next path is right
-
-The Actions API still matters as a semantic model. In a more isolated runtime, proof-of-intent remains relevant above capability grants, even if the implementation form changes.
-
-Concretely: even WP Next’s `wp-kernel` — a PSR-15 middleware pipeline with PSR-14 typed events (Part 2), whose enumerated security services are CSRF, OAuth, and plugin manifests (Part 6) — has **no proof-of-intent layer**. The Action Gate is exactly the middleware that fills that seam: a PSR-15 stage that consumes the Actions registry and, for selected consequential effects, demands fresh proof of human intent before the request proceeds. Manifests answer “is this plugin *allowed* to do this?”; the gate answers “is a human *intending* this right now?” — a distinct question WP Next’s own plan leaves open.
-
-The WP 7.0 Connectors credential-write path is the concrete, in-repo instance of that distinction. A manifest entry declaring “this plugin may write settings” authorizes the *class* of operation; it says nothing about whether a human is intentionally replacing an AI-provider API key *now*. Yet a single `POST /wp/v2/settings` swapping a `connectors_*_api_key` option is exactly the stolen-session abuse of a legitimate operation this proposal’s threat model targets (§2.1, §2.3) — a credential-integrity failure reachable with no filesystem access and no code execution. WP Sudo already gates this path in production via the `connectors.update_credentials` rule (the proposal’s Phase-1 `core/update-connector-credentials` catalog entry, §8), verified against WordPress 7.0 GA (released 2026-05-20). It is therefore the clearest available demonstration that a proof-of-intent gate remains load-bearing *even after* a manifest system ships. Sources for the third-party Connectors claims here (the `/wp/v2/settings` route, the `connectors_*_api_key` option-name pattern, and GA verification): the official [Connectors API dev note](https://make.wordpress.org/core/2026/03/18/introducing-the-connectors-api-in-wordpress-7-0/) and WordPress core `src/wp-includes/connectors.php`, analyzed in full in [`connectors-api-reference.md`](connectors-api-reference.md) Part II.
-
-### If WordPress changes more slowly than either proposal hopes
-
-A shared registry of consequential actions is still a strict improvement over the current state. It gives the installed base a better vocabulary and better interoperability now, even if broader reform takes much longer or never fully arrives.
-
----
-
-## 18. Open Questions
-
-1. Should the first core primitive be browser-only?
-2. Should a future gate layer build on `WP_Session_Tokens` or a separate store?
-3. What is the correct integration point for cookie-authenticated REST gating, if core later adds it?
-4. Is a scope-bound sudo session actually the right model, or would recent-auth freshness be a better fit for core?
-5. What should replace the ambiguous `Disabled / Limited / Unrestricted` vocabulary if core later adds surface policy?
-6. Which replay classes are explicitly supported in an early gate implementation, and which are deferred?
-7. What is the minimal challenge-provider contract that core can support without overcommitting to every 2FA and passkey flow in v1?
-
----
-
-## References and Source Notes
+## 12. References and source notes
+
+### Companion docs
+- [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md) — *what to change in core* (files, functions, APIs; the registry-vs-Abilities decision; B′ session design).
+- [`core-sudo-gate-poc-patches.md`](core-sudo-gate-poc-patches.md) — illustrative patches at the chokepoints.
+- [`stolen-cookie-rce-attack-tree.md`](stolen-cookie-rce-attack-tree.md) — the worked adversary and full route enumeration.
+- [`wordpress-core-authentication.md`](wordpress-core-authentication.md) — how WordPress core authentication actually works.
+- [`abilities-api-assessment.md`](abilities-api-assessment.md) — WP Sudo's runtime posture toward the Abilities API.
 
 ### Official WordPress references
-
-- [Abilities API PHP reference](https://developer.wordpress.org/apis/abilities-api/php-reference/)
-- [wp_register_ability()](https://developer.wordpress.org/reference/functions/wp_register_ability/)
-- [wp_before_execute_ability](https://developer.wordpress.org/reference/hooks/wp_before_execute_ability/)
-- [WP_Ability::execute()](https://developer.wordpress.org/reference/classes/wp_ability/execute/)
-- [WP_REST_Server::dispatch()](https://developer.wordpress.org/reference/classes/wp_rest_server/dispatch/)
-- [WP_REST_Server::respond_to_request()](https://developer.wordpress.org/reference/classes/wp_rest_server/respond_to_request/)
-- [Application Passwords handbook](https://developer.wordpress.org/advanced-administration/security/application-passwords/)
-- [WP_Session_Tokens](https://developer.wordpress.org/reference/classes/wp_session_tokens/)
+- [Abilities API PHP reference](https://developer.wordpress.org/apis/abilities-api/php-reference/) · [`wp_register_ability()`](https://developer.wordpress.org/reference/functions/wp_register_ability/) · [`wp_before_execute_ability`](https://developer.wordpress.org/reference/hooks/wp_before_execute_ability/) · [`WP_Ability::execute()`](https://developer.wordpress.org/reference/classes/wp_ability/execute/)
+- [`WP_REST_Server::dispatch()`](https://developer.wordpress.org/reference/classes/wp_rest_server/dispatch/) · [`WP_REST_Server::respond_to_request()`](https://developer.wordpress.org/reference/classes/wp_rest_server/respond_to_request/)
+- [Application Passwords handbook](https://developer.wordpress.org/advanced-administration/security/application-passwords/) · [`WP_Session_Tokens`](https://developer.wordpress.org/reference/classes/wp_session_tokens/)
 
 ### WP Sudo project references
+`includes/class-gate.php` · `includes/class-sudo-session.php` · `includes/class-action-registry.php` · `includes/class-challenge.php` · [`sudo-architecture-comparison-matrix.md`](sudo-architecture-comparison-matrix.md) · [`security-model.md`](security-model.md) · [`abilities-api-assessment.md`](abilities-api-assessment.md) · [`wordpress-core-authentication.md`](wordpress-core-authentication.md)
 
-- `includes/class-gate.php`
-- `includes/class-sudo-session.php`
-- `includes/class-action-registry.php`
-- `includes/class-challenge.php`
-- `docs/sudo-architecture-comparison-matrix.md`
-- `docs/security-model.md`
-- `docs/connectors-api-reference.md`
-- `docs/abilities-api-assessment.md`
-- `docs/wordpress-core-authentication.md`
+### Provenance & verification
+Capability names, sinks, `map_meta_cap` mappings, the nonce/session-token coupling, the `user_meta` persistent cache group, and the REST plugins-controller behavior were checked against WordPress-develop pinned at [`07b1f8b`](https://github.com/WordPress/wordpress-develop/commit/07b1f8b1d25db182d1ac4c2529d97e3d0cb04aea) (files: `capabilities.php`, `wp-admin/update.php`, `pluggable.php` `wp_create_nonce()`, `load.php` cache-group registration, `class-wp-upgrader.php`, `wp-admin/includes/file.php`, `l10n/class-wp-translation-file-php.php`, `class-language-pack-upgrader.php`, `rest-api/endpoints/class-wp-rest-plugins-controller.php`). Trac topics confirmed against [#20140](https://core.trac.wordpress.org/ticket/20140). The Patchstack figure is [*State of WordPress Security 2026*](https://patchstack.com/whitepaper/state-of-wordpress-security-in-2026/). **wp2shell**: CVE IDs/versions/patch releases are from the coordinated disclosure ([Searchlight Cyber advisory](https://slcyber.io/research-center/wp2shell-pre-authentication-rce-in-wordpress-core/), which **withheld** technical detail); the §10 mechanism is a **third-party reconstruction** ([Picus Security](https://www.picussecurity.com/resource/blog/cve-2026-63030-and-cve-2026-60137-wp2shell-wordpress-rce-explained)), explicitly **not authoritative** — confirm against the eventual full write-up and patch diffs. Re-verify every signature and line against the target core checkout before patching — per this project's standing rule against trusting cited detail without a fresh source check.
 
 ### Ecosystem commentary and structural-debate context
-
-- Malcolm Peralty, “What Might WP Next Look Like?” six-part series (2026-04-17 through 2026-05-26). A proposal for splitting WordPress into WP Classic and WP Next.
-  - [Part 1: The Case for the Split](https://peralty.com/2026/04/17/wp-next-part-1-the-case-for-the-split/) (2026-04-17)
-  - [Part 2: The Kernel](https://peralty.com/2026/04/18/wp-next-part-2-the-kernel/) (2026-04-18)
-  - [Part 3: The Admin and Editor](https://peralty.com/2026/05/25/what-might-wp-next-look-like-part-3-the-admin-and-editor/) (2026-05-25)
-  - [Part 4: Performance and Security](https://peralty.com/2026/05/25/what-might-wp-next-look-like-part-4-performance-and-security/) (2026-05-25) — plugin sandboxing, four-phase manifest enforcement, CSRF defense
-  - [Part 5: The Plugin Economy](https://peralty.com/2026/05/25/what-might-wp-next-look-like-part-5-the-plugin-economy/) (2026-05-25) — declared contracts, `@api` / `@internal` distinctions, backwards compatibility policy
-  - [Part 6: The Migration Plan](https://peralty.com/2026/05/26/what-might-wp-next-look-like-part-6-the-migration-plan/) (2026-05-26) — Classic/Next coexistence, shared `wp-kernel`
-- Joost de Valk, [“WordPress needs to refactor, not redecorate”](https://joost.blog/wordpress-refactor-not-redecorate/) (2026-04-03). Argues that WordPress’s architectural deficits are real but can still be addressed through targeted refactoring without a split.
-- Brian Coords, [“EmDash: First thoughts and takeaways for WordPress”](https://www.briancoords.com/emdash-first-thoughts-and-takeaways-for-wordpress/) (2026-04-02). Practitioner commentary showing that plugin trust boundaries, developer experience, and structured-content concerns are already active pressures in real WordPress work.
+- Malcolm Peralty, "What Might WP Next Look Like?" six-part series (2026-04-17 → 2026-05-26): [Part 1](https://peralty.com/2026/04/17/wp-next-part-1-the-case-for-the-split/) · [Part 2: The Kernel](https://peralty.com/2026/04/18/wp-next-part-2-the-kernel/) · [Part 3: The Admin and Editor](https://peralty.com/2026/05/25/what-might-wp-next-look-like-part-3-the-admin-and-editor/) · [Part 4: Performance and Security](https://peralty.com/2026/05/25/what-might-wp-next-look-like-part-4-performance-and-security/) · [Part 5: The Plugin Economy](https://peralty.com/2026/05/25/what-might-wp-next-look-like-part-5-the-plugin-economy/) · [Part 6: The Migration Plan](https://peralty.com/2026/05/26/what-might-wp-next-look-like-part-6-the-migration-plan/)
+- Joost de Valk, [*"WordPress needs to refactor, not redecorate"*](https://joost.blog/wordpress-refactor-not-redecorate/) (2026-04-03).
+- Brian Coords, [*"EmDash: First thoughts and takeaways for WordPress"*](https://www.briancoords.com/emdash-first-thoughts-and-takeaways-for-wordpress/) (2026-04-02).

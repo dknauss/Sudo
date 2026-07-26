@@ -14,6 +14,9 @@ Use these current docs first:
 Archived files:
 
 - [accessibility-audit.md](accessibility-audit.md) — completed WCAG 2.1/2.2 AA audit record (was ROADMAP Appendix A).
+- [core-actions-registry-vs-abilities-decision.md](core-actions-registry-vs-abilities-decision.md) — the registry-vs-Abilities decision memo; its operative conclusion is folded into [../core-sudo-gate-implementation-spec.md](../core-sudo-gate-implementation-spec.md) §4.1.1.
+- [core-sudo-gate-vs-demo-reconciliation.md](core-sudo-gate-vs-demo-reconciliation.md) — MVP-vs-spec reconciliation for the `consequential-actions` demo; the one live delta (flat-vs-nested `consequence` block) is tracked in the spec §4.1.1.
+- [password-change-reauth-research.md](password-change-reauth-research.md) — background research on password-change reauth (superseded by the core-gate proposal/spec).
 - [execution-plan-v3.1-v3.3.md](execution-plan-v3.1-v3.3.md) — historical security/governance execution record.
 - [internal-admin-governance-spec.md](internal-admin-governance-spec.md) — implemented governance design spec.
 - [phase3-stash-minimization-spec.md](phase3-stash-minimization-spec.md) — implemented Phase 3 request-stash minimization record.

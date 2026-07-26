@@ -1,6 +1,6 @@
 # Reconciliation: `consequential-actions` v0.1.6 ↔ Core Spec
 
-**Status:** Alignment review. Companion to [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md).
+**Status:** Alignment review. Companion to [`core-sudo-gate-implementation-spec.md`](../core-sudo-gate-implementation-spec.md).
 **Original review:** `github.com/dknauss/consequential-actions` @ `v0.1.6` (commit `b71c15d`).
 **Updated July 2026:** re-checked against `v0.2.0` (commit `e430974`) and `v0.2.1` (merged to `consequential-actions` `main` via PR #2; a `v0.2.1` release tag is still pending). **All three original contradictions below are now resolved** — see the status callout. One **follow-on field-shape delta** opened in July 2026 when core nested its schema (flat vs. nested `consequence` block, §3 — open). This doc is retained as the record of what was fixed and why.
 
