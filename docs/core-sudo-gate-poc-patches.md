@@ -45,30 +45,36 @@ function wp_start_reauth_window( $user_id = 0, $scope = '' ) {
 	$proof = wp_generate_password( 43, false );   // ~256 bits, url-safe — held only by the browser
 	$at    = time();
 
-	// (3) Self-authenticating: bind (user, verifier, time, scope) so a cache-poisoned
-	// reauth_at without a valid HMAC is rejected. Including $token means an injected
-	// stamp copied onto a DIFFERENT session cannot validate. wp_salt('auth') is the key.
+	// `$token` is the RAW token from the auth cookie (wp_get_session_token()); the record is
+	// keyed and MAC'd by its VERIFIER — the hash WP_Session_Tokens actually stores — not the
+	// raw token. (WP_Session_Tokens::get/update take the raw token and hash it internally.)
+	$verifier = hash( 'sha256', $token );
+
 	$session['reauth_at']    = $at;
 	$session['reauth_scope'] = (string) $scope;
 	$session['reauth_proof'] = hash( 'sha256', $proof );   // a HASH, never the secret itself
-	// (3) The MAC MUST cover the proof hash too — otherwise a cache-poisoning attacker
-	// keeps a valid signature and swaps in the hash of a cookie THEY hold, defeating the
-	// separate-proof requirement. Bind every trusted field into the signed payload.
-	$session['reauth_sig']   = hash_hmac( 'sha256', "$user_id|$token|$at|$scope|{$session['reauth_proof']}", wp_salt( 'auth' ) );
+	// (3) Self-authenticating: the MAC binds (user, verifier, time, scope, proof-hash) with
+	// wp_salt('auth'). It MUST cover the proof hash — otherwise a cache-poisoning attacker
+	// keeps a valid signature and swaps in the hash of a cookie THEY hold; and the verifier,
+	// so an injected stamp copied onto a DIFFERENT session cannot validate.
+	$session['reauth_sig']   = hash_hmac( 'sha256', "$user_id|$verifier|$at|$scope|{$session['reauth_proof']}", wp_salt( 'auth' ) );
 	$manager->update( $token, $session );                  // keyed PER verifier — concurrent sessions don't collide
 
 	if ( ! headers_sent() ) {
-		setcookie( WP_REAUTH_PROOF_COOKIE, $proof, array(
-			'expires'  => 0,             // session cookie; the signed record's TTL is authoritative
-			'path'     => COOKIEPATH,    // site root — the proof must reach BOTH /wp-admin AND cookie-authed
-			                             // /wp-json REST (ADMIN_COOKIE_PATH would not be sent to REST, so a
-			                             // reauthenticated REST mutation would 403 forever). Tradeoff: also
-			                             // sent on front-end requests; scope the SECRET, not just the path.
-			'domain'   => COOKIE_DOMAIN,
-			'secure'   => is_ssl(),
-			'httponly' => true,
-			'samesite' => 'Lax',         // Strict drops it on a top-level nav into wp-admin
-		) );
+		// Core sets its auth cookies on more than one path; the proof must follow or it will be
+		// absent on whichever surface the chosen path misses. COOKIEPATH (site root) reaches the
+		// front end and cookie-authed /wp-json REST; ADMIN_COOKIE_PATH reaches wp-admin even on
+		// installs where it sits outside the site root. Secret held only by the browser.
+		foreach ( array_unique( array( COOKIEPATH, ADMIN_COOKIE_PATH ) ) as $cookie_path ) {
+			setcookie( WP_REAUTH_PROOF_COOKIE, $proof, array(
+				'expires'  => 0,             // session cookie; the signed record's TTL is authoritative
+				'path'     => $cookie_path,
+				'domain'   => COOKIE_DOMAIN,
+				'secure'   => is_ssl(),
+				'httponly' => true,
+				'samesite' => 'Lax',         // Strict drops it on a top-level nav into wp-admin
+			) );
+		}
 	}
 	return true;
 }
@@ -92,8 +98,10 @@ function wp_has_recent_auth( $user_id = 0, $scope = '' ) {
 	$sscope = (string) ( $session['reauth_scope'] ?? '' );
 
 	// (3) HMAC first — a forged (cache-poisoned) record without a valid signature dies here.
-	// The MAC covers the proof hash, so an attacker cannot keep the signature and swap the proof.
-	$expect = hash_hmac( 'sha256', "$user_id|$token|$at|$sscope|" . (string) $session['reauth_proof'], wp_salt( 'auth' ) );
+	// Uses the same verifier (hash of the raw token) and includes the proof hash, so an
+	// attacker cannot keep the signature and swap the proof.
+	$verifier = hash( 'sha256', $token );
+	$expect = hash_hmac( 'sha256', "$user_id|$verifier|$at|$sscope|" . (string) $session['reauth_proof'], wp_salt( 'auth' ) );
 	if ( ! hash_equals( $expect, (string) $session['reauth_sig'] ) ) {
 		return false;
 	}
@@ -115,31 +123,39 @@ function wp_has_recent_auth( $user_id = 0, $scope = '' ) {
 }
 
 /**
- * Drop the window. On logout/explicit drop and on a credential change for $user_id.
- * NEVER destroy_all() (that logs the user out of the request that changed the password),
- * and teardown must key on an actual password-hash change for the TARGET user — not a
- * blind profile_update, which fires when an admin edits another user.
+ * Drop the window. Two distinct modes, deliberately kept separate:
+ *   (a) current-session drop  — logout / explicit "drop elevation": clear THIS session's
+ *       record and expire the browser's proof cookie.
+ *   (b) credential-wide teardown — a password change for $user_id: clear the reauth_* record
+ *       on EVERY session of $user_id, but touch the browser cookie only if the current actor
+ *       IS $user_id (an admin changing another user's password must not lose their own window).
+ * NEVER destroy_all() (that logs the user out of the request that changed the password), and
+ * teardown must key on an actual password-hash change for the TARGET user — not a blind
+ * profile_update, which fires when an admin edits another user.
  */
 function wp_end_reauth_window( $user_id = 0 ) {
 	$user_id = $user_id ? (int) $user_id : get_current_user_id();
 	if ( ! $user_id ) {
 		return;
 	}
-	// (7) Strip reauth_* from EVERY session record of $user_id. WP_Session_Tokens has no
-	// public "update every session" method, so core adds one that removes the reserved
-	// keys per record (not destroy_all). The password/reset path may have no current
-	// token for $user_id, so clearing only the current session is insufficient.
+	// Server-side teardown (covers both modes): strip reauth_* from EVERY session record of
+	// $user_id. WP_Session_Tokens has no public "update every session" method, so core adds one
+	// that removes the reserved keys per record (not destroy_all). The password/reset path may
+	// have no current token for $user_id, so clearing only the current session is insufficient.
 	wp_reauth_clear_all_sessions( $user_id );   // new WP_Session_Tokens helper
 
-	// Expire the proof cookie ONLY when ending the CURRENT actor's own window. When an
-	// admin changes ANOTHER user's password ($user_id = target), deleting the current
-	// browser's cookie would prematurely end the admin's own 15-min window — the target's
-	// server-side records are already cleared above, which is sufficient.
+	// Cookie teardown belongs ONLY to mode (a): expire the browser's proof cookie when ending
+	// the CURRENT actor's own window. In mode (b), when an admin changes ANOTHER user's password
+	// ($user_id = target), deleting the current browser's cookie would prematurely end the
+	// admin's own window — the target's server-side records above are what matter. Clear on the
+	// same paths the proof was set on.
 	if ( get_current_user_id() === $user_id && ! headers_sent() ) {
-		setcookie( WP_REAUTH_PROOF_COOKIE, '', array(
-			'expires' => time() - YEAR_IN_SECONDS, 'path' => COOKIEPATH,
-			'domain'  => COOKIE_DOMAIN, 'secure' => is_ssl(), 'httponly' => true, 'samesite' => 'Lax',
-		) );
+		foreach ( array_unique( array( COOKIEPATH, ADMIN_COOKIE_PATH ) ) as $cookie_path ) {
+			setcookie( WP_REAUTH_PROOF_COOKIE, '', array(
+				'expires' => time() - YEAR_IN_SECONDS, 'path' => $cookie_path,
+				'domain'  => COOKIE_DOMAIN, 'secure' => is_ssl(), 'httponly' => true, 'samesite' => 'Lax',
+			) );
+		}
 	}
 }
 ```
