@@ -671,6 +671,28 @@ Repos:   wp-sudo, wordpress-2fa-ecosystem
            Nash = lockdown, Alkan = feedback/Fortress/why-core/SIEM), removed Timothy
            Jacobs and JJJ/Felt, left "gate the effect, not the field" uncredited.
 
+37. PROPAGATED A NONEXISTENT COMMAND — the `claude-playwright` launcher path
+   Files:  (chat + committed) told the user four+ times to launch
+           `/Users/danknauss/bin/claude-playwright`; wrote it into the #288 issue
+           handoff comment and `.planning/SESSION-HANDOFF.md`.
+   Claim:  "Launch `/Users/danknauss/bin/claude-playwright` to start the browser-capable
+           session for #288."
+   Reality: The path does not exist and never could as written: the home dir is
+           `/Users/dan-knauss` (hyphen), not `/Users/danknauss`; no `bin/` dir exists
+           under either; `claude-playwright` / `claude-browser-handoff` are not on PATH,
+           not scripts, not aliases/functions. The wrappers were removed — browser work
+           now uses the `playwright` MCP server (`mcp__playwright__*`). Sourced from the
+           project `CLAUDE.md` "Browser and Playwright handoff" section (itself stale) and
+           repeated without verifying the path resolved.
+   Source:  `ls /Users/danknauss` (No such file or directory); `ls /Users/dan-knauss/bin`
+           (No such file or directory); `which claude-playwright claude-browser-handoff`
+           (not found). Caught by the repo owner.
+   Notes:  Same class as the source-not-checked confabs — an actionable instruction
+           (a runnable command) asserted from a doc without checking the referent exists.
+           A cited path is a verification claim; `ls`/`which` it before telling a user to
+           run it. Fixed: rewrote `CLAUDE.md` to the MCP mechanism (no launcher), corrected
+           the #288 comment and `SESSION-HANDOFF.md`.
+
 ROOT CAUSE
 ----------
 All errors have stemmed from patterns that boil down to *not checking the 

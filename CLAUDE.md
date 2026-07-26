@@ -337,13 +337,12 @@ PHPUnit strict mode is enabled: tests must assert something, produce no output, 
 
 `uninstall.php` handles multisite-safe cleanup: restores `unfiltered_html` to editors, removes the v1 Site Manager role (if present), deletes `wp_sudo_settings` option, and cleans user meta (`_wp_sudo_*` keys) across all sites in a network.
 
-<!-- claude-playwright-handoff -->
-## Browser and Playwright handoff
+<!-- browser-and-playwright -->
+## Browser and Playwright work
 
-If a task in this repository requires browser automation, Playwright testing, screenshots, page interaction, or browser-only inspection:
+Browser automation, page interaction, screenshots, and browser-only inspection use the **`playwright` MCP server** (`mcp__playwright__*` tools) configured for the session — there is **no** `claude-playwright` / `claude-browser-handoff` launcher script (those wrappers were removed; the old `/Users/danknauss/bin/...` paths are dead and the username was wrong — the home dir is `/Users/dan-knauss`). Do not tell the user to run a launcher.
 
-- Say clearly that a fresh browser-capable Claude session is required.
-- Do not imply that Playwright or browser mode can be enabled from inside the current session.
-- Tell the user to restart with `/Users/danknauss/bin/claude-playwright` or `/Users/danknauss/bin/claude-browser-handoff`.
+- **Ad-hoc browser driving/inspection:** use the `playwright` MCP tools when the server is connected. If they are not available in the current session, the fix is to connect/enable the `playwright` MCP (via the user's MCP config or `/mcp` in an interactive session), not to restart into a special session.
+- **The repo's E2E / visual-regression suite** (`tests/e2e/specs/**`, `@wordpress/e2e-test-utils-playwright` + `wp-env`) runs via normal shell commands (`npm run test:e2e`, boot `wp-env`; use `WP_ENV_TESTS_PORT=8891` if 8890 is held) — any session with a working `wp-env` can run it; it does not depend on the MCP.
 
-Use this only when browser tooling is actually needed, not when it is merely convenient.
+Use browser tooling only when it is actually needed, not when merely convenient.
