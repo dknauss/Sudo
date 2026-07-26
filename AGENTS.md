@@ -171,11 +171,13 @@ See `docs/llm-lies-log.md` for the full record. These rules exist to prevent rec
 - **MUST** check `docs/current-metrics.md` before writing any current count
   that appears there (surfaces, gated rules, help tabs, settings fields,
   audit hooks, E2E tests, etc.).
-- When adding a feature that changes a count, update `docs/current-metrics.md`
-  FIRST. Prefer linking to that file instead of copying counts into prose.
+- When ANY change moves a tracked count — a feature, a test-only commit, even a
+  comment-only edit that shifts LOC — update `docs/current-metrics.md` FIRST.
+  Prefer linking to that file instead of copying counts into prose.
 - **MUST** check `docs/release-status.md` before writing current release-state
   claims (stable tag, unreleased `main` work, latest supported WordPress
-  release, forward-lane version, or delayed/final release dates).
+  release, forward-lane version, or delayed/final release dates), and **MUST**
+  update it FIRST when release state itself changes.
 - Never hardcode a volatile count or release date in prose unless the file is
   itself the canonical source for that fact.
 
@@ -215,8 +217,10 @@ changed since the last release. Use the project size commands above.
 
 And update `Stable tag` in `readme.txt`.
 
-Also bump the Playground stable-demo install target in `blueprint.json` — the
-`archive/refs/tags/vX.Y.Z.zip` URL in its `installPlugin` step — to the new tag.
+**After the tag is cut, never before**, bump the Playground stable-demo install
+target in `blueprint.json` — the `archive/refs/tags/vX.Y.Z.zip` URL in its
+`installPlugin` step — to the new tag. A pre-tag bump points the public demo at a
+ZIP that does not exist yet (`VERSIONING.md` → "Try latest release" badge).
 The release badges point at `main/blueprint.json` (not a frozen tag), so this one
 edit keeps "Try the latest release in Playground" installing the current release.
 (`blueprint-main.json` tracks `archive/refs/heads/main.zip` and needs no bump.)

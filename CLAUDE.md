@@ -166,11 +166,10 @@ record, and these rules exist to prevent recurrence.
 - **Every release** bumps `WP_SUDO_VERSION` in four places, `Stable tag` in
   `readme.txt`, and the `blueprint.json` Playground install target — the badges point
   at `main/blueprint.json`, so skipping it silently serves a stale demo.
-- **Before tagging**, re-verify every external claim added since the last tag and
+- **Before tagging**, re-verify every external claim added *or modified* since the
+  last tag and
   append new findings to `docs/llm-lies-log.md`.
 
-See also `AGENTS.md` → "Prose Discipline" for the rules on citing, scope words, and
-state-vs-decision phrasing.
 
 ## Test-Driven Development
 
