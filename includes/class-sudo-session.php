@@ -1411,6 +1411,36 @@ class Sudo_Session {
 		return $until > time();
 	}
 
+	/**
+	 * Whether any reauth failure tracking is currently stored for a user.
+	 *
+	 * True when there is at least one failure event, a throttle timestamp, or a
+	 * lockout timestamp — including a lockout that has already expired but was
+	 * never cleared, since the rolling window behind it is what would re-lock
+	 * the user.
+	 *
+	 * Lets the WP-CLI clear (#280) tell "there is nothing to do" apart from
+	 * "there are pre-lockout counters here", so it neither erases a live
+	 * brute-force defense while reporting a no-op, nor writes an epoch bump for
+	 * a user with no state at all. Pure read, like has_unexpired_lockout().
+	 *
+	 * @since TBD
+	 *
+	 * @param int $user_id User ID.
+	 * @return bool
+	 */
+	public static function has_failure_state( int $user_id ): bool {
+		if ( self::get_failed_attempts( $user_id ) > 0 ) {
+			return true;
+		}
+
+		if ( (int) get_user_meta( $user_id, self::THROTTLE_UNTIL_META_KEY, true ) > 0 ) {
+			return true;
+		}
+
+		return (int) get_user_meta( $user_id, self::LOCKOUT_UNTIL_META_KEY, true ) > 0;
+	}
+
 	// -------------------------------------------------------------------------
 	// Bulk / shared revocation helpers
 	// -------------------------------------------------------------------------

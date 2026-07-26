@@ -24,12 +24,15 @@ class CLI_Command {
 	 *
 	 * ## OPTIONS
 	 *
-	 * [--user=<id>]
-	 * : User ID to inspect. Defaults to the current WP-CLI user context.
+	 * [--user=<id|login>]
+	 * : Target user. A purely numeric value always resolves as a user ID (even
+	 *   if some user's login happens to be numeric); any other value is looked
+	 *   up as a login. Defaults to the current WP-CLI user context.
 	 *
 	 * ## EXAMPLES
 	 *
 	 *     wp sudo status --user=1
+	 *     wp sudo status --user=jane
 	 *
 	 * @param array<int, string>   $args       Positional args (unused).
 	 * @param array<string, mixed> $assoc_args Assoc args.
@@ -39,7 +42,7 @@ class CLI_Command {
 		$user_id = $this->resolve_user_id( $assoc_args );
 
 		if ( $user_id <= 0 ) {
-			\WP_CLI::error( 'No target user. Pass --user=<id> or run with a WP-CLI --user context.' );
+			\WP_CLI::error( 'No target user. Pass --user=<id|login> or run with a WP-CLI --user context.' );
 		}
 
 		$remaining = Sudo_Session::time_remaining( $user_id );
@@ -63,8 +66,10 @@ class CLI_Command {
 	 *
 	 * ## OPTIONS
 	 *
-	 * [--user=<id>]
-	 * : User ID to revoke. Defaults to current WP-CLI user context.
+	 * [--user=<id|login>]
+	 * : Target user. A purely numeric value always resolves as a user ID (even
+	 *   if some user's login happens to be numeric); any other value is looked
+	 *   up as a login. Defaults to the current WP-CLI user context.
 	 *
 	 * [--all]
 	 * : Revoke all active sudo sessions.
@@ -72,6 +77,7 @@ class CLI_Command {
 	 * ## EXAMPLES
 	 *
 	 *     wp sudo revoke --user=1
+	 *     wp sudo revoke --user=jane
 	 *     wp sudo revoke --all
 	 *
 	 * @param array<int, string>   $args       Positional args (unused).
@@ -93,7 +99,7 @@ class CLI_Command {
 
 		$user_id = $this->resolve_user_id( $assoc_args );
 		if ( $user_id <= 0 ) {
-			\WP_CLI::error( 'No target user. Pass --user=<id> or run with a WP-CLI --user context.' );
+			\WP_CLI::error( 'No target user. Pass --user=<id|login> or run with a WP-CLI --user context.' );
 		}
 
 		Sudo_Session::deactivate( $user_id );
@@ -149,26 +155,49 @@ class CLI_Command {
 			\WP_CLI::error( 'No target user. Pass --user=<id|login> or run with a WP-CLI --user context.' );
 		}
 
-		// Captured BEFORE reset_failed_attempts() runs: has_unexpired_lockout()
-		// is a pure read (unlike is_locked_out(), it has no auto-reset side
-		// effect), so this reflects what was actually true at invocation time.
+		// Both captured BEFORE anything is cleared. has_unexpired_lockout() and
+		// has_failure_state() are pure reads (unlike is_locked_out(), which
+		// auto-resets once the timestamp is in the past), so they reflect what
+		// was actually true at invocation time rather than what this command
+		// just did.
 		$was_locked = Sudo_Session::has_unexpired_lockout( $user_id );
+		$had_state  = Sudo_Session::has_failure_state( $user_id );
 
-		Sudo_Session::clear_reauth_lockout( $user_id );
-
-		if ( ! $was_locked ) {
+		// Nothing tracked at all: report and leave the user untouched. Clearing
+		// here would write an epoch bump for a user who never had a lockout.
+		if ( ! $was_locked && ! $had_state ) {
 			\WP_CLI::log( sprintf( 'No active reauth lockout for user %d.', $user_id ) );
 			return;
 		}
 
+		Sudo_Session::clear_reauth_lockout( $user_id );
+
 		/**
-		 * Fires when an operator clears a reauth lockout via WP-CLI.
+		 * Fires when an operator clears reauth failure state via WP-CLI.
+		 *
+		 * Fires for a sub-threshold clear as well as a true lockout: both
+		 * discard accumulated failure tracking, so both are worth auditing.
+		 * $was_locked distinguishes them.
 		 *
 		 * @since TBD
 		 *
 		 * @param int $user_id The unlocked user.
 		 */
 		do_action( 'wp_sudo_lockout_cleared', $user_id );
+
+		// Not locked, but counters existed — clearing them discards a live
+		// brute-force defense (accumulated failures, an active throttle, or an
+		// expired-but-uncleared lockout's rolling window). Say so rather than
+		// reporting a bare no-op.
+		if ( ! $was_locked ) {
+			\WP_CLI::log(
+				sprintf(
+					'No active reauth lockout for user %d — cleared pre-lockout failure counters (accumulated attempts, throttle, and any stale rolling window).',
+					$user_id
+				)
+			);
+			return;
+		}
 
 		\WP_CLI::success(
 			sprintf(

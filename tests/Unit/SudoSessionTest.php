@@ -2153,6 +2153,72 @@ class SudoSessionTest extends TestCase
 		$this->assertLessThan(Sudo_Session::MAX_FAILED_ATTEMPTS, $after);
 	}
 
+	/**
+	 * has_failure_state() reports whether ANY reauth failure tracking is
+	 * present — failure events, a throttle, or a lockout timestamp — so the
+	 * WP-CLI unlock command can tell "nothing to do" apart from "cleared
+	 * pre-lockout counters" instead of silently erasing brute-force defenses
+	 * while reporting a no-op (#280).
+	 */
+	public function test_has_failure_state_is_false_when_nothing_is_tracked(): void
+	{
+		Functions\when('get_user_meta')->justReturn('');
+
+		$this->assertFalse(Sudo_Session::has_failure_state(3));
+	}
+
+	public function test_has_failure_state_is_true_for_sub_threshold_failure_events(): void
+	{
+		Functions\when('get_user_meta')->alias(
+			static function ($uid, $key, $single = true) {
+				if (Sudo_Session::FAILURE_EVENT_META_KEY === $key && !$single) {
+					return array(time() - 5, time() - 3);
+				}
+				return '';
+			}
+		);
+
+		$this->assertTrue(Sudo_Session::has_failure_state(3));
+	}
+
+	public function test_has_failure_state_is_true_for_an_active_throttle(): void
+	{
+		Functions\when('get_user_meta')->alias(
+			static function ($uid, $key, $single = true) {
+				return Sudo_Session::THROTTLE_UNTIL_META_KEY === $key ? time() + 5 : '';
+			}
+		);
+
+		$this->assertTrue(Sudo_Session::has_failure_state(3));
+	}
+
+	/**
+	 * A lockout timestamp that has passed but was never cleared still counts as
+	 * residual state: the rolling window behind it is what would re-lock the
+	 * user, so the operator clear must still have something to do.
+	 */
+	public function test_has_failure_state_is_true_for_an_expired_but_uncleared_lockout(): void
+	{
+		Functions\when('get_user_meta')->alias(
+			static function ($uid, $key, $single = true) {
+				return Sudo_Session::LOCKOUT_UNTIL_META_KEY === $key ? time() - 60 : '';
+			}
+		);
+
+		$this->assertTrue(Sudo_Session::has_failure_state(3));
+	}
+
+	public function test_has_failure_state_has_no_side_effects(): void
+	{
+		Functions\when('get_user_meta')->justReturn(time() - 60);
+
+		Functions\expect('delete_user_meta')->never();
+		Functions\expect('update_user_meta')->never();
+		Functions\expect('delete_transient')->never();
+
+		Sudo_Session::has_failure_state(3);
+	}
+
 	// =================================================================
 	// is_session_live() — shared browser-independent liveness predicate
 	// =================================================================

@@ -248,6 +248,55 @@ class CliCommandTest extends TestCase {
 		$this->assertStringContainsString( 'No active reauth lockout for user 9', \WP_CLI::$messages[0]['message'] ?? '' );
 	}
 
+	/**
+	 * A user with NO lockout and no residual failure tracking must be left
+	 * completely untouched — the command must not write the epoch or delete
+	 * meta just to report "nothing to do".
+	 */
+	public function test_unlock_does_not_mutate_state_when_there_is_nothing_to_clear(): void {
+		Functions\when( 'get_user_meta' )->justReturn( '' );
+
+		Functions\expect( 'delete_user_meta' )->never();
+		Functions\expect( 'update_user_meta' )->never();
+		Functions\expect( 'delete_transient' )->never();
+
+		$command = new CLI_Command();
+		$command->unlock( array(), array( 'user' => '9' ) );
+
+		$this->assertSame( 'log', \WP_CLI::$messages[0]['type'] ?? null );
+		$this->assertStringContainsString( 'No active reauth lockout for user 9', \WP_CLI::$messages[0]['message'] ?? '' );
+	}
+
+	/**
+	 * A user who has accumulated failures but has NOT hit the threshold is a
+	 * distinct case: clearing does weaken a live brute-force defense, so it
+	 * must be reported and audited rather than silently reported as a no-op.
+	 */
+	public function test_unlock_reports_and_audits_clearing_pre_lockout_counters(): void {
+		Functions\when( 'get_user_meta' )->alias(
+			static function ( int $user_id, string $key, bool $single = true ) {
+				// Two failures recorded; below MAX_FAILED_ATTEMPTS, so not locked.
+				if ( Sudo_Session::FAILURE_EVENT_META_KEY === $key && ! $single ) {
+					return array( time() - 5, time() - 3 );
+				}
+				return '';
+			}
+		);
+		Functions\when( 'delete_user_meta' )->justReturn( true );
+		Functions\when( 'delete_transient' )->justReturn( true );
+		Functions\when( 'update_user_meta' )->justReturn( true );
+
+		Functions\expect( 'do_action' )
+			->once()
+			->with( 'wp_sudo_lockout_cleared', 9 );
+
+		$command = new CLI_Command();
+		$command->unlock( array(), array( 'user' => '9' ) );
+
+		$this->assertStringContainsString( 'No active reauth lockout for user 9', \WP_CLI::$messages[0]['message'] ?? '' );
+		$this->assertStringContainsString( 'cleared', \WP_CLI::$messages[0]['message'] ?? '' );
+	}
+
 	public function test_unlock_errors_when_no_target_user_is_available(): void {
 		Functions\when( 'get_current_user_id' )->justReturn( 0 );
 
