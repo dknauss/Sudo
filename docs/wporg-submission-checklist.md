@@ -17,7 +17,7 @@ These gates protect the GitHub/package release itself. They are required before 
 
 - [ ] **Version-sync gate** — `WP_SUDO_VERSION` must be identical in all four code
   locations, and the `readme.txt` Stable tag must match the plugin header `Version`
-  (per `CLAUDE.md` → *Version sync checklist*):
+  (per `AGENTS.md` → *Version sync checklist*):
   1. `wp-sudo.php` — plugin header `Version:` line
   2. `wp-sudo.php` — `define( 'WP_SUDO_VERSION', … )` constant
   3. `phpstan-bootstrap.php` — `define( 'WP_SUDO_VERSION', … )` constant
@@ -40,7 +40,7 @@ These gates protect the GitHub/package release itself. They are required before 
   required pre-commit or GitHub status check.
 - [ ] **Pre-release external-claim audit** — re-verify every external claim added or
   modified since the last tag against live sources; append findings to
-  `docs/llm-lies-log.md` (per `CLAUDE.md` → *Pre-release audit*).
+  `docs/llm-lies-log.md` (per `AGENTS.md` → *Pre-release audit*).
 - [ ] **Changelog/readme/release-status sanity** — `CHANGELOG.md`, `readme.txt`, and
   [`docs/release-status.md`](release-status.md) agree on the intended version,
   release posture, and whether work is tagged or still unreleased on `main`.
