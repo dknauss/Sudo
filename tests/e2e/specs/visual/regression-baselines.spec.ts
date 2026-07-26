@@ -287,6 +287,15 @@ test.describe( 'Visual regression baselines', () => {
      * Clipping to the button alone also isolates it from unrelated header churn (the
      * neighbouring Settings button's is-pressed state, Publish-button label changes).
      *
+     * WHERE THESE PNGs COME FROM: the Linux runner in .github/workflows/e2e-visual.yml,
+     * which is the only environment that ever asserts them (that workflow is nightly +
+     * workflow_dispatch, never on a PR). Regenerating them on macOS looks fine locally
+     * and then fails CI on antialiasing alone — observed at 5, 18 and 71 differing
+     * pixels on a 33x32 button, which is enough because `threshold` is a PER-PIXEL
+     * colour tolerance, not a pixel-count budget: any differing pixel fails. To update
+     * them, dispatch the workflow and take the `-actual.png` files from its
+     * `playwright-visual-report` artifact. Expect these three to fail a local macOS run.
+     *
      * Source: admin/css/wp-sudo-editor-indicator.css — the single expiring rule (verified)
      * Source: admin/js/wp-sudo-session-indicator.js — sessionState(), the IndicatorPanel
      *         `icon` selection, the body-class toggle, EXPIRING_THRESHOLD
