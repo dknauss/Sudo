@@ -27,7 +27,7 @@ source of truth for its topic; this index never restates content (see
 | Question | Read |
 |---|---|
 | *Why* close the XSS→RCE route with a recent-auth gate, and how does it land? (start here — the security pitch is now merged in) | [`core-action-gate-proposal.md`](core-action-gate-proposal.md) |
-| *What* exactly would change in core (files, functions, APIs; the registry-vs-Abilities decision; B′ session design)? | [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md) |
+| *What* exactly would change in core (files, functions, APIs; the registry-vs-Abilities decision; the recent-auth session design)? | [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md) |
 | What do the actual patches look like at the chokepoints? | [`core-sudo-gate-poc-patches.md`](core-sudo-gate-poc-patches.md) |
 | How does WordPress core authentication actually work? | [`wordpress-core-authentication.md`](wordpress-core-authentication.md) |
 

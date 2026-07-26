@@ -105,7 +105,7 @@ Remaining follow-up: the public *name* for the API (proposal §4.0 naming caveat
 
 ## Sub-questions this memo does *not* resolve (still for core review)
 
-These are genuinely independent of the registry fork and remain open (spec §12):
+These are genuinely independent of the registry fork and remain open (spec §11):
 
 1. `WP_Session_Tokens` extension vs. a dedicated store for the recent-auth window.
 2. Flat recent-auth freshness vs. scope-bound windows in v1.
