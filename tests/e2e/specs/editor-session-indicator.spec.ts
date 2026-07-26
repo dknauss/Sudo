@@ -63,8 +63,8 @@ const PINNED_BUTTON =
  *   expiring   dashicons-warning   red chip (#c62828)
  *
  * Icon-only, no chip, for the two non-urgent states because that is what core
- * actually does on these controls: the only background change core applies to a
- * pinned-item button is the neutral `.is-pressed` fill (packages/components/src/
+ * actually does on these controls: no background core applies to a pinned-item
+ * button encodes meaning — the pressed state takes a neutral fill (packages/components/src/
  * button/style.scss L342-348 — `background: $components-color-foreground`), never a
  * semantic colour. A state-driven GLYPH, by contrast, is precedented on this exact
  * button: core swaps its icon conditionally itself — `icon={ showIconLabels ? check :

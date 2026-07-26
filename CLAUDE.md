@@ -171,6 +171,31 @@ record, and these rules exist to prevent recurrence.
   append new findings to `docs/llm-lies-log.md`.
 
 
+## Prose Discipline
+
+Full rules live in this repo's `AGENTS.md` → "Prose Discipline". That file is the
+single canonical copy on purpose: a rule about not duplicating claims should not
+itself exist in two divergent copies.
+
+**Summary (authoritative version in `AGENTS.md`):** prose is the least-tested artifact
+here and the fastest thing an LLM produces, so treat a sentence about behaviour as
+seriously as code asserting it.
+
+- **Cite the enclosing symbol**, never a bare line number — if you cannot name the
+  function or component containing the line, you have not read it, you have grepped it.
+- **Register third-party claims once** in `docs/upstream-sources.md` and run
+  `composer verify:sources`. Prose carries a summary and the registry ID, not a
+  seventh copy of the URL.
+- **Scope words are claims.** *only, sole, never, always, every* need a command that
+  would falsify them, or a narrower sentence.
+- **Write decisions, not state inventories.** "Chosen because X" survives; "the only
+  painted state" rots at the next commit and no test notices.
+- **Sweep every file type after a behaviour change**, especially languages the change
+  did not touch, and open any regenerated screenshot before writing prose about it.
+- **Run the mechanical checks after comment-only edits too** — `composer
+  verify:metrics` (line counts are tracked), `bash bin/make-pot.sh` (`.pot` carries
+  line refs; regenerate rather than hand-patch), `composer verify:sources`.
+
 ## Test-Driven Development
 
 All new code must follow TDD:

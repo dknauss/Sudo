@@ -1,0 +1,40 @@
+name: Upstream Source Drift
+
+# Nightly and on demand — deliberately NOT a pull-request gate. This job fetches
+# raw.githubusercontent.com, so as a required check a GitHub or network blip would
+# block merges for reasons unrelated to the change, and a required check that fails
+# for unrelated reasons is one people learn to force past.
+#
+# It is also NOT continue-on-error, and that is a different call from the one
+# e2e-visual.yml makes. That job marks its test step `continue-on-error` on purpose —
+# snapshot drift is not a runtime-compatibility failure, per the note in
+# release-confidence.yml — but the side effect is a green tick over red tests: runs
+# 30069772629, 30145857653 and 30189774319 (2026-07-24/25/26, all on `main`) each
+# reported success with four visual baselines failing. That trade is defensible for
+# pixel drift. It is not defensible here: if this job goes red, a claim in the repo is
+# no longer supported by the code it cites, and a green tick over that is a lie.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '15 5 * * *'
+
+# Least-privilege default for GITHUB_TOKEN (CodeQL actions hardening).
+permissions:
+  contents: read
+
+jobs:
+  verify-sources:
+    name: "Upstream citations still say what we claim"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+
+      # Exercise the checker's own logic (offline, deterministic) before trusting it
+      # against the live upstream. If the checker itself is broken, the citation run
+      # below is meaningless.
+      - name: Run the source-checker regression tests
+        run: bash tests/verify-sources/run.sh
+
+      - name: Verify every citation in docs/upstream-sources.md
+        run: bash bin/verify-sources.sh
