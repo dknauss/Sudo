@@ -43,12 +43,9 @@
  * Session duration WP-CLI reference (not used here, kept for documentation):
  *   npx wp-env run tests-cli wp option patch update wp_sudo_settings session_duration 1
  */
-import { execSync } from 'child_process';
 import type { Page } from '@playwright/test';
 import { test, expect, activateSudoSession } from '../fixtures/test';
-import { wpEnvRun } from '../fixtures/wp-env';
-
-const WP_ENV_RUN_CLI = wpEnvRun( 'cli' );
+import { wpEnvRunCliSync } from '../fixtures/wp-env';
 
 /**
  * Wait for a real same-URL reload triggered by the admin bar timer reaching zero.
@@ -254,8 +251,9 @@ test.describe( 'Admin bar timer', () => {
         // WP-CLI container: 'cli' targets the development site on port 8889 (same site
         // the browser tests use). 'tests-cli' targets the tests site on port 8890.
         // Source: wp-env.json — "port": 8889 is the development site (verified)
-        execSync(
-            `${ WP_ENV_RUN_CLI } wp user meta update 1 _wp_sudo_expires 1`,
+        wpEnvRunCliSync(
+            'cli',
+            [ 'wp', 'user', 'meta', 'update', '1', '_wp_sudo_expires', '1' ],
             { stdio: 'ignore' }
         );
 
