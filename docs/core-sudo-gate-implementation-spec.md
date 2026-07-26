@@ -358,4 +358,22 @@ A Playground blueprint reproducing a stolen-session takeover and showing where t
 
 ---
 
+## 12. Reviewer findings / known gaps (design review, July 2026)
+
+A two-model adversarial design review (Fable + Opus) of this spec and the proposal validated the overall shape — gate-at-the-sink, per-session HMAC separate-proof, actor-class branch, fail-closed — and surfaced residual gaps to close before this goes in front of core committers. **None is fatal; most are mechanical or already have a lever in this design.** Tracked as GitHub issues **#302–#311** (#302–#310 high-severity; #311 tracks medium/low). The high-severity gaps:
+
+1. **Core update is ungated (#302).** No `core/update-core` entry; `Core_Upgrader::upgrade()` calls `update_core()` without routing through `install_package()` — the attack-tree already gates it as `core.update`. Add the entry; gate `update_core()` explicitly.
+2. **The `do_action()` pre-op adapters cannot block (#303).** §5.4 / §6 gate `delete_user` / `grant_super_admin` / `add_user_to_blog` / `switch_theme` via hooks whose return is discarded — the same defect §4.1.1 uses to reject the Abilities API. Gate in-function or via *vetoing* filters (e.g. `pre_update_option_template`/`_stylesheet`).
+3. **Gating `wp_set_password()` bricks the unauthenticated reset (#304).** The key-verified `reset_password()` path runs at actor 0; add an explicit carve-out, and state the residual mail-channel trust in §3's invariant.
+4. **The mandatory password step locks out SSO/passkey/passwordless accounts (#305).** §7 needs a factor-only / provider-supplied-proof path where no core password exists.
+5. **Default-on hard-block of App-Password/automation callers is a back-compat regression (#306).** §9 + §8 default-on silently break headless/CI/deploy/cron ecosystems and silently fail programmatic `WP_Error`-ignoring callers. Reconsider the default or add an opt-in allowance for authenticated non-interactive callers.
+6. **The auto-updater ALLOW branch depends on a provenance primitive core lacks (#307).** Define a non-filterable trusted flag (set inside `WP_Automatic_Updater`) or narrow the ALLOW to core-signed packages.
+7. **Flat freshness lets a trivial action authorize the most consequential ones (#308).** Use the `consequence.scope` field for code-execution and credential-issuance classes in v1 (moves §11-Q3 toward scoped for those classes).
+8. **`map_meta_cap` enforcement conflates authz with proof-of-intent and invites recursion (#309).** Drop the §5.3 `map_meta_cap` insertion (the caps-meta-write + `wp_update_user`/`set_role` seams already cover the writes) or make it non-blocking.
+9. **HMAC forgery-resistance is conditional on `AUTH_SALT` placement (#310).** With the salts in `wp_options`, the wp2shell SQLi read (§10) forges the MAC. State salts-in-`wp-config.php` as a hard precondition (§4.2), not a footnote.
+
+These interact with §11's open questions (notably Q2 session store, Q3 scope-bound windows, Q5 default-on). The medium/low items — app-password shared sink, the registration invariant being point-in-time, actor-class detection, option-write activation bypass, `WP_Session_Tokens` pluggability, multisite super-admin/network-option, the REST silent-200, and four mechanism gaps — are tracked in #311.
+
+---
+
 *Contributor credits for WP Sudo's design lineage (Blackbourn, Nash, Alkan) live in the plugin readme's Acknowledgements section. Prior art is cited impersonally in the body — principally Core Trac [#20140](https://core.trac.wordpress.org/ticket/20140) (recent auth for consequential actions) and [#16470](https://core.trac.wordpress.org/ticket/16470) (single-site email-change confirmation, whose `send_confirmation_on_profile_email()` flow §4.1 must accommodate).*
