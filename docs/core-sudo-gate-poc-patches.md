@@ -3,33 +3,36 @@
 **Status:** Illustrative sketches, not tested against a core checkout. Companion to [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md). Signatures verified against WordPress core: `wp_update_user` / `wp_insert_user` (returns `WP_Error`) in `wp-includes/user.php` and `wp_delete_user` (returns `bool`) in `wp-admin/includes/user.php`; `wp_set_password` in `wp-includes/pluggable.php`; `WP_User::set_role` / `add_role` in `wp-includes/class-wp-user.php`; `wpmu_create_user` (returns `int|false`) in `wp-includes/ms-functions.php`; the users controller in `wp-includes/rest-api/endpoints/class-wp-rest-users-controller.php` (canonical: <https://github.com/WordPress/wordpress-develop/tree/trunk/src/wp-includes>). Line anchors are approximate.
 **Purpose:** Make the spec's central claim concrete — that gating a handful of *data-layer chokepoints* covers admin UI, REST, and programmatic callers in one insertion, using error paths those functions already return.
 
-> **Post-review revision note (2026-07-25).** Piece 1 below (`wp_start_reauth_window`/`wp_end_reauth_window` stamping `reauth_at` on the current `WP_Session_Tokens` record) is **superseded** and unsafe as written: the stolen cookie is the *same* token, so the stamp elevates the thief too; and token rotation is not the fix (it invalidates every nonce, since `wp_create_nonce()` hashes the token). Replace it with the **per-session-verifier, HMAC-signed, separate-proof** design in [`core-sudo-gate-security-pitch.md` §5](core-sudo-gate-security-pitch.md#5-how-it-lands-in-core) and the spec §0 note. Piece 3's chokepoint should move from `Plugin_Upgrader::install()` to **`WP_Upgrader::install_package()`** + **`activate_plugin()`** (plus `wp_edit_theme_plugin_file()` for the editor). Also: `wp_end_reauth_window()` must **not** use `destroy_all()`, and teardown must not hook `profile_update` blindly (it fires when an admin edits *another* user). Full list: [`.planning/reconciliation-carryover.md`](../.planning/reconciliation-carryover.md).
-
 The four pieces below are the minimum viable enforcement core:
 
-1. The reauth window on `WP_Session_Tokens` (the primitive)
+1. The recent-auth record — a per-session, HMAC-signed, separate-proof primitive (§4.2)
 2. The gate helper + decision object (the query)
-3. The `wp_update_user()` guard (the chokepoint — covers #20140's account cases)
+3. The chokepoint guards — `wp_update_user()` for #20140's account cases, and the shared code sinks (`WP_Upgrader::install_package()`, `wp_edit_theme_plugin_file()`, `activate_plugin()`)
 4. The admin-UI adapter that turns the error into a challenge + replay
 
 ---
 
-## 1. Recent-auth window on `WP_Session_Tokens`
+## 1. The recent-auth record: per-session, HMAC-signed, separate proof
 
-The window lives *inside the login session record*, so `wp_logout()` and "log out everywhere" tear it down for free, and `destroy_all()` revokes it on the next request. **A password change does *not* clear it automatically** — `wp_set_password()` / `wp_update_user()` leave the token record intact — so the password path must call `wp_end_reauth_window()` explicitly (spec §4.2, acceptance criterion 3).
+Two reviews rejected the two obvious designs (spec §4.2): stamping `reauth_at` on the shared session record elevates the stolen cookie too (it is the *same* token), and rotating the token invalidates every open-tab nonce (`wp_create_nonce()` hashes the token). What survives is a record that (1) requires a **separate proof secret** the browser holds, (2) is keyed **per session-token verifier**, and (3) is **self-authenticating** so a poisoned object cache cannot forge it (`session_tokens` lives in the persistent `user_meta` cache group).
 
 ```php
 // wp-includes/user.php  (new functions)
 
+// Httponly cookie carrying the per-session proof secret (DISTINCT from the auth cookie).
+// The server stores only its hash; a session copy that never held it cannot pass.
+const WP_REAUTH_PROOF_COOKIE = 'wp_reauth_proof';
+
 /**
- * Open a recent-auth ("sudo") window on the current login session.
+ * Open a recent-auth ("sudo") window on the CURRENT login session.
  *
- * Called by the challenge handler after the actor re-verifies. Stamps the
- * current session token record; it is destroyed with the session.
+ * Called by the challenge handler after the actor re-verifies. Issues a fresh
+ * proof secret to this browser and writes a signed record keyed to this session's
+ * token verifier. NO token rotation (that would invalidate nonces).
  */
 function wp_start_reauth_window( $user_id = 0, $scope = '' ) {
 	$user_id = $user_id ? (int) $user_id : get_current_user_id();
-	$token   = wp_get_session_token();            // raw token from the auth cookie
+	$token   = wp_get_session_token();            // the current session-token VERIFIER (the key)
 	if ( ! $user_id || ! $token ) {
 		return false;
 	}
@@ -38,14 +41,35 @@ function wp_start_reauth_window( $user_id = 0, $scope = '' ) {
 	if ( ! $session ) {
 		return false;
 	}
-	$session['reauth_at']    = time();
+
+	$proof = wp_generate_password( 43, false );   // ~256 bits, url-safe — held only by the browser
+	$at    = time();
+
+	// (3) Self-authenticating: bind (user, verifier, time, scope) so a cache-poisoned
+	// reauth_at without a valid HMAC is rejected. Including $token means an injected
+	// stamp copied onto a DIFFERENT session cannot validate. wp_salt('auth') is the key.
+	$session['reauth_at']    = $at;
 	$session['reauth_scope'] = (string) $scope;
-	$manager->update( $token, $session );         // persists into the session store
+	$session['reauth_proof'] = hash( 'sha256', $proof );   // a HASH, never the secret itself
+	$session['reauth_sig']   = hash_hmac( 'sha256', "$user_id|$token|$at|$scope", wp_salt( 'auth' ) );
+	$manager->update( $token, $session );                  // keyed PER verifier — concurrent sessions don't collide
+
+	if ( ! headers_sent() ) {
+		setcookie( WP_REAUTH_PROOF_COOKIE, $proof, array(
+			'expires'  => 0,                 // session cookie; the signed record's TTL is authoritative
+			'path'     => ADMIN_COOKIE_PATH, // not COOKIEPATH — never sent on the front end
+			'domain'   => COOKIE_DOMAIN,
+			'secure'   => is_ssl(),
+			'httponly' => true,
+			'samesite' => 'Lax',             // Strict would drop it on a top-level nav into wp-admin
+		) );
+	}
 	return true;
 }
 
 /**
- * Is the current session within a valid recent-auth window?
+ * Is the current request within a valid recent-auth window?
+ * Verifies the HMAC (unforgeable), then the browser's proof secret, then the TTL.
  */
 function wp_has_recent_auth( $user_id = 0, $scope = '' ) {
 	$user_id = $user_id ? (int) $user_id : get_current_user_id();
@@ -53,49 +77,63 @@ function wp_has_recent_auth( $user_id = 0, $scope = '' ) {
 	if ( ! $user_id || ! $token ) {
 		return false;
 	}
+	// (5) Read from the STORE, not a cookie string, so destroy_all() revokes within the request.
 	$session = WP_Session_Tokens::get_instance( $user_id )->get( $token );
-	if ( empty( $session['reauth_at'] ) ) {
+	if ( empty( $session['reauth_at'] ) || empty( $session['reauth_sig'] ) || empty( $session['reauth_proof'] ) ) {
 		return false;
 	}
-	/** Window length in seconds. Define WP_REAUTH_WINDOW to override. */
+	$at     = (int) $session['reauth_at'];
+	$sscope = (string) ( $session['reauth_scope'] ?? '' );
+
+	// (3) HMAC first — a forged (cache-poisoned) reauth_at without a valid signature dies here.
+	$expect = hash_hmac( 'sha256', "$user_id|$token|$at|$sscope", wp_salt( 'auth' ) );
+	if ( ! hash_equals( $expect, (string) $session['reauth_sig'] ) ) {
+		return false;
+	}
+	// (1) The browser must present the matching proof — a stolen auth cookie that never
+	// held it cannot pass, even though it shares the session token.
+	$proof = isset( $_COOKIE[ WP_REAUTH_PROOF_COOKIE ] ) ? (string) $_COOKIE[ WP_REAUTH_PROOF_COOKIE ] : '';
+	if ( '' === $proof || ! hash_equals( (string) $session['reauth_proof'], hash( 'sha256', $proof ) ) ) {
+		return false;
+	}
+
 	$ttl = defined( 'WP_REAUTH_WINDOW' ) ? (int) WP_REAUTH_WINDOW : 15 * MINUTE_IN_SECONDS;
 	$ttl = (int) apply_filters( 'wp_reauth_window_ttl', $ttl, $user_id, $scope );
 
-	// Scope-bound check — OPT-IN only. v1 ships FLAT freshness (spec §4.2): callers
-	// pass no scope (see wp_check_action_gate below), so this block is inert. If you
-	// enable scoping, the challenge MUST stamp the SAME scope via
-	// wp_start_reauth_window( $id, $scope ) on success, or a scoped action loops
-	// forever (the window is opened with the default empty scope).
-	if ( '' !== $scope && ( $session['reauth_scope'] ?? '' ) !== $scope ) {
+	// Scope-bound check — OPT-IN only (v1 = flat freshness; callers pass no scope).
+	if ( '' !== $scope && $sscope !== $scope ) {
 		return false;
 	}
-	return ( time() - (int) $session['reauth_at'] ) <= $ttl;
+	return ( time() - $at ) <= $ttl;
 }
 
+/**
+ * Drop the window. On logout/explicit drop and on a credential change for $user_id.
+ * NEVER destroy_all() (that logs the user out of the request that changed the password),
+ * and teardown must key on an actual password-hash change for the TARGET user — not a
+ * blind profile_update, which fires when an admin edits another user.
+ */
 function wp_end_reauth_window( $user_id = 0 ) {
 	$user_id = $user_id ? (int) $user_id : get_current_user_id();
 	if ( ! $user_id ) {
 		return;
 	}
-	$manager = WP_Session_Tokens::get_instance( $user_id );
+	// (7) Strip reauth_* from EVERY session record of $user_id. WP_Session_Tokens has no
+	// public "update every session" method, so core adds one that removes the reserved
+	// keys per record (not destroy_all). The password/reset path may have no current
+	// token for $user_id, so clearing only the current session is insufficient.
+	wp_reauth_clear_all_sessions( $user_id );   // new WP_Session_Tokens helper
 
-	// Interactive path (logout / explicit drop): clear the current request's token.
-	$token = wp_get_session_token();
-	if ( $token && ( $session = $manager->get( $token ) ) ) {
-		unset( $session['reauth_at'], $session['reauth_scope'] );
-		$manager->update( $token, $session );
+	if ( ! headers_sent() ) {
+		setcookie( WP_REAUTH_PROOF_COOKIE, '', array(
+			'expires' => time() - YEAR_IN_SECONDS, 'path' => ADMIN_COOKIE_PATH,
+			'domain'  => COOKIE_DOMAIN, 'secure' => is_ssl(), 'httponly' => true, 'samesite' => 'Lax',
+		) );
 	}
-
-	// Password-change / reset path: the request may have NO session token for the
-	// target user (the lost-password flow is unauthenticated), so clearing only the
-	// current token is not enough — the window must be dropped on EVERY session of
-	// $user_id. WP_Session_Tokens has no public "update every session" method, so a
-	// core implementation adds one (strip reauth_* from each stored record) or, if
-	// forcing re-login there is acceptable, simply calls $manager->destroy_all().
 }
 ```
 
-No schema change is strictly required: `WP_Session_Tokens` session records are already free-form arrays merged in `update()`. Core's default `WP_User_Meta_Session_Tokens::update_session()` persists whatever keys are present, so `reauth_at` rides along. The only core edit is *documenting* the two reserved keys and ensuring `is_still_valid()`/`destroy` paths don't strip them (they don't today).
+Two core edits the sketch depends on: (a) **only the challenge handler may write `reauth_*`** — core must strip the reserved keys from the `attach_session_information` filter result, since that filter sets the base session array on every `WP_Session_Tokens::create()` and any registered callback could otherwise pre-elevate new sessions; and (b) the HMAC covers the verifier, so an injected or cache-poisoned stamp on any other session fails validation. A cache-bypassing `$wpdb` read of the record on the enforcement path is an optional complement (it does not survive a direct-DB *write*; the HMAC does). Note a fresh `login` timestamp is **not** a substitute for this record — `wp_signon('','')` mints one from a held cookie with no credential entered.
 
 ---
 
@@ -262,7 +300,7 @@ function wp_role_change_escalates( $target_id, $new_role ) {
 }
 ```
 
-`wp_insert_user()` (create) and `activate_plugin()`/`delete_plugins()` take the identical three-line guard with their own action IDs. **`wp_delete_user()` cannot** — it returns `bool`, so a returned `WP_Error` is truthy and callers that check `if ( ! $result )` read it as a *successful* delete. Gate `core/delete-user` with a distinct adapter that intercepts **before** the delete (hook `delete_user`, or the REST `delete_item` permission callback) and short-circuits, rather than by return value. `grant_super_admin()` gates unconditionally.
+`wp_insert_user()` (create) and `activate_plugin()`/`delete_plugins()` take the identical three-line guard with their own action IDs. The **code effects** take the same guard at their *shared* sinks (spec §5.4): `WP_Upgrader::install_package()` for install / ZIP upload / update / bulk / theme / language packs (**not** `Plugin_Upgrader::install()`, which misses the update and auto-updater paths), and `wp_edit_theme_plugin_file()` for both file editors. Non-interactive callers of `install_package()` are resolved by the §9 actor-class policy — core's auto-updater from the configured source is *allowed*, not blocked. **`wp_delete_user()` cannot** take the `WP_Error` guard — it returns `bool`, so a returned `WP_Error` is truthy and callers that check `if ( ! $result )` read it as a *successful* delete; gate `core/delete-user` with a distinct adapter that intercepts **before** the delete (hook `delete_user`, or the REST `delete_item` permission callback). `switch_theme()` (void) and the multipart ZIP upload (unstashable) likewise need pre-op handling. `grant_super_admin()` gates unconditionally.
 
 ---
 
@@ -286,7 +324,7 @@ The only surface-specific code. Everything else rides the `WP_Error` return.
  }
 ```
 
-REST needs *no* adapter beyond letting the controller return the error — the 403 + `challenge_url` in `$error_data` is already REST-shaped. CLI/cron/XML-RPC print/log the error and stop (block-and-log, spec §5.2).
+REST needs *no* adapter beyond letting the controller return the error — the 403 + `challenge_url` in `$error_data` is already REST-shaped. Non-interactive callers are resolved by actor class (spec §9): an API credential (App Password / XML-RPC) blocks-and-logs; core's automatic updater from the configured source is allowed; WP-CLI is allowed by default and operator-configurable.
 
 The challenge page (`wp-login.php?action=reauth`) verifies the actor's password (+ a `wp_reauth_second_factor` hook for 2FA plugins), calls `wp_start_reauth_window()`, then replays the stash: GET ⇒ `wp_safe_redirect()`, POST ⇒ self-submitting form. Port `class-request-stash.php` + `class-challenge.php` near-verbatim.
 

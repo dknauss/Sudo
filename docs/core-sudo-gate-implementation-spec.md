@@ -3,21 +3,10 @@
 **Status:** Draft engineering spec, not adopted by WordPress core.
 **Drafted:** July 2026
 **Companion to:** [`core-action-gate-proposal.md`](core-action-gate-proposal.md) (the *why* and phasing). This document is the *what to change in core*.
-**Relates to:** Core Trac [#20140](https://core.trac.wordpress.org/ticket/20140), [#37593](https://core.trac.wordpress.org/ticket/37593), [#39174](https://core.trac.wordpress.org/ticket/39174), [#16470](https://core.trac.wordpress.org/ticket/16470) (single-site email-change confirmation, fixed in 4.9 — the `send_confirmation_on_profile_email()` flow §4.1 must accommodate).
+**Relates to:** Core Trac [#20140](https://core.trac.wordpress.org/ticket/20140) (the recent-auth-for-consequential-actions discussion — the directly relevant ticket) and [#16470](https://core.trac.wordpress.org/ticket/16470) (single-site email-change confirmation, fixed in 4.9 — the `send_confirmation_on_profile_email()` flow §4.1 must accommodate). Multisite *terminology* here follows [#37593](https://core.trac.wordpress.org/ticket/37593) / [#39174](https://core.trac.wordpress.org/ticket/39174) (network-role naming, §8) — those are **not** recent-auth prior art.
 **Prior art:** WP Sudo 4.8.0 — `includes/class-gate.php`, `class-sudo-session.php`, `class-action-registry.php`, `class-request-stash.php`, `class-challenge.php`.
 
 ---
-
-## 0. Post-review revision note (2026-07-25)
-
-Two independent design reviews (Codex, Fable) supersede parts of this spec. Until the body below is rewritten, **these corrections take precedence**; the full carry-over list is in [`.planning/reconciliation-carryover.md`](../.planning/reconciliation-carryover.md), and the overview reflects them in [`core-sudo-gate-security-pitch.md`](core-sudo-gate-security-pitch.md).
-
-- **Session/assurance (§4.2) — replace the shared-token `reauth_at` stamp.** It elevates the stolen cookie too (same token). Do **not** rotate the token either — `wp_create_nonce()` hashes the session token, so rotation invalidates every open-tab nonce and the replayed POST's own nonce, and `WP_User_Meta_Session_Tokens` has a lost-update race. Use a **per-session-verifier, HMAC-signed, separate-proof** record (`hash_hmac('sha256', "$user_id|$verifier|$reauth_at|$scope", wp_salt('auth'))`), because `session_tokens` is in the persistent, poisonable `user_meta` cache group. Only the challenge handler writes it; strip reserved `reauth_*` keys from the `attach_session_information` filter; read from the store (not a cookie string). A fresh `login` timestamp is **not** proof (`wp_signon('','')`).
-- **Enforcement catalog (§4.1) — move the seam to `WP_Upgrader::install_package()`.** Naming `Plugin_Upgrader::install()` misses bulk/update/AJAX-updaters/auto-updater; `install_package()` covers install + upload + update + bulk + theme + language packs in one insertion, provenance-agnostic. Add **`activate_plugin()`** (REST `update_item` reaches it directly) and the shared editor sink **`wp_edit_theme_plugin_file()`**. Reconcile with the pitch, which gates **update** — this catalog currently does not.
-- **Decision branches on actor class, not transport.** Interactive cookie session → challenge; API credential → block+log; no-actor core auto-updater from the configured source → allow; **WP-CLI → allow by default, operator-configurable** (§9 currently hard-blocks CLI — wrong default; shell already dominates the gate).
-- **Group B (credential pivots) is in v1, not deferrable** — a code-effects-only cut is bypassable by the §3-invariant. Defer only the policy UI and non-interactive challenge *rendering*.
-- **Ordering/DoS fixes:** register the catalog at file load, not on `init` (fail-closed + `init` registration bricks pre-`init` chokepoints); the rate-limit terminal `blocked()` is a DoS primitive an in-origin XSS can weaponize to lock the admin out of remediation — make lockout out-of-band clearable and prefer escalating delay for the action decision.
-- **Trac:** cite **#20140** only; drop #37593 / #39174 (multisite role terminology, not recent-auth).
 
 ## 1. Goal and non-goals
 
@@ -59,10 +48,10 @@ These are the load-bearing choices, each validated in WP Sudo production:
 
 1. **Gate the effect, not the form field.** Gating one password input is security theater — a hijacked session skips the form and calls the mutation directly (create a new admin, change email + reset, use the installer). Enforcement must sit at the **data-layer chokepoint every surface funnels through**, so browser, REST, and programmatic callers are covered by one guard. (§5.)
 2. **Role-agnostic.** Any logged-in user attempting a gated action is challenged; the gate never reasons about roles. Capability checks remain core's job and run unchanged.
-3. **Recent-auth window ("sudo mode"), not forced re-login.** Terminating the session on every sensitive change is heavier than the problem needs. The primitive is a short, revocable elevated window — the GitHub sudo-mode pattern, and the model jeremyfelt/johnjamesjacoby sketched in #37593/#39174. This walks back the "terminate session" idea floated earlier in #20140.
+3. **Recent-auth window ("sudo mode"), not forced re-login.** Terminating the session on every sensitive change is heavier than the problem needs. The primitive is a short, revocable elevated window — the GitHub sudo-mode pattern. This walks back the "terminate session" idea floated earlier in #20140.
 4. **Registry separate from gate.** A queryable catalog of consequential actions (Phase 1) has standalone value for auditability, Site Health, and UI, and is far more landable than a challenge framework. The gate (Phase 2) is a *consumer* of it.
 5. **Fail closed for core actions.** If a built-in consequential action cannot be evaluated (malformed matcher, storage error), the mutation is refused, not allowed.
-6. **Transport-agnostic decision, transport-specific rendering.** The chokepoint returns a decision (as a `WP_Error` in practice, §5.2). Each surface adapter decides how to present it: browser redirects to a challenge, REST emits a 403 with challenge metadata, and non-interactive surfaces (CLI/cron/XML-RPC/App-Password REST) return a blocking error and log — no interactive reauth is possible there in Phase 1 (§5.2, §9).
+6. **Transport-agnostic decision, actor-class policy.** The chokepoint returns a decision (as a `WP_Error` in practice, §5.2); the *challenge* is only one rendering of it. The decision branches on **actor class**, not transport (§9): an interactive cookie session is challenged; an API credential (App Password / XML-RPC) is blocked and logged; a no-actor call is allowed only when it is core's own automatic updater from the configured source; WP-CLI is allowed by default and operator-configurable. Excluding non-interactive routes from *enforcement* because they cannot render a *challenge* is a category error (it leaves REST install/activate open), so they get a policy, not an exemption.
 
 ---
 
@@ -108,38 +97,48 @@ Naming follows the Abilities API shape `namespace/action-name` (lowercase, hyphe
 | `core/create-user` | `wp_insert_user()` (returns `WP_Error`); on multisite `wpmu_create_user()` returns `int\|false`, so the gate needs a distinct adapter there (REST multisite create checks `if ( ! $user_id )`) |
 | `core/delete-user` | `wp_delete_user()` / `wpmu_delete_user()` |
 | `core/promote-user` | role change granting administrator / network-admin authority (see §5.3) |
-| `core/activate-plugin` | `activate_plugin()` |
-| `core/install-plugin` | `Plugin_Upgrader::install()` |
+| `core/edit-plugin-file` / `core/edit-theme-file` | `wp_edit_theme_plugin_file()` — the single sink `plugin-editor.php`, `theme-editor.php`, and `wp_ajax_edit_theme_plugin_file()` all funnel through; the most direct code-write path |
+| `core/install-plugin` / `core/install-theme` / `core/update-plugin` / `core/update-theme` | `WP_Upgrader::install_package()` — the shared package-write funnel beneath `Plugin_Upgrader`/`Theme_Upgrader` `install()`/`upgrade()`/`bulk_upgrade()`, the AJAX updaters, and the REST plugins controller. Gate here, **not** `Plugin_Upgrader::install()` (which misses bulk/update/AJAX/auto-updater), and **not** at the capability layer (`upload_plugins`→`install_plugins` in `map_meta_cap`, so it cannot distinguish an attacker ZIP from a repository install). Also covers language-pack writes into `WP_LANG_DIR`, which core executes (`.l10n.php` is `include`d) |
+| `core/activate-plugin` | `activate_plugin()` — reachable directly via REST `update_item` on an already-installed plugin |
 | `core/delete-plugin` | `delete_plugins()` |
-| `core/install-theme` | `Theme_Upgrader::install()` |
 | `core/switch-theme` | `switch_theme()` |
 | `core/delete-theme` | `delete_theme()` |
 | `core/update-connector-credentials` | `/wp/v2/settings` write of a `connectors_*_api_key` value — the WP 7.0 Connectors **credential-integrity** threat; an options / REST-settings write chokepoint (proposal §2.3, §8) |
 
-The account-change rows are the direct #20140 deliverable. The plugin/theme/user rows close the bypass paths that make field-only gating theater: installing a malicious theme or switching to one is a code-execution path equivalent to the plugin routes, so gating plugins but not themes would just relocate the "install a backdoor" bypass. The connector-credentials row extends the same proof-of-intent boundary to a credential-**integrity** threat: a `/wp/v2/settings` write swapping an AI-provider API key is a stolen-session abuse of a legitimate operation, reachable with no filesystem access and no code execution (proposal §2.3) — WP Sudo already gates it in production via its `connectors.update_credentials` rule. (The built-in plugin/theme **file editor** — `edit_plugins`/`edit_themes` — is a still-more-direct code-execution path; it is left out of the v1 catalog because it is commonly disabled via `DISALLOW_FILE_EDIT` and warrants its own treatment, not because it is less dangerous.)
+The account-change rows are the direct #20140 deliverable. The code rows — file editor, package install/upload/update, and activation — are the terminal RCE routes a stolen admin session walks to, and gating them at the **shared effect sinks** (rather than per-page or per-capability) is what makes route multiplicity a non-issue: a REST install, a bulk update, the AJAX updater, and a programmatic call all funnel through `install_package()`, and both editors through `wp_edit_theme_plugin_file()`. Themes are gated alongside plugins because installing/switching a malicious theme is an equivalent code-execution path, so gating one but not the other would just relocate the "install a backdoor" bypass. The file editor is **in** the v1 catalog (not deferred as an earlier draft had it): it is the most direct code-write path, and although hardened sites disable it via `DISALLOW_FILE_EDIT`, most do not. The connector-credentials row extends the same proof-of-intent boundary to a credential-**integrity** threat: a `/wp/v2/settings` write swapping an AI-provider API key is a stolen-session abuse of a legitimate operation, reachable with no filesystem access and no code execution (proposal §2.3) — WP Sudo already gates it in production via its `connectors.update_credentials` rule.
 
-### 4.2 Recent-auth window, built on `WP_Session_Tokens`
+### 4.2 Recent-auth window: a per-session, HMAC-signed, separate-proof record
 
-**Recommendation: store reauth state inside the login session token record, not in user meta.** WP Sudo uses user meta + a browser-bound cookie because a plugin cannot extend core's session store; core can and should. Extending `WP_Session_Tokens` gives revocation, logout teardown, and cross-session replay resistance for free.
+This is the load-bearing security mechanism, and two independent reviews rejected the two obvious designs. State the invariant first: **step-up must give the browser that answered the challenge a secret the stolen/ridden session copy does not already hold, and the server's assurance record must not be forgeable by anything short of that secret.** Two rejected approaches and why:
 
-New helpers in `wp-includes/pluggable.php` / a new `wp-includes/user.php` block:
+- **Stamping `reauth_at` on the shared session-token record — rejected.** The stolen auth cookie *is* a copy of the same session token, so stamping that record elevates the thief's requests exactly as much as the legitimate browser's. An assurance keyed only to the session token separates nothing.
+- **Rotating the session token on step-up — rejected.** `wp_create_nonce()` hashes `wp_get_session_token()`, so rotating the token invalidates **every nonce already rendered into every open admin tab**, including the `_wpnonce` inside the stashed POST the challenge replays (§5.1). Core deliberately re-issues the auth cookie against the *same* token on password change (`wp_update_user()`) precisely to preserve nonces; rotation reverses that. `WP_User_Meta_Session_Tokens::update_session()` is also a non-atomic read-modify-write of the whole `session_tokens` array, so concurrent admin XHRs can lose the rotation and silently leave the thief's copy valid. Rotation, if wanted at all, belongs as an explicit "sign out other sessions" affordance *after* step-up — not an implicit side effect of every elevation.
+
+**The design that survives (B′).** A recent-auth record still lives alongside the login session (so `wp_logout()` / `destroy()` / "log out everywhere" tear it down), but it is a **separate proof**, keyed per session, and **self-authenticating**:
+
+New helpers in a new `wp-includes/user.php` block:
 
 ```php
-wp_start_reauth_window( int $user_id = 0, string $scope = '' ): bool; // after a challenge; TTL comes from WP_REAUTH_WINDOW/filter, not an arg
+wp_start_reauth_window( int $user_id = 0, string $scope = '' ): bool; // after a challenge; issues the proof, writes the signed record
 wp_has_recent_auth( int $user_id = 0, string $scope = '' ): bool;     // gate query (v1: pass no scope — flat freshness)
-wp_end_reauth_window( int $user_id = 0 ): void;                   // on logout / explicit drop
+wp_end_reauth_window( int $user_id = 0 ): void;                       // on logout / credential change / explicit drop
 ```
 
-Mechanics:
+Mechanics — each numbered point is a required invariant, not an implementation detail:
 
-- On a successful challenge, write `reauth_at` (unix ts) and optional `reauth_scope` into the **current** session token's stored array — the current token comes from `wp_get_session_token()`, then `WP_Session_Tokens::update( $token, $session )` (a `final public` method; session records are arbitrary arrays, so a new key is safe). Binding to the session token means the elevated window is destroyed automatically by `wp_logout()`, `WP_Session_Tokens::destroy()`, and "log out everywhere."
-- **A password change must clear the window explicitly** — the session-token binding does *not* cover it. `wp_update_user()` clears and immediately re-issues the auth cookie against the *same* token, and `wp_set_password()` doesn't touch session-token records, so `reauth_at` can survive a password change and violate the acceptance criterion that a password change invalidates the window. Hook `after_password_reset` and the password path of `wp_update_user()` / `wp_set_password()` to call `wp_end_reauth_window()` (or destroy the record).
-- `wp_has_recent_auth()` reads the *current request's* session token record and checks `reauth_at >= time() - $ttl`. Because it consults the session store (not just a cookie string), `destroy_all()` revokes the window on the next request — an improvement over the plugin's cookie-string bind, which is documented there as taking effect one request later.
-- **Multisite: the window's reach follows the auth cookie's domain, not the network.** `reauth_at` lives in the *current login session's* token record, so it travels exactly as far as the auth cookie that presents that token. On a **subdirectory** network (one shared cookie domain) the same cookie is sent on every site, so one reauth carries across the network; on a **subdomain or mapped-domain** network (per-domain cookies) each site presents a different cookie/session, so the window is **isolated per domain** — reauthenticating on one site does not elevate another. This mirrors WP Sudo's own cookie-domain-bound session model (`Sudo_Session` binds the token cookie to `COOKIE_DOMAIN`; the `ADVN-02` integration test verifies the per-domain isolation). Deterministic per-site scoping *regardless* of cookie domain is deferred to the `consequence.scope` tag and Phase 2 policy (§8, §11), not v1.
-- Default TTL: **15 minutes**, filterable via `wp_reauth_window_ttl` and definable with `WP_REAUTH_WINDOW` in `wp-config.php`. A short **grace** (≈2 min, as in the plugin) prevents a multi-step form from re-challenging mid-flow.
-- Rate limiting / lockout on failed challenges: port the plugin's model (5 failures ⇒ 300s lockout, progressive delays, per-user and per-IP) into the challenge handler.
+1. **Separate proof secret.** On a successful challenge, mint a fresh random secret and set it as a dedicated **httponly** cookie (distinct from the auth cookie), storing only its hash server-side. A session copy that predates the challenge — or a theft that captured the auth cookie but not this proof — cannot present it. (This does *not* stop a session-riding XSS or a full-cookie-jar theft *during* the window; that residual is stated in §2 and is not what the session design defends.)
+2. **Keyed per session-token verifier, not per user.** Store the record under the current login session's token verifier (from `wp_get_session_token()`), so a second browser reauthenticating does not overwrite the first's proof. Core supports many concurrent sessions per user; the record must too. (WP Sudo's single per-user proof key is a known limitation — plugin issue #279.)
+3. **Self-authenticating (HMAC).** `session_tokens` is stored in `user_meta`, a **persistent, poisonable** object-cache group, so an unsigned `reauth_at` is forgeable by a cache-poisoning primitive — exactly the wp2shell class (SQLi used to poison the object cache). Bind the record with `hash_hmac( 'sha256', "$user_id|$verifier|$reauth_at|$scope", wp_salt( 'auth' ) )` and reject on mismatch. Documented degradation: weaker when the `AUTH_SALT` family lives in `wp_options` rather than `wp-config.php`. A cache-bypassing `$wpdb` read on the enforcement path is a complement, not a substitute (it does not survive a direct-DB *write*; the HMAC does).
+4. **Only the challenge handler writes it.** Core must strip reserved `reauth_*` keys from the `attach_session_information` filter result (that filter sets the *base* session array on every `WP_Session_Tokens::create()`, so any registered callback could otherwise pre-elevate every new session), and the HMAC must cover the verifier so an injected stamp cannot validate.
+5. **Read consults the session store, not a cookie string.** `wp_has_recent_auth()` reads the current session record from the store and checks the presented proof hash, the HMAC, and `reauth_at >= time() - $ttl`. Because it reads the store, `destroy_all()` revokes the window within the same request (an improvement over the plugin's cookie-string bind, which lags one request — issue #279).
+6. **A fresh `login` timestamp is not proof.** `wp_signon( '', '' )` mints a new session token with a current `login` stamp from a *held cookie* with no credential entered (and SSO / magic-link plugins call `wp_set_auth_cookie()` with no password). So a "forced-login" variant that infers freshness from the new session's `login` time is the rejected shared-token approach with extra steps. Freshness must come from the explicit, challenge-written record above.
+7. **Teardown on credential change clears only `reauth_*` for the target user — never `destroy_all()`.** A password change (`after_password_reset`, and the password path of `wp_update_user()` / `wp_set_password()`, which leave the token record intact) must end the window. Clear the `reauth_*` keys for the affected user's sessions; do **not** call `destroy_all()` (that logs the user out of the very request that changed the password), and do **not** hook `profile_update` blindly — it fires when an admin edits *another* user and on non-password writes (WP Sudo guards this by comparing the password hash; core must too).
 
-Open question deferred to review (proposal §12, §18-Q4): scope-bound window vs. flat recent-auth freshness. Spec recommends **flat freshness + optional scope tag** for v1: simpler, and scope can tighten later without a data migration.
+- **Multisite: the window's reach follows the auth cookie's domain, not the network.** The record lives with the *current login session*, so it travels exactly as far as the auth cookie that presents that token: shared across a subdirectory network (one cookie domain), isolated per domain on subdomain/mapped-domain networks. Deterministic per-site scoping regardless of cookie domain is deferred to the `consequence.scope` tag and Phase 2 policy (§8, §11).
+- **TTL: 15 minutes**, filterable via `wp_reauth_window_ttl` and definable with `WP_REAUTH_WINDOW`. A short **grace** (≈2 min) prevents a multi-step form from re-challenging mid-flow.
+- **Lockout is a remediation hazard, not just a rate limit.** Port the plugin's failure model (progressive delay → 5 failures ⇒ 300s lockout, per-user and per-IP), but with two corrections from review: (a) an in-origin XSS from the victim's own IP can burn failed attempts to lock the admin out of the *very actions needed to remediate* (change password, deactivate a plugin), so a lockout must be **clearable out-of-band** (a `WP_DISABLE_ACTION_GATE`-style escape / recovery path — plugin issue #280); and (b) prefer escalating delay over a terminal block for the *action-gate* decision (distinct from the auth-attempt decision).
+
+Open question deferred to review: scope-bound window vs. flat recent-auth freshness. Spec recommends **flat freshness + optional scope tag** for v1.
 
 ### 4.3 The gate helper
 
@@ -214,7 +213,8 @@ The interactive layer stays thin. `edit_user()` in `wp-admin/includes/user.php` 
 |---|---|---|
 | Admin UI (`edit_user`, profile update, plugin actions) | `WP_Error sudo_reauth_required` | Stash request → `wp_safe_redirect()` to `wp-login.php?action=reauth` interstitial → replay |
 | Cookie-authed REST | same `WP_Error` from controller | HTTP **403** with `code: sudo_reauth_required`, `data.challenge_url`, `data.expires_in` |
-| WP-CLI / cron / XML-RPC / App-Password REST | same `WP_Error` | **Phase 1: hard-block + log** (no interactive challenge possible); interactive reauth deferred to Phase 2 (§9) |
+| App-Password REST / XML-RPC (API credential) | same `WP_Error` | **Block + log** (no interactive reauth over a credential channel) |
+| wp-cron / WP-CLI / programmatic | evaluated by actor class | **Policy, not blanket block** (§9): core's auto-updater from the configured source is allowed; WP-CLI is allowed by default and operator-configurable; other no-window authenticated calls block |
 
 The decision object never encodes transport. Business functions return errors; adapters localize UX. (Proposal §11 transport separation.)
 
@@ -226,17 +226,17 @@ Role changes are the subtlest path and need a dedicated guard, mirroring the plu
 - Enforce at `map_meta_cap` for `promote_user`/`edit_user` **and** at the `wp_update_user`/`set_role` chokepoint, so a REST role change and an admin-UI role change hit the same guard.
 - Multisite: gate `grant_super_admin()` unconditionally (highest-consequence promotion).
 
-### 5.4 Plugin/theme actions
+### 5.4 Code effects — the shared sinks
 
-`activate_plugin()` (success returns **`null`**, `WP_Error` on failure), `delete_plugins()`, `Plugin_Upgrader::install()`, the theme installer `Theme_Upgrader::install()`, **and `delete_theme()`** (`@return bool|null|WP_Error`) all signal failure with `WP_Error` and have callers that already check it with `is_wp_error()`, so they take the same top-of-function guard returning `WP_Error`; the bulk/AJAX surfaces already thread `WP_Error`, so the interactive adapter stashes and challenges as above. (Adapters must key on `is_wp_error()`, **not** a truthy return — `activate_plugin`'s success is `null`, and `delete_theme`'s is `true` with `false`/`null` reserved for bad input / filesystem-not-ready.)
+The terminal code routes are gated at **two shared sinks plus one effect**, not per-page or per-capability, so route multiplicity (admin UI, bulk, AJAX updaters, REST, programmatic) collapses to a handful of insertions:
 
-**One theme chokepoint does not fit the `WP_Error` return path** and needs a pre-op adapter — the §5.1 per-chokepoint rule:
+- **`WP_Upgrader::install_package()`** — the package-write funnel beneath `Plugin_Upgrader`/`Theme_Upgrader` `install()`/`upgrade()`/`bulk_upgrade()`, the AJAX updaters, and the REST plugins controller (`core/install-plugin` / `-theme` / `core/update-plugin` / `-theme`). Gate here rather than `Plugin_Upgrader::install()` (which misses bulk/update/AJAX/auto-updater) and rather than the capability layer (`upload_plugins`→`install_plugins` in `map_meta_cap`, so a capability gate cannot separate an attacker ZIP from a repository install and would disrupt CLI/automation). It also covers language-pack writes into `WP_LANG_DIR`, a directory core executes (`.l10n.php` is `include`d).
+- **`wp_edit_theme_plugin_file()`** — the single write sink for both the plugin and theme file editors, including the `wp_ajax_edit_theme_plugin_file()` path (`core/edit-plugin-file` / `-theme-file`). Gate the sink *and* challenge early at editor-open so a user does not write a draft only to discover the requirement at save.
+- **`activate_plugin()`** (`core/activate-plugin`) — reachable directly via REST `update_item` on an already-installed plugin; success returns **`null`**, `WP_Error` on failure, so adapters key on `is_wp_error()`, not a truthy return.
 
-- `core/switch-theme` → `switch_theme()` returns **void**, so gate it *before* the switch (like `set_role`), not by return value.
+`delete_plugins()`, `delete_theme()` (`bool|null|WP_Error` — its callers test `is_wp_error()`), and the remaining code effects take the same top-of-function guard returning `WP_Error`; the bulk/AJAX surfaces already thread `WP_Error`, so the interactive adapter stashes and challenges as above. Two chokepoints do not fit the `WP_Error` return path and need a **pre-op adapter** (the §5.1 per-chokepoint rule): `switch_theme()` returns **void**, and the multipart ZIP upload cannot be stashed/replayed — reauthenticate before file selection where possible, otherwise require explicit reselection (§8).
 
-Unlike boolean-only `wp_delete_user()` (where a returned `WP_Error` reads as truthy success), `delete_theme()` documents `WP_Error` in its contract and its callers test `is_wp_error()`, so it takes the ordinary early-`WP_Error` guard above rather than a bespoke adapter.
-
-This is the second half of closing the "admin can just install a backdoor" objection that stalled #20140 for a decade — and it now covers the **theme** routes, not only plugins, so gating one but not the other cannot just relocate the bypass (§4.1).
+**Non-interactive callers of these sinks are governed by the actor-class policy (§9), not blanket-blocked** — core's own automatic updater drawing from the site's configured update source must keep running, or the gate is a net security regression by stopping background security updates. This is the second half of closing the "admin can just install a backdoor" objection that stalled #20140 for a decade — now covering themes and the file editor, not only plugin install.
 
 ---
 
@@ -245,20 +245,22 @@ This is the second half of closing the "admin can just install a backdoor" objec
 | # | File | Function / hook | Change |
 |---|---|---|---|
 | 1 | `wp-includes/actions-api.php` (new) | `wp_register_action`, `wp_get_action(s)`, `wp_action_exists` | Registry API (§4.1) |
-| 2 | `wp-includes/class-wp-consequential-actions.php` (new) | registry storage | Pure-data store + core catalog bootstrap on `init` |
+| 2 | `wp-includes/class-wp-consequential-actions.php` (new) | registry storage | Pure-data store + core catalog registered **at file load, not `init`** — fail-closed gating plus `init`-time registration would brick any chokepoint reached before `init` (install/import `wp_insert_user`, a `plugins_loaded`-time `wp_update_user`, CLI paths) |
 | 3 | `wp-includes/user.php` | `wp_update_user()` | Detect consequential field changes; gate; return `WP_Error` (§5.1) |
 | 4 | `wp-includes/user.php` | `wp_insert_user()` | Gate `core/create-user` for authenticated privileged-context inserts only — **not** anonymous registration/guest-checkout (actor 0 → fail-closed); needs a reliable admin-context signal, see §8 |
 | 5 | `wp-admin/includes/user.php` | `wp_delete_user()` (**bool** return) | Gate `core/delete-user` via a **pre-delete adapter** (hook `delete_user` / REST `delete_item`), not a `WP_Error` return |
 | 6 | `wp-includes/class-wp-user.php` / `wp-includes/meta.php` | `WP_User::set_role`/`add_role`, `map_meta_cap`, **and `update_user_metadata` on the `{prefix}capabilities` key** | Escalation guard (§5.3); the meta hook catches the REST `add_role` path and `update_user_meta` writes to the caps key — **not** a raw `$wpdb` write, which fires no hook and is out of scope (§5.3) |
 | 7 | `wp-includes/ms-functions.php` (`add_user_to_blog`) · `wp-includes/capabilities.php` (`grant_super_admin`) | `add_user_to_blog` (returns `true\|WP_Error` since 5.4); `grant_super_admin` (returns `void`) | Multisite promotion gate via a pre-grant adapter (hook `grant_super_admin` / `add_user_to_blog`) — intercept before the grant, not by return value (a returned `WP_Error` from `add_user_to_blog` is truthy) |
-| 8 | `wp-includes/pluggable.php` | `wp_start/has/end_reauth_window` | Recent-auth window on `WP_Session_Tokens` (§4.2) |
-| 9 | `wp-includes/class-wp-session-tokens.php` | token record schema | Persist `reauth_at`, `reauth_scope`; clear on destroy |
+| 8 | `wp-includes/user.php` | `wp_start/has/end_reauth_window` | Per-session, HMAC-signed, separate-proof recent-auth record (§4.2): mint a proof cookie, key per session-verifier, sign with `wp_salt('auth')`, read from the store; **no token rotation** |
+| 9 | `wp-includes/class-wp-session-tokens.php` | token record schema + `attach_session_information` | Persist the signed `reauth_*` record keyed per verifier; **strip reserved `reauth_*` keys from the `attach_session_information` filter result** so only the challenge handler can write them; clear on destroy / credential change (not `destroy_all`) |
 | 10 | `wp-includes/gate.php` (new) | `wp_check_action_gate()` + decision class | Gate evaluation (§4.3) |
 | 11 | `wp-admin/includes/user.php` | `edit_user()` | Catch `sudo_reauth_required` → stash + redirect (§5.1) |
 | 12 | `wp-login.php` | new `action=reauth` | Challenge interstitial: password (+2FA hook), rate-limit, replay |
 | 13 | `wp-includes/rest-api/endpoints/class-wp-rest-users-controller.php` | update/create/delete | Surface `sudo_reauth_required` as 403 + challenge metadata |
-| 14 | `wp-admin/includes/plugin.php` + `wp-admin/includes/class-plugin-upgrader.php` | `activate_plugin`, `delete_plugins`, **`Plugin_Upgrader::install()`** (`core/install-plugin`) | Gate plugin actions (§5.4) |
-| 15 | `wp-includes/theme.php` · `wp-admin/includes/theme.php` · `wp-admin/includes/class-theme-upgrader.php` | `Theme_Upgrader::install()` (`bool\|WP_Error`), `delete_theme()` (`bool\|null\|WP_Error`), `switch_theme()` (**void**) | Gate theme actions (§5.4): `install` and `delete_theme` take the early `WP_Error` guard (callers check `is_wp_error()`); only `switch_theme` (void) uses a **pre-switch adapter** |
+| 14 | `wp-admin/includes/class-wp-upgrader.php` | **`WP_Upgrader::install_package()`** | Gate the shared package-write sink (§5.4) — one insertion covering plugin/theme install, ZIP upload, single + bulk update, and language packs, on every surface; **not** `Plugin_Upgrader::install()` |
+| 14b | `wp-admin/includes/file.php` | **`wp_edit_theme_plugin_file()`** | Gate the shared plugin/theme file-editor write sink (both editors + the AJAX path), plus an editor-open early challenge (§5.4) |
+| 14c | `wp-admin/includes/plugin.php` | `activate_plugin` (`null`\|`WP_Error`), `delete_plugins` | Gate activation (REST `update_item` reaches it) and delete (§5.4) |
+| 15 | `wp-includes/theme.php` · `wp-admin/includes/theme.php` | `delete_theme()` (`bool\|null\|WP_Error`), `switch_theme()` (**void**) | `delete_theme` takes the early `WP_Error` guard (callers check `is_wp_error()`); `switch_theme` (void) uses a **pre-switch adapter** (§5.4). Theme *install/update* is covered by row 14's shared sink |
 | 16 | `wp-includes/request-stash.php` (new) | stash/replay | Port `class-request-stash.php` (allowlist, redaction, TTL, per-user cap) |
 | 17 | Site Health | new async test | Report registered actions + whether gating is enabled |
 
@@ -289,17 +291,20 @@ Explicitly deferred: WebAuthn ceremonies, external IdP redirects, multi-step TOT
 
 ---
 
-## 9. Deferred surfaces
+## 9. Non-interactive callers: branch on actor class, not transport
 
-Non-interactive surfaces cannot present an interactive challenge, so v1 **hard-blocks + logs** consequential actions from them rather than pretending to gate. Phase 2+ can add per-surface policy (allow/block/require-app-level-proof):
+The gate's *decision* ("may this effect proceed now?") is transport-agnostic; only the *rendering* of a challenge is interactive (§3.6). Excluding non-interactive routes from **enforcement** because they cannot render a **challenge** is a category error that leaves the modern scriptable routes open (REST install/activate is reachable with a stolen cookie plus a harvested `wp_rest` nonce). So the chokepoint evaluates **actor class**, and non-interactive routes get a **policy**, not an exemption:
 
-- Application-Password REST and XML-RPC (API credentials, not human sessions)
-- WP-CLI (no browser)
-- wp-cron (no actor)
+| Actor at the sink | Decision |
+|---|---|
+| Interactive cookie session, no window | **Challenge** (full-page, §7) |
+| API credential (Application Password) / XML-RPC, no window | **Block + log** — no interactive reauth is possible over a credential channel |
+| No actor, **and** core's own automatic updater, **and** package from the site's configured update source | **Allow** — background security updates must keep working; a blanket block here is a net security regression |
+| WP-CLI | **Allow by default, operator-configurable** — shell access already dominates the gate (anyone who can `wp plugin install` can `cp` a PHP file into `WP_PLUGIN_DIR`), so a CLI block buys nothing against that attacker and costs every deploy pipeline |
 
-Rationale: these have materially different trust and operator expectations and should not be bundled into the first primitive (proposal §14).
+What v1 defers is not whole surfaces but the **per-surface policy UI** and any attempt to render an interactive challenge on a non-interactive surface. The block/allow decisions above still enforce in v1.
 
-Third-party transports (WPGraphQL, custom REST/RPC endpoints) are **not** core surfaces to enumerate here: the chokepoint gate applies to their mutations regardless, and each resolves to one of the two classes above — a **human cookie session** (challenge-capable) or an **API credential / no actor** (block-and-log). Per-surface policy for them is the plugin's job (§11).
+Third-party transports (WPGraphQL, custom REST/RPC endpoints) are **not** core surfaces to enumerate: the chokepoint gate applies to their mutations regardless, and each request resolves to one of the actor classes above. Richer per-surface policy for them is the plugin's job (§11).
 
 ---
 
@@ -313,7 +318,7 @@ A conforming implementation must show:
 4. A gated **non-secret** POST that is challenged **replays** with **no data loss**; a **secret-bearing** change (a password) is **reauth-then-resubmit**, with the secret **never written to the stash** (§5.1, §8).
 5. Demotions and lateral role changes are **not** challenged; only new grants of admin/network-admin authority are.
 6. A built-in action whose gate cannot be evaluated **fails closed**.
-7. Non-interactive surfaces **block-and-log**, never silently pass.
+7. Non-interactive callers are resolved by **actor class** (§9): an API credential blocks-and-logs; core's automatic updater from the configured source is allowed; WP-CLI is allowed by default. None silently passes an *interactive*-class request without a window.
 8. With gating disabled, behavior is byte-for-byte current core.
 
 A Playground blueprint reproducing a stolen-session takeover and showing where the challenge lands (as in `dknauss/consequential-actions`) should accompany the patch.
@@ -342,7 +347,7 @@ Seen from the other side, once core owns the primitive this posture layer become
 
 This spec builds on prior art, tickets, and input from people across the WordPress community. Named here for their relevant work; any errors are the authors', not theirs.
 
-- **John James Jacoby** and **Jeremy Felt** — the sudo-mode / recent-auth window sketches in [#37593](https://core.trac.wordpress.org/ticket/37593) and [#39174](https://core.trac.wordpress.org/ticket/39174) that this design's "short elevated window, not forced re-login" primitive follows (§3, §4.2).
+- **John James Jacoby** and **Jeremy Felt** — the network-role / "network administrator" vs. "super admin" terminology work in [#37593](https://core.trac.wordpress.org/ticket/37593) and [#39174](https://core.trac.wordpress.org/ticket/39174), which this spec's multisite naming follows (§8). *(An earlier draft mis-cited these tickets as recent-auth prior art; they concern multisite role terminology, not sudo mode.)*
 - **John Blackbourn** ([@johnbillion](https://github.com/johnbillion)) — owner of [#16470](https://core.trac.wordpress.org/ticket/16470) (single-site email-change confirmation), whose `send_confirmation_on_profile_email()` flow the email-change chokepoint must accommodate (§4.1), and long-running WordPress core security work.
 - **Timothy Jacobs** (@TimothyBlynJacobs) — the WordPress REST API architecture this spec's cookie-REST enforcement and controller surfacing build on (§5.2, §6 row 13).
 - **Tim Nash** — WordPress security guidance informing the threat model and the "gate the effect, not the field" framing (§2, §3).
