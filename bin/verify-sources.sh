@@ -82,6 +82,7 @@ squeeze() { tr '\t' ' ' | tr -s ' '; }
 FETCH_ERR=""
 FETCH_PATH=""
 FETCH_STATUS=""
+
 fetch() {
 	local url="$1"
 	local key code
@@ -89,6 +90,7 @@ fetch() {
 	local path="$CACHE_DIR/$key"
 	FETCH_ERR=""
 	FETCH_PATH=""
+	FETCH_STATUS=""
 
 	if [ -f "$path" ]; then
 		FETCH_PATH="$path"
@@ -175,6 +177,12 @@ while IFS= read -r raw_row; do
 	# --fix-lines would happily record the line number of the HTML — writing a
 	# fabricated fact into the registry. Demonstrated during review.
 	case "$url" in
+		*/)
+			# An SVN directory URL 200s with an HTML index listing, so a snippet can
+			# "match" the rendered page exactly as it did for github.com/blob. Cite a file.
+			add_failure "$id: URL points at a directory — cite a file, not a listing"
+			continue
+			;;
 		https://raw.githubusercontent.com/* | https://plugins.svn.wordpress.org/*) ;;
 		*)
 			add_failure "$id: not a raw-text source URL — use raw.githubusercontent.com or plugins.svn.wordpress.org, not a rendered github.com/blob page"
@@ -231,9 +239,13 @@ done < "$SOURCES_FILE"
 # The registry only helps if the IDs prose points at exist. Replacing URLs with IDs
 # creates this failure mode, so it ships with the check for it: a renamed or deleted
 # row would otherwise leave a comment pointing at nothing, silently.
-referenced="$(grep -rhoE '\bGB-[A-Z0-9][A-Z0-9-]{2,}' \
+# -I to match the orphan scan below: a binary containing these bytes would otherwise
+# be a hard failure. No --exclude for this script: an example ID written into these
+# comments must be caught too — the registry's how-to section once pointed at an ID
+# that did not exist, and an example here would have been just as invisible. Which is
+# why this comment names no ID.
+referenced="$(grep -rhoIE '\bGB-[A-Z0-9][A-Z0-9-]+' \
 	--exclude-dir={vendor,node_modules,.git,vendor_test,.tmp} \
-	--exclude='verify-sources.sh' \
 	"$REPO_ROOT" 2>/dev/null | sort -u || true)"
 while IFS= read -r ref; do
 	[ -n "$ref" ] || continue
@@ -257,16 +269,26 @@ done <<< "$referenced"
 #
 # WARN, not fail: migrating the existing corpus is incremental work, and turning a
 # backlog into a red build on day one is how a check gets deleted instead of adopted.
-orphans="$(grep -rIlE \
+# Matched per LINE, not per file, so a self-link does not drag a whole file in.
+# Three things are not third-party claims and can never become registry rows:
+#   - links to THIS repo (readme badges, the Playground blueprint, docs cross-links)
+#   - a tool download in the test-environment installer
+#   - this checker's own documentation, which necessarily contains the patterns
+# A first cut matched per file and warned about 14, of which 6 were noise — including
+# verify-sources.yml, i.e. the tool warning about itself. A check whose own comment
+# says noisy checks get switched off does not get to run at a 43% false-positive rate.
+orphans="$(grep -rInIE \
 	-e 'raw\.githubusercontent\.com' \
 	-e 'plugins\.svn\.wordpress\.org' \
 	-e 'github\.com/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+/blob/' \
-	--exclude-dir={vendor,node_modules,.git,vendor_test,.tmp,.planning,archive} \
+	--exclude-dir={vendor,node_modules,.git,vendor_test,.tmp,.planning} \
 	"$REPO_ROOT" 2>/dev/null \
-	| grep -v 'docs/upstream-sources.md' \
-	| grep -v 'docs/llm-lies-log.md' \
-	| grep -v 'bin/verify-sources.sh' \
-	| grep -vE '/(AGENTS|CLAUDE)\.md$' || true)"
+	| grep -viE 'dknauss(/|%2f)sudo' \
+	| grep -vE '^[^:]*/docs/archive/' \
+	| grep -vE '^[^:]*/(docs/upstream-sources\.md|docs/llm-lies-log\.md|AGENTS\.md|CLAUDE\.md):' \
+	| grep -vE '^[^:]*/(bin/verify-sources\.sh|bin/install-wp-tests\.sh):' \
+	| grep -vE '^[^:]*/\.github/workflows/verify-sources\.yml:' \
+	| cut -d: -f1 | sort -u || true)"
 if [ -n "$orphans" ]; then
 	orphan_count="$(printf '%s\n' "$orphans" | grep -c . || true)"
 	add_warning "$orphan_count file(s) cite upstream code outside the registry (migrate as you touch them):"

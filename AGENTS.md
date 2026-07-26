@@ -230,9 +230,9 @@ behaviour as seriously as a line of code that asserts it.
   first commit cited `isPinned ? starFilled : starEmpty` as precedent for the pinned
   toolbar button; the line was real, but it belongs to the pin/unpin star in a different
   container. It spread to five files, including the changelog entry, within one commit,
-  and was caught 24 minutes later only because someone re-read the file in context
-  rather than re-checking the line number. It never reached `main` — the point is how
-  fast a grep-verified citation propagates before anyone reads it.
+  and was caught 24 minutes later by re-reading the file in context rather than
+  re-checking the line number. It never reached `main` — the point is how fast a
+  grep-verified citation propagates before anyone reads it.
 - Line numbers are a convenience, not the identity. The snippet plus the symbol is the
   identity, because upstream trunk moves under you.
 
