@@ -161,12 +161,12 @@ only after the false-positive design work noted in the ROADMAP blind-spot item.
   - [`includes/class-sudo-session.php`](../includes/class-sudo-session.php)
   - [`includes/class-plugin.php`](../includes/class-plugin.php)
 - Fortress references (public docs, license, and KB; implementation source is license-gated and not read):
-  - [The Fortress sudo mode](https://raw.githubusercontent.com/snicco/fortress/beta/docs/modules/session/sudo-mode.md)
-  - [Session management and security](https://raw.githubusercontent.com/snicco/fortress/beta/docs/modules/session/session-managment-and-security.md)
-  - [Custom session storage — per-token rows via the session_token_manager drop-in](https://raw.githubusercontent.com/snicco/fortress/beta/docs/modules/session/custom-session-storage.md)
-  - [Installation — must-use loader + server integration](https://raw.githubusercontent.com/snicco/fortress/beta/docs/getting-started/02_installation.md)
-  - [Configuration reference — timeout defaults, protected caps/pages](https://raw.githubusercontent.com/snicco/fortress/beta/docs/configuration/02_configuration_reference.md)
-  - [License — proprietary EULA (Snicco Media); §3.1–3.2 bar reverse-engineering and competitive use](https://raw.githubusercontent.com/snicco/fortress/beta/LICENSE.txt)
+  - The Fortress sudo mode — see `FT-SUDO-MODE` in [`upstream-sources.md`](upstream-sources.md)
+  - Session management and security (absolute / idle / rotation timeouts) — see `FT-SESSION-TIMEOUTS`
+  - Custom session storage — per-token rows via the `session_token_manager` drop-in — see `FT-SESSION-DROPIN`
+  - Installation — must-use loader + server integration — see `FT-MU-LOADER`
+  - Configuration reference — timeout defaults, protected caps/pages — see `FT-PROTECTED-CAPS`
+  - License — proprietary EULA (Snicco Media); §3.1–3.2 bar reverse-engineering and competitive use — see `FT-EULA`
   - [GridPane — Fortress installed as a must-use plugin](https://gridpane.com/kb/fortress-security-part-2-quick-start-configuration-guide/)
 - User Switching reference:
   - [User Switching (WordPress.org plugin documentation)](https://wordpress.org/plugins/user-switching/)
