@@ -914,4 +914,41 @@ class UpgraderTest extends TestCase {
 		// No exception thrown, no assertion failure — the test passes if execution reaches here.
 		$this->assertTrue( true );
 	}
+
+	/**
+	 * No upgrade routine may be keyed at or below 5.0.0.
+	 *
+	 * `main` briefly carried 5.0.0 before rolling back to 4.9.0 (#391), so
+	 * developer and staging installs that loaded it have `wp_sudo_db_version`
+	 * stamped 5.0.0. maybe_upgrade()'s guard is `>=`, so on those installs:
+	 *
+	 *   - a routine keyed BELOW 5.0.0 never runs while the runtime is <= 5.0.0;
+	 *   - a routine keyed at EXACTLY 5.0.0 never runs at all — not even once
+	 *     5.0.0 genuinely ships, because stored == runtime still returns early.
+	 *
+	 * Keying above the highest stamp in the wild is how this repo fixed the same
+	 * class of bug before: upgrade_3_3_0()'s HISTORY docblock records a routine
+	 * keyed at 3.1.0 that never ran for sites stamped 3.1.1-3.1.3 and silently
+	 * locked admins out. The fix was re-keying, not rewriting stamps — rewriting
+	 * would reverse the downgrade contract test_skips_when_version_is_newer()
+	 * asserts. See #393.
+	 */
+	public function test_no_upgrade_routine_is_keyed_at_or_below_the_poisoned_stamp() : void {
+		$ref = new \ReflectionClass( Upgrader::class );
+		$upgrades = $ref->getConstant( 'UPGRADES' );
+
+		$this->assertNotEmpty( $upgrades, 'sanity: UPGRADES should not be empty' );
+
+		foreach ( array_keys( $upgrades ) as $version ) {
+			$this->assertTrue(
+				version_compare( (string) $version, '5.0.0', '>' ) || version_compare( (string) $version, '4.9.0', '<' ),
+				sprintf(
+					'Upgrade routine keyed at %s will never run on installs stamped 5.0.0 '
+					. '(main carried it briefly; the >= guard skips them forever). '
+					. 'Key it above 5.0.0. See #393.',
+					$version
+				)
+			);
+		}
+	}
 }

@@ -29,6 +29,17 @@ if ( ! defined( 'ABSPATH' ) ) {
  *    that introduces the change.
  * 2. Add the version string to the UPGRADES array, mapping it to the method name.
  * 3. The method will run exactly once for sites upgrading from an older version.
+ *
+ * ⚠️ 4. **Key it ABOVE 5.0.0.** `main` briefly carried version 5.0.0 before rolling
+ *    back to 4.9.0 (#391), so developer and staging installs that loaded it have
+ *    `wp_sudo_db_version` stamped 5.0.0. Because maybe_upgrade()'s guard is `>=`:
+ *      - a routine keyed below 5.0.0 never runs there while the runtime is <= 5.0.0;
+ *      - a routine keyed at *exactly* 5.0.0 never runs at all, not even once 5.0.0
+ *        genuinely ships, because stored == runtime still returns early.
+ *    Enforced by UpgraderTest::test_no_upgrade_routine_is_keyed_at_or_below_the_poisoned_stamp().
+ *    This is the same fix as upgrade_3_3_0()'s HISTORY note — re-key above every
+ *    stamp in the wild rather than rewriting stamps, which would reverse the
+ *    downgrade contract test_skips_when_version_is_newer() asserts. See #393.
  */
 class Upgrader {
 
