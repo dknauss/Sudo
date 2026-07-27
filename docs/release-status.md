@@ -189,9 +189,7 @@ What is **not** available is silence: an integrator with a custom rule loses sea
 replay on upgrade, so it belongs in the release notes and the Upgrade Notice, not only
 here. Custom rules that want replay back should express their effect through a
 recognised target parameter. The replay-eligibility contract is documented in
-`docs/developer-reference.md` **as of PR #397**, which must merge before this one —
-if the order slips, drop this cross-reference rather than shipping a pointer to a
-section that is not yet on `main`.
+`docs/developer-reference.md` (landed in PR #397).
 
 **The forced reauthentication is communicated in prose, not in the version digit.**
 Every user must reauthenticate once after upgrading, because pre-`4.9.0` sessions carry
@@ -246,8 +244,9 @@ matrix) rides the milestone as a **tag-time gate**, not payload.
 replay its own adversarial pass; #350 merged both before that happened. That review has
 since been run — the brief and its eight findings are on issue
 [#322](https://github.com/dknauss/Sudo/issues/322). The first (a stash whose
-confirmation named nothing is replayed anyway) has a fix open in PR #397 — **not yet
-merged**, so `may_replay_bound_stash()` on `main` still checks only `target_complete`. The remainder
+confirmation named nothing was replayed anyway) is **fixed** in PR #397, which closed
+three shapes of it: an empty target, a non-array target, and a target that renders
+nothing because `describe_stash_target()` skips non-scalar values. The remainder
 should be triaged before the tag.
 
 **Membership rule.** A review finding that is not a regression introduced by the PR
