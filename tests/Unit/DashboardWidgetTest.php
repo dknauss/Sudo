@@ -1588,6 +1588,44 @@ class DashboardWidgetTest extends TestCase {
 		$this->restoreWpdb();
 	}
 
+	/**
+	 * Test the refused-replay event has a human label and a styled pill.
+	 *
+	 * Writing a new `event` value into Event_Store is not self-contained: the
+	 * widget renders `$event_labels[ $event_type ] ?? $event_type`, so a missing
+	 * entry prints the raw `replay_refused` slug, and a missing pill rule renders
+	 * it unstyled next to eight styled siblings.
+	 *
+	 * @return void
+	 */
+	public function testReplayRefusedHasLabelAndPillStyle(): void {
+		Functions\when( '__' )->returnArg( 1 );
+
+		$method = new \ReflectionMethod( Dashboard_Widget::class, 'event_labels' );
+		@$method->setAccessible( true ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged -- Deprecated no-op on PHP 8.1+; suite-wide pattern for 8.0/8.5 parity.
+		$labels = $method->invoke( null );
+
+		$this->assertArrayHasKey( 'replay_refused', $labels );
+		$this->assertNotSame( 'replay_refused', $labels['replay_refused'], 'must be a human label, not the raw slug.' );
+
+		$source = (string) file_get_contents( dirname( __DIR__, 2 ) . '/includes/class-dashboard-widget.php' );
+		$this->assertStringContainsString(
+			'#wp_sudo_activity .wp-sudo-event-pill-replay-refused',
+			$source,
+			'the pill class the renderer derives from the event type has no CSS rule.'
+		);
+
+		// The event-type <option> list is a SEPARATE inventory from event_labels():
+		// filterRows() only accepts values exposed by that select, so a refused
+		// replay would render in the table but could not be isolated from mixed
+		// activity — the one query an operator investigating a lure would run.
+		$this->assertStringContainsString(
+			'<option value="replay_refused">',
+			$source,
+			'refused replays are not selectable in the event-type filter.'
+		);
+	}
+
 	// ─── Policy summary section tests ────────────────────────────────────
 
 	/**

@@ -71,6 +71,12 @@ if ( ! function_exists( 'wp_sudo_wsal_bridge_event_payload' ) ) {
 				$payload['rule_id'] = (string) ( $args[1] ?? '' );
 				break;
 
+			case 'wp_sudo_replay_refused':
+				$payload['user_id'] = (int) ( $args[0] ?? 0 );
+				$payload['rule_id'] = (string) ( $args[1] ?? '' );
+				$payload['reason']  = (string) ( $args[2] ?? '' );
+				break;
+
 			case 'wp_sudo_capability_tampered':
 				$payload['role']       = (string) ( $args[0] ?? '' );
 				$payload['capability'] = (string) ( $args[1] ?? '' );
@@ -218,6 +224,14 @@ $wp_sudo_wsal_event_map = array(
 	'wp_sudo_capability_revoked'  => array( 'event_id' => 1900016, 'accepted_args' => 4 ),
 	'wp_sudo_gated_actions_missing_builtin_rules' => array( 'event_id' => 1900017, 'accepted_args' => 1 ),
 	'wp_sudo_rule_regex_error'    => array( 'event_id' => 1900018, 'accepted_args' => 3 ),
+	// #322 fail-closed counterpart to action_replayed (1900009). Distinct ID so
+	// alerting can subscribe to a refused replay separately from a successful one.
+	// Deliberately NOT throttled: the stash is consumed before the hook fires, so
+	// each event is a distinct one-shot refusal rather than one fact repeating.
+	// A time-window throttle would silently drop later refusals, and there is no
+	// ceiling that makes that safe — a user can create and consume stashes
+	// repeatedly, so an hour-long window could hide arbitrarily many.
+	'wp_sudo_replay_refused'      => array( 'event_id' => 1900019, 'accepted_args' => 3 ),
 );
 
 foreach ( $wp_sudo_wsal_event_map as $wp_sudo_hook => $wp_sudo_meta ) {

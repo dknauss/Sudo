@@ -277,7 +277,14 @@ authentication, the original POST request is replayed automatically.
 3. **Expected:** Redirected to challenge page. Action label shows
    "Export site data."
 4. Authenticate.
-5. **Expected:** Export file downloads.
+5. **Expected (changed in 4.9.0):** the export does **not** run. `tools.export`
+   carries its effect in `download`, which is not a recognised target parameter,
+   so the challenge renders no `Target:` line and the action is never replayed.
+   You land back on **Tools > Export** with the query stripped and the
+   "not replayed" notice, holding an active sudo session.
+6. Click **Download Export File** again.
+7. **Expected:** the export runs, with no second challenge — the session you just
+   earned passes it through.
 
 ### 2.12 Edit Plugin/Theme File
 

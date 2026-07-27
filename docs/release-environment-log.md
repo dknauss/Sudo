@@ -15,7 +15,7 @@ Keep the executable smoke-test procedure in [`tests/MANUAL-TESTING.md`](../tests
 | `4.5.1` (superseded) | 2026-07-05 | **Superseded by `4.6.0`** — clearance no longer applies | The staged `4.5.1` was re-scoped to `4.6.0` (minor) once the in-editor reauth work landed. Its "reuse the `4.5.0` matrix" clearance was valid only for the admin-UI-only `4.5.1` delta and does **not** carry to `4.6.0`, which adds a new feature. See the `4.6.0` row. | — |
 | `v4.6.0` (tagged 2026-07-06) | 2026-07-06 | ✅ **Cleared for tag** — nginx-multisite *smoke* de-scoped then re-hardened | Release-grade E2E run 2026-07-06 (local + [run #28804948034](https://github.com/dknauss/Sudo/actions/runs/28804948034)): Apache/wp-env full E2E, nginx+MariaDB smoke, and Playground SQLite smoke all pass. The nginx-multisite *smoke* lane failed on Playwright actionability timeouts (test-robustness, not a `4.6.0` regression) and was de-scoped, then re-hardened post-tag and restored to the gate. Manual host/floor matrix reused from `4.5.0` by conscious decision (admin-side JS + `admin-ajax` only). See the `4.6.0` section below. | Submission/upload remains delayed/on hold. |
 | `v4.7.0` (tagged 2026-07-16) | 2026-07-16 | ✅ **Cleared — matrix reused from `4.6.0` by conscious decision** | `4.7.0`'s new surface is block-editor JS + an internal `admin-ajax` 2FA-partial endpoint (`wp_sudo_challenge_2fa_partial`) — the same class of admin-side, non-server-floor-sensitive change as `4.6.0`. No new server-facing behavior, so the `4.6.0` matrix outcome applies (decision recorded in `docs/release-status.md` v4.7.0 checklist, item 2). See the `4.7.0` section below. | Submission/upload remains delayed/on hold. |
-| `v4.8.0` (tagged 2026-07-23) | 2026-07-23 | ⚠️ **Manual matrix decision not recorded at tag time — retroactive gap** | `4.8.0` changed **server-facing REST routing/method matching** (gates now match `POST` + `show_in_rest` aliases on `/wp/v2/users` and `/wp/v2/settings`), the class of change the manual Apache/managed-host/min-WP matrix exists to catch — so reuse of the `4.6.0`/`4.5.0` matrix is **not** obviously justified. Live **functional** security verification of the new gates was performed and recorded (`docs/security-test-results-4.8.0.md`; Studio/SQLite + Redis, headless), but that is not the Apache/managed-host/min-WP lane. Tag already cut; a conscious reuse-or-rerun decision for those lanes is flagged for the maintainer. See the `4.8.0` section below. | Submission/upload remains delayed/on hold. |
+| `v4.8.0` (tagged 2026-07-23) | 2026-07-23 | ✅ **Resolved retroactively (2026-07-26)** — Apache lane converted to automation, min-WP CI-covered, managed-host **waived** | The gap is closed by the `4.9.0` matrix below rather than by a late manual run: the REST assertions `4.8.0` needed are now Playwright specs (`REST-01`..`REST-08`) that run in the release-confidence **Apache** job on every release check, so the lane is covered durably instead of once. Managed-host waived by the maintainer with residual risk recorded. See the `4.9.0` section. | Submission/upload remains delayed/on hold. |
 
 ## `v4.2.2` environment matrix
 
@@ -139,6 +139,128 @@ The `v4.8.0` tag was cut 2026-07-23. This row is a **retroactive reconciliation*
 - **Recommended maintainer decision (open):** either (a) record a conscious **reuse** rationale if the mod_php/Apache `Authorization`-header passthrough proven on the completed `4.5.0` Apache lane is judged to cover the new REST method/alias matching (the routing change is inside WordPress's REST dispatch, above the web-server layer), or (b) **re-run** the Apache lane's §5.1/§5.2 App-Password REST sections against the `4.8.0` gates. Until recorded, treat the `4.8.0` manual matrix as **not cleared**.
 - **Owner / approver:** Maintainer (retroactive reconciliation authored for review; the decision remains maintainer-owned).
 - **Scope:** Flags an open environment-matrix reconciliation item for `4.8.0`. Does **not** approve a WordPress.org upload/submission, which remains separately on hold.
+
+## `4.9.0` environment matrix (✅ cleared for tag — one lane automated, one CI-covered, one waived)
+
+Also closes the retroactive `v4.8.0` gap (issue #273), because the assertions that
+gap was about are now permanent tests rather than a one-off manual run.
+
+### Lane 1 — Apache stack: **converted from manual to automated**
+
+- **Decision:** cleared, on the condition below.
+- **What changed:** the `4.8.0` REST-gate assertions #273 asked for by hand — `POST` to
+  `/wp/v2/users/{id}` and `/me` for password, role and email changes; `POST` to
+  `/wp/v2/settings` via the `show_in_rest` aliases `url` and `email`; and a non-gated
+  `GET /wp/v2/users/me` returning 200, which also proves pretty REST routing resolves —
+  are Playwright specs `REST-01`..`REST-08` in `tests/e2e/specs/rest-gate.spec.ts`. They
+  run in the standard chromium project, so the **Apache/wp-env full E2E** job in
+  `release-confidence.yml` executes them on every release check.
+- **Why this is stronger than the manual lane:** a manual lane is only as durable as the
+  next person remembering to run it, which is why #273 stayed open across two releases.
+  Each gated assertion requires the error `code` to be `sudo_required`, not merely a 403,
+  so a stale nonce or a pre-gate refusal fails rather than passes; two positive controls
+  keep a suite-wide breakage from reading as a pass.
+- **`Authorization`-header coverage (added after review):** `REST-09` creates an
+  application password and sends it as `Authorization: Basic …` with `credentials:
+  'omit'`, so a cookie cannot mask a header the server dropped. This is the half of the
+  lane cookie-authenticated tests cannot cover, and without it this section overstated
+  what lane 1 verified — `mod_rewrite`/`mod_headers` can silently drop the header,
+  disabling App-Password auth entirely while the gate itself looks healthy.
+- **Condition — this lane is not cleared until both happen:** PR #394 merges, **and** a
+  `release-confidence.yml` run completes green on the release commit, linked here.
+  Recording the intent is not recording the evidence.
+
+### Lane 2 — Managed WordPress host: **maintainer waiver**
+
+- **Decision:** **waived** for `4.9.0`, by explicit maintainer approval (2026-07-26).
+  An explicit waiver clears the lane for the next public tag under the "Deferral and
+  failure policy" below. This lane only.
+- **Owner / approver:** Dan Knauss (maintainer).
+- **Why waived:** a real managed host is not reachable from the build sandbox, and
+  provisioning one was out of scope for this release — the same basis as the recorded
+  `4.5.0` waiver. The server-layer concerns that most often differ on managed hosts,
+  URL rewriting and `Authorization`-header passthrough for REST and Application-Password
+  auth, are exercised by lane 1 above; the WordPress `6.4` floor and multisite are
+  covered by the CI Integration matrix.
+- **Residual risk accepted:** managed-host-specific behaviour is not exercised —
+  persistent object cache (Redis/Memcached), platform mu-plugins, and restrictive
+  filesystem or security policies. **`4.9.0` raises the stake on the first of those**:
+  the sudo proof is now read cache-bypassed precisely because a poisoned object cache
+  was the `#278` attack, so a persistent-cache managed host is the environment where
+  that change most wants real exercise. Accepted for `4.9.0`; to be run on a real
+  managed host at the next opportunity.
+- **Scope:** clears the environment-matrix gate for the `v4.9.0` tag. Does **not**
+  approve a WordPress.org upload or submission — and note that submission is no longer
+  merely on hold but **not planned**; see `release-status.md`.
+
+### Lane 3 — Minimum WordPress (6.4): **CI-covered**
+
+- **Decision:** cleared by existing coverage; no manual run required.
+- **Evidence, split by route because the two are not covered in one place** —
+  `tests/Integration/RestGatingTest.php` asserts `/wp/v2/settings` (including the
+  connector-key paths) and `/wp/v2/plugins`; it contains **no** `/wp/v2/users` coverage.
+  The users routes are covered by `tests/Integration/PasswordChangeGatingTest.php`,
+  which exercises `/wp/v2/users/` over `POST` and `PUT` and reaches the email-change and
+  role-promotion rules. The PHPUnit matrix in `.github/workflows/phpunit.yml` runs
+  WordPress `6.4`, so both run on the floor on every push.
+
+  Recorded this way deliberately: an earlier draft of this section credited
+  `RestGatingTest` with the users coverage as well. That was wrong — a `grep` for
+  `users\|settings` returned hits and the hits were all settings and plugins. The
+  correction matters because the whole point of naming evidence is that someone can
+  open the file and find the assertion.
+- **Not claimed:** this is PHP-level coverage. It does not exercise a real web server on
+  the floor; lane 1 covers the server layer, on the current WordPress lane only.
+
+### Public screenshot gate — **deliberately re-approved, not refreshed**
+
+`docs/wporg-submission-checklist.md` §1 requires the listing screenshot set to be
+refreshed **or deliberately re-approved** when a release changes public UI. `4.9.0`
+changes three surfaces. Two were already captured; the third could not be, so the
+gate is met by re-approval and the reason is recorded here rather than left implicit.
+
+- **In-editor header padlock (#288)** — `screenshot-12`, captured the day it landed.
+- **In-editor session indicator (#262)** — `screenshot-11`, same.
+- **Challenge-page `Target:` panel (#322)** — **not captured.** New UI, and the only
+  surface that pictures the control this release argues for.
+
+**Why it is not captured (#417).** Playwright *and* raw CDP `Page.captureScreenshot`
+both hang on the challenge page whenever a stash is present — headless and headed
+alike — while the plain session-only challenge captures in ~8.7 s. Falsified as
+causes: the gate redirect, layout movement, animations, JS timers, pending requests,
+and `render_resume_page()`'s navigation (that branch does not run; `render_page()`
+did, proven by the `Target:` assertion passing). Mechanism unexplained. It is a
+capture-tooling problem, tracked in #417.
+
+**The page itself is fine, and this was verified rather than assumed.** An earlier
+escalation claimed the page never paints, on the strength of
+`performance.getEntriesByType('paint')` returning `[]` in a controlled differential.
+That was **wrong and has been retracted**: the maintainer loaded the URL with a live
+stash in an ordinary logged-in browser and it renders correctly, `Target:` panel
+present. Recorded because the error is instructive — three direct observations
+(`evaluate()`, `boundingBox()`, `waitFor()` all resolving) outweighed one timing API
+returning an empty array, and the empty buffer did not mean what it appeared to mean.
+
+**What covers the surface instead, and covers it better.** The capture spec's
+`Target:` assertion passes against a real intercepted plugin activation — the first
+automated proof that #322 v2 renders the named target on a gated flow. It is being
+converted into an E2E spec with the capture removed and wired into the `e2e.yml`
+matrix. A picture illustrates the control; that assertion verifies it.
+
+**Two preservation notes, so a later reader does not "fix" either:**
+
+- **`screenshot-1` is correct as-is and must not be refreshed.** It depicts the
+  session-only flow, which legitimately renders no `Target:` panel because there is
+  no stashed action to name. Re-capturing it would change nothing and would arm the
+  #301 hazard, since shots 1–9 share one test and running it overwrites
+  `screenshot-9` with a different surface.
+- The unproduced shots were numbered **13/14 additively**, so shots 1–12 are never
+  regenerated and #301 keeps its own separate decision.
+
+**Disposition:** gate **met by deliberate re-approval** of the existing set for
+`4.9.0`, under the §1 clause. Residual accepted: the listing does not picture the
+`Target:` panel. The panel is described in `CHANGELOG.md` and the `readme.txt`
+Upgrade Notice, and verified by test.
 
 ## Required evidence for completed lanes
 
