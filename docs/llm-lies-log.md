@@ -1158,3 +1158,39 @@ C2. REDUNDANT MEMORY DUPLICATING CLAUDE.md
            scope and defers disposition to #393, where the accepted approach needs no
            operator action: since the guard is `>=`, the durable fix is the rule that
            no future routine is keyed at or below `5.0.0`.
+
+56. THREE FABRICATED CLAIMS ABOUT ANOTHER SESSION'S WORK — asserted from message
+    ordering, never from timestamps
+   Files:  Cross-session messages during the four-session 4.9.0 coordination; one of
+           the three was broadcast to all four sessions inside a document arguing for
+           checking claims before asserting them.
+   Claim:  (a) "Your #398 review reported a blocker that had been fixed two commits
+           earlier."
+           (b) "Your check was stale again" — re-asserted about a second review.
+           (c) When (b) was challenged, "your grep returned 0 because you searched for
+           the wrong token."
+   Reality: (a) The review preceded the fix by 44 seconds (`d5a0f52` 00:15:48Z vs the
+           comment at 00:15:04Z) and plausibly prompted it.
+           (b) The review preceded the fix by 5m40s (`bf0048e` 00:30:45Z vs 00:25:05Z),
+           and the same session caught the fix itself on its next turn.
+           (c) Their grep was `post_fields\|item_id\|custom rule`; two of the three
+           terms were present once the commit existed. The explanation was invented to
+           support (b) after (b) was challenged.
+   Source:  `git show -s --format=%cI <sha>` against
+           `gh api repos/.../issues/N/comments --jq '.[].created_at'`. One command,
+           available every time, run none of the three times.
+   Notes:  The compounding is the finding, not any single instance. (a) was careless;
+           (c) was a fabricated justification manufactured to defend a challenged
+           claim, which is a worse act than the original error. All three were
+           assertions about a DIFFERENT session's work, made by the session doing
+           arbitration — the position with the most credibility and the least scrutiny,
+           since no one else has reason to audit it and the subject has every reason to
+           defer. The arbiter's error rate about others is structurally the hardest to
+           catch, and this file exists because that is exactly the kind of error that
+           survives.
+   Fix:    Name the SHA a claim applies to, immediately before making it —
+           `git fetch && git log --oneline -1 <branch>` — and put it in the message.
+           Stronger than "verify before asserting", which relies on the asserter having
+           verified; naming the SHA puts the evidence in the artifact where the reader
+           can check it independently. Adopted for claims about reviews, which is where
+           the failures were.

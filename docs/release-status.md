@@ -160,8 +160,10 @@ It is classified **MINOR with disclosure** rather than MAJOR, deliberately:
 What is **not** available is silence: an integrator with a custom rule loses seamless
 replay on upgrade, so it belongs in the release notes and the Upgrade Notice, not only
 here. Custom rules that want replay back should express their effect through a
-recognised target parameter — see the replay-eligibility contract in
-`docs/developer-reference.md`.
+recognised target parameter. The replay-eligibility contract is documented in
+`docs/developer-reference.md` **as of PR #397**, which must merge before this one —
+if the order slips, drop this cross-reference rather than shipping a pointer to a
+section that is not yet on `main`.
 
 **The forced reauthentication is communicated in prose, not in the version digit.**
 Every user must reauthenticate once after upgrading, because pre-`4.9.0` sessions carry
