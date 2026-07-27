@@ -160,9 +160,15 @@ gap was about are now permanent tests rather than a one-off manual run.
   Each gated assertion requires the error `code` to be `sudo_required`, not merely a 403,
   so a stale nonce or a pre-gate refusal fails rather than passes; two positive controls
   keep a suite-wide breakage from reading as a pass.
+- **`Authorization`-header coverage (added after review):** `REST-09` creates an
+  application password and sends it as `Authorization: Basic …` with `credentials:
+  'omit'`, so a cookie cannot mask a header the server dropped. This is the half of the
+  lane cookie-authenticated tests cannot cover, and without it this section overstated
+  what lane 1 verified — `mod_rewrite`/`mod_headers` can silently drop the header,
+  disabling App-Password auth entirely while the gate itself looks healthy.
 - **Condition — this lane is not cleared until both happen:** PR #394 merges, **and** a
-  `release-confidence.yml` run completes green on the release commit. Recording the
-  intent is not recording the evidence; link the run here when it passes.
+  `release-confidence.yml` run completes green on the release commit, linked here.
+  Recording the intent is not recording the evidence.
 
 ### Lane 2 — Managed WordPress host: **maintainer waiver**
 
@@ -190,11 +196,19 @@ gap was about are now permanent tests rather than a one-off manual run.
 ### Lane 3 — Minimum WordPress (6.4): **CI-covered**
 
 - **Decision:** cleared by existing coverage; no manual run required.
-- **Evidence:** `tests/Integration/RestGatingTest.php` asserts the gating of
-  `/wp/v2/users` and `/wp/v2/settings` including `POST` and the connector-key paths, and
-  the PHPUnit matrix in `.github/workflows/phpunit.yml` runs WordPress `6.4`. That is the
-  substance of what the lane asks — that core registers these routes the same way on the
-  floor — verified on every push rather than once by hand.
+- **Evidence, split by route because the two are not covered in one place** —
+  `tests/Integration/RestGatingTest.php` asserts `/wp/v2/settings` (including the
+  connector-key paths) and `/wp/v2/plugins`; it contains **no** `/wp/v2/users` coverage.
+  The users routes are covered by `tests/Integration/PasswordChangeGatingTest.php`,
+  which exercises `/wp/v2/users/` over `POST` and `PUT` and reaches the email-change and
+  role-promotion rules. The PHPUnit matrix in `.github/workflows/phpunit.yml` runs
+  WordPress `6.4`, so both run on the floor on every push.
+
+  Recorded this way deliberately: an earlier draft of this section credited
+  `RestGatingTest` with the users coverage as well. That was wrong — a `grep` for
+  `users\|settings` returned hits and the hits were all settings and plugins. The
+  correction matters because the whole point of naming evidence is that someone can
+  open the file and find the assertion.
 - **Not claimed:** this is PHP-level coverage. It does not exercise a real web server on
   the floor; lane 1 covers the server layer, on the current WordPress lane only.
 
