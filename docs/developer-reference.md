@@ -45,11 +45,17 @@ is present, the user can still reauthenticate but the POST body is not replayed
 automatically. Use `post_mode => 'none'` for uploads, file-editor saves, or
 other requests that cannot be safely reconstructed from POST fields alone.
 
-**Replay eligibility requires the confirmation to name the whole effect (#322).**
-Automatic replay after reauthentication is not the default outcome — it happens only
-when the challenge page was able to name the concrete target of the action, because
-that named confirmation is the control that holds if the per-browser binding is
-bypassed. Two consequences for rule authors:
+**Nothing is replayed after reauthentication (#322, 4.9.0).** Automatic replay was
+removed outright — every method, every rule, every surface. A gated request is
+stashed so the challenge can name what is being authorised, and the stash is then
+**consumed, never executed**: the user is returned to the screen the request came
+from, holding the sudo session they just earned, to re-issue the action themselves.
+
+An earlier design replayed the request when the confirmation had named the whole
+effect and a per-browser binding cookie was presented. That is gone; there is no
+eligibility test, because there is nothing to be eligible for. Two consequences for
+rule authors remain, and they are now about the **confirmation text** rather than
+about replay:
 
 - A rule whose effect is carried in a parameter WP Sudo does not recognise as a target
   renders **no** `Target:` line. The recognised set is
@@ -72,8 +78,10 @@ bypassed. Two consequences for rule authors:
   POST: the payload carries an effect the confirmation did not describe, so the rule
   falls back to the manual path.
 
-Neither case is an error, and neither weakens gating. If a rule's action matters enough
-to replay seamlessly, express its target through a recognised parameter.
+Neither case is an error, and neither weakens gating — nothing is replayed either way.
+Express your rule's target through a recognised parameter so the challenge page can
+**name** what the user is authorising; that naming is the control, not a route to
+seamless resumption.
 
 ```php
 add_filter( 'wp_sudo_gated_actions', function ( array $rules ): array {
@@ -537,8 +545,7 @@ whether a request matches a rule, and the decision for that surface and policy.
 - `allow` — no matched rule, unauthenticated request, active sudo already
   present, or a surface policy that explicitly permits the request
 - `gate` — an interactive admin request would be sent through the challenge
-  page. Whether it then resumes automatically is a runtime question the tester
-  does not answer (see above)
+  page. It is never resumed automatically afterwards; the user re-issues it
 - `soft-block` — an AJAX or cookie-authenticated REST request would be blocked
   in place and retried after sudo activation
 - `hard-block` — a non-browser REST request would be rejected by current

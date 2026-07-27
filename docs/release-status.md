@@ -116,12 +116,22 @@ post-`4.8.0` churn.
 the `#322` **v1** fix removed the only call site of `wp_sudo_action_replayed`, and
 [`VERSIONING.md`](../VERSIONING.md) classes removing a documented public hook as MAJOR.
 
-**That premise did not survive.** PR #350 merged v1 **and** v2, and v2 restores
-origin-bound replay — so `do_action( 'wp_sudo_action_replayed', … )` is live in
-`Challenge::build_replay_response_data()` (`includes/class-challenge.php:1229`) on `main`
-today, and `docs/developer-reference.md`
-still documents its signature and event code `1900009` with no removal marker. **The
-removal never shipped.** Nothing documented is removed.
+**That premise was wrong then, and is wrong again now — for a different reason each
+time.** It was wrong originally because PR #350 merged v1 *and* v2, and v2 restored
+origin-bound replay, so the hook's call site was never removed.
+
+It is wrong now because the final 4.9.0 payload removes automatic replay outright, so
+`wp_sudo_action_replayed` has **no producer at all** — and that still is not MAJOR,
+because **the hook is not removed**. Its name, signature `(int $user_id, string
+$rule_id)`, documentation, event code `1900009` and every subscriber remain. Nothing an
+integrator wrote errors; it simply never runs.
+
+What makes that MINOR is narrower than "it still exists", and the distinction will
+recur: **the signal has a successor at the same lifecycle point.** `wp_sudo_replay_refused`
+now fires for *every* consumed stash, carrying a `reason` the older hook never had. A
+consumer reconciling an audit trail does a rename, not a recovery. An event made dark
+with **no** successor would be MAJOR — silence is the failure mode hardest to notice,
+and `VERSIONING.md` does not currently name retained-but-unreachable at all.
 
 Two further checks, made against the source rather than assumed:
 
@@ -146,63 +156,38 @@ merits, not inherited from this release."* It was, and the merged payload is add
 security fixes: **`4.9.0`**. (Preserved from the closed PR #390, which would otherwise have
 taken it with it.)
 
-**One documented behaviour DOES break, and it is not a removal.** The `#322` v2 layer
-(PR #350) will not auto-replay a stashed action unless the confirmation named the whole
-effect. `Request_Stash::target_describes_payload()` compares the stashed payload against
-a fixed `TARGET_PARAMS` set, and a payload field in neither that set nor
-`NON_EFFECT_FIELDS` marks the target incomplete, which refuses replay.
+**One documented behaviour DOES break, and it is not a removal.** Automatic replay is
+gone. A custom rule that auto-replayed at `4.8.0` will not at `4.9.0`; after
+reauthentication the user re-issues the action against the session they now hold. That
+reaches a **documented** integration — `docs/developer-reference.md` shows a custom rule
+allowlisting `array( '_wpnonce', '_wp_http_referer', 'action', 'item_id' )`, and such a
+rule replayed at `4.8.0`.
 
-That reaches a **documented** integration. `docs/developer-reference.md` shows a custom
-rule allowlisting `array( '_wpnonce', '_wp_http_referer', 'action', 'item_id' )`, and
-`item_id` is in neither set — so that rule auto-replayed at `4.8.0` and will not at
-`4.9.0` **when it is reached by POST**. Verified: `target_describes_payload`,
-`TARGET_PARAMS` and `may_replay_bound_stash` have **zero** occurrences at the `v4.8.0`
-tag.
+This is a behaviour change to a documented **outcome**, not the removal of a documented
+**symbol**. Every hook, filter, function, constant and CLI command survives with its
+signature intact, which is what `VERSIONING.md` classes as MAJOR. What changes is
+behaviour the plugin can no longer safely offer.
 
-**The guarantee is narrower on GET, and stating it precisely matters more than stating
-it comfortably.** `Request_Stash::build_stashed_post_params()` returns an empty array for
-any non-POST request, so on a GET there is no payload for `target_describes_payload()` to
-walk and it returns true after zero iterations. A GET-reached rule is therefore refused only when its captured target fails to
-describe anything at all — empty, not an array, or containing nothing
-`describe_stash_target()` will render. Those three shapes are what `4.9.0` adds (#397). **A custom
-GET rule whose effect rides an unrecognised parameter is therefore not reliably refused**,
-and the challenge may name only a different, recognised parameter. The construction is in
-[#412](https://github.com/dknauss/Sudo/issues/412) rather than here: an integrator needs to
-know whether their rule is affected, which the sentence above answers, and does not need
-the recipe.
+**Why it could not be kept, stated plainly.** Replay was a confused deputy, and the
+interim attempt to make it *conditionally* safe produced #429 (a guard keyed on a value
+that is always empty for self-posting forms), #431 (a confirmation naming an unchanged
+field, and naming nothing at all for an administration-email takeover), #412 and #413
+(GET rules whose effect rides an unrecognised parameter), and a route where replaying a
+partial Settings-API body made core write `null` over every option the body omitted.
+Each was individually fixable. Together they showed that *which stashes may replay* is
+the wrong question to keep answering.
 
-Scope of that residue, checked rule by rule rather than assumed: it requires the *effect
-itself* to sit on an unrecognised parameter. Every built-in GET-reachable rule carries its
-effect in a recognised target — `plugin`, `stylesheet`, `theme`, `users`, `id` — so
-appending a decoy hides nothing, and the sole built-in with no recognised parameter,
-`tools.export`, is refused by the empty-target case. **The residue is confined to custom
-GET rules.**
+**#412 and #413 are moot by construction, not repaired** — and that distinction belongs
+here rather than in a closing comment. The vulnerable capability was removed; the
+target-naming gap it exposed was not fixed. If replay is ever reintroduced, those gaps
+return with it. Expressing a rule's effect through a recognised parameter still matters,
+because the challenge page still **names** what is being authorised — that naming is now
+the whole control rather than a route to seamless resumption.
 
-It is not a regression this release introduces. At `4.8.0` there was no target naming, no
-browser binding, and unconditional auto-replay — `describe_stash_target`,
-`mint_binding_proof` and `TARGET_PARAMS` all have zero occurrences at that tag. `4.9.0`
-narrows a total hole to a specific one. Closing the remainder needs a rule to declare
-which of its fields are *effects*, which `stash.post_fields` does not express — it cannot
-separate `plugin_status`/`paged`/`s` (declared, not effects) from `item_id` (declared,
-the effect). That is new public API and it is tracked as its own design pass rather than
-rushed into a security release.
+**Disclosed rather than smoothed over**, because an integrator whose rule stopped
+resuming deserves to find the reason here rather than infer it. `wp_sudo_replay_refused`
+fires for every consumed stash, so the transition is observable rather than silent.
 
-It is classified **MINOR with disclosure** rather than MAJOR, deliberately:
-
-- Nothing an integrator wrote stops working. The rule still matches, still gates, still
-  reauthenticates; no symbol is removed, no signature or rule structure changes. What
-  changes is that the user re-issues the action instead of it resuming by itself.
-- The removed behaviour **is the vulnerability**. Auto-replay without informed
-  confirmation is precisely what `#322` reports. `VERSIONING.md` files a
-  *backward-compatible* security fix under PATCH; this one is not backward-compatible,
-  which places it above PATCH, and calling a security fix MAJOR because the unsafe
-  behaviour was documented would price every such fix out of a minor.
-
-What is **not** available is silence: an integrator with a custom rule loses seamless
-replay on upgrade, so it belongs in the release notes and the Upgrade Notice, not only
-here. Custom rules that want replay back should express their effect through a
-recognised target parameter. The replay-eligibility contract is documented in
-`docs/developer-reference.md` (landed in PR #397).
 
 **The forced reauthentication is communicated in prose, not in the version digit.**
 Every user must reauthenticate once after upgrading, because pre-`4.9.0` sessions carry
@@ -249,18 +234,19 @@ in the wild rather than rewriting stamps.
 
 **`4.9.0` payload.** Landed: forge-resistant per-login-session assurance (#278, #279,
 PR #348), the reauth-lockout out-of-band clear (#280, PR #343), and the stash
-confused-deputy fix (#322, PR #350 — **v1 fail-closed plus the v2 origin-bound replay
-layer**; the v1-only split PR #368 is closed as superseded). #273 (release-environment
+confused-deputy fix — **v1 fail-closed (PR #350) plus the outright removal of automatic
+replay**, which supersedes the v2 origin-bound layer #350 also carried; the v1-only
+split PR #368 is closed as superseded). #273 (release-environment
 matrix) rides the milestone as a **tag-time gate**, not payload.
 
-**Open review gate on the v2 layer.** The v1/v2 split was meant to give origin-bound
-replay its own adversarial pass; #350 merged both before that happened. That review has
-since been run — the brief and its eight findings are on issue
-[#322](https://github.com/dknauss/Sudo/issues/322). The first (a stash whose
-confirmation named nothing was replayed anyway) is **fixed** in PR #397, which closed
-three shapes of it: an empty target, a non-array target, and a target that renders
-nothing because `describe_stash_target()` skips non-scalar values. The remainder
-should be triaged before the tag.
+**The v2 layer is removed, which closes its open review gate.** The v1/v2 split was
+meant to give origin-bound replay its own adversarial pass; #350 merged both before that
+happened. That review ran and produced eight findings — the first (a stash whose
+confirmation named nothing was replayed anyway) fixed in PR #397, the remainder triaged.
+**The triage is what ended the layer:** each finding was individually fixable, and
+together they showed the eligibility question was the wrong one to keep answering.
+Removing the primitive retires the gate rather than satisfying it.
+
 
 **Membership rule.** A review finding that is not a regression introduced by the PR
 under review gets **filed and deferred**, never bolted onto the PR in flight. #354,
