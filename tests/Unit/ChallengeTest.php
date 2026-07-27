@@ -1888,6 +1888,60 @@ class ChallengeTest extends TestCase
 	}
 
 	/**
+	 * #322: a refused replay must be AUDITABLE.
+	 *
+	 * The fail-closed path fired no hook at all, so the case this mechanism exists to
+	 * stop — a reauthentication completed in a browser that did not start the action —
+	 * was indistinguishable from nothing happening. Bridges (WSAL/Stream) saw silence.
+	 */
+	public function test_refused_replay_fires_audit_hook_with_reason(): void
+	{
+		unset($_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE]);
+
+		$this->stash->shouldReceive('get')->once()->andReturn($this->boundPostStash('attacker-secret'));
+		$this->stash->shouldReceive('delete')->once();
+		$this->stubReplayEnv();
+
+		$captured = null;
+		Actions\expectDone('wp_sudo_replay_refused')
+			->once()
+			->whenHappen(function ($user_id, $rule_id, $reason) use (&$captured) {
+				$captured = array($user_id, $rule_id, $reason);
+			});
+
+		$data = $this->invokeReplay('planted-key', true);
+
+		$this->assertArrayNotHasKey('replay', $data);
+		$this->assertSame(42, $captured[0]);
+		$this->assertSame(
+			'no_proof_presented',
+			$captured[2],
+			'The audit event must say WHY the replay was refused, not merely that it was.'
+		);
+	}
+
+	/**
+	 * #322: a successful bound replay must NOT fire the refusal hook.
+	 */
+	public function test_successful_bound_replay_does_not_fire_refused_hook(): void
+	{
+		$secret = 'super-secret-proof';
+		$_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE] = $secret;
+
+		$this->stash->shouldReceive('get')->once()->andReturn($this->boundPostStash($secret));
+		$this->stash->shouldReceive('delete')->once();
+		$this->stubReplayEnv();
+
+		Actions\expectDone('wp_sudo_replay_refused')->never();
+
+		$data = $this->invokeReplay('bound-key', true);
+
+		$this->assertTrue($data['replay'] ?? false);
+
+		unset($_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE]);
+	}
+
+	/**
 	 * #322 v2: the legitimate same-browser flow replays again (UX restored).
 	 */
 	public function test_bound_stash_replays_after_credential_verified(): void

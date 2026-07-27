@@ -607,6 +607,24 @@ do_action( 'wp_sudo_action_allowed', int $user_id, string $rule_id, string $surf
 do_action( 'wp_sudo_action_passed', int $user_id, string $rule_id, string $surface ); // Active session (v3.0.0).
 do_action( 'wp_sudo_action_replayed', int $user_id, string $rule_id );
 
+// Fires when a stashed action was discarded instead of replayed (#322). The
+// counterpart to the above: without it the fail-closed path is silent, so a
+// reauthentication completed in a browser that did not start the action leaves no
+// audit trail and looks identical to nothing happening. $reason is one of
+// no_credential_this_request, redacted_fields, replay_blocked, incomplete_target,
+// no_binding_minted, no_proof_presented, proof_mismatch, url_altered,
+// insecure_replay_url.
+//
+// This is NOT limited to the post-reauthentication path: it also fires from the
+// already-active-session resume paths, where no credential is presented and the
+// reason is no_credential_this_request. That reason is the one worth alerting on
+// and the easiest to dismiss as noise: it is the footprint of a lure that landed
+// on a session-holder and was REFUSED. may_replay_bound_stash() rejects on a
+// missing credential before any other check, so nothing executed — it is not a
+// live hole — but the attempt is visible nowhere else. Fires at most once per
+// stash (the stash is consumed before the hook runs).
+do_action( 'wp_sudo_replay_refused', int $user_id, string $rule_id, string $reason );
+
 // Admin-escalation guard (v4.1.0, opt-in via the wp_sudo_guard_escalation filter,
 // default OFF). High-severity, distinct from wp_sudo_action_blocked so external
 // alerting can subscribe to escalation specifically. Fires when a NEWLY granted
@@ -817,6 +835,7 @@ Event mapping:
 | `wp_sudo_capability_revoked` | `1900016` |
 | `wp_sudo_gated_actions_missing_builtin_rules` | `1900017` |
 | `wp_sudo_rule_regex_error` | `1900018` |
+| `wp_sudo_replay_refused` | `1900019` |
 
 `wp_sudo_recovery_mode_active` fires on every recovery-mode page load by
 design; the bridge throttles it to one event per user per hour (mirroring
@@ -838,11 +857,12 @@ Record mapping:
 - **Context:** `wp_sudo`
 - **Action:** derived from hook (`activated`, `deactivated`,
   `reauth_failed`, `lockout`, `gated`, `blocked`, `allowed`,
-  `passed`, `replayed`, `policy_preset_applied`, `capability_tampered`)
+  `passed`, `replayed`, `replay_refused`, `policy_preset_applied`,
+  `capability_tampered`)
 - **Args/meta:** always includes `source=wp-sudo` and `hook`, plus hook
   fields such as `user_id`, `rule_id`, `surface`, `attempts`, `ip`, `expires`,
-  `duration`, `preset_key`, `previous`, `current`, and `is_network` where
-  applicable.
+  `duration`, `preset_key`, `previous`, `current`, `reason` (the refusal reason
+  on `replay_refused`), and `is_network` where applicable.
 
 The bridge supports late Stream availability (mu-plugin loads before
 regular plugins) by deferring registration to `plugins_loaded` when
