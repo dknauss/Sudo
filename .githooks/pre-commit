@@ -3,7 +3,11 @@
 # Source: https://github.com/jazzsequence/claude-code-reviewer
 #
 # Reads configuration from .reviewer-config.sh in the project root.
-# Copy to .git/hooks/pre-commit and chmod +x, or use install.sh.
+#
+# Enable with `git config core.hooksPath .githooks` (see CONTRIBUTING.md).
+# Upstream suggests copying this file into .git/hooks/ instead; do not — this
+# fork has diverged from upstream and a copy goes stale, silently reverting the
+# merge-commit and docs-only exemptions below.
 
 set -e
 

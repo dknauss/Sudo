@@ -26,18 +26,54 @@ php -r '$m = require "vendor/composer/autoload_classmap.php"; $expected = realpa
 
 ### Git hooks
 
-Install the pre-commit hook to enforce reviewer agent approval before every AI-generated commit:
+Point git at the versioned hooks directory to enforce reviewer agent approval
+before every AI-generated commit:
 
 ```bash
-cp .githooks/pre-commit .git/hooks/pre-commit
-chmod +x .git/hooks/pre-commit
+git config core.hooksPath .githooks
 ```
+
+Run it once per clone. Git cannot enable hooks automatically — they execute
+arbitrary code, so a fresh clone never runs them until someone opts in. Nothing
+in CI verifies you have done this; see [#427](https://github.com/dknauss/Sudo/issues/427).
+
+This replaces the older `cp .githooks/pre-commit .git/hooks/pre-commit`. Prefer
+`core.hooksPath` for two reasons:
+
+- **`cp` takes a snapshot.** `.githooks/pre-commit` is maintained — it has since
+  gained a merge-commit exemption and a docs-only approval skip. A copy made
+  before those keeps blocking merges and docs commits, which is the fastest way
+  to train everyone to pass `--no-verify`.
+- **`core.hooksPath` covers every worktree.** It resolves through the common git
+  directory, so one setting applies to all of them. A copy into `.git/hooks`
+  reaches them too, but only until it goes stale — and `git worktree` checkouts
+  are how most work in this repo happens.
+
+**If you add a hook to `.githooks/`, commit it executable:**
+
+```bash
+git add --chmod=+x .githooks/<hook-name>
+```
+
+Git runs a hook only if the file is executable. Under `core.hooksPath` a
+non-executable hook is skipped **silently** — no hook, no warning, no error, and
+the repository looks correctly configured. `.githooks/pre-commit` is mode 100755;
+a new file committed at the default 100644 would appear installed and never run.
+Check with `git ls-files -s .githooks/`.
 
 For your own (non-AI) commits, bypass the hook with `USER_COMMIT=1`:
 
 ```bash
 USER_COMMIT=1 git commit -m "message"
 ```
+
+The approval flag is single-use and expires after 30 minutes
+(`REVIEWER_APPROVAL_TIMEOUT` in `.reviewer-config.sh`); the hook deletes it once
+consumed, and an expired flag blocks rather than passes. One caveat when several
+agent sessions share **one checkout**: the flag lives at the repository root, so
+an approval written by one session can be consumed by another session's commit
+inside that window. Separate worktrees do not have this problem — each resolves
+its own root.
 
 ## Running Tests
 
