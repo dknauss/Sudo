@@ -328,9 +328,44 @@ symbol_needles() {
 	# The column has to be checkable, not just present. At least one `backticked` token
 	# is required so there is something to look for upstream; the surrounding prose
 	# ("… rendered inside …", "NOT the three-line Fill at L11-13") stays free-form.
+# Rows whose enclosing context is not a named code symbol, and which therefore predate
+# the anchor requirement. Three kinds, none of them a code identifier:
+#   - prose documents, where the enclosing unit is a clause or a heading (the Fortress
+#     rows, FT-*);
+#   - a top-level statement, where there is no enclosing function at all
+#     (GB-PROFILE-OBSERVE: user-edit.php:149 is a bare do_action, and that file has zero
+#     function declarations above it);
+#   - markup, where the "symbol" is a CSS class on an element (GB-PIN-STAR).
+#
+# Listed rows WARN; everything else fails. That is deliberate sequencing, not leniency:
+# requiring anchors before the existing rows can carry them makes the checker red on
+# arrival, and a gate that is red on arrival is one people learn to run with their eyes
+# closed — the exact harm this checker exists to prevent. Whether the check should exempt
+# non-code sources by kind, or those rows be restructured to carry an anchor, is an open
+# design question; this list is what lets the requirement apply to NEW rows meanwhile.
+UNANCHORED_LEGACY_IDS="$(cat <<'EOF'
+FT-SUDO-MODE
+FT-SESSION-TIMEOUTS
+FT-SESSION-DROPIN
+FT-MU-LOADER
+FT-PROTECTED-CAPS
+FT-EULA
+GB-PIN-STAR
+GB-PROFILE-OBSERVE
+EOF
+)"
+
+is_unanchored_legacy() {
+	printf '%s\n' "$UNANCHORED_LEGACY_IDS" | grep -qxF -- "$1"
+}
+
 	symbol_anchors="$(printf '%s' "$symbol_raw" | grep -oE '`[^`]+`' | tr -d '`' || true)"
 	if [ -z "$symbol_anchors" ]; then
-		add_failure "$id: enclosing symbol has no \`backticked\` anchor token — wrap the symbol's upstream name in backticks so it can be checked against the file"
+		if is_unanchored_legacy "$id"; then
+			add_warning "$id: enclosing context is not a named code symbol, so it predates the anchor requirement — exempt for now, see the open scope question"
+		else
+			add_failure "$id: enclosing symbol has no \`backticked\` anchor token — wrap the symbol's upstream name in backticks so it can be checked against the file"
+		fi
 		continue
 	fi
 
@@ -441,10 +476,14 @@ symbol_needles() {
 	done <<< "$symbol_anchors"
 
 	if [ "$anchor_ok" -eq 0 ]; then
-		add_failure "$id: recorded enclosing symbol not found upstream at or before line $actual_line — $url
-        symbol: $symbol
-        found:${anchor_seen:- none of its anchor tokens appear in the file}
-        the snippet is still present, so either it moved into different code or the symbol was renamed — re-read the file and fix the row"
+		if is_unanchored_legacy "$id"; then
+			add_warning "$id: recorded enclosing context is not a named code symbol and could not be located — predates the anchor requirement, exempt for now"
+		else
+			add_failure "$id: recorded enclosing symbol not found upstream at or before line $actual_line — $url
+	        symbol: $symbol
+	        found:${anchor_seen:- none of its anchor tokens appear in the file}
+	        the snippet is still present, so either it moved into different code or the symbol was renamed — re-read the file and fix the row"
+		fi
 		continue
 	fi
 

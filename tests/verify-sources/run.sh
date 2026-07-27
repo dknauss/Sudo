@@ -607,6 +607,31 @@ fixture "$URL" 200 0 $'## Real Heading\nx\nneedle here'
 run
 expect_rc 0
 
+# 17. A row listed as pre-dating the anchor requirement WARNS rather than failing, so
+#     the requirement can ship before every existing row satisfies it. Without this the
+#     check is red on arrival against the registry in the same commit — and a gate that
+#     is red on arrival is one people learn to ignore, which is the harm the checker
+#     exists to prevent.
+start "unanchored row listed as legacy warns, does not fail"
+new_sandbox unanchored_legacy
+registry "$HDR
+| FT-EULA | $URL | 2 | needle here | clause 3.1 of some document | a claim |"
+fixture "$URL" 200 0 $'x\nneedle here'
+run
+expect_rc 0
+expect_out "predates the anchor requirement"
+
+# 17b. An unanchored row NOT on that list still fails, so 17 cannot be satisfied by
+#      dropping the anchor requirement altogether.
+start "unanchored row not listed still fails"
+new_sandbox unanchored_new
+registry "$HDR
+| FT-BRANDNEW | $URL | 2 | needle here | clause 3.1 of some document | a claim |"
+fixture "$URL" 200 0 $'x\nneedle here'
+run
+expect_rc 1
+expect_out "anchor token"
+
 # --- summary ---------------------------------------------------------------------
 echo
 echo "verify-sources tests: $pass passed, $fail failed"
