@@ -122,10 +122,20 @@ ran at all.** These are the structural fixes, not the diligence ones — diligen
 6. **Discovery beats broadcasting.** Three sessions opened the *same* version rollback
    (#389/#390/#391) within six minutes. No amount of announcing would have caught it; nobody
    ran `gh pr list` before branching. Check the repo, not your recollection of it.
-7. **Name the SHA a review applies to.** Post-then-fix races are constant here; two of my
-   reviews were called stale when they had actually preceded the fix, and one genuinely was.
+7. **Name the SHA a review applies to.** Post-then-fix races are constant here. Two reviews
+   of mine were called stale when both had in fact *preceded* the fix by 44 s and by 5 m 40 s;
+   the genuine error in this class was different — reading another session's force-push as the
+   branch owner's, which sent me rebasing an already-closed PR.
    `git fetch && git log --oneline -1 <branch>` immediately before posting settles it in the
    artifact instead of in anyone's memory.
+   **Corollary — a claim about a session's conduct goes to that session, not only to the
+   others.** The asymmetry is structural, not a matter of care: when a coordinating node is
+   wrong *about source*, anyone can run the command, and tonight we caught every such case
+   cheaply. When it is wrong *about a session's conduct*, only that session can check, and
+   only if it hears the claim. Three were made about this session; two were heard. The third
+   would have stood indefinitely — not through carelessness, but because its subject was never
+   in the room. A node accumulates uncontested claims about participants in proportion to how
+   well it routes, so the fix is not "assert less", it is **assert to the subject**.
 8. **`git diff A B` is not a merge preview.** It reports files on `A` and absent on `B` as
    deletions, which reads exactly like `B` will delete them. It will not — a merge applies
    `B`'s diff *relative to its merge base*. Ask the real question with
