@@ -71,6 +71,59 @@ source removed.
 
 Escape any `|` inside a snippet as `\|`.
 
+### What the anchor check does and does not prove
+
+The checker searches for each backticked token in the Enclosing symbol column and requires
+it to appear **at or before** the cited line. That is weaker than "the cited line sits
+inside this symbol", and the four rules below are the ways that gap has bitten in practice.
+They are the cases found so far, not an audit of the registry's history — each was found by
+a row failing or, more often, passing.
+
+The upstream specifics behind each are carried by the rows and PRs named, not restated
+here: a line number in prose is a third-party claim with nothing checking it, which is the
+problem this registry exists to solve.
+
+1. **Confirm the construct CLOSES after the cited line.** Resolving before it is
+   necessary, not sufficient. `GB-UPDATE-NEEDS-ACTION` was once anchored to a guard that
+   resolves above its snippet and closes again a few lines later, around a single
+   statement — the check went green while the row named a construct that contained
+   nothing (#377). Trace the opening and closing lines; do not infer the extent from
+   indentation, or from the fact that the checker passed.
+
+2. **The check may resolve a different instance than the one you mean.** It takes the
+   first occurrence at or before the cited line, so a repeated token is decided by the
+   earliest one. `GB-USER-NEW-SELFPOST` anchors on a conditional that genuinely encloses
+   its form, but the identical line occurs earlier in the same file inside a block that
+   closes long before the citation — and that is the instance the check resolves (#441).
+   The row is true and the check is satisfied by a non-enclosing occurrence. That is not
+   merely a weaker property than containment; it is a test of the wrong thing. Where a
+   token repeats, say in the cell which occurrence encloses and that the earlier one
+   exists.
+
+3. **An anchor cell states only what must be present.** Every backticked span in it is a
+   requirement — they are ANDed, not alternatives — so contrast, negation and
+   evidence-by-citation are self-defeating there. Two independent cases: `GB-PINNED-CLASS`
+   read "NOT `PinnedItems`", demanding the presence of the token the row exists to exclude
+   and satisfiable by it; and a cell citing a closing comment as proof of a construct's
+   extent asserted a token *after* the cited line and hard-failed the row — that one
+   happened while this rule was being drafted. Put reasoning in the Claim column, where
+   nothing is asserted against upstream.
+
+4. **The witness must be the shape the anchor asserts.** A `foo()` anchor asserts the
+   declaration, so it is matched as `function foo(`; the bare `foo(` form is a prefix and
+   was once satisfied by a longer, unrelated method name. A `<Foo>` anchor asserts a
+   **usage** — the row claims something is rendered inside it — so matching the open tag
+   is the claim rather than a proxy for it. Note that `<Foo` is itself a prefix and will
+   also match `<FooBar`, so a row distinguishing two such names must say which it means.
+
+**A file path is not an anchor.** It is not evidence of containment, and depending on the
+file it either fails to resolve — reading like drift when nothing has drifted — or matches
+a docblock or header comment and produces a meaningless pass. Where a citation is a
+top-level statement with genuinely nothing enclosing it, describe that in the cell without
+backticks **and** add the ID to `TOP_LEVEL_STATEMENT_IDS` in
+`bin/verify-sources.sh`: a row with no backticked anchor is a hard failure unless its ID is
+listed there, so prose alone will not get it past the checker.
+
 ## Registry
 
 | ID | Raw URL | Line | Must contain | Enclosing symbol | Claim it supports |
@@ -87,7 +140,7 @@ Escape any `|` inside a snippet as `\|`.
 | GB-CORE-SESSION-RMW | https://raw.githubusercontent.com/WordPress/wordpress-develop/trunk/src/wp-includes/class-wp-user-meta-session-tokens.php | 95 | `update_user_meta( $this->user_id, 'session_tokens', $sessions );` | `update_sessions()` in `WP_User_Meta_Session_Tokens` | Core stores **all** of a user's session tokens in one `session_tokens` user-meta row and rewrites the whole array — `get_sessions()` (L27) reads it, `update_sessions()` writes it back. So WP Sudo's per-login-session proof map carries the same read-modify-write lost-update window core already accepts for its own session store; the design decision this supports is that a human-paced reauth does not warrant a locking scheme core itself does not use. |
 | GB-AREA-IDENTIFIER | https://raw.githubusercontent.com/WordPress/gutenberg/trunk/packages/interface/src/components/complementary-area-toggle/index.js | 45 | `${ context.name }/${ name }` | `ComplementaryAreaToggle` | The identifier falls back to `{context.name}/{name}` (later `.replace( '/', ':' )` → `{plugin-name}:{sidebar-name}`), which is what makes the `aria-controls` CSS selector stable and locale-independent. |
 | GB-AREA-ARIA-CONTROLS | https://raw.githubusercontent.com/WordPress/gutenberg/trunk/packages/interface/src/components/complementary-area-toggle/index.js | 59 | `aria-controls={ identifier.replace( '/', ':' ) }` | `ComplementaryAreaToggle` | The pinned button's `aria-controls` is the identifier with the first `/` swapped for `:`, which is why `button[aria-controls="wp-sudo-session-indicator:wp-sudo-session-indicator"]` is a stable, locale-independent selector. |
-| GB-PINNED-CLASS | https://raw.githubusercontent.com/WordPress/gutenberg/trunk/packages/interface/src/components/pinned-items/index.js | 23 | `'interface-pinned-items'` | `PinnedItemsSlot` (NOT `PinnedItems` — that is the three-line `Fill` at L11-13; the class lives in the `Slot`) | The container class the stylesheet scopes to, so the Options-menu copy of the same toggle is not painted. |
+| GB-PINNED-CLASS | https://raw.githubusercontent.com/WordPress/gutenberg/trunk/packages/interface/src/components/pinned-items/index.js | 23 | `'interface-pinned-items'` | `PinnedItemsSlot` | The container class the stylesheet scopes to, so the Options-menu copy of the same toggle is not painted. **The enclosing symbol is the Slot, not `PinnedItems`** — that name belongs to the three-line Fill at L11-13, and the class lives in the Slot. That contrast used to sit in the Enclosing symbol column, where every backticked span is a requirement, so the row demanded the presence of the very token it exists to exclude and could be satisfied by it. It belongs here, where nothing is asserted against upstream. |
 | GB-CORE-NOSIG | https://raw.githubusercontent.com/WordPress/wordpress-develop/trunk/src/wp-admin/includes/class-core-upgrader.php | 128 | `$download = $this->download_package( $current->packages->$to_download, false );` | `Core_Upgrader::upgrade()` | Core update packages are **not** signature-checked: `$check_signatures` is passed `false`, so `verify_file_signature()` is never reached on this path. Supports the "WordPress has no working package signing" premise in `core-action-gate-proposal.md` §1/§10 and `core-sudo-gate-implementation-spec.md` §1 — the reason the auto-update channel is a provenance problem (#307) the gate does not solve. Recorded because the **inverse** of this claim was confabulated and nearly drove a spec decision (`llm-lies-log.md` #39). Note: the `GB-` prefix is currently the only one `bin/verify-sources.sh` admits, so it is used here for a `wordpress-develop` source; widening the prefix is tracked separately. |
 | GB-NONCE-TOKEN | https://raw.githubusercontent.com/WordPress/wordpress-develop/trunk/src/wp-includes/pluggable.php | 2544 | `return substr( wp_hash( $i . '\|' . $action . '\|' . $uid . '\|' . $token, 'nonce' ), -12, 10 );` | `wp_create_nonce()` | A WordPress nonce is derived from the **session token**, not from anything browser-specific. This is the fact that makes #322's browser binding necessary rather than redundant: an attacker holding a stolen `logged_in` cookie holds that same token, so they can mint a nonce that verifies in the victim's browser and lure the victim into issuing the gated request. A binding minted at stash time would therefore land in the *victim's* browser — which is why `Request_Stash::mint_binding_proof()` refuses unless `Sec-Fetch-Site: same-origin`, and why informed confirmation, not the cookie, is the primary control. |
 | FT-SUDO-MODE | https://raw.githubusercontent.com/snicco/fortress/beta/docs/modules/session/sudo-mode.md | 26 | `The Fortress sudo mode mirrors the concept of the Linux` | `## Introduction` in *The Fortress sudo mode* | Fortress ships a sudo mode framed on the Linux `sudo` concept — the prior art the comparison matrix positions WP Sudo against. Cited from the public docs; Fortress runtime source is licence-gated and was not read (see FT-EULA). |
