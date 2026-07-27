@@ -52,9 +52,11 @@ that named confirmation is the control that holds if the per-browser binding is
 bypassed. Two consequences for rule authors:
 
 - A rule whose effect is carried in a parameter WP Sudo does not recognise as a target
-  (the recognised set covers `plugin`, `theme`, `stylesheet`, `template`, `user_id`,
-  `users`, `option`, `file`, `id`, `post`, `blog_id`, `app_name`, and the critical
-  option keys) renders **no** `Target:` line. Such a rule still gates correctly and
+  renders **no** `Target:` line. The recognised set is
+  `Request_Stash::TARGET_PARAMS` — **read the constant, not this sentence**, because a
+  prose copy drifts the moment a key is added. It currently covers plugin/theme/template
+  identifiers, user and role targets (including `new_role`), bulk selections
+  (`checked`), the critical option keys, and app-password names. Such a rule still gates correctly and
   still reauthenticates — it simply falls back to the manual landing, where the user
   re-issues the action against the session they now hold. This is deliberate: replaying
   against a coarse label alone is consent to a category, not to an action.
@@ -91,6 +93,12 @@ add_filter( 'wp_sudo_gated_actions', function ( array $rules ): array {
         ),
         'stash'    => array(
             'post_mode'   => 'allowlist',
+            // NOTE (4.9.0): `item_id` is not a recognised target param, so this rule
+            // gates and reauthenticates normally but is NOT auto-replayed — the user
+            // re-issues the action. It DID auto-replay at 4.8.0. Deliberately left as
+            // written: this is the shape people copy, and every copy already in the
+            // wild behaves this way. To get replay back, carry the effect in a key
+            // from `Request_Stash::TARGET_PARAMS`. See "Replay eligibility" above.
             'post_fields' => array( '_wpnonce', '_wp_http_referer', 'action', 'item_id' ),
         ),
     );
