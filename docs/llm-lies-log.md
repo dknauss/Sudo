@@ -1652,6 +1652,21 @@ C2. REDUNDANT MEMORY DUPLICATING CLAUDE.md
            row to route around a mechanism defect and reporting it closed, leaving every
            other multi-token row exposed. Two sessions, independently, neither catching it in
            its own work; that is what makes it a pattern rather than a slip.
+           **The second instance is the stronger one**, recorded here at that session's
+           request and on its own account. Its `GB-PIN-STAR` rewording was not a failure to
+           notice the mechanism: its own mutation test had already shown a second backticked
+           span in that cell resolving generically — it had observed that *any* code span in
+           the column could satisfy the check — and it still fixed that one row's wording and
+           reported the thread closed. Codex found the same mechanism across the other five
+           multi-span rows hours later. So where my tell sat in the artifact, that one sat in
+           a test result already run and read.
+           **There is a third instance, and it is inside the log that records the pattern.**
+           `GB-NETWORK-EDIT-REDIRECT`'s claim opened with a sentence describing the file's
+           layout *because* entry 63 logged that sentence as over-precise and fixed it by
+           rewording. The row was cited on the L13 assignment while its claim was about the
+           L15 guard; rewording the description of that gap was the accommodation, and moving
+           the citation (#443) dissolves the need for the sentence altogether. Someone reading
+           63 on its own cannot see this, which is why it is written here.
    Fix:    #441 anchors `if ( empty( $action ) ) {` at L61 — the construct that encloses the
            cited line — and "How to add a row" now says that a token merely sitting above the
            line proves an address, not containment. Left open on purpose, rather than turned
