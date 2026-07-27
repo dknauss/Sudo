@@ -1053,9 +1053,16 @@ no stash transients are written, and no audit hooks fire.
    - Decision: `gate`
    - Replay permitted by this rule: `Yes — subject to the conditions below`
    - A note states that the rule permits replay but the action only resumes
-     automatically when the same browser that started it completes the
-     reauthentication over HTTPS and the challenge could name the whole action —
-     otherwise the user is returned to the page and performs it again (#322).
+     automatically when — **among other conditions** — the same browser that
+     started it completes the reauthentication over HTTPS and the challenge could
+     name the whole action; otherwise the user is returned to the page and
+     performs it again (#322).
+   - Check the phrase "among other conditions" is present, and that the note also
+     mentions refusal when the stashed request held sensitive fields the stash
+     declined to keep, or when the browser sent no same-origin signal. The list is
+     deliberately partial: redaction and origin binding also refuse a replay, and
+     an operator who read the three named checks as a complete checklist would
+     wrongly conclude that satisfying them guarantees automatic replay.
 
 #### Test B — AJAX surface: install plugin
 
@@ -1065,7 +1072,9 @@ no stash transients are written, and no audit hooks fire.
 4. **Expected:**
    - Matched rule: `plugin.install`
    - Decision: `soft-block`
-   - Stash/replay eligible: no
+   - Replay permitted by this rule: `No — not replayed by this rule` (AJAX and
+     REST return a `sudo_required` error and are never replayed — the label is
+     worded for the admin case too, where "never" would overclaim)
    - A note indicates that AJAX requests must be retried after activating sudo.
 
 #### Test C — REST surface: connector credential write

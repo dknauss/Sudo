@@ -1538,7 +1538,38 @@ class Gate {
 			// the admin surface because stash/replay only exists there: AJAX and REST
 			// return a sudo_required error and are never replayed, so false is right.
 			if ( 'admin' === $surface ) {
-				$result['stash_replay_eligible'] = 'none' !== ( $matched_rule['stash']['post_mode'] ?? 'allowlist' );
+				$stash_mode  = $matched_rule['stash']['post_mode'] ?? 'allowlist';
+				$post_fields = $matched_rule['stash']['post_fields'] ?? array();
+
+				// A POST rule with no allowlist cannot be replayed either, even though
+				// its post_mode is not 'none': build_stashed_post_params() marks that
+				// stash post_replay_blocked with REPLAY_BLOCKED_NO_ALLOWLIST. Reporting
+				// only on post_mode would say a custom rule permits replay when it never
+				// can.
+				$result['stash_replay_eligible'] = 'none' !== $stash_mode
+					&& ( 'POST' !== $method || ! empty( $post_fields ) );
+
+				// Append the conditions HERE, not in the gate branch below: the
+				// active-sudo and unauthenticated paths return before that branch, and
+				// the row reads "Yes — subject to the conditions below", so the operator
+				// would be promised a note that never appeared.
+				// The listed conditions are necessary, NOT sufficient, and the note says
+				// so. Replay is also refused when the stash redacted a sensitive field
+				// (sanitize_params() omits pass1/pass2 and friends) and when no origin
+				// binding could be minted because Sec-Fetch-Site was absent or not
+				// same-origin — neither of which the operator can read off the rule.
+				// Enumerating every predicate here would rot at the next change to
+				// may_replay_bound_stash(); saying the list is partial does not.
+				$result['notes'][] = $result['stash_replay_eligible']
+					? __( 'Replay conditions: this rule permits replay, but the action only resumes automatically when — among other conditions — the same browser that started it completes the reauthentication over HTTPS and the challenge was able to name the whole action. Replay is also refused when the stashed request contained sensitive fields the stash declined to keep, or when the browser sent no same-origin signal. Otherwise the user is returned to the page and performs it again.', 'wp-sudo' )
+					// NOT "never replayed". That absolute is falsifiable today: the stash
+					// policy is applied inside build_stashed_post_params(), which returns
+					// before consulting it when the method is not POST or the body is
+					// empty — so a no-replay rule reached by GET is still replayed (see
+					// the network.theme_disable case). Until that ordering is fixed, the
+					// honest claim is about what the rule DECLARES, which is verifiable
+					// from the rule itself and stays true either way.
+					: __( 'Replay conditions: this rule declares its submitted form data non-replayable, so after reauthentication the user re-submits the form.', 'wp-sudo' );
 			}
 		}
 
@@ -1559,16 +1590,9 @@ class Gate {
 
 		if ( 'admin' === $surface ) {
 			$result['decision'] = 'gate';
-			// Replay eligibility is a RULE-LEVEL answer only. Since #322 a stashed
-			// action is additionally never replayed unless the browser presenting the
-			// reauthentication is the one that created it — so reporting a plain "Yes"
-			// here would tell an operator the action resumes when, on an HTTP site or
-			// from a different browser, it never will.
-			if ( empty( $result['stash_replay_eligible'] ) ) {
-				$result['notes'][] = __( 'Interactive admin request: gated, and this rule is never replayed — after reauthentication the user re-submits the form.', 'wp-sudo' );
-			} else {
-				$result['notes'][] = __( 'Interactive admin request: gated. This rule permits replay, but the action only resumes automatically when the same browser that started it completes the reauthentication over HTTPS and the challenge was able to name the whole action. Otherwise the user is returned to the page and performs it again.', 'wp-sudo' );
-			}
+			// The replay conditions were already appended when the rule matched, so they
+			// reach the early-return paths too. Only the gate decision is added here.
+			$result['notes'][] = __( 'Interactive admin request: gated.', 'wp-sudo' );
 			return $result;
 		}
 

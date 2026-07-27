@@ -2679,6 +2679,80 @@ class GateTest extends TestCase {
 	}
 
 	/**
+	 * #322: the replay CONDITIONS must reach the early-return paths too.
+	 *
+	 * The settings row reads "Yes — subject to the conditions below". Appending the
+	 * conditions only in the gate branch meant the active-sudo and unauthenticated
+	 * paths returned first, promising the operator a note that never appeared.
+	 */
+	public function test_evaluate_diagnostic_states_replay_conditions_on_early_return(): void {
+		$result = $this->gate->evaluate_diagnostic_request(
+			array(
+				'surface'          => 'admin',
+				'method'           => 'GET',
+				'url'              => 'https://example.com/wp-admin/plugins.php?action=activate',
+				'is_authenticated' => true,
+				'has_active_sudo'  => true,
+			)
+		);
+
+		$this->assertTrue( $result['stash_replay_eligible'] );
+
+		$notes = implode( ' ', $result['notes'] );
+		$this->assertStringContainsString( 'same browser', $notes );
+		$this->assertStringContainsString( 'HTTPS', $notes );
+	}
+
+	/**
+	 * #322: a POST rule with no stash allowlist cannot be replayed either.
+	 *
+	 * build_stashed_post_params() marks such a stash post_replay_blocked
+	 * (REPLAY_BLOCKED_NO_ALLOWLIST), so reporting on post_mode alone would tell an
+	 * operator that a custom rule permits replay when it never can.
+	 */
+	public function test_evaluate_diagnostic_post_rule_without_allowlist_is_not_replayable(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->alias(
+			static function ( $hook, $value ) {
+				if ( 'wp_sudo_gated_actions' === $hook ) {
+					return array(
+						array(
+							'id'       => 'custom.no_allowlist',
+							'label'    => 'Custom POST action',
+							'category' => 'custom',
+							'admin'    => array(
+								'pagenow' => 'admin.php',
+								'actions' => array( 'custom_save' ),
+								'method'  => 'POST',
+							),
+							// post_mode is not 'none', but there is no post_fields
+							// allowlist — the stash would be blocked at replay time.
+							'stash'    => array( 'post_mode' => 'allowlist' ),
+						),
+					);
+				}
+				return $value;
+			}
+		);
+
+		$result = $this->gate->evaluate_diagnostic_request(
+			array(
+				'surface'          => 'admin',
+				'method'           => 'POST',
+				'url'              => 'https://example.com/wp-admin/admin.php?action=custom_save',
+				'is_authenticated' => true,
+				'has_active_sudo'  => false,
+			)
+		);
+
+		$this->assertSame( 'custom.no_allowlist', $result['matched_rule_id'] );
+		$this->assertFalse(
+			$result['stash_replay_eligible'],
+			'A POST rule with no allowlist can never be replayed.'
+		);
+	}
+
+	/**
 	 * #322: the rule-level replay property must survive the active-sudo early return.
 	 *
 	 * evaluate_diagnostic_request() returns as soon as an active sudo session would
@@ -2726,6 +2800,48 @@ class GateTest extends TestCase {
 		$this->assertSame( 'plugin.upload', $result['matched_rule_id'] );
 		$this->assertSame( 'gate', $result['decision'] );
 		$this->assertFalse( $result['stash_replay_eligible'], 'stash_no_replay rules are not replay-eligible' );
+
+		// The note must describe what the rule DECLARES, not assert an absolute.
+		// "never replayed" is falsifiable today: build_stashed_post_params() returns
+		// before applying the stash policy when the method is not POST, so a
+		// no-replay rule reached by GET is replayed anyway. Claiming "never" here
+		// would repeat, one line down, the over-confidence this PR reworded above.
+		$note = implode( ' ', $result['notes'] );
+		$this->assertStringNotContainsString( 'never replayed', $note, 'the diagnostic must not assert an absolute the runtime contradicts.' );
+		$this->assertStringContainsString( 'declares', $note );
+	}
+
+	/**
+	 * Test the replay-conditions note declares itself non-exhaustive.
+	 *
+	 * The listed conditions (same browser, HTTPS, complete target) are necessary
+	 * but NOT sufficient: Request_Stash::sanitize_params() omits sensitive fields
+	 * such as pass1/pass2 and Challenge::may_replay_bound_stash() then refuses,
+	 * and mint_binding_proof() declines when Sec-Fetch-Site is absent or not
+	 * same-origin — both regardless of the three listed checks. An operator who
+	 * read the list as a complete checklist would conclude that satisfying it
+	 * guarantees automatic replay, which is the promise this diagnostic exists
+	 * to stop making.
+	 */
+	public function test_evaluate_diagnostic_request_replay_note_is_non_exhaustive(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		$result = $this->gate->evaluate_diagnostic_request(
+			array(
+				'surface'          => 'admin',
+				'method'           => 'GET',
+				'url'              => 'https://example.com/wp-admin/plugins.php?action=activate&plugin=hello.php',
+				'is_authenticated' => true,
+				'has_active_sudo'  => false,
+			)
+		);
+
+		$this->assertTrue( $result['stash_replay_eligible'] );
+
+		$note = implode( ' ', $result['notes'] );
+		$this->assertStringContainsString( 'among other conditions', $note, 'the conditions list must not read as exhaustive.' );
+		$this->assertStringContainsString( 'sensitive', $note, 'redacted sensitive fields also refuse replay.' );
 	}
 
 	/**

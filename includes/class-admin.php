@@ -2666,7 +2666,7 @@ class Admin {
 				<p><strong><?php esc_html_e( 'Decision:', 'wp-sudo' ); ?></strong> <code><?php echo esc_html( (string) ( $result['decision'] ?? 'allow' ) ); ?></code></p>
 				<p><strong><?php esc_html_e( 'Surface:', 'wp-sudo' ); ?></strong> <?php echo esc_html( (string) ( $result['matched_surface'] ?? $form_values['surface'] ) ); ?></p>
 				<?php // #322: rule-level only — a permitted replay still depends on runtime conditions, so do not render a bare "Yes". ?>
-				<p><strong><?php esc_html_e( 'Replay permitted by this rule:', 'wp-sudo' ); ?></strong> <?php echo ! empty( $result['stash_replay_eligible'] ) ? esc_html__( 'Yes — subject to the conditions below', 'wp-sudo' ) : esc_html__( 'No — never replayed', 'wp-sudo' ); ?></p>
+				<p><strong><?php esc_html_e( 'Replay permitted by this rule:', 'wp-sudo' ); ?></strong> <?php echo ! empty( $result['stash_replay_eligible'] ) ? esc_html__( 'Yes — subject to the conditions below', 'wp-sudo' ) : esc_html__( 'No — not replayed by this rule', 'wp-sudo' ); ?></p>
 				<?php if ( ! empty( $result['notes'] ) && is_array( $result['notes'] ) ) : ?>
 					<ul style="margin-left: 1.5em; list-style: disc;">
 						<?php foreach ( $result['notes'] as $note ) : ?>

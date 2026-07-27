@@ -1154,6 +1154,16 @@ class AdminTest extends TestCase {
 		$this->assertStringContainsString( 'role="status"', $output );
 		$this->assertStringContainsString( 'aria-live="polite"', $output );
 
+		// The bolded summary row must not assert an absolute the runtime
+		// contradicts. "never replayed" is falsifiable: build_stashed_post_params()
+		// applies the stash policy after an early return keyed on method and body
+		// emptiness, so a stash_no_replay rule reached by GET is replayed anyway
+		// (#413). The row is more prominent than the note beneath it, so an
+		// overclaim here is the worse of the two. The wording must also stay true
+		// for AJAX/REST, where no replay genuinely ever happens.
+		$this->assertStringNotContainsString( 'never replayed', $output );
+		$this->assertStringContainsString( 'not replayed by this rule', $output );
+
 		unset( $_POST['wp_sudo_request_tester_submit'], $_POST['wp_sudo_request_tester'], $_SERVER['REQUEST_METHOD'], $_GET['tab'] );
 	}
 
