@@ -73,6 +73,52 @@ Given the surface above:
 - **PATCH (`x`.`y`.`Z`)** — a backward-compatible bug fix, security fix, internal
   refactor, or **admin-UI/UX change that touches no declared public API**.
 
+### Security-forced inertness — the missing clause (added 4.9.0)
+
+None of the three rules above covers the case where a **security fix makes a
+documented parameter, argument, or event stop having its documented effect** while
+leaving every symbol in place. It is not MAJOR (nothing is removed or renamed, no
+signature changes, no return value changes meaning); it is not MINOR (nothing is
+added); it is not PATCH (it is not backward-compatible). The rule was silent, and
+4.9.0 was initially classified by reasoning that only *sounded* like it followed —
+"removing it would be MAJOR, so keeping it makes this MINOR", which is a
+non-sequitur. An external review caught that. This clause exists so the next one is
+looked up rather than argued.
+
+**Treat it as MINOR when all of these hold:**
+
+1. The symbol, argument or hook **remains accepted** — nothing errors, nothing
+   fatals, no caller has to change code to keep running.
+2. The behaviour was removed because it **could not be made safe**, not for
+   convenience, and the reasoning is recorded in `CHANGELOG.md` and
+   `docs/release-status.md`.
+3. The change is **disclosed prominently** in the changelog, the readme upgrade
+   notice, and `docs/developer-reference.md` at the symbol's own entry — an
+   integrator must be able to find out *why* their thing stopped working from the
+   documentation for that thing, not by reading a security advisory sideways.
+
+**Escalate to MAJOR when the inert thing is an event or signal with no successor
+and integrators have no way to observe the change.** A silent event is worse than a
+silent parameter: a parameter that stops taking effect eventually shows up as
+visible behaviour, whereas an event that stops firing looks exactly like nothing
+happening. Where a successor exists at the same lifecycle point (as
+`wp_sudo_replay_refused` does for `wp_sudo_action_replayed`), MINOR is right and the
+successor **must be named** in the docs.
+
+**Worked examples, both 4.9.0 (#322):**
+
+- **`wp_sudo_require()`'s `return_url` argument** became inert — still accepted,
+  still emitted into the challenge URL, consumed by nothing. Automatic navigation to
+  a requester-supplied destination after a successful challenge executes under the
+  sudo authority just minted, and every attempt to filter the value while keeping the
+  convenience failed on a case with nothing to filter. No successor exists, by
+  design — but it is a parameter, not a signal, and its effect is directly
+  observable, so **MINOR** with disclosure.
+- **`wp_sudo_action_replayed`** became dormant — retained, documented, still
+  subscribed, never fired. **MINOR** because `wp_sudo_replay_refused` fires at the
+  same lifecycle moment with strictly more information. Had it gone dark with no
+  successor, this clause would have made it MAJOR.
+
 ### Worked examples
 
 - **4.5.1 (PATCH)** — PR #154 harmonized the dashboard-widget and Access-tab user

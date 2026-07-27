@@ -281,9 +281,17 @@ stash path. Every attempt to keep the convenience while filtering the value fail
 a case with nothing to filter — a queryless custom-action path, or a parameter name
 disguised with a leading `+`.
 
-`return_url` is retained in the signature rather than removed, because removing a
-documented parameter would be a MAJOR change under `VERSIONING.md` and would break
-callers that pass it. It has no effect.
+`return_url` is retained in the signature rather than removed, so callers that pass it
+keep working. It has no effect.
+
+This is **MINOR**, not MAJOR, under the *Security-forced inertness* clause in
+[`VERSIONING.md`](../VERSIONING.md): the argument is still accepted, nothing errors,
+the behaviour was removed because it could not be made safe, and the change is
+disclosed here at the symbol's own entry. Note the contrast with
+`wp_sudo_action_replayed`, dormant in the same release: that one is MINOR because it
+has a **successor** at the same lifecycle point. `return_url` has no successor — but
+it is a landing convenience a human can see, not a signal a consumer silently stops
+receiving, which is where that clause draws the line.
 
 Example:
 

@@ -18,8 +18,7 @@
 argument is inert.** The helper still redirects to the challenge and still grants the
 session; what changes is the landing. After a successful challenge the user is put on a
 neutral admin page, and your guarded code passes on their next visit with no second
-challenge. `return_url` is kept in the signature — removing a documented parameter
-would be MAJOR — but nothing consumes it. Same reason as everything else here: a
+challenge. `return_url` is kept in the signature so callers that pass it keep working, but nothing consumes it. This is MINOR under the new *Security-forced inertness* clause in `VERSIONING.md`, added in this release because none of the three existing rules covered a documented parameter made inert by a security fix. Same reason as everything else here: a
 requester-chosen destination reached automatically the moment a challenge succeeds runs
 under the authority just minted. Covered by `tests/e2e/specs/public-api.spec.ts`
 (PUB-01) and `tests/e2e/specs/stack-smoke.spec.ts` (STACK-05, STACK-06), all three

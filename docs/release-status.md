@@ -189,7 +189,19 @@ the whole control rather than a route to seamless resumption.
 consumed by nothing — and the user is landed on a neutral admin page rather than
 returned to the guarded screen. Their next visit passes with no second challenge, so
 the grant is unaffected; only the landing is. The parameter is retained rather than
-removed, since removing a documented parameter would be MAJOR under `VERSIONING.md`.
+removed, since removing it would break callers that pass it.
+
+**Why that is MINOR, stated properly.** The first draft of this reasoned "removing a
+documented parameter would be MAJOR, so keeping it makes this MINOR" — which is a
+non-sequitur, and an external review said so. Keeping the parameter satisfies the
+letter of the MAJOR clause while delivering the substance of a breaking change. None
+of `VERSIONING.md`'s three rules covered "documented parameter made inert", so the
+release was being classified by a rule that did not exist. That clause now exists —
+see *Security-forced inertness* in `VERSIONING.md` — and this release is the worked
+example under it. The distinction that keeps it MINOR rather than MAJOR: `return_url`
+is a convenience affecting where a human lands, immediately visible and breaking
+nothing programmatically, whereas an **event** made dark with no successor is
+invisible to the consumer and would be MAJOR.
 
 This surfaced late, from CI rather than from review: three E2E tests
 (`PUB-01`, `STACK-05`, `STACK-06`) encoded the old contract in their titles —
