@@ -443,8 +443,10 @@ is_unanchored_legacy() {
 # The criterion is strict and checkable by hand: the cited line must sit at file top
 # level in a procedural script. Both current entries are `require_once`-and-statements
 # admin scripts where the citation is ABOUT the top-level control flow:
-#   - GB-NETWORK-EDIT-REDIRECT — network/edit.php:13 is `$action = $_GET['action'] ?? '';`
-#     with only comments and one require above it.
+#   - GB-NETWORK-EDIT-REDIRECT — network/edit.php:15 is `if ( empty( $action ) ) {`, the
+#     guard the row's claim is about, with only comments, one require and the $action
+#     assignment above it. (It cited the L13 assignment until #443 moved it; the reason
+#     for the exemption is unchanged, since nothing encloses L15 either.)
 #   - GB-UPDATE-NEEDS-ACTION — update.php:22 is itself the top-level conditional WRAPPING
 #     THE FILE BODY; the claim is that the whole body sits inside it, so nothing can
 #     enclose it by definition. Not the file's only top-level conditional — the
