@@ -209,6 +209,27 @@ See `docs/llm-lies-log.md` for the full record. These rules exist to prevent rec
   updating technical details about third-party code.
 - If unable to verify, **MUST** say so explicitly — never guess or rely on training data.
 
+### Evidence proximity — inspect the thing itself
+
+Two superficially different false claims have shared one cause in this project:
+asserting from something adjacent to the truth instead of the thing itself.
+
+- An in-repo summary, issue, plan, table, prior review, or neighboring branch is
+  **not** evidence for an external implementation fact. Read the upstream
+  function, hook, return path, or schema itself. `llm-lies-log.md` #70 records
+  the concrete failure: `grant_super_admin()` was described from a contradictory
+  summary table instead of WordPress core.
+- An intended, requested, planned, or discussed change is **not** evidence that
+  the change exists. Before saying “fixed,” “implemented,” “added,” “removed,”
+  “updated,” or “verified,” inspect the current worktree file and `git diff`
+  (or the named commit), then run the check that exercises that exact change.
+- When reporting a pushed or merged result, verify the remote SHA/state. When
+  reporting a test result, first verify that Composer resolves `WP_Sudo\*` to
+  the current worktree as required by **Worktree dependency isolation**.
+- If the direct artifact cannot be inspected, state that the claim is
+  unverified. Do not upgrade intent, adjacency, or another agent's report into
+  completion.
+
 ### Statistics and counts (install numbers, version numbers, dates)
 
 - **MUST** query the authoritative API or source. For WordPress.org plugins:
