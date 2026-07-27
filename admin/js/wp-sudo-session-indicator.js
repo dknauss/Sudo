@@ -400,7 +400,7 @@
 		// visual), so it tracks the same three states rather than substituting for them.
 		//
 		// This channel is unavailable under core's "Show button text labels" preference,
-		// which discards the icon for its own `check` glyph (the L280 line above) and
+		// which discards the icon for its own `check` glyph (GB-ICON-SWAP) and
 		// renders no visible text for a pinned item. That is handled by falling back to
 		// colour in exactly that mode — see syncIconLabels() above and the paired rules
 		// in admin/css/wp-sudo-editor-indicator.css — because a shape channel core has
