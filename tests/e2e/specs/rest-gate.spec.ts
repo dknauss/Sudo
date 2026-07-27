@@ -267,11 +267,11 @@ test.describe( 'REST gate', () => {
         // on key PRESENCE (`array_key_exists( 'password', … )`, no value comparison),
         // so the gate still fires, while a regression writes the value already set.
         //
-        // Residual, stated rather than implied: a regression would re-hash that
-        // password and WordPress invalidates other sessions on a password change, so
-        // the run would fail loudly from that point. That is the correct outcome for a
-        // security regression — the credential itself is unchanged, so the environment
-        // is recoverable, and a silent pass would be far worse.
+        // Residual, stated rather than implied: a regression here writes a password —
+        // the same one, but a write nonetheless — so later tests in the run may fail.
+        // That is the correct outcome for a security regression, and the credential
+        // itself is unchanged so the environment recovers. A silent pass would be far
+        // worse than a loud failure.
         const result = await restRequest( page, 'POST', 'wp/v2/users/me', {
             password: WP_PASSWORD,
         } );
