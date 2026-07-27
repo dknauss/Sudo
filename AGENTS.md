@@ -296,6 +296,78 @@ behaviour as seriously as a line of code that asserts it.
   hold, is preferred over silently rewriting it — the reasoning usually still has value
   even when the description does not.
 
+### A remedy is executable advice — verify it like code
+
+Prose that says something can be wrong. Prose that tells someone **what to run** can do
+damage, and it is read by whoever is already having a bad day.
+
+The worked example is the `llm-lies-log.md` entry *"propagated another session's retracted
+analysis, and shipped an unsafe remedy"*: a release note shipped
+`wp option delete wp_sudo_db_version` as an operator remedy. It failed differently on each
+topology, and both failures are instructive.
+
+- **On multisite it silently did nothing.** `Upgrader::get_db_version()` reads
+  `get_site_option()` — one network-wide row in `wp_sitemeta` — while `wp option delete`
+  targets the per-site `wp_options`. The operator sees success and the stamp survives.
+- **On single-site it worked, and that is the dangerous case.** Clearing the stamp replays
+  every upgrade routine from `0.0.0`: `upgrade_2_0_0()` unconditionally removes the
+  `site_manager` role, and `upgrade_3_3_0()` grants four governance capabilities to every
+  administrator. A security plugin recommending that does more harm than the artifact it was
+  clearing.
+
+(Cited by title rather than entry number deliberately: those numbers are assigned when a
+branch merges, so concurrent branches collide — this incident was numbered #55 by the session
+that found it and is #56 in the file, because an unrelated entry landed first.)
+
+So, before a command reaches a doc:
+
+- **MUST** trace what it actually touches — option vs site-option, per-site vs network,
+  which code path consumes it — not what its name suggests.
+- **MUST** ask what happens when it succeeds, not only whether it works. The failure above
+  was not "the command errors"; it was "the command works and replays destructive
+  migrations".
+- **MUST** check it on multisite specifically **when the command mutates WordPress state**
+  (options, meta, users, roles, capabilities) — the option/site-option split above is exactly
+  where that breaks. This does not extend to developer tooling that touches no site state
+  (`composer test`, PHPUnit, PHPStan, lint).
+- Prefer describing the state to be corrected over supplying a command, when the safe
+  command depends on context you cannot see.
+
+### Read the repo, not the mailbox — and verify the question, not the claim
+
+A retraction does not reach anyone who already acted on the claim. #55 happened partly
+because a correction arrived an hour after the original analysis, and the analysis had
+already been acted on — a property of message passing, not of anyone's care.
+
+So when a claim from another session is about to become a change in the repo: **re-derive it
+with a command before acting**, and prefer `gh`/`git` queries over recollection.
+
+**Running a command is not sufficient.** A second incident the same night: one session
+reported that a documented contract was missing, having grepped `main` and one branch; a
+second session verified the absence in exactly those two places and wrote a replacement. The
+contract already existed on a third, unmerged branch. Both greps ran; both returned zero;
+the conclusion was still wrong, because **the message had chosen the scope of the check**.
+
+The rule is therefore *verify the question, not the claim*: decide what would falsify the
+statement **before** running anything, and let that choose the command. This survives the
+common case where the claim is honest and merely narrow — which is most cases, and which a
+check aimed at dishonesty would miss entirely.
+
+**Absence is the shape that catches people, and it caught this repo twice in one night.**
+
+- *"Is X absent from the repo?"* is **not** answerable by checking the two places someone
+  told you to look. Enumerate the search space first — `git branch -r`, then grep across all
+  of them — because the branch nobody mentioned is exactly where the thing was.
+- *"Does upstream never do Y?"* is **not** answerable by a `docs/upstream-sources.md` row.
+  A must-contain snippet confirms a positive fact and cannot falsify an absence: if upstream
+  added the call on an adjacent line, the row still passes while the claim silently becomes
+  false (see #388, and the note on `GB-CORE-UPDATE-SINK`).
+
+Both are the same error — treating "I looked and did not find it" as equivalent to "it is not
+there", when the looking was scoped by something other than the question. **Absence claims
+need their search space stated, and if it cannot be stated, the claim needs weakening to what
+was actually checked.**
+
 ### Run the mechanical checks after *every* edit, including comment-only ones
 
 - `composer verify:metrics` after any change that adds or removes lines in tracked
