@@ -1657,9 +1657,16 @@ C2. REDUNDANT MEMORY DUPLICATING CLAUDE.md
            that session's own request. The mechanism behind it *is* reproducible: mutate
            `anchor_ok=0` in `bin/verify-sources.sh` on `main` and a multi-token row is
            satisfied by a generic span. The conduct and timeline below are not:
-           `git log -S 'interface-complementary-area__pin-unpin-item'` returns only `04ef826`
-           from #332, and the rework is squashed inside `650a451`, so the sequence cannot be
-           reconstructed from history and rests on that session's testimony. A log whose
+           the rework is squashed inside `650a451`, so the sequence cannot be reconstructed
+           from the squashed history and rests on that session's testimony. An earlier draft
+           of this line supported that with `git log -S
+           'interface-complementary-area__pin-unpin-item'` "returns only `04ef826`", which
+           was wrong twice over: with no revision argument the pickaxe searches from `HEAD`
+           only, saying nothing about other refs or reflog-only commits — and run today it
+           returns four commits on `HEAD` and ten under `--all --reflog`. A log about claims
+           outrunning their evidence had cited a command that neither established what it
+           was cited for nor produced the output attributed to it. Search with `--all
+           --reflog` before concluding anything is unrecoverable. A log whose
            subject is claims outrunning their evidence must not print a checkable finding and
            an unfalsifiable account at the same weight. Its `GB-PIN-STAR` rewording was not a failure to
            notice the mechanism: its own mutation test had already shown a second backticked

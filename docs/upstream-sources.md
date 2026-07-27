@@ -92,13 +92,19 @@ problem this registry exists to solve.
 
 2. **The check may resolve a different instance than the one you mean.** It takes the
    first occurrence at or before the cited line, so a repeated token is decided by the
-   earliest one. `GB-USER-NEW-SELFPOST` anchors on a conditional that genuinely encloses
-   its form, but the identical line occurs earlier in the same file inside a block that
-   closes long before the citation — and that is the instance the check resolves (#441).
-   The row is true and the check is satisfied by a non-enclosing occurrence. That is not
-   merely a weaker property than containment; it is a test of the wrong thing. Where a
-   token repeats, say in the cell which occurrence encloses and that the earlier one
-   exists.
+   earliest one — which can sit in an unrelated block that closes long before the
+   citation. The row is then true while the check is satisfied by a non-enclosing
+   occurrence: not merely a weaker property than containment, but a test of the wrong
+   thing.
+
+   This is the most common failure in the registry's history rather than a curiosity.
+   Auditing every anchor rather than the one reported found **four** rows in this state at
+   once, including one where a repair had reproduced the defect it was repairing — its new
+   anchor resolved inside an *unauthenticated* branch while the cited line sat in the
+   authenticated one (#449). Prefer a token that is unique in the file. Where you must use
+   a repeated one, say in the cell which occurrence encloses and that the earlier one
+   exists — `GB-USER-NEW-SELFPOST` is the worked example, and it names both the occurrence
+   it means and the two it rejects.
 
 3. **An anchor cell states only what must be present.** Every backticked span in it is a
    requirement — they are ANDed, not alternatives — so contrast, negation and
