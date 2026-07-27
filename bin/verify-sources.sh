@@ -561,11 +561,18 @@ done <<< "$referenced"
 # The pre-existing corpus is grandfathered (warn, not fail) so adopting the rule did not
 # turn a migration backlog into a red build on day one.
 #
-# Grandfathering is keyed on `relative-path<TAB>upstream-URL`, i.e. per CITATION, not
-# per file. Keying it on the filename alone would have exempted the file forever: a
-# contributor could add a brand-new unregistered claim to CHANGELOG.md and still exit 0,
-# which is the same "rule documented but unenforced" hole the fail-on-orphan change
-# above exists to close. Migrating a citation means deleting its line here.
+# Grandfathering is keyed on `relative-path<TAB>upstream-URL<TAB>occurrence-count`, i.e.
+# per CITATION, not per file and not per source. Keying it on the filename alone would
+# have exempted the file forever. Keying it on path+URL alone was not enough either, and
+# that was a real hole rather than a theoretical one: the scan dedupes, so a NEW claim
+# reusing a URL the file already cites produced an unchanged pair and still exited 0.
+# CHANGELOG.md is append-only by construction, so the rule went unenforced exactly where
+# citations keep accruing. The count closes it — the N+1th occurrence fails.
+#
+# Migrating a citation means DECREMENTING the count here. Delete the row only when the
+# last citation of that pair is gone: deleting it while other citations remain hard-fails
+# them all. The `8` row below is the live case — migrating one of those eight is `8` -> `7`,
+# not a deletion.
 #
 # Shrinks as citations are migrated. The Fortress docs were migrated to FT-* rows (#363),
 # so docs/sudo-architecture-comparison-matrix.md (#363) and
@@ -582,19 +589,19 @@ done <<< "$referenced"
 #     docs/two-factor-ecosystem.md (Subversion `/trunk/`). These CAN drift silently,
 #     which is exactly what the registry exists to catch.
 GRANDFATHERED_CITATIONS="$(cat <<'EOF'
-CHANGELOG.md	github.com/WordPress/wordpress-develop/blob/trunk/src/wp-includes/option.php
-docs/abilities-api-assessment.md	github.com/WordPress/abilities-api/blob/trunk/includes/abilities-api/class-wp-ability.php
-docs/two-factor-authentication-flow.md	github.com/WordPress/two-factor/blob/bea876d72062626f830c6b39f5348836e58472da/class-two-factor-core.php
-docs/two-factor-authentication-flow.md	github.com/WordPress/two-factor/blob/bea876d72062626f830c6b39f5348836e58472da/providers/class-two-factor-provider.php
-docs/two-factor-authentication-flow.md	github.com/WordPress/wordpress-develop/blob/abf9109166099011904710d1e8c63f444d0b862a/src/wp-includes/class-wp-session-tokens.php
-docs/two-factor-authentication-flow.md	github.com/WordPress/wordpress-develop/blob/abf9109166099011904710d1e8c63f444d0b862a/src/wp-includes/default-filters.php
-docs/two-factor-authentication-flow.md	github.com/WordPress/wordpress-develop/blob/abf9109166099011904710d1e8c63f444d0b862a/src/wp-includes/pluggable.php
-docs/two-factor-authentication-flow.md	github.com/WordPress/wordpress-develop/blob/abf9109166099011904710d1e8c63f444d0b862a/src/wp-includes/user.php
-docs/two-factor-ecosystem.md	plugins.svn.wordpress.org/patchstack/trunk/includes/login.php
-docs/two-factor-integration.md	github.com/WordPress/two-factor/blob/c515462d51ac92941685e39293673c08538e16c8/class-two-factor-core.php
-docs/two-factor-integration.md	github.com/WordPress/two-factor/blob/c515462d51ac92941685e39293673c08538e16c8/providers/class-two-factor-backup-codes.php
-docs/two-factor-integration.md	github.com/WordPress/two-factor/blob/c515462d51ac92941685e39293673c08538e16c8/providers/class-two-factor-totp.php
-tests/Unit/RequestStashTest.php	github.com/WordPress/wordpress-develop/blob/trunk/src/wp-includes/formatting.php
+CHANGELOG.md	github.com/WordPress/wordpress-develop/blob/trunk/src/wp-includes/option.php	1
+docs/abilities-api-assessment.md	github.com/WordPress/abilities-api/blob/trunk/includes/abilities-api/class-wp-ability.php	1
+docs/two-factor-authentication-flow.md	github.com/WordPress/two-factor/blob/bea876d72062626f830c6b39f5348836e58472da/class-two-factor-core.php	8
+docs/two-factor-authentication-flow.md	github.com/WordPress/two-factor/blob/bea876d72062626f830c6b39f5348836e58472da/providers/class-two-factor-provider.php	1
+docs/two-factor-authentication-flow.md	github.com/WordPress/wordpress-develop/blob/abf9109166099011904710d1e8c63f444d0b862a/src/wp-includes/class-wp-session-tokens.php	1
+docs/two-factor-authentication-flow.md	github.com/WordPress/wordpress-develop/blob/abf9109166099011904710d1e8c63f444d0b862a/src/wp-includes/default-filters.php	1
+docs/two-factor-authentication-flow.md	github.com/WordPress/wordpress-develop/blob/abf9109166099011904710d1e8c63f444d0b862a/src/wp-includes/pluggable.php	1
+docs/two-factor-authentication-flow.md	github.com/WordPress/wordpress-develop/blob/abf9109166099011904710d1e8c63f444d0b862a/src/wp-includes/user.php	1
+docs/two-factor-ecosystem.md	plugins.svn.wordpress.org/patchstack/trunk/includes/login.php	2
+docs/two-factor-integration.md	github.com/WordPress/two-factor/blob/c515462d51ac92941685e39293673c08538e16c8/class-two-factor-core.php	1
+docs/two-factor-integration.md	github.com/WordPress/two-factor/blob/c515462d51ac92941685e39293673c08538e16c8/providers/class-two-factor-backup-codes.php	1
+docs/two-factor-integration.md	github.com/WordPress/two-factor/blob/c515462d51ac92941685e39293673c08538e16c8/providers/class-two-factor-totp.php	1
+tests/Unit/RequestStashTest.php	github.com/WordPress/wordpress-develop/blob/trunk/src/wp-includes/formatting.php	1
 EOF
 )"
 
@@ -607,9 +614,12 @@ orphan_records="$(grep -roIE \
 	--exclude-dir={vendor,node_modules,.git,vendor_test,.tmp,.planning,.claude,verify-sources} \
 	"$REPO_ROOT" 2>/dev/null || true)"
 
-# Normalize each grep record to `relative-path<TAB>url`, then dedupe: a file that cites
-# the same upstream file eight times is one citation to migrate, not eight findings.
-orphan_pairs="$(while IFS= read -r record; do
+# Normalize each grep record to `relative-path<TAB>url`, then collapse to
+# `count<TAB>relative-path<TAB>url`: a file that cites the same upstream file eight times
+# is one citation to migrate, not eight findings — so it stays one finding — but the
+# count is carried rather than discarded, because it is what distinguishes the
+# grandfathered occurrences from a newly added one.
+orphan_counts="$(while IFS= read -r record; do
 	[ -n "$record" ] || continue
 
 	# The matched URL never contains a colon (the patterns carry no scheme), so the
@@ -659,18 +669,32 @@ orphan_pairs="$(while IFS= read -r record; do
 	esac
 
 	printf '%s\t%s\n' "$rel" "$orphan_url"
-done <<< "$orphan_records" | sort -u)"
+done <<< "$orphan_records" | sort | awk -F'\t' '{ n[$0]++ } END { for (k in n) print n[k] "\t" k }' | sort)"
 
-while IFS= read -r pair; do
-	[ -n "$pair" ] || continue
+while IFS= read -r counted; do
+	[ -n "$counted" ] || continue
+	seen="${counted%%	*}"
+	pair="${counted#*	}"
 	rel="${pair%%	*}"
 	orphan_url="${pair#*	}"
-	if printf '%s\n' "$GRANDFATHERED_CITATIONS" | grep -qxF -- "$pair"; then
-		add_warning "$rel cites $orphan_url outside the registry (grandfathered — migrate as you touch it)"
-	else
+
+	# The third field is how many times this pair is grandfathered. Without it the
+	# exemption is keyed to path+URL alone, so a NEW claim reusing an ALREADY-exempt URL
+	# in the same file inherits the exemption permanently — the rule goes unenforced in
+	# the one file guaranteed to keep growing, since CHANGELOG.md is append-only by
+	# construction. Counting rather than line-keying is deliberate: a line-keyed identity
+	# would drift on every release and redden the gate for reasons unrelated to citations,
+	# and a gate that reddens on a schedule gets re-baselined without being read.
+	allowed="$(printf '%s\n' "$GRANDFATHERED_CITATIONS" | awk -F'\t' -v p="$pair" '$1 "\t" $2 == p { print $3 }')"
+
+	if [ -z "$allowed" ]; then
 		add_failure "$rel cites $orphan_url outside the registry — add a row to docs/upstream-sources.md and reference its registry ID instead of the raw URL"
+	elif [ "$seen" -gt "$allowed" ]; then
+		add_failure "$rel cites $orphan_url outside the registry — that pair is grandfathered for $allowed citation(s) but is now cited $seen times, so at least one is new; register it and reference the row ID. Do not raise the count to silence this."
+	else
+		add_warning "$rel cites $orphan_url outside the registry (grandfathered — migrate as you touch it)"
 	fi
-done <<< "$orphan_pairs"
+done <<< "$orphan_counts"
 
 for w in "${warnings[@]:-}"; do
 	[ -n "$w" ] && echo "WARN: $w"

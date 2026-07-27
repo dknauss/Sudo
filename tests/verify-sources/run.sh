@@ -498,19 +498,59 @@ run
 expect_rc 1
 expect_out "newcite.md"
 
+# The one genuinely grandfathered pair used by 12d-12f. It must stay identical to a row
+# in GRANDFATHERED_CITATIONS, or these cases silently stop testing grandfathering at all —
+# which is exactly the defect 12d carried: its "legacy" URL was
+# raw.githubusercontent.com/WordPress/two-factor/master/a.php, matching no grandfathered
+# pair, so both its lines were ordinary orphans and it exited 1 however grandfathering
+# behaved. A test that cannot fail for its stated reason is indistinguishable from a
+# passing one.
+GF_URL="https://github.com/WordPress/two-factor/blob/c515462d51ac92941685e39293673c08538e16c8/class-two-factor-core.php"
+
 # 12d. Grandfathering is per CITATION, not per file: a NEW upstream URL added to a
-#      grandfathered file must still be a hard failure.
+#      grandfathered file must still be a hard failure, while the legacy citation is
+#      only warned about. Both halves are asserted — rc alone cannot tell them apart.
 start "new citation in a grandfathered file still fails"
 new_sandbox grandnew
 registry "$HDR
 | GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
 fixture "$URL" 200 0 $'x\nneedle here'
 mkdir -p "$SANDBOX/docs"
-printf 'legacy https://raw.githubusercontent.com/WordPress/two-factor/master/a.php\nbrand new https://raw.githubusercontent.com/WordPress/gutenberg/trunk/z.js\n' \
+printf 'legacy %s\nbrand new https://raw.githubusercontent.com/WordPress/gutenberg/trunk/z.js\n' "$GF_URL" \
 	> "$SANDBOX/docs/two-factor-integration.md"
 run
 expect_rc 1
-expect_out "two-factor-integration.md"
+expect_out "z.js"
+expect_out "grandfathered"
+
+# 12e. The exemption is keyed to path+URL, and the scan dedupes, so without a recorded
+#      occurrence count a NEW claim reusing an ALREADY-grandfathered URL inherits the
+#      exemption forever. CHANGELOG.md is append-only by construction, which is where
+#      that bites. The N+1th citation of a grandfathered pair is a hard failure.
+start "a second citation of a grandfathered url is a hard failure"
+new_sandbox grandcount
+registry "$HDR
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
+fixture "$URL" 200 0 $'x\nneedle here'
+mkdir -p "$SANDBOX/docs"
+printf 'legacy %s\nnew claim reusing the same source %s\n' "$GF_URL" "$GF_URL" \
+	> "$SANDBOX/docs/two-factor-integration.md"
+run
+expect_rc 1
+expect_out "cited 2 times"
+
+# 12f. The counterpart guard: the recorded number of citations must still only warn, or
+#      the fix for 12e would redden every grandfathered file on arrival.
+start "a grandfathered url within its recorded count still only warns"
+new_sandbox grandok
+registry "$HDR
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
+fixture "$URL" 200 0 $'x\nneedle here'
+mkdir -p "$SANDBOX/docs"
+printf 'legacy %s\n' "$GF_URL" > "$SANDBOX/docs/two-factor-integration.md"
+run
+expect_rc 0
+expect_out "grandfathered"
 
 # 13. Non-raw host URL (rendered blob) is rejected.
 start "rendered blob url rejected"
