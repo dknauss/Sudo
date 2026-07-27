@@ -172,34 +172,55 @@ test.describe( 'REST gate', () => {
     let adminId = '';
     let targetId = '';
     let appPasswordAuth = '';
+    let appPasswordRaw = '';
 
     test.beforeAll( async () => {
         await installNonceMuPlugin();
 
-        // Destructive probes never point at the shared admin. If the gate regresses,
-        // REST-01 would otherwise CHANGE the admin password before its assertion fails —
-        // locking every later test out of the site and breaking the wp-env credential.
-        // A disposable subscriber absorbs that instead, and is deleted in afterAll.
-        targetId = ( await wpCli( [
-            'wp', 'user', 'create', E2E_TARGET_LOGIN, 'rest-gate-target@example.com',
-            '--role=subscriber', '--porcelain',
-        ] ) ).trim();
+        // Creating the fixture user is itself a gated action: under the default
+        // Limited CLI policy the plugin refuses it with "This operation (Create new
+        // user) requires sudo and cannot be performed via WP-CLI." That is the gate
+        // working, so the fixture asks for the exemption explicitly and hands it back,
+        // rather than the suite quietly running against a weakened policy.
+        await wpCli( [ 'wp', 'option', 'patch', 'update', 'wp_sudo_settings', 'cli_policy', 'unrestricted' ] );
+
+        try {
+            // Destructive probes never point at the shared admin. If the gate regresses,
+            // REST-01 would otherwise CHANGE the admin password before its assertion fails —
+            // locking every later test out of the site and breaking the wp-env credential.
+            // A disposable subscriber absorbs that instead, and is deleted in afterAll.
+            targetId = ( await wpCli( [
+                'wp', 'user', 'create', E2E_TARGET_LOGIN, 'rest-gate-target@example.com',
+                '--role=subscriber', '--porcelain',
+            ] ) ).trim();
+
+            appPasswordRaw = ( await wpCli( [
+                'wp', 'user', 'application-password', 'create', 'admin', 'rest-gate-e2e', '--porcelain',
+            ] ) ).trim();
+        } finally {
+            // Restored in a finally so a failed fixture cannot leave the CLI surface
+            // unrestricted for every spec that runs after this one.
+            await wpCli( [ 'wp', 'option', 'patch', 'update', 'wp_sudo_settings', 'cli_policy', 'limited' ] );
+        }
 
         // Application Password for the Authorization-header half of the Apache lane.
         // Created for the ADMIN, because the assertion is that a non-gated read
         // authenticates — not that a subscriber can read users.
-        const appPassword = ( await wpCli( [
-            'wp', 'user', 'application-password', 'create', 'admin', 'rest-gate-e2e', '--porcelain',
-        ] ) ).trim();
-        appPasswordAuth = 'Basic ' + Buffer.from( `admin:${ appPassword }` ).toString( 'base64' );
+        appPasswordAuth = 'Basic ' + Buffer.from( `admin:${ appPasswordRaw }` ).toString( 'base64' );
     } );
 
     test.afterAll( async () => {
         await removeNonceMuPlugin();
-        if ( targetId ) {
-            await wpCli( [ 'wp', 'user', 'delete', targetId, '--yes' ] );
+        // Deleting a user is gated for the same reason creating one is.
+        await wpCli( [ 'wp', 'option', 'patch', 'update', 'wp_sudo_settings', 'cli_policy', 'unrestricted' ] );
+        try {
+            if ( targetId ) {
+                await wpCli( [ 'wp', 'user', 'delete', targetId, '--yes' ] );
+            }
+            await wpCli( [ 'wp', 'user', 'application-password', 'delete', 'admin', '--all' ] );
+        } finally {
+            await wpCli( [ 'wp', 'option', 'patch', 'update', 'wp_sudo_settings', 'cli_policy', 'limited' ] );
         }
-        await wpCli( [ 'wp', 'user', 'application-password', 'delete', 'admin', '--all' ] );
     } );
 
     test.beforeEach( async ( { page, visitAdminPage } ) => {
