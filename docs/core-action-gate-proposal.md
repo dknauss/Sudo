@@ -51,7 +51,7 @@ So the gated set is a **provable minimal closure**, not a wishlist. It is exactl
 | Effect | Shared sink to gate |
 |---|---|
 | Plugin/theme file editor (incl. AJAX) | `wp_edit_theme_plugin_file()` — the one function `plugin-editor.php`, `theme-editor.php`, and `wp_ajax_edit_theme_plugin_file()` all converge on |
-| Install / upload ZIP / update / bulk-update, plugin **and** theme, **and language packs** | `WP_Upgrader::install_package()` — the single package-write funnel beneath `Plugin_Upgrader`/`Theme_Upgrader` `install()`/`upgrade()`/`bulk_upgrade()`, `WP_Automatic_Updater`, `wp_ajax_update_plugin/theme`, and REST |
+| Install / upload ZIP / update / bulk-update, plugin **and** theme, **and language packs** | `WP_Upgrader::install_package()` — the single package-write funnel (the *funnel*, but not the enforcement point for an interactive attacker — it fires after extraction, so the gate belongs upstream at `upgrader_pre_download`; spec §5.4, §6 row 14-pre) beneath `Plugin_Upgrader`/`Theme_Upgrader` `install()`/`upgrade()`/`bulk_upgrade()`, `WP_Automatic_Updater`, `wp_ajax_update_plugin/theme`, and REST |
 | **Activate** a plugin (its activation hook runs PHP) | `activate_plugin()` — reachable directly via REST `update_item` on an already-installed plugin with only `install_plugins`+`activate_plugins` |
 | **Switch** to an installed theme (makes its code active) | `switch_theme()` — activating a malicious already-installed theme is a terminal code-execution effect, so it belongs alongside plugin activation |
 
