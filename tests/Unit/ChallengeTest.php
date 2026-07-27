@@ -2394,51 +2394,97 @@ class ChallengeTest extends TestCase
 		$this->assertArrayNotHasKey('replay', $data);
 		$this->assertSame(42, $captured[0]);
 		$this->assertSame(
-			'no_proof_presented',
+			'replay_disabled',
 			$captured[2],
-			'The audit event must say WHY the replay was refused, not merely that it was.'
+			'The audit event must say WHY the action was not resumed. With a credential '
+				. 'verified on this request, that reason is the invariant itself.'
 		);
 	}
 
 	/**
-	 * #322: a successful bound replay must NOT fire the refusal hook.
+	 * #322: the release invariant. Nothing is ever auto-executed after reauth.
+	 *
+	 * Replaces two tests that asserted the opposite — that a matching binding cookie
+	 * plus a verified credential replays the stashed action. That was the contract
+	 * this release removes, so the tests asserting it are removed with it rather than
+	 * adjusted; leaving them weakened would leave the old guarantee half-asserted.
+	 *
+	 * @dataProvider provideInvariantCases
+	 *
+	 * @param array<string, mixed> $stash    Stash as Request_Stash would have stored it.
+	 * @param bool                 $verified Whether a credential was verified this request.
+	 * @param string               $label    Case description, for the failure message.
 	 */
-	public function test_successful_bound_replay_does_not_fire_refused_hook(): void
+	public function test_no_stash_is_ever_auto_executed(array $stash, bool $verified, string $label): void
 	{
 		$secret = 'super-secret-proof';
+		// Present the binding cookie in EVERY case. Under the old mechanism this was
+		// the thing that authorised a replay, so if any case still replays, this is
+		// what would let it — the invariant must hold with the proof satisfied.
 		$_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE] = $secret;
 
-		$this->stash->shouldReceive('get')->once()->andReturn($this->boundPostStash($secret));
+		$this->stash->shouldReceive('get')->once()->andReturn($stash);
 		$this->stash->shouldReceive('delete')->once();
 		$this->stubReplayEnv();
 
-		Actions\expectDone('wp_sudo_replay_refused')->never();
+		$data = $this->invokeReplay('any-key', $verified);
 
-		$data = $this->invokeReplay('bound-key', true);
-
-		$this->assertTrue($data['replay'] ?? false);
+		$this->assertArrayNotHasKey('replay', $data, $label . ': must not auto-submit.');
+		$this->assertArrayNotHasKey('post_data', $data, $label . ': must not carry a body.');
+		$this->assertArrayNotHasKey('replaying', $data, $label . ': must not signal execution.');
+		$this->assertNotSame(
+			$stash['url'] ?? null,
+			$data['redirect'] ?? null,
+			$label . ': must not redirect to the action URL, which would execute a GET.'
+		);
 
 		unset($_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE]);
 	}
 
 	/**
-	 * #322 v2: the legitimate same-browser flow replays again (UX restored).
+	 * @return array<string, array{0: array<string, mixed>, 1: bool, 2: string}>
 	 */
-	public function test_bound_stash_replays_after_credential_verified(): void
+	public function provideInvariantCases(): array
 	{
 		$secret = 'super-secret-proof';
-		$_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE] = $secret;
+		$bound  = function (array $over) use ($secret): array {
+			return array_merge($this->boundPostStash($secret), $over);
+		};
 
-		$this->stash->shouldReceive('get')->once()->andReturn($this->boundPostStash($secret));
-		$this->stash->shouldReceive('delete')->once();
-		$this->stubReplayEnv();
-
-		$data = $this->invokeReplay('bound-key', true);
-
-		$this->assertTrue($data['replay'] ?? false, 'Matching binding + verified credential must replay.');
-		$this->assertSame(array('role' => 'administrator'), $data['post_data']);
-
-		unset($_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE]);
+		return array(
+			'GET action' => array(
+				$bound(array(
+					'method' => 'GET',
+					'url' => 'https://example.com/wp-admin/plugins.php?action=activate&plugin=evil%2Fevil.php&_wpnonce=abc',
+					'post' => array(),
+					'rule_id' => 'plugin.activate',
+				)),
+				true,
+				'GET',
+			),
+			'POST action' => array($bound(array()), true, 'POST'),
+			'bodyless POST' => array(
+				$bound(array('post' => array(), 'target' => array('plugin' => 'acme/acme.php'))),
+				true,
+				'bodyless POST',
+			),
+			'already-active session, no credential this request' => array(
+				$bound(array()),
+				false,
+				'active-session resume',
+			),
+			'Application Password authorization' => array(
+				$bound(array(
+					'method' => 'POST',
+					'url' => 'https://example.com/wp-admin/authorize-application.php',
+					'rule_id' => 'app_password.create',
+					'post' => array('app_name' => 'acme', 'success_url' => 'https://evil.example/collect'),
+					'target' => array('app_name' => 'acme'),
+				)),
+				true,
+				'App Password authorization',
+			),
+		);
 	}
 
 	/**
@@ -2720,82 +2766,6 @@ class ChallengeTest extends TestCase
 			$data,
 			'A partially described effect must not be auto-replayed.'
 		);
-
-		unset($_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE]);
-	}
-
-	/**
-	 * #431: a replay refused for having no named target must say so.
-	 *
-	 * Skipping critical options that only echo their stored value makes the empty
-	 * target a common outcome rather than a rarity, so the two guards that refuse on
-	 * it must name a reason like every other branch. Returning false without one
-	 * leaves bridges recording a refusal with an empty `$reason` — auditable in name
-	 * only, which is the failure this hook exists to prevent.
-	 */
-	public function test_replay_refused_for_empty_target_is_audited_as_unnamed_target(): void
-	{
-		$secret = 'super-secret-proof';
-		$_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE] = $secret;
-
-		$stash = $this->boundPostStash($secret);
-		$stash['target'] = array();
-		$stash['target_complete'] = true;
-
-		$this->stash->shouldReceive('get')->once()->andReturn($stash);
-		$this->stash->shouldReceive('delete')->once();
-		$this->stubReplayEnv();
-
-		$captured = null;
-		Actions\expectDone('wp_sudo_replay_refused')
-			->once()
-			->whenHappen(function ($user_id, $rule_id, $reason) use (&$captured) {
-				$captured = $reason;
-			});
-
-		$data = $this->invokeReplay('unnamed-key', true);
-
-		$this->assertArrayNotHasKey('replay', $data);
-		$this->assertSame(
-			'unnamed_target',
-			$captured,
-			'A refusal with no named target must be distinguishable in the audit trail.'
-		);
-
-		unset($_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE]);
-	}
-
-	/**
-	 * #431: a target that renders nothing is audited the same way.
-	 *
-	 * describe_stash_target() skips entries that are not non-empty scalars, so a
-	 * corrupted `[ 'plugin' => [] ]` passes the non-empty check above while still
-	 * drawing no Target line at all.
-	 */
-	public function test_replay_refused_for_undrawable_target_is_audited_as_unnamed_target(): void
-	{
-		$secret = 'super-secret-proof';
-		$_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE] = $secret;
-
-		$stash = $this->boundPostStash($secret);
-		$stash['target'] = array('plugin' => array());
-		$stash['target_complete'] = true;
-
-		$this->stash->shouldReceive('get')->once()->andReturn($stash);
-		$this->stash->shouldReceive('delete')->once();
-		$this->stubReplayEnv();
-
-		$captured = null;
-		Actions\expectDone('wp_sudo_replay_refused')
-			->once()
-			->whenHappen(function ($user_id, $rule_id, $reason) use (&$captured) {
-				$captured = $reason;
-			});
-
-		$data = $this->invokeReplay('undrawable-key', true);
-
-		$this->assertArrayNotHasKey('replay', $data);
-		$this->assertSame('unnamed_target', $captured);
 
 		unset($_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE]);
 	}

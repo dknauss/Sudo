@@ -524,12 +524,11 @@ Current output includes:
 
 The tester does **not** predict whether a request will resume after
 reauthentication, and the `stash_replay_eligible` field it used to return was
-removed in 4.9.0. Since #322, replay is authorised at request time by conditions
-the simulator cannot reproduce — chiefly the per-browser binding proof and a
-same-origin `Sec-Fetch-Site` header, neither of which a simulated shape carries.
-Some inputs *are* visible here: a `https://` URL establishes the scheme, and a
-recognised target parameter or POST field can be read off the submitted shape.
-But a verdict needs all of them together, so the **outcome** stays undecidable
+removed in 4.9.0. Since #322 there is no replay to predict: after
+reauthentication WP Sudo never automatically executes a previously intercepted
+request, on any surface. The tester reports which rule matches and the decision
+for that surface and policy; the question the removed field answered no longer
+has two possible answers
 even when several inputs are known. The tester answers what it can determine —
 whether a request matches a rule, and the decision for that surface and policy.
 
@@ -621,13 +620,20 @@ do_action( 'wp_sudo_action_gated', int $user_id, string $rule_id, string $surfac
 do_action( 'wp_sudo_action_blocked', int $user_id, string $rule_id, string $surface );
 do_action( 'wp_sudo_action_allowed', int $user_id, string $rule_id, string $surface ); // Unrestricted policy (v2.9.0).
 do_action( 'wp_sudo_action_passed', int $user_id, string $rule_id, string $surface ); // Active session (v3.0.0).
-do_action( 'wp_sudo_action_replayed', int $user_id, string $rule_id );
+// DORMANT since 4.9.0 (#322): retained, documented and still subscribed, but no
+// longer fired — automatic replay was removed, so there is no replay to announce.
+// Nothing an integrator wrote errors; it simply never runs. Read
+// wp_sudo_replay_refused below instead: it fires at the same lifecycle moment,
+// for every consumed stash, and carries a $reason the replayed hook never had.
+// The hook is NOT removed — removing a documented hook would be a MAJOR change.
+do_action( 'wp_sudo_action_replayed', int $user_id, string $rule_id ); // dormant
 
 // Fires when a stashed action was discarded instead of replayed (#322). The
 // counterpart to the above: without it the fail-closed path is silent, so a
 // reauthentication completed in a browser that did not start the action leaves no
 // audit trail and looks identical to nothing happening. $reason is one of
-// no_credential_this_request, redacted_fields, replay_blocked, incomplete_target,
+// replay_disabled (the ordinary case) or no_credential_this_request (a stash
+// released by a session-holder rather than the browser that created it),
 // unnamed_target, no_binding_minted, no_proof_presented, proof_mismatch,
 // url_altered, insecure_replay_url.
 //
