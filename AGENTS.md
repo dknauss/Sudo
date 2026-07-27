@@ -336,10 +336,25 @@ second session verified the absence in exactly those two places and wrote a repl
 contract already existed on a third, unmerged branch. Both greps ran; both returned zero;
 the conclusion was still wrong, because **the message had chosen the scope of the check**.
 
-The rule is therefore *verify the question, not the claim*. "Does this exist?" is answered by
-`git branch -r` and a sweep, not by re-running the search the message handed you. This
-survives the common case where the claim is honest and merely narrow — which is most cases,
-and which a check for dishonesty would miss entirely.
+The rule is therefore *verify the question, not the claim*: decide what would falsify the
+statement **before** running anything, and let that choose the command. This survives the
+common case where the claim is honest and merely narrow — which is most cases, and which a
+check aimed at dishonesty would miss entirely.
+
+**Absence is the shape that catches people, and it caught this repo twice in one night.**
+
+- *"Is X absent from the repo?"* is **not** answerable by checking the two places someone
+  told you to look. Enumerate the search space first — `git branch -r`, then grep across all
+  of them — because the branch nobody mentioned is exactly where the thing was.
+- *"Does upstream never do Y?"* is **not** answerable by a `docs/upstream-sources.md` row.
+  A must-contain snippet confirms a positive fact and cannot falsify an absence: if upstream
+  added the call on an adjacent line, the row still passes while the claim silently becomes
+  false (see #388, and the note on `GB-CORE-UPDATE-SINK`).
+
+Both are the same error — treating "I looked and did not find it" as equivalent to "it is not
+there", when the looking was scoped by something other than the question. **Absence claims
+need their search space stated, and if it cannot be stated, the claim needs weakening to what
+was actually checked.**
 
 ### Run the mechanical checks after *every* edit, including comment-only ones
 
