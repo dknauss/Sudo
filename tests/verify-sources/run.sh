@@ -149,7 +149,7 @@ URL2='https://raw.githubusercontent.com/WordPress/gutenberg/trunk/packages/y.js'
 start "happy path passes"
 new_sandbox happy
 registry "$HDR
-| GB-A | $URL | 2 | needle here | someSymbol | it works |"
+| GB-ONE | $URL | 2 | needle here | \`first\` | it works |"
 fixture "$URL" 200 0 $'first line\nneedle here\nthird line'
 run
 expect_rc 0
@@ -159,20 +159,20 @@ expect_out "all snippets present"
 start "duplicate IDs fail"
 new_sandbox dup
 registry "$HDR
-| GB-A | $URL | 2 | needle here | sym | claim one |
-| GB-A | $URL2 | 2 | other thing | sym | claim two |"
+| GB-ONE | $URL | 2 | needle here | \`x\` | claim one |
+| GB-ONE | $URL2 | 2 | other thing | \`x\` | claim two |"
 fixture "$URL" 200 0 $'x\nneedle here'
 fixture "$URL2" 200 0 $'x\nother thing'
 run
 expect_rc 1
-expect_out "GB-A"
+expect_out "GB-ONE"
 expect_out "duplicate"
 
 # 3a. Incomplete row: missing Line.
 start "missing Line fails"
 new_sandbox noline
 registry "$HDR
-| GB-A | $URL |  | needle here | sym | a claim |"
+| GB-ONE | $URL |  | needle here | \`x\` | a claim |"
 fixture "$URL" 200 0 $'x\nneedle here'
 run
 expect_rc 1
@@ -182,7 +182,7 @@ expect_out "line"
 start "missing claim fails"
 new_sandbox noclaim
 registry "$HDR
-| GB-A | $URL | 2 | needle here | sym |  |"
+| GB-ONE | $URL | 2 | needle here | \`x\` |  |"
 fixture "$URL" 200 0 $'x\nneedle here'
 run
 expect_rc 1
@@ -192,17 +192,57 @@ expect_out "claim"
 start "ambiguous match fails"
 new_sandbox ambig
 registry "$HDR
-| GB-A | $URL | 2 | needle here | sym | a claim |"
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
 fixture "$URL" 200 0 $'needle here\nneedle here\nneedle here'
 run
 expect_rc 1
 expect_out "ambiguous"
 
+# 4b. The Enclosing symbol column must carry at least one backticked anchor token, and
+#     that token must still exist upstream at or before the matched line. Without this
+#     the column is decorative: it was used only in error messages, so an upstream
+#     rename or deletion of the enclosing component left the row silently green.
+start "symbol anchor missing upstream fails"
+new_sandbox anchorgone
+registry "$HDR
+| GB-ONE | $URL | 3 | needle here | \`SomeComponent\` | a claim |"
+fixture "$URL" 200 0 $'line one\nline two\nneedle here'
+run
+expect_rc 1
+expect_out "enclosing symbol"
+
+start "symbol anchor appearing only AFTER the match fails"
+new_sandbox anchorafter
+registry "$HDR
+| GB-ONE | $URL | 1 | needle here | \`SomeComponent\` | a claim |"
+fixture "$URL" 200 0 $'needle here\nfunction SomeComponent() {}'
+run
+expect_rc 1
+expect_out "enclosing symbol"
+
+start "symbol anchor before the match passes"
+new_sandbox anchorok
+registry "$HDR
+| GB-ONE | $URL | 2 | needle here | \`SomeComponent\` | a claim |"
+fixture "$URL" 200 0 $'function SomeComponent() {\nneedle here\n}'
+run
+expect_rc 0
+expect_out "all snippets present"
+
+start "symbol column with no backticked anchor token fails"
+new_sandbox noanchor
+registry "$HDR
+| GB-ONE | $URL | 2 | needle here | the header area | a claim |"
+fixture "$URL" 200 0 $'x\nneedle here'
+run
+expect_rc 1
+expect_out "backtick"
+
 # 5. Snippet vanished from upstream body must fail.
 start "vanished snippet fails"
 new_sandbox gone
 registry "$HDR
-| GB-A | $URL | 2 | needle here | sym | a claim |"
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
 fixture "$URL" 200 0 $'nothing to see\nhere at all'
 run
 expect_rc 1
@@ -212,7 +252,7 @@ expect_out "no longer present"
 start "http 404 fails"
 new_sandbox http404
 registry "$HDR
-| GB-A | $URL | 2 | needle here | sym | a claim |"
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
 fixture "$URL" 404 0 ""
 run
 expect_rc 1
@@ -223,7 +263,7 @@ expect_out "HTTP 404"
 start "http 404 with curl error still fails as http"
 new_sandbox http404err
 registry "$HDR
-| GB-A | $URL | 2 | needle here | sym | a claim |"
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
 fixture "$URL" 404 18 ""
 run
 expect_rc 1
@@ -233,7 +273,7 @@ expect_out "HTTP 404"
 start "http 404 with curl error is not suppressed by --offline-ok"
 new_sandbox http404offline
 registry "$HDR
-| GB-A | $URL | 2 | needle here | sym | a claim |"
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
 fixture "$URL" 404 18 ""
 run --offline-ok
 expect_rc 1
@@ -244,7 +284,7 @@ expect_out "HTTP 404"
 start "transient 5xx is not reported as deleted"
 new_sandbox http503
 registry "$HDR
-| GB-A | $URL | 2 | needle here | sym | a claim |"
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
 fixture "$URL" 503 0 ""
 run
 expect_rc 1
@@ -254,7 +294,7 @@ expect_not_out "deleted"
 start "transient 5xx suppressed by --offline-ok"
 new_sandbox http503offline
 registry "$HDR
-| GB-A | $URL | 2 | needle here | sym | a claim |"
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
 fixture "$URL" 503 0 ""
 run --offline-ok
 expect_rc 0
@@ -263,7 +303,7 @@ expect_out "SKIPPED"
 start "rate-limit 429 suppressed by --offline-ok"
 new_sandbox http429offline
 registry "$HDR
-| GB-A | $URL | 2 | needle here | sym | a claim |"
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
 fixture "$URL" 429 0 ""
 run --offline-ok
 expect_rc 0
@@ -273,17 +313,57 @@ expect_rc 0
 start "410 Gone is permanent drift, not suppressed by --offline-ok"
 new_sandbox http410
 registry "$HDR
-| GB-A | $URL | 2 | needle here | sym | a claim |"
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
 fixture "$URL" 410 0 ""
 run --offline-ok
 expect_rc 1
 expect_out "410"
 
+# 7e. A 2xx whose body transfer was truncated/reset (nonzero curl exit) must NOT be
+#     accepted: the partial body can still contain the snippet, falsely verifying the
+#     citation. The anchor token is deliberately present in the partial body so this
+#     case can ONLY fail via the truncation guard — otherwise it would pass for the
+#     wrong reason (a missing anchor) and survive removal of the guard.
+start "truncated 2xx body is not accepted as verified"
+new_sandbox trunc200
+registry "$HDR
+| GB-ONE | $URL | 1 | needle here | \`needle\` | a claim |"
+fixture "$URL" 200 18 $'needle here\npartial'
+run
+expect_rc 1
+expect_out "incomplete transfer"
+expect_not_out "all snippets present"
+
+start "truncated 2xx body is an availability failure, suppressed by --offline-ok"
+new_sandbox trunc200offline
+registry "$HDR
+| GB-ONE | $URL | 1 | needle here | \`needle\` | a claim |"
+fixture "$URL" 200 18 $'needle here\npartial'
+run --offline-ok
+expect_rc 0
+expect_out "SKIPPED"
+
+# 7f. A partial body must not be CACHED. Two rows citing the same URL: if the truncated
+#     fetch leaves its file in the cache dir, the second row reads that partial file as
+#     a cache hit and verifies against it. Live analogue: three registry rows share
+#     complementary-area/index.js, so one truncated fetch would silently "verify" two
+#     other claims.
+start "truncated 2xx body is not cached for a second row on the same URL"
+new_sandbox trunc200cache
+registry "$HDR
+| GB-ONE | $URL | 1 | needle here | \`needle\` | claim one |
+| GB-TWO | $URL | 1 | needle here | \`needle\` | claim two |"
+fixture "$URL" 200 18 $'needle here\npartial'
+run
+expect_rc 1
+expect_out "GB-ONE"
+expect_out "GB-TWO"
+
 # 8. True network outage: fails normally, but --offline-ok skips it.
 start "network outage fails without flag"
 new_sandbox net
 registry "$HDR
-| GB-A | $URL | 2 | needle here | sym | a claim |"
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
 fixture "$URL" 000 6 ""
 run
 expect_rc 1
@@ -291,7 +371,7 @@ expect_rc 1
 start "network outage skipped with --offline-ok"
 new_sandbox netok
 registry "$HDR
-| GB-A | $URL | 2 | needle here | sym | a claim |"
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
 fixture "$URL" 000 6 ""
 run --offline-ok
 expect_rc 0
@@ -302,8 +382,8 @@ expect_out "SKIPPED"
 start "content failure preserved under --offline-ok"
 new_sandbox mixedoffline
 registry "$HDR
-| GB-A | $URL | 2 | needle here | sym | claim a |
-| GB-B | $URL2 | 2 | needle here | sym | claim b |"
+| GB-ONE | $URL | 2 | needle here | \`x\` | claim a |
+| GB-TWO | $URL2 | 2 | needle here | \`x\` | claim b |"
 fixture "$URL" 404 0 ""
 fixture "$URL2" 000 6 ""
 run --offline-ok
@@ -314,7 +394,7 @@ expect_out "HTTP 404"
 start "dangling GB id fails"
 new_sandbox dangle
 registry "$HDR
-| GB-A | $URL | 2 | needle here | sym | a claim |"
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
 fixture "$URL" 200 0 $'x\nneedle here'
 printf 'see GB-NOPE in docs/upstream-sources.md\n' > "$SANDBOX/docs/note.md"
 run
@@ -323,21 +403,64 @@ expect_out "GB-NOPE"
 
 # 11. Registry ID that does not use the GB- prefix must be rejected, so a
 #     dangling reference cannot arise outside the scanned prefix.
-start "non-GB registry id rejected"
+start "registry id outside the known prefixes is rejected"
 new_sandbox badprefix
 registry "$HDR
-| WPCORE-A | $URL | 2 | needle here | sym | a claim |"
+| WPCORE-A | $URL | 2 | needle here | \`x\` | a claim |"
 fixture "$URL" 200 0 $'x\nneedle here'
 run
 expect_rc 1
-expect_out "prefix"
+expect_out "invalid registry ID"
+
+# 11a. Both prefixes in the closed set are accepted. FT- rows are live on main (the
+#      Snicco Fortress docs), so a change that narrowed ID_REGEX back to GB- only would
+#      break them; this pins the set rather than leaving it to review.
+start "FT- prefix is accepted"
+new_sandbox ftprefix
+registry "$HDR
+| FT-ONE | $URL | 2 | needle here | \`x\` | a claim |"
+fixture "$URL" 200 0 $'x\nneedle here'
+run
+expect_rc 0
+expect_out "all snippets present"
+
+start "dangling FT- reference is detected"
+new_sandbox ftdangle
+registry "$HDR
+| FT-ONE | $URL | 2 | needle here | \`x\` | a claim |"
+fixture "$URL" 200 0 $'x\nneedle here'
+printf 'see FT-NOPE in docs/upstream-sources.md\n' > "$SANDBOX/docs/note.md"
+run
+expect_rc 1
+expect_out "FT-NOPE"
+
+# 11b. An ID matching the GB- prefix but NOT the reference-scan regex (lowercase, or
+#      too short) must be rejected: prose using it would never be scanned, so deleting
+#      the row would leave an undetected dangling citation.
+start "GB- id that the reference scan cannot match is rejected"
+new_sandbox lowerid
+registry "$HDR
+| GB-a | $URL | 2 | needle here | \`x\` | a claim |"
+fixture "$URL" 200 0 $'x\nneedle here'
+run
+expect_rc 1
+expect_out "GB-a"
+
+start "single-character GB- id is rejected"
+new_sandbox shortid
+registry "$HDR
+| GB-X | $URL | 2 | needle here | \`x\` | a claim |"
+fixture "$URL" 200 0 $'x\nneedle here'
+run
+expect_rc 1
+expect_out "GB-X"
 
 # 12. Self-link filtering: a line with BOTH a self-link and a third-party raw URL
 #     must still be reported as an orphan (the third-party citation is not dropped).
 start "self-link does not drop co-located third-party citation"
 new_sandbox selflink
 registry "$HDR
-| GB-A | $URL | 2 | needle here | sym | a claim |"
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
 fixture "$URL" 200 0 $'x\nneedle here'
 printf 'compare https://github.com/dknauss/Sudo/blob/main/x.php with https://raw.githubusercontent.com/WordPress/gutenberg/trunk/z.js\n' \
 	> "$SANDBOX/docs/compare.md"
@@ -350,17 +473,132 @@ expect_out "compare.md"
 start "pure self-link is not an orphan"
 new_sandbox selfonly
 registry "$HDR
-| GB-A | $URL | 2 | needle here | sym | a claim |"
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
 fixture "$URL" 200 0 $'x\nneedle here'
 printf 'see https://github.com/dknauss/Sudo/blob/main/x.php\n' > "$SANDBOX/docs/selfonly.md"
 run
 expect_rc 0
 
+# 12c. The self-link filter must test the matched URL, not the whole `path:url` grep
+#      record — otherwise a checkout whose own directory path contains `dknauss/Sudo`
+#      (e.g. ~/dknauss/Sudo) silently drops every third-party orphan.
+start "self-link filter is not fooled by a repo-named checkout path"
+SANDBOX="$TMP_ROOT/sandbox/dknauss/Sudo"
+IO_DIR="$TMP_ROOT/io/pathname"
+rm -rf "$SANDBOX" "$IO_DIR"
+mkdir -p "$SANDBOX/bin" "$SANDBOX/docs" "$IO_DIR"
+ln -s "$REAL_SCRIPT" "$SANDBOX/bin/verify-sources.sh"
+: > "$IO_DIR/manifest.tsv"
+export FAKE_CURL_MANIFEST="$IO_DIR/manifest.tsv"
+registry "$HDR
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
+fixture "$URL" 200 0 $'x\nneedle here'
+printf 'see https://raw.githubusercontent.com/WordPress/gutenberg/trunk/z.js\n' > "$SANDBOX/docs/newcite.md"
+run
+expect_rc 1
+expect_out "newcite.md"
+
+# The one genuinely grandfathered pair used by 12d-12f. It must stay identical to a row
+# in GRANDFATHERED_CITATIONS, or these cases silently stop testing grandfathering at all —
+# which is exactly the defect 12d carried: its "legacy" URL was
+# raw.githubusercontent.com/WordPress/two-factor/master/a.php, matching no grandfathered
+# pair, so both its lines were ordinary orphans and it exited 1 however grandfathering
+# behaved. A test that cannot fail for its stated reason is indistinguishable from a
+# passing one.
+GF_URL="https://github.com/WordPress/two-factor/blob/c515462d51ac92941685e39293673c08538e16c8/class-two-factor-core.php"
+
+# 12d. Grandfathering is per CITATION, not per file: a NEW upstream URL added to a
+#      grandfathered file must still be a hard failure, while the legacy citation is
+#      only warned about. Both halves are asserted — rc alone cannot tell them apart.
+start "new citation in a grandfathered file still fails"
+new_sandbox grandnew
+registry "$HDR
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
+fixture "$URL" 200 0 $'x\nneedle here'
+mkdir -p "$SANDBOX/docs"
+printf 'legacy %s\nbrand new https://raw.githubusercontent.com/WordPress/gutenberg/trunk/z.js\n' "$GF_URL" \
+	> "$SANDBOX/docs/two-factor-integration.md"
+run
+expect_rc 1
+expect_out "z.js"
+expect_out "grandfathered"
+
+# 12e. The exemption is keyed to path+URL, and the scan dedupes, so without a recorded
+#      occurrence count a NEW claim reusing an ALREADY-grandfathered URL inherits the
+#      exemption forever. CHANGELOG.md is append-only by construction, which is where
+#      that bites. The N+1th citation of a grandfathered pair is a hard failure.
+start "a second citation of a grandfathered url is a hard failure"
+new_sandbox grandcount
+registry "$HDR
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
+fixture "$URL" 200 0 $'x\nneedle here'
+mkdir -p "$SANDBOX/docs"
+printf 'legacy %s\nnew claim reusing the same source %s\n' "$GF_URL" "$GF_URL" \
+	> "$SANDBOX/docs/two-factor-integration.md"
+run
+expect_rc 1
+expect_out "cited 2 times"
+
+# 12f. The counterpart guard: the recorded number of citations must still only warn, or
+#      the fix for 12e would redden every grandfathered file on arrival.
+start "a grandfathered url within its recorded count still only warns"
+new_sandbox grandok
+registry "$HDR
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
+fixture "$URL" 200 0 $'x\nneedle here'
+mkdir -p "$SANDBOX/docs"
+printf 'legacy %s\n' "$GF_URL" > "$SANDBOX/docs/two-factor-integration.md"
+run
+expect_rc 0
+expect_out "grandfathered"
+
+# 12g. The self-link filter is a substring test, so a THIRD-PARTY url whose path merely
+#       contains the repo name is discarded as if it were our own — silently dropping a
+#       real unregistered citation. Only the owner/repo segment of a known host counts.
+start "third-party url containing the repo name is still an orphan"
+new_sandbox selflinkpath
+registry "$HDR
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
+fixture "$URL" 200 0 $'x\nneedle here'
+printf 'see https://raw.githubusercontent.com/WordPress/gutenberg/trunk/dknauss/Sudo/z.js\n' > "$SANDBOX/docs/thirdparty.md"
+run
+expect_rc 1
+expect_out "thirdparty.md"
+
+# 12h. The count must match EXACTLY, not merely stay under the ceiling. A count that has
+#       FALLEN means a citation was migrated without updating the row, leaving a stale
+#       allowance that a later claim can spend — the exemption would then cover a citation
+#       nobody ever granted it to. Exact matching also forces the documented decrement
+#       workflow rather than relying on it.
+start "a grandfathered pair cited fewer times than recorded is a hard failure"
+new_sandbox grandfewer
+registry "$HDR
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
+fixture "$URL" 200 0 $'x\nneedle here'
+printf 'only one https://plugins.svn.wordpress.org/patchstack/trunk/includes/login.php\n' \
+	> "$SANDBOX/docs/two-factor-ecosystem.md"
+run
+expect_rc 1
+expect_out "two-factor-ecosystem.md"
+
+# 12i. The self-link filter must bound the repository NAME, not just its prefix. A
+#       citation of a different repo whose name merely starts with the same string is a
+#       third-party source and must still fail.
+start "a repo whose name merely starts with Sudo is not a self-link"
+new_sandbox selflinkprefix
+registry "$HDR
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
+fixture "$URL" 200 0 $'x\nneedle here'
+printf 'see https://github.com/dknauss/Sudo-tools/blob/main/z.php\n' > "$SANDBOX/docs/othersudo.md"
+run
+expect_rc 1
+expect_out "othersudo.md"
+
 # 13. Non-raw host URL (rendered blob) is rejected.
 start "rendered blob url rejected"
 new_sandbox blob
 registry "$HDR
-| GB-A | https://github.com/WordPress/gutenberg/blob/trunk/x.js | 2 | needle here | sym | a claim |"
+| GB-ONE | https://github.com/WordPress/gutenberg/blob/trunk/x.js | 2 | needle here | \`x\` | a claim |"
 run
 expect_rc 1
 expect_out "raw-text source"
@@ -375,7 +613,7 @@ new_sandbox gitignored
 git -C "$SANDBOX" init -q
 printf 'reviewer-approved\n' > "$SANDBOX/.gitignore"
 registry "$HDR
-| GB-A | $URL | 2 | needle here | sym | a claim |"
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
 fixture "$URL" 200 0 $'x\nneedle here'
 printf 'verified https://raw.githubusercontent.com/WordPress/gutenberg/trunk/z.js\n' \
 	> "$SANDBOX/reviewer-approved"
@@ -391,7 +629,7 @@ new_sandbox gitkept
 git -C "$SANDBOX" init -q
 printf 'reviewer-approved\n' > "$SANDBOX/.gitignore"
 registry "$HDR
-| GB-A | $URL | 2 | needle here | sym | a claim |"
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
 fixture "$URL" 200 0 $'x\nneedle here'
 printf 'verified https://raw.githubusercontent.com/WordPress/gutenberg/trunk/z.js\n' \
 	> "$SANDBOX/docs/new-note.md"
@@ -399,6 +637,239 @@ run
 expect_rc 1
 expect_out "outside the registry"
 expect_out "new-note.md"
+
+# 15. A symbol written `foo()` must match a definition written `foo( $args )`.
+#     The registry records functions in the conventional shorthand with empty parens;
+#     upstream defines them with parameters. A fixed-string search for the literal
+#     `foo()` therefore matches only prose mentions (`@see foo()`) and never the
+#     definition — which inverts the check: it passes on documentation and fails on
+#     the code it is meant to anchor to. Real instance: GB-GRANTSA-NOCHECK recorded
+#     `grant_super_admin()`, and `grep -F 'grant_super_admin()'` returns nothing
+#     against wp-includes/capabilities.php while the definition sits at L1215.
+start "symbol foo() matches a definition written foo( \$args )"
+new_sandbox parenshorthand
+registry "$HDR
+| GB-FN | $URL | 4 | needle here | \`do_thing()\` | a claim |"
+fixture "$URL" 200 0 $'x\nfunction do_thing( $arg ) {\ny\nneedle here'
+run
+expect_rc 0
+
+# 15b. And the check still bites when the symbol genuinely is not in the file, so
+#      15 cannot be satisfied by dropping the anchor check altogether.
+start "symbol absent from the file is still a failure"
+new_sandbox parenabsent
+registry "$HDR
+| GB-FN | $URL | 4 | needle here | \`missing_thing()\` | a claim |"
+fixture "$URL" 200 0 $'x\nfunction do_thing( $arg ) {\ny\nneedle here'
+run
+expect_rc 1
+expect_out "enclosing symbol"
+
+# 15c. A `foo()` anchor asserts the DECLARATION. A call site is a weaker witness than
+#      the claim, so an earlier call must not satisfy it. Live case: GB-AUTOUPDATER-UPGRADE,
+#      whose declaration sits at L362. The old bare `foo(` needle is a PREFIX and matched
+#      L195, `public function should_update(` — a DIFFERENT method ending in the anchor
+#      name, above the snippet — so the row passed having never seen the function it names.
+start "foo() anchor is not satisfied by a call site alone"
+new_sandbox declcall
+registry "$HDR
+| GB-FN | $URL | 4 | needle here | \`do_thing()\` | a claim |"
+fixture "$URL" 200 0 $'x\n\tdo_thing( $arg );\ny\nneedle here'
+run
+expect_rc 1
+expect_out "enclosing symbol"
+
+# 15d. The counterpart: a real declaration above the snippet still passes, so 15c is not
+#      satisfied by refusing every function anchor. All 16 `()` anchors in the live
+#      registry have a `function NAME(` declaration at or before their cited line, so
+#      requiring one tightens without reddening any existing row.
+start "foo() anchor is satisfied by a declaration even with a call site present"
+new_sandbox declok
+registry "$HDR
+| GB-FN | $URL | 5 | needle here | \`do_thing()\` | a claim |"
+fixture "$URL" 200 0 $'function do_thing( $arg ) {\n}\n\tdo_thing( 1 );\ny\nneedle here'
+run
+expect_rc 0
+
+# 15e. Multiple code spans in an anchor cell are a CONJUNCTION, not alternatives. The
+#      rows express containment — "`X` in `Y`" — so ORing them means either half alone
+#      satisfies the check, and the more carefully a row is disambiguated the weaker its
+#      check becomes. All spans must resolve.
+start "every code span in an anchor cell must resolve"
+new_sandbox anchorand
+registry "$HDR
+| GB-FN | $URL | 4 | needle here | \`present_thing\` in \`absent_thing\` | a claim |"
+fixture "$URL" 200 0 $'x\npresent_thing\ny\nneedle here'
+run
+expect_rc 1
+expect_out "enclosing symbol"
+
+# 15f. And the conjunction passes when both halves are genuinely present, so 15e cannot
+#      be satisfied by failing every multi-span row.
+start "a conjunction anchor passes when all spans resolve"
+new_sandbox anchorandok
+registry "$HDR
+| GB-FN | $URL | 5 | needle here | \`present_thing\` in \`outer_thing\` | a claim |"
+fixture "$URL" 200 0 $'outer_thing\nx\npresent_thing\ny\nneedle here'
+run
+expect_rc 0
+
+# 15g. A JSX element anchor is written closed (`<Foo>`) while the source carries an open
+#      tag with props (`<Foo scope={ x }>`). This is a USAGE anchor — GB-ICON-SWAP claims
+#      the toggle is "rendered inside `<PinnedItems>`" — so a usage-shaped witness IS the
+#      claim, not a proxy for it. Contrast 15c, where a call site is a weaker witness than
+#      the declaration being asserted.
+start "JSX element anchor matches an open tag carrying props"
+new_sandbox jsxopen
+registry "$HDR
+| GB-FN | $URL | 4 | needle here | \`<Foo>\` | a claim |"
+fixture "$URL" 200 0 $'x\n<Foo scope={ scope }>\ny\nneedle here'
+run
+expect_rc 0
+
+# 15h. A qualified anchor asserts a method IN A NAMED CLASS. Searching only for
+#      `function method(` drops the identity the qualification exists to pin: another
+#      class in the same file declaring the same method name before the snippet would
+#      satisfy it. Both the class and the method declaration must resolve.
+start "qualified anchor is not satisfied by the same method on another class"
+new_sandbox qualwrongclass
+registry "$HDR
+| GB-FN | $URL | 6 | needle here | \`Right_Class::do_thing()\` | a claim |"
+fixture "$URL" 200 0 $'class Other_Class {\n\tfunction do_thing( $a ) {}\n}\nx\ny\nneedle here'
+run
+expect_rc 1
+expect_out "enclosing symbol"
+
+# 15i. And the qualified form still passes when both halves are genuinely present.
+start "qualified anchor passes when class and method both resolve"
+new_sandbox qualok
+registry "$HDR
+| GB-FN | $URL | 5 | needle here | \`Right_Class::do_thing()\` | a claim |"
+fixture "$URL" 200 0 $'class Right_Class {\n\tfunction do_thing( $a ) {}\n}\ny\nneedle here'
+run
+expect_rc 0
+
+# 16. A multiword anchor must be searched whole. Unquoted command substitution
+#     word-splits it, so `## Relationship between the timeouts` becomes five needles
+#     and the generic `##` matches ANY heading — the check then passes vacuously for
+#     every markdown source, which fails OPEN and is worse than the false positives
+#     the needle forms were added to fix.
+start "multiword anchor absent from the file still fails"
+new_sandbox multiword
+registry "$HDR
+| GB-HDR | $URL | 3 | needle here | \`## Missing Heading\` | a claim |"
+fixture "$URL" 200 0 $'## Other Heading\nx\nneedle here'
+run
+expect_rc 1
+expect_out "enclosing symbol"
+
+# 16b. And a multiword anchor that IS present still passes, so 16 cannot be satisfied
+#      by refusing every anchor containing a space.
+start "multiword anchor present in the file passes"
+new_sandbox multiwordok
+registry "$HDR
+| GB-HDR | $URL | 3 | needle here | \`## Real Heading\` | a claim |"
+fixture "$URL" 200 0 $'## Real Heading\nx\nneedle here'
+run
+expect_rc 0
+
+# 17. A row listed as pre-dating the anchor requirement WARNS rather than failing, so
+#     the requirement can ship before every existing row satisfies it. Without this the
+#     check is red on arrival against the registry in the same commit — and a gate that
+#     is red on arrival is one people learn to ignore, which is the harm the checker
+#     exists to prevent.
+start "unanchored row listed as legacy warns, does not fail"
+new_sandbox unanchored_legacy
+registry "$HDR
+| FT-EULA | $URL | 2 | needle here | clause 3.1 of some document | a claim |"
+fixture "$URL" 200 0 $'x\nneedle here'
+run
+expect_rc 0
+expect_out "predates the anchor requirement"
+
+# 17b. An unanchored row NOT on that list still fails, so 17 cannot be satisfied by
+#      dropping the anchor requirement altogether.
+start "unanchored row not listed still fails"
+new_sandbox unanchored_new
+registry "$HDR
+| FT-BRANDNEW | $URL | 2 | needle here | clause 3.1 of some document | a claim |"
+fixture "$URL" 200 0 $'x\nneedle here'
+run
+expect_rc 1
+expect_out "anchor token"
+
+# 18. A legacy-exempt row is exempt from the ANCHOR check only — its snippet must
+#     still be verified. Skipping the rest of verification would turn a narrow
+#     exemption into a total one, so a legacy row whose upstream snippet vanished
+#     would pass silently. That is the same fail-open shape as the word-splitting bug.
+start "legacy-exempt row still fails when its snippet is gone"
+new_sandbox legacy_snippet_gone
+registry "$HDR
+| FT-EULA | $URL | 2 | needle here | clause 3.1 of some document | a claim |"
+fixture "$URL" 200 0 $'x\nsomething else entirely'
+run
+expect_rc 1
+expect_out "snippet no longer present upstream"
+
+# 18b. And it still passes when the snippet IS present, so 18 cannot be satisfied by
+#      failing every legacy row.
+start "legacy-exempt row passes when its snippet is present"
+new_sandbox legacy_snippet_ok
+registry "$HDR
+| FT-EULA | $URL | 2 | needle here | clause 3.1 of some document | a claim |"
+fixture "$URL" 200 0 $'x\nneedle here'
+run
+expect_rc 0
+
+# 21. A `Class::method()` anchor expands to two conjuncts — `class X` and
+#     `function m(` — and AND only proves each exists above the snippet, not that the
+#     method belongs to that class. If the named class stays but the method moves to a
+#     DIFFERENT class earlier in the file, both needles still resolve and the row passes
+#     while asserting something false. The existing coverage tests a MISSING class, which
+#     this case satisfies, so it cannot catch it.
+start "qualified anchor fails when the method belongs to another class"
+new_sandbox qualified_split
+registry "$HDR
+| GB-QUAL | $URL | 6 | needle here | \`WP_Ability::execute()\` | a claim |"
+fixture "$URL" 200 0 $'class WP_Ability {\n}\nclass Other {\n\tfunction execute( $a ) {}\n}\nneedle here'
+run
+expect_rc 1
+
+# 21b. …and passes when the method really is inside the named class, so 21 cannot be
+#      satisfied by failing every qualified anchor.
+start "qualified anchor passes when the method is inside its class"
+new_sandbox qualified_bound
+registry "$HDR
+| GB-QUAL | $URL | 3 | needle here | \`WP_Ability::execute()\` | a claim |"
+fixture "$URL" 200 0 $'class WP_Ability {\n\tfunction execute( $a ) {\nneedle here'
+run
+expect_rc 0
+
+# 21c. …and a CORRECT citation must not red just because an earlier class declares a
+#      method of the same name. Searching for `function m(` from the top of the file
+#      lands in the interface below and reports "method declared before the class",
+#      which is both a false failure and a misleading one — it sends the reader to
+#      re-read a file where the stated fact is not what is wrong. The ordinary PHP
+#      shape is an interface or abstract base above its implementation in one file.
+start "qualified anchor does not red when an earlier class shares the method name"
+new_sandbox qualified_shadow
+registry "$HDR
+| GB-QUAL | $URL | 6 | needle here | \`WP_Ability::execute()\` | a claim |"
+fixture "$URL" 200 0 $'interface Ability_Interface {\n\tpublic function execute( $input );\n}\nclass WP_Ability implements Ability_Interface {\n\tpublic function execute( $input ) {\nneedle here'
+run
+expect_rc 0
+
+# 21d. …and the mirror of 21: the method exists ONLY in an earlier class, which is the
+#      shape the header names — "another class in the same file declaring the same
+#      method name above the snippet". The conjunct loop cannot see it, because
+#      `function m(` is genuinely present at or before the cited line.
+start "qualified anchor fails when the method is only in an earlier class"
+new_sandbox qualified_above
+registry "$HDR
+| GB-QUAL | $URL | 6 | needle here | \`WP_Ability::execute()\` | a claim |"
+fixture "$URL" 200 0 $'class Other {\n\tfunction execute( $a ) {}\n}\nclass WP_Ability {\n}\nneedle here'
+run
+expect_rc 1
 
 # --- summary ---------------------------------------------------------------------
 echo
