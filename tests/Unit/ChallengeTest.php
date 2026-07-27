@@ -2094,6 +2094,44 @@ class ChallengeTest extends TestCase
 	}
 
 	/**
+	 * #322: a target that renders NOTHING is refused, even though it is a
+	 * non-empty array.
+	 *
+	 * `describe_stash_target()` skips any entry whose value is not a non-empty
+	 * scalar, so `['plugin' => []]` produces no `Target:` line at all — the exact
+	 * vacuous-confirmation state this guard exists to prevent — while satisfying a
+	 * naive `! empty()` check.
+	 *
+	 * Guarded by asking the renderer rather than re-deriving its rule, so the
+	 * eligibility check and the thing the user actually sees cannot drift apart.
+	 */
+	public function test_bound_stash_whose_target_renders_nothing_is_not_replayed(): void
+	{
+		$secret = 'super-secret-proof';
+		$_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE] = $secret;
+
+		$stash = $this->boundPostStash($secret);
+		// Non-empty array, but no entry describe_stash_target() will render.
+		$stash['target'] = array('plugin' => array());
+		$stash['target_complete'] = true;
+
+		$this->stash->shouldReceive('get')->once()->andReturn($stash);
+		$this->stash->shouldReceive('delete')->once();
+		$this->stubReplayEnv();
+
+		$data = $this->invokeReplay('unrenderable-target-key', true);
+
+		$this->assertArrayNotHasKey(
+			'replay',
+			$data,
+			'A target that renders no confirmation must fall back to the v1 landing'
+		);
+		$this->assertTrue($data['post_replay_blocked']);
+
+		unset($_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE]);
+	}
+
+	/**
 	 * #322: a missing `target` key is the same refusal as an empty one.
 	 *
 	 * Guards the shape rather than one value — a stash written by an older build, or

@@ -1143,6 +1143,19 @@ class Challenge {
 			return false;
 		}
 
+		// …and a non-empty target is still not a confirmation if it renders nothing.
+		// describe_stash_target() skips any entry that is not a non-empty scalar, so
+		// a corrupted or forged `[ 'plugin' => [] ]` satisfies the check above while
+		// producing NO `Target:` line — the same vacuous state, one shape further out.
+		//
+		// Asked of the renderer rather than re-derived here, deliberately: the thing
+		// that must be true is "the user was shown a description", and the only
+		// authority on that is the code that draws it. A second copy of the predicate
+		// would be free to drift from the first, which is how this bug existed.
+		if ( '' === $this->describe_stash_target( $stash ) ) {
+			return false;
+		}
+
 		$expected = isset( $stash['binding_hash'] ) && is_string( $stash['binding_hash'] ) ? $stash['binding_hash'] : '';
 
 		if ( '' === $expected ) {
