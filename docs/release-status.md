@@ -134,6 +134,35 @@ merits, not inherited from this release."* It was, and the merged payload is add
 security fixes: **`4.9.0`**. (Preserved from the closed PR #390, which would otherwise have
 taken it with it.)
 
+**One documented behaviour DOES break, and it is not a removal.** The `#322` v2 layer
+(PR #350) will not auto-replay a stashed action unless the confirmation named the whole
+effect. `Request_Stash::target_describes_payload()` compares the stashed payload against
+a fixed `TARGET_PARAMS` set, and a payload field in neither that set nor
+`NON_EFFECT_FIELDS` marks the target incomplete, which refuses replay.
+
+That reaches a **documented** integration. `docs/developer-reference.md` shows a custom
+rule allowlisting `array( '_wpnonce', '_wp_http_referer', 'action', 'item_id' )`, and
+`item_id` is in neither set — so that rule auto-replayed at `4.8.0` and will not at
+`4.9.0`. Verified: `target_describes_payload`, `TARGET_PARAMS` and
+`may_replay_bound_stash` have **zero** occurrences at the `v4.8.0` tag.
+
+It is classified **MINOR with disclosure** rather than MAJOR, deliberately:
+
+- Nothing an integrator wrote stops working. The rule still matches, still gates, still
+  reauthenticates; no symbol is removed, no signature or rule structure changes. What
+  changes is that the user re-issues the action instead of it resuming by itself.
+- The removed behaviour **is the vulnerability**. Auto-replay without informed
+  confirmation is precisely what `#322` reports. `VERSIONING.md` files a
+  *backward-compatible* security fix under PATCH; this one is not backward-compatible,
+  which places it above PATCH, and calling a security fix MAJOR because the unsafe
+  behaviour was documented would price every such fix out of a minor.
+
+What is **not** available is silence: an integrator with a custom rule loses seamless
+replay on upgrade, so it belongs in the release notes and the Upgrade Notice, not only
+here. Custom rules that want replay back should express their effect through a
+recognised target parameter — see the replay-eligibility contract in
+`docs/developer-reference.md`.
+
 **The forced reauthentication is communicated in prose, not in the version digit.**
 Every user must reauthenticate once after upgrading, because pre-`4.9.0` sessions carry
 no proof entry and no migration runs. That is the strongest argument anyone will make
@@ -183,7 +212,8 @@ matrix) rides the milestone as a **tag-time gate**, not payload.
 replay its own adversarial pass; #350 merged both before that happened. That review has
 since been run — the brief and its eight findings are on issue
 [#322](https://github.com/dknauss/Sudo/issues/322). The first (a stash whose
-confirmation named nothing was replayed anyway) is fixed in PR #397. The remainder
+confirmation named nothing is replayed anyway) has a fix open in PR #397 — **not yet
+merged**, so `may_replay_bound_stash()` on `main` still checks only `target_complete`. The remainder
 should be triaged before the tag.
 
 **Membership rule.** A review finding that is not a regression introduced by the PR
