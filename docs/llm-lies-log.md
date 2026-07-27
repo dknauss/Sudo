@@ -1707,9 +1707,14 @@ C2. REDUNDANT MEMORY DUPLICATING CLAUDE.md
            then read "eight further rows" because it was counting the two artifacts the fix
            had just left behind. Caught by the pre-commit reviewer, which replicated the
            anchor resolution across all 54 rows instead of reading the prose. The disclaimers
-           are now unbackticked, and the same hazard is already documented in
-           `bin/verify-sources.sh` itself: "a row's own disambiguating prose then WEAKENS it:
-           the more carefully it is written, the more alternatives it offers".
+           are now unbackticked. A neighbouring hazard is documented in
+           `bin/verify-sources.sh` itself — "a row's own disambiguating prose then WEAKENS it:
+           the more carefully it is written, the more alternatives it offers" — but that
+           sentence describes the OR semantics the script two lines later rejects in favour of
+           AND, so it is the OR-variant of this, not this. Under the shipped AND the backticked
+           disclaimer weakened nothing: the good anchor stayed required and enforced. What went
+           wrong was narrower and is worth naming exactly — a false witness recorded in the
+           registry, and an ambiguity count inflated by the artifact of its own fix.
            "How to add a row" now says that a token merely sitting above the line proves an
            address, not containment. Left open on purpose, rather than turned
            into a rule from two coincident examples: whether the criterion should be
@@ -1771,11 +1776,66 @@ C2. REDUNDANT MEMORY DUPLICATING CLAUDE.md
            rebase work that was already merged, which is a duplicate-work hazard of the kind
            the concurrent-session rules exist to prevent — reached, this time, through a
            claim rather than through a missing check.
-   Fix:    Before asserting that a branch needs rebasing, compare its **whole diff** against
-           `main` — `git diff main...branch` empty, or `git cherry main branch` reporting no
-           unmerged commits. An earlier draft of this line said to grep for one distinctive
-           token, which proves only that the token is present: a branch carrying two changes,
-           or one whose chosen token already existed independently, would read as spent while
-           work remained, and the remedy would then destroy it. That is the same defect as
-           #67 — accepting a witness weaker than the claim — written into the fix for a
-           different one.
+   Fix:    **There is no one-liner, and two drafts of this line pretended otherwise.**
+           The first said to grep `main` for one distinctive token, which proves only that
+           the token landed: a branch carrying two changes, or one whose token existed
+           independently, reads as spent while work remains — and the next step after "spent"
+           is deletion. The second replaced it with `git diff main...branch` empty or
+           `git cherry main branch` clean, and **neither was run against the incident on this
+           very page**. Run now, against `f0e9ebd`:
+
+               $ git diff --stat origin/main...f0e9ebd   # 6 files, 1086 insertions
+               $ git cherry origin/main f0e9ebd          # every commit marked '+'
+
+           Both report "work remains" for the branch this entry establishes is spent, because
+           three-dot diffs from the merge base show the branch's own changes regardless of
+           what landed, and `git cherry` compares patch-ids that a squash never preserves.
+           The replacement was strictly worse than what it replaced — the grep it criticised
+           returned the right answer here — and the paragraph called that grep "a witness
+           weaker than the claim" while itself never being tested against the claim.
+           What actually works is not a boolean. Diff the branch against the commit that
+           claims to contain it, restricted to the paths the branch touched, and **read the
+           result**: `git diff f0e9ebd 650a451 -- <paths>` returns 5.7 KB here, one
+           substantive row difference, which is the answer — the branch is contained except
+           for adjacent work the squash carried. No exit status expresses that.
+
+69. A CLEAN NEGATIVE THAT WAS AN ARTEFACT OF THE SHELL — zsh does not word-split, so a
+    multi-path pathspec matched nothing
+   Files:  Method, not a file. It occurred while verifying the command that #68's Fix line
+           prescribes, i.e. inside the correction for accepting a witness weaker than the
+           claim.
+   Claim:  "`git diff <branch> <commit> -- <paths the branch touched>` is empty, so the
+           branch is contained." Stated after running it twice and seeing no output both
+           times, and about to be written into #68 as the verified remedy.
+   Reality: The paths were held in a variable and passed unquoted — `-- $P`. This shell is
+           **zsh**, which does not word-split unquoted parameter expansions, so all three
+           paths arrived as ONE pathspec, matched no file, and produced an empty diff and
+           exit 0. Re-run with the paths as separate arguments, the same comparison returns
+           5.7 KB:
+
+               $ P="bin/verify-sources.sh docs/upstream-sources.md tests/verify-sources/run.sh"
+               $ git diff --stat f0e9ebd 650a451 -- $P        # zsh: 0 bytes, exit 0
+               $ git diff --stat f0e9ebd 650a451 -- bin/verify-sources.sh \
+                     docs/upstream-sources.md tests/verify-sources/run.sh
+                docs/upstream-sources.md | 2 +-
+
+           The tell was available and was noticed: the two files differ in length, 103 lines
+           against 184, so an empty diff between them was impossible. That impossibility is
+           what prompted the re-run rather than any suspicion of the shell.
+   Source: This repository and this session's shell, 2026-07-27. `echo $SHELL` and the
+           environment block both report zsh; the same command under `bash -c` splits and
+           returns the 5.7 KB.
+   Notes:  The same shape as #66 — a search that returns nothing for a reason unrelated to
+           the question — but a different mechanism, and a more portable one: #66 needed a
+           squash merge and a force-push to arise, this needs only a variable and the wrong
+           shell. Command snippets in this log and in `bin/` are written for bash, run by
+           agents in zsh, and fail SILENTLY in exactly this direction: empty output, exit 0,
+           which reads as "verified clean".
+           Worth stating plainly because of where it happened. The command was being run to
+           satisfy a review finding about prescribing checks that had never been executed —
+           and the execution that was supposed to close that finding produced a false pass.
+           An unexplained empty result is not evidence; it is a question.
+   Fix:    Quote or explicitly split path lists (`-- ${=P}` in zsh, or pass them as separate
+           arguments), and treat an empty result as unverified until something about the
+           inputs explains why it should be empty. Where a length, a count, or a known
+           difference contradicts the emptiness, the emptiness is the thing that is wrong.
