@@ -556,6 +556,33 @@ expect_rc 1
 expect_out "outside the registry"
 expect_out "new-note.md"
 
+# 15. A symbol written `foo()` must match a definition written `foo( $args )`.
+#     The registry records functions in the conventional shorthand with empty parens;
+#     upstream defines them with parameters. A fixed-string search for the literal
+#     `foo()` therefore matches only prose mentions (`@see foo()`) and never the
+#     definition — which inverts the check: it passes on documentation and fails on
+#     the code it is meant to anchor to. Real instance: GB-GRANTSA-NOCHECK recorded
+#     `grant_super_admin()`, and `grep -F 'grant_super_admin()'` returns nothing
+#     against wp-includes/capabilities.php while the definition sits at L1215.
+start "symbol foo() matches a definition written foo( \$args )"
+new_sandbox parenshorthand
+registry "$HDR
+| GB-FN | $URL | 4 | needle here | \`do_thing()\` | a claim |"
+fixture "$URL" 200 0 $'x\nfunction do_thing( $arg ) {\ny\nneedle here'
+run
+expect_rc 0
+
+# 15b. And the check still bites when the symbol genuinely is not in the file, so
+#      15 cannot be satisfied by dropping the anchor check altogether.
+start "symbol absent from the file is still a failure"
+new_sandbox parenabsent
+registry "$HDR
+| GB-FN | $URL | 4 | needle here | \`missing_thing()\` | a claim |"
+fixture "$URL" 200 0 $'x\nfunction do_thing( $arg ) {\ny\nneedle here'
+run
+expect_rc 1
+expect_out "enclosing symbol"
+
 # --- summary ---------------------------------------------------------------------
 echo
 echo "verify-sources tests: $pass passed, $fail failed"

@@ -242,7 +242,40 @@ while IFS= read -r raw_row; do
 	url="$(clean_field "$url")"
 	line="$(clean_field "$line")"
 	snippet="$(clean_field "$snippet")"
-	# Keep the symbol column's backticks: they delimit the machine-checkable anchor
+	# Candidate search forms for a recorded symbol, most specific first.
+#
+# A symbol is written the way a human names it; a declaration is written the way the
+# language requires. Two mismatches account for every false positive seen against the
+# live registry:
+#
+#   `foo()`              — conventional shorthand. Upstream declares `foo( $args )`, so
+#                          the literal `foo()` matches only prose (`@see foo()`) and
+#                          never the declaration, anchoring the check to documentation.
+#   `Class::method()`    — qualified name. The declaration line carries no class prefix
+#                          (`public static function method( $args )`), so the qualified
+#                          form never appears at all.
+#
+# Emitting the unqualified, paren-stripped form as a fallback keeps the check honest
+# without loosening it: an anchor absent from the file in every form still fails, and
+# the at-or-before-line test still decides enclosure.
+symbol_needles() {
+	local raw="$1"
+	printf '%s\n' "$raw"
+	case "$raw" in
+		*'()') printf '%s\n' "${raw%)}" ;;
+	esac
+	case "$raw" in
+		*'::'*)
+			local tail="${raw##*::}"
+			printf '%s\n' "$tail"
+			case "$tail" in
+				*'()') printf '%s\n' "${tail%)}" ;;
+			esac
+			;;
+	esac
+}
+
+# Keep the symbol column's backticks: they delimit the machine-checkable anchor
 	# tokens. clean_field strips the outer pair, which is right for the other columns
 	# and wrong here.
 	symbol_raw="${symbol//$ESC/|}"
@@ -367,8 +400,30 @@ while IFS= read -r raw_row; do
 	anchor_seen=""
 	while IFS= read -r anchor; do
 		[ -n "$anchor" ] || continue
-		anchor_line="$(grep -nF -- "$anchor" "$file_path" | head -n1 || true)"
-		anchor_line="${anchor_line%%:*}"
+		# A symbol recorded as `foo()` is the conventional shorthand for a function.
+		# Upstream declares it as `foo( $args )`, so a fixed-string search for the
+		# literal `foo()` matches only PROSE mentions — `@see foo()` in a docblock —
+		# and never the declaration. That inverts the check: it anchors to
+		# documentation and misses the code. Drop the closing paren so `foo(` matches
+		# the declaration, and prose mentions still match as a prefix.
+		# Try the anchor as written, then progressively-normalised forms, and prefer a
+		# form whose first occurrence satisfies the at-or-before-line test. Taking the
+		# first form that matches ANYTHING is wrong: `foo()` matches a `@see foo()`
+		# docblock far below the snippet, which would then decide the check against a
+		# declaration sitting right above it.
+		anchor_line=""
+		anchor_best=""
+		for anchor_needle in $(symbol_needles "$anchor"); do
+			cand="$(grep -nF -- "$anchor_needle" "$file_path" | head -n1 || true)"
+			cand="${cand%%:*}"
+			[ -n "$cand" ] || continue
+			[ -n "$anchor_best" ] || anchor_best="$cand"
+			if [ "$cand" -le "$actual_line" ]; then
+				anchor_best="$cand"
+				break
+			fi
+		done
+		anchor_line="$anchor_best"
 		if [ -n "$anchor_line" ]; then
 			anchor_seen="$anchor_seen $anchor(L$anchor_line)"
 			if [ "$anchor_line" -le "$actual_line" ]; then
