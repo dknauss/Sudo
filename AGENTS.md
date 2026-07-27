@@ -321,15 +321,25 @@ So, before a command reaches a doc:
 - Prefer describing the state to be corrected over supplying a command, when the safe
   command depends on context you cannot see.
 
-### Read the repo, not the mailbox
+### Read the repo, not the mailbox — and verify the question, not the claim
 
-A retraction does not reach anyone who already acted on the claim. #55 also happened because
-a correction arrived an hour after the original analysis, and the analysis had already been
-acted on — that is a property of message passing, not of anyone's care.
+A retraction does not reach anyone who already acted on the claim. #55 happened partly
+because a correction arrived an hour after the original analysis, and the analysis had
+already been acted on — a property of message passing, not of anyone's care.
 
 So when a claim from another session is about to become a change in the repo: **re-derive it
-with a command before acting**, and prefer `gh`/`git` queries over recollection of what
-someone said. Messages are a lossy cache of state you can query directly.
+with a command before acting**, and prefer `gh`/`git` queries over recollection.
+
+**Running a command is not sufficient.** A second incident the same night: one session
+reported that a documented contract was missing, having grepped `main` and one branch; a
+second session verified the absence in exactly those two places and wrote a replacement. The
+contract already existed on a third, unmerged branch. Both greps ran; both returned zero;
+the conclusion was still wrong, because **the message had chosen the scope of the check**.
+
+The rule is therefore *verify the question, not the claim*. "Does this exist?" is answered by
+`git branch -r` and a sweep, not by re-running the search the message handed you. This
+survives the common case where the claim is honest and merely narrow — which is most cases,
+and which a check for dishonesty would miss entirely.
 
 ### Run the mechanical checks after *every* edit, including comment-only ones
 
