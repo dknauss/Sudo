@@ -13,12 +13,7 @@ test.describe( 'WP Sudo alternative stack smoke tests', () => {
         await visitAdminPage( 'options-general.php', 'page=wp-sudo-settings' );
 
         await expect( page ).toHaveURL( /page=wp-sudo-settings$/ );
-        // Landed on the neutral dashboard rather than the requested screen. The
-        // convenience of returning to where you were is deliberately traded away:
-        // a destination the requester chose, reached after a successful challenge,
-        // executes under the sudo authority just minted.
-        await expect( page ).not.toHaveURL( new RegExp( 'page=wp-sudo-settings' ) );
-        expect( page.url() ).not.toContain( 'page=wp-sudo-settings' );
+        await expect( page.locator( 'h1' ) ).toContainText( 'Sudo' );
         await expect( page.locator( '.wrap' ) ).toBeVisible();
     } );
 
@@ -194,7 +189,10 @@ test.describe( 'WP Sudo alternative stack smoke tests', () => {
             page.locator( '#wp-sudo-challenge-password-step a.button:has-text("Cancel")' ).click(),
         ] );
 
-        await expect( page.locator( 'h1' ) ).toContainText( 'Sudo' );
+        // #322: cancel lands neutral too. The requested settings screen must not be
+        // reached — this user may already hold sudo authority, which is exactly when a
+        // requester-chosen destination is most dangerous.
+        expect( page.url() ).not.toContain( 'page=wp-sudo-settings' );
 
         const cookies = await context.cookies();
         expect(
