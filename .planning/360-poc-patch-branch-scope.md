@@ -27,7 +27,11 @@ the expensive part by deferring it.
 ## The other enabling fact
 
 `@wordpress/env` accepts a local core checkout — `"core": "../wordpress-develop/build"` (and
-`/src`), documented in its README. So **the Playwright + wp-env harness already in this repo
+`/src`), documented in its README. **Not registered in `docs/upstream-sources.md`**, and
+deliberately so for now: a row needs a prefix the checker admits (`GB-`, `FT-`), neither of
+which fits `@wordpress/env`, and widening the set means editing `bin/verify-sources.sh` while
+#377 is open on that file. So this claim is **unverified against drift** — re-check the README
+before relying on it, and register it once the prefix set can take the entry. So **the Playwright + wp-env harness already in this repo
 can drive patched core**, which is what makes the acceptance test affordable rather than a
 new test platform.
 
