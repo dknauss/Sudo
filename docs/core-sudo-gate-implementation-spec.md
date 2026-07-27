@@ -401,12 +401,15 @@ is defeated without ever touching either option:
   and nothing re-validates. **Fix:** the invariant must also fire on capability writes to
   whichever role is *currently* the registration default, not only on writes to the policy
   options.
-- **Multisite signs users up by a different route entirely.** Verified: the activation path
-  calls `add_user_to_blog( $blog_id, $details['user_id'], $details['role'] )`
-  (`ms-functions.php:2296`) with the role carried in the **signup meta** — it never consults
-  `default_role`. A policy enforced only on that option therefore does not constrain
-  network signups at all. **Fix:** gate the signup-meta role on the same invariant, or
-  state plainly that the policy is single-site only.
+- **Multisite signs users up by a different route entirely.** `wpmu_activate_signup()` fires
+  `wpmu_activate_user` with the signup row's unserialised meta, and `add_new_user_to_blog()`
+  — hooked to that action — reads the role straight out of that meta and hands it to
+  `add_user_to_blog()`. `default_role` is never consulted on this path. A policy enforced
+  only on that option therefore does not constrain network signups at all. See
+  `GB-MS-SIGNUP-ROLE` in `docs/upstream-sources.md`, whose row also records the wrong line
+  this bullet cited until #421's audit (`llm-lies-log.md` #59). **Fix:** gate the
+  signup-meta role on the same invariant, or state plainly that the policy is single-site
+  only.
 
 The general shape of the bug is worth naming, because it recurs: **enforcing a policy where
 it is *written* rather than where it is *used* leaves every other route to the same state
