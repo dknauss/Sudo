@@ -607,6 +607,15 @@ do_action( 'wp_sudo_action_allowed', int $user_id, string $rule_id, string $surf
 do_action( 'wp_sudo_action_passed', int $user_id, string $rule_id, string $surface ); // Active session (v3.0.0).
 do_action( 'wp_sudo_action_replayed', int $user_id, string $rule_id );
 
+// Fires when a stashed action was NOT replayed after reauthentication (#322).
+// The counterpart to the above: without it the fail-closed path is silent, so a
+// reauthentication completed in a browser that did not start the action leaves no
+// audit trail and looks identical to nothing happening. $reason is one of
+// no_credential_this_request, redacted_fields, replay_blocked, incomplete_target,
+// no_binding_minted, no_proof_presented, proof_mismatch, url_altered,
+// insecure_replay_url.
+do_action( 'wp_sudo_replay_refused', int $user_id, string $rule_id, string $reason );
+
 // Admin-escalation guard (v4.1.0, opt-in via the wp_sudo_guard_escalation filter,
 // default OFF). High-severity, distinct from wp_sudo_action_blocked so external
 // alerting can subscribe to escalation specifically. Fires when a NEWLY granted
