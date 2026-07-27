@@ -1128,6 +1128,34 @@ class Challenge {
 			return false;
 		}
 
+		// …and `target_complete` alone is not enough, because an EMPTY target satisfies
+		// it vacuously. `Request_Stash::capture_target()` initialises the flag true and
+		// only ever clears it on truncation, so a request naming none of TARGET_PARAMS
+		// stores `target => [], target_complete => true`, which
+		// `target_describes_payload()` then agrees with after iterating zero keys.
+		//
+		// That is the one case where the confirmation renders no `Target:` line at all
+		// (`render_page()` guards on a non-empty description), so the user consented to
+		// a coarse label and nothing else. Informed confirmation is the control that
+		// holds when the browser binding is bypassed; with no target named there is no
+		// control left, so refuse and take the v1 landing.
+		if ( empty( $stash['target'] ) || ! is_array( $stash['target'] ) ) {
+			return false;
+		}
+
+		// …and a non-empty target is still not a confirmation if it renders nothing.
+		// describe_stash_target() skips any entry that is not a non-empty scalar, so
+		// a corrupted or forged `[ 'plugin' => [] ]` satisfies the check above while
+		// producing NO `Target:` line — the same vacuous state, one shape further out.
+		//
+		// Asked of the renderer rather than re-derived here, deliberately: the thing
+		// that must be true is "the user was shown a description", and the only
+		// authority on that is the code that draws it. A second copy of the predicate
+		// would be free to drift from the first, which is how this bug existed.
+		if ( '' === $this->describe_stash_target( $stash ) ) {
+			return false;
+		}
+
 		$expected = isset( $stash['binding_hash'] ) && is_string( $stash['binding_hash'] ) ? $stash['binding_hash'] : '';
 
 		if ( '' === $expected ) {

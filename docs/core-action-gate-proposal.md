@@ -5,9 +5,9 @@
 **Author context:** Derived from WP Sudo's production implementation and its comparative analysis in [`sudo-architecture-comparison-matrix.md`](sudo-architecture-comparison-matrix.md).
 **Intended audience:** WordPress core contributors and security reviewers, plugin authors evaluating adoption, and WP Sudo operators assessing a plausible migration path.
 
-> ⚠️ **Known gaps — read before implementing (July 2026).** This document states the *direction and rationale*; several mechanisms it describes are **not ready to land**. The tracked findings live in [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md) §12 and the [v1-readiness milestone](https://github.com/dknauss/Sudo/milestone/3). Two are load-bearing for readers of *this* document: the "a copied cookie cannot act" property asserted in §4 is **undercut by auto-replay** ([#315](https://github.com/dknauss/Sudo/issues/315)), and the self-email pivot §3 lists as non-deferrable currently has **no working enforcement seam** ([#316](https://github.com/dknauss/Sudo/issues/316)). Treat §4's session design and §3's Group-B coverage as **provisional** until those close. The illustrative patches in [`core-sudo-gate-poc-patches.md`](core-sudo-gate-poc-patches.md) are **superseded** — see the banner at the top of that file.
+> ⚠️ **Known gaps — read before implementing (July 2026).** This document states the *direction and rationale*; several mechanisms it describes are **not ready to land**. The tracked findings live in [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md) §12 and the [Cut 1-readiness milestone](https://github.com/dknauss/Sudo/milestone/3). Two are load-bearing for readers of *this* document: the "a copied cookie cannot act" property asserted in §4 is **undercut by auto-replay** ([#315](https://github.com/dknauss/Sudo/issues/315)), and the self-email pivot §3 lists as non-deferrable currently has **no working enforcement seam** ([#316](https://github.com/dknauss/Sudo/issues/316)). Treat §4's session design and §3's Group-B coverage as **provisional** until those close. The illustrative patches in [`core-sudo-gate-poc-patches.md`](archive/core-sudo-gate-poc-patches.md) are **superseded** — see the banner at the top of that file. **Updated:** #315 (auto-replay) and #316 (self-email seam) are now **resolved** in the spec — see §5.1/§7.1 and §4.1 respectively; the gaps below that describe them as open are superseded.
 
-> **Consolidation note (July 2026).** This document now leads with the *gate* (a built-in recent-authentication requirement for a small, provable closure of consequential effects), which is the security goal. The **Consequential-Actions registry** (an "Actions API") it originally opened with is retained as an **optional, independently-valuable companion** (§8), not as a mandatory Phase 1 the gate depends on. Rationale: a threat-motivated recent-auth gate is more landable in core than a speculative registry, and the gate enforces at the effect chokepoint whether or not the registry ships. The engineering detail lives in the companion docs (§12); this document gives the rationale and the overall shape.
+> **Consolidation note (July 2026).** This document now leads with the *gate* (a built-in recent-authentication requirement for a small, provable closure of consequential effects), which is the security goal. The **Consequential-Actions registry** (an "Actions API") it originally opened with is retained as an **optional, independently-valuable companion** (§8), not as a mandatory the registry track the gate depends on. Rationale: a threat-motivated recent-auth gate is more landable in core than a speculative registry, and the gate enforces at the effect chokepoint whether or not the registry ships. The engineering detail lives in the companion docs (§12); this document gives the rationale and the overall shape.
 
 ---
 
@@ -57,9 +57,9 @@ So the gated set is a **provable minimal closure**, not a wishlist. It is exactl
 
 Gating `install_package()` (not `Plugin_Upgrader::install()`) matters: `install()` alone misses bulk, update, the AJAX updaters, and the auto-updater, and the update package URL comes from mutable transient state, not a fixed .org constant. Provenance ("is this a .org slug") is the wrong key: `plugins_api()` results and the download link are filterable; key on the **package write**.
 
-**Group B — credential/principal pivots (in v1, not deferrable).** A Group-A-only release is bypassable per the invariant: mint a known credential, log in fresh, pass every Group-A challenge.
+**Group B — credential/principal pivots (in Cut 1, not deferrable).** A Group-A-only release is bypassable per the invariant: mint a known credential, log in fresh, pass every Group-A challenge.
 
-⚠️ **The invariant above is stated as an iff, and v1 does not satisfy it.** Group B is gated in v1 *for interactive actors* — a cookie session cannot mint an Application Password or change a password without a challenge. But an **Application-Password-authenticated** caller reaches both the credential pivots and the Group-A code effects ungated, because that actor class is deferred (§4, [#320](https://github.com/dknauss/Sudo/issues/320)). So the closure this section proves is the closure of the *actor-driven* attack, not the unconditional closure the iff describes. Note the distinction the deferral turns on: App-Password **issuance** from a browser is in v1; App-Password-**authenticated callers** are not.
+⚠️ **The invariant above is stated as an iff, and Cut 1 does not satisfy it.** Group B is gated in Cut 1 *for interactive actors* — a cookie session cannot mint an Application Password or change a password without a challenge. But an **Application-Password-authenticated** caller reaches both the credential pivots and the Group-A code effects ungated, because that actor class is deferred (§4, [#320](https://github.com/dknauss/Sudo/issues/320)). So the closure this section proves is the closure of the *actor-driven* attack, not the unconditional closure the iff describes. Note the distinction the deferral turns on: App-Password **issuance** from a browser is in Cut 1; App-Password-**authenticated callers** are not.
 
 | Pivot | Note |
 |---|---|
@@ -84,16 +84,16 @@ The exact chokepoints, per-function return contracts, and the full catalog are i
 
 **Enforce at the shared effect sinks, not at `map_meta_cap()`.** *(verified)* `upload_plugins`→`install_plugins` and `upload_themes`→`install_themes`, so a capability-layer gate cannot distinguish an attacker ZIP from a repository install and would disrupt CLI, automation, and introspection. Gate the effects in §3. This is the load-bearing design choice — **gate the effect, not the form field**. A hijacked session skips the form and calls the mutation directly, so the guard must sit at the data-layer chokepoint every surface funnels through; browser, REST, and programmatic callers are then covered by one insertion.
 
-**Branch the decision on actor class, not transport.** This is how non-interactive surfaces are eventually handled without an exemption and without inventing a headless challenge UX. **v1 scopes enforcement to the interactive class only** ([#320](https://github.com/dknauss/Sudo/issues/320)); the remaining rows are the design intent for a separately-scoped provenance/automation project ([milestone 4](https://github.com/dknauss/Sudo/milestone/4)), recorded so the seam is built to accommodate them:
+**Branch the decision on actor class, not transport.** This is how non-interactive surfaces are eventually handled without an exemption and without inventing a headless challenge UX. **Cut 1 scopes enforcement to the interactive class only** ([#320](https://github.com/dknauss/Sudo/issues/320)); the remaining rows are the design intent for a separately-scoped provenance/automation project ([milestone 4](https://github.com/dknauss/Sudo/milestone/4)), recorded so the seam is built to accommodate them:
 
-| Actor at the sink | Decision | In v1? |
+| Actor at the sink | Decision | In Cut 1? |
 |---|---|---|
-| Interactive cookie session, no proof for this action | **Challenge + confirm** (full-page; below) | ✅ **Yes — the v1 scope** |
+| Interactive cookie session, no proof for this action | **Challenge + confirm** (full-page; below) | ✅ **Yes — the Cut 1 scope** |
 | API credential (Application Password) / REST, no proof | **Block + log** | ❌ Deferred ([#306](https://github.com/dknauss/Sudo/issues/306)) — a default hard-block is a back-compat regression |
 | No actor **and** core's own automatic updater **and** package from the site's configured update source | **Allow** (background security updates keep working) — but `install_package()` receives an *unpacked local path*, not the source URL, so **provenance must be decided upstream** (at the update offer / `upgrader_pre_download`) and threaded in as a trusted flag | ❌ Deferred ([#307](https://github.com/dknauss/Sudo/issues/307)) — needs a provenance primitive core lacks |
 | WP-CLI | **Allow by default, operator-configurable** — shell access already dominates the gate; a CLI block is security theater with real deployment cost | ❌ Deferred |
 
-**In v1, every deferred row passes through ungated — as in current core.** That leaves the REST-over-Application-Password install path open, which is a real gap, not an argument that the credential channel is safe. v1 closes the *actor-driven* paths (the dominant, cheapest attack); the credential channel is the follow-on project's job.
+**In Cut 1, every deferred row passes through ungated — as in current core.** That leaves the REST-over-Application-Password install path open, which is a real gap, not an argument that the credential channel is safe. Cut 1 closes the *actor-driven* paths (the dominant, cheapest attack); the credential channel is the follow-on project's job.
 
 The decision object never encodes transport: business functions return a decision (as a `WP_Error` in practice), and surface adapters localize the UX — admin UI redirects, REST returns 403, AJAX returns JSON. That keeps transport handling out of privileged business functions (the spec's §5.2 adapters).
 
@@ -120,7 +120,7 @@ If core wants the thief's existing session *gone*, offer rotation as an explicit
 
 This is a gate, not a permission system. **Not** a `current_user_can()` replacement (it sits *above* capabilities and never grants authority), a sandbox, a 2FA framework, a WAF, or an audit log. It cannot stop code already running in-process, it does not fix a missing `current_user_can()` (that is an authz bug, orthogonal), and it does not inspect traffic. See §6 for the boundary claim.
 
-**Deferred to a later cut** (not excluded — these are not safe): the per-surface **policy UI**, scope-bound windows, any interactive challenge *rendering* on non-interactive surfaces, and — per [#320](https://github.com/dknauss/Sudo/issues/320) — **the non-interactive routes themselves**. v1 enforces on interactive cookie sessions (browser + cookie-authenticated REST) only; Application Passwords, WP-CLI, cron, and XML-RPC pass through ungated and are the subject of a separately-scoped provenance/automation project ([milestone 4](https://github.com/dknauss/Sudo/milestone/4)). Deferred means *not yet defended*, not *safe*. Note that **"programmatic" is not one of these classes**: a plugin calling a gated sink inside a cookie-authenticated request is an interactive actor and is challenged like any other. Actor class is a property of the request, never of the call site — see the spec §1 and [#357](https://github.com/dknauss/Sudo/issues/357).
+**Deferred to a later cut** (not excluded — these are not safe): the per-surface **policy UI**, scope-bound windows, any interactive challenge *rendering* on non-interactive surfaces, and — per [#320](https://github.com/dknauss/Sudo/issues/320) — **the non-interactive routes themselves**. Cut 1 enforces on interactive cookie sessions (browser + cookie-authenticated REST) only; Application Passwords, WP-CLI, cron, and XML-RPC pass through ungated and are the subject of a separately-scoped provenance/automation project ([milestone 4](https://github.com/dknauss/Sudo/milestone/4)). Deferred means *not yet defended*, not *safe*. Note that **"programmatic" is not one of these classes**: a plugin calling a gated sink inside a cookie-authenticated request is an interactive actor and is challenged like any other. Actor class is a property of the request, never of the call site — see the spec §1 and [#357](https://github.com/dknauss/Sudo/issues/357).
 
 **Bracketed, on purpose** — a *different* primitive or *not reachable through the core code effects above*: media-upload-to-PHP (`upload_filetypes`, multisite); the WXR importer; `wp-config.php` / drop-ins / direct DB writes; and hosting/FTP/SSH access (which strictly dominates the gate). (The `siteurl`/`home` repointing pivot is **not** bracketed; it is gated as part of the closure, §3, because it can defeat the challenge.) **Not** bracketed: wordpress.org installs, updates, and activation — those are Group-A effects covered by the `install_package()`/`activate_plugin()` seams under the actor-class policy.
 
@@ -160,7 +160,7 @@ Everything above is the gate. This section is the **companion** the earlier draf
 
 ### 8.1 Why a registry has standalone value
 
-Security and policy plugins today each reinvent their own ad-hoc catalog of "dangerous operations," with different identifiers and no interoperability surface. A shared registry gives the ecosystem a stable taxonomy, execution hooks for audit/observability, queryable metadata for UI and diagnostics, and a foundation for later manifests or AI-agent boundaries — **without** requiring core to standardize challenge UX, recent-auth semantics, replay, or non-interactive policy in the same release. That is what makes it a cheap, low-risk first primitive on its own track.
+Security and policy plugins today each reinvent their own ad-hoc catalog of "dangerous operations," with different identifiers and no interoperability surface. A shared registry gives the ecosystem a stable taxonomy, queryable metadata for UI and diagnostics, and a foundation for later manifests or AI-agent boundaries — **without** requiring core to standardize challenge UX, recent-auth semantics, replay, or non-interactive policy in the same release. Observation hooks for audit tooling are a reasonable **later** addition, deliberately not part of the registry track: an earlier draft listed them here and the spec listed a pure-data registry, which is a materially different product. If they are added, they must be documented as **observational only and never a gate** — spec §4.1.1 rejects the Abilities API's execution hook as an enforcement point for exactly that reason, and §6 rejects `do_action` seams on the same ground. A hook that looks like it can refuse, and cannot, is the failure mode this design has spent the most effort removing. That is what makes it a cheap, low-risk first primitive on its own track.
 
 ### 8.2 Naming and the relationship to the Abilities API
 
@@ -196,11 +196,11 @@ wp_get_action( 'core/activate-plugin' );    // array|null
 wp_get_actions();                           // array<string, array>
 wp_action_exists( 'core/activate-plugin' ); // bool
 
-do_action( 'wp_before_execute_action', 'core/activate-plugin', $context );          // observability only
+do_action( 'wp_before_execute_action /* NOT in the registry track — see §8.3: the registry ships as pure data; execution hooks are a deferred, observation-only addition */', 'core/activate-plugin', $context );          // observability only
 do_action( 'wp_after_execute_action', 'core/activate-plugin', $context, $result );  // not a gate — see §8.2
 ```
 
-Phase 1 (the registry) should register, expose metadata, and fire execution hooks; it should **not** require challenge UI, stash/replay, sudo sessions, or non-interactive policy. A Site Health consumer that reports the registered actions and whether gating is enabled demonstrates value before any enforcement exists.
+the registry track should register and expose metadata — **a pure-data catalog, no hooks and no enforcement**, matching the spec (§4.1). It should **not** require challenge UI, stash/replay, sudo sessions, or non-interactive policy. A Site Health consumer that reports the registered actions and whether gating is enabled demonstrates value before any enforcement exists.
 
 ### 8.4 The initial catalog
 
@@ -237,10 +237,10 @@ A gate against illegitimate *sessions* is not a defense against a *pre-authentic
 1. The public **name** for the registry API (the `do_action()` collision; §8.2) — cosmetic relative to the architecture, still unsettled.
 2. Should the proof record build on `WP_Session_Tokens` or a **dedicated store**? Core already has a session-token abstraction that binds, revokes, and stores attached session info; a separate store may still be justified if gate state must be modeled apart from login sessions, at the cost of two session-adjacent models.
 3. Correct integration point for cookie-authenticated REST gating (the spec resolves this at the chokepoint; confirm against target core).
-4. ~~Scope-bound sudo window vs. flat recent-auth freshness for v1.~~ **Closed** — the spec (§4.2) drops the reusable window for v1 in favour of per-action step-up, so there is no window to scope. Reopens only if a reusable window returns.
-5. What should replace the ambiguous `Disabled / Limited / Unrestricted` per-surface vocabulary if core later adds surface policy? (Kept **out** of core v1; core v1 is binary per action.)
+4. ~~Scope-bound sudo window vs. flat recent-auth freshness for Cut 1.~~ **Closed** — the spec (§4.2) drops the reusable window for Cut 1 in favour of per-action step-up, so there is no window to scope. Reopens only if a reusable window returns.
+5. What should replace the ambiguous `Disabled / Limited / Unrestricted` per-surface vocabulary if core later adds surface policy? (Kept **out** of core Cut 1; core Cut 1 is binary per action.)
 6. Which replay classes are supported early vs. deferred (the spec's stash/replay vs. reauth-then-resubmit split).
-7. The minimal challenge-provider contract core can support without overcommitting to every 2FA/passkey flow in v1.
+7. The minimal challenge-provider contract core can support without overcommitting to every 2FA/passkey flow in Cut 1.
 
 The registry-vs-Abilities fork (formerly the headline open question) is **resolved** — a standalone, Abilities-aligned registry with union deferred; see the spec §4.1.
 
@@ -250,7 +250,7 @@ The registry-vs-Abilities fork (formerly the headline open question) is **resolv
 
 ### Companion docs
 - [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md) — *what to change in core* (files, functions, APIs; the registry-vs-Abilities decision; the recent-auth session design).
-- [`core-sudo-gate-poc-patches.md`](core-sudo-gate-poc-patches.md) — ⚠️ **superseded** illustrative patches at the chokepoints; retained for shape only, known-vulnerable (see its banner). Do not implement.
+- [`archive/core-sudo-gate-poc-patches.md`](archive/core-sudo-gate-poc-patches.md) — ⚠️ **superseded** illustrative patches at the chokepoints; retained for shape only, known-vulnerable (see its banner). Do not implement.
 - [`stolen-cookie-rce-attack-tree.md`](stolen-cookie-rce-attack-tree.md) — the worked adversary and full route enumeration.
 - [`core-gate-architectural-context.md`](core-gate-architectural-context.md) — the strategic "which architectural future" context (split vs. refactor; WP-Next kernel), kept out of this proposal.
 - [`wordpress-core-authentication.md`](wordpress-core-authentication.md) — how WordPress core authentication actually works.

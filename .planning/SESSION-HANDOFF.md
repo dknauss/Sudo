@@ -91,9 +91,89 @@ versioning has neither hazard — a doubled increment is harmless.
 4. **A `PHPUnit` red is often a cascade.** It is a summary job; when Code Quality fails
    (i18n, lint, static analysis), PHPUnit reports `dependency did not succeed`. Read the
    Code Quality log first.
+6. **`git diff A B` does not answer "what would merging do".** It is a two-tree diff, so
+   files that exist only on `main` read as *deletions* — one session concluded a branch
+   would delete the ~900-line `poc/` tree from that output alone. Use
+   `git merge-tree $(git merge-base A B) A B`, which shows those paths as **added in
+   remote**. The wrong command here does not error; it answers a different question
+   confidently.
+7. **A closed PR's patch survives its branch being deleted.**
+   `gh api repos/OWNER/REPO/pulls/N/files` still returns it. #390's branch was deleted as
+   redundant and its best paragraph was recovered from the closed PR afterwards. Do not
+   assume content is gone because the branch is.
+8. **Verify the enclosing symbol even when the claim comes from a source you trust.** A
+   hook was cited to `Challenge::handle_replay_response()` in cross-session messages and
+   in a PR comment; that method does not exist — the hook is in
+   `Challenge::build_replay_response_data()`. It survived because each reader verified the
+   parts they doubted and passed the symbol through, so repetition made it look
+   corroborated. `git grep -c "function <name>"` costs nothing and is the whole check.
+   Related: the repo's own prose rule already says a symbol you cannot name is a symbol you
+   have not read — that applies to symbols you were *handed*, not only ones you looked up.
+
 5. **Branches here can be shared.** Another session pushed to `fix/280-lockout-clear` while
    this one was working it. **Merge their commits, never force-push** — and re-run the gates
    after, since their new integration test arrived red.
+
+**Working alongside other sessions.** Four ran concurrently on 2026-07-26 and produced
+roughly a dozen cross-session errors, every one of the same shape: **a stale or partial
+answer, completed from expectation, carrying confidence borrowed from the fact that a tool
+ran at all.** These are the structural fixes, not the diligence ones — diligence rules decay.
+
+6. **Discovery beats broadcasting.** Three sessions opened the *same* version rollback
+   (#389/#390/#391) within six minutes. No amount of announcing would have caught it; nobody
+   ran `gh pr list` before branching. Check the repo, not your recollection of it.
+7. **Name the SHA a review applies to.** Post-then-fix races are constant here. Two reviews
+   of mine were called stale when both had in fact *preceded* the fix by 44 s and by 5 m 40 s;
+   the genuine error in this class was different — reading another session's force-push as the
+   branch owner's, which sent me rebasing an already-closed PR.
+   `git fetch && git log --oneline -1 <branch>` immediately before posting settles it in the
+   artifact instead of in anyone's memory.
+   **Corollary — a claim about a session's conduct goes to that session, not only to the
+   others.** The asymmetry is structural, not a matter of care: when a coordinating node is
+   wrong *about source*, anyone can run the command, and tonight we caught every such case
+   cheaply. When it is wrong *about a session's conduct*, only that session can check, and
+   only if it hears the claim. Three were made about this session; two were heard. The third
+   would have stood indefinitely — not through carelessness, but because its subject was never
+   in the room. A node accumulates uncontested claims about participants in proportion to how
+   well it routes, so the fix is not "assert less", it is **assert to the subject**.
+8. **`git diff A B` is not a merge preview.** It reports files on `A` and absent on `B` as
+   deletions, which reads exactly like `B` will delete them. It will not — a merge applies
+   `B`'s diff *relative to its merge base*. Ask the real question with
+   `git merge-tree $(git merge-base A B) A B`, or `git diff $(git merge-base A B) B -- <path>`
+   (empty ⇒ never touched). Misreading this produced a false alarm that a branch would delete
+   the whole `poc/` tree, which in turn sent a session rebasing an already-closed PR.
+9. **A retraction never reaches whoever already acted on the claim.** Correcting the source
+   does not recall the copies. So: **correct in place *and* announce** — a body edit serves
+   future readers, a comment reaches existing subscribers, and doing only one is half a
+   retraction. Say what was *wrong*, not only what is now right, or the reader who
+   propagated the stale version stays confident and wrong.
+10. **Cite the claim you acted on.** A citation is a back-edge a retraction can travel along.
+    An uncited claim propagates as an orphan that no correction can ever reach.
+    *Worked example, chosen because the propagator knew the rule at the time:* a false claim
+    about a review's timing entered a broadcast roster, was repeated by a second session in an
+    apology **whose own subject was failing to check things**, and reached a third hop before
+    one `git show -s --format=%cI` falsified it. Nobody was careless; the claim simply had no
+    citation to travel back along. This session then committed the same error in the opposite
+    direction — handing another lane a derived contract instead of a citation, nearly
+    producing a third copy of a section that already existed on an unmerged branch.
+11. **A wrong justification for a correct test is more durable than a wrong test**, because
+    nothing fails to reveal it. Two live examples this session: an invented enclosing symbol
+    in the sentence carrying a release's whole version argument, and *"`sudo_required` …
+    which only `Gate` emits (verified)"* in the comment explaining why an E2E suite is not
+    vacuous — `Admin` emits it in three places. Both tests were fine; both explanations were
+    the load-bearing part.
+12. **Mutation-test a guard before believing its tests.** Delete the clause, run the filter.
+    Half of a two-clause security guard in #397 was verified by nothing — the full 1228-test
+    suite passed with it removed. Reading cannot answer "is this test doing work"; deleting
+    can, in two minutes.
+13. **Drive the entry point, not the sink.** A test that calls the guarded function directly
+    proves the check works *when reached* and says nothing about *whether it is reached*.
+14. **A command in a doc is not a claim, it is a change someone will execute.** Trace it on
+    single-site *and* multisite. A `wp option delete wp_sudo_db_version` remedy shipped in a
+    release doc would have replayed every migration from `0.0.0`, granting governance caps to
+    every administrator — and on multisite silently done nothing, since it targets a blog
+    option while the reader is a site option. Eight factual claims in that same section were
+    verified; the executable one was not.
 
 **Release-state note — the version is `4.9.0`. Do not re-derive it from this file.**
 This note has now been wrong in both directions inside a single session: first "#364 will bump
