@@ -1946,7 +1946,7 @@ class SudoSessionTest extends TestCase
 		Functions\when( 'get_option' )->justReturn( array() );
 
 		// reset_failed_attempts deletes: legacy lockout + lockout_until + failure_event + throttle (4).
-		// set_token() also clears the two legacy pre-5.0.0 proof keys (TOKEN + BIND) (+2).
+		// set_token() also clears the two legacy pre-4.9.0 proof keys (TOKEN + BIND) (+2).
 		Functions\expect( 'delete_user_meta' )->times( 6 );
 
 		Sudo_Session::activate( 1 );
