@@ -1,5 +1,10 @@
 # Developer Reference
 
+> **Research API only:** These hooks, filters, classes, and behaviors belong to
+> an experimental demonstrator. They carry no production support or
+> compatibility guarantee. Use them only in disposable evaluation
+> environments; see [Project Status](../PROJECT-STATUS.md).
+
 
 ## Naming, Slug, and Repository Identifiers
 

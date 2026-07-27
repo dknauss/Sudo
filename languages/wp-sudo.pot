@@ -16,7 +16,7 @@ msgstr ""
 
 #. Plugin Name of the plugin
 #: wp-sudo.php
-msgid "Sudo – Admin Action Gating"
+msgid "Sudo – Research Prototype"
 msgstr ""
 
 #. Plugin URI of the plugin
@@ -26,7 +26,7 @@ msgstr ""
 
 #. Description of the plugin
 #: wp-sudo.php
-msgid "Action-gated reauthentication for WordPress. Dangerous operations require password confirmation before they proceed — regardless of user role."
+msgid "Research prototype for action-gated reauthentication. For disposable local tests and WordPress Playground only; not for production."
 msgstr ""
 
 #. Author of the plugin

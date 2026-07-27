@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- **Project status clarified:** WP Sudo is explicitly classified as a research
+  prototype and security-design demonstrator, not a supported production
+  plugin or security boundary. Public documentation now limits evaluation to
+  WordPress Playground and disposable local environments with synthetic data.
+  Plugin metadata and release presentation carry the same boundary without
+  adding runtime behavior to the demonstrator.
+
 ## 4.9.0 - 2026-07-27
 
 - **Security — an intercepted request is never resumed automatically (fix):** the gate stashed an intercepted admin request and replayed it once the challenge was passed. That made reauthentication a **confused deputy**: the stash was keyed to `user_id` alone, so an attacker able to plant one — a cloned session from a stolen cookie, no password needed — could lure the victim to the challenge and have the victim's own reauthentication carry out the *attacker's* transaction, with the victim's capabilities and a fully valid sudo session. The reauth proved a person was present; it never proved they intended *that* action, because the action was chosen before the challenge began and was never shown to them. GET actions were worst: replaying one was a plain redirect to the destructive URL.

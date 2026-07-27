@@ -1,6 +1,11 @@
 # Release Status (Canonical Current State)
 
-Last verified: 2026-07-25
+Last verified: 2026-07-27
+
+> **Release status is not production status.** WP Sudo is a research prototype.
+> Tags are reproducible research snapshots for disposable local environments
+> and WordPress Playground, not production-readiness declarations. See
+> [`PROJECT-STATUS.md`](../PROJECT-STATUS.md).
 
 This file is the canonical source for **current release state** in this repository:
 
@@ -13,8 +18,8 @@ This file is the canonical source for **current release state** in this reposito
 
 ## Latest GitHub/tagged release
 
-- **Latest tagged release:** `4.9.0` (cut 2026-07-27).
-- **Latest git tag observed:** `v4.9.0` (annotated, cut 2026-07-27, on `82d4b23`, the squash-merge of PR #459). GitHub Release published via `release.yml`; the release-ZIP CI attached the `wp-sudo.zip` install asset.
+- **Latest tagged research preview:** `4.9.0` (cut 2026-07-27).
+- **Latest git tag observed:** `v4.9.0` (annotated, cut 2026-07-27, on `82d4b23`, the squash-merge of PR #459). Its GitHub release and install asset are classified as a prerelease/research snapshot for disposable evaluation only.
 - **`4.9.0` payload (released):** the **security release**. After reauthentication WP Sudo never automatically executes a previously intercepted **server-stashed** request — every method, every rule, every admin surface that stashes. Automatic replay is **removed rather than conditioned** (#322): an interim design authorised it per-request behind a `__Host-` binding cookie plus a confirmation naming the target, and #397/#412/#413/#429/#444 together showed that *which stashes may replay* was the wrong question to keep answering. No successful challenge navigates to any requester-supplied destination either. Also in the payload: forge-resistant per-login-session sudo assurance (#278, #279), the reauth-lockout out-of-band clear (#280), and a reachable settings-blanking route closed by making `options.critical` non-replayable (#444). Two documented behaviours change and are disclosed rather than smoothed over — `wp_sudo_action_replayed` is retained but dormant (read `wp_sudo_replay_refused` and its `reason`), and `wp_sudo_require()`'s `return_url` argument is inert. **MINOR** under the *Security-forced inertness* clause added to `VERSIONING.md` in this release. The exact commit set is `git log v4.8.0..v4.9.0 --oneline`.
 - **Previous tag:** `v4.8.0` (annotated, cut 2026-07-23, on `10587a4`, version-sync commit for PR #221).
 - **`4.8.0` payload (released):** a **security-hardening** release plus one new opt-in integrity feature. Security fixes (backward-compatible): the **pre-existing** `user.change_password` / `user.promote` REST rules matched only `PUT`/`PATCH`, so a `POST` to `/wp/v2/users/{id|me}` was ungated (core registers the route under `WP_REST_Server::EDITABLE`, which includes `POST`) — both rules now gate `POST` too (#213); a **new** `user.change_email` rule gates account email changes (the password-reset-takeover pivot) on the profile surfaces and the REST users routes for `POST`/`PUT`/`PATCH`, stashing profile account-mutation POSTs **non-replayably** (#214); REST writes to critical settings were ungated because the callback matched raw option names (`siteurl`/`admin_email`) while `/wp/v2/settings` keys by `show_in_rest` aliases (`url`/`email`) — now matches the aliases (#215). New (opt-in, default-off): a **role/capability lockdown audit MVP** that detects privileged-state drift from a file-backed trusted manifest — including direct `$wpdb` writes the escalation guard cannot see — via `wp sudo manifest generate|diff`, Site Health, or a scheduled sweep firing `wp_sudo_role_drift_detected` (#206). Plus readable governance capabilities on the user profile (#205). Live end-to-end security verification is recorded in [`docs/security-test-results-4.8.0.md`](security-test-results-4.8.0.md). The exact commit set is `git log v4.7.0..v4.8.0 --oneline`.

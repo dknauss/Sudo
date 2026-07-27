@@ -1,4 +1,4 @@
-=== Sudo – Admin Action Gating ===
+=== Sudo – Research Prototype ===
 Contributors:      dpknauss
 Donate link:       https://dan.knauss.ca
 Tags:              reauthentication, access control, admin protection, multisite, security
@@ -9,9 +9,16 @@ Stable tag:        4.9.0
 License:           GPL-2.0-or-later
 License URI:       https://spdx.org/licenses/GPL-2.0-or-later.html
 
-Sudo gates dangerous admin actions (plugins, users, roles, settings, network changes) behind reauthentication, regardless of role.
+RESEARCH PROTOTYPE ONLY. Do not install on production, public staging, or sites containing real users, credentials, or data. Use only in Playground or disposable local tests.
 
 == Description ==
+
+**WP Sudo is a conceptual research demonstrator, not a supported production
+security plugin or security boundary.** Do not install or rely on it on
+production, public staging, production-derived environments, or any site
+containing real users, credentials, or data. Use it only in WordPress
+Playground or an isolated, disposable local test environment with synthetic
+data. Tags are research snapshots, not production-readiness declarations.
 
 WordPress has rich access control — roles, capabilities, policies on who can do what. It has no native control over when those capabilities can be exercised within a session. Sudo fills that gap. By gating consequential actions behind reauthentication whenever no active sudo window is already in place, it lets site owners directly define the blast radius of many session-compromise paths. The attack surface becomes a policy decision.
 
@@ -26,11 +33,13 @@ Lightweight by design. Sudo is an event-gate, not a query-heavy plugin: it adds 
 
 Playground demo credentials are `admin` / `password`. When WP Sudo asks for reauthentication, enter the same password: `password`.
 
-= Why Sudo? =
+= Research question =
 
 In 2026, Broken Access Control accounted for 57% of all exploitation attempts against WordPress sites — add Privilege Escalation (20%) and Broken Authentication (3%) and that’s 80% of real-world WordPress attacks targeting the access-control operations Sudo gates (Patchstack 2026 RapidMitigate data). Nearly half of high-impact vulnerabilities are exploited within 24 hours; the median time to first exploit is 5 hours. Traditional WAFs block only 12–26% of these attacks.
 
-When the firewall misses it, the plugin hasn’t patched it, and the attacker already has an active session — Sudo can still be the final layer **on the covered paths it intercepts**. Plugin installs, user creation, role changes, and settings modifications are all built-in gated operations. A stolen session cookie alone is not enough when that browser session does not already have an active sudo window.
+The demonstrator tests whether a recent-auth gate can interrupt selected
+session-compromise paths after an attacker has an authenticated session. It
+does not establish a final security layer or complete interception coverage.
 
 **Important scope note:** WP Sudo gates specific known operations on specific known surfaces. A plugin vulnerability that performs a privileged state change through its own code path — without routing through a standard admin, AJAX, or REST surface WP Sudo intercepts — is outside this layer. WP Sudo is not a general repair for broken authorization in plugin code.
 
@@ -88,11 +97,14 @@ Settings and sessions are network-wide. The action registry includes 8 additiona
 
 == Installation ==
 
-1. Upload the `wp-sudo` folder to `/wp-content/plugins/`.
-2. Activate the plugin through the **Plugins** screen in WordPress.
-3. Go to **Settings → Sudo** to configure session duration, quick policy presets, and entry-point policies.
-4. (Optional) Install the mu-plugin from the settings page for early hook registration.
-5. (Recommended) Install the [Two Factor](https://wordpress.org/plugins/two-factor/) plugin for two-factor authentication.
+Do not install WP Sudo on a production, public staging, production-derived, or
+real-data site.
+
+1. Create a disposable local WordPress installation with synthetic data, or use the linked WordPress Playground demo.
+2. Upload the `wp-sudo` folder to `/wp-content/plugins/` in that disposable environment.
+3. Activate the plugin through the **Plugins** screen.
+4. Go to **Settings → Sudo** to explore session duration and entry-point policies.
+5. Optionally install the mu-plugin or Two Factor only in the disposable environment.
 
 == Frequently Asked Questions ==
 
