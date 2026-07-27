@@ -1614,3 +1614,78 @@ C2. REDUNDANT MEMORY DUPLICATING CLAUDE.md
            3. Never report "not reproducible" as though it were "did not happen". State the
               refs searched. #61's first version did not, and the rejection read as a
               finding rather than as the limit of a search.
+
+67. AN ANCHOR THAT RESOLVED IN THE WRONG BRANCH OF THE RIGHT FILE — a row reported repaired
+    on evidence the check had not read
+   Files:  docs/upstream-sources.md, `GB-ADMIN-POST-BLANK`, on the closed PR #440. The same
+           move twelve hours earlier on `GB-PIN-STAR`, by a different session.
+   Claim:  The row was presented as repaired, in a PR whose subject was repairing anchors,
+           with its enclosing-symbol column reading: "the authenticated `empty( $action )`
+           branch, L61 — the unauthenticated branch carries the same test at L37, so the
+           anchor resolves there first".
+   Reality: `empty( $action )` first occurs at L37, inside the `admin_post_nopriv` branch —
+           the branch the row is **not** about. `bin/verify-sources.sh` requires each
+           backticked token to resolve at or before the cited line, so the row passed on
+           L37 and the check never reached the branch the claim concerns:
+
+               $ grep -n 'empty( $action )' admin-post.php
+               37:	if ( empty( $action ) ) {     # admin_post_nopriv branch
+               61:	if ( empty( $action ) ) {     # the branch the row is about; cited line 67
+
+           Two other anchors in the same PR were weak the same way without being wrong:
+           `createuser`, for a form at L519, first resolves at L189; and
+           `if ( ! defined( 'IS_PROFILE_PAGE' ) ) {` at L21 precedes the L25 chain that
+           contains the cited line without opening it.
+   Source: raw.githubusercontent.com/WordPress/wordpress-develop/trunk/src/wp-admin/
+           admin-post.php, user-new.php and user-edit.php, fetched and read 2026-07-27.
+   Notes:  Two things worth separating, because only one of them is about anchors.
+           **A wrong anchor that resolves is worse than one that fails.** The five rows this
+           PR set out to fix were red, and red announces itself. This one was green, and
+           would have stayed green indefinitely while asserting that a line in the
+           authenticated branch was witnessed by a construct in the unauthenticated one. The
+           anchor check was built to stop rows proven by nothing; it does not stop a row
+           proven by the wrong thing.
+           **The tell was written into the artifact.** The column literally said "the anchor
+           resolves there first". The defect was observed, described in prose, and shipped as
+           an accommodation rather than raised as the finding. That is the same act the
+           Development session had made twelve hours earlier on `GB-PIN-STAR` — rewording a
+           row to route around a mechanism defect and reporting it closed, leaving every
+           other multi-token row exposed. Two sessions, independently, neither catching it in
+           its own work; that is what makes it a pattern rather than a slip.
+   Fix:    #441 anchors `if ( empty( $action ) ) {` at L61 — the construct that encloses the
+           cited line — and "How to add a row" now says that a token merely sitting above the
+           line proves an address, not containment. Left open on purpose, rather than turned
+           into a rule from two coincident examples: whether the criterion should be
+           containment — does any construct open before the cited line and close after it —
+           rather than precedence. `GB-PROFILE-OBSERVE` satisfies both readings today, so
+           there is no third case to test a tightened rule against.
+
+68. AN ANCESTRY ANSWER READ AS A CONTENT ANSWER — "that branch is stale" about work already
+    merged
+   Files:  Method, not a file. Stated to two other sessions as a reason to rebase.
+   Claim:  Of `fix/377-anchor-red` at `f0e9ebd`: "its base is `44a0838`, the pre-squash #377
+           head, so it is stale against `main` and will need rebasing onto 650a451 whoever
+           finishes it."
+   Reality: The content is on `main`. #377 was squash-merged, so `f0e9ebd` is unreachable
+           from `650a451` while its changes are present:
+
+               $ git merge-base --is-ancestor f0e9ebd origin/main; echo $?
+               1
+               $ git grep -c "qualified_anchors\|q_boundary" origin/main -- bin/verify-sources.sh
+               5
+
+           Nothing to rebase; the branch is spent.
+   Source: This repository, 2026-07-27. Caught by the Development session, which had written
+           the commit and therefore knew where it had landed.
+   Notes:  The same root as #66 approached from the other side. #66 is about squash-merge
+           hiding content from a *search*; this is about squash-merge letting an ancestry
+           predicate answer a question nobody asked. `--is-ancestor` answers "is this commit
+           reachable" and never "is this change present", and the two come apart at exactly
+           one place: a squash merge. Every repository that squash-merges has this trap
+           permanently armed.
+           The cost was not holding the belief, it was relaying it: two sessions were told to
+           rebase work that was already merged, which is a duplicate-work hazard of the kind
+           the concurrent-session rules exist to prevent — reached, this time, through a
+           claim rather than through a missing check.
+   Fix:    Before asserting that a branch needs rebasing, grep `main` for a distinctive token
+           from its diff. One command, and it answers the question the ancestry test does not.
