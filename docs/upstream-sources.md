@@ -100,15 +100,20 @@ problem this registry exists to solve.
    Auditing every anchor rather than the one reported found **three** rows in this state
    at once, in three different disguises (#449):
 
-   - a **conditional witness** — a heading directly above the cited line, inside a block
-     that closes before it. Listed first because it is the only one that looks *more*
-     trustworthy the closer it sits to the citation, which is the opposite of how the
-     other two read: a label immediately above a form is the anchor a careful person
-     picks;
-   - a **real occurrence in the wrong construct** — one repair reproduced the defect it
+   - a **repeated conditional** whose first occurrence sits in an earlier, unrelated
+     construct — two of the three, including one where a repair reproduced the defect it
      was repairing, its new anchor resolving inside an *unauthenticated* branch while the
      cited line sat in the authenticated one;
    - a **bare identifier** common enough to occur many times in one file.
+
+   A third shape is worth knowing without being one of the three: a **conditional
+   witness** — a heading directly above the cited line, inside a block that closes before
+   it. No audited row was in that state; it appears as a candidate *rejected* while
+   repairing one of them, and `GB-USER-NEW-SELFPOST`'s cell names it as such. It is worth
+   naming because it is the only one of these shapes that looks *more* trustworthy the
+   closer it sits to the citation — a label immediately above a form is the anchor a
+   careful person picks — but it is a near miss caught in review, not a defect the audit
+   found.
 
    Prefer a token that is unique in the file. Where you must use a repeated one, say in
    the cell which occurrence encloses and that the earlier one exists —
