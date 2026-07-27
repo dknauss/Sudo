@@ -43,12 +43,18 @@ source removed.
    tokens are exactly what the checker looks for, and every one of them must resolve at or
    before the cited line — they are read as a conjunction, so surrounding prose is free-form
    but each code span is a requirement. A **file path is not one of them**: five rows once
-   ended `… in `wp-admin/update.php``, and since a file never contains its own path, no
-   anchor could resolve once the column stopped accepting any single span as sufficient.
+   ended `… in `wp-admin/update.php``, and no anchor could resolve once the column stopped
+   accepting any single span as sufficient. Not because a file cannot contain its own path
+   — `wp-admin/user-new.php` contains its twice and `update.php` once, both in docblocks —
+   but because finding a path in a file establishes nothing about what encloses the cited
+   line. That is the same reason a nearby statement is not an anchor: presence is not
+   containment.
    If the cited line is top-level code with nothing enclosing it, say so in prose and leave
    the column with no backticked token rather than naming a nearby statement — a token that
    merely sits above the line proves a token's address, not containment, which is the same
-   mistake as step 1 in a different costume.
+   mistake as step 1 in a different costume. **A new top-level row also needs its ID adding
+   to the exemption list in `bin/verify-sources.sh`** — that list is keyed by ID rather than
+   by any checked property, which is a known gap tracked in #442.
 4. Run `bin/verify-sources.sh`.
 5. In prose, write `see GB-ICON-SWAP in docs/upstream-sources.md` rather than another
    copy of the URL and line.
