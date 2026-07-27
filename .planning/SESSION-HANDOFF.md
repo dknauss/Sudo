@@ -95,23 +95,38 @@ versioning has neither hazard — a doubled increment is harmless.
    this one was working it. **Merge their commits, never force-push** — and re-run the gates
    after, since their new integration test arrived red.
 
-**Release-state note (corrected 2026-07-26 late).** This block originally said `main` was
-`4.8.0` and that **#364** would bump it to **4.9.0**. Both are now out of date: #364 was
-**closed** and **#372** landed the bump instead, taking **`5.0.0`** — not a bigger number for
-its own sake, but by the rule. `#322` removes the only call site of `wp_sudo_action_replayed`,
-and `VERSIONING.md` classes removing a documented public hook as MAJOR; everything else in the
-payload would have been a MINOR. The reasoning is recorded under "Why `5.0.0` and not `4.9.0`"
-in `docs/release-status.md`, which is canonical for release state.
+**Release-state note — the version is `4.9.0`. Do not re-derive it from this file.**
+This note has now been wrong in both directions inside a single session: first "#364 will bump
+to 4.9.0" (#364 was closed), then "5.0.0, not 4.9.0" (rolled back by #391). Treat
+`docs/release-status.md` as canonical and this line as a pointer, not a source.
 
-**So: the proof format shipped in this work is `5.0.0`, not `4.9.0`.** The `4.9.0` strings that
-#348 left in code docblocks and `docs/security-model.md` were swept by #372 — verified, none
-remain outside that one deliberate explanatory line in `release-status.md`. If you are reading
-an older branch that still says 4.9.0, it predates the bump.
+**Why it moved twice.** #372 took `5.0.0` **by the rule**, on the premise that #322 removed the
+only call site of `wp_sudo_action_replayed` and `VERSIONING.md` classes removing a documented
+public hook as MAJOR. That premise did not hold: PR #350 merged the #322 **v1 and v2** layers,
+and v2 restores origin-bound replay — so the hook still fires (`includes/class-challenge.php`).
+Nothing documented was removed, no MAJOR trigger fired, and the same rule yields a MINOR.
+Verified in #392: no hook or public method removed since `v4.8.0` (`verify_token()` was
+`private static`, which `VERSIONING.md` excludes), min WP/PHP unchanged, slug unchanged.
+The rule was applied faithfully both times; only the facts about #350 changed.
+
+**⚠ Known inconsistency on `main` as of this writing.** #391 rolled the version string back but
+deliberately deferred the rationale, so `docs/release-status.md` still carries a
+**`## Why 5.0.0 and not 4.9.0`** section built on the false premise, directly contradicting the
+`4.9.0` in its own version bullets a few lines above. #389 rewrites it but is currently
+**DIRTY**; #390, which had the best rewrite, is closed. Until one lands, do not read that
+section as authority for anything — see #392.
+
+**Upgrade artifact worth knowing** (caught in #389): any dev/staging site that activated a build
+from the `5.0.0` window has `wp_sudo_db_version` stamped `5.0.0`. `Upgrader::maybe_upgrade()`
+returns early whenever the stored version is `>=` `WP_SUDO_VERSION`, so that stamp is never
+rewritten and a future routine at `4.9.x` — or at a real `5.0.0` — would be **skipped** on
+exactly those sites. Nothing is skipped today (the highest `Upgrader::UPGRADES` entry is
+`4.0.0`), and it is deliberately not fixed in production code; clear it by hand where it matters.
 
 Counts (tests, LOC, hooks) move constantly; `docs/current-metrics.md` is the source of truth
 and `composer verify:metrics` is the gate.
 
-Main is at `15f7ecd` (#375). Since this block was first written it has taken #369, #374, #372 (the 5.0.0 bump), #350 (#322 v1), #381, and #375.
+Main is at `ec0e0ec` (#391, the 4.9.0 rollback). Since this block was first written it has taken #369, #374, #372, #350 (#322 v1), #381, #375, #382, #380, and #391.
 
 ---
 
