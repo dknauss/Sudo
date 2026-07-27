@@ -1699,14 +1699,23 @@ C2. REDUNDANT MEMORY DUPLICATING CLAUDE.md
            branch's own base — which moved its `PinnedItems`, `Fill` and `Slot` spans out of
            the symbol column into the claim column, leaving `PinnedItemsSlot` resolving
            uniquely at L15. That row is the one place where the "move the disambiguation out
-           of the anchor column" remedy is demonstrated rather than proposed. **Four** remain
-           unaudited rather than assumed benign: `GB-ICON-SWAP`, `GB-NO-TOOLTIP`,
-           `GB-SCOPED-SUBSCRIBE`, `GB-CORE-SESSION-RMW`.
-           That figure has been wrong in three consecutive reviews of this entry — eight,
-           then six, then five — by an identical mechanism each time: the count was carried
-           forward from the previous run instead of re-derived against the tree being
-           committed. A number in prose ages exactly as badly as the state it describes, and
-           this one describes a set that the branch and its own base keep shrinking.
+           of the anchor column" remedy is demonstrated rather than proposed. The rest are
+           screened, not audited, and this entry no longer prints how many. That figure was
+           wrong in four consecutive reviews — eight, six, five, four — three times because
+           it was carried forward instead of re-derived against the tree being committed,
+           and once because a new row landed on `main` from #444 while the correction was
+           being written. A count in prose ages exactly as badly as the state it describes,
+           and this one describes a set other sessions are changing hourly. Re-derive it
+           against whatever tree you are looking at: for each row take every backticked span
+           in the symbol column, find its occurrences in the fetched file, and flag any span
+           with more than one occurrence at or before the cited line.
+           **That screen is not a defect list, and reading it as one would repeat the error
+           it exists to prevent.** `GB-OPTIONS-GENERAL-MULTISITE`, added by #444 during this
+           PR, trips it on `$allowed_options['general']` at L187, L190 and L193 — but its
+           other span, `if ( ! is_multisite() )`, is unique at L185 and encloses the cited
+           line, and all three loose occurrences sit inside that same block. Screened,
+           checked, fine. What the screen yields is rows worth reading, which is all any of
+           these numbers ever meant.
            **The fifth instance was in the repair of the fourth, and it is the tidiest of
            them.** The first version of those two repaired cells named the rejected token in
            prose — "NOT `if ( empty( $action ) ) {`, which resolves at L37" — *in backticks*.
