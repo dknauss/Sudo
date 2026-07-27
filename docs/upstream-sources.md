@@ -39,10 +39,20 @@ source removed.
    which is the habit this column exists to force.
 2. Add the row: a stable ID, the raw URL, the line, an exact snippet, the enclosing
    symbol, and the claim it supports.
-3. In the symbol column, **backtick only things that appear in the file**. The backticked
-   tokens are exactly what the checker looks for, and every one of them must resolve at or
+3. In the symbol column, **backtick only code identities the checker can search for**. The
+   backticked tokens are exactly what it looks for, and every one of them must resolve at or
    before the cited line — they are read as a conjunction, so surrounding prose is free-form
-   but each code span is a requirement. A **file path is not one of them**: five rows once
+   but each code span is a requirement.
+
+   Two spans are recognised beyond a literal token, so do not rewrite them into something
+   that occurs verbatim: a `` `Class::method()` `` span is expanded into a `class X` search
+   and a `function m(` search and then bound to that class, so the qualified name need not
+   appear in the file at all; a `` `<Foo>` `` span matches the open tag `<Foo`. Prefer the
+   qualified form to a bare `` `function m(` `` — it is what proves *whose* method this is,
+   and downgrading it reopens the containment hole that let a method in one class satisfy a
+   row about another.
+
+   A **file path is not a code identity**: five rows once
    ended `… in `wp-admin/update.php``, and no anchor could resolve once the column stopped
    accepting any single span as sufficient. Not because a file cannot contain its own path
    — `wp-admin/user-new.php` contains its twice and `update.php` once, both in docblocks —
