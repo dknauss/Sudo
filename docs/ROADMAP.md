@@ -69,10 +69,17 @@ the full backlog is in the [issues](https://github.com/dknauss/Sudo/issues), lab
 
 ## Later (need design work)
 
-- **Client-side modal challenge** (GitHub-style inline reauth) — explicitly deferred:
-  design-heavy, no security gain over stash → challenge → replay. If built, re-evaluate
-  the password-first OS-autofill decision (see
-  [`security-model.md`](security-model.md#reauthentication-flow-password-first-design-rationale)).
+- **Standard wp-admin preflight and action confirmation** — the preferred
+  successor to server-side stash/replay. Opted-in screens pause before sending,
+  obtain a server-canonical action/target digest, reauthenticate through the
+  standard provider UI, and submit once with a short-lived one-use proof.
+  Legacy screens fall back to reauthenticate-then-resubmit. Start with a narrow
+  demonstrator for plugin/theme upload and file-editor save; do not build a
+  generic request-capture/replay layer. An ordinary same-origin modal is not an
+  XSS security boundary, so the design must support browser-mediated factors or
+  an isolated provider surface. Normative core direction:
+  [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md)
+  §5.1/§7.1.
 - **REST sudo-grant endpoint** (`POST /wp/v2/sudo`) for headless clients.
 - **Per-session / device sudo isolation** via `WP_Session_Tokens` — deferred:
   architectural, not a hardening item.
@@ -102,6 +109,10 @@ the full backlog is in the [issues](https://github.com/dknauss/Sudo/issues), lab
 - **WordPress core recent-auth gate proposal** — the strategic core work
   ([`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md) and
   companions; Trac #20140).
+- **General Consequential-Actions registry/API** — possible future complement,
+  not part of the core gate Cut 1. Revisit only when a concrete consumer proves
+  the need for a public taxonomy and metadata contract; do not pattern it on
+  Abilities by default.
 
 ## Non-goals / Declined
 

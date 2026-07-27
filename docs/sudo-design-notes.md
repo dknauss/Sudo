@@ -21,7 +21,8 @@ fully implemented in WP Sudo (through v2.5.2):
 
 - All five threat model scenarios (XSS→RCE, session theft, device compromise,
   device loss, undetected persistence)
-- Post-POST interception with request stash and replay
+- Post-POST interception with request stash and replay (shipped historical
+  design; #322 showed why it is not the preferred forward architecture)
 - Multi-surface coverage with per-surface policy (three-tier model exceeds the
   document's binary treatment)
 - Cryptographic token binding (cookie + SHA-256 in user meta)
@@ -50,14 +51,19 @@ fully implemented in WP Sudo (through v2.5.2):
 These are high-value but architecturally complex. Each needs its own design phase
 before implementation.
 
-**Client-side modal challenge**
-The ideal UX: `.needs-sudo` CSS class on forms, JS intercepts
-submit, inline password prompt, original form submitted with sudo token. Preserves
-form state, handles AJAX saves, matches GitHub/Silverstripe. An
-iframe + postMessage architecture would support extensibility with 2FA/SSO providers. Major UX improvement
-over redirect-to-challenge, but significant complexity: nonce handling, file uploads
-(`$_FILES` not stashable in current model), modal-in-modal for the plugin file editor,
-fallback server-side flow. Likely a milestone unto itself.
+**Standard wp-admin preflight and action confirmation**
+This is the preferred forward UX, not merely an optional modal. An opted-in
+screen intercepts the user's action before submission, asks the server to
+canonicalize its action and target, reauthenticates, receives a one-use proof for
+that digest, shows the final confirmation, and sends the mutation once. Form
+state and file selections stay in the browser; nothing executable is placed in a
+server replay stash. Unintegrated screens fall back to
+reauthenticate-then-resubmit.
+
+The server-side effect veto remains authoritative. A same-origin modal or iframe
+is not a security boundary against active XSS, so password entry inside wp-admin
+cannot be described as isolated; WebAuthn/passkeys or an isolated provider
+surface provide a stronger path. See the core spec §5.1 and §7.1.
 
 **Per-session sudo isolation**
 Current model: one sudo token per user in user meta. The ideal is
@@ -78,22 +84,12 @@ silent reauthentication mechanisms. Currently there is no formal registration or
 dispatch for SSO providers in the challenge flow. Would need a provider interface
 (register, render, validate) parallel to the existing 2FA hooks.
 
-**`action_id` seam — reference a core Actions API identity (deferred / trigger-gated)**
-Add an optional `action_id` field to each `Action_Registry` rule that points at a
-core/CA-style semantic action ID (e.g. `user.promote` → `core/promote-user`), while
-keeping the per-surface matching (`admin`/`ajax`/`rest`/`stash`) local to the rule.
-This is the **union** the [registry-vs-Abilities decision](core-sudo-gate-implementation-spec.md) (spec §4.1.1; full memo archived at [`archive/core-actions-registry-vs-abilities-decision.md`](archive/core-actions-registry-vs-abilities-decision.md))
-anticipates: WP Sudo becomes a *consumer* of the proposed core Actions API's identity
-layer while remaining the enforcement + stash-and-replay layer that core defers.
-Additive, breaks nothing, and does **not** mean adopting the `consequential-actions`
-demo's pure-data architecture wholesale — that would discard the request-pattern
-matching that powers stash-and-replay (a strict regression; the CA demo cannot replay).
-Nor does it mean adopting CA's semantic metadata (`consequence_class`/`scope`/
-`annotations`), which would be dead data no enforcement path reads.
-**YAGNI until triggered:** build this only if/when WordPress core actually ships an
-Actions API to key against. Until a real identity registry exists to reference, the
-`action_id` field would point at nothing. (The effect-oriented robustness CA argues
-for is already covered by the 4.1.0 effect-level backstops.)
+**General action identity / registry — deferred**
+Do not add an `action_id` compatibility seam now. The core gate Cut 1 proposes no
+public Actions API, and its security does not depend on one. If core later ships
+a demonstrated, consumer-driven catalog, WP Sudo can evaluate a small mapping
+then. The design should not assume an Abilities-shaped API or preserve
+stash/replay merely to consume it.
 
 ### Discarded ideas
 
