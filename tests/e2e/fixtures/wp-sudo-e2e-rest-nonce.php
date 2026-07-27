@@ -43,6 +43,15 @@ add_action(
 add_action(
 	'init',
 	static function (): void {
+		// Only ever during a web request. WP Sudo's CLI policy maps the *function*,
+		// not just the `wp user create` command, so calling wp_insert_user() while
+		// `init` runs under WP-CLI is refused exactly as the command would be — and
+		// would fail whatever CLI command happened to trigger it. Creating during a
+		// normal admin page load sidesteps nothing: that surface completes challenges.
+		if ( defined( 'WP_CLI' ) && WP_CLI ) {
+			return;
+		}
+
 		if ( username_exists( 'wp_sudo_rest_gate_target' ) ) {
 			return;
 		}

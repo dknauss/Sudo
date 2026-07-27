@@ -93,6 +93,24 @@ async function wpCli( args: string[] ): Promise< string > {
     return stdout;
 }
 
+/**
+ * Hit the site once over HTTP so mu-plugin `init` work runs in a web context.
+ *
+ * A plain unauthenticated GET is enough — `init` fires on every WordPress request,
+ * and the fixture only needs that hook to run somewhere that is not WP-CLI. Issued
+ * from the runner rather than from inside the CLI container, which cannot reach the
+ * web container on localhost.
+ */
+async function requestWebPageOnce(): Promise< void > {
+    const base = process.env.WP_BASE_URL ?? 'http://localhost:8889';
+    try {
+        await fetch( base, { redirect: 'follow' } );
+    } catch {
+        // A failed warm-up is not fatal here: the lookup below reports the real
+        // problem with a clearer message than a swallowed network error would.
+    }
+}
+
 /** Drop only the sudo cookies, leaving the login session intact. */
 async function clearSudoCookies( page: Page ): Promise< void > {
     const context = page.context();
@@ -177,8 +195,13 @@ test.describe( 'REST gate', () => {
     test.beforeAll( async () => {
         await installNonceMuPlugin();
 
-        // The mu-plugin above creates the probe target at `init`; look it up rather
-        // than creating it here. `wp user create` is refused by the gate on the CLI
+        // The mu-plugin creates the probe target at `init` during a WEB request, so a
+        // page load has to happen before the lookup. Ordering matters and is not
+        // incidental: the mu-plugin refuses to run under WP-CLI, because the CLI
+        // policy maps `wp_insert_user()` itself and would refuse it there.
+        await requestWebPageOnce();
+
+        // Look the target up rather than creating it here. `wp user create` is refused by the gate on the CLI
         // surface, and the policy cannot be relaxed from CLI either because changing
         // WP Sudo's settings is gated on that same surface — the gate cannot be
         // disarmed from the surface it protects.
