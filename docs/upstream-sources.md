@@ -13,11 +13,16 @@ the cited expression across lines, so the one-line snippet no longer matches). I
 when a snippet has merely **moved** (the line number drifted; upstream trunk moves
 constantly and that alone is not a lie).
 
-Every ID uses the `GB-` prefix. That is deliberate: the checker scans the whole repo for
-`GB-*` references and fails on any that no longer have a row here, so a renamed or deleted
-row cannot leave a dangling citation. A row whose ID does not use the prefix is rejected.
-To register a source family that warrants a different prefix, widen both the prefix check
-and that scan in `bin/verify-sources.sh` together.
+Every ID carries a registered prefix — currently `GB-` or `FT-`, enforced by `ID_REGEX`
+in `bin/verify-sources.sh`. The prefix set, not any one prefix, is what matters: the
+checker scans the whole repo for references matching it and fails on any that no longer
+have a row here, so a renamed or deleted row cannot leave a dangling citation. An ID
+outside the registered set is rejected.
+
+The prefixes are historical rather than semantic and should not be read as a source
+taxonomy — `GB-` began as Gutenberg but now covers `wordpress-develop`, `wp-cli`, and
+`abilities-api` too; `FT-` covers the Fortress comparison sources. To register a family
+that warrants a new prefix, widen `ID_REGEX` and the dangling-reference scan together.
 
 ## How to add a row
 
