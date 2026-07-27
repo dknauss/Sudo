@@ -126,6 +126,12 @@ What the payload does add is two **new** documented public entries: the
 `wp_sudo_lockout_cleared` hook and the `wp sudo unlock` CLI command. Additions are what
 MINOR means. So `4.9.0`, by the rule — not by preference, and with no override needed.
 
+This is the outcome this document **anticipated when it deferred v2**: *"it restores replay,
+and therefore probably restores the removed hook — so its own version classification must be
+decided on its merits, not inherited from this release."* It was decided on its merits, and
+the merged payload is additive plus security fixes. (Sentence preserved from the closed
+PR #390, which would otherwise have taken it with it.)
+
 **The forced reauthentication is communicated in prose, not in the version digit.**
 Every user must reauthenticate once after upgrading, because pre-`4.9.0` sessions carry
 no proof entry and no migration runs. That is the strongest argument anyone will make
