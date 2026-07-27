@@ -12,6 +12,7 @@
  * @covers \WP_Sudo\Sudo_Session
  * @covers \WP_Sudo\Request_Stash
  * @covers \WP_Sudo\Gate
+ * @covers \WP_Sudo\Challenge
  * @package WP_Sudo\Tests\Integration
  */
 
@@ -197,5 +198,118 @@ class ChallengeTest extends TestCase {
 		$result = Sudo_Session::attempt_activation( $user->ID, 'correct-password' );
 		$this->assertSame( 'locked_out', $result['code'], 'Correct password should be rejected during lockout.' );
 		$this->assertFalse( Sudo_Session::is_active( $user->ID ), 'Session should not be active during lockout.' );
+	}
+
+	/**
+	 * #429: a self-posting form stashes NO return_url, under the real wp_get_referer().
+	 *
+	 * This pins the fact the fail-closed landing depends on. The first attempt at #429
+	 * classified the landing by comparing the stashed return_url against the request
+	 * URL; unit fixtures supplied a return_url, so the guard looked correct and was in
+	 * fact dead for every core self-posting form. wp_get_referer() discards a referer
+	 * equal to REQUEST_URI, and wp_referer_field() emits exactly that for a form with
+	 * no action attribute — which is what wp-admin/user-new.php uses.
+	 *
+	 * Written as an integration test deliberately: only the real wp_get_referer() can
+	 * demonstrate this, and a mocked one is what hid it.
+	 */
+	public function test_self_posting_form_stashes_no_return_url(): void {
+		$user = $this->make_admin();
+		wp_set_current_user( $user->ID );
+
+		$this->simulate_admin_request(
+			'user-new.php',
+			'',
+			'POST',
+			array(),
+			array( 'action' => 'createuser', 'role' => 'administrator' )
+		);
+
+		// What wp_referer_field() renders inside a form that posts to its own URI.
+		$_REQUEST['_wp_http_referer'] = '/wp-admin/user-new.php';
+		$_POST['_wp_http_referer']    = '/wp-admin/user-new.php';
+
+		$stash     = new Request_Stash();
+		$stash_key = $stash->save( $user->ID, array( 'id' => 'user.create', 'label' => 'Create user' ) );
+		$retrieved = $stash->get( $stash_key, $user->ID );
+
+		$this->assertIsArray( $retrieved );
+		$this->assertSame(
+			'',
+			$retrieved['return_url'],
+			'A self-posting form yields no referer, so no landing logic may depend on return_url.'
+		);
+		$this->assertStringContainsString( 'user-new.php', $retrieved['url'] );
+	}
+
+	/**
+	 * #429: a refused POST lands back on the self-posting form, not the dashboard.
+	 *
+	 * End-to-end over a real stash, so the landing is computed from what
+	 * Request_Stash actually stored rather than from a hand-built fixture.
+	 */
+	public function test_refused_post_lands_on_the_originating_form(): void {
+		$user = $this->make_admin();
+		wp_set_current_user( $user->ID );
+
+		$this->simulate_admin_request(
+			'user-new.php',
+			'',
+			'POST',
+			array(),
+			array( 'action' => 'createuser', 'role' => 'administrator' )
+		);
+		$_REQUEST['_wp_http_referer'] = '/wp-admin/user-new.php';
+		$_POST['_wp_http_referer']    = '/wp-admin/user-new.php';
+
+		$stash     = new Request_Stash();
+		$stash_key = $stash->save( $user->ID, array( 'id' => 'user.create', 'label' => 'Create user' ) );
+
+		$challenge = new \WP_Sudo\Challenge( $stash );
+		$method    = new \ReflectionMethod( $challenge, 'build_replay_response_data' );
+		$method->setAccessible( true );
+
+		/** @var array<string, mixed> $data */
+		$data = $method->invoke( $challenge, $user->ID, $stash_key, admin_url(), false );
+
+		$this->assertArrayNotHasKey( 'replay', $data, 'Nothing may be auto-replayed on the refused path.' );
+		$this->assertStringContainsString(
+			'user-new.php',
+			$data['redirect'],
+			'The user must land back on the form the notice tells them to re-fill.'
+		);
+	}
+
+	/**
+	 * #429: a Settings-API POST lands on the neutral page, never on options.php.
+	 *
+	 * options.php renders the raw All Settings dump on GET rather than the settings
+	 * form, so returning the user "to their screen" there is worse than the dashboard.
+	 */
+	public function test_refused_settings_post_does_not_land_on_options_php(): void {
+		$user = $this->make_admin();
+		wp_set_current_user( $user->ID );
+
+		$this->simulate_admin_request(
+			'options.php',
+			'',
+			'POST',
+			array(),
+			array( 'option_page' => 'wp_sudo_settings', 'wp_sudo_settings' => array( 'session_duration' => 14 ) )
+		);
+		$_REQUEST['_wp_http_referer'] = '/wp-admin/options-general.php?page=wp-sudo-settings';
+		$_POST['_wp_http_referer']    = '/wp-admin/options-general.php?page=wp-sudo-settings';
+
+		$stash     = new Request_Stash();
+		$stash_key = $stash->save( $user->ID, array( 'id' => 'settings.sudo', 'label' => 'Change Sudo settings' ) );
+
+		$challenge = new \WP_Sudo\Challenge( $stash );
+		$method    = new \ReflectionMethod( $challenge, 'build_replay_response_data' );
+		$method->setAccessible( true );
+
+		/** @var array<string, mixed> $data */
+		$data = $method->invoke( $challenge, $user->ID, $stash_key, admin_url(), false );
+
+		$this->assertStringNotContainsString( 'options.php', $data['redirect'] );
 	}
 }
