@@ -45,11 +45,20 @@ is present, the user can still reauthenticate but the POST body is not replayed
 automatically. Use `post_mode => 'none'` for uploads, file-editor saves, or
 other requests that cannot be safely reconstructed from POST fields alone.
 
-**Replay eligibility requires the confirmation to name the whole effect (#322).**
-Automatic replay after reauthentication is not the default outcome — it happens only
-when the challenge page was able to name the concrete target of the action, because
-that named confirmation is the control that holds if the per-browser binding is
-bypassed. Two consequences for rule authors:
+**A server-stashed request is never replayed after reauthentication (#322, 4.9.0).**
+Automatic replay was removed outright for every method, every rule and every admin
+surface that stashes. This is scoped to requests the *server* stashed: the block
+editor's in-tab retry re-dispatches the request the user actioned in that tab moments
+earlier, which never left the browser and which nobody else can plant. A gated request is
+stashed so the challenge can name what is being authorised, and the stash is then
+**consumed, never executed**: the user is returned to the screen the request came
+from, holding the sudo session they just earned, to re-issue the action themselves.
+
+An earlier design replayed the request when the confirmation had named the whole
+effect and a per-browser binding cookie was presented. That is gone; there is no
+eligibility test, because there is nothing to be eligible for. Two consequences for
+rule authors remain, and they are now about the **confirmation text** rather than
+about replay:
 
 - A rule whose effect is carried in a parameter WP Sudo does not recognise as a target
   renders **no** `Target:` line. The recognised set is
@@ -72,8 +81,10 @@ bypassed. Two consequences for rule authors:
   POST: the payload carries an effect the confirmation did not describe, so the rule
   falls back to the manual path.
 
-Neither case is an error, and neither weakens gating. If a rule's action matters enough
-to replay seamlessly, express its target through a recognised parameter.
+Neither case is an error, and neither weakens gating — nothing is replayed either way.
+Express your rule's target through a recognised parameter so the challenge page can
+**name** what the user is authorising; that naming is the control, not a route to
+seamless resumption.
 
 ```php
 add_filter( 'wp_sudo_gated_actions', function ( array $rules ): array {
@@ -255,7 +266,32 @@ Accepted args:
 - `user_id` (`int`) — target user; defaults to current user.
 - `rule_id` (`string`) — audit identifier; defaults to `public_api.require`.
 - `redirect` (`bool`) — default `true`; set `false` to receive `false` instead of redirect.
-- `return_url` (`string`) — optional URL for challenge cancel/return flow.
+- `return_url` (`string`) — **inert since 4.9.0.** Still accepted, still emitted into
+  the challenge URL, and still ignored: nothing consumes it. See the note below.
+
+**Behaviour change in 4.9.0 (#322): the user is no longer returned to your page.**
+After a successful challenge, WP Sudo lands the user on a neutral admin page instead
+of the URL that sent them. Your guarded code then passes on the user's *next* visit,
+against the session they now hold — no second challenge.
+
+This is deliberate and it is not a bug report. A destination the requester chose,
+navigated to automatically the instant a challenge succeeds, executes under the sudo
+authority just minted; that is the same confused deputy the release removes from the
+stash path. Every attempt to keep the convenience while filtering the value failed on
+a case with nothing to filter — a queryless custom-action path, or a parameter name
+disguised with a leading `+`.
+
+`return_url` is retained in the signature rather than removed, so callers that pass it
+keep working. It has no effect.
+
+This is **MINOR**, not MAJOR, under the *Security-forced inertness* clause in
+[`VERSIONING.md`](../VERSIONING.md): the argument is still accepted, nothing errors,
+the behaviour was removed because it could not be made safe, and the change is
+disclosed here at the symbol's own entry. Note the contrast with
+`wp_sudo_action_replayed`, dormant in the same release: that one is MINOR because it
+has a **successor** at the same lifecycle point. `return_url` has no successor — but
+it is a landing convenience a human can see, not a signal a consumer silently stops
+receiving, which is where that clause draws the line.
 
 Example:
 
@@ -524,12 +560,11 @@ Current output includes:
 
 The tester does **not** predict whether a request will resume after
 reauthentication, and the `stash_replay_eligible` field it used to return was
-removed in 4.9.0. Since #322, replay is authorised at request time by conditions
-the simulator cannot reproduce — chiefly the per-browser binding proof and a
-same-origin `Sec-Fetch-Site` header, neither of which a simulated shape carries.
-Some inputs *are* visible here: a `https://` URL establishes the scheme, and a
-recognised target parameter or POST field can be read off the submitted shape.
-But a verdict needs all of them together, so the **outcome** stays undecidable
+removed in 4.9.0. Since #322 there is no replay to predict: after
+reauthentication WP Sudo never automatically executes a previously intercepted
+request, on any surface. The tester reports which rule matches and the decision
+for that surface and policy; the question the removed field answered no longer
+has two possible answers
 even when several inputs are known. The tester answers what it can determine —
 whether a request matches a rule, and the decision for that surface and policy.
 
@@ -538,8 +573,7 @@ whether a request matches a rule, and the decision for that surface and policy.
 - `allow` — no matched rule, unauthenticated request, active sudo already
   present, or a surface policy that explicitly permits the request
 - `gate` — an interactive admin request would be sent through the challenge
-  page. Whether it then resumes automatically is a runtime question the tester
-  does not answer (see above)
+  page. It is never resumed automatically afterwards; the user re-issues it
 - `soft-block` — an AJAX or cookie-authenticated REST request would be blocked
   in place and retried after sudo activation
 - `hard-block` — a non-browser REST request would be rejected by current
@@ -621,22 +655,32 @@ do_action( 'wp_sudo_action_gated', int $user_id, string $rule_id, string $surfac
 do_action( 'wp_sudo_action_blocked', int $user_id, string $rule_id, string $surface );
 do_action( 'wp_sudo_action_allowed', int $user_id, string $rule_id, string $surface ); // Unrestricted policy (v2.9.0).
 do_action( 'wp_sudo_action_passed', int $user_id, string $rule_id, string $surface ); // Active session (v3.0.0).
-do_action( 'wp_sudo_action_replayed', int $user_id, string $rule_id );
+// DORMANT since 4.9.0 (#322): retained, documented and still subscribed, but no
+// longer fired — automatic replay was removed, so there is no replay to announce.
+// Nothing an integrator wrote errors; it simply never runs. Read
+// wp_sudo_replay_refused below instead: it fires at the same lifecycle moment,
+// for every consumed stash, and carries a $reason the replayed hook never had.
+// The hook is NOT removed — removing a documented hook would be a MAJOR change.
+do_action( 'wp_sudo_action_replayed', int $user_id, string $rule_id ); // dormant
 
 // Fires when a stashed action was discarded instead of replayed (#322). The
 // counterpart to the above: without it the fail-closed path is silent, so a
 // reauthentication completed in a browser that did not start the action leaves no
 // audit trail and looks identical to nothing happening. $reason is one of
-// no_credential_this_request, redacted_fields, replay_blocked, incomplete_target,
+// replay_disabled (the ordinary case) or no_credential_this_request (a stash
+// released by a session-holder rather than the browser that created it),
 // unnamed_target, no_binding_minted, no_proof_presented, proof_mismatch,
 // url_altered, insecure_replay_url.
 //
 // This is NOT limited to the post-reauthentication path: it also fires from the
 // already-active-session resume paths, where no credential is presented and the
-// reason is no_credential_this_request. That reason is the one worth alerting on
-// and the easiest to dismiss as noise: it is the footprint of a lure that landed
-// on a session-holder and was REFUSED. may_replay_bound_stash() rejects on a
-// missing credential before any other check, so nothing executed — it is not a
+// reason is no_credential_this_request. That reason means only that no credential
+// was verified on the releasing request — an ordinary multi-tab resume produces it
+// just as a lure landing on a session-holder does, and the server cannot tell them
+// apart. Correlate it; do not alert on it alone.
+// on a session-holder — but ALSO by an ordinary resume when the session was
+// activated in another tab. The server cannot tell those apart, so correlate
+// rather than alert. Nothing executes on any path: replay is removed.
 // live hole — but the attempt is visible nowhere else. Fires at most once per
 // stash (the stash is consumed before the hook runs).
 do_action( 'wp_sudo_replay_refused', int $user_id, string $rule_id, string $reason );

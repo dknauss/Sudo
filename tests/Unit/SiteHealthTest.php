@@ -66,9 +66,10 @@ class SiteHealthTest extends TestCase {
 		$result = $this->health->register_tests( $tests );
 
 		$this->assertArrayHasKey( 'existing_test', $result['direct'] );
-		// 1 pre-existing + 6 WP Sudo tests (wp_sudo_replay_binding added in #322).
-		$this->assertCount( 7, $result['direct'] );
-		$this->assertArrayHasKey( 'wp_sudo_replay_binding', $result['direct'] );
+		// 1 pre-existing + 5 WP Sudo tests (wp_sudo_replay_binding removed in #322:
+		// nothing is replayed, so a test reporting whether replay is available was
+		// false in both branches).
+		$this->assertCount( 6, $result['direct'] );
 	}
 
 	// ── test_role_manifest() (#179) ──────────────────────────────────
@@ -385,54 +386,6 @@ class SiteHealthTest extends TestCase {
 	}
 
 	// ── test_replay_binding() (#322) ─────────────────────────────────
-
-	/**
-	 * #322: HTTPS sites can bind a resumed action to the browser, so replay works.
-	 */
-	public function test_replay_binding_good_when_cookies_are_secure(): void {
-		Functions\when( '__' )->returnArg();
-		Functions\when( 'is_ssl' )->justReturn( true );
-		Functions\when( 'force_ssl_admin' )->justReturn( true );
-		Functions\when( 'apply_filters' )->returnArg( 2 );
-
-		$result = $this->health->test_replay_binding();
-
-		$this->assertSame( 'good', $result['status'] );
-		$this->assertSame( 'wp_sudo_replay_binding', $result['test'] );
-	}
-
-	/**
-	 * #322: an HTTPS site whose wp_sudo_cookie_secure filter suppresses Secure mints
-	 * no binding, so health must not promise that actions resume.
-	 */
-	public function test_replay_binding_recommends_when_secure_cookies_are_filtered_off(): void {
-		Functions\when( '__' )->returnArg();
-		Functions\when( 'is_ssl' )->justReturn( true );
-		Functions\when( 'force_ssl_admin' )->justReturn( true );
-		// The documented inverse override: Secure suppressed despite HTTPS.
-		Functions\when( 'apply_filters' )->justReturn( false );
-
-		$result = $this->health->test_replay_binding();
-
-		$this->assertSame( 'recommended', $result['status'] );
-	}
-
-	/**
-	 * #322: without HTTPS the __Host- binding cookie cannot be set, so replay never
-	 * engages and the user must repeat the action. Surfaced so the degradation is
-	 * visible rather than looking like a bug.
-	 */
-	public function test_replay_binding_recommends_https_when_not_secure(): void {
-		Functions\when( '__' )->returnArg();
-		Functions\when( 'is_ssl' )->justReturn( false );
-		Functions\when( 'force_ssl_admin' )->justReturn( false );
-		Functions\when( 'apply_filters' )->returnArg( 2 );
-
-		$result = $this->health->test_replay_binding();
-
-		$this->assertSame( 'recommended', $result['status'] );
-		$this->assertStringContainsString( 'HTTPS', $result['description'] );
-	}
 
 	// ── test_recovery_mode() (#240) ──────────────────────────────────
 

@@ -285,7 +285,6 @@ class ChallengeTest extends TestCase
 			'sessionExpired',
 			'startOver',
 			'twoFactorRequired',
-			'replayingAction',
 			'leavingChallenge',
 		);
 		foreach ($expected_keys as $key) {
@@ -1100,13 +1099,259 @@ class ChallengeTest extends TestCase
 	 * still contains &tab=access — this is the URL the challenge JS uses for
 	 * the code==='authenticated' (session-only-success) redirect target.
 	 */
-	public function test_enqueue_assets_cancel_url_preserves_tab_query_arg_from_access_tab(): void
+	/**
+	 * #322: a stash released without a credential must be distinguishable in audit.
+	 *
+	 * An independent review mutated the `! $credential_verified` branch away — so
+	 * every refusal reported `replay_disabled` — and the suite stayed green. That is
+	 * the one value an operator can correlate on (an active-session release, which is
+	 * either an ordinary multi-tab resume or a lure that landed on a session-holder;
+	 * the server cannot tell them apart). Coverage stopped exactly at the reason that
+	 * matters for detection.
+	 */
+	public function test_release_without_a_credential_is_audited_distinctly(): void
+	{
+		$this->stash->shouldReceive('get')->once()->andReturn($this->boundPostStash('secret'));
+		$this->stash->shouldReceive('delete')->once();
+		$this->stubReplayEnv();
+
+		$captured = null;
+		Actions\expectDone('wp_sudo_replay_refused')
+			->once()
+			->whenHappen(function ($user_id, $rule_id, $reason) use (&$captured) {
+				$captured = $reason;
+			});
+
+		$this->invokeReplay('no-credential-key', false);
+
+		$this->assertSame(
+			'no_credential_this_request',
+			$captured,
+			'An active-session release must not be flattened into the ordinary disabled-replay reason.'
+		);
+	}
+
+	/**
+	 * #322: the "session already confirmed" page must not auto-navigate.
+	 *
+	 * An independent review mutated this fix away — re-inserting the deleted
+	 * DOMContentLoaded redirect — and the entire suite stayed green. A guard no test
+	 * kills is not a guard: it can be lost to a careless merge, a rebase conflict
+	 * resolution, or the planned 4.10 cleanup of the surrounding dormant machinery,
+	 * with CI reporting success the whole way.
+	 *
+	 * The page must render the Continue and Cancel anchors and NOTHING that navigates
+	 * on load, so the second action stays explicit.
+	 */
+	public function test_resume_page_does_not_auto_navigate(): void
+	{
+		Functions\when('__')->returnArg();
+		Functions\when('esc_html__')->returnArg();
+		Functions\when('esc_html_e')->alias(static function ($t) { echo $t; });
+		Functions\when('esc_url')->returnArg();
+		Functions\when('esc_attr')->returnArg();
+		Functions\when('wp_json_encode')->alias(static fn($v) => json_encode($v));
+
+		$this->stash->shouldReceive('exists')->andReturn(false);
+
+		$method = new \ReflectionMethod($this->challenge, 'render_resume_page');
+		if ( PHP_VERSION_ID < 80100 ) {
+			$method->setAccessible(true);
+		}
+
+		ob_start();
+		$method->invoke($this->challenge, 42, '', 'https://example.com/wp-admin/');
+		$html = (string) ob_get_clean();
+
+		$this->assertStringNotContainsString(
+			'window.location.href',
+			$html,
+			'The resume page must not navigate on load — the Continue click is the explicit second action.'
+		);
+        $this->assertStringNotContainsString(
+			'DOMContentLoaded',
+			$html,
+			'No load-time script may run here at all.'
+		);
+		$this->assertStringContainsString('Continue', $html, 'The explicit action must still be offered.');
+	}
+
+	/**
+	 * #322: the shipped JS must not navigate to `config.cancelUrl` on success.
+	 *
+	 * This asserts against the source file, which is unusual and deliberate. The
+	 * client half of the invariant cannot be reached any other way here: there is no
+	 * JavaScript unit harness in this repository, and an end-to-end test cannot
+	 * observe the mutation either — because the server now forces `cancelUrl` to the
+	 * neutral page, restoring `config.cancelUrl` in a success branch is *currently*
+	 * harmless. It is only dangerous in combination with a future regression on the
+	 * PHP side, which is exactly the combination nobody tests.
+	 *
+	 * So the guard is placed where the property lives: the success branches navigate
+	 * via `neutralDestination()`, and nothing else. An independent review restored a
+	 * `window.location.href = config.cancelUrl` success branch and watched the whole
+	 * PHP suite stay green; this is what turns that mutation red.
+	 *
+	 * If the JS is ever restructured, update this test to match the new shape rather
+	 * than deleting it — the property it encodes outlives the current file layout.
+	 */
+	public function test_challenge_js_never_navigates_to_cancel_url_on_success(): void
+	{
+		$js = (string) file_get_contents( dirname( __DIR__, 2 ) . '/admin/js/wp-sudo-challenge.js' );
+
+		$this->assertNotSame('', $js, 'The challenge script must be readable.');
+
+		// The success paths: authenticated (password), authenticated (2FA), sessionOnly.
+		$this->assertSame(
+			3,
+			substr_count($js, 'window.location.href = neutralDestination();'),
+			'All three success branches must navigate to the server-chosen neutral page.'
+		);
+
+		// `cancelUrl` may still back the Escape/Cancel affordance, but must never be
+		// assigned to location in a success branch.
+		$this->assertStringNotContainsString(
+			"window.location.href = config.cancelUrl ||",
+			$js,
+			'A success branch must never fall back to the requester-supplied cancelUrl.'
+		);
+
+		$this->assertStringContainsString(
+			'function neutralDestination()',
+			$js,
+			'The single navigation helper must exist.'
+		);
+
+		// Pin the BODY, not just the call sites. An independent review mutated
+		// `return config.neutralUrl || …` to `return config.cancelUrl || …` and every
+		// assertion above still held — the call-site count was unchanged and the
+		// forbidden literal was `return`, not `window.location.href =`. That is the
+		// one line deciding where all three success branches go, and no browser test
+		// can catch it either: `cancelUrl` and `neutralUrl` are the same PHP variable
+		// on every request, so the mutant is observationally equivalent end to end.
+		$body = (string) preg_replace(
+			'/^.*function neutralDestination\(\)\s*\{(.*?)\}.*$/s',
+			'$1',
+			$js
+		);
+
+		$this->assertStringContainsString(
+			'config.neutralUrl',
+			$body,
+			'neutralDestination() must resolve the server-chosen neutral page.'
+		);
+		$this->assertStringNotContainsString(
+			'cancelUrl',
+			$body,
+			'neutralDestination() must not resolve anything on the cancel path.'
+		);
+
+		// Pin the TOTAL number of cancelUrl uses, not just the shape of the ones we
+		// know about. The count assertion above catches a success branch being
+		// REPLACED; it cannot catch one being ADDED — a review mutant that appended a
+		// new `code === "resumed"` branch reading config.cancelUrl left all three
+		// existing calls intact and survived the whole suite. Additions are how this
+		// file will actually grow, so the guard has to bound them.
+		//
+		// The two permitted uses are the Escape-key affordance: its `if` condition and
+		// its assignment. If you are adding a legitimate third, this test is asking
+		// you to justify it in review rather than blocking you.
+		$code = (string) preg_replace('#/\*.*?\*/#s', '', $js);
+		$code = (string) preg_replace('#^\s*//.*$#m', '', $code);
+
+		$this->assertSame(
+			2,
+			substr_count($code, 'config.cancelUrl'),
+			'cancelUrl may be read only by the Escape-key affordance (its condition and '
+				. 'its assignment). A third use means a new navigation path can reach the '
+				. 'cancel value — state why in review.'
+		);
+	}
+
+	/**
+	 * #322: the client-side replay engine must stay removed.
+	 *
+	 * `handleReplay()` used to build a hidden form from `data.replay`/`data.url`/
+	 * `data.post_data` and auto-submit it with
+	 * `HTMLFormElement.prototype.submit.call()` — chosen deliberately so a stashed
+	 * field named `submit` could not shadow the method. It is gone.
+	 *
+	 * Nothing asserted that it stays gone: an independent review re-added a working
+	 * branch and the entire suite remained green. The invariant's client half was
+	 * correct by authorship rather than by test, which is the state this release
+	 * exists to stop accepting.
+	 */
+	public function test_challenge_js_contains_no_form_submission_engine(): void
+	{
+		$js = (string) file_get_contents( dirname( __DIR__, 2 ) . '/admin/js/wp-sudo-challenge.js' );
+
+		$this->assertNotSame('', $js);
+
+		// Strip comments first: this asserts about CODE, not prose. The file
+		// deliberately explains what was removed and why, and that explanation is
+		// worth keeping — a future reader who finds no trace of the engine has no
+		// way to know it was a decision rather than an oversight.
+		$code = (string) preg_replace('#/\*.*?\*/#s', '', $js);
+		$code = (string) preg_replace('#^\s*//.*$#m', '', $code);
+
+		foreach (
+			array(
+				'HTMLFormElement.prototype.submit' => 'the shadow-proof auto-submitter',
+				"createElement('form')"            => 'form construction',
+				'appendFields'                     => 'the recursive hidden-input builder',
+				'post_data'                        => 'the stashed request body',
+				'.replay'                          => 'the replay branch selector',
+			) as $needle => $what
+		) {
+			$this->assertStringNotContainsString(
+				$needle,
+				$code,
+				'The challenge script must not reintroduce ' . $what . '.'
+			);
+		}
+	}
+
+	/**
+	 * #322 blunt rule: no requester-supplied destination survives, ever.
+	 *
+	 * An earlier cut classified `return_url` — same host, then strip `action` and
+	 * nonce params. That failed on the case with nothing to strip: a **queryless**
+	 * custom-action path (`options-general.php?page=…`, `tools.php?page=…`, or any
+	 * route whose effect rides the path) passed every filter and was navigated to
+	 * automatically on password success, under the sudo authority just minted.
+	 *
+	 * @dataProvider provideRequesterSuppliedDestinations
+	 *
+	 * @param string $return_url The attacker-supplied value.
+	 * @param string $label      Case description.
+	 */
+	public function test_cancel_url_is_never_the_requester_destination(string $return_url, string $label): void
 	{
 		$_GET['page'] = 'wp-sudo-challenge';
-		// This is exactly the value Plugin::enqueue_shortcut() would set for
-		// return_url when invoked from options-general.php?page=wp-sudo-settings&tab=access.
-		$_GET['return_url'] = 'https://example.com/wp-admin/options-general.php?page=wp-sudo-settings&tab=access';
+		$_GET['return_url'] = $return_url;
 
+		$captured = $this->captureLocalizedChallengeConfig();
+
+		$this->assertIsArray($captured);
+		$this->assertSame(
+			'https://example.com/wp-admin/',
+			$captured['cancelUrl'],
+			$label . ': cancelUrl must be the server-chosen neutral page.'
+		);
+		$this->assertSame(
+			'https://example.com/wp-admin/',
+			$captured['neutralUrl'],
+			$label . ': neutralUrl is what every success branch navigates to.'
+		);
+	}
+
+	/**
+	 * Run enqueue_assets() and return the array it localises.
+	 *
+	 * @return array<string, mixed>|null
+	 */
+	private function captureLocalizedChallengeConfig(): ?array
+	{
 		Functions\when('__')->returnArg();
 		Functions\when('get_current_user_id')->justReturn(42);
 		Functions\when('wp_enqueue_style')->justReturn(null);
@@ -1114,14 +1359,9 @@ class ChallengeTest extends TestCase
 		Functions\when('wp_create_nonce')->justReturn('test-nonce');
 		Functions\when('sanitize_text_field')->alias(static fn($value) => $value);
 		Functions\when('wp_unslash')->alias(static fn($value) => $value);
-		// esc_url_raw is stubbed to returnArg() globally in setUp().
-
 		Functions\when('admin_url')->alias(
 			static fn(string $path = ''): string => 'https://example.com/wp-admin/' . $path
 		);
-
-		// Real wp_validate_redirect() semantics: same-host redirect passes
-		// through untouched, including its full query string.
 		Functions\when('wp_validate_redirect')->alias(
 			static function (string $location, $fallback = '') {
 				$host = parse_url($location, PHP_URL_HOST);
@@ -1143,16 +1383,70 @@ class ChallengeTest extends TestCase
 
 		$this->challenge->enqueue_assets();
 
-		$this->assertIsArray($captured);
-		$this->assertArrayHasKey('cancelUrl', $captured);
-		$this->assertStringContainsString(
-			'tab=access',
-			$captured['cancelUrl'],
-			'Root cause candidate: the session-only challenge cancelUrl must preserve the &tab= the user was on when the shortcut/challenge was triggered from a non-default Settings tab.'
-		);
-
-		unset($_GET['page'], $_GET['return_url']);
+		return $captured;
 	}
+
+	/**
+	 * @return array<string, array{0: string, 1: string}>
+	 */
+	public function provideRequesterSuppliedDestinations(): array
+	{
+		return array(
+			'queryless custom action path' => array(
+				'https://example.com/wp-admin/options-general.php?page=acme-danger',
+				'queryless custom action',
+			),
+			'tools.php plugin screen' => array(
+				'https://example.com/wp-admin/tools.php?page=acme-wipe',
+				'tools.php custom page',
+			),
+			'classic action + nonce' => array(
+				'https://example.com/wp-admin/plugins.php?action=activate&plugin=evil%2Fevil.php&_wpnonce=VALID',
+				'action + nonce',
+			),
+			'bare path with no query at all' => array(
+				'https://example.com/wp-admin/acme-handler.php',
+				'bare path',
+			),
+			'foreign host' => array(
+				'https://evil.example/collect',
+				'foreign host',
+			),
+		);
+	}
+
+	/**
+	 * #322: cancelUrl must remain same-host.
+	 *
+	 * Guards the `wp_validate_redirect()` call itself. Without a test here, dropping
+	 * that call turns the sink above into a full cross-host open redirect for the
+	 * victim's authenticated browser and nothing goes red — one of two branches an
+	 * independent review found surviving mutation.
+	 */
+	public function test_enqueue_assets_cancel_url_rejects_a_foreign_host(): void
+	{
+		$_GET['page'] = 'wp-sudo-challenge';
+		$_GET['return_url'] = 'https://evil.example/collect?x=1';
+
+		$captured = $this->captureLocalizedChallengeConfig();
+
+		$this->assertIsArray($captured);
+		$this->assertStringNotContainsString('evil.example', $captured['cancelUrl'], 'A foreign host must never survive.');
+	}
+
+	/**
+	 * REMOVED in 4.9.0 (#322): cancelUrl no longer preserves `tab=access`.
+	 *
+	 * This asserted that the challenge returned the user to the Settings tab they
+	 * came from, by carrying their `return_url` through. That convenience is
+	 * deliberately traded away: any requester-supplied destination reached after a
+	 * successful challenge executes under the sudo authority just minted, and every
+	 * attempt to keep the value while filtering it failed on the case with nothing
+	 * to filter. The destination is now server-chosen unconditionally.
+	 *
+	 * Recorded rather than silently deleted so the loss is a decision, not a
+	 * regression someone re-adds later.
+	 */
 
 	// -----------------------------------------------------------------
 	// handle_ajax_2fa — invalid code returns 401
@@ -2394,51 +2688,97 @@ class ChallengeTest extends TestCase
 		$this->assertArrayNotHasKey('replay', $data);
 		$this->assertSame(42, $captured[0]);
 		$this->assertSame(
-			'no_proof_presented',
+			'replay_disabled',
 			$captured[2],
-			'The audit event must say WHY the replay was refused, not merely that it was.'
+			'The audit event must say WHY the action was not resumed. With a credential '
+				. 'verified on this request, that reason is the invariant itself.'
 		);
 	}
 
 	/**
-	 * #322: a successful bound replay must NOT fire the refusal hook.
+	 * #322: the release invariant. Nothing is ever auto-executed after reauth.
+	 *
+	 * Replaces two tests that asserted the opposite — that a matching binding cookie
+	 * plus a verified credential replays the stashed action. That was the contract
+	 * this release removes, so the tests asserting it are removed with it rather than
+	 * adjusted; leaving them weakened would leave the old guarantee half-asserted.
+	 *
+	 * @dataProvider provideInvariantCases
+	 *
+	 * @param array<string, mixed> $stash    Stash as Request_Stash would have stored it.
+	 * @param bool                 $verified Whether a credential was verified this request.
+	 * @param string               $label    Case description, for the failure message.
 	 */
-	public function test_successful_bound_replay_does_not_fire_refused_hook(): void
+	public function test_no_stash_is_ever_auto_executed(array $stash, bool $verified, string $label): void
 	{
 		$secret = 'super-secret-proof';
+		// Present the binding cookie in EVERY case. Under the old mechanism this was
+		// the thing that authorised a replay, so if any case still replays, this is
+		// what would let it — the invariant must hold with the proof satisfied.
 		$_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE] = $secret;
 
-		$this->stash->shouldReceive('get')->once()->andReturn($this->boundPostStash($secret));
+		$this->stash->shouldReceive('get')->once()->andReturn($stash);
 		$this->stash->shouldReceive('delete')->once();
 		$this->stubReplayEnv();
 
-		Actions\expectDone('wp_sudo_replay_refused')->never();
+		$data = $this->invokeReplay('any-key', $verified);
 
-		$data = $this->invokeReplay('bound-key', true);
-
-		$this->assertTrue($data['replay'] ?? false);
+		$this->assertArrayNotHasKey('replay', $data, $label . ': must not auto-submit.');
+		$this->assertArrayNotHasKey('post_data', $data, $label . ': must not carry a body.');
+		$this->assertArrayNotHasKey('replaying', $data, $label . ': must not signal execution.');
+		$this->assertNotSame(
+			$stash['url'] ?? null,
+			$data['redirect'] ?? null,
+			$label . ': must not redirect to the action URL, which would execute a GET.'
+		);
 
 		unset($_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE]);
 	}
 
 	/**
-	 * #322 v2: the legitimate same-browser flow replays again (UX restored).
+	 * @return array<string, array{0: array<string, mixed>, 1: bool, 2: string}>
 	 */
-	public function test_bound_stash_replays_after_credential_verified(): void
+	public function provideInvariantCases(): array
 	{
 		$secret = 'super-secret-proof';
-		$_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE] = $secret;
+		$bound  = function (array $over) use ($secret): array {
+			return array_merge($this->boundPostStash($secret), $over);
+		};
 
-		$this->stash->shouldReceive('get')->once()->andReturn($this->boundPostStash($secret));
-		$this->stash->shouldReceive('delete')->once();
-		$this->stubReplayEnv();
-
-		$data = $this->invokeReplay('bound-key', true);
-
-		$this->assertTrue($data['replay'] ?? false, 'Matching binding + verified credential must replay.');
-		$this->assertSame(array('role' => 'administrator'), $data['post_data']);
-
-		unset($_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE]);
+		return array(
+			'GET action' => array(
+				$bound(array(
+					'method' => 'GET',
+					'url' => 'https://example.com/wp-admin/plugins.php?action=activate&plugin=evil%2Fevil.php&_wpnonce=abc',
+					'post' => array(),
+					'rule_id' => 'plugin.activate',
+				)),
+				true,
+				'GET',
+			),
+			'POST action' => array($bound(array()), true, 'POST'),
+			'bodyless POST' => array(
+				$bound(array('post' => array(), 'target' => array('plugin' => 'acme/acme.php'))),
+				true,
+				'bodyless POST',
+			),
+			'already-active session, no credential this request' => array(
+				$bound(array()),
+				false,
+				'active-session resume',
+			),
+			'Application Password authorization' => array(
+				$bound(array(
+					'method' => 'POST',
+					'url' => 'https://example.com/wp-admin/authorize-application.php',
+					'rule_id' => 'app_password.create',
+					'post' => array('app_name' => 'acme', 'success_url' => 'https://evil.example/collect'),
+					'target' => array('app_name' => 'acme'),
+				)),
+				true,
+				'App Password authorization',
+			),
+		);
 	}
 
 	/**
@@ -2720,82 +3060,6 @@ class ChallengeTest extends TestCase
 			$data,
 			'A partially described effect must not be auto-replayed.'
 		);
-
-		unset($_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE]);
-	}
-
-	/**
-	 * #431: a replay refused for having no named target must say so.
-	 *
-	 * Skipping critical options that only echo their stored value makes the empty
-	 * target a common outcome rather than a rarity, so the two guards that refuse on
-	 * it must name a reason like every other branch. Returning false without one
-	 * leaves bridges recording a refusal with an empty `$reason` — auditable in name
-	 * only, which is the failure this hook exists to prevent.
-	 */
-	public function test_replay_refused_for_empty_target_is_audited_as_unnamed_target(): void
-	{
-		$secret = 'super-secret-proof';
-		$_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE] = $secret;
-
-		$stash = $this->boundPostStash($secret);
-		$stash['target'] = array();
-		$stash['target_complete'] = true;
-
-		$this->stash->shouldReceive('get')->once()->andReturn($stash);
-		$this->stash->shouldReceive('delete')->once();
-		$this->stubReplayEnv();
-
-		$captured = null;
-		Actions\expectDone('wp_sudo_replay_refused')
-			->once()
-			->whenHappen(function ($user_id, $rule_id, $reason) use (&$captured) {
-				$captured = $reason;
-			});
-
-		$data = $this->invokeReplay('unnamed-key', true);
-
-		$this->assertArrayNotHasKey('replay', $data);
-		$this->assertSame(
-			'unnamed_target',
-			$captured,
-			'A refusal with no named target must be distinguishable in the audit trail.'
-		);
-
-		unset($_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE]);
-	}
-
-	/**
-	 * #431: a target that renders nothing is audited the same way.
-	 *
-	 * describe_stash_target() skips entries that are not non-empty scalars, so a
-	 * corrupted `[ 'plugin' => [] ]` passes the non-empty check above while still
-	 * drawing no Target line at all.
-	 */
-	public function test_replay_refused_for_undrawable_target_is_audited_as_unnamed_target(): void
-	{
-		$secret = 'super-secret-proof';
-		$_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE] = $secret;
-
-		$stash = $this->boundPostStash($secret);
-		$stash['target'] = array('plugin' => array());
-		$stash['target_complete'] = true;
-
-		$this->stash->shouldReceive('get')->once()->andReturn($stash);
-		$this->stash->shouldReceive('delete')->once();
-		$this->stubReplayEnv();
-
-		$captured = null;
-		Actions\expectDone('wp_sudo_replay_refused')
-			->once()
-			->whenHappen(function ($user_id, $rule_id, $reason) use (&$captured) {
-				$captured = $reason;
-			});
-
-		$data = $this->invokeReplay('undrawable-key', true);
-
-		$this->assertArrayNotHasKey('replay', $data);
-		$this->assertSame('unnamed_target', $captured);
 
 		unset($_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE]);
 	}
@@ -3240,7 +3504,20 @@ class ChallengeTest extends TestCase
 		$output = ob_get_clean();
 
 		$this->assertStringContainsString('Session already confirmed', $output);
-		$this->assertStringContainsString('https://example.com/wp-admin/plugins.php', $output);
+		// #322: the Continue/Cancel targets are server-chosen, so the requester's
+		// return_url must NOT appear anywhere in the rendered page. This user already
+		// holds sudo authority, which is exactly when a requester-chosen destination
+		// is most dangerous — one click would execute under it.
+		$this->assertStringNotContainsString(
+			'plugins.php',
+			$output,
+			'A requester-supplied return_url must not reach the resume page at all.'
+		);
+		$this->assertStringContainsString(
+			'https://example.com/wp-admin/',
+			$output,
+			'The neutral dashboard is the only offered destination.'
+		);
 		$this->assertStringNotContainsString('wp-sudo-challenge-password-form', $output);
 
 		unset($_GET['return_url'], $_COOKIE[\WP_Sudo\Sudo_Session::TOKEN_COOKIE]);
