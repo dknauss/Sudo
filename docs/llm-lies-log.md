@@ -1270,7 +1270,7 @@ C2. REDUNDANT MEMORY DUPLICATING CLAUDE.md
            and produced this entry, #55, and #47.
 
 60. PRE-RELEASE EXTERNAL-CLAIM AUDIT (v4.9.0) — eight new registry rows re-verified from
-    source; four defects found, one staged finding rejected
+    source; four defects found, and one of the audit's own negatives retracted (#66)
    Files:  Audited range `git log v4.8.0..b30691a` (111 commits). Run in a fresh session
            and in its own worktree with its own `composer install`, because a shared
            `vendor/` makes the suite load `includes/` from another checkout — during #433
@@ -1335,7 +1335,8 @@ C2. REDUNDANT MEMORY DUPLICATING CLAUDE.md
            second is what turned `GB-NETWORK-EDIT-REDIRECT` from "snippet present, pass"
            into #63.
 
-61. FOUR STAGED FINDINGS VERIFIED, TWO PARTLY, ONE REJECTED — the #421 handoff comment
+61. SIX STAGED FINDINGS TRIAGED — one fully verified, two split, none rejected outright
+    (the #421 handoff comment)
    Files:  Six findings (A–F) staged on issue #421 by the session that wrote it, handed
            over rather than logged by that session because it had been running for hours.
            Verified here before appending; this entry records what survived that check.
@@ -1374,28 +1375,40 @@ C2. REDUNDANT MEMORY DUPLICATING CLAUDE.md
            no longer on the branch: consistent with the account, and the object survives,
            so nothing is lost. Accepted.
            **F (two defects on one line, one fixed, the hit counted as discharged)** —
-           **rejected, as unverifiable.** The phrase `none of which` appears in no version
-           of `CHANGELOG.md` at `v4.8.0`, at any of PR #383's four commits (`4c0f366c`,
-           `1c5f6938`, `fe3eb809`, `5597efbe`), or on `main` in range (`git log -S "none of
-           which" v4.8.0..b30691a -- CHANGELOG.md` returns only `13b5ef0`, which touches a
-           core-gate doc). The sweep it attributes the grep to, #414 (`775c415`), touched
-           `docs/FAQ.md`, `docs/two-factor-integration.md`, `readme.md` and `readme.txt` —
-           **not** `CHANGELOG.md`. The UI-label half is real (`'Stash/replay eligible:'`
-           existed at `v4.8.0:includes/class-admin.php:2668` and is gone now, asserted by
-           `AdminTest`), but the over-claim half could not be reproduced.
+           **split: the artefact is verified, the sweep attribution is not.**
+           *Verified.* `CHANGELOG.md` line 7 read "…and a same-origin request signal —
+           none of which a simulated request shape carries." at `22fe6a5` and `951bf42`,
+           and the phrase is gone at `5597efb` and at `b30691a`. The over-claim is real
+           and was real on the line finding F names. It is false in the way the shipped
+           text now spells out: a simulated shape *does* carry some of those inputs — the
+           URL establishes the scheme, and a recognised target parameter or sensitive
+           field is readable off the submitted shape — so "none of which" overstated by
+           exactly the inputs that are visible.
+           *Not verified, and dropped.* The claim that the line survived a specific
+           earlier sweep because it appeared in that sweep's grep results. The sweep named,
+           #414 (`775c415`), touched `docs/FAQ.md`, `docs/two-factor-integration.md`,
+           `readme.md` and `readme.txt` — never `CHANGELOG.md`. The maintainer has since
+           confirmed this half came from another session's self-report rather than from a
+           check. The rule it teaches — *a line is not discharged because you edited it;
+           re-read what else it says* — is kept, and did produce #64 below. The story of
+           which sweep it survived is not.
+           *The UI-label half is real*: `'Stash/replay eligible:'` existed at
+           `v4.8.0:includes/class-admin.php:2668` and is gone now, asserted by `AdminTest`.
+           This entry's first version rejected F outright on a clean negative that was an
+           artefact of how the history was searched. See #66.
    Source: git object database and worktree at `b30691a`; wordpress-develop trunk fetched
            2026-07-27.
-   Notes:  The reason F is rejected rather than softened is the log's own standard: it
-           records claims that were checked, and this one cannot be. The *rule* F states —
-           "a line is not discharged because you edited it; re-read what else it says" —
-           is sound, is the standard this audit was told to apply, and did in fact produce
-           #64 below. Keeping the rule while dropping the unverifiable artefact is the
-           honest split. Recording it as fact would have made this entry the thing it
-           warns about.
+   Notes:  Two of the six needed splitting rather than accepting or rejecting whole. F
+           bundled a real artefact with an unsourced story about how it survived; A
+           bundled verifiable premises with intermediate code states the squash erased.
+           A finding is not one claim, and "accept" / "reject" is the wrong granularity
+           for a handoff written as narrative.
    Fix:    When handing findings to another session, hand the command that reproduces
-           them, not only the narrative. Four of these six were checkable in under a
-           minute once the command was obvious; F is unverifiable precisely because no
-           artefact was named that outlived the session.
+           them, not only the narrative — and hand the SHAs, because for anything about a
+           branch's intermediate state the SHA is the *only* handle that works (#66). Four
+           of these six were checkable in under a minute once the command was obvious. F
+           took three attempts and a correction from the maintainer, entirely because the
+           handoff described the defect without naming a commit that contained it.
 
 62. SCOPE-WORD OVER-CLAIM IN AN UNREGISTERED SPEC CITATION — `__Host-` cookies "only over
     HTTPS"
@@ -1535,3 +1548,69 @@ C2. REDUNDANT MEMORY DUPLICATING CLAUDE.md
            code-hosting patterns, given that a `GB-` row's line/snippet check cannot
            meaningfully pin a prose article anyway — belongs with #361, which is already
            reconsidering what the registry is for.
+
+66. A CLEAN NEGATIVE THAT WAS AN ARTEFACT OF THE SEARCH — squash-merge and force-push both
+    erase the evidence for findings about intermediate branch states
+   Files:  Method, not a file. It produced the wrong half of #61 (the outright rejection
+           of staged finding F) and would silently produce the same error in every future
+           run of the pre-release audit.
+   Claim:  "`none of which` appears in no version of `CHANGELOG.md` at `v4.8.0`, at any of
+           PR #383's four commits, or on `main` in range." Written after running three
+           searches that all returned empty, and stated as a reason to reject a finding.
+   Reality: It appears on `CHANGELOG.md` **line 7** — the exact line the finding named — at
+           `22fe6a5` and `951bf42`, and is gone by `5597efb`:
+
+               for sha in 22fe6a5 951bf42 5597efb b30691a; do
+                 printf '%-10s ' "$sha"; git show $sha:CHANGELOG.md | grep -c "none of which"
+               done
+               22fe6a5    1
+               951bf42    1
+               5597efb    0
+               b30691a    0
+
+           Every search that missed it was correctly scoped and correctly run. Two
+           independent erasures stacked:
+           **1. The squash-merge.** #383 landed as one commit, so nothing on `main`'s
+           first-parent history records the branch's intermediate states, and a range
+           scoped `v4.8.0..b30691a` cannot reach them by construction.
+           **2. The force-push.** `22fe6a5` and `951bf42` were rewritten off
+           `fix/322-rule-tester-accuracy` — the same force-push staged finding E is about.
+           So `gh pr view 383 --json commits` lists the *surviving* four
+           (`4c0f366c`, `1c5f6938`, `fe3eb809`, `5597efbe`), which is what was swept, and
+           the two commits that carried the defect were not among them.
+   Source: This repository, 2026-07-27. `git merge-base --is-ancestor` reports all three of
+           `22fe6a5`, `951bf42` and `5597efb` unreachable from `b30691a`.
+   Notes:  **The obvious mitigation does not work, and this is the part worth keeping.**
+           The natural fix — "search `git log --all`, not just the range" — was proposed,
+           and it fails here:
+
+               git log --all --oneline -S "none of which" -- CHANGELOG.md   # no output
+               git log --reflog --oneline -S "none of which" -- CHANGELOG.md
+               22fe6a5 fix(322): the Rule Tester must not predict replay at all
+               dfe6b61 fix(322): the Rule Tester must not predict replay at all
+
+           `--all` walks *refs*, and `git branch -a --contains` shows `22fe6a5`, `951bf42`
+           and `dfe6b61` on no branch at all. They survive only as unreachable objects
+           held by the reflog. That makes them recoverable **on this clone and for a
+           limited time**: the reflog is never pushed, and unreachable entries expire under
+           `gc.reflogExpireUnreachable` (unset here, so the 30-day default). On a fresh
+           clone — CI, or a reviewer's checkout — the evidence for finding F does not
+           exist in any form. So the two erasures are not equivalent: the squash-merge
+           blind spot is defeated by `--all` while the branch ref survives; the force-push
+           blind spot is defeated by nothing durable.
+           The failure mode this creates is specific and nasty: the whole category "a
+           defect that was caught and fixed during review" lives in intermediate branch
+           states, so an audit scoped to reachable history returns **confident clean
+           negatives for exactly the findings most worth recording** — and a clean negative
+           reads like diligence.
+   Fix:    Three things, in order of how much they actually buy:
+           1. **A finding about a branch's intermediate state must carry its SHA.** This is
+              the only mitigation that survives a fresh clone, and it is the reporter's job,
+              not the auditor's: by the time the audit runs, the commit may be reachable
+              from nothing.
+           2. When no SHA is given, search `git log --all -S` **and** `git log --reflog -S`
+              before concluding absence, and say which of the two found it — they have
+              different lifetimes and a reflog hit is not reproducible for anyone else.
+           3. Never report "not reproducible" as though it were "did not happen". State the
+              refs searched. #61's first version did not, and the rejection read as a
+              finding rather than as the limit of a search.
