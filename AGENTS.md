@@ -301,14 +301,23 @@ behaviour as seriously as a line of code that asserts it.
 Prose that says something can be wrong. Prose that tells someone **what to run** can do
 damage, and it is read by whoever is already having a bad day.
 
-The worked example is `llm-lies-log.md` #55: a release note shipped
-`wp option delete wp_sudo_db_version` as an operator remedy. On multisite it did nothing
-(`get_db_version()` reads `get_site_option()`, one network-wide row in `wp_sitemeta`, while
-the per-site loop targets `wp_options`), and everywhere it was **dangerous** — clearing the
-stamp replays every upgrade routine from `0.0.0`, and `upgrade_2_0_0()` unconditionally
-removes the `site_manager` role while `upgrade_3_3_0()` grants four governance capabilities
-to every administrator. A security plugin recommending that does more harm than the artifact
-it was clearing.
+The worked example is the `llm-lies-log.md` entry *"propagated another session's retracted
+analysis, and shipped an unsafe remedy"*: a release note shipped
+`wp option delete wp_sudo_db_version` as an operator remedy. It failed differently on each
+topology, and both failures are instructive.
+
+- **On multisite it silently did nothing.** `Upgrader::get_db_version()` reads
+  `get_site_option()` — one network-wide row in `wp_sitemeta` — while `wp option delete`
+  targets the per-site `wp_options`. The operator sees success and the stamp survives.
+- **On single-site it worked, and that is the dangerous case.** Clearing the stamp replays
+  every upgrade routine from `0.0.0`: `upgrade_2_0_0()` unconditionally removes the
+  `site_manager` role, and `upgrade_3_3_0()` grants four governance capabilities to every
+  administrator. A security plugin recommending that does more harm than the artifact it was
+  clearing.
+
+(Cited by title rather than entry number deliberately: those numbers are assigned when a
+branch merges, so concurrent branches collide — this incident was numbered #55 by the session
+that found it and is #56 in the file, because an unrelated entry landed first.)
 
 So, before a command reaches a doc:
 
@@ -317,7 +326,10 @@ So, before a command reaches a doc:
 - **MUST** ask what happens when it succeeds, not only whether it works. The failure above
   was not "the command errors"; it was "the command works and replays destructive
   migrations".
-- **MUST** check it on multisite specifically. Single-site correctness is not evidence.
+- **MUST** check it on multisite specifically **when the command mutates WordPress state**
+  (options, meta, users, roles, capabilities) — the option/site-option split above is exactly
+  where that breaks. This does not extend to developer tooling that touches no site state
+  (`composer test`, PHPUnit, PHPStan, lint).
 - Prefer describing the state to be corrected over supplying a command, when the safe
   command depends on context you cannot see.
 
