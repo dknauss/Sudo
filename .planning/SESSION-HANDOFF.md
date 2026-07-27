@@ -91,6 +91,25 @@ versioning has neither hazard — a doubled increment is harmless.
 4. **A `PHPUnit` red is often a cascade.** It is a summary job; when Code Quality fails
    (i18n, lint, static analysis), PHPUnit reports `dependency did not succeed`. Read the
    Code Quality log first.
+6. **`git diff A B` does not answer "what would merging do".** It is a two-tree diff, so
+   files that exist only on `main` read as *deletions* — one session concluded a branch
+   would delete the ~900-line `poc/` tree from that output alone. Use
+   `git merge-tree $(git merge-base A B) A B`, which shows those paths as **added in
+   remote**. The wrong command here does not error; it answers a different question
+   confidently.
+7. **A closed PR's patch survives its branch being deleted.**
+   `gh api repos/OWNER/REPO/pulls/N/files` still returns it. #390's branch was deleted as
+   redundant and its best paragraph was recovered from the closed PR afterwards. Do not
+   assume content is gone because the branch is.
+8. **Verify the enclosing symbol even when the claim comes from a source you trust.** A
+   hook was cited to `Challenge::handle_replay_response()` in cross-session messages and
+   in a PR comment; that method does not exist — the hook is in
+   `Challenge::build_replay_response_data()`. It survived because each reader verified the
+   parts they doubted and passed the symbol through, so repetition made it look
+   corroborated. `git grep -c "function <name>"` costs nothing and is the whole check.
+   Related: the repo's own prose rule already says a symbol you cannot name is a symbol you
+   have not read — that applies to symbols you were *handed*, not only ones you looked up.
+
 5. **Branches here can be shared.** Another session pushed to `fix/280-lockout-clear` while
    this one was working it. **Merge their commits, never force-push** — and re-run the gates
    after, since their new integration test arrived red.
