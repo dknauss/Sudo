@@ -145,7 +145,7 @@
 
 						// An already-active session may escape a stale challenge without replay data.
 						if (response.data && response.data.code === 'authenticated') {
-							window.location.href = config.cancelUrl || (window.location.origin + '/wp-admin/');
+							window.location.href = neutralDestination();
 							return;
 						}
 
@@ -247,13 +247,13 @@
 
 						// An already-active session may escape a stale challenge without replay data.
 						if (response.data && response.data.code === 'authenticated') {
-							window.location.href = config.cancelUrl || (window.location.origin + '/wp-admin/');
+							window.location.href = neutralDestination();
 							return;
 						}
 
 						// Session-only mode: redirect back instead of replaying.
 						if (config.sessionOnly) {
-							window.location.href = config.cancelUrl || (window.location.origin + '/wp-admin/');
+							window.location.href = neutralDestination();
 							return;
 						}
 
@@ -303,6 +303,23 @@
 	 * Shows a visible "Replaying your action…" status message and announces
 	 * it to screen readers before performing the redirect or form submit.
 	 */
+	/**
+	 * The destination for ANY successful challenge.
+	 *
+	 * #322: never `config.cancelUrl`, and never anything else derived from the URL
+	 * that opened this page. A successful challenge mints sudo authority, so a
+	 * requester-supplied destination reached at that moment executes under it — with
+	 * no click, immediately after the victim typed their password. Classifying such
+	 * a URL was tried and failed: a queryless custom-action path has nothing to
+	 * strip and passed every filter.
+	 *
+	 * The server supplies `neutralUrl`; the hardcoded dashboard is a last resort if
+	 * localization is ever missing, and is itself not requester-influenced.
+	 */
+	function neutralDestination() {
+		return config.neutralUrl || (window.location.origin + '/wp-admin/');
+	}
+
 	function handleReplay(data) {
 		// #322: nothing is ever replayed, so the message is always the honest one.
 		// A "replaying" announcement would tell screen-reader users the opposite of

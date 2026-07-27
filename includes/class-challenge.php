@@ -252,14 +252,29 @@ class Challenge {
 
 		$default_url = is_network_admin() ? network_admin_url() : admin_url();
 
-		$return_url = isset( $_GET['return_url'] ) && is_string( $_GET['return_url'] ) ? esc_url_raw( wp_unslash( $_GET['return_url'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Routing data only; sanitized in helper.
-		// Reduced to a destination that cannot act — see safe_return_target(). This is
-		// the value localized as `cancelUrl`, and the challenge JS assigns it to
-		// `window.location.href` on `code === 'authenticated'`, which is reached by a
-		// FRESH password success when no stash_key is present. Host-only validation
-		// left that a zero-click execution of a requester-supplied, nonce-bearing
-		// admin URL immediately after the victim typed their password.
-		$cancel_url = $this->safe_return_target( $return_url, $default_url );
+		/*
+		 * #322 — the blunt rule: **no successful challenge navigates to any
+		 * requester-supplied destination.**
+		 *
+		 * `return_url` arrives in `$_GET`. An earlier cut of this fix tried to make it
+		 * safe by classifying it — same host, then stripping `action` and nonce params.
+		 * That is the wrong shape, and it was wrong in fact: a **queryless** custom
+		 * action path (`options-general.php?page=…`, `tools.php?page=…`, or any route
+		 * whose effect rides the path or a non-nonce parameter) has nothing to strip
+		 * and sailed straight through. Every filter of this kind is a claim that you
+		 * have enumerated what can execute, and that claim keeps being false.
+		 *
+		 * So the destination is now server-chosen, unconditionally. The convenience of
+		 * landing back on the exact screen you came from is traded away deliberately;
+		 * it is worth less than the guarantee.
+		 *
+		 * The ONLY requester-influenced landing that survives is the consumed-stash
+		 * soft landing computed in build_replay_response_data(), where the URL is the
+		 * one the gate itself intercepted (not one the requester handed us), the
+		 * effect-bearing query is stripped, handler endpoints divert to neutral, and a
+		 * queryless GET diverts to neutral precisely because there is nothing to strip.
+		 */
+		$cancel_url = $default_url;
 
 		wp_localize_script(
 			'wp-sudo-challenge',
@@ -271,6 +286,12 @@ class Challenge {
 				'authAction'        => self::AJAX_AUTH_ACTION,
 				'tfaAction'         => self::AJAX_2FA_ACTION,
 				'cancelUrl'         => $cancel_url,
+				// #322: the destination every SUCCESS branch navigates to. Separate
+				// from cancelUrl on purpose — both are server-chosen today, but a
+				// success must never be able to inherit a requester-supplied value
+				// through a future edit to the cancel path. The JS uses this key and
+				// only this key after authentication.
+				'neutralUrl'        => $default_url,
 				'sessionOnly'       => empty( $stash_key ),
 				'throttleRemaining' => Sudo_Session::throttle_remaining( get_current_user_id() ),
 				'strings'           => array(
@@ -318,8 +339,8 @@ class Challenge {
 
 		// Compute cancel URL — mirrors enqueue_assets() logic.
 		$default_url = is_network_admin() ? network_admin_url() : admin_url();
-		$return_url  = isset( $_GET['return_url'] ) && is_string( $_GET['return_url'] ) ? esc_url_raw( wp_unslash( $_GET['return_url'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Routing data only; sanitized in helper.
-		$cancel_url  = $this->safe_return_target( $return_url, $default_url );
+		// #322: server-chosen, never the requester's. See enqueue_assets().
+		$cancel_url = $default_url;
 
 		if ( Sudo_Session::is_active( $user_id ) ) {
 			$this->render_resume_page( $user_id, $stash_key, $cancel_url );
@@ -1132,84 +1153,6 @@ class Challenge {
 		}
 
 		return implode( ', ', $parts );
-	}
-
-	/**
-	 * Reduce a requester-supplied return URL to a destination that cannot act.
-	 *
-	 * `return_url` arrives in `$_GET` and is therefore chosen by whoever built the
-	 * link. `wp_validate_redirect()` only proves same host, which is not enough: a
-	 * same-host admin URL carrying an action and a valid nonce **executes**. The
-	 * attacker this release is about holds a cloned session cookie and can mint that
-	 * nonce (a WordPress nonce derives from the session token, not from anything
-	 * browser-specific — GB-NONCE-TOKEN), so `plugins.php?action=deactivate&…` is a
-	 * live destination for them.
-	 *
-	 * Removing the automatic navigation was not sufficient. The Continue and Cancel
-	 * anchors still pointed here, so the attack survived as one click — on a button
-	 * labelled **Cancel**, which is worse than an honest one, because the user
-	 * believes they are declining.
-	 *
-	 * The query is where the effect lives (action + nonce), so it is dropped and the
-	 * bare screen re-validated. What remains is a page the user can look at.
-	 *
-	 * @param string      $return_url Requester-supplied return URL, possibly empty.
-	 * @param string|null $fallback   Neutral fallback.
-	 * @return string Same-host screen URL with no query, or the neutral fallback.
-	 */
-	private function safe_return_target( string $return_url, ?string $fallback ): string {
-		$fallback = is_string( $fallback ) ? $fallback : '';
-
-		if ( '' === $return_url ) {
-			return $fallback;
-		}
-
-		$validated = wp_validate_redirect( $return_url, $fallback );
-		$query_pos = strpos( $validated, '?' );
-
-		if ( false === $query_pos ) {
-			return $this->is_handler_endpoint( $validated ) ? $fallback : $validated;
-		}
-
-		$screen = substr( $validated, 0, $query_pos );
-		$query  = substr( $validated, $query_pos + 1 );
-
-		if ( '' === $screen || $this->is_handler_endpoint( $screen ) ) {
-			return $fallback;
-		}
-
-		// Strip the dispatch and the proof, keep the rest. A destructive wp-admin GET
-		// needs BOTH an `action` to dispatch on and a nonce to survive
-		// check_admin_referer(), so removing them defangs the URL while leaving
-		// benign navigation state intact — `tab=access`, `page=…`, paging and
-		// filters, which users legitimately expect Cancel to return them to.
-		//
-		// A denylist is the wrong shape in general; it is right here because the two
-		// things being removed are exactly the two WordPress requires to execute a
-		// GET action, and an allowlist would silently break third-party screens.
-		$kept = array();
-
-		foreach ( explode( '&', $query ) as $pair ) {
-			if ( '' === $pair ) {
-				continue;
-			}
-
-			$name = strtolower( rawurldecode( explode( '=', $pair, 2 )[0] ) );
-
-			if ( 'action' === $name || 'action2' === $name ) {
-				continue;
-			}
-
-			if ( 'nonce' === $name || 0 === strpos( $name, '_wpnonce' ) || 0 === strpos( $name, '_ajax_nonce' ) ) {
-				continue;
-			}
-
-			$kept[] = $pair;
-		}
-
-		$rebuilt = $kept ? $screen . '?' . implode( '&', $kept ) : $screen;
-
-		return wp_validate_redirect( $rebuilt, $fallback );
 	}
 
 	/**

@@ -79,6 +79,7 @@ jobs:
               npm run test:e2e -- tests/e2e/specs/admin-bar-deactivate.spec.ts tests/e2e/specs/challenge.spec.ts --grep 'ABAR|CHAL-0[1-5]'
               npm run test:e2e -- tests/e2e/specs/challenge.spec.ts --grep 'CHAL-09|CHAL-10|CHAL-11'
               npm run test:e2e -- tests/e2e/specs/rest-gate.spec.ts
+              npm run test:e2e -- tests/e2e/specs/challenge-landing.spec.ts
           - group-index: 2
             group-total: 4
             group-name: challenge-2fa-ui
