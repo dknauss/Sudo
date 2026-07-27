@@ -219,20 +219,35 @@ once independently built the same version rollback (#389, #390, #391) and a
 fourth nearly joined them. Nothing collided, because each picked a different
 name for identical work.
 
-1. **Search for the work, not the name:**
+1. **Search for the work, not the name — at branch time, not at session start:**
    ```bash
    gh pr list --state open --search "<issue#|keyword>"
-   git branch -a --sort=-committerdate | head -20
+   git branch -a --list "*<issue#>*"
    ```
-   A `SessionStart` hook prints both at session start — read it rather than
-   re-running it. If work for that issue already exists, join it, hand your
-   findings to it, or say so. Do **not** start a parallel branch.
+   Match on the issue number rather than listing recent branches. A
+   `--sort=-committerdate | head -20` listing sorts by the *commit* a branch
+   points at, so a branch cut minutes ago from an older commit sorts to that
+   commit's date and falls off the end — exactly the branch you need to see.
 
-2. **Name branches after the issue, so collisions actually collide:**
+   Run this immediately before branching. A `SessionStart` hook may print a
+   similar summary, but that is a snapshot from session start: in a long
+   session every branch opened since is missing from it. The hook lives in
+   machine-local `.claude/settings.json` (gitignored), so it is a convenience
+   for whoever configured it, not a control — this check is the requirement,
+   and it is yours to run whether or not a summary was printed.
+
+   If work for that issue already exists, join it, hand your findings to it, or
+   say so. Do **not** start a parallel branch.
+
+2. **Name branches after the issue, so duplicates are findable:**
    `<type>/<issue#>-<slug>` — e.g. `fix/322-stash-fail-closed`,
-   `chore/388-version-4.9.0`. Git then refuses the second session's
-   `worktree add -b`, which is the only mechanical stop that works. A name
-   without the issue number silently coexists with three siblings.
+   `chore/388-version-4.9.0`. This is what makes step 1's search work; it is
+   **not** a mechanical stop. Git refuses `worktree add -b` only on an exact
+   name match, so `chore/388-version-4.9.0` and `chore/388-rollback-4.9.0`
+   coexist happily. Adopting this convention would not by itself have stopped
+   #389/#390/#391: three sessions describing the same rollback would still have
+   reached for three different slugs. The convention makes duplicate work
+   *visible to step 1's search*; only the search prevents it.
 
 3. **Another session's branch is not yours to force.** A locked worktree or an
    unmerged branch means someone is on it. Before touching one, confirm it has
