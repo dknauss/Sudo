@@ -565,6 +565,22 @@ run
 expect_rc 1
 expect_out "thirdparty.md"
 
+# 12h. The count must match EXACTLY, not merely stay under the ceiling. A count that has
+#       FALLEN means a citation was migrated without updating the row, leaving a stale
+#       allowance that a later claim can spend — the exemption would then cover a citation
+#       nobody ever granted it to. Exact matching also forces the documented decrement
+#       workflow rather than relying on it.
+start "a grandfathered pair cited fewer times than recorded is a hard failure"
+new_sandbox grandfewer
+registry "$HDR
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
+fixture "$URL" 200 0 $'x\nneedle here'
+printf 'only one https://plugins.svn.wordpress.org/patchstack/trunk/includes/login.php\n' \
+	> "$SANDBOX/docs/two-factor-ecosystem.md"
+run
+expect_rc 1
+expect_out "two-factor-ecosystem.md"
+
 # 13. Non-raw host URL (rendered blob) is rejected.
 start "rendered blob url rejected"
 new_sandbox blob

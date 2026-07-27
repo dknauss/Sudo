@@ -22,7 +22,10 @@ outside the registered set is rejected.
 The prefixes are historical rather than semantic and should not be read as a source
 taxonomy — `GB-` began as Gutenberg but now covers `wordpress-develop`, `wp-cli`, and
 `abilities-api` too; `FT-` covers the Fortress comparison sources. To register a family
-that warrants a new prefix, widen `ID_REGEX` and the dangling-reference scan together.
+that warrants a new prefix, widen `ID_REGEX` in `bin/verify-sources.sh` — one edit. Both
+the ID validation and the dangling-reference scan read that one pattern, so there is no
+second definition to keep in step, and adding one would reintroduce the drift the single
+source removed.
 
 ## How to add a row
 

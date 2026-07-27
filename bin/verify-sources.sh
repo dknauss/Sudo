@@ -739,8 +739,34 @@ while IFS= read -r counted; do
 
 	if [ -z "$allowed" ]; then
 		add_failure "$rel cites $orphan_url outside the registry — add a row to docs/upstream-sources.md and reference its registry ID instead of the raw URL"
-	elif [ "$seen" -gt "$allowed" ]; then
-		add_failure "$rel cites $orphan_url outside the registry — that pair is grandfathered for $allowed citation(s) but is now cited $seen times, so at least one is new; register it and reference the row ID. Do not raise the count to silence this."
+	elif [ "$seen" -ne "$allowed" ]; then
+		# EXACT, not a ceiling. A count that has FALLEN is not benign: it means a
+		# citation was migrated without decrementing the row, leaving a stale allowance
+		# that some later claim can spend, so the exemption ends up covering a citation
+		# nobody granted it to. Requiring equality also makes the documented decrement
+		# step enforced rather than merely recommended.
+		#
+		# Two limits, stated so neither is mistaken for closure.
+		#
+		# A true SUBSTITUTION — removing one citation and adding a different claim on the
+		# same URL in the same file — leaves the count unchanged, and no count-based
+		# scheme can see it.
+		#
+		# And a count that falls to ZERO is not a shortfall this check can see at all:
+		# the loop is driven by OBSERVED pairs, so a pair with no occurrences is never
+		# examined and its row survives as a full allowance. That composes back into the
+		# hazard above — 1 to 0 (migrated, row not dropped), then a different claim in
+		# that file cites that URL again, and equality holds with only a WARN. The
+		# shortfall message below still tells the reader to drop the row when the last
+		# citation goes, precisely because the tool cannot check that they did.
+		#
+		# Both close the same way: migrate the pair out of the exemption rather than
+		# maintaining its count, which is the end state for every row in this list.
+		if [ "$seen" -gt "$allowed" ]; then
+			add_failure "$rel cites $orphan_url outside the registry — that pair is grandfathered for $allowed citation(s) but is now cited $seen times, so at least one is new; register it and reference the row ID. Do not raise the count to silence this."
+		else
+			add_failure "$rel cites $orphan_url $seen time(s) but is grandfathered for $allowed — a citation was migrated without decrementing the count, and the surplus allowance would silently cover a future claim. Decrement it to $seen, or drop the row if the last citation is gone."
+		fi
 	else
 		add_warning "$rel cites $orphan_url outside the registry (grandfathered — migrate as you touch it)"
 	fi
