@@ -623,8 +623,8 @@ do_action( 'wp_sudo_action_replayed', int $user_id, string $rule_id );
 // reauthentication completed in a browser that did not start the action leaves no
 // audit trail and looks identical to nothing happening. $reason is one of
 // no_credential_this_request, redacted_fields, replay_blocked, incomplete_target,
-// no_binding_minted, no_proof_presented, proof_mismatch, url_altered,
-// insecure_replay_url.
+// unnamed_target, no_binding_minted, no_proof_presented, proof_mismatch,
+// url_altered, insecure_replay_url.
 //
 // This is NOT limited to the post-reauthentication path: it also fires from the
 // already-active-session resume paths, where no credential is presented and the

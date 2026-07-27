@@ -1239,6 +1239,7 @@ class Challenge {
 		// holds when the browser binding is bypassed; with no target named there is no
 		// control left, so refuse and take the v1 landing.
 		if ( empty( $stash['target'] ) || ! is_array( $stash['target'] ) ) {
+			$reason = 'unnamed_target';
 			return false;
 		}
 
@@ -1252,6 +1253,7 @@ class Challenge {
 		// authority on that is the code that draws it. A second copy of the predicate
 		// would be free to drift from the first, which is how this bug existed.
 		if ( '' === $this->describe_stash_target( $stash ) ) {
+			$reason = 'unnamed_target';
 			return false;
 		}
 
@@ -1422,8 +1424,8 @@ class Challenge {
 		 * @param string $rule_id The rule ID that was gated.
 		 * @param string $reason  Why the replay was refused: no_credential_this_request,
 		 *                        redacted_fields, replay_blocked, incomplete_target,
-		 *                        no_binding_minted, no_proof_presented, proof_mismatch,
-		 *                        url_altered, or insecure_replay_url.
+		 *                        unnamed_target, no_binding_minted, no_proof_presented,
+		 *                        proof_mismatch, url_altered, or insecure_replay_url.
 		 */
 		do_action( 'wp_sudo_replay_refused', $user_id, $stash['rule_id'] ?? '', $refusal_reason );
 

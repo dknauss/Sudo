@@ -448,7 +448,14 @@ class RequestStashTest extends TestCase {
 		$_POST['siteurl']          = 'https://evil.example';
 		$_POST['admin_email']      = 'attacker@example.com';
 
-		$this->stub_target_env();
+		// Stored values differ from what is submitted, so this asserts that a REAL
+		// change is named — not merely that any present field is echoed back.
+		$this->stub_target_env(
+			array(
+				'siteurl'     => 'https://example.com',
+				'admin_email' => 'owner@example.com',
+			)
+		);
 
 		$stored = null;
 		Functions\expect( 'set_transient' )->once()->andReturnUsing(
@@ -492,12 +499,413 @@ class RequestStashTest extends TestCase {
 	/**
 	 * Shared stubs for target-capture tests.
 	 */
-	private function stub_target_env(): void {
+	private function stub_target_env( array $stored_options = array() ): void {
 		Functions\when( 'wp_generate_password' )->justReturn( 'abc123def456ghij' );
 		Functions\when( 'esc_url_raw' )->returnArg();
 		Functions\when( 'is_ssl' )->justReturn( true );
 		Functions\when( 'sanitize_text_field' )->returnArg();
 		Functions\when( 'apply_filters' )->returnArg( 2 );
+		// Default false = "option unreadable", which must never be read as unchanged.
+		Functions\when( 'get_option' )->alias(
+			function ( $name ) use ( $stored_options ) {
+				return $stored_options[ $name ] ?? false;
+			}
+		);
+	}
+
+	/**
+	 * The field set wp-admin/options-general.php submits, single site.
+	 *
+	 * The administration email input is named `new_admin_email`, not `admin_email`
+	 * (see GB-ADMIN-EMAIL-FIELD in docs/upstream-sources.md), and siteurl/home/
+	 * users_can_register/default_role are single-site only
+	 * (see GB-OPTIONS-GENERAL-MULTISITE).
+	 *
+	 * @return array<string, string>
+	 */
+	private function options_general_payload(): array {
+		return array(
+			'option_page'        => 'general',
+			'action'             => 'update',
+			'_wpnonce'           => 'deadbeef',
+			'_wp_http_referer'   => '/wp-admin/options-general.php',
+			'blogname'           => 'A Brand New Site Title',
+			'blogdescription'    => 'Just another site',
+			'siteurl'            => 'https://example.com',
+			'home'               => 'https://example.com',
+			'new_admin_email'    => 'admin@example.com',
+			'users_can_register' => '1',
+			'default_role'       => 'subscriber',
+			'timezone_string'    => 'UTC',
+			'submit'             => 'Save Changes',
+		);
+	}
+
+	/**
+	 * The stored options matching options_general_payload() with nothing changed.
+	 *
+	 * @return array<string, string>
+	 */
+	private function options_general_stored(): array {
+		return array(
+			'siteurl'            => 'https://example.com',
+			'home'               => 'https://example.com',
+			'admin_email'        => 'admin@example.com',
+			'users_can_register' => '1',
+			'default_role'       => 'subscriber',
+		);
+	}
+
+	/**
+	 * Run a stash save and return the stored stash payload.
+	 *
+	 * @param array<string, string> $stored_options Stored option values.
+	 * @return array<string, mixed>
+	 */
+	private function save_options_critical_stash( array $stored_options ): array {
+		$this->stub_stash_index_meta_io();
+		$this->stub_target_env( $stored_options );
+
+		$stored = null;
+		Functions\expect( 'set_transient' )->once()->andReturnUsing(
+			function ( $key, $value ) use ( &$stored ) {
+				$stored = $value;
+				return true;
+			}
+		);
+
+		$this->stash->save( 1, $this->options_critical_rule() );
+
+		return (array) $stored;
+	}
+
+	/**
+	 * The live options.critical rule, so tests track the registry rather than a copy.
+	 *
+	 * @return array<string, mixed>
+	 */
+	private function options_critical_rule(): array {
+		foreach ( \WP_Sudo\Action_Registry::get_rules() as $rule ) {
+			if ( 'options.critical' === ( $rule['id'] ?? '' ) ) {
+				return $rule;
+			}
+		}
+
+		$this->fail( 'options.critical rule not found in the registry.' );
+	}
+
+	/**
+	 * #431: a settings save that changes nothing critical must not claim one did.
+	 *
+	 * options-general.php posts every critical option on every save, so capturing by
+	 * presence rendered "Target: default_role: subscriber" when only the Site Title
+	 * changed — a confirmation asserting a change that was not happening.
+	 */
+	public function test_options_general_save_does_not_name_untouched_critical_options(): void {
+		$_SERVER['REQUEST_METHOD'] = 'POST';
+		$_SERVER['HTTP_HOST']      = 'example.com';
+		$_SERVER['REQUEST_URI']    = '/wp-admin/options.php';
+		$_POST                     = $this->options_general_payload();
+
+		$stored = $this->save_options_critical_stash( $this->options_general_stored() );
+
+		$this->assertSame(
+			array(),
+			$stored['target'],
+			'No critical option changed, so the confirmation must name none of them.'
+		);
+
+		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'] );
+		$_POST = array();
+	}
+
+	/**
+	 * #431: the administration email address must be named when it really changes.
+	 *
+	 * Core posts `new_admin_email`, never `admin_email`, so capturing only the latter
+	 * left the most dangerous change on the page with no target at all.
+	 */
+	public function test_capture_target_names_a_real_admin_email_change(): void {
+		$_SERVER['REQUEST_METHOD']   = 'POST';
+		$_SERVER['HTTP_HOST']        = 'example.com';
+		$_SERVER['REQUEST_URI']      = '/wp-admin/options.php';
+		$_POST                       = $this->options_general_payload();
+		$_POST['new_admin_email']    = 'attacker@evil.example';
+
+		$stored = $this->save_options_critical_stash( $this->options_general_stored() );
+
+		$this->assertSame(
+			'attacker@evil.example',
+			$stored['target']['new_admin_email'] ?? null,
+			'An administration email takeover must be named in the confirmation.'
+		);
+		$this->assertArrayNotHasKey( 'default_role', $stored['target'] );
+
+		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'] );
+		$_POST = array();
+	}
+
+	/**
+	 * #431: an unchanged new_admin_email compares against the CURRENT admin_email.
+	 *
+	 * The field is prefilled with form_option( 'admin_email' ), so comparing it with
+	 * the (normally empty) new_admin_email option would report every save as a change.
+	 */
+	public function test_capture_target_skips_new_admin_email_echoing_current_address(): void {
+		$_SERVER['REQUEST_METHOD'] = 'POST';
+		$_SERVER['HTTP_HOST']      = 'example.com';
+		$_SERVER['REQUEST_URI']    = '/wp-admin/options.php';
+		$_POST                     = $this->options_general_payload();
+
+		$stored = $this->save_options_critical_stash( $this->options_general_stored() );
+
+		$this->assertArrayNotHasKey( 'new_admin_email', $stored['target'] );
+
+		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'] );
+		$_POST = array();
+	}
+
+	/**
+	 * #431 negative: an unreadable option must never be treated as "unchanged".
+	 *
+	 * get_option() returns false when the option is absent. Reading that as a match
+	 * would HIDE a real change, which is the dangerous direction.
+	 */
+	public function test_capture_target_records_value_when_stored_option_is_unreadable(): void {
+		$_SERVER['REQUEST_METHOD'] = 'POST';
+		$_SERVER['HTTP_HOST']      = 'example.com';
+		$_SERVER['REQUEST_URI']    = '/wp-admin/options.php';
+		$_POST                     = $this->options_general_payload();
+		$_POST['default_role']     = '0';
+
+		// Every option absent: get_option() returns false throughout.
+		$stored = $this->save_options_critical_stash( array() );
+
+		$this->assertSame( '0', $stored['target']['default_role'] ?? null );
+		$this->assertSame( 'https://example.com', $stored['target']['siteurl'] ?? null );
+
+		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'] );
+		$_POST = array();
+	}
+
+	/**
+	 * #431 negative: a query/body disagreement must survive the unchanged check.
+	 *
+	 * If the body matches the stored value but the query carries another, the request
+	 * still contains a value the user is not being shown.
+	 */
+	public function test_capture_target_surfaces_conflict_even_when_body_matches_stored(): void {
+		$_SERVER['REQUEST_METHOD'] = 'POST';
+		$_SERVER['HTTP_HOST']      = 'example.com';
+		$_SERVER['REQUEST_URI']    = '/wp-admin/options.php';
+		$_POST                     = $this->options_general_payload();
+		$_GET['siteurl']           = 'https://evil.example';
+
+		$stored = $this->save_options_critical_stash( $this->options_general_stored() );
+
+		$shown = $stored['target']['siteurl'] ?? '';
+		$this->assertStringContainsString(
+			'evil.example',
+			$shown,
+			'A conflicting value must not be hidden by the unchanged check.'
+		);
+
+		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'], $_GET['siteurl'] );
+		$_POST = array();
+	}
+
+	/**
+	 * #431 negative: an array submission must not be skipped or fatal.
+	 */
+	public function test_capture_target_records_array_valued_critical_option(): void {
+		$_SERVER['REQUEST_METHOD'] = 'POST';
+		$_SERVER['HTTP_HOST']      = 'example.com';
+		$_SERVER['REQUEST_URI']    = '/wp-admin/options.php';
+		$_POST                     = $this->options_general_payload();
+		$_POST['home']             = array( 'https://example.com', 'https://evil.example' );
+
+		$stored = $this->save_options_critical_stash( $this->options_general_stored() );
+
+		$this->assertStringContainsString( 'evil.example', $stored['target']['home'] ?? '' );
+
+		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'] );
+		$_POST = array();
+	}
+
+	/**
+	 * #431: a critical settings save is never replayed, however complete the target.
+	 *
+	 * options.php writes EVERY option in $allowed_options[$option_page], passing null
+	 * for any the POST omits, so replaying an allowlisted subset would blank the rest
+	 * of the settings page rather than reproduce the save. Pin the non-replayable
+	 * contract here: even when every critical option changed and the target names all
+	 * of them, no body is stashed and replay stays blocked.
+	 */
+	public function test_critical_settings_save_is_never_replayed(): void {
+		$_SERVER['REQUEST_METHOD'] = 'POST';
+		$_SERVER['HTTP_HOST']      = 'example.com';
+		$_SERVER['REQUEST_URI']    = '/wp-admin/options.php';
+		$_POST                     = array_merge(
+			$this->options_general_payload(),
+			array(
+				'siteurl'            => 'https://evil.example',
+				'home'               => 'https://evil.example',
+				'new_admin_email'    => 'attacker@evil.example',
+				'default_role'       => 'administrator',
+				'users_can_register' => '0',
+			)
+		);
+
+		$stored = $this->save_options_critical_stash( $this->options_general_stored() );
+
+		$this->assertCount( 5, $stored['target'], 'Every real change must still be named.' );
+		$this->assertTrue(
+			(bool) $stored['post_replay_blocked'],
+			'A settings save must never be replayed: the omitted fields would be blanked.'
+		);
+		$this->assertSame(
+			array(),
+			$stored['post'],
+			'No body may be stashed for an action that is not replayable.'
+		);
+
+		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'] );
+		$_POST = array();
+	}
+
+	/**
+	 * #431: the unchanged check compares the value that REPLAYS, not the display form.
+	 *
+	 * sanitize_text_field() can reduce a hostile payload to something that equals the
+	 * stored value. Comparing after sanitization would then treat a real change as
+	 * unchanged and drop it from the confirmation while the raw value still went to
+	 * update_option() — hiding exactly the change the Target line exists to name.
+	 */
+	public function test_unchanged_check_compares_before_sanitization(): void {
+		$this->stub_stash_index_meta_io();
+
+		$_SERVER['REQUEST_METHOD'] = 'POST';
+		$_SERVER['HTTP_HOST']      = 'example.com';
+		$_SERVER['REQUEST_URI']    = '/wp-admin/options.php';
+		$_POST                     = $this->options_general_payload();
+		$_POST['siteurl']          = 'https://example.com<script>';
+
+		Functions\when( 'wp_generate_password' )->justReturn( 'abc123def456ghij' );
+		Functions\when( 'esc_url_raw' )->returnArg();
+		Functions\when( 'is_ssl' )->justReturn( true );
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+		Functions\when( 'get_option' )->alias(
+			function ( $name ) {
+				$stored = $this->options_general_stored();
+				return $stored[ $name ] ?? false;
+			}
+		);
+		// A NON-identity sanitizer: strips from the first '<', so the submitted value
+		// sanitizes down to exactly the stored siteurl.
+		Functions\when( 'sanitize_text_field' )->alias(
+			function ( $value ) {
+				$cut = strpos( (string) $value, '<' );
+				return false === $cut ? $value : substr( (string) $value, 0, $cut );
+			}
+		);
+
+		$stored = null;
+		Functions\expect( 'set_transient' )->once()->andReturnUsing(
+			function ( $key, $value ) use ( &$stored ) {
+				$stored = $value;
+				return true;
+			}
+		);
+
+		$this->stash->save( 1, $this->options_critical_rule() );
+
+		$this->assertArrayHasKey(
+			'siteurl',
+			$stored['target'],
+			'A change that only LOOKS unchanged after sanitization must still be named.'
+		);
+
+		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'] );
+		$_POST = array();
+	}
+
+	/**
+	 * #431: no admin-email takeover may be compared away.
+	 *
+	 * The comparison alias is the one place a WRONG mapping would be quiet rather than
+	 * loud: comparing `new_admin_email` against the stored `admin_email` is what stops
+	 * every untouched save reading as a change, but the inverse mistake would let a
+	 * real takeover compare equal and vanish from the confirmation. Only an address
+	 * core itself treats as a no-op may be skipped — update_option_new_admin_email()
+	 * returns early when the submitted value equals the current admin_email — so every
+	 * value that differs from it, however close, must still be named.
+	 *
+	 * @dataProvider provide_admin_email_takeover_values
+	 *
+	 * @param string $submitted Submitted administration email address.
+	 */
+	public function test_admin_email_takeover_is_always_named( string $submitted ): void {
+		$_SERVER['REQUEST_METHOD'] = 'POST';
+		$_SERVER['HTTP_HOST']      = 'example.com';
+		$_SERVER['REQUEST_URI']    = '/wp-admin/options.php';
+		$_POST                     = $this->options_general_payload();
+		$_POST['new_admin_email']  = $submitted;
+
+		$stored = $this->save_options_critical_stash( $this->options_general_stored() );
+
+		$this->assertArrayHasKey(
+			'new_admin_email',
+			$stored['target'],
+			'An address differing from the stored admin_email must be named: ' . $submitted
+		);
+
+		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'] );
+		$_POST = array();
+	}
+
+	/**
+	 * Addresses that differ from the stored admin@example.com.
+	 *
+	 * @return array<string, array{0:string}>
+	 */
+	public function provide_admin_email_takeover_values(): array {
+		return array(
+			'outright takeover'   => array( 'attacker@evil.example' ),
+			'case variation'      => array( 'Admin@Example.com' ),
+			'subaddress'          => array( 'admin+attacker@example.com' ),
+			'lookalike domain'    => array( 'admin@examp1e.com' ),
+			'trailing whitespace' => array( 'admin@example.com ' ),
+			'unicode homoglyph'   => array( 'admin@exampłe.com' ),
+		);
+	}
+
+	/**
+	 * #431: a non-options rule keeps naming its own target.
+	 */
+	public function test_capture_target_unaffected_for_non_option_rules(): void {
+		$this->stub_stash_index_meta_io();
+
+		$_SERVER['REQUEST_METHOD'] = 'GET';
+		$_SERVER['HTTP_HOST']      = 'example.com';
+		$_SERVER['REQUEST_URI']    = '/wp-admin/plugins.php';
+		$_GET['plugin']            = 'akismet/akismet.php';
+		$_GET['home']              = 'https://example.com';
+
+		$this->stub_target_env( $this->options_general_stored() );
+
+		$stored = null;
+		Functions\expect( 'set_transient' )->once()->andReturnUsing(
+			function ( $key, $value ) use ( &$stored ) {
+				$stored = $value;
+				return true;
+			}
+		);
+
+		$this->stash->save( 1, array( 'id' => 'plugin.activate', 'label' => 'Activate plugin' ) );
+
+		$this->assertSame( 'akismet/akismet.php', $stored['target']['plugin'] ?? null );
+
+		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'], $_GET['plugin'], $_GET['home'] );
 	}
 
 	/**
