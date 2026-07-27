@@ -222,12 +222,32 @@ name for identical work.
 1. **Search for the work, not the name — at branch time, not at session start:**
    ```bash
    gh pr list --state open --search "<issue#|keyword>"
-   git branch -a --list "*<issue#>*"
+   git branch -a --list "*/<issue#>-*"
    ```
    Match on the issue number rather than listing recent branches. A
    `--sort=-committerdate | head -20` listing sorts by the *commit* a branch
    points at, so a branch cut minutes ago from an older commit sorts to that
    commit's date and falls off the end — exactly the branch you need to see.
+   Check that yourself before trusting it; it takes seconds:
+   ```bash
+   git branch fresh-off-old <an-old-sha> &&
+     git branch --sort=-committerdate --format='%(committerdate:short) %(refname:short)'
+   ```
+
+   The glob is delimiter-anchored on purpose. `"*38*"` also matches
+   `chore/388-version-4.9.0`, and step 1 would then read an unrelated branch as
+   existing work and forbid the task. `*/<issue#>-*` relies on the slash and
+   hyphen the step-2 convention already puts around the number.
+
+   Without `gh`, query the API directly — the check is mandatory, the tool is
+   not:
+   ```bash
+   curl -s "https://api.github.com/repos/dknauss/Sudo/pulls?state=open" \
+     | grep -E '"(title|head)"'
+   ```
+   Any equivalent works, including reading the PR list in a browser. What is
+   required is that you look before branching, not that you look a particular
+   way.
 
    Run this immediately before branching. A `SessionStart` hook may print a
    similar summary, but that is a snapshot from session start: in a long
@@ -244,7 +264,12 @@ name for identical work.
    `chore/388-version-4.9.0`. This is what makes step 1's search work; it is
    **not** a mechanical stop. Git refuses `worktree add -b` only on an exact
    name match, so `chore/388-version-4.9.0` and `chore/388-rollback-4.9.0`
-   coexist happily. Adopting this convention would not by itself have stopped
+   coexist happily — don't take that on trust either:
+   ```bash
+   git worktree add -b chore/388-version-4.9.0 /tmp/wt1   # ok
+   git worktree add -b chore/388-rollback-4.9.0 /tmp/wt2  # also ok, exit 0
+   ```
+   Adopting this convention would not by itself have stopped
    #389/#390/#391: three sessions describing the same rollback would still have
    reached for three different slugs. The convention makes duplicate work
    *visible to step 1's search*; only the search prevents it.
