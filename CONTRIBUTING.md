@@ -13,6 +13,17 @@
 composer install
 ```
 
+When using a Git worktree, run `composer install` separately inside every
+worktree. Do not symlink or share `vendor/`: Composer's generated classmap uses
+absolute paths and can silently load WP Sudo production classes from a different
+checkout, producing false-green tests. Confirm the active mapping before
+trusting a worktree test run:
+
+```bash
+test -d vendor && test ! -L vendor
+php -r '$m = require "vendor/composer/autoload_classmap.php"; $expected = realpath(getcwd() . "/includes/class-gate.php"); $actual = realpath($m["WP_Sudo\\Gate"] ?? ""); if ($actual !== $expected) { fwrite(STDERR, "Wrong WP_Sudo autoload root: $actual\nExpected: $expected\n"); exit(1); }'
+```
+
 ### Git hooks
 
 Install the pre-commit hook to enforce reviewer agent approval before every AI-generated commit:
