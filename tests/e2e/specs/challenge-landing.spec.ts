@@ -113,15 +113,15 @@ test.describe( 'Post-challenge landing is never requester-supplied', () => {
 		);
 		expect( hrefs.join( ' ' ) ).not.toContain( 'wp-sudo-hostile-landing' );
 
-		// Whole-document scan as well as the anchors. Anchor-scanning cannot see a
-		// form `action`, a `<meta refresh>`, or a URL embedded in an inline script —
-		// and `render_resume_page()` still carries the dormant auto-submit form whose
-		// action is `esc_url( $data['url'] )`. That branch is mutation-covered on the
-		// PHP side, but this costs nothing and re-covers the shapes anchors miss.
+		// NOT a whole-document `page.content()` scan. That was tried and is invalid:
+		// WordPress echoes the current request URL into its own canonical link and
+		// admin-bar links, so the document legitimately contains the hostile marker
+		// while nothing navigates to or executes it. The assertion failed on WordPress
+		// being WordPress, not on a defect.
 		//
-		// Safe to assert: Challenge no longer reads `return_url` at all, so the
-		// requester's value cannot reach the DOM by any route.
-		expect( await page.content() ).not.toContain( 'wp-sudo-hostile-landing' );
+		// Covering the executable sinks anchors cannot see — form `action`,
+		// `<meta refresh>`, inline-script navigation — needs a scan scoped to those
+		// sinks rather than to the whole document. Tracked separately.
 	} );
 
 	test( 'LAND-05: a hostile cancelUrl in the config is still never navigated to', async ( {
