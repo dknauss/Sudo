@@ -308,7 +308,14 @@ Role changes are the subtlest path and need a dedicated guard, mirroring the plu
 The terminal code routes are gated at **two shared sinks plus one effect**, not per-page or per-capability, so route multiplicity (admin UI, bulk, AJAX updaters, REST, programmatic) collapses to a handful of insertions:
 
 - **`WP_Upgrader::install_package()`** — the package-write funnel beneath `Plugin_Upgrader`/`Theme_Upgrader` `install()`/`upgrade()`/`bulk_upgrade()`, the AJAX updaters, and the REST plugins controller (`core/install-plugin` / `-theme` / `core/update-plugin` / `-theme`). Gate here rather than `Plugin_Upgrader::install()` (which misses bulk/update/AJAX/auto-updater) and rather than the capability layer (`upload_plugins`→`install_plugins` in `map_meta_cap`, so a capability gate cannot separate an attacker ZIP from a repository install and would disrupt CLI/automation). It also covers language-pack writes into `WP_LANG_DIR`, a directory core executes (`.l10n.php` is `include`d).
-  **It fires too late to prevent extraction — found by running it (#380).** `WP_Upgrader::run()`
+  **Core already ships a veto here, so this seam needs no core patch (#380).**
+  `install_package()` opens with `apply_filters( 'upgrader_pre_install', true, $args['hook_extra'] )`
+  and returns immediately when the result `is_wp_error()` (verified, `class-wp-upgrader.php:556-560`).
+  A plugin can therefore refuse a package write today, without patching core — which is what
+  makes the PoC slice possible at all, and which strengthens the case that the gate is
+  demonstrable before core accepts anything.
+
+  **But it fires too late to prevent extraction — found by running it (#380).** `WP_Upgrader::run()`
   calls `unpack_package()`, which extracts the archive into `wp_content_dir() . 'upgrade/'`,
   **before** `install_package()` is reached (verified against trunk). So a gate at
   `install_package()` refuses the final move into `plugins/` while attacker-controlled PHP is
@@ -316,7 +323,9 @@ The terminal code routes are gated at **two shared sinks plus one effect**, not 
   session-riding attacker who can request a known path has execution regardless of the refusal
   that follows.
   This corrects §3's claim that `install_package()` is *the* code-write seam: for the
-  interactive branch it is **necessary but not sufficient**. Either gate earlier — at
+  interactive branch it is **necessary but not sufficient** — and `upgrader_pre_install`
+  inherits the same limitation exactly, since it fires inside the function that runs after
+  extraction. A seam being conveniently available is not evidence that it is early enough. Either gate earlier — at
   `unpack_package()` or before the download in `run()` — or state the residual plainly. The
   PoC slice (`poc/install-package-gate/`) is what surfaced this; it is exactly the class of
   error a pseudocode sketch cannot produce, and the reason #360 asked for real code.
