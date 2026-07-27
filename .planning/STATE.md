@@ -2,26 +2,24 @@
 gsd_state_version: 1.0
 milestone: Action Gate Research Program
 last_updated: "2026-07-27"
-status: Phase 26 active — architecture reset and evidence inventory
+status: Phase 27 active — proof handoff and XSS claim decision
 ---
 
 # Planning State
 
 ## Current position
 
-Phase 26 has begun. The architecture charter, requirements, and phased roadmap
-have been drafted. They are based on the research-prototype posture introduced by
-PR #466 and should land after or with that status change, not inside its atomic
-commit.
+Phase 26's architecture reset landed in PR #467. Phase 27 now owns one coupled
+decision: select the proof handoff by testing what active same-origin JavaScript
+can do to it, then derive the permitted XSS claim from those results.
 
 ## Immediate next work
 
-1. Complete the remaining artifact moves/archive links in Phase 26.
-2. Add preservation/successor notices to Slice A and
-   `consequential-actions`.
-3. Triage open core-gate and post-4.9 issues into the new phases or deferred work.
-4. Prepare the Phase 27 threat traces and browser spike; do not implement a proof
-   or client yet.
+1. Write the Phase 27 handoff decision record and attacker traces.
+2. Build the research-only browser spike for the candidate flows.
+3. Run the read/invoke/redirect/replay/redeem/mutate/clone matrix.
+4. Select a handoff and exact claim, or stop the program if none survives.
+5. Do not implement the proof primitive or client integration yet.
 
 ## Decisions carried forward
 
