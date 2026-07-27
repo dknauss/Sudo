@@ -97,6 +97,29 @@ composer sbom                 # Regenerate CycloneDX SBOM (.sbom/bom.json)
 
 No build step. No production dependencies — only dev dependencies (PHPUnit 9.6, Brain\Monkey, Mockery, VIP WPCS, PHPStan, CycloneDX). `config.platform.php` is set to `8.2.99` so the lock file resolves packages compatible with PHP 8.2+ regardless of local PHP version.
 
+### Worktree dependency isolation
+
+Every Git worktree must run its own `composer install`. **Never symlink or share
+`vendor/` between worktrees.** Composer generates absolute paths in
+`vendor/composer/autoload_classmap.php`; a shared directory can therefore load
+`WP_Sudo\*` production classes from another checkout while tests appear to run
+normally. This has produced a real false-green guard verification in this
+project.
+
+Before trusting tests in a worktree, verify both the directory and the resolved
+production class:
+
+```bash
+test -d vendor && test ! -L vendor
+php -r '$m = require "vendor/composer/autoload_classmap.php"; $expected = realpath(getcwd() . "/includes/class-gate.php"); $actual = realpath($m["WP_Sudo\\Gate"] ?? ""); if ($actual !== $expected) { fwrite(STDERR, "Wrong WP_Sudo autoload root: $actual\nExpected: $expected\n"); exit(1); }'
+```
+
+If either command fails, remove only that worktree's `vendor/` entry and run
+`composer install --no-interaction --prefer-dist` inside the worktree before
+running any test, mutation, lint, or static-analysis command. A guard is not
+verified unless the test has also been seen to fail for the intended mutation
+against the same worktree source.
+
 ## WP-CLI and remote-site safety
 
 WP-CLI aliases are configured globally in `~/.wp-cli/config.yml`. Full rules

@@ -28,13 +28,22 @@ source of truth for its topic; this index never restates content (see
 
 | Question | Read |
 |---|---|
+| What architecture and phased evidence program are current now? | [Action Gate Research Program charter](../.planning/action-gate-architecture-charter.md) and [GSD roadmap](../.planning/ROADMAP.md) |
 | *Why* close the XSS→RCE route with a recent-auth gate, and how does it land? (start here — the security pitch is now merged in) | [`core-action-gate-proposal.md`](core-action-gate-proposal.md) |
-| *What* exactly would change in core (files, functions, APIs; the registry-vs-Abilities decision; the recent-auth session design)? | [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md) |
+| What did the broader implementation inventory identify? (superseded as an implementation plan; retained for seam/route evidence) | [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md) |
 | What did an early sketch of the chokepoint patches look like? ⚠️ **Superseded — known-vulnerable, do not implement** | [`archive/core-sudo-gate-poc-patches.md`](archive/core-sudo-gate-poc-patches.md) (retained for shape only; see the banner at the top of that file) |
 | How does WordPress core authentication actually work? | [`wordpress-core-authentication.md`](wordpress-core-authentication.md) |
 | Strategic context: which WordPress architectural future, and where the gate fits (not part of the proposal) | [`core-gate-architectural-context.md`](core-gate-architectural-context.md) |
 
-*Archived core-proposal artifacts (see [`archive/`](archive/README.md)): the registry-vs-Abilities decision memo (folded into the spec §4.1.1), the `consequential-actions` MVP-vs-spec reconciliation, and password-change reauth research.*
+*Archived core-proposal artifacts (see [`archive/`](archive/README.md)): the
+superseded registry-vs-Abilities decision memo, the `consequential-actions`
+MVP-vs-spec reconciliation, and password-change reauth research. A general
+registry is possible future work, not part of Cut 1.*
+
+> **Planning precedence:** the charter and GSD roadmap control current scope and
+> execution order. The proposal remains rationale under revision; the broad
+> implementation spec is an evidence inventory until Phase 32 rewrites it from
+> the two-effect demonstrator.
 
 ## WordPress 7.0 & AI-adjacent surfaces
 

@@ -1,87 +1,270 @@
-# GSD Roadmap Context
+# GSD Roadmap — Action Gate Research Program
 
-> **Current routing note (updated 2026-07-15):** Milestone v4.5 — Session Governance & Admin UX is **complete and released** (shipped in `v4.5.0`, 2026-07-05; folded into `v4.6.0`, 2026-07-06). The **active track is now In-Editor Gutenberg Reauth** — Milestone A (password modal) merged via PR #178 (2026-07-07); Milestone B (in-modal 2FA) is next. That track runs on its own docs (`gutenberg-editor-reauth-milestone-plan.md` / `-execution-checklist.md` / `-milestone-b-2fa-partial-brief.md`), not this GSD roadmap. Product release/package truth remains `../docs/release-status.md` (latest tag **`v4.6.0`**); product roadmap truth remains `../docs/ROADMAP.md`; current position is `.planning/STATE.md`. The v4.5 detail below is retained as the milestone record.
+**Status:** Planning started; Phase 26 is active
+**Goal:** Produce a narrow, executable case for early core veto points plus safe
+action-bound step-up approval for plugin/theme upload and file-editor writes.
 
-## Completed Milestone: v4.5 — Session Governance & Admin UX (released in v4.5.0 / v4.6.0)
+The phases are sequential because each phase decides whether the next one is
+safe to build. Parallel documentation work is allowed; parallel mechanism work
+across an unresolved security gate is not.
 
-**Goal:** Separate sudo-session revocation from capability administration with an active-session-keyed revocation surface, and correct the governance-coverage panel's multisite behavior.
+## Phase 26 — Architectural reset and evidence inventory
 
-**Requirements:** 7 total in `.planning/REQUIREMENTS.md`.
-**Phases:** 24–25.
-**Research posture:** Skipped — internal refactor of existing capability/UI code. Design reviews are mandatory per CLAUDE.md before TDD on each phase (both are non-trivial/security-sensitive).
+**Goal:** Establish one current direction and stop old designs from continuing as
+accidental requirements.
 
-## Phases
+**Requirements:** ARCH-01, ARCH-03
 
-- [x] **Phase 24: Session Revocation UI** — Add Users-list row action for per-user revocation and a UI-surfaced revoke-all with confirmation; remove the Access-tab "Revoke Session" button; provide clear feedback on every path including gated/no-session and missing-cap cases. (completed 2026-07-01)
-- [x] **Phase 25: Governance Coverage Panel Fix** — Correct the panel's capability name on multisite and eliminate super-admin false positives by measuring effective `wp_sudo_can()` access instead of raw `allcaps`. (completed and merged via PR #141, 2026-07-04)
+**Work:**
 
-## Phase Details
+1. Adopt the architecture charter and this milestone plan.
+2. Inventory active docs and code that still prescribe a registry-first design,
+   reusable recent-auth window, request carry/replay, or same-document modal as a
+   security boundary.
+3. Classify each artifact: retain as evidence, update, archive, or freeze.
+4. Reconcile the public roadmap and documentation index with the program.
+5. Map open GitHub issues to this milestone, deferred research, or historical
+   plugin maintenance; do not inherit priority labels as architecture.
+6. Record the intentional Cut-1 consequence: third-party plugins have no general
+   API to register their own gated effects.
 
-### Phase 24: Session Revocation UI
+**Exit criteria:**
 
-**Goal:** Users with `revoke_wp_sudo_sessions` can revoke any active sudo session from the Users list (not just from the capability-holder table), and the Access-tab table no longer conflates session revocation with capability revocation.
+- A reader can find one current architecture without reading release archaeology.
+- Old PoCs are visibly non-normative.
+- The registry is absent from the critical path.
+- No production release is implied.
 
-**Depends on:** Nothing (first phase of this milestone)
+**Deliverables:**
 
-**Requirements:** REVK-01, REVK-02, REVK-03, REVK-04, REVK-05
+- Architecture charter.
+- Current GSD project, requirements, roadmap, and state files.
+- Doc/code disposition table.
+- Issue triage proposal.
 
-**Success Criteria** (what must be TRUE):
-1. An authorized admin sees a "Revoke sudo session" row action on the Users list for every user whose `_wp_sudo_expires > time()` — and only those users; the action does not appear on the revoker's own row.
-2. An authorized admin can trigger revoke-all active sessions from the UI via a confirmation step (not just via CLI), and the action is absent or disabled when there are no active sessions.
-3. Every revocation path — per-user row action and revoke-all — fires `wp_sudo_session_revoked`, enforces the `revoke_wp_sudo_sessions` capability check, and applies the per-revoker rate limit.
-4. The Access-tab capability-holder table has no "Revoke Session" column or button; capability administration and session revocation are visually and functionally separate.
-5. Every blocked or failed revocation path — operator lacks `revoke_wp_sudo_sessions`, operator has no active sudo session, target has no live session — surfaces a distinct, visible, actionable error message; no path fails silently.
+## Phase 27 — Threat contract and trusted-flow decision
 
-> **REVK-02 scope note:** v4.5 implements **current-site-scoped** revoke-all (authoritative per `24-CONTEXT.md`), not the literal "network-wide" wording in REQUIREMENTS.md. True cross-site/network-wide enumeration is deferred as **REVK-F3**.
+**Goal:** Decide what the first slice can honestly claim before choosing UI or
+proof transport.
 
-**Plans:** 3/3 plans complete
+**Requirements:** ARCH-02, TRUST-01..04, UX-02A
 
-Plans:
-- [ ] 24-01-PLAN.md — Shared revoke-all method + factored revocation core (cap + rate limit + audit hook) + CLI rewire; mandatory design-review gate (REVK-02, REVK-03)
-- [ ] 24-02-PLAN.md — Users-list row action + revoke-all interstitial confirm + three distinct blocked-path messages via wp_admin_notice() (REVK-01, REVK-02, REVK-03, REVK-05)
-- [ ] 24-03-PLAN.md — Remove Access-tab "Revoke Session" button + orphaned AJAX action; full gate + manual UI verification (REVK-04)
+**Work:**
 
-**Notes for planning:**
-- Mandatory Pre-Implementation Design Review before TDD (per CLAUDE.md — new UI surface, capability checks, multisite/Users-list execution contexts).
-- Primary files: `includes/class-admin.php` (row-action wiring, AJAX handler, revoke-all render), `admin/js/wp-sudo-admin.js` (feedback — currently passes `null` as result element so gate/cap errors surface only as `window.alert()`), `includes/class-sudo-session.php` (`handle_revoke_session`, `deactivate`, `revoke_all_active_sessions`).
-- `Sudo_Session::is_active()` requires a cookie-bound token; the Users-list enumeration must use the `_wp_sudo_expires > time()` meta query (browser-independent) — keep that distinction explicit.
-- On multisite the row action acts on the current site's session meta; super-admin short-circuit in `wp_sudo_can()` must remain respected.
-- TDD: unit tests via Brain\Monkey/Mockery; `composer test` + `composer analyse` (PHPStan level 6) + `composer lint` must pass before every commit.
+1. Write four explicit attacker traces: copied cookie, session-riding XSS, active
+   same-origin XSS, and arbitrary server-side plugin code.
+2. Specify the exact action descriptors for:
+   - upload plugin/theme package; and
+   - save plugin/theme editor file.
+3. Compare trusted-flow candidates:
+   - same-document modal;
+   - isolated top-level challenge and confirmation;
+   - isolated popup with `noopener` and a constrained return channel; and
+   - browser-mediated WebAuthn/passkey confirmation.
+4. Resolve one coupled mechanism-and-claim question: model what active
+   same-origin script can read, invoke, redirect, replay, or redeem through each
+   proof handoff, then derive the permitted XSS claim from that result. Do not
+   “fix” the wording while leaving the mechanism unresolved.
+5. Specify preflight as a security-sensitive read endpoint: same-capability
+   authorization, response minimization, and rate limiting.
 
-### Phase 25: Governance Coverage Panel Fix
+**Required adversarial tests on paper and in a browser spike:**
 
-**Goal:** The "Sudo governance coverage" panel accurately identifies the relevant capability for the context and does not flag users who have effective Sudo access via the `wp_sudo_can()` super-admin short-circuit.
+- compromised parent reads or replaces modal content;
+- compromised parent initiates or navigates the child;
+- proof delivery is observed, replayed, or redirected;
+- attacker preselects the target before victim reauth;
+- attacker changes target or bytes after approval;
+- cloned-cookie browser mints arbitrary valid WP nonces.
+- unauthorized or low-privilege caller probes action names and targets through
+  preflight;
+- authorized stolen session enumerates targets faster than the underlying admin
+  surface would permit.
 
-**Depends on:** Phase 24 (Access-tab is modified in Phase 24; Phase 25 changes the same file's panel logic — sequential to avoid conflicts)
+**Exit gate:**
 
-**Requirements:** GCOV-01, GCOV-02
+No Phase 28 implementation until the trust boundary and proof handoff survive
+the named tests and the closure claim is derived from those results. A narrowed
+claim is an acceptable result; independently resolving the prose and mechanism
+is not.
 
-**Success Criteria** (what must be TRUE):
-1. On a multisite network the panel body names `manage_network_options` (not `manage_options`) as the capability that governs access to Sudo settings.
-2. On single-site the panel body continues to name `manage_options` — the fix is context-aware, not a blanket rename.
-3. A super admin on multisite who has effective access to Sudo settings via `wp_sudo_can()` does not appear in the panel's "cannot access" list.
-4. A user who genuinely lacks effective Sudo access (fails `wp_sudo_can()`) still appears in the panel's coverage warning regardless of their raw `allcaps` state.
+## Phase 28 — Early-veto core slice
 
-**Plans:** TBD
+**Goal:** Prove that both effects can be stopped at a small, accurate core seam
+before irreversible mutation.
 
-**Notes for planning:**
-- Mandatory Pre-Implementation Design Review before TDD (per CLAUDE.md — security-sensitive: incorrect panel output mislabels access state; design review must resolve "effective access via `wp_sudo_can()`" vs "raw stored governance state" tension and confirm the fix does not re-introduce the recovery-mode `map_meta_cap` remap the original raw-cap check was written to dodge).
-- Primary file: `includes/class-admin.php` (`render_drift_detection_panel()`), `includes/functions-governance.php` (`wp_sudo_can`).
-- The fix must inject `$capability` into the body string via `printf`/`sprintf` or branch the message — do not hardcode either capability name as a constant.
-- TDD: unit tests via Brain\Monkey/Mockery; `composer test` + `composer analyse` (PHPStan level 6) + `composer lint` must pass before every commit.
+**Requirements:** VETO-01..05
 
-## Progress Table
+**Work:**
 
-| Phase | Plans Complete | Status | Completed |
-|-------|----------------|--------|-----------|
-| 24. Session Revocation UI | 3/3 | Complete    | 2026-07-01 |
-| 25. Governance Coverage Panel Fix | 0/TBD | Not started | - |
+1. Pin a `wordpress-develop` base SHA.
+2. Reuse findings—not code assumptions—from `poc/install-package-gate` and
+   `wip/coregate-unit1`.
+3. Add the smallest structured veto contract for package installation and
+   file-editor save.
+4. Thread refusal through each caller without false success.
+5. Assert no file write, extraction, activation, success hook, or success response
+   occurs after refusal.
+6. Test direct and alternate callers; document exclusions rather than broadening
+   scope invisibly.
 
-## Milestones
+**Slice A salvage rule:** keep `poc/install-package-gate` runnable and historically
+honest. Do not retrofit its reusable-window proof into the new protocol. Extract
+or adapt these durable assets into the successor slice:
 
-- ◆ **v4.5 — Session Governance & Admin UX** — Phases 24–25 (active).
-- ✅ **v4.4.0 — Two Factor Lifecycle Bridge** — Phases 21–23 (completed 2026-06-30). Archive: `.planning/milestones/v4.4.0-ROADMAP.md`.
-- ✅ **v4.3.1 — E2E Shard Rebalance** — Phase 20 (completed 2026-06-30; merged via PR #129). Archive: `.planning/milestones/v4.3.1-ROADMAP.md`.
-- ✅ **v4.3.0 — Post-.org Readiness Hardening** — Phases 16-19 (archived 2026-06-29). Archive: `.planning/milestones/v4.3.0-ROADMAP.md`.
-- ✅ **v4.0.0 — Pre-Public Hardening Baseline** — Phases 11-15 plus 13.1 (archived). See `.planning/MILESTONES.md`.
-- ✅ **v2.13 — Security Hardening Sprint** — Phases 01-05 (archived). See `.planning/MILESTONES.md`.
+- the identical-call gate-on/gate-off filesystem control;
+- the `run()`-before-unpack assertion;
+- the forged/revoked/admin-cookie actor-class cases;
+- the programmatic-call-inside-interactive-request case; and
+- the copied-cookie browser setup, upgraded in Phase 29 to an action digest and
+  atomic single-use redemption.
+
+**Exit gate:**
+
+- Each veto has a focused test that fails when the guard is removed.
+- Refusal occurs before the first irreversible effect.
+- Core's relevant existing tests remain green.
+- The patch contains no registry and no authentication UI.
+
+If a clean, early, structured veto cannot be added narrowly, stop and report that
+finding; do not compensate with request interception.
+
+## Phase 29 — Action-bound proof protocol
+
+**Goal:** Make one approval authorize exactly one described effect in exactly one
+browser/session context.
+
+**Requirements:** PROOF-01..05
+
+**Work:**
+
+1. Define canonical action descriptors and digests.
+2. Bind proof to actor, login-session identity, action, target, and relevant
+   parameter/content digest.
+3. Implement short TTL and atomic single-use redemption.
+4. Define storage/cache failure behavior and revocation.
+5. Ensure proof is distinct from WP nonces and cannot become a reusable recent-auth
+   window.
+6. Build a two-browser cloned-cookie differential test before adding polished UI.
+
+**Exit gate:**
+
+- Browser B with Browser A's copied auth cookie and fresh WP nonces cannot redeem
+  Browser A's approval.
+- Two concurrent redemptions execute at most once.
+- The concurrency test proves the storage operation is compare-and-delete (or
+  equivalently linearizable), not a read followed by a separate delete.
+- Any digest change refuses.
+- Every proof guard is killed by a named mutant.
+
+Failure of the cloned-cookie test blocks the protocol and Phase 30.
+
+## Phase 30 — wp-admin pause-before-send client
+
+**Goal:** Demonstrate editor-quality continuity without trusting the client as the
+security boundary.
+
+**Requirements:** UX-01..06
+
+**Work:**
+
+1. Add preflight integration for plugin/theme upload.
+2. Add preflight integration for plugin/theme file-editor save.
+3. Keep original form/file state local until approval.
+4. Use the trusted flow selected in Phase 27.
+5. Send the original operation once with its exact proof.
+6. Implement honest no-JavaScript and unsupported-screen fallback:
+   reauthenticate, return, and ask the user to resubmit.
+7. Remove any route-checker or static row that predicts a runtime replay result.
+8. Add privacy-preserving observability when an integrated server action reaches
+   the veto with no valid preflight correlation. Report aggregate failures or a
+   Site Health diagnostic without logging action targets, credentials, or payloads.
+
+**Exit gate:**
+
+- Integrated flows preserve work across success, cancel, expiry, and wrong factor.
+- The effect still refuses when JavaScript is bypassed.
+- Network logs show the original mutation request was sent once.
+- No request payload is retained server-side for later execution.
+- A deliberately broken client integration is visible through the diagnostic,
+  while the action still fails closed.
+
+## Phase 31 — Reproducible demonstrator and attack evidence
+
+**Goal:** Turn the vertical slice into evidence a core reviewer can falsify.
+
+**Requirements:** DEMO-01..06
+
+**Work:**
+
+1. Build one pinned WordPress Playground/wp-env demonstrator against the core patch.
+2. Show unpatched attack/control, server-only veto fallback, and integrated
+   preflight flow.
+3. Automate cloned-cookie, direct-request, no-JavaScript, duplicate, cancellation,
+   expiration, and changed-target cases.
+4. Preserve the original `consequential-actions` MVP at an immutable tag and
+   build an additive successor demo around effects and the new boundary. Reuse
+   its Playground blueprint/narrator/test-shell assets; do not port its window or
+   registry into the new mechanism.
+5. Publish a concise evidence report with commands, SHAs, expected results, and
+   honest residual risk.
+
+**Exit gate:**
+
+An independent fresh-context reviewer reproduces every claim and demonstrates
+that each claimed guard's removal is detected by the named test.
+
+## Phase 32 — Core proposal package
+
+**Goal:** Present the smallest credible upstream change, supported by executable
+evidence rather than a framework vision.
+
+**Requirements:** CORE-01..04, including CORE-03A
+
+**Work:**
+
+1. Rewrite `docs/core-action-gate-proposal.md` around the two-effect closure and
+   early veto ask.
+2. Replace or archive the current broad implementation spec.
+3. Provide separately reviewable patch units:
+   - veto seams;
+   - proof/confirmation primitive, if required in the initial ask; and
+   - optional client demonstrator.
+4. Put the registry, automation/provenance, identity pivots, broad action catalog,
+   and general wp-admin API in a clearly marked future-work appendix.
+5. State that plugins cannot register arbitrary consequential effects in Cut 1;
+   do not imply that a private core catalog is an ecosystem API.
+6. Request upstream review of the seam and threat claim—not endorsement of WP
+   Sudo as a plugin.
+
+**Exit criteria:**
+
+- The proposal can be understood without the WP Sudo architecture.
+- A reviewer can accept the veto seams without accepting a registry.
+- Every headline claim links to a reproducible test.
+- Known gaps are short, current, and consequential—not a log of historical churn.
+
+## Phase order and stopping rules
+
+| Phase | Starts when | Stops the program when |
+|---|---|---|
+| 26 | now | no canonical direction can be established |
+| 27 | Phase 26 docs agree | trusted handoff has an unbounded fatal assumption |
+| 28 | threat/flow contract settled | no narrow pre-effect veto exists |
+| 29 | veto seams proven | copied-cookie or atomic-use property fails |
+| 30 | proof protocol proven | smooth flow requires weakening the boundary |
+| 31 | vertical slice passes | independent reproduction fails |
+| 32 | evidence package passes | upstream ask cannot remain narrow |
+
+## Explicitly deferred
+
+- General actions/consequences registry.
+- Abilities integration.
+- Broad identity-pivot catalog.
+- Signed-update/package-provenance architecture.
+- Non-browser automation policy.
+- Production hardening of WP Sudo.
+- General-purpose wp-admin action-confirmation API.
+
+Those may become later milestones only after the two-action evidence changes the
+question from “is the boundary viable?” to “where else is it worth applying?”

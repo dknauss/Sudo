@@ -2,24 +2,68 @@
 
 **Status:** Draft proposal, not adopted by WordPress core.
 **Drafted:** 2026-04-17 · **Consolidated:** July 2026 (the standalone security pitch was merged into this document; see the note below).
-**Author context:** Derived from WP Sudo's production implementation and its comparative analysis in [`sudo-architecture-comparison-matrix.md`](sudo-architecture-comparison-matrix.md).
+**Author context:** Derived from WP Sudo's research implementation, failure
+history, and comparative analysis in
+[`sudo-architecture-comparison-matrix.md`](sudo-architecture-comparison-matrix.md).
 **Intended audience:** WordPress core contributors and security reviewers, plugin authors evaluating adoption, and WP Sudo operators assessing a plausible migration path.
 
-> ⚠️ **Known gaps — read before implementing (July 2026).** This document states the *direction and rationale*; several mechanisms it describes are **not ready to land**. The tracked findings live in [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md) §12 and the [Cut 1-readiness milestone](https://github.com/dknauss/Sudo/milestone/3). Two are load-bearing for readers of *this* document: the "a copied cookie cannot act" property asserted in §4 is **undercut by auto-replay** ([#315](https://github.com/dknauss/Sudo/issues/315)), and the self-email pivot §3 lists as non-deferrable currently has **no working enforcement seam** ([#316](https://github.com/dknauss/Sudo/issues/316)). Treat §4's session design and §3's Group-B coverage as **provisional** until those close. The illustrative patches in [`core-sudo-gate-poc-patches.md`](archive/core-sudo-gate-poc-patches.md) are **superseded** — see the banner at the top of that file. **Updated:** #315 (auto-replay) and #316 (self-email seam) are now **resolved** in the spec — see §5.1/§7.1 and §4.1 respectively; the gaps below that describe them as open are superseded.
+> ⚠️ **Design status — read before implementing (July 2026).** This document
+> states the direction and rationale, not a ready-to-land patch. The normative
+> interaction is now **pre-submit preflight**, not server-side request replay:
+> an integrated admin client pauses the operation before sending it, obtains a
+> one-use proof bound to that operation, and sends the request once. A legacy
+> surface that cannot preflight safely falls back to reauthenticate, return,
+> and ask the user to submit again. The tracked findings live in
+> [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md)
+> §12 and the [Cut 1-readiness milestone](https://github.com/dknauss/Sudo/milestone/3).
+> The illustrative patches in
+> [`core-sudo-gate-poc-patches.md`](archive/core-sudo-gate-poc-patches.md) are
+> superseded and must not be implemented.
 
-> **Consolidation note (July 2026).** This document now leads with the *gate* (a built-in recent-authentication requirement for a small, provable closure of consequential effects), which is the security goal. The **Consequential-Actions registry** (an "Actions API") it originally opened with is retained as an **optional, independently-valuable companion** (§8), not as a mandatory the registry track the gate depends on. Rationale: a threat-motivated recent-auth gate is more landable in core than a speculative registry, and the gate enforces at the effect chokepoint whether or not the registry ships. The engineering detail lives in the companion docs (§12); this document gives the rationale and the overall shape.
+> **Current program authority (July 2026).** The
+> [Action Gate Research Program](../.planning/action-gate-architecture-charter.md)
+> supersedes this document for implementation order and active scope. The first
+> executable slice contains only **plugin/theme upload** and **plugin/theme
+> file-editor save**. The identity pivots, critical settings, activation,
+> deletion, core update, automation policy, and other effects inventoried below
+> are deferred research. They are not Cut 1 prerequisites. This proposal will be
+> rewritten from the evidence after Phases 27–31; until then it is rationale and
+> route analysis, not a complete implementation contract.
+
+> **Consolidation note (July 2026).** This document now proposes only the
+> security primitive: a recent-authentication gate at a small set of effect
+> chokepoints, plus the client protocol needed to make it usable. A general
+> Consequential-Actions registry is **not part of Cut 1** and is not needed by
+> the gate. It remains a possible later complement only if a concrete consumer
+> establishes its value (§8).
 
 ---
 
 ## 1. Summary
 
-> Give WordPress core a built-in **recent-authentication ("sudo") gate** that stops an illegitimate administrator session from introducing attacker-controlled executable code or manufacturing a credential it controls — enforced at core's **shared effect sinks**, with the decision branching on **actor class** rather than transport.
+> Test whether WordPress core can require action-bound reauthentication at two
+> early effect vetoes—plugin/theme upload and file-editor save—without retaining
+> or replaying the original request.
 
-An XSS in a `wp-admin` origin is now routinely classified as *RCE-facilitating*, but only **indirectly**: compromise an admin session → reach the plugin/theme editor or the installer/uploader (or their REST equivalents) → write and execute PHP. Every XSS inherits an RCE severity because of a route WordPress leaves open by default, not because of the XSS itself. Closing that route de-escalates the entire class.
+An XSS in a `wp-admin` origin is now routinely classified as *RCE-facilitating*,
+but only **indirectly**: compromise an admin session → reach the plugin/theme
+editor or installer/uploader → write and execute PHP. The research asks whether
+two early vetoes plus an action-bound approval can cut that route. It does not
+yet claim to de-escalate the entire XSS class; Phase 27 must establish which
+active-XSS persistence and confirmation-surface assumptions the flow survives.
 
-The gate requires **fresh proof of the actor's own factor** before a consequential effect proceeds — evaluated *at the effect*, regardless of the actor's capabilities or the transport the request arrived on. Possession of an ordinary admin session becomes **insufficient** to introduce executable code or take over an account *through an interactive, actor-driven request*. It is deliberately narrow: it is not a permission system, a sandbox, a 2FA framework, a WAF, or an audit log (§5, §6).
+The candidate gate requires **fresh, action-bound proof** before either in-scope
+effect proceeds, evaluated at the effect. The first evidence target is narrower:
+a copied authentication cookie must not inherit another browser's approval, and
+an integrated screen must preserve unsent work without weakening the server
+veto. Active same-origin XSS remains a separate Phase-27 trust decision.
 
-**Scope of the guarantee.** This closes the *actor-driven* code-introduction and account-takeover paths — the dominant and cheapest attack, a stolen or ridden session. It does **not** close the *automated-update channel*: `wp-cron.php` is unauthenticated-triggerable and runs `WP_Automatic_Updater` with no actor to challenge, so a party who can poison the update transient (via the SQLi / object-cache-poison class this proposal is written against) can still reach the package sink there. That is a code-*provenance* problem, not a proof-of-intent one — and WordPress currently has **no working package signing** to lean on: the signed-updates keys lapsed in 2021, core-update downloads do not request signature verification, and verification soft-fails by default (verified against `wordpress-develop` trunk). Closing that path needs a provenance primitive, tracked separately (core-gate issue [#307](https://github.com/dknauss/Sudo/issues/307)). This gate is **complementary to, not a substitute for, package signing** — and notably, for the actor-driven attack it targets, signing would not help at all (the attacker clicks *install* on legitimately-signed code, or writes PHP through the file editor).
+**Scope of the first evidence claim.** No closure claim exists until the vertical
+slice passes its cloned-cookie, atomic-redemption, changed-digest, direct-request,
+and trusted-flow tests. Automated updates and package provenance are separate,
+deferred work. Signed packages would not prevent an authorized browser from
+installing legitimate but attacker-selected code or writing through the editor,
+so provenance and proof of intent remain complementary questions.
 
 This is the failure mode behind Core Trac [#20140](https://core.trac.wordpress.org/ticket/20140) (recent auth for consequential actions), generalized past the account-change cases it argued to the full set of terminal effects. It is also the most-*exploited* vulnerability class in current data: Patchstack's [*State of WordPress Security 2026*](https://patchstack.com/whitepaper/state-of-wordpress-security-in-2026/) reports **broken access control as the single most-exploited category** of the 11,334 vulnerabilities found in 2025, and notes such exploits *"look like normal authenticated traffic with no obvious injection patterns"*. That is precisely why a proof-of-intent gate, not traffic inspection, is the right defense.
 
@@ -34,11 +78,21 @@ Two properties of a compromised session decide the defense:
 - It is **an authenticated session.** The attacker loads any admin page, so **nonces are not a defense** (any nonce the UI would render, they harvest), and REST/AJAX are reachable *(verified: `wp_create_nonce()` hashes the session token, so a session holder mints valid nonces)*.
 - It does **not** carry the account **password** or any **second factor**.
 
-The threat this closes is specific. WordPress auth cookies are **HttpOnly**, so an in-origin XSS usually *session-rides* the victim's browser rather than exfiltrating the cookie. Against session-riding, what closes the route is **the challenge plus a one-time, action-bound proof**, not any property of the session record; against genuine cookie *copy* (infostealer malware, header-logging proxies, backups/logs, shared devices), the session design in §4 denies replay. The result is bounded: possession of an ordinary admin session becomes **insufficient** to introduce executable code. It does not "solve XSS" — an active same-origin XSS can still drive the challenge and confirmation in the victim's own browser (spec §7.1). The worked adversary and full route enumeration live in [`stolen-cookie-rce-attack-tree.md`](stolen-cookie-rce-attack-tree.md).
+The threat cases must remain separate. A copied cookie in another browser, a
+script session-riding from one compromised admin document, a stored script that
+also reaches the confirmation route, and arbitrary server-side PHP do not have
+the same powers. The first slice must demonstrate the copied-cookie property.
+Phase 27 decides which browser-XSS cases the trusted approval flow can honestly
+claim. The worked route inventory lives in
+[`stolen-cookie-rce-attack-tree.md`](stolen-cookie-rce-attack-tree.md).
 
 ---
 
-## 3. The invariant that keeps the scope small, and the minimal closure
+## 3. Broader route inventory (deferred beyond the two-effect slice)
+
+The material below explains why a future complete closure becomes broad. It is
+not the first implementation scope and must not be used to pull identity pivots
+or policy work ahead of the GSD phase gates.
 
 The defense holds under one condition:
 
@@ -57,9 +111,14 @@ So the gated set is a **provable minimal closure**, not a wishlist. It is exactl
 
 Gating `install_package()` (not `Plugin_Upgrader::install()`) matters: `install()` alone misses bulk, update, the AJAX updaters, and the auto-updater, and the update package URL comes from mutable transient state, not a fixed .org constant. Provenance ("is this a .org slug") is the wrong key: `plugins_api()` results and the download link are filterable; key on the **package write**.
 
-**Group B — credential/principal pivots (in Cut 1, not deferrable).** A Group-A-only release is bypassable per the invariant: mint a known credential, log in fresh, pass every Group-A challenge.
+**Group B — credential/principal pivots (deferred).** A future complete closure
+must account for these bypasses, but the first slice deliberately tests the
+mechanism on two terminal effects before widening the catalog.
 
-⚠️ **The invariant above is stated as an iff, and Cut 1 does not satisfy it.** Group B is gated in Cut 1 *for interactive actors* — a cookie session cannot mint an Application Password or change a password without a challenge. But an **Application-Password-authenticated** caller reaches both the credential pivots and the Group-A code effects ungated, because that actor class is deferred (§4, [#320](https://github.com/dknauss/Sudo/issues/320)). So the closure this section proves is the closure of the *actor-driven* attack, not the unconditional closure the iff describes. Note the distinction the deferral turns on: App-Password **issuance** from a browser is in Cut 1; App-Password-**authenticated callers** are not.
+⚠️ **The invariant above explains future closure, not Cut 1.** The two-effect
+slice deliberately does not satisfy it: identity pivots and
+Application-Password issuance are deferred. Cut 1 tests whether the veto,
+proof, and trusted-flow mechanism is viable before attempting a closure claim.
 
 | Pivot | Note |
 |---|---|
@@ -72,9 +131,16 @@ Gating `install_package()` (not `Plugin_Upgrader::install()`) matters: `install(
 
 **"Code-capable" means effective capability across *every* gated execution route** — `edit_plugins`/`edit_themes`/`upload_plugins`/`upload_themes` (which map to `install_*`) **and** `activate_plugins` and theme-switch authority (`switch_themes`/`edit_theme_options`), **not** role names. Omitting activation would misclassify a custom registration-default role that can activate an already-installed plugin as "safe." This makes custom roles and the multisite distinction fall out correctly.
 
-**Critical-origin settings are in the closure too.** A cookie-authenticated `POST /wp/v2/settings` repointing `siteurl`/`home` loads attacker-origin scripts **same-origin** in `wp-admin` — an XSS-as-RCE primitive whose script can *fake or keylog the full-page challenge itself*, which would otherwise defeat the gate ([`stolen-cookie-rce-attack-tree.md`](stolen-cookie-rce-attack-tree.md) §6). So the critical-option write (`siteurl`/`home`, and the connector-credential rotation) is gated — the same critical-settings chokepoint WP Sudo already gates as `options.critical`. It is not set aside as a "different primitive."
+**Critical-origin settings are part of the broader inventory, not the first
+slice.** Repointing `siteurl`/`home` and replacing connector credentials remain
+important routes, but adding them before the proof and trusted-flow mechanism is
+validated would repeat the scope-expansion failure this program is correcting.
 
-The WP 7.0 Connectors credential path is the concrete instance: a single `POST /wp/v2/settings` swapping a `connectors_*_api_key` is a credential-**integrity** failure reachable with no filesystem access and no code execution, and WP Sudo already gates it in production via its `connectors.update_credentials` rule (verified against WordPress 7.0 GA, released 2026-05-20; sources: the official [Connectors API dev note](https://make.wordpress.org/core/2026/03/18/introducing-the-connectors-api-in-wordpress-7-0/) and core `src/wp-includes/connectors.php`). It belongs inside the closure, not in the architectural framing: a manifest authorizes the *class* of operation while saying nothing about whether a human is intentionally replacing an API key *now*.
+The WP 7.0 Connectors credential path is one deferred example: a single
+`POST /wp/v2/settings` swapping a `connectors_*_api_key` is a
+credential-integrity failure reachable without filesystem access. WP Sudo's
+research implementation has a `connectors.update_credentials` rule, but that
+does not make the route part of the first core slice.
 
 The exact chokepoints, per-function return contracts, and the full catalog are in [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md) §4.1 / §5.
 
@@ -88,12 +154,14 @@ The exact chokepoints, per-function return contracts, and the full catalog are i
 
 | Actor at the sink | Decision | In Cut 1? |
 |---|---|---|
-| Interactive cookie session, no proof for this action | **Challenge + confirm** (full-page; below) | ✅ **Yes — the Cut 1 scope** |
+| Interactive cookie session, no proof for this action | **Pause before submission → challenge → confirm → submit once**; legacy clients reauthenticate and resubmit manually | ✅ **Yes — the Cut 1 scope** |
 | API credential (Application Password) / REST, no proof | **Block + log** | ❌ Deferred ([#306](https://github.com/dknauss/Sudo/issues/306)) — a default hard-block is a back-compat regression |
 | No actor **and** core's own automatic updater **and** package from the site's configured update source | **Allow** (background security updates keep working) — but `install_package()` receives an *unpacked local path*, not the source URL, so **provenance must be decided upstream** (at the update offer / `upgrader_pre_download`) and threaded in as a trusted flag | ❌ Deferred ([#307](https://github.com/dknauss/Sudo/issues/307)) — needs a provenance primitive core lacks |
 | WP-CLI | **Allow by default, operator-configurable** — shell access already dominates the gate; a CLI block is security theater with real deployment cost | ❌ Deferred |
 
-**In Cut 1, every deferred row passes through ungated — as in current core.** That leaves the REST-over-Application-Password install path open, which is a real gap, not an argument that the credential channel is safe. Cut 1 closes the *actor-driven* paths (the dominant, cheapest attack); the credential channel is the follow-on project's job.
+**In Cut 1, every deferred row behaves as in current core.** That leaves real
+gaps, including Application-Password and automation routes. Cut 1 is a mechanism
+experiment, not an actor-driven closure claim.
 
 The decision object never encodes transport: business functions return a decision (as a `WP_Error` in practice), and surface adapters localize the UX — admin UI redirects, REST returns 403, AJAX returns JSON. That keeps transport handling out of privileged business functions (the spec's §5.2 adapters).
 
@@ -103,16 +171,55 @@ The decision object never encodes transport: business functions return a decisio
 - *Stamp `reauth_at` on the shared session record* — the stolen cookie **is** that record; it elevates the thief too.
 - *Trust a fresh `login` timestamp* — `wp_signon('','')` mints a fresh stamp from a held cookie with no credential entered.
 
-The design that survives — **provisional; items 1 and 6 are undercut by [#315](https://github.com/dknauss/Sudo/issues/315)** (auto-replay lets a copied session weaponize the victim's reauth, so "the proof lives only in the browser that answered the challenge" does not yet hold end-to-end; the fix under discussion is to drop auto-replay for consequential actions in favour of a canonical confirmation page bound to a one-time, proof-bound intent token):
+The surviving properties are narrower than an implementation: approval is
+bound to one server-canonical action digest, unavailable to a browser holding
+only a pre-challenge cookie copy, short-lived, and atomically consumed. Phase 27
+must choose the proof transport, storage, and handoff. Earlier drafts proposed
+an HttpOnly proof cookie plus a per-verifier HMAC record; those are retained in
+the superseded implementation inventory as hypotheses, not decisions. Whether
+same-origin JavaScript can read or exercise the selected proof is the same
+question that determines the permitted XSS claim.
 
-1. The proof secret lives only in the browser that answered the challenge; stored server-side only as a hash, keyed to the **current login-session token verifier** (`hash('sha256', wp_get_session_token())`) — **not per-user**, so concurrent sessions do not overwrite each other. Its cookie is scoped to the site root (`COOKIEPATH`), not `/wp-admin`, so it also reaches cookie-authenticated `/wp-json` REST.
-2. The assurance record is **self-authenticating**, and the MAC must cover the **proof hash too**: `hash_hmac('sha256', "$user_id|$verifier|$reauth_at|$scope|$proof_hash", wp_salt('auth'))`, verified before any field is trusted. (Signing only user/verifier/time/scope would let a cache-poisoning attacker keep the valid MAC and swap in the hash of a cookie *they* hold — defeating the separate proof.) `session_tokens` lives in the persistent, poisonable `user_meta` cache group (the wp2shell class; §10), which is why the record must be signed at all. Degradation: weaker when the `AUTH_SALT` family lives in `wp_options` rather than `wp-config.php`.
-3. **Only the challenge handler writes it**; core strips reserved `reauth_*` keys from the `attach_session_information` filter result.
-4. The read consults the **session store**, so "log out everywhere" revokes within the same request.
-5. Teardown clears only the `reauth_*` keys, bound to a credential change **for the target user** — never `destroy_all()`, and never on an admin editing another user.
-6. Full-page **top-level** challenge — never a modal/iframe inside a possibly-XSS-compromised admin document. For AJAX/REST, return a stable `reauthentication_required` 403 + challenge URL; **never auto-replay** a password/role/email change or an executable upload.
+The interaction direction is settled even though proof issuance and final
+confirmation ordering are not:
 
-If core wants the thief's existing session *gone*, offer rotation as an explicit "sign out other sessions" affordance after step-up — not an implicit side effect of every elevation. The full mechanics (per-verifier keying, atomic write, lockout-as-remediation-hazard) are in the spec's §4.2.
+1. **Pre-submit interaction, with an honest fallback.** An integrated admin
+   client pauses before sending the mutation, asks the server for the canonical
+   action and target digest, completes trusted reauthentication and
+   action-specific confirmation, obtains authority to submit that exact digest,
+   and submits once. A
+   legacy surface that cannot do this safely reauthenticates and then asks the
+   user to submit again. Core never stores and later executes an already-submitted
+   consequential request.
+2. **The challenge chrome is not the security boundary.** A modal is excellent
+   UX but an ordinary same-origin modal or iframe can be inspected or imitated by
+   active XSS. The server-side veto and digest-bound proof remain authoritative;
+   WebAuthn/passkeys or an isolated provider surface provide stronger credential
+   protection than password entry inside a potentially compromised document.
+
+In plain terms, the practical architecture has three layers:
+
+1. **Early server veto:** core stops the sensitive effect unless this request
+   carries valid approval. This is the non-bypassable boundary.
+2. **Standard wp-admin preflight:** integrated screens pause before submission,
+   preserve the user's local state, and start reauthentication. This is the
+   smooth experience.
+3. **Action-bound, single-use proof:** reauthentication approves the exact
+   displayed operation and target, not a general period of elevated authority.
+
+The intended interaction is:
+
+`click → pause locally → server preflight → trusted reauthentication and action-specific confirmation → submit once with action-bound authority`
+
+Phase 27 decides whether confirmation precedes proof issuance, is the act that
+causes issuance, or is combined with redemption inside an isolated flow. The
+document deliberately does not promise a JavaScript-readable token or an
+ambient proof cookie before that decision.
+
+If core wants the thief's existing session *gone*, offer rotation as an explicit
+"sign out other sessions" affordance after step-up—not an implicit side effect
+of every elevation. The superseded spec's §4.2 preserves prior mechanism
+research, but the GSD program controls what carries forward.
 
 ---
 
@@ -154,71 +261,65 @@ The security case above does not depend on which direction WordPress takes archi
 
 ---
 
-## 8. The optional companion: a Consequential-Actions registry
+## 8. Possible future complement: a Consequential-Actions registry
 
-Everything above is the gate. This section is the **companion** the earlier draft of this proposal led with: a small **registry** that names consequential operations so core, plugins, audit tools, UI, and policy systems can identify them consistently. It is **independently valuable and independently landable** (a queryable catalog has standalone value for auditability, Site Health, and admin UI even if the gate never ships), but it is **not a prerequisite** for the gate, which enforces at the effect chokepoint regardless of whether any entry is registered. Ship it alongside, before, or after the gate.
+Everything above is the proposal. A previous draft also proposed a general
+registry naming consequential operations for audit, UI, and policy consumers.
+That abstraction increased scope without improving enforcement: a name in a
+catalog cannot stop a mutation, while a veto at the effect can. Cut 1 therefore
+contains **no public registry API** and must not be blocked on one.
 
-### 8.1 Why a registry has standalone value
+A registry can be reconsidered later if at least one independently useful
+consumer, a stable metadata contract, and a maintenance owner exist. It should
+then be designed from those demonstrated needs—not patterned mechanically on the
+Abilities API and not introduced as a prerequisite for recent authentication.
 
-Security and policy plugins today each reinvent their own ad-hoc catalog of "dangerous operations," with different identifiers and no interoperability surface. A shared registry gives the ecosystem a stable taxonomy, queryable metadata for UI and diagnostics, and a foundation for later manifests or AI-agent boundaries — **without** requiring core to standardize challenge UX, recent-auth semantics, replay, or non-interactive policy in the same release. Observation hooks for audit tooling are a reasonable **later** addition, deliberately not part of the registry track: an earlier draft listed them here and the spec listed a pure-data registry, which is a materially different product. If they are added, they must be documented as **observational only and never a gate** — spec §4.1.1 rejects the Abilities API's execution hook as an enforcement point for exactly that reason, and §6 rejects `do_action` seams on the same ground. A hook that looks like it can refuse, and cannot, is the failure mode this design has spent the most effort removing. That is what makes it a cheap, low-risk first primitive on its own track.
+### 8.1 What would justify revisiting it
 
-### 8.2 Naming and the relationship to the Abilities API
+A later registry would need to demonstrate more value than a private list inside
+the gate implementation. Plausible consumers include audit tooling, Site Health,
+or a standard action-confirmation UI, but none requires a public general-purpose
+registry in Cut 1. Observation hooks, if ever added, must be documented as
+observational only and never mistaken for veto points.
 
-Use namespaced, action-oriented identifiers following the official Abilities API shape `namespace/action-name` (lowercase alphanumerics, hyphens, one forward slash) — e.g. `core/activate-plugin`, `core/delete-user`, `core/update-connector-credentials`, `woocommerce/refund-order`. Do **not** claim dotted identifiers like `core/plugins.activate` are the Abilities convention; they are not.
+### 8.2 Relationship to the Abilities API
 
-A registration carries: **id**, **label**, **capabilities**, **category**, and a nested **`consequence`** block holding the risk metadata — `class` (a five-value set: code-execution, privilege-escalation, account-takeover, destructive-deletion, external-credential-mutation), `scope` (a reuse grouping a future gate may key on), and `annotations` (booleans/strings such as `destructive`, `requires_recent_auth`, `consent_required`). The `consequence` block is **nested** on purpose: the same block is portable to a consequential ability's `consequence` annotation later without reshaping.
+The Abilities API is adjacent prior art, not a substitute or a required template.
+Abilities are executable units; the protected effects in Cut 1 are existing core
+mutations that are not abilities. More importantly,
+`wp_before_execute_ability` is observational rather than veto-capable:
+`WP_Ability::execute()` fires it and then executes the ability regardless of a
+callback's return value. The gate must therefore enforce at the data-layer
+chokepoint whether or not a future catalog shares Abilities naming or metadata.
 
-The Abilities API is adjacent prior art, not a substitute. Abilities are executable units (input, permission, output); "actions" here are consequential operations worth naming, observing, and gating even when they are not naturally one self-contained ability object. There is also a decisive *enforcement* reason the two cannot simply merge: the Abilities execution hook `wp_before_execute_ability` is **observational, not a gate**. `WP_Ability::execute()` fires it and then calls the ability on the very next line, discarding whatever the hook returned. A proof-of-intent gate must therefore enforce at the **data-layer chokepoint** regardless of whether an operation is an ability; the registry only lets it *name* the operation the same way either way. The settled architecture is a **standalone** consequential-actions registry, Abilities-*aligned* in its ID convention and its nested `consequence` block shape, with reading consequence-annotated abilities left as a cheap, deferred extension (nothing populates the ability side today). The full decision — including why both pure forms fail and the one-ID-one-record collision contract — is folded into [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md) §4.1.
+### 8.3 Relationship to the gate
 
-The public **name** for the API is still open: "action" collides with `do_action()`/`add_action()`, so a name that reads as "consequential operation" (e.g. `wp_register_consequential_action`) may be preferable to a bare "Actions API." This question is cosmetic relative to the architecture.
-
-### 8.3 Mock registry API
-
-```php
-wp_register_action(
-	'core/activate-plugin',
-	[
-		'label'        => __( 'Activate a plugin' ),
-		'capabilities' => [ 'activate_plugins' ],
-		'category'     => 'plugin-management',
-		'consequence'  => [
-			'class'       => 'code-execution',
-			'scope'       => 'plugins',
-			'annotations' => [
-				'destructive'          => false,
-				'requires_recent_auth' => true,
-			],
-		],
-	]
-);
-
-wp_get_action( 'core/activate-plugin' );    // array|null
-wp_get_actions();                           // array<string, array>
-wp_action_exists( 'core/activate-plugin' ); // bool
-
-do_action( 'wp_before_execute_action /* NOT in the registry track — see §8.3: the registry ships as pure data; execution hooks are a deferred, observation-only addition */', 'core/activate-plugin', $context );          // observability only
-do_action( 'wp_after_execute_action', 'core/activate-plugin', $context, $result );  // not a gate — see §8.2
-```
-
-the registry track should register and expose metadata — **a pure-data catalog, no hooks and no enforcement**, matching the spec (§4.1). It should **not** require challenge UI, stash/replay, sudo sessions, or non-interactive policy. A Site Health consumer that reports the registered actions and whether gating is enabled demonstrates value before any enforcement exists.
-
-### 8.4 The initial catalog
-
-Keep the first catalog small, explicit, and clearly human-driven — no generic `update_option()` mappings, no speculative "all destructive abilities" umbrella. The canonical catalog (account changes, the code effects, the credential/critical-setting/registration-policy pivots) is maintained in the spec's §4.1 so it stays in one place; it aligns with the closure in §3. The account-change entries reflect #20140: the security boundary is not the target user's old password but recent authentication by the *actor* performing the change.
-
-### 8.5 The gate as a consumer of the registry
-
-If both ship, the gate is a **consumer** of the registry, answering a narrower question — *given a registered consequential action, allow now, require fresh proof, or block by policy?* It builds on the action metadata rather than introducing a second registry. But the ordering is not load-bearing: because enforcement lives at the chokepoint (§4), the gate works whether or not the registry is present, which is why this proposal leads with the gate and keeps the registry optional.
+The gate owns two private descriptors to compute action digests and render
+confirmation. If a public registry ships later, the two may share
+identifiers, but Cut 1 must not expose or stabilize a general taxonomy merely to
+avoid an internal list.
 
 ---
 
 ## 9. Relationship to WP Sudo
 
-WP Sudo is the most relevant production prior art. It already proves a catalog of consequential operations is useful, that a browser-scoped proof-of-intent model is operationally viable, that request interruption and later resumption can be made usable, that audit hooks for gate outcomes are valuable, and that per-surface policy is a real operator need.
+WP Sudo is the most relevant research prior art. It demonstrates useful
+mechanisms and, just as importantly, records why post-submit stash/replay and
+several apparently sound assurance designs failed. It is not production
+validation of the proposed core boundary.
 
-This document is **not** a verbatim transliteration of WP Sudo into core. It separates the registry from the gate, does not assume WP Sudo's storage model is automatically the right core choice, does not assume its `Disabled/Limited/Unrestricted` policy vocabulary should become the core surface language, and keeps early phases smaller and more browser-focused than WP Sudo's full multi-surface implementation.
+This document is **not** a verbatim transliteration of WP Sudo into core. It
+omits a public registry, does not assume WP Sudo's storage model is automatically
+the right core choice, does not assume its `Disabled/Limited/Unrestricted`
+policy vocabulary should become the core surface language, and keeps the first
+cut smaller and more browser-focused than WP Sudo's full implementation.
 
-**If core shipped this,** WP Sudo would evolve from "full sudo implementation" into: opinionated stricter defaults; operator UI and diagnostics; audit logging and privilege-drift / anomaly detection (the SIEM-adjacent observability core leaves out by design, §6, including the lockdown-audit backstop for out-of-band `$wpdb` privilege writes the gate cannot see); per-surface policy for the deferred surfaces; richer multisite and 2FA/passkey tooling; and compatibility bridges. The registry and the recent-auth primitive move to core; the policy and UX product stays in the plugin. Seen from the other side, once core owns the primitive, this posture layer becomes WP Sudo's reason to exist for enterprise and multisite networks: the intended identity of what would otherwise look like scope creep while the plugin also has to *be* the primitive.
+**If core shipped this,** WP Sudo would evolve from "full sudo implementation"
+into opinionated stricter defaults, operator UI and diagnostics, audit logging
+and privilege-drift detection, per-surface policy for deferred actors, richer
+multisite and factor tooling, and compatibility bridges. The effect veto,
+preflight protocol, and proof primitive move to core; the policy and posture
+product stays in the plugin.
 
 ---
 
@@ -234,22 +335,26 @@ A gate against illegitimate *sessions* is not a defense against a *pre-authentic
 
 ## 11. Open questions
 
-1. The public **name** for the registry API (the `do_action()` collision; §8.2) — cosmetic relative to the architecture, still unsettled.
+1. Whether a public registry ever earns inclusion through a concrete consumer;
+   its name and metadata shape are deliberately not Cut 1 questions (§8).
 2. Should the proof record build on `WP_Session_Tokens` or a **dedicated store**? Core already has a session-token abstraction that binds, revokes, and stores attached session info; a separate store may still be justified if gate state must be modeled apart from login sessions, at the cost of two session-adjacent models.
 3. Correct integration point for cookie-authenticated REST gating (the spec resolves this at the chokepoint; confirm against target core).
 4. ~~Scope-bound sudo window vs. flat recent-auth freshness for Cut 1.~~ **Closed** — the spec (§4.2) drops the reusable window for Cut 1 in favour of per-action step-up, so there is no window to scope. Reopens only if a reusable window returns.
 5. What should replace the ambiguous `Disabled / Limited / Unrestricted` per-surface vocabulary if core later adds surface policy? (Kept **out** of core Cut 1; core Cut 1 is binary per action.)
-6. Which replay classes are supported early vs. deferred (the spec's stash/replay vs. reauth-then-resubmit split).
+6. Which wp-admin screens adopt preflight in the first demonstrator, and which
+   use the reauthenticate-then-resubmit fallback.
 7. The minimal challenge-provider contract core can support without overcommitting to every 2FA/passkey flow in Cut 1.
 
-The registry-vs-Abilities fork (formerly the headline open question) is **resolved** — a standalone, Abilities-aligned registry with union deferred; see the spec §4.1.
+The registry-vs-Abilities fork is no longer a Cut 1 decision: Cut 1 proposes no
+public registry. Any later catalog must be designed from demonstrated consumers,
+with Abilities treated as adjacent prior art rather than a template.
 
 ---
 
 ## 12. References and source notes
 
 ### Companion docs
-- [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md) — *what to change in core* (files, functions, APIs; the registry-vs-Abilities decision; the recent-auth session design).
+- [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md) — *what to change in core* (effect vetoes, preflight protocol, proofs, fallback behavior, and challenge providers).
 - [`archive/core-sudo-gate-poc-patches.md`](archive/core-sudo-gate-poc-patches.md) — ⚠️ **superseded** illustrative patches at the chokepoints; retained for shape only, known-vulnerable (see its banner). Do not implement.
 - [`stolen-cookie-rce-attack-tree.md`](stolen-cookie-rce-attack-tree.md) — the worked adversary and full route enumeration.
 - [`core-gate-architectural-context.md`](core-gate-architectural-context.md) — the strategic "which architectural future" context (split vs. refactor; WP-Next kernel), kept out of this proposal.

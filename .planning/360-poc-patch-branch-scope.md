@@ -47,7 +47,7 @@ table has **three** errors, and the corrected list is **six functions**:
 
 | # | Function | Return today | Ask |
 |---|---|---|---|
-| 1 | `grant_super_admin()` | `void` | Check the `update_site_option()` result (or add `pre_grant_super_admin`) so a refused write stops `granted_super_admin` firing and stops the `true` return (`GB-GRANTSA-NOCHECK`) |
+| 1 | `grant_super_admin()` | `bool` | Check the `update_site_option()` result (or add `pre_grant_super_admin`) so a refused write stops `granted_super_admin` firing and stops the unconditional `true` return (`GB-GRANTSA-NOCHECK`) |
 | 2 | `wp_delete_user()` | `bool` | `bool\|WP_Error` return contract, or a short-circuiting `pre_delete_user`. A returned `WP_Error` is **truthy**, so today a refusal reads to `WP_REST_Users_Controller` as success (`GB-DELUSER-OBSERVE`) |
 | 3 | `wpmu_delete_user()` | `bool` | **The same change.** Network-admin deletion reaches it without passing through #2's seam (spec §6.3 row 5b) |
 | 4 | `WP_User::set_role()` / `add_role()` | `void` | An early check **before** `caps`/`roles` are mutated. Vetoing the `{prefix}capabilities` meta write is not enough: the object is elevated in memory first, the write's return is ignored, and the request continues with the new role in effect (spec §6.3 row 6c) |

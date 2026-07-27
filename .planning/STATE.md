@@ -1,41 +1,48 @@
 ---
 gsd_state_version: 1.0
-milestone: post-v4.8.0 — documentation & roadmap restructure (docs/CI only, no version bump)
-last_updated: "2026-07-25"
-status: v4.8.0 released 2026-07-23. Post-release `main` adds one small feature (the role/capability-drift alert-bridge push) plus documentation and CI tooling; nothing is version-bumped. This file is a point-in-time pointer, not a second source of truth — use the canonical sources below.
+milestone: Action Gate Research Program
+last_updated: "2026-07-27"
+status: Phase 26 active — architecture reset and evidence inventory
 ---
 
 # Planning State
 
-> **Point-in-time snapshot, not authoritative.** Live state (release, branch, PRs,
-> backlog) lives in the canonical sources below — consult them rather than trusting a
-> hand-maintained snapshot here. A stale STATE file is worse than none, so this file is
-> kept deliberately small and pointer-first.
+## Current position
+
+Phase 26 has begun. The architecture charter, requirements, and phased roadmap
+have been drafted. They are based on the research-prototype posture introduced by
+PR #466 and should land after or with that status change, not inside its atomic
+commit.
+
+## Immediate next work
+
+1. Complete the remaining artifact moves/archive links in Phase 26.
+2. Add preservation/successor notices to Slice A and
+   `consequential-actions`.
+3. Triage open core-gate and post-4.9 issues into the new phases or deferred work.
+4. Prepare the Phase 27 threat traces and browser spike; do not implement a proof
+   or client yet.
+
+## Decisions carried forward
+
+- Research-only project; no production deployment.
+- No automatic request replay.
+- Early server veto is the security boundary.
+- Preflight is progressive UX.
+- Approval is action-bound and single-use.
+- Registry is a possible future companion, not a prerequisite.
+- The first slice covers plugin/theme upload and file-editor save only.
+
+## Active blocker
+
+The trusted confirmation and proof handoff under active same-origin XSS is not yet
+settled. This is the Phase 27 decision gate and blocks client implementation.
 
 ## Canonical sources
 
-- **Current release / unreleased-on-`main`:** `docs/release-status.md`
-- **Forward roadmap (Now / Next / Later / Non-goals):** `docs/ROADMAP.md`
-- **Backlog / open work:** GitHub issues — <https://github.com/dknauss/Sudo/issues>
-- **Shipped history:** `CHANGELOG.md`
-- **Archived GSD milestone history:** `.planning/MILESTONES.md`
-- **Live facts:** `git log`, `gh pr list`, `gh issue list`
-
-## Snapshot (2026-07-25)
-
-- **Latest release:** `v4.8.0` (2026-07-23) — REST-gate security hardening plus the
-  opt-in role/capability lockdown-audit MVP. Nothing past the tag is version-bumped.
-- **Since v4.8.0 on `main` — one small feature plus documentation + CI tooling:** the
-  alert-bridge role/capability-drift push (backward-compatible addition to the optional
-  bridge, #226); the **ROADMAP restructure** (forward-only Now/Next/Later; design essays
-  promoted to standalone docs; the feature backlog migrated to GitHub issues #238–#257);
-  and the **persistent-options metrics gate** (`bin/scan-persistent-options.php` +
-  `composer verify:metrics`). PRs #236/#237 merged; the Pass-3 roadmap trim (#258) and
-  the accuracy fixes tracked here may still be open — check `gh pr list`.
-- **No feature track is active.** The next candidate work is the filed backlog issues;
-  `docs/ROADMAP.md` (Now/Next) lists the near-term ones — notably #219 (network-wide
-  role/capability lockdown sweep).
-- **WordPress.org submission is not planned** (maintainer decision, 2026-07-26) — not
-  a delay awaiting approval. There is no obligation to keep the repository
-  "submission-ready", and Plugin Check is not a release gate. `docs/wporg-submission-checklist.md`
-  §1 pre-tag gates stay live; its §2 wp.org-only gates are dormant reference.
+- Architecture: `.planning/action-gate-architecture-charter.md`
+- Requirements: `.planning/REQUIREMENTS.md`
+- Phases: `.planning/ROADMAP.md`
+- Public roadmap: `docs/ROADMAP.md`
+- Research-use boundary: `PROJECT-STATUS.md`
+- Live repository state: Git and GitHub
