@@ -1,6 +1,6 @@
 # Core Gate PoC — the `install_package()` vertical slice
 
-The first slice of [#360](https://github.com/dknauss/Sudo/issues/360), replacing the quarantined pseudocode in [`docs/core-sudo-gate-poc-patches.md`](../../docs/core-sudo-gate-poc-patches.md).
+The first slice of [#360](https://github.com/dknauss/Sudo/issues/360), replacing the quarantined pseudocode in [`docs/core-sudo-gate-poc-patches.md`](../../docs/archive/core-sudo-gate-poc-patches.md).
 
 **This is a proof of concept for the core proposal, not part of WP Sudo.** It is not activated, is excluded from the distributed package via `.pressshipignore`, and has its own test harness so it cannot perturb the plugin's **production or test** metrics. It does count toward the repo-wide PHP line total, which is updated in `docs/current-metrics.md` alongside it.
 
