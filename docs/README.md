@@ -29,12 +29,15 @@ source of truth for its topic; this index never restates content (see
 | Question | Read |
 |---|---|
 | *Why* close the XSS→RCE route with a recent-auth gate, and how does it land? (start here — the security pitch is now merged in) | [`core-action-gate-proposal.md`](core-action-gate-proposal.md) |
-| *What* exactly would change in core (files, functions, APIs; the registry-vs-Abilities decision; the recent-auth session design)? | [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md) |
+| *What* exactly would change in core (effect vetoes, wp-admin preflight, action-bound proofs, fallback behavior, and challenge-provider contract)? | [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md) |
 | What did an early sketch of the chokepoint patches look like? ⚠️ **Superseded — known-vulnerable, do not implement** | [`archive/core-sudo-gate-poc-patches.md`](archive/core-sudo-gate-poc-patches.md) (retained for shape only; see the banner at the top of that file) |
 | How does WordPress core authentication actually work? | [`wordpress-core-authentication.md`](wordpress-core-authentication.md) |
 | Strategic context: which WordPress architectural future, and where the gate fits (not part of the proposal) | [`core-gate-architectural-context.md`](core-gate-architectural-context.md) |
 
-*Archived core-proposal artifacts (see [`archive/`](archive/README.md)): the registry-vs-Abilities decision memo (folded into the spec §4.1.1), the `consequential-actions` MVP-vs-spec reconciliation, and password-change reauth research.*
+*Archived core-proposal artifacts (see [`archive/`](archive/README.md)): the
+superseded registry-vs-Abilities decision memo, the `consequential-actions`
+MVP-vs-spec reconciliation, and password-change reauth research. A general
+registry is possible future work, not part of Cut 1.*
 
 ## WordPress 7.0 & AI-adjacent surfaces
 

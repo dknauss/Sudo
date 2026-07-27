@@ -176,12 +176,24 @@ confirm-then-redeem shape is the same idea at the core layer.
 
 ## Later (need design work)
 
-- **Client-side modal challenge** (GitHub-style inline reauth) — **rationale superseded,
-  see "4.10 — Action-confirmation API" above.** This entry previously read "no security
-  gain over stash → challenge → replay". That is no longer defensible: the replay path
-  carries a cost the in-page path does not, demonstrated in this release by a reachable
-  settings-blanking route and by reconstruction being impossible for Settings-API
-  screens. If built, re-evaluate the password-first OS-autofill decision (see
+- **Standard wp-admin preflight and action confirmation** — the preferred successor to
+  server-side stash/replay, and the plugin-side counterpart of "4.10 — Action-confirmation
+  API" above. Opted-in screens pause before sending, obtain a server-canonical
+  action/target digest, reauthenticate through the standard provider UI, and submit once
+  with a short-lived one-use proof. Legacy screens fall back to
+  reauthenticate-then-resubmit. Start with a narrow demonstrator for plugin/theme upload
+  and file-editor save; **do not build a generic request-capture/replay layer.** An
+  ordinary same-origin modal is not an XSS security boundary, so the design must support
+  browser-mediated factors or an isolated provider surface. Normative core direction:
+  [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md)
+  §5.1/§7.1.
+
+  This entry replaces **"Client-side modal challenge (GitHub-style inline reauth)"**,
+  whose stated rationale was "no security gain over stash → challenge → replay". That
+  is no longer defensible: the replay path carries a cost the in-page path does not,
+  demonstrated in the 4.9.0 cycle by a reachable settings-blanking route and by
+  reconstruction being *impossible* for Settings-API screens. If built, re-evaluate the
+  password-first OS-autofill decision (see
   [`security-model.md`](security-model.md#reauthentication-flow-password-first-design-rationale)).
 - **REST sudo-grant endpoint** (`POST /wp/v2/sudo`) for headless clients.
 - **Per-session / device sudo isolation** via `WP_Session_Tokens` — deferred:
@@ -212,6 +224,10 @@ confirm-then-redeem shape is the same idea at the core layer.
 - **WordPress core recent-auth gate proposal** — the strategic core work
   ([`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md) and
   companions; Trac #20140).
+- **General Consequential-Actions registry/API** — possible future complement,
+  not part of the core gate Cut 1. Revisit only when a concrete consumer proves
+  the need for a public taxonomy and metadata contract; do not pattern it on
+  Abilities by default.
 
 ## Non-goals / Declined
 
