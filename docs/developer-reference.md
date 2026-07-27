@@ -617,9 +617,11 @@ do_action( 'wp_sudo_action_replayed', int $user_id, string $rule_id );
 //
 // This is NOT limited to the post-reauthentication path: it also fires from the
 // already-active-session resume paths, where no credential is presented and the
-// reason is no_credential_this_request. Do not treat those as filler — with no
-// password step involved, that is the branch the confused-deputy attack lands on
-// when the lured victim already holds a sudo session. Fires at most once per
+// reason is no_credential_this_request. That reason is the one worth alerting on
+// and the easiest to dismiss as noise: it is the footprint of a lure that landed
+// on a session-holder and was REFUSED. may_replay_bound_stash() rejects on a
+// missing credential before any other check, so nothing executed — it is not a
+// live hole — but the attempt is visible nowhere else. Fires at most once per
 // stash (the stash is consumed before the hook runs).
 do_action( 'wp_sudo_replay_refused', int $user_id, string $rule_id, string $reason );
 
@@ -855,11 +857,12 @@ Record mapping:
 - **Context:** `wp_sudo`
 - **Action:** derived from hook (`activated`, `deactivated`,
   `reauth_failed`, `lockout`, `gated`, `blocked`, `allowed`,
-  `passed`, `replayed`, `policy_preset_applied`, `capability_tampered`)
+  `passed`, `replayed`, `replay_refused`, `policy_preset_applied`,
+  `capability_tampered`)
 - **Args/meta:** always includes `source=wp-sudo` and `hook`, plus hook
   fields such as `user_id`, `rule_id`, `surface`, `attempts`, `ip`, `expires`,
-  `duration`, `preset_key`, `previous`, `current`, and `is_network` where
-  applicable.
+  `duration`, `preset_key`, `previous`, `current`, `reason` (the refusal reason
+  on `replay_refused`), and `is_network` where applicable.
 
 The bridge supports late Stream availability (mu-plugin loads before
 regular plugins) by deferring registration to `plugins_loaded` when

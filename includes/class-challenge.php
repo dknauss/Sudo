@@ -1311,9 +1311,14 @@ class Challenge {
 		 * `complete_active_session_request()` and `render_resume_page()`, where no
 		 * credential is presented and the reason is `no_credential_this_request`. A
 		 * consumer that assumes every fire follows a password step will misread
-		 * those. They are not filler: when a lured victim already holds a sudo
-		 * session there is no password step, so the #322 confused-deputy attack
-		 * lands on exactly that branch.
+		 * those.
+		 *
+		 * That reason is the highest-value one to alert on, and the easiest to
+		 * mistake for noise: it is the footprint of a lure that landed on a
+		 * session-holder and was refused. `may_replay_bound_stash()` rejects on
+		 * `! $credential_verified` before any other check, so NOTHING EXECUTED —
+		 * do not read this as a live hole and loosen that guard. But the attempt
+		 * is visible nowhere else.
 		 *
 		 * Fires at most once per stash — the stash is consumed (deleted) above
 		 * before this point, and a subsequent request finds nothing to refuse.

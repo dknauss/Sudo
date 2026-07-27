@@ -1614,6 +1614,16 @@ class DashboardWidgetTest extends TestCase {
 			$source,
 			'the pill class the renderer derives from the event type has no CSS rule.'
 		);
+
+		// The event-type <option> list is a SEPARATE inventory from event_labels():
+		// filterRows() only accepts values exposed by that select, so a refused
+		// replay would render in the table but could not be isolated from mixed
+		// activity — the one query an operator investigating a lure would run.
+		$this->assertStringContainsString(
+			'<option value="replay_refused">',
+			$source,
+			'refused replays are not selectable in the event-type filter.'
+		);
 	}
 
 	// ─── Policy summary section tests ────────────────────────────────────

@@ -413,6 +413,7 @@ class Dashboard_Widget {
 		echo esc_html__( 'Passed', 'wp-sudo' );
 		echo '</option>';
 		echo '<option value="action_replayed">' . esc_html__( 'Replayed', 'wp-sudo' ) . '</option>';
+		echo '<option value="replay_refused">' . esc_html__( 'Not replayed', 'wp-sudo' ) . '</option>';
 		echo '</select>';
 
 		// Surface dropdown.

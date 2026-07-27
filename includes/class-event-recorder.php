@@ -22,6 +22,7 @@ namespace WP_Sudo;
  * - wp_sudo_action_allowed (policy: non-interactive request permitted)
  * - wp_sudo_action_passed (feature: gated action succeeds during active session)
  * - wp_sudo_action_replayed (flow: stashed request replayed after reauth)
+ * - wp_sudo_replay_refused (security: stashed request discarded, with reason)
  * - wp_sudo_recovery_mode_active (security: break-glass access, sampled hourly)
  * - wp_sudo_session_revoked (security: operator revoked sudo session(s) via UI)
  *
