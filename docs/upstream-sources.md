@@ -97,14 +97,28 @@ problem this registry exists to solve.
    occurrence: not merely a weaker property than containment, but a test of the wrong
    thing.
 
-   This is the most common failure in the registry's history rather than a curiosity.
-   Auditing every anchor rather than the one reported found **four** rows in this state at
-   once, including one where a repair had reproduced the defect it was repairing — its new
-   anchor resolved inside an *unauthenticated* branch while the cited line sat in the
-   authenticated one (#449). Prefer a token that is unique in the file. Where you must use
-   a repeated one, say in the cell which occurrence encloses and that the earlier one
-   exists — `GB-USER-NEW-SELFPOST` is the worked example, and it names both the occurrence
-   it means and the two it rejects.
+   Auditing every anchor rather than the one reported found **three** rows in this state
+   at once, in three different disguises (#449):
+
+   - a **real occurrence in the wrong construct** — one repair reproduced the defect it
+     was repairing, its new anchor resolving inside an *unauthenticated* branch while the
+     cited line sat in the authenticated one;
+   - a **bare identifier** common enough to occur many times in one file;
+   - a **conditional witness** — a heading directly above the cited line, inside a block
+     that closes before it. This is the one most likely to recur, because a label sitting
+     immediately above what you are citing looks like the safest possible anchor.
+
+   Prefer a token that is unique in the file. Where you must use a repeated one, say in
+   the cell which occurrence encloses and that the earlier one exists —
+   `GB-USER-NEW-SELFPOST` is the worked example, naming both the occurrence it means and
+   the two it rejects.
+
+   **If you re-derive this yourself, search the spans the way the checker does.** It does
+   not search them literally: `` `foo()` `` is searched as `function foo(`, and
+   `` `Class::method()` `` as `class X` plus `function method(`. A literal scan reports a
+   row the checker does not — `GB-REFERER-SELFPOST`'s `wp_get_referer()` matches its own
+   call site as well as its declaration — so a re-derivation done literally will disagree
+   with the gate and look like a finding. That difference is not visible from this table.
 
 3. **An anchor cell states only what must be present.** Every backticked span in it is a
    requirement — they are ANDed, not alternatives — so contrast, negation and
