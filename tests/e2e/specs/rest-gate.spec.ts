@@ -93,6 +93,34 @@ async function wpCli( args: string[] ): Promise< string > {
     return stdout;
 }
 
+/** Read the whole settings option as JSON, or '' when it has never been saved. */
+async function captureSettings(): Promise< string > {
+    try {
+        return ( await wpCli( [ 'wp', 'option', 'get', 'wp_sudo_settings', '--format=json' ] ) ).trim();
+    } catch {
+        return '';
+    }
+}
+
+/** Set only cli_policy, preserving every other stored key. */
+async function setCliPolicy( policy: string ): Promise< void > {
+    const current = await captureSettings();
+    const settings = current ? JSON.parse( current ) : {};
+    settings.cli_policy = policy;
+    await wpCli( [
+        'wp', 'option', 'update', 'wp_sudo_settings', JSON.stringify( settings ), '--format=json',
+    ] );
+}
+
+/** Put the option back exactly as it was — including not existing at all. */
+async function restoreSettings( original: string ): Promise< void > {
+    if ( '' === original ) {
+        await wpCli( [ 'wp', 'option', 'delete', 'wp_sudo_settings' ] );
+        return;
+    }
+    await wpCli( [ 'wp', 'option', 'update', 'wp_sudo_settings', original, '--format=json' ] );
+}
+
 /** Drop only the sudo cookies, leaving the login session intact. */
 async function clearSudoCookies( page: Page ): Promise< void > {
     const context = page.context();
@@ -173,6 +201,7 @@ test.describe( 'REST gate', () => {
     let targetId = '';
     let appPasswordAuth = '';
     let appPasswordRaw = '';
+    let originalSettings = '';
 
     test.beforeAll( async () => {
         await installNonceMuPlugin();
@@ -182,7 +211,14 @@ test.describe( 'REST gate', () => {
         // user) requires sudo and cannot be performed via WP-CLI." That is the gate
         // working, so the fixture asks for the exemption explicitly and hands it back,
         // rather than the suite quietly running against a weakened policy.
-        await wpCli( [ 'wp', 'option', 'patch', 'update', 'wp_sudo_settings', 'cli_policy', 'unrestricted' ] );
+        //
+        // The whole option is captured and restored rather than patched: `cli_policy`
+        // has no stored value until someone saves the settings screen — the default
+        // lives in PHP — so `option patch update` fails with "No data exists for key".
+        // Capturing also restores the ORIGINAL value instead of assuming it was
+        // `limited`, which would silently rewrite a site configured otherwise.
+        originalSettings = await captureSettings();
+        await setCliPolicy( 'unrestricted' );
 
         try {
             // Destructive probes never point at the shared admin. If the gate regresses,
@@ -200,7 +236,7 @@ test.describe( 'REST gate', () => {
         } finally {
             // Restored in a finally so a failed fixture cannot leave the CLI surface
             // unrestricted for every spec that runs after this one.
-            await wpCli( [ 'wp', 'option', 'patch', 'update', 'wp_sudo_settings', 'cli_policy', 'limited' ] );
+            await restoreSettings( originalSettings );
         }
 
         // Application Password for the Authorization-header half of the Apache lane.
@@ -212,14 +248,15 @@ test.describe( 'REST gate', () => {
     test.afterAll( async () => {
         await removeNonceMuPlugin();
         // Deleting a user is gated for the same reason creating one is.
-        await wpCli( [ 'wp', 'option', 'patch', 'update', 'wp_sudo_settings', 'cli_policy', 'unrestricted' ] );
+        const before = await captureSettings();
+        await setCliPolicy( 'unrestricted' );
         try {
             if ( targetId ) {
                 await wpCli( [ 'wp', 'user', 'delete', targetId, '--yes' ] );
             }
             await wpCli( [ 'wp', 'user', 'application-password', 'delete', 'admin', '--all' ] );
         } finally {
-            await wpCli( [ 'wp', 'option', 'patch', 'update', 'wp_sudo_settings', 'cli_policy', 'limited' ] );
+            await restoreSettings( before );
         }
     } );
 
