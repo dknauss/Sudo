@@ -143,8 +143,34 @@ a fixed `TARGET_PARAMS` set, and a payload field in neither that set nor
 That reaches a **documented** integration. `docs/developer-reference.md` shows a custom
 rule allowlisting `array( '_wpnonce', '_wp_http_referer', 'action', 'item_id' )`, and
 `item_id` is in neither set — so that rule auto-replayed at `4.8.0` and will not at
-`4.9.0`. Verified: `target_describes_payload`, `TARGET_PARAMS` and
-`may_replay_bound_stash` have **zero** occurrences at the `v4.8.0` tag.
+`4.9.0` **when it is reached by POST**. Verified: `target_describes_payload`,
+`TARGET_PARAMS` and `may_replay_bound_stash` have **zero** occurrences at the `v4.8.0`
+tag.
+
+**The guarantee is narrower on GET, and stating it precisely matters more than stating
+it comfortably.** `Request_Stash::build_stashed_post_params()` returns an empty array for
+any non-POST request, so on a GET there is no payload for `target_describes_payload()` to
+walk and it returns true after zero iterations. A GET-reached rule is therefore refused
+only when its captured target is **empty or malformed** — the case `4.9.0` adds. A custom
+GET rule whose effect rides an unrecognised parameter, alongside any recognised parameter
+at all, still satisfies the check and can still replay, while the challenge names only the
+recognised one.
+
+Scope of that residue, checked rule by rule rather than assumed: it requires the *effect
+itself* to sit on an unrecognised parameter. Every built-in GET-reachable rule carries its
+effect in a recognised target — `plugin`, `stylesheet`, `theme`, `users`, `id` — so
+appending a decoy hides nothing, and the sole built-in with no recognised parameter,
+`tools.export`, is refused by the empty-target case. **The residue is confined to custom
+GET rules.**
+
+It is not a regression this release introduces. At `4.8.0` there was no target naming, no
+browser binding, and unconditional auto-replay — `describe_stash_target`,
+`mint_binding_proof` and `TARGET_PARAMS` all have zero occurrences at that tag. `4.9.0`
+narrows a total hole to a specific one. Closing the remainder needs a rule to declare
+which of its fields are *effects*, which `stash.post_fields` does not express — it cannot
+separate `plugin_status`/`paged`/`s` (declared, not effects) from `item_id` (declared,
+the effect). That is new public API and it is tracked as its own design pass rather than
+rushed into a security release.
 
 It is classified **MINOR with disclosure** rather than MAJOR, deliberately:
 
