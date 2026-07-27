@@ -13,7 +13,12 @@ test.describe( 'WP Sudo alternative stack smoke tests', () => {
         await visitAdminPage( 'options-general.php', 'page=wp-sudo-settings' );
 
         await expect( page ).toHaveURL( /page=wp-sudo-settings$/ );
-        await expect( page.locator( 'h1' ) ).toContainText( 'Sudo' );
+        // Landed on the neutral dashboard rather than the requested screen. The
+        // convenience of returning to where you were is deliberately traded away:
+        // a destination the requester chose, reached after a successful challenge,
+        // executes under the sudo authority just minted.
+        await expect( page ).not.toHaveURL( new RegExp( 'page=wp-sudo-settings' ) );
+        expect( page.url() ).not.toContain( 'page=wp-sudo-settings' );
         await expect( page.locator( '.wrap' ) ).toBeVisible();
     } );
 
@@ -138,7 +143,7 @@ test.describe( 'WP Sudo alternative stack smoke tests', () => {
         ).toBeUndefined();
     } );
 
-    test( 'STACK-05: session-only challenge respects an explicit return_url after auth', async ( {
+    test( 'STACK-05: session-only challenge lands neutral, ignoring an explicit return_url', async ( {
         page,
     } ) => {
         await page.goto( '/wp-admin/options-general.php?page=wp-sudo-settings' );
@@ -156,14 +161,21 @@ test.describe( 'WP Sudo alternative stack smoke tests', () => {
         await page.fill( '#wp-sudo-challenge-password', 'password' );
 
         await Promise.all( [
-            page.waitForURL( returnUrl, { timeout: 15_000 } ),
+            // #322: the challenge no longer honours return_url. Wait for ANY
+            // navigation off the challenge page, then assert where it landed.
+            page.waitForURL( ( url ) => ! /page=wp-sudo-challenge/.test( url.href ), { timeout: 15_000 } ),
             page.click( '#wp-sudo-challenge-submit' ),
         ] );
 
-        await expect( page.locator( 'h1' ) ).toContainText( 'Sudo' );
+        // Landed on the neutral dashboard rather than the requested screen. The
+        // convenience of returning to where you were is deliberately traded away:
+        // a destination the requester chose, reached after a successful challenge,
+        // executes under the sudo authority just minted.
+        await expect( page ).not.toHaveURL( new RegExp( 'page=wp-sudo-settings' ) );
+        expect( page.url() ).not.toContain( 'page=wp-sudo-settings' );
     } );
 
-    test( 'STACK-06: cancel respects an explicit return_url without creating a sudo cookie', async ( {
+    test( 'STACK-06: cancel lands neutral and creates no sudo cookie', async ( {
         page,
         context,
     } ) => {
@@ -176,7 +188,9 @@ test.describe( 'WP Sudo alternative stack smoke tests', () => {
         );
 
         await Promise.all( [
-            page.waitForURL( returnUrl, { timeout: 15_000 } ),
+            // #322: the challenge no longer honours return_url. Wait for ANY
+            // navigation off the challenge page, then assert where it landed.
+            page.waitForURL( ( url ) => ! /page=wp-sudo-challenge/.test( url.href ), { timeout: 15_000 } ),
             page.locator( '#wp-sudo-challenge-password-step a.button:has-text("Cancel")' ).click(),
         ] );
 

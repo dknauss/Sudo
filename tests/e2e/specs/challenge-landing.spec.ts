@@ -100,10 +100,18 @@ test.describe( 'Post-challenge landing is never requester-supplied', () => {
 		await expect( page.locator( '#wp-sudo-challenge-card' ) ).toBeVisible();
 		await page.waitForTimeout( 1200 );
 
-		await expect( page ).not.toHaveURL( /wp-sudo-hostile-landing/ );
+		// Assert we are STILL on the challenge page. Checking `not.toHaveURL(hostile)`
+		// is wrong here and failed in CI: the hostile value is a query parameter of
+		// the URL we navigated to, so the address bar contains it even though the
+		// browser never went anywhere. Staying put is the property under test.
+		await expect( page ).toHaveURL( /page=wp-sudo-challenge/ );
 
-		const html = await page.content();
-		expect( html ).not.toContain( 'wp-sudo-hostile-landing' );
+		// The offered destinations must be neutral — the requester's value must not
+		// appear in any href the page renders.
+		const hrefs = await page.locator( '.wp-sudo-challenge-card a' ).evaluateAll(
+			( links ) => links.map( ( a ) => ( a as HTMLAnchorElement ).getAttribute( 'href' ) ?? '' )
+		);
+		expect( hrefs.join( ' ' ) ).not.toContain( 'wp-sudo-hostile-landing' );
 	} );
 
 	test( 'LAND-05: a hostile cancelUrl in the config is still never navigated to', async ( {

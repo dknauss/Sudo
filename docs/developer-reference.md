@@ -266,7 +266,24 @@ Accepted args:
 - `user_id` (`int`) — target user; defaults to current user.
 - `rule_id` (`string`) — audit identifier; defaults to `public_api.require`.
 - `redirect` (`bool`) — default `true`; set `false` to receive `false` instead of redirect.
-- `return_url` (`string`) — optional URL for challenge cancel/return flow.
+- `return_url` (`string`) — **inert since 4.9.0.** Still accepted, still emitted into
+  the challenge URL, and still ignored: nothing consumes it. See the note below.
+
+**Behaviour change in 4.9.0 (#322): the user is no longer returned to your page.**
+After a successful challenge, WP Sudo lands the user on a neutral admin page instead
+of the URL that sent them. Your guarded code then passes on the user's *next* visit,
+against the session they now hold — no second challenge.
+
+This is deliberate and it is not a bug report. A destination the requester chose,
+navigated to automatically the instant a challenge succeeds, executes under the sudo
+authority just minted; that is the same confused deputy the release removes from the
+stash path. Every attempt to keep the convenience while filtering the value failed on
+a case with nothing to filter — a queryless custom-action path, or a parameter name
+disguised with a leading `+`.
+
+`return_url` is retained in the signature rather than removed, because removing a
+documented parameter would be a MAJOR change under `VERSIONING.md` and would break
+callers that pass it. It has no effect.
 
 Example:
 

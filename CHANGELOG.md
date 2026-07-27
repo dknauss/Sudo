@@ -14,6 +14,17 @@
 
   But it will **never fire again**, and that is a real compatibility impact rather than a no-op: a listener that counted replays now counts zero, an alert keyed on it goes permanently quiet, and a reconciliation that expects one event per resumed action finds none. **Silence is the failure mode hardest to notice**, so it is stated here rather than left to be discovered.
 
+  **`wp_sudo_require()` no longer returns the user to your page, and its `return_url`
+argument is inert.** The helper still redirects to the challenge and still grants the
+session; what changes is the landing. After a successful challenge the user is put on a
+neutral admin page, and your guarded code passes on their next visit with no second
+challenge. `return_url` is kept in the signature — removing a documented parameter
+would be MAJOR — but nothing consumes it. Same reason as everything else here: a
+requester-chosen destination reached automatically the moment a challenge succeeds runs
+under the authority just minted. Covered by `tests/e2e/specs/public-api.spec.ts`
+(PUB-01) and `tests/e2e/specs/stack-smoke.spec.ts` (STACK-05, STACK-06), all three
+rewritten from asserting the old contract.
+
   **Migrate to `wp_sudo_replay_refused`.** It fires at the same lifecycle moment, for *every* consumed stash rather than only the resumed ones, and carries a `reason` the older hook never had (`replay_disabled`, or `no_credential_this_request` when a stash was released by a session-holder rather than the browser that created it — the lure footprint, and the value worth alerting on). The work is a rename, not a recovery.
 
   That successor is also why this is **MINOR and not MAJOR**: no documented symbol is removed, and the signal has a replacement at the same point. An event made dark with *no* successor would warrant MAJOR. Guarded by `tests/Unit/ChallengeTest.php`. (#322, #412, #413)

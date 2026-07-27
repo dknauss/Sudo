@@ -184,6 +184,19 @@ return with it. Expressing a rule's effect through a recognised parameter still 
 because the challenge page still **names** what is being authorised — that naming is now
 the whole control rather than a route to seamless resumption.
 
+**A second documented behaviour changes with it: `wp_sudo_require()`.** The helper's
+`return_url` argument is now inert — accepted, still emitted into the challenge URL,
+consumed by nothing — and the user is landed on a neutral admin page rather than
+returned to the guarded screen. Their next visit passes with no second challenge, so
+the grant is unaffected; only the landing is. The parameter is retained rather than
+removed, since removing a documented parameter would be MAJOR under `VERSIONING.md`.
+
+This surfaced late, from CI rather than from review: three E2E tests
+(`PUB-01`, `STACK-05`, `STACK-06`) encoded the old contract in their titles —
+*"respects an explicit return_url"* — and went red the moment the blunt rule landed.
+That is the tests doing their job, and it is worth recording that the *name* of a test
+is where a contract is most legible: the failures said exactly what was being broken.
+
 **Disclosed rather than smoothed over**, because an integrator whose rule stopped
 resuming deserves to find the reason here rather than infer it. `wp_sudo_replay_refused`
 fires for every consumed stash, so the transition is observable rather than silent.
