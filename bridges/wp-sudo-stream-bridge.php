@@ -113,6 +113,16 @@ if ( ! function_exists( 'wp_sudo_stream_bridge_record_data' ) ) {
 				$record['args']['rule_id']    = (string) ( $args[1] ?? '' );
 				break;
 
+			case 'wp_sudo_replay_refused':
+				$record['message']            = 'WP Sudo replay refused';
+				$record['action']             = 'replay_refused';
+				$record['user_id']            = (int) ( $args[0] ?? 0 );
+				$record['object_id']          = $record['user_id'];
+				$record['args']['user_id']    = $record['user_id'];
+				$record['args']['rule_id']    = (string) ( $args[1] ?? '' );
+				$record['args']['reason']     = (string) ( $args[2] ?? '' );
+				break;
+
 			case 'wp_sudo_capability_tampered':
 				$record['message']              = 'WP Sudo capability tamper corrected';
 				$record['action']               = 'capability_tampered';
@@ -196,6 +206,7 @@ if ( ! function_exists( 'wp_sudo_stream_bridge_register' ) ) {
 			'wp_sudo_action_allowed'      => 3,
 			'wp_sudo_action_passed'       => 3,
 			'wp_sudo_action_replayed'     => 2,
+			'wp_sudo_replay_refused'      => 3,
 			'wp_sudo_capability_tampered' => 2,
 			'wp_sudo_policy_preset_applied' => 5,
 		);

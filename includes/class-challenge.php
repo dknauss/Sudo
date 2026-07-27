@@ -1104,19 +1104,24 @@ class Challenge {
 	 *
 	 * @param array<string, mixed> $stash               The stash data.
 	 * @param bool                 $credential_verified Whether a password/2FA was verified on THIS request.
+	 * @param string               $reason              Set to the refusal reason when this returns false,
+	 *                                                  so the caller can emit an auditable event.
 	 * @return bool
 	 */
-	private function may_replay_bound_stash( array $stash, bool $credential_verified ): bool {
+	private function may_replay_bound_stash( array $stash, bool $credential_verified, string &$reason = '' ): bool {
+		$reason = '';
 		// Only the post-credential paths. The already-active resume paths involve no
 		// password step at all and auto-submit on page load, so the cookie would be
 		// the only control between "victim opens a link" and "stashed POST executes".
 		if ( ! $credential_verified ) {
+			$reason = 'no_credential_this_request';
 			return false;
 		}
 
 		// Never replay a stash whose body was redacted or explicitly not replayable —
 		// it would submit a form with secret fields silently missing.
 		if ( ! empty( $stash['redacted_fields_omitted'] ) || ! empty( $stash['post_replay_blocked'] ) ) {
+			$reason = ! empty( $stash['redacted_fields_omitted'] ) ? 'redacted_fields' : 'replay_blocked';
 			return false;
 		}
 
@@ -1125,12 +1130,42 @@ class Challenge {
 		// the rest hidden) or when the payload carries an effect field the target does
 		// not name. Consent to a partial description is not consent to the whole effect.
 		if ( empty( $stash['target_complete'] ) ) {
+			$reason = 'incomplete_target';
+			return false;
+		}
+
+		// …and `target_complete` alone is not enough, because an EMPTY target satisfies
+		// it vacuously. `Request_Stash::capture_target()` initialises the flag true and
+		// only ever clears it on truncation, so a request naming none of TARGET_PARAMS
+		// stores `target => [], target_complete => true`, which
+		// `target_describes_payload()` then agrees with after iterating zero keys.
+		//
+		// That is the one case where the confirmation renders no `Target:` line at all
+		// (`render_page()` guards on a non-empty description), so the user consented to
+		// a coarse label and nothing else. Informed confirmation is the control that
+		// holds when the browser binding is bypassed; with no target named there is no
+		// control left, so refuse and take the v1 landing.
+		if ( empty( $stash['target'] ) || ! is_array( $stash['target'] ) ) {
+			return false;
+		}
+
+		// …and a non-empty target is still not a confirmation if it renders nothing.
+		// describe_stash_target() skips any entry that is not a non-empty scalar, so
+		// a corrupted or forged `[ 'plugin' => [] ]` satisfies the check above while
+		// producing NO `Target:` line — the same vacuous state, one shape further out.
+		//
+		// Asked of the renderer rather than re-derived here, deliberately: the thing
+		// that must be true is "the user was shown a description", and the only
+		// authority on that is the code that draws it. A second copy of the predicate
+		// would be free to drift from the first, which is how this bug existed.
+		if ( '' === $this->describe_stash_target( $stash ) ) {
 			return false;
 		}
 
 		$expected = isset( $stash['binding_hash'] ) && is_string( $stash['binding_hash'] ) ? $stash['binding_hash'] : '';
 
 		if ( '' === $expected ) {
+			$reason = 'no_binding_minted';
 			return false;
 		}
 
@@ -1138,10 +1173,16 @@ class Challenge {
 		$presented = isset( $_COOKIE[ Request_Stash::BINDING_COOKIE ] ) ? sanitize_text_field( wp_unslash( (string) $_COOKIE[ Request_Stash::BINDING_COOKIE ] ) ) : '';
 
 		if ( '' === $presented ) {
+			$reason = 'no_proof_presented';
 			return false;
 		}
 
-		return hash_equals( $expected, hash( 'sha256', $presented ) );
+		if ( ! hash_equals( $expected, hash( 'sha256', $presented ) ) ) {
+			$reason = 'proof_mismatch';
+			return false;
+		}
+
+		return true;
 	}
 
 	/**
@@ -1199,7 +1240,9 @@ class Challenge {
 		// Consume the stash (one-time use).
 		$this->stash->delete( $stash_key, $user_id );
 
-		if ( $this->may_replay_bound_stash( $stash, $credential_verified ) ) {
+		$refusal_reason = '';
+
+		if ( $this->may_replay_bound_stash( $stash, $credential_verified, $refusal_reason ) ) {
 			$safe_url = wp_validate_redirect( $stash['url'], '' );
 
 			// Refuse rather than re-target: if validation altered the URL (e.g. a
@@ -1215,7 +1258,10 @@ class Challenge {
 			// Secure auth cookies. Fail closed instead of rewriting the URL.
 			$is_https = 0 === strpos( strtolower( (string) $stash['url'] ), 'https://' );
 
+			$refusal_reason = $is_https ? 'url_altered' : 'insecure_replay_url';
+
 			if ( '' !== $safe_url && $safe_url === $stash['url'] && $is_https ) {
+				$refusal_reason = '';
 				$this->clear_binding_cookie();
 
 				/**
@@ -1252,6 +1298,41 @@ class Challenge {
 		}
 
 		$this->clear_binding_cookie();
+
+		/**
+		 * Fires when a stashed action was discarded instead of replayed.
+		 *
+		 * The counterpart to `wp_sudo_action_replayed`. Without it the fail-closed
+		 * path is silent, so the case this whole mechanism exists to stop — someone
+		 * completing a reauthentication in a browser that did not start the action —
+		 * leaves no audit trail at all, and looks identical to nothing happening.
+		 *
+		 * NOT limited to the post-reauthentication path. This method also runs from
+		 * `complete_active_session_request()` and `render_resume_page()`, where no
+		 * credential is presented and the reason is `no_credential_this_request`. A
+		 * consumer that assumes every fire follows a password step will misread
+		 * those.
+		 *
+		 * That reason is the highest-value one to alert on, and the easiest to
+		 * mistake for noise: it is the footprint of a lure that landed on a
+		 * session-holder and was refused. `may_replay_bound_stash()` rejects on
+		 * `! $credential_verified` before any other check, so NOTHING EXECUTED —
+		 * do not read this as a live hole and loosen that guard. But the attempt
+		 * is visible nowhere else.
+		 *
+		 * Fires at most once per stash — the stash is consumed (deleted) above
+		 * before this point, and a subsequent request finds nothing to refuse.
+		 *
+		 * @since 4.9.0
+		 *
+		 * @param int    $user_id The user whose stashed action was discarded.
+		 * @param string $rule_id The rule ID that was gated.
+		 * @param string $reason  Why the replay was refused: no_credential_this_request,
+		 *                        redacted_fields, replay_blocked, incomplete_target,
+		 *                        no_binding_minted, no_proof_presented, proof_mismatch,
+		 *                        url_altered, or insecure_replay_url.
+		 */
+		do_action( 'wp_sudo_replay_refused', $user_id, $stash['rule_id'] ?? '', $refusal_reason );
 
 		/*
 		 * #322 — fail closed, with a soft landing. The stashed action is NEVER
