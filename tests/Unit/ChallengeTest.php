@@ -47,6 +47,20 @@ class ChallengeTest extends TestCase
 
 		Functions\when('get_user_meta')->justReturn('');
 		Functions\when('esc_url_raw')->returnArg();
+
+		// #429: every fail-closed landing now classifies its target URL, so these are
+		// needed by any test that reaches build_replay_response_data(). Both are pure
+		// string helpers, so aliasing the real behaviour keeps the assertions honest.
+		Functions\when('wp_parse_url')->alias(
+			static function ( string $url, int $component = -1 ) {
+				return parse_url($url, $component);
+			}
+		);
+		Functions\when('untrailingslashit')->alias(
+			static function ( string $value ): string {
+				return rtrim($value, '/\\');
+			}
+		);
 	}
 
 	/**
@@ -1719,6 +1733,472 @@ class ChallengeTest extends TestCase
 		// minus the effect-bearing query — one re-click, no replay.
 		$this->assertStringContainsString('plugins.php', $data['redirect']);
 		$this->assertStringContainsString('wp_sudo_blocked_replay=1', $data['redirect']);
+	}
+
+	/**
+	 * #429: a refused POST must land on its ORIGINATING SCREEN, not the dashboard.
+	 *
+	 * This is a regression guard, not a preference. v4.8.0 redirected a refused POST
+	 * to the stashed return_url — the form — so the "re-enter them" notice named
+	 * something the user could actually act on. #322 v1 removed that (return_url is
+	 * referer-derived and therefore requester-chosen, so redirecting to it re-opened
+	 * the confused deputy) and landed POSTs on the dashboard instead, where the
+	 * notice instructs the user to re-enter fields that are nowhere on screen.
+	 *
+	 * The fix is the treatment the GET path already had: derive the screen from
+	 * $stash['url'], which is the URL the gate intercepted rather than a value the
+	 * request supplied.
+	 *
+	 * The empty return_url below is not a convenience — it is what Request_Stash
+	 * actually stores for this request, and getting that wrong is what sank the first
+	 * attempt at this fix. The wp-admin/user-new.php forms carry no action attribute,
+	 * so they post to their own URI, and wp_get_referer() discards a referer equal to
+	 * REQUEST_URI — see GB-USER-NEW-SELFPOST and GB-REFERER-SELFPOST in
+	 * docs/upstream-sources.md. Any fixture here that supplies a return_url for a
+	 * self-posting form is testing a request that cannot happen.
+	 */
+	public function test_refused_post_lands_on_originating_screen_not_dashboard(): void
+	{
+		$this->stash->shouldReceive('get')
+			->once()
+			->with('gated-post', 42)
+			->andReturn(array(
+				'method' => 'POST',
+				// user-new.php posts to itself, so GETting it renders the form again.
+				'url' => 'https://example.com/wp-admin/user-new.php',
+				'return_url' => '',
+				'rule_id' => 'user.create',
+				'post' => array('role' => 'administrator'),
+				'redacted_fields_omitted' => true,
+			));
+
+		$this->stash->shouldReceive('delete')->once()->with('gated-post', 42);
+		$this->stubReplayEnv();
+
+		$data = $this->invokeReplay('gated-post', false);
+
+		$this->assertSame('success', $data['code']);
+		$this->assertArrayNotHasKey('replay', $data);
+		$this->assertStringContainsString(
+			'user-new.php',
+			$data['redirect'],
+			'A refused POST must return the user to the screen the request came from.'
+		);
+		// The notice tells the user to re-enter redacted fields; the dashboard has no
+		// form to re-enter them into, which is the whole defect.
+		$this->assertNotSame(
+			'https://example.com/wp-admin/?' . \WP_Sudo\Challenge::REDACTED_REPLAY_QUERY_ARG . '=1',
+			$data['redirect'],
+			'Landing on the dashboard leaves the "re-enter them" notice unactionable.'
+		);
+	}
+
+	/**
+	 * #429: a POST to a HANDLER must not be returned to that handler.
+	 *
+	 * The Settings API posts to options.php, which on GET renders the raw All
+	 * Settings dump rather than the form the user was filling in — a worse landing
+	 * than the dashboard, not a better one. Only self-posting screens are returned to.
+	 */
+	public function test_refused_post_to_a_handler_lands_on_the_neutral_page(): void
+	{
+		$this->stash->shouldReceive('get')
+			->once()
+			->with('gated-handler', 42)
+			->andReturn(array(
+				'method' => 'POST',
+				'url' => 'https://example.com/wp-admin/options.php',
+				'return_url' => 'https://example.com/wp-admin/options-general.php?page=wp-sudo-settings',
+				'rule_id' => 'settings.sudo',
+				'post' => array('session_duration' => '14'),
+				'post_replay_blocked' => true,
+			));
+
+		$this->stash->shouldReceive('delete')->once()->with('gated-handler', 42);
+		$this->stubReplayEnv();
+
+		$data = $this->invokeReplay('gated-handler', false);
+
+		$this->assertStringNotContainsString(
+			'options.php',
+			$data['redirect'],
+			'options.php renders All Settings on GET — never strand the user there.'
+		);
+		$this->assertStringContainsString('wp_sudo_blocked_replay=1', $data['redirect']);
+	}
+
+	/**
+	 * #429 safety: return_url must not influence the landing at all.
+	 *
+	 * return_url is derived from wp_get_referer(), so the request that planted the
+	 * stash chooses it. The landing is derived solely from $stash['url'] — it is not
+	 * read as a redirect target and not read to classify the landing either, so a
+	 * forged value can neither redirect the victim nor steer which branch runs.
+	 * Pointing it at a destructive same-host action URL must change nothing; this is
+	 * the confused deputy #322 v1 closed.
+	 */
+	public function test_forged_return_url_is_never_the_landing_spot(): void
+	{
+		$this->stash->shouldReceive('get')
+			->once()
+			->with('lured-post', 42)
+			->andReturn(array(
+				'method' => 'POST',
+				'url' => 'https://example.com/wp-admin/user-new.php',
+				'return_url' => 'https://example.com/wp-admin/plugins.php?action=activate&plugin=evil%2Fevil.php&_wpnonce=abc',
+				'rule_id' => 'user.create',
+				'post' => array('role' => 'administrator'),
+				'post_replay_blocked' => true,
+			));
+
+		$this->stash->shouldReceive('delete')->once()->with('lured-post', 42);
+		$this->stubReplayEnv();
+
+		$data = $this->invokeReplay('lured-post', false);
+
+		$this->assertStringNotContainsString('plugins.php', $data['redirect']);
+		$this->assertStringNotContainsString('action=activate', $data['redirect']);
+		$this->assertStringNotContainsString('_wpnonce', $data['redirect']);
+		// The forged value must not steer the branch either: the landing is still the
+		// screen derived from $stash['url'].
+		$this->assertStringContainsString('user-new.php', $data['redirect']);
+	}
+
+	/**
+	 * #429: the POST landing keeps the GET path's query stripping.
+	 *
+	 * A POST URL may still carry an effect-bearing query, and a rule reading $_REQUEST
+	 * would see it on the GET that follows. Returning the user to the screen must
+	 * never carry the effect back with it.
+	 */
+	public function test_refused_post_landing_strips_the_query(): void
+	{
+		$this->stash->shouldReceive('get')
+			->once()
+			->with('gated-post-query', 42)
+			->andReturn(array(
+				'method' => 'POST',
+				// users.php renders the Users list on a bare GET, so it is a real screen
+				// to return to. (An earlier revision used user-edit.php here and asserted
+				// the landing kept it — pinning a wp_die() dead end as correct.)
+				'url' => 'https://example.com/wp-admin/users.php?action=wp_sudo_danger&user=5&_wpnonce=abc',
+				'return_url' => '',
+				'rule_id' => 'custom.rule',
+				'post' => array('confirm' => '1'),
+				'post_replay_blocked' => true,
+			));
+
+		$this->stash->shouldReceive('delete')->once()->with('gated-post-query', 42);
+		$this->stubReplayEnv();
+
+		$data = $this->invokeReplay('gated-post-query', false);
+
+		$this->assertStringContainsString('users.php', $data['redirect']);
+		$this->assertStringNotContainsString('action=wp_sudo_danger', $data['redirect']);
+		$this->assertStringNotContainsString('_wpnonce', $data['redirect']);
+		$this->assertStringNotContainsString('user=5', $data['redirect']);
+	}
+
+	/**
+	 * #429 guard: every built-in POST-capable rule must land somewhere usable.
+	 *
+	 * The handler list fails OPEN — an admin page nobody enumerated is treated as a
+	 * good landing — and three review rounds each found another page missing from it.
+	 * This closes that by construction rather than by vigilance: Action_Registry's
+	 * pagenow set is finite, so walk it and require every value to have been decided
+	 * once, either as a verified screen or as a handler.
+	 *
+	 * Adding a rule on a new admin page now fails here until someone checks what that
+	 * page does on a bare GET. The screens below were each read in
+	 * wordpress-develop trunk and render real output with no required parameter.
+	 */
+	public function test_every_builtin_post_rule_lands_somewhere_usable(): void
+	{
+		// Full URLs whose bare GET was read in wordpress-develop trunk and renders a
+		// usable screen. Only pages the walk can actually reach are listed: a rule with
+		// method GET is skipped, so its pagenow does not belong here — listing one would
+		// imply coverage this test does not have.
+		//
+		// Keyed by URL, not filename, and that is load-bearing. edit.php is the Posts
+		// list in site admin (a real screen) and a bare handler under network admin. An
+		// earlier cut of this test listed bare filenames, so `edit.php` absolved BOTH —
+		// meaning the test stayed green even when the network edit.php clause was
+		// removed from production, re-hiding the exact defect it was written to catch.
+		$verified_screens = array(
+			'https://example.com/wp-admin/authorize-application.php',
+			'https://example.com/wp-admin/edit.php',
+			'https://example.com/wp-admin/options-general.php',
+			'https://example.com/wp-admin/plugin-editor.php',
+			'https://example.com/wp-admin/plugins.php',
+			'https://example.com/wp-admin/profile.php',
+			'https://example.com/wp-admin/theme-editor.php',
+			'https://example.com/wp-admin/themes.php',
+			'https://example.com/wp-admin/update-core.php',
+			'https://example.com/wp-admin/user-new.php',
+			'https://example.com/wp-admin/users.php',
+			// Network Settings renders on a bare GET; network edit.php does not and is
+			// caught by the handler predicate, so it is deliberately absent here.
+			'https://example.com/wp-admin/network/settings.php',
+		);
+
+		$single = $this->postCapablePagenow();
+
+		// Action_Registry::rules() merges network_rules() only when is_multisite() is
+		// true, and tests/TestCase.php stubs that false for the whole suite — so a walk
+		// that does not lift the stub silently covers the single-site half only, and a
+		// network rule added later on a blank-page handler would slip straight through.
+		// That is the failure this guard exists to prevent, so it must not contain it.
+		\WP_Sudo\Action_Registry::reset_cache();
+		Functions\when('is_multisite')->justReturn(true);
+		$multi = $this->postCapablePagenow();
+		Functions\when('is_multisite')->justReturn(false);
+		\WP_Sudo\Action_Registry::reset_cache();
+
+		$network_only = array_values(array_diff($multi, $single));
+
+		$this->assertNotEmpty(
+			$single,
+			'The single-site walk found no POST-capable rules — it is testing nothing.'
+		);
+		// A positive assertion rather than a count floor: the floor was satisfied by the
+		// single-site half alone, so it could not detect the network half going missing.
+		$this->assertContains(
+			'settings.php',
+			$network_only,
+			'The network rules were not walked, so the multisite half of the registry is '
+				. 'outside this guard.'
+		);
+
+		$undecided = array();
+
+		foreach (array($single, $network_only) as $index => $set) {
+			// Resolve to the URL the landing logic would actually see. Network rules
+			// live under /wp-admin/network/, which is what makes network edit.php a
+			// handler and site edit.php a screen.
+			$base = 0 === $index
+				? 'https://example.com/wp-admin/'
+				: 'https://example.com/wp-admin/network/';
+
+			foreach ($set as $pagenow) {
+				$url = $base . $pagenow;
+
+				// The production predicate, on a real URL — not a name comparison.
+				if ($this->isHandlerEndpoint($url)) {
+					continue;
+				}
+
+				if (in_array($url, $verified_screens, true)) {
+					continue;
+				}
+
+				$undecided[$url] = $url;
+			}
+		}
+
+		$this->assertSame(
+			array(),
+			array_values($undecided),
+			'These admin URLs are reachable as a refused POST landing but have not been '
+				. 'checked. Read each one in wordpress-develop: if a bare GET renders a '
+				. 'usable screen, add it to $verified_screens; if it renders a blank page, '
+				. 'a wp_die(), a raw dump, or a redirect that drops the query, add it to '
+				. 'Challenge::HANDLER_ENDPOINTS with a registry row for the evidence.'
+		);
+	}
+
+	/**
+	 * Every pagenow reachable by a POST-capable built-in admin rule.
+	 *
+	 * @return string[]
+	 */
+	private function postCapablePagenow(): array
+	{
+		$found = array();
+
+		foreach (\WP_Sudo\Action_Registry::rules() as $rule) {
+			// pagenow/method live under the rule's 'admin' surface, not at the top
+			// level. Reading them from the top level is why the first cut of this test
+			// iterated nothing and passed while user-edit.php was still missing.
+			$admin = $rule['admin'] ?? null;
+
+			if (!is_array($admin)) {
+				continue;
+			}
+
+			// Only POST-capable rules can strand a user on a form handler; a GET rule
+			// with no query already takes the neutral fallback.
+			if ('GET' === strtoupper((string) ($admin['method'] ?? 'ANY'))) {
+				continue;
+			}
+
+			foreach ((array) ($admin['pagenow'] ?? array()) as $pagenow) {
+				if ('' !== (string) $pagenow) {
+					$found[(string) $pagenow] = (string) $pagenow;
+				}
+			}
+		}
+
+		return array_values($found);
+	}
+
+	/**
+	 * Invoke the production handler predicate directly.
+	 */
+	private function isHandlerEndpoint(string $url): bool
+	{
+		$method = new \ReflectionMethod($this->challenge, 'is_handler_endpoint');
+		if ( PHP_VERSION_ID < 80100 ) {
+			$method->setAccessible(true);
+		}
+
+		return (bool) $method->invoke($this->challenge, $url);
+	}
+
+	/**
+	 * #429: a handler is refused as a landing spot even when the URL carried a query.
+	 *
+	 * The handler check must not live only in the queryless branch. A gated
+	 * admin-post.php?action=… strips down to bare admin-post.php, which fires
+	 * do_action( 'admin_post' ) and falls off the end — a blank page that never runs
+	 * admin_notices, so the user would lose the explanatory notice as well as the
+	 * form. See GB-ADMIN-POST-BLANK in docs/upstream-sources.md.
+	 */
+	public function test_refused_landing_never_lands_on_a_handler_with_a_query(): void
+	{
+		$this->stash->shouldReceive('get')
+			->once()
+			->with('gated-adminpost', 42)
+			->andReturn(array(
+				'method' => 'POST',
+				'url' => 'https://example.com/wp-admin/admin-post.php?action=wp_sudo_danger&_wpnonce=abc',
+				'return_url' => '',
+				'rule_id' => 'custom.rule',
+				'post' => array('confirm' => '1'),
+				'post_replay_blocked' => true,
+			));
+
+		$this->stash->shouldReceive('delete')->once()->with('gated-adminpost', 42);
+		$this->stubReplayEnv();
+
+		$data = $this->invokeReplay('gated-adminpost', false);
+
+		$this->assertStringNotContainsString(
+			'admin-post.php',
+			$data['redirect'],
+			'admin-post.php renders a blank page and no notices — never land there.'
+		);
+		$this->assertStringContainsString('wp_sudo_blocked_replay=1', $data['redirect']);
+	}
+
+	/**
+	 * #429: admin.php is a handler — the case that matters most for custom rules.
+	 *
+	 * `admin.php?page=…` is where third-party settings screens live, and is the
+	 * pagenow example in docs/developer-reference.md. Bare admin.php never requires
+	 * admin-header.php, so it renders nothing and fires no admin_notices — see
+	 * GB-ADMIN-PHP-BLANK in docs/upstream-sources.md. Stripping a gated
+	 * admin.php?page=x&action=y down to admin.php would land the user on a blank page
+	 * having ALSO lost the notice, which is worse than the dashboard they got before.
+	 */
+	public function test_refused_post_to_admin_php_lands_on_the_neutral_page(): void
+	{
+		$this->stash->shouldReceive('get')
+			->once()
+			->with('gated-adminphp', 42)
+			->andReturn(array(
+				'method' => 'POST',
+				'url' => 'https://example.com/wp-admin/admin.php?page=acme-settings&action=save',
+				'return_url' => '',
+				'rule_id' => 'custom.acme',
+				'post' => array('acme_key' => 'x'),
+				'post_replay_blocked' => true,
+			));
+
+		$this->stash->shouldReceive('delete')->once()->with('gated-adminphp', 42);
+		$this->stubReplayEnv();
+
+		$data = $this->invokeReplay('gated-adminphp', false);
+
+		$this->assertStringNotContainsString(
+			'admin.php',
+			$data['redirect'],
+			'Bare admin.php renders nothing and fires no notices — never land there.'
+		);
+		$this->assertStringContainsString('wp_sudo_blocked_replay=1', $data['redirect']);
+	}
+
+	/**
+	 * #429: network/edit.php is a handler, decided from the URL rather than context.
+	 *
+	 * The built-in options.wp_sudo rule POSTs to edit.php?action={slug} under network
+	 * admin, and bare network/edit.php redirects to the network dashboard, dropping
+	 * the notice arg with it (GB-NETWORK-EDIT-REDIRECT).
+	 *
+	 * This test deliberately does not touch is_network_admin(): tests/TestCase.php
+	 * stubs it false for the whole unit suite, and the live path runs under
+	 * admin-ajax.php where it is false anyway. An earlier cut of this fix gated the
+	 * clause on it, which made the guard unreachable in production AND unfalsifiable
+	 * in test — the classification must therefore come from the path itself.
+	 */
+	public function test_network_edit_php_is_a_handler_without_consulting_context(): void
+	{
+		$this->stash->shouldReceive('get')
+			->once()
+			->with('gated-network', 42)
+			->andReturn(array(
+				'method' => 'POST',
+				'url' => 'https://example.com/wp-admin/network/edit.php?action=wp_sudo_settings',
+				'return_url' => '',
+				'rule_id' => 'options.wp_sudo',
+				'post' => array('session_duration' => '14'),
+				'post_replay_blocked' => true,
+			));
+
+		$this->stash->shouldReceive('delete')->once()->with('gated-network', 42);
+		$this->stubReplayEnv();
+
+		$data = $this->invokeReplay('gated-network', false);
+
+		$this->assertStringNotContainsString(
+			'edit.php',
+			$data['redirect'],
+			'network/edit.php redirects away and drops the notice — never land there.'
+		);
+		$this->assertStringContainsString('wp_sudo_blocked_replay=1', $data['redirect']);
+	}
+
+	/**
+	 * #429: site-admin edit.php is a real screen and must stay one.
+	 *
+	 * The network carve-out keys on the /network/ path segment, so the Posts list must
+	 * not be swept up by it — and a site that merely happens to live under a path
+	 * containing "network" must not be either.
+	 */
+	public function test_site_admin_edit_php_is_not_treated_as_a_handler(): void
+	{
+		$this->stash->shouldReceive('get')
+			->once()
+			->with('gated-posts', 42)
+			->andReturn(array(
+				'method' => 'POST',
+				'url' => 'https://example.com/network/wp-admin/edit.php?post_type=page&action=bulk',
+				'return_url' => '',
+				'rule_id' => 'custom.posts',
+				'post' => array('confirm' => '1'),
+				'post_replay_blocked' => true,
+			));
+
+		$this->stash->shouldReceive('delete')->once()->with('gated-posts', 42);
+		$this->stubReplayEnv();
+
+		$data = $this->invokeReplay('gated-posts', false);
+
+		$this->assertStringContainsString(
+			'edit.php',
+			$data['redirect'],
+			'Only /network/edit.php is a handler; a site under a "network" path is not.'
+		);
+		$this->assertStringNotContainsString('action=bulk', $data['redirect']);
 	}
 
 	// -----------------------------------------------------------------

@@ -90,6 +90,28 @@ class Challenge {
 	public const BLOCKED_REPLAY_QUERY_ARG = 'wp_sudo_blocked_replay';
 
 	/**
+	 * Admin filenames that render no usable screen on a bare GET.
+	 *
+	 * The fail-closed landing must never return a user to one of these: each renders
+	 * a blank page, a wp_die(), a raw dump, or a redirect that discards the notice
+	 * argument, so the user would lose the explanation as well as their input. See
+	 * is_handler_endpoint() for the per-file justification and registry IDs.
+	 *
+	 * Not private, so the guard test can walk it against Action_Registry's own
+	 * pagenow set rather than restating it.
+	 *
+	 * @var string[]
+	 */
+	public const HANDLER_ENDPOINTS = array(
+		'options.php',
+		'admin-post.php',
+		'admin-ajax.php',
+		'admin.php',
+		'user-edit.php',
+		'update.php',
+	);
+
+	/**
 	 * Request stash instance.
 	 *
 	 * @var Request_Stash
@@ -1095,6 +1117,77 @@ class Challenge {
 	}
 
 	/**
+	 * Whether a URL points at an admin endpoint that renders no usable screen on GET.
+	 *
+	 * The fail-closed landing returns the user to the page their request was aimed at
+	 * so they can re-issue it. That only helps when a GET of the stripped URL actually
+	 * draws something: these endpoints are form *handlers*, and landing on one is
+	 * worse than the neutral dashboard rather than better.
+	 *
+	 * - options.php    — GET renders the raw "All Settings" dump, not the settings form
+	 *                    (GB-OPTIONS-ALLSETTINGS in docs/upstream-sources.md).
+	 * - admin-post.php — with no action, renders a blank page and fires no
+	 *                    admin_notices, so the blocked-replay notice is lost too
+	 *                    (GB-ADMIN-POST-BLANK).
+	 * - admin.php      — with no `page`, falls through to end of file without ever
+	 *                    requiring admin-header.php: the same blank, notice-less
+	 *                    response (GB-ADMIN-PHP-BLANK). This is the one that matters
+	 *                    most for extensibility, because `admin.php?page=…` is where
+	 *                    third-party settings screens live and is the `pagenow`
+	 *                    example in docs/developer-reference.md.
+	 * - user-edit.php  — without a user_id it calls wp_die( 'Invalid user ID.' ): no
+	 *                    chrome, no notice, no form (GB-USER-EDIT-DIES). Reached by the
+	 *                    profile role/password/email rules, whose stash is marked
+	 *                    non-replayable, so this landing is their EVERY-TIME path
+	 *                    rather than an attack-only one.
+	 * - update.php     — its whole body is inside `isset( $_GET['action'] )`, so a bare
+	 *                    GET renders nothing at all (GB-UPDATE-NEEDS-ACTION). Reached by
+	 *                    the plugin/theme install, upload and update rules.
+	 * - admin-ajax.php — returns 0/JSON, never a page.
+	 * - network/edit.php — an empty action redirects to the network dashboard, which
+	 *                    is the neutral page by a slower route, and drops the notice
+	 *                    arg on the way (GB-NETWORK-EDIT-REDIRECT).
+	 *
+	 * This list fails OPEN: an endpoint nobody enumerated is treated as a good landing.
+	 * ChallengeTest::test_every_builtin_post_rule_lands_somewhere_usable() closes that
+	 * by walking Action_Registry's pagenow set in BOTH single-site and multisite form
+	 * and resolving each to a full URL, so adding a rule on a new admin page forces
+	 * this decision instead of silently inheriting a blank page.
+	 *
+	 * Matched on the path's basename so a subdirectory install or any admin path
+	 * prefix is handled without string-prefix assumptions.
+	 *
+	 * @param string $url Absolute URL, query already stripped.
+	 * @return bool
+	 */
+	private function is_handler_endpoint( string $url ): bool {
+		$path = wp_parse_url( $url, PHP_URL_PATH );
+
+		if ( ! is_string( $path ) || '' === $path ) {
+			return false;
+		}
+
+		$segments = explode( '/', trim( untrailingslashit( $path ), '/' ) );
+		$file     = (string) array_pop( $segments );
+
+		if ( in_array( $file, self::HANDLER_ENDPOINTS, true ) ) {
+			return true;
+		}
+
+		// edit.php is the Posts list in site admin — a real screen — but a bare handler
+		// under network admin, so it is only a handler in that context.
+		//
+		// Decided from the URL's own path, NOT is_network_admin(). This method runs
+		// under admin-ajax.php (both replay_stash() callers are wp_ajax_ handlers),
+		// which never calls set_current_screen() and does not define WP_NETWORK_ADMIN,
+		// so is_network_admin() returns false here even for a genuine network action —
+		// a condition that cannot be true on the live path is not a guard. The unit
+		// suite stubs it false globally (tests/TestCase.php), so no test could have
+		// shown that either.
+		return 'edit.php' === $file && 'network' === (string) array_pop( $segments );
+	}
+
+	/**
 	 * Whether a stash may be auto-replayed under the #322 v2 origin binding.
 	 *
 	 * Every condition must hold; anything else falls back to the v1 fail-closed
@@ -1344,33 +1437,77 @@ class Challenge {
 		 * reauth carry out the attacker's transaction — GET actions worst of all,
 		 * since replaying a GET was a plain redirect to the destructive URL.
 		 *
-		 * Nothing is ever replayed; only the safe landing spot differs by method. A
-		 * GET action returns the user to its *originating screen* — the admin page the
-		 * action lives on, with its query (the action + nonce, i.e. the effect)
-		 * stripped and re-validated same-origin — so re-performing it is a single
-		 * re-click that the now-active sudo session passes straight through. POST
-		 * actions land on the dashboard (their re-submit needs the form re-filled
-		 * regardless). Both carry the "review and submit again" notice (the redacted
-		 * variant when secret fields were dropped at stash time). No per-rule taxonomy
-		 * is involved. #322 v2 (origin-bound replay) restores seamless auto-replay for
-		 * the same-browser case without reopening this hole.
+		 * Nothing is ever replayed; both methods return the user to the *originating
+		 * screen* — the admin page the request was aimed at, with its query (the
+		 * action + nonce, i.e. the effect) stripped and re-validated same-origin — so
+		 * re-performing it is a re-click or a re-submit that the now-active sudo
+		 * session passes straight through. Both carry the "review and submit again"
+		 * notice (the redacted variant when secret fields were dropped at stash time).
+		 * No per-rule taxonomy is involved. #322 v2 (origin-bound replay) restores
+		 * seamless auto-replay for the same-browser case without reopening this hole.
+		 *
+		 * #429: POSTs previously landed on the dashboard, on the reasoning that their
+		 * re-submit needs the form re-filled regardless. That was wrong in the case it
+		 * matters most — the notice tells the user to re-enter redacted fields, and the
+		 * dashboard has no form to re-enter them into, so the instruction is
+		 * unactionable and the typed input is simply lost. v4.8.0 got the landing right
+		 * by using the stashed return_url; what was unsafe there was the SOURCE, not
+		 * the intent. return_url is derived from wp_get_referer(), so the request that
+		 * planted the stash chooses it, and honouring it re-opens the confused deputy
+		 * (a same-host action URL executed by the victim's reauthenticated browser).
+		 * $stash['url'] carries no such choice — it is the URL the gate intercepted.
+		 *
+		 * return_url is deliberately not consulted even to CLASSIFY the landing. An
+		 * earlier cut of this fix compared its path to the request path to tell a
+		 * self-posting form from a handler; that guard was dead on arrival, because a
+		 * form posting to its own URI yields no referer at all, so the stash records
+		 * return_url = '' for user-new.php — the very form #429 is about. See
+		 * GB-REFERER-SELFPOST and GB-USER-NEW-SELFPOST in docs/upstream-sources.md.
+		 * Reading it also handed the requester a lever over which branch ran.
 		 */
 		$neutral_url = is_network_admin() ? network_admin_url() : admin_url();
 		$target      = $neutral_url;
+		$is_get      = 'GET' === strtoupper( (string) ( $stash['method'] ?? 'GET' ) );
 
-		if ( 'GET' === strtoupper( (string) ( $stash['method'] ?? 'GET' ) ) && ! empty( $stash['url'] ) && is_string( $stash['url'] ) ) {
+		if ( ! empty( $stash['url'] ) && is_string( $stash['url'] ) ) {
 			// Originating screen only: drop the query (action + nonce = the effect),
 			// keep the same-origin admin page, re-validate. Never the full action URL.
+			// A POST URL can carry an effect-bearing query too (admin-post.php?action=…)
+			// and a rule reading $_REQUEST would see it on the GET that follows, so the
+			// stripping is not GET-specific.
 			$origin    = wp_validate_redirect( $stash['url'], $neutral_url );
 			$query_pos = strpos( $origin, '?' );
 
-			// A queryless stashed GET must NOT be used as the landing spot: with no
-			// query to strip, "the originating screen" IS the action URL, so an
-			// extensibility rule gating an effect that fires on path load alone would
-			// still be carried out by the victim's reauth — the confused deputy this
-			// whole change removes. Only a URL we actually stripped is safe to return
-			// to; otherwise fall back to the neutral admin page.
-			$screen = false === $query_pos ? $neutral_url : substr( $origin, 0, $query_pos );
+			$screen = false === $query_pos ? $origin : substr( $origin, 0, $query_pos );
+
+			if ( $this->is_handler_endpoint( $screen ) ) {
+				// A handler renders no screen on GET: options.php is the raw All Settings
+				// dump, admin-post.php with no action is a blank page that fires no
+				// admin_notices hook at all (so even the explanatory notice is lost), and
+				// network edit.php just bounces to the network dashboard. Stranding a
+				// user there is worse than the dashboard, not better. Applied to BOTH
+				// branches — a query-carrying POST to admin-post.php?action=… strips down
+				// to exactly the blank page.
+				$screen = $neutral_url;
+			} elseif ( false === $query_pos && $is_get ) {
+				// A queryless stashed GET must NOT be used as the landing spot: with no
+				// query to strip, "the originating screen" IS the action URL, so an
+				// extensibility rule gating an effect that fires on path load alone would
+				// still be carried out by the victim's reauth — the confused deputy this
+				// whole change removes.
+				//
+				// A queryless POST is not the same case and does not take this fallback.
+				// The gated request was `POST $screen`; the landing issues `GET $screen`,
+				// which is a different request carrying none of the discarded body. That
+				// is what makes a self-posting form (user-new.php) safe to return to, and
+				// it is the whole of #429. The residual risk is a third-party rule whose
+				// effect fires on a bare-path GET while it was the POST that was gated;
+				// the landing re-enters the Gate, but the user now holds a session that
+				// passes. Accepted deliberately, and narrower than the UX cost of not
+				// returning anyone to any form.
+				$screen = $neutral_url;
+			}
+
 			$target = wp_validate_redirect( $screen, $neutral_url );
 		}
 
