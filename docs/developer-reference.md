@@ -515,15 +515,26 @@ Current output includes:
 - matched rule label and ID
 - evaluated surface
 - decision (`allow`, `gate`, `soft-block`, `hard-block`)
-- whether stash/replay would be used
 - explanatory notes
+
+The tester does **not** predict whether a request will resume after
+reauthentication, and the `stash_replay_eligible` field it used to return was
+removed in 4.9.0. Since #322, replay is authorised at request time by conditions
+the simulator cannot reproduce — chiefly the per-browser binding proof and a
+same-origin `Sec-Fetch-Site` header, neither of which a simulated shape carries.
+Some inputs *are* visible here: a `https://` URL establishes the scheme, and a
+recognised target parameter or POST field can be read off the submitted shape.
+But a verdict needs all of them together, so the **outcome** stays undecidable
+even when several inputs are known. The tester answers what it can determine —
+whether a request matches a rule, and the decision for that surface and policy.
 
 ### What the decisions mean
 
 - `allow` — no matched rule, unauthenticated request, active sudo already
   present, or a surface policy that explicitly permits the request
 - `gate` — an interactive admin request would be sent through the challenge
-  page and use stash/replay
+  page. Whether it then resumes automatically is a runtime question the tester
+  does not answer (see above)
 - `soft-block` — an AJAX or cookie-authenticated REST request would be blocked
   in place and retried after sudo activation
 - `hard-block` — a non-browser REST request would be rejected by current

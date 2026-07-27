@@ -1075,7 +1075,6 @@ class AdminTest extends TestCase {
 					'matched_rule_label'    => 'Delete plugin',
 					'matched_surface'       => 'rest',
 					'decision'              => 'hard-block',
-					'stash_replay_eligible' => false,
 					'notes'                 => array( 'REST Application Password policy is Limited, so gated requests are blocked until policy changes.' ),
 				)
 			);
@@ -1153,6 +1152,14 @@ class AdminTest extends TestCase {
 		$this->assertStringContainsString( 'id="wp-sudo-tester-result"', $output );
 		$this->assertStringContainsString( 'role="status"', $output );
 		$this->assertStringContainsString( 'aria-live="polite"', $output );
+
+		// The tester reports no replay verdict at all since #322 (see the comment
+		// in Gate::evaluate_diagnostic_request()). Guard against it coming back:
+		// a static answer to a runtime-conditional question was wrong in a new way
+		// each time it was reworded.
+		$this->assertStringNotContainsString( 'Stash/replay eligible', $output );
+		$this->assertStringNotContainsString( 'Replay permitted', $output );
+		$this->assertStringNotContainsString( 'never replayed', $output );
 
 		unset( $_POST['wp_sudo_request_tester_submit'], $_POST['wp_sudo_request_tester'], $_SERVER['REQUEST_METHOD'], $_GET['tab'] );
 	}
@@ -1240,7 +1247,6 @@ class AdminTest extends TestCase {
 					'matched_rule_label'    => 'Update connector credentials',
 					'matched_surface'       => 'rest',
 					'decision'              => 'gate',
-					'stash_replay_eligible' => false,
 					'notes'                 => array(),
 				)
 			);
