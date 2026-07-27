@@ -2,7 +2,7 @@
 # This file is distributed under the GPL-2.0-or-later.
 msgid ""
 msgstr ""
-"Project-Id-Version: Sudo – Admin Action Gating 4.8.0\n"
+"Project-Id-Version: Sudo – Admin Action Gating 4.9.0\n"
 "Report-Msgid-Bugs-To: https://github.com/dknauss/Sudo/issues\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -160,73 +160,73 @@ msgstr ""
 msgid "Create application password"
 msgstr ""
 
-#: includes/class-action-registry.php:491
+#: includes/class-action-registry.php:497
 msgid "Edit plugin file"
 msgstr ""
 
-#: includes/class-action-registry.php:507
+#: includes/class-action-registry.php:513
 msgid "Edit theme file"
 msgstr ""
 
-#: includes/class-action-registry.php:525
+#: includes/class-action-registry.php:531
 #: includes/class-gate.php:854
 msgid "Change critical site setting"
 msgstr ""
 
-#: includes/class-action-registry.php:567
+#: includes/class-action-registry.php:573
 msgid "Update connector credentials"
 msgstr ""
 
-#: includes/class-action-registry.php:584
-#: includes/class-action-registry.php:805
+#: includes/class-action-registry.php:590
+#: includes/class-action-registry.php:811
 #: includes/class-gate.php:873
 #: includes/class-gate.php:885
 msgid "Change Sudo settings"
 msgstr ""
 
-#: includes/class-action-registry.php:603
+#: includes/class-action-registry.php:609
 msgid "Change Sudo access controls"
 msgstr ""
 
-#: includes/class-action-registry.php:624
+#: includes/class-action-registry.php:630
 msgid "Update WordPress core"
 msgstr ""
 
-#: includes/class-action-registry.php:640
+#: includes/class-action-registry.php:646
 #: includes/class-gate.php:373
 #: includes/class-gate.php:898
 msgid "Export site data"
 msgstr ""
 
-#: includes/class-action-registry.php:678
+#: includes/class-action-registry.php:684
 msgid "Network enable theme"
 msgstr ""
 
-#: includes/class-action-registry.php:695
+#: includes/class-action-registry.php:701
 msgid "Network disable theme"
 msgstr ""
 
-#: includes/class-action-registry.php:712
+#: includes/class-action-registry.php:718
 msgid "Delete site"
 msgstr ""
 
-#: includes/class-action-registry.php:725
+#: includes/class-action-registry.php:731
 msgid "Deactivate site"
 msgstr ""
 
-#: includes/class-action-registry.php:738
+#: includes/class-action-registry.php:744
 msgid "Mark site as spam"
 msgstr ""
 
-#: includes/class-action-registry.php:751
+#: includes/class-action-registry.php:757
 msgid "Archive site"
 msgstr ""
 
-#: includes/class-action-registry.php:764
+#: includes/class-action-registry.php:770
 msgid "Grant or revoke super admin"
 msgstr ""
 
-#: includes/class-action-registry.php:784
+#: includes/class-action-registry.php:790
 msgid "Change network settings"
 msgstr ""
 
@@ -520,7 +520,7 @@ msgid "Entry Point Policies"
 msgstr ""
 
 #: includes/class-admin.php:718
-#: includes/class-site-health.php:221
+#: includes/class-site-health.php:226
 msgid "REST API (App Passwords)"
 msgstr ""
 
@@ -531,7 +531,7 @@ msgstr ""
 #: includes/class-admin.php:731
 #: includes/class-dashboard-widget.php:424
 #: includes/class-dashboard-widget.php:799
-#: includes/class-site-health.php:222
+#: includes/class-site-health.php:227
 msgid "WP-CLI"
 msgstr ""
 
@@ -542,7 +542,7 @@ msgstr ""
 #: includes/class-admin.php:744
 #: includes/class-dashboard-widget.php:425
 #: includes/class-dashboard-widget.php:800
-#: includes/class-site-health.php:223
+#: includes/class-site-health.php:228
 msgid "Cron"
 msgstr ""
 
@@ -553,7 +553,7 @@ msgstr ""
 #: includes/class-admin.php:757
 #: includes/class-dashboard-widget.php:426
 #: includes/class-dashboard-widget.php:801
-#: includes/class-site-health.php:224
+#: includes/class-site-health.php:229
 msgid "XML-RPC"
 msgstr ""
 
@@ -562,7 +562,7 @@ msgid "Disabled shuts off the entire XML-RPC protocol. Limited blocks only gated
 msgstr ""
 
 #: includes/class-admin.php:774
-#: includes/class-site-health.php:227
+#: includes/class-site-health.php:232
 msgid "WPGraphQL"
 msgstr ""
 
@@ -1282,151 +1282,161 @@ msgstr ""
 msgid "Replaying your action…"
 msgstr ""
 
-#: includes/class-challenge.php:265
+#: includes/class-challenge.php:268
+msgid "Returning you to your page…"
+msgstr ""
+
+#: includes/class-challenge.php:269
 msgid "Leaving challenge page."
 msgstr ""
 
-#: includes/class-challenge.php:266
+#: includes/class-challenge.php:270
 msgid "Lockout expired. You may try again."
 msgstr ""
 
-#: includes/class-challenge.php:281
+#: includes/class-challenge.php:285
 msgid "You must be logged in."
 msgstr ""
 
-#: includes/class-challenge.php:302
+#: includes/class-challenge.php:306
 msgid "Activate sudo session"
 msgstr ""
 
-#: includes/class-challenge.php:307
+#: includes/class-challenge.php:311
 msgid "Invalid or expired challenge. Please try again."
 msgstr ""
 
-#: includes/class-challenge.php:310
+#: includes/class-challenge.php:314
 msgid "this action"
 msgstr ""
 
-#: includes/class-challenge.php:321
+#: includes/class-challenge.php:332
 msgid "Confirm Your Identity"
 msgstr ""
 
 #. translators: %s: action label (e.g. "Activate plugin")
-#: includes/class-challenge.php:327
+#: includes/class-challenge.php:338
 #, php-format
 msgid "To continue: %s — please enter your password."
 msgstr ""
 
-#: includes/class-challenge.php:334
+#. translators: %s: the concrete target of the action (e.g. a plugin file or user login)
+#: includes/class-challenge.php:348
+#, php-format
+msgid "Target: %s"
+msgstr ""
+
+#: includes/class-challenge.php:356
 msgid "Respect the privacy of others."
 msgstr ""
 
-#: includes/class-challenge.php:335
+#: includes/class-challenge.php:357
 msgid "Think before you type."
 msgstr ""
 
-#: includes/class-challenge.php:336
+#: includes/class-challenge.php:358
 msgid "With great power comes great responsibility."
 msgstr ""
 
-#: includes/class-challenge.php:343
+#: includes/class-challenge.php:365
 msgid "Too many failed attempts. The form is temporarily disabled. Please wait and try again."
 msgstr ""
 
 #. translators: %d: seconds remaining
-#: includes/class-challenge.php:352
+#: includes/class-challenge.php:374
 #, php-format
 msgid "Please wait %d seconds before trying again."
 msgstr ""
 
-#: includes/class-challenge.php:367
+#: includes/class-challenge.php:389
 #: admin/js/wp-sudo-editor-reauth.js:608
 msgid "Password"
 msgstr ""
 
-#: includes/class-challenge.php:374
-#: includes/class-challenge.php:403
+#: includes/class-challenge.php:396
+#: includes/class-challenge.php:425
 msgid "Confirm & Continue"
 msgstr ""
 
-#: includes/class-challenge.php:377
-#: includes/class-challenge.php:406
-#: includes/class-challenge.php:966
+#: includes/class-challenge.php:399
+#: includes/class-challenge.php:428
+#: includes/class-challenge.php:991
 #: admin/js/wp-sudo-editor-reauth.js:557
 msgid "Cancel"
 msgstr ""
 
-#: includes/class-challenge.php:386
+#: includes/class-challenge.php:408
 msgid "Two-Factor Authentication"
 msgstr ""
 
-#: includes/class-challenge.php:416
+#: includes/class-challenge.php:438
 msgid "Authenticating…"
 msgstr ""
 
-#: includes/class-challenge.php:539
-#: includes/class-challenge.php:637
-#: includes/class-challenge.php:733
+#: includes/class-challenge.php:561
+#: includes/class-challenge.php:659
+#: includes/class-challenge.php:756
 msgid "Invalid request."
 msgstr ""
 
-#: includes/class-challenge.php:545
-#: includes/class-challenge.php:748
+#: includes/class-challenge.php:567
+#: includes/class-challenge.php:771
 msgid "Your authentication session has expired. Please start over."
 msgstr ""
 
-#: includes/class-challenge.php:575
+#: includes/class-challenge.php:597
 msgid "Too many code requests. Please use your current code or wait."
 msgstr ""
 
-#: includes/class-challenge.php:615
+#: includes/class-challenge.php:637
 msgid "Not logged in."
 msgstr ""
 
-#: includes/class-challenge.php:651
+#: includes/class-challenge.php:673
 msgid "Your challenge session has expired. Please try again."
 msgstr ""
 
 #. translators: %d: seconds remaining
-#: includes/class-challenge.php:688
-#: includes/class-challenge.php:775
-#: includes/class-challenge.php:795
-#: includes/class-challenge.php:851
+#: includes/class-challenge.php:711
+#: includes/class-challenge.php:798
+#: includes/class-challenge.php:818
+#: includes/class-challenge.php:874
 #, php-format
 msgid "Too many failed attempts. Please wait %d seconds."
 msgstr ""
 
-#: includes/class-challenge.php:700
+#: includes/class-challenge.php:723
 msgid "You are not allowed to perform this action."
 msgstr ""
 
-#: includes/class-challenge.php:706
-#: includes/class-challenge.php:715
+#: includes/class-challenge.php:729
+#: includes/class-challenge.php:738
 msgid "Incorrect password. Please try again."
 msgstr ""
 
 #. translators: %d: seconds remaining
-#: includes/class-challenge.php:759
+#: includes/class-challenge.php:782
 #, php-format
 msgid "Too many attempts. Please wait %d seconds."
 msgstr ""
 
-#: includes/class-challenge.php:817
+#: includes/class-challenge.php:840
 msgid "Too many resend attempts. Please try your current code or wait."
 msgstr ""
 
-#: includes/class-challenge.php:862
+#: includes/class-challenge.php:885
 msgid "Invalid authentication code. Please try again."
 msgstr ""
 
-#: includes/class-challenge.php:956
+#: includes/class-challenge.php:981
 msgid "Session already confirmed"
 msgstr ""
 
-#: includes/class-challenge.php:959
+#: includes/class-challenge.php:984
 msgid "Your sudo session is already active. Continuing…"
 msgstr ""
 
-#: includes/class-challenge.php:963
+#: includes/class-challenge.php:988
 msgid "Continue"
 msgstr ""
 
@@ -1801,120 +1811,125 @@ msgid "Sudo Gated Action Integrity"
 msgstr ""
 
 #: includes/class-site-health.php:69
+msgid "Sudo Reauthentication Replay"
+msgstr ""
+
+#: includes/class-site-health.php:74
 msgid "Sudo Break-Glass Recovery Mode"
 msgstr ""
 
-#: includes/class-site-health.php:77
+#: includes/class-site-health.php:82
 msgid "Sudo Role/Capability Manifest"
 msgstr ""
 
-#: includes/class-site-health.php:115
-#: includes/class-site-health.php:176
-#: includes/class-site-health.php:188
-#: includes/class-site-health.php:244
-#: includes/class-site-health.php:256
-#: includes/class-site-health.php:287
-#: includes/class-site-health.php:299
-#: includes/class-site-health.php:328
-#: includes/class-site-health.php:361
-#: includes/class-site-health.php:396
+#: includes/class-site-health.php:120
+#: includes/class-site-health.php:181
+#: includes/class-site-health.php:193
+#: includes/class-site-health.php:249
+#: includes/class-site-health.php:261
+#: includes/class-site-health.php:292
+#: includes/class-site-health.php:304
+#: includes/class-site-health.php:333
+#: includes/class-site-health.php:366
+#: includes/class-site-health.php:401
+#: includes/class-site-health.php:460
 msgid "Security"
 msgstr ""
 
-#: includes/class-site-health.php:121
+#: includes/class-site-health.php:126
 msgid "Sudo role manifest is unreadable"
 msgstr ""
 
-#: includes/class-site-health.php:124
+#: includes/class-site-health.php:129
 msgid "A role/capability manifest path is configured but the file is missing or invalid. The lockdown audit is inactive until it is regenerated with \"wp sudo manifest generate\"."
 msgstr ""
 
-#: includes/class-site-health.php:138
+#: includes/class-site-health.php:143
 msgid "Sudo detected role/capability drift"
 msgstr ""
 
 #. translators: 1: number of unauthorized principals, 2: number of drifted role definitions
-#: includes/class-site-health.php:143
+#: includes/class-site-health.php:148
 #, php-format
 msgid "Stored privileged state has drifted from the trusted manifest: %1$d unauthorized principal(s) and %2$d changed role definition(s). Review with \"wp sudo manifest diff\", then remediate or re-baseline with \"wp sudo manifest generate\"."
 msgstr ""
 
-#: includes/class-site-health.php:152
+#: includes/class-site-health.php:157
 msgid "Sudo role/capability state matches the manifest"
 msgstr ""
 
-#: includes/class-site-health.php:155
+#: includes/class-site-health.php:160
 msgid "All trusted administrators, super admins, governance-cap holders, and watched role definitions match the manifest. No drift detected."
 msgstr ""
 
-#: includes/class-site-health.php:173
+#: includes/class-site-health.php:178
 msgid "Sudo MU-Plugin is installed"
 msgstr ""
 
-#: includes/class-site-health.php:179
+#: includes/class-site-health.php:184
 msgid "The Sudo MU-Plugin is installed, ensuring gate hooks are registered before any regular plugin loads."
 msgstr ""
 
-#: includes/class-site-health.php:185
+#: includes/class-site-health.php:190
 msgid "Sudo MU-Plugin is not installed"
 msgstr ""
 
-#: includes/class-site-health.php:191
+#: includes/class-site-health.php:196
 msgid "The optional Sudo MU-Plugin is not installed. While the plugin works without it, the MU-Plugin ensures gate hooks are registered before any regular plugin can interfere."
 msgstr ""
 
 #. translators: %s: URL to the Sudo settings page
-#: includes/class-site-health.php:194
+#: includes/class-site-health.php:199
 #, php-format
 msgid "Install the MU-Plugin with one click from <a href=\"%s\">Settings &rarr; Sudo</a>."
 msgstr ""
 
-#: includes/class-site-health.php:241
+#: includes/class-site-health.php:246
 msgid "All Sudo entry point policies are secure"
 msgstr ""
 
-#: includes/class-site-health.php:247
+#: includes/class-site-health.php:252
 msgid "All non-interactive entry points are set to \"limited\" or \"disabled\", preventing unrestricted access to gated operations via CLI, Cron, XML-RPC, and Application Passwords."
 msgstr ""
 
-#: includes/class-site-health.php:253
+#: includes/class-site-health.php:258
 msgid "Some Sudo entry point policies are unrestricted"
 msgstr ""
 
 #. translators: %s: comma-separated list of unrestricted policy names
-#: includes/class-site-health.php:261
+#: includes/class-site-health.php:266
 #, php-format
 msgid "The following entry points are set to \"unrestricted\": %s. Consider using \"limited\" (blocks only gated actions) or \"disabled\" (shuts off the entire surface) for better security."
 msgstr ""
 
-#: includes/class-site-health.php:284
+#: includes/class-site-health.php:289
 msgid "All built-in Sudo gated actions are registered"
 msgstr ""
 
-#: includes/class-site-health.php:290
+#: includes/class-site-health.php:295
 msgid "The filtered gated action registry still includes the built-in Sudo protection set."
 msgstr ""
 
-#: includes/class-site-health.php:296
+#: includes/class-site-health.php:301
 msgid "Some built-in Sudo gated actions are not registered"
 msgstr ""
 
 #. translators: %s: comma-separated list of missing built-in gated action IDs
-#: includes/class-site-health.php:304
+#: includes/class-site-health.php:309
 #, php-format
 msgid "A wp_sudo_gated_actions filter removed these built-in rules: %s. Confirm this is intentional; otherwise, restore the default rules so dangerous actions remain gated."
 msgstr ""
 
-#: includes/class-site-health.php:325
+#: includes/class-site-health.php:330
 msgid "No stale Sudo sessions found"
 msgstr ""
 
-#: includes/class-site-health.php:331
+#: includes/class-site-health.php:336
 msgid "All sudo session tokens are either active or have been cleaned up. No action needed."
 msgstr ""
 
 #. translators: %d: number of stale sessions cleaned
-#: includes/class-site-health.php:351
+#: includes/class-site-health.php:356
 #, php-format
 msgid "%d stale Sudo session cleaned up"
 msgid_plural "%d stale Sudo sessions cleaned up"
@@ -1922,41 +1937,61 @@ msgstr[0] ""
 msgstr[1] ""
 
 #. translators: %d: number of stale sessions
-#: includes/class-site-health.php:366
+#: includes/class-site-health.php:371
 #, php-format
 msgid "Found and cleaned %d expired sudo session token. This is normal — tokens expire naturally but are only cleaned on the next page load."
 msgid_plural "Found and cleaned %d expired sudo session tokens. This is normal — tokens expire naturally but are only cleaned on the next page load."
 msgstr[0] ""
 msgstr[1] ""
 
-#: includes/class-site-health.php:402
+#: includes/class-site-health.php:407
 msgid "Break-glass recovery mode is not active"
 msgstr ""
 
-#: includes/class-site-health.php:405
+#: includes/class-site-health.php:410
 msgid "WP Sudo break-glass recovery mode (WP_SUDO_RECOVERY_MODE) is not defined. The governance capability model is fully in force."
 msgstr ""
 
-#: includes/class-site-health.php:411
+#: includes/class-site-health.php:416
 msgid "It is unscoped: while it stays defined, any user who still holds administrator authority (network administrator on multisite) regains full Sudo governance access."
 msgstr ""
 
-#: includes/class-site-health.php:416
+#: includes/class-site-health.php:421
 msgid "It is scoped to a value that does not resolve to any existing user, so no one is granted access — check WP_SUDO_RECOVERY_MODE for a typo."
 msgstr ""
 
 #. translators: 1: user login, 2: user ID
-#: includes/class-site-health.php:422
+#: includes/class-site-health.php:427
 #, php-format
 msgid "It is scoped to the user \"%1$s\" (ID %2$d), who alone regains Sudo governance access while it stays defined — provided that user still holds administrator authority (manage_options, or manage_network_options on multisite); a scoped target who lacks it is still denied."
 msgstr ""
 
-#: includes/class-site-health.php:430
+#: includes/class-site-health.php:435
 msgid "Break-glass recovery mode is active"
 msgstr ""
 
-#: includes/class-site-health.php:433
+#: includes/class-site-health.php:438
 msgid "Remove WP_SUDO_RECOVERY_MODE from wp-config.php as soon as normal access is restored — leaving it enabled weakens the governance model."
+msgstr ""
+
+#: includes/class-site-health.php:472
+msgid "Reauthentication can resume your action"
+msgstr ""
+
+#: includes/class-site-health.php:475
+msgid "This site is served over HTTPS, so WP Sudo can safely resume the action you were performing once you reauthenticate. The resume is bound to your own browser, so an action started elsewhere can never be completed by your confirmation."
+msgstr ""
+
+#: includes/class-site-health.php:481
+msgid "Reauthentication will not resume your action"
+msgstr ""
+
+#: includes/class-site-health.php:484
+msgid "This site is not served over HTTPS. WP Sudo binds a resumed action to the browser that started it using a cookie browsers accept only over HTTPS, so on this site nothing is resumed after reauthentication: you will be returned to the page you came from and will need to perform the action again."
+msgstr ""
+
+#: includes/class-site-health.php:485
+msgid "This is the safe fallback, not a fault — the confirmation you give can never complete an action someone else started. Serving the admin over HTTPS restores the smoother flow."
 msgstr ""
 
 #: admin/js/wp-sudo-editor-reauth.js:141

@@ -35,5 +35,7 @@ status: v4.8.0 released 2026-07-23. Post-release `main` adds one small feature (
 - **No feature track is active.** The next candidate work is the filed backlog issues;
   `docs/ROADMAP.md` (Now/Next) lists the near-term ones — notably #219 (network-wide
   role/capability lockdown sweep).
-- **WordPress.org submission** is intentionally delayed/on hold; keep
-  `docs/wporg-submission-checklist.md` ready.
+- **WordPress.org submission is not planned** (maintainer decision, 2026-07-26) — not
+  a delay awaiting approval. There is no obligation to keep the repository
+  "submission-ready", and Plugin Check is not a release gate. `docs/wporg-submission-checklist.md`
+  §1 pre-tag gates stay live; its §2 wp.org-only gates are dormant reference.

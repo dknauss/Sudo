@@ -80,21 +80,74 @@ which is a ⚠️ **retroactive gap still open** for a maintainer reuse-or-rerun
 
 ## Current `main` release state
 
-- **Current `main` version:** `4.8.0` (runtime constant), **released** as the `v4.8.0` tag (cut 2026-07-23, on `10587a4`). Unlike the `4.7.0` state, `main` has since progressed **past** the tag with unreleased work (see next bullet). (`4.8.0` is the REST-gate security-hardening release plus the opt-in role/capability lockdown audit MVP; see the payload note above.)
-- **Unreleased work on `main` past `v4.8.0`:** one security-hardening change plus three small features, documentation, and CI tooling — none version-bumped. **Security (the largest unreleased change):** the sudo proof format is replaced by a **self-authenticating, per-login-session record** (`_wp_sudo_proofs`, keyed by `sha256(verifier)`, entries `{ token, expires, hmac }`). The enforcement path verifies an `hash_hmac('sha256', …, wp_salt('auth'))` over the record and reads it **cache-bypassed**, closing a forged-assurance path in which an object-cache-poisoning primitive could plant a token hash for an attacker-controlled cookie and obtain sudo with no challenge (#278); keying per login session additionally gives a user's concurrent browsers independent sudo sessions (#279), and a just-expired proof is retained through its 120 s grace window so one browser's reauth cannot cancel another's in-flight replay. Pre-4.9.0 sessions carry no proof entry and require one reauthentication after upgrade (no migration). Doc'd in `docs/security-model.md`; the docblocks name the format as **4.9.0**, so this is the change that most likely forces the next tag to be a **minor**, not a patch — but `WP_SUDO_VERSION` is still `4.8.0` on `main` and the call remains a maintainer decision. **Features:** (1) the optional critical-event alert bridge now pushes a high-severity alert on role/capability drift (`wp_sudo_role_drift_detected` → bridge push), a backward-compatible addition in the optional companion bridge (PR #226); (2) **scoped break-glass recovery** — `WP_SUDO_RECOVERY_MODE` now accepts a user ID or login (grants break-glass to one named user instead of every `manage_options` holder), plus a pull-based Site Health critical status that flags active recovery mode and names its scope (PR #268, issue #240); (3) the **in-editor sudo session-status indicator** client UI — a build-free editor module surfacing session state via an announce-once snackbar (WP 6.4+) and a feature-detected countdown sidebar (WP 6.6+), with no read endpoint and no polling (PR #277 / #262). **Docs/CI:** the 4.8.0 live/manual security-test checklist + results (#223–#225); core-proposal, roadmap, and accuracy docs (#227–#234); the **ROADMAP restructure** — Pass 1/2 (forward-only Now/Next/Later + design essays promoted to standalone docs) merged as PR #236. (The feature backlog has been *filed* as GitHub issues **#238–#257**, but the ROADMAP sections that duplicate them are removed only by the **still-open Pass-3 PR #258** — so on `main` the backlog still lives in `ROADMAP.md` for now.) And the **persistent-options metrics gate** — a tokenizer-based dev/CI scanner (`bin/scan-persistent-options.php`) wired into `composer verify:metrics` (PR #237). None bump `WP_SUDO_VERSION`; the next tag's patch-vs-minor call is a maintainer decision. **This bullet is a convenience summary — the canonical, always-current drift source is `git log v4.8.0..main --oneline`.**
-- **Runtime version constant:** `4.8.0` on `main`. `WP_SUDO_VERSION` is set in `wp-sudo.php` (header + constant), `tests/bootstrap.php`, and `phpstan-bootstrap.php`; `readme.txt` Stable tag is `4.8.0`. All five version-sync points are in sync at `4.8.0` (the unreleased alert-bridge work did not bump the version).
-- **Current package metadata (on `main`):** `readme.txt` Stable tag `4.8.0` == header Version (no `stable_tag_mismatch`); `Requires at least 6.4`, `Requires PHP 8.2`, `Tested up to 7.0`. WordPress.org listing name: **"Sudo – Admin Action Gating"** (UI brand "Sudo"; slug/text-domain stay `wp-sudo` — lock the slug at submission).
+- **Current `main` version:** `4.9.0` (runtime constant) — **unreleased**. The latest tag remains `v4.8.0` (cut 2026-07-23, on `10587a4`). `main` was bumped off the released identity on 2026-07-26 so that an unreleased tree stops advertising a shipped version; the bump carries no payload of its own. Unlike the `4.7.0` state, `main` has progressed **past** the tag with unreleased work (see next bullet). (`4.8.0` is the REST-gate security-hardening release plus the opt-in role/capability lockdown audit MVP; see the payload note above.)
+- **Unreleased work on `main` past `v4.8.0`:** one security-hardening change plus three small features, documentation, and CI tooling — none version-bumped. **Security (the largest unreleased change):** the sudo proof format is replaced by a **self-authenticating, per-login-session record** (`_wp_sudo_proofs`, keyed by `sha256(verifier)`, entries `{ token, expires, hmac }`). The enforcement path verifies an `hash_hmac('sha256', …, wp_salt('auth'))` over the record and reads it **cache-bypassed**, closing a forged-assurance path in which an object-cache-poisoning primitive could plant a token hash for an attacker-controlled cookie and obtain sudo with no challenge (#278); keying per login session additionally gives a user's concurrent browsers independent sudo sessions (#279), and a just-expired proof is retained through its 120 s grace window so one browser's reauth cannot cancel another's in-flight replay. Pre-4.9.0 sessions carry no proof entry and require one reauthentication after upgrade (no migration). Doc'd in `docs/security-model.md`; the docblocks name the format as **4.9.0**. The next tag is **MAJOR** — decided, not open: the `#322` fix removes the documented `wp_sudo_action_replayed` hook, which `VERSIONING.md` classes as MAJOR (see *Development lanes* below). This assurance change on its own would have been a MINOR. **Features:** (1) the optional critical-event alert bridge now pushes a high-severity alert on role/capability drift (`wp_sudo_role_drift_detected` → bridge push), a backward-compatible addition in the optional companion bridge (PR #226); (2) **scoped break-glass recovery** — `WP_SUDO_RECOVERY_MODE` now accepts a user ID or login (grants break-glass to one named user instead of every `manage_options` holder), plus a pull-based Site Health critical status that flags active recovery mode and names its scope (PR #268, issue #240); (3) the **in-editor sudo session-status indicator** client UI — a build-free editor module surfacing session state via an announce-once snackbar (WP 6.4+) and a feature-detected countdown sidebar (WP 6.6+), with no read endpoint and no polling (PR #277 / #262). **Docs/CI:** the 4.8.0 live/manual security-test checklist + results (#223–#225); core-proposal, roadmap, and accuracy docs (#227–#234); the **ROADMAP restructure** — Pass 1/2 (forward-only Now/Next/Later + design essays promoted to standalone docs) merged as PR #236. (The feature backlog has been *filed* as GitHub issues **#238–#257**, but the ROADMAP sections that duplicate them are removed only by the **still-open Pass-3 PR #258** — so on `main` the backlog still lives in `ROADMAP.md` for now.) And the **persistent-options metrics gate** — a tokenizer-based dev/CI scanner (`bin/scan-persistent-options.php`) wired into `composer verify:metrics` (PR #237). None of those bumped `WP_SUDO_VERSION` when they landed; `main` now carries `4.9.0` (see the version bullets above). **This bullet is a convenience summary — the canonical, always-current drift source is `git log v4.8.0..main --oneline`.**
+- **Runtime version constant:** `4.9.0` on `main`. `WP_SUDO_VERSION` is set in `wp-sudo.php` (header + constant), `tests/bootstrap.php`, and `phpstan-bootstrap.php`; `readme.txt` Stable tag is `4.9.0`. All five version-sync points are in sync at `4.9.0`. **`blueprint.json` deliberately still targets the `v4.8.0` tag ZIP:** per [`VERSIONING.md`](../VERSIONING.md) the Playground install target is bumped **after** the tag is cut, never before, because the public "Try latest release" badge loads `blueprint.json` from `main` and a pre-tag bump would point the demo at a ZIP that does not exist yet. Bumping it is a tag-time step, not a drift.
+- **Current package metadata (on `main`):** `readme.txt` Stable tag `4.9.0` == header Version (no `stable_tag_mismatch`); `Requires at least 6.4`, `Requires PHP 8.2`, `Tested up to 7.0`. Package/listing name: **"Sudo – Admin Action Gating"** (UI brand "Sudo"; slug/text-domain stay `wp-sudo`).
 - **Last archived release checklist:** `docs/archive/release-3.0.0-checklist.md`
+
+## Development lanes (established 2026-07-26)
+
+Work in this repository runs in lanes that do **not** share a release clock. The lane
+is carried by the GitHub milestone; an issue with no milestone is untriaged, not
+"soon". This exists because the plugin, the core proposal, and the demonstrator have
+different success criteria, and letting them share one clock is what produced the
+post-`4.8.0` churn.
+
+| Lane | Milestone | Clock | Admits |
+|---|---|---|---|
+| Plugin security release | `4.9.0 — security` | **Yes** — the only lane with one | The `4.9.0` payload plus its tag-time gates |
+| Plugin, everything else | `post-4.9.0` | No | Features, non-blocking bugs, follow-ups deferred out of `4.9.0` |
+| Plugin, next feature batch | `v5.0.0` | No | Curated multisite governance/break-glass batch — reclaimed `v5.0.0` when the security release rolled back to `4.9.0` and freed the number. All backward-compatible additions, so MINOR is the correct class. |
+| Core proposal research | `core-gate proposal — v1 readiness` | No | Proposal/spec findings; **no plugin release depends on these** |
+| Core proposal, deferred | `core-gate: provenance/automation policy (deferred project)` | No | The automated-update provenance split (#320) |
+
+> ⚠️ **Superseded — the version was rolled back to `4.9.0`.** The version strings in
+> all five sync points, the POT, and the version facts above are now `4.9.0`. The
+> argument below is kept as the decision record for why `5.0.0` was taken at the
+> time; it has **not** been rewritten, and it no longer describes the version on
+> `main`. The milestones have been renamed to match (`4.9.0 — security`,
+> `post-4.9.0`, and the feature batch reclaiming `v5.0.0`). What the rollback
+> reopens is the **MAJOR-vs-MINOR** question this section settles: `VERSIONING.md`
+> classes the `#322` hook removal as MAJOR, and at `4.9.0` that removal ships in a
+> MINOR. That needs deciding separately from this string change.
+
+**Why `5.0.0` and not `4.9.0`.** The `#322` fix removes the only call site of
+`wp_sudo_action_replayed` — the gate no longer replays a stashed request, so there is
+no replay left to announce. That hook is a **documented public extension point**
+(`docs/developer-reference.md`, event code `1900009`), and [`VERSIONING.md`](../VERSIONING.md)
+classes removing a documented hook as **MAJOR**. Taken by the rule rather than by
+override: the release is `5.0.0`. Everything else in the payload would have been a
+MINOR on its own.
+
+**`4.9.0` payload.** Landed: forge-resistant per-login-session assurance (#278, #279,
+PR #348) and the reauth-lockout out-of-band clear (#280, PR #343). Open: the stash
+confused-deputy fix (#322, PR #368 — the v1 fail-closed half). #273
+(release-environment matrix) rides the milestone as a **tag-time gate**, not payload —
+it was left open through `4.8.0` and must be run or explicitly waived before the tag
+is cut.
+
+**Deferred out of `4.9.0`.** The `#322` **v2** layer (informed confirmation +
+origin-bound replay, PR #350) is held back: all of its open review threads sit on that
+layer, none on v1. It restores replay, and therefore probably restores the removed
+hook — so its own version classification must be decided on its merits, not inherited
+from this release.
+
+**Membership rule.** A review finding that is not a regression introduced by the PR
+under review gets **filed and deferred**, never bolted onto the PR in flight. #354,
+#355 and #356 are the worked examples — all three were split out of #348/#343 review
+rather than absorbed, and all three sit in `post-4.9.0`.
 
 ## WordPress.org publication status
 
-- **WordPress.org plugin repository:** not published. Submission is intentionally delayed/on hold, but the repository should remain submission-ready at any time.
-- **Readiness source:** `docs/wporg-submission-checklist.md` is the operational checklist to keep ready for publication approval.
+- **WordPress.org plugin repository:** not published, and **submission is not planned** (maintainer decision, 2026-07-26). This is **not** a delay awaiting approval: the repository carries no obligation to stay "submission-ready", and no WordPress.org rule is a release gate here. Distribution is the GitHub tag and its release ZIP.
+- **Plugin Check (PCP) is not a gate.** It is used only for occasional local testing. It is **not** among `main`'s six required status checks (`PHPUnit`, `Psalm`, `CodeQL`, `E2E Tests`, `E2E Nginx Smoke`, `docs-lint`). A `plugin-check` CI lane still exists and still runs, but a finding there does not block a release.
+- **Process reference (not a gate):** [`docs/wporg-submission-checklist.md`](wporg-submission-checklist.md) retains the submission process in case the decision is ever revisited. Its **§1 pre-tag/core gates remain live** — they protect the tag and the release ZIP; its §2 WordPress.org-only gates do not.
 - **Release environment assurance source:** `docs/release-environment-log.md` records per-version manual environment outcomes and deferrals.
 - **E2E runtime evidence source:** [`docs/e2e-runtime-review.md`](e2e-runtime-review.md) records refreshed post-`v4.2.2` GitHub Actions E2E job runtimes and the current CI tuning decision; it is release-readiness evidence, not a WordPress.org submission gate.
 - **Release confidence E2E source:** [`docs/release-e2e-confidence.md`](release-e2e-confidence.md) documents the manual release-grade E2E workflow across Apache/wp-env, nginx, nginx multisite, and Playground SQLite smoke targets.
 - **Sudo fundamentals source:** [`docs/sudo-lite/fundamentals-cross-check.md`](sudo-lite/fundamentals-cross-check.md) preserves the Psudo Lite/Sudo Lite baseline used to review WP Sudo changes for fidelity to the core reauthentication model.
-- **`readme.txt` stable tag:** package/release metadata for generated plugin zips and future WordPress.org publication; it does not indicate that this plugin is currently live in the WordPress.org repository.
+- **`readme.txt` stable tag:** package/release metadata for generated plugin zips **only**. With submission not planned it carries **no WordPress.org contract** — it selects no served SVN tag, so it may legitimately lead the latest git tag while `main` is unreleased (it currently does: Stable tag `4.9.0` on `main`, latest tag `v4.8.0`). It does not indicate that this plugin is live in the WordPress.org repository.
 
 ## Latest release contents
 
@@ -172,7 +225,7 @@ Canonical source for drift after the tag: `git log v4.5.0..main --oneline`.
 
 Phase 17 added [`docs/release-environment-log.md`](release-environment-log.md) as the record of record for release-grade manual environment matrix outcomes. The `v4.5.0` tag's environment-matrix gate was **cleared** (Apache lane completed, minimum-supported-WordPress (6.4) floor CI-covered, managed-host lane cleared by explicit maintainer waiver — see the log). For the staged **`4.6.0`** package the gate is **not auto-cleared**: because `4.6.0` adds the block-editor in-editor reauth capability, run the full release-grade E2E before tagging and record a **conscious** reuse-or-rerun decision for the host/floor matrix in the log (see the `v4.6.0` tag checklist above). The historical `v4.2.2` row remains **Deferred**.
 
-Release readiness now distinguishes **Pre-tag/core** gates from **WordPress.org-only** gates. Pre-tag/core gates cover version sync, Composer validation commands, external-claim audit, changelog/readme/release-status sanity, package metadata, and the release environment matrix/log gate. WordPress.org-only gates cover the readme validator, clean-package Plugin Check, SVN layout/upload, listing assets, screenshot/caption parity, slug-lock decision, and final publication approval. WordPress.org submission/upload remains delayed/on hold.
+Release readiness now distinguishes **Pre-tag/core** gates from **WordPress.org-only** gates. Pre-tag/core gates cover version sync, Composer validation commands, external-claim audit, changelog/readme/release-status sanity, package metadata, and the release environment matrix/log gate. WordPress.org-only gates cover the readme validator, clean-package Plugin Check, SVN layout/upload, listing assets, screenshot/caption parity, slug-lock decision, and final publication approval. **Those WordPress.org-only gates are dormant:** submission is not planned (see *WordPress.org publication status* above), so only the pre-tag/core gates apply to a release.
 
 ### E2E runtime evidence
 

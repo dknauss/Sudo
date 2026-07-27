@@ -365,6 +365,41 @@ run
 expect_rc 1
 expect_out "raw-text source"
 
+# 14. Gitignored working-tree files are outside the orphan scan. The live case is
+#     `reviewer-approved`, the pre-commit reviewer agent's flag: it is gitignored, never
+#     committed, and routinely records the upstream URLs the reviewer verified. Scanning
+#     it failed on every developer machine holding a current approval while CI, on a
+#     clean checkout, passed. Needs a real git work tree, so this sandbox gets `git init`.
+start "gitignored file is not an orphan"
+new_sandbox gitignored
+git -C "$SANDBOX" init -q
+printf 'reviewer-approved\n' > "$SANDBOX/.gitignore"
+registry "$HDR
+| GB-A | $URL | 2 | needle here | sym | a claim |"
+fixture "$URL" 200 0 $'x\nneedle here'
+printf 'verified https://raw.githubusercontent.com/WordPress/gutenberg/trunk/z.js\n' \
+	> "$SANDBOX/reviewer-approved"
+run
+expect_rc 0
+
+# 14b. The same git work tree, same URL, in a file nothing ignores: still a failure.
+#      Without this, case 14 would also pass if the fix had disabled the scan outright.
+#      Untracked and uncommitted on purpose — the rule has to bite before the commit,
+#      not one commit later.
+start "non-ignored file in a git work tree is still an orphan"
+new_sandbox gitkept
+git -C "$SANDBOX" init -q
+printf 'reviewer-approved\n' > "$SANDBOX/.gitignore"
+registry "$HDR
+| GB-A | $URL | 2 | needle here | sym | a claim |"
+fixture "$URL" 200 0 $'x\nneedle here'
+printf 'verified https://raw.githubusercontent.com/WordPress/gutenberg/trunk/z.js\n' \
+	> "$SANDBOX/docs/new-note.md"
+run
+expect_rc 1
+expect_out "outside the registry"
+expect_out "new-note.md"
+
 # --- summary ---------------------------------------------------------------------
 echo
 echo "verify-sources tests: $pass passed, $fail failed"

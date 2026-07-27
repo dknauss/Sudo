@@ -434,7 +434,7 @@ Rows 1–2 (the registry) are independently shippable; the gate (rows 3–16) en
 
 ### 6.1 What this costs in core patches — stated plainly
 
-Of the five contested seams, **one is gateable with an existing hook and four are core changes.** A proposal that implies otherwise is not landable as written, so the ask is itemised here rather than left to the reader:
+Of the six contested seams, **one is gateable with an existing hook and five are core changes.** A proposal that implies otherwise is not landable as written, so the ask is itemised here rather than left to the reader:
 
 | Seam | Ask |
 |---|---|
@@ -443,6 +443,7 @@ Of the five contested seams, **one is gateable with an existing hook and four ar
 | `wp_delete_user` | A `bool\|WP_Error` return contract, or a short-circuiting `pre_delete_user` filter. Callers testing `if ( ! $result )` must be updated with it. |
 | `switch_theme` | An in-function pre-check. Option-level vetoes cannot work here — the function performs several writes and returns `void`. |
 | self-email (admin path) | A short-circuit in `edit_user()` before `send_confirmation_on_profile_email()`. |
+| `WP_User::set_role()` | An early check **before** the object's `caps`/`roles` are mutated. Vetoing the `{prefix}capabilities` write is not enough: `set_role()` mutates in memory first, ignores the write's return, and recomputes from the mutated state, so the request continues with the new role in effect (§6.3). |
 
 Everything else in §6 already returns `WP_Error` and needs no contract change.
 
@@ -454,16 +455,17 @@ Everything else in §6 already returns `WP_Error` and needs no contract change.
 |---|---|---|---|
 | 3 | `wp_update_user()` | **Yes** | Calls `wp_insert_user()` and returns early on `is_wp_error()`, so a `WP_Error` propagates to every caller. |
 | 4 | `wp_insert_user()` | **Yes** | Returns `WP_Error` on eleven distinct paths; callers already branch on it. |
-| 4e | `users_can_register` / `default_role` writes | **Yes, with a caveat** | `pre_update_option_{$option}` (`option.php:901`) — returning the old value trips the `$value === $old_value` check and `update_option()` returns `false` without writing. **Caveat:** `false` is indistinguishable from "no change needed", so the caller cannot tell a refusal from a no-op. Sufficient here only because the option write *is* the whole effect — the opposite of `switch_theme`, where the same technique leaves later writes applied (§6.1). |
-| 6 | capability escalation | **Yes — via the meta hook, not the method** | `WP_User::set_role()` returns `void` and only fires `do_action`s, so it cannot be vetoed at the function. The row is sound because it targets the `{prefix}capabilities` write: `update_{$meta_type}_metadata` is a genuine short-circuit filter (`meta.php:251`, `if ( null !== $check )`). Keep the guard on the meta write; do not move it to `set_role()`. |
+| 4e | `users_can_register` / `default_role` writes | **Yes, with a caveat** | `pre_update_option_{$option}` (`GB-OPTION-PRE-VETO`) — returning the old value trips the `$value === $old_value` check and `update_option()` returns `false` without writing. **Caveat:** `false` is indistinguishable from "no change needed", so the caller cannot tell a refusal from a no-op. Sufficient here only because the option write *is* the whole effect — the opposite of `switch_theme`, where the same technique leaves later writes applied (§6.1). |
+| 6 | capability escalation | **Partly — the meta hook stops the write, not the request** | The `{prefix}capabilities` write can be vetoed: `update_{$meta_type}_metadata` is a genuine short-circuit filter (`GB-META-SHORTCIRCUIT`). **That is not sufficient when the change arrives through `WP_User::set_role()`.** Verified against trunk: `set_role()` mutates `$this->caps` and `$this->roles` **before** calling `update_user_meta()`, **ignores that call's return**, then recalculates from the mutated state via `get_role_caps()` / `update_user_level_from_caps()` and fires `remove_user_role` / `add_user_role` / `set_user_role`. So a vetoed write leaves the in-memory user reporting the **new** role for the rest of the request, and every `current_user_can()` in that request answers from it — the same partial-state failure as `switch_theme` (§6.1). `set_role()` therefore needs a **core patch** as well: an early check before the object is mutated. The meta hook remains the right backstop for `update_user_meta()`-level writes that never reach `set_role()`. |
 | 14 | `WP_Upgrader::install_package()` | **Yes** | Six `WP_Error` returns; the upgrader's callers already thread them. |
 | 14b | `wp_edit_theme_plugin_file()` | **Yes** | Twenty-one `WP_Error` returns — the most defensively written sink in the set. |
 | 14c | `activate_plugin()`, `delete_plugins()` | **Yes** | Four `WP_Error` returns each. |
 | 15 | `delete_theme()` | **Yes** | Returns `WP_Error`; callers test `is_wp_error()`. (`switch_theme()` in the same row cannot — §6.1.) |
 
-**Result:** no further blockers. The core-patch tally in §6.1 stands at four, and every other chokepoint can genuinely refuse. Two properties are now recorded rather than assumed: an option-level veto is only adequate where the option write is the entire effect, and row 6's enforcement lives on the meta write because the role setter returns `void`.
+**Result:** one further core-patch ask. `WP_User::set_role()` joins §6.1 — the tally is **five**, not four — and every other chokepoint can genuinely refuse. Two properties are now recorded rather than assumed: an option-level veto is only adequate where the option write is the entire effect, and row 6's enforcement lives on the meta write because the role setter returns `void`.
 
 **Row 4d is now covered** (#326): issuance moved to the shared sink `WP_Application_Passwords::create_new_application_password()`, which is declared at `:89` and already returns `WP_Error` at `:95`/`:116` — **yes, it can refuse, and no core patch is needed**. That completes the sweep: every row in §6 has been checked.
+
 
 ### 6.2 No-actor and self-heal carve-outs — required for every veto seam
 

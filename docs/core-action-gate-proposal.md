@@ -250,7 +250,7 @@ The registry-vs-Abilities fork (formerly the headline open question) is **resolv
 
 ### Companion docs
 - [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md) — *what to change in core* (files, functions, APIs; the registry-vs-Abilities decision; the recent-auth session design).
-- [`core-sudo-gate-poc-patches.md`](core-sudo-gate-poc-patches.md) — ⚠️ **superseded** illustrative patches at the chokepoints; retained for shape only, known-vulnerable (see its banner). Do not implement.
+- [`archive/core-sudo-gate-poc-patches.md`](archive/core-sudo-gate-poc-patches.md) — ⚠️ **superseded** illustrative patches at the chokepoints; retained for shape only, known-vulnerable (see its banner). Do not implement.
 - [`stolen-cookie-rce-attack-tree.md`](stolen-cookie-rce-attack-tree.md) — the worked adversary and full route enumeration.
 - [`core-gate-architectural-context.md`](core-gate-architectural-context.md) — the strategic "which architectural future" context (split vs. refactor; WP-Next kernel), kept out of this proposal.
 - [`wordpress-core-authentication.md`](wordpress-core-authentication.md) — how WordPress core authentication actually works.

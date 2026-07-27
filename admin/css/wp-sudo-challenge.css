@@ -34,6 +34,26 @@
 	margin-bottom: 1.5em;
 }
 
+/*
+ * Target line (#322): names the concrete action being authorized. This is the
+ * primary confused-deputy control — it must read as part of the decision, not as
+ * incidental text, so it gets emphasis rather than the muted .description grey.
+ */
+.wp-sudo-challenge-card .wp-sudo-challenge-target {
+	margin: -1em 0 1.5em;
+	padding: 0.75em 1em;
+	border-left: 4px solid #2271b1;
+	background: #f6f7f7;
+	color: #1d2327;
+	overflow-wrap: anywhere;
+}
+
+.wp-sudo-challenge-card .wp-sudo-challenge-target code {
+	background: none;
+	padding: 0;
+	font-weight: 600;
+}
+
 /* Sudo lecture */
 .wp-sudo-challenge-card .wp-sudo-lecture {
 	color: #646970;

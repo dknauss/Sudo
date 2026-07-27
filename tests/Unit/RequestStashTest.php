@@ -95,6 +95,412 @@ class RequestStashTest extends TestCase {
 	}
 
 	/**
+	 * #322 v2 (BLOCKER 1): no binding is minted for a cross-site-initiated request.
+	 *
+	 * WordPress nonces are bound to the session token, NOT the browser, so an attacker
+	 * holding a stolen login cookie can mint a valid nonce and lure the victim into
+	 * issuing the gated request. If we minted a binding then, it would land in the
+	 * VICTIM's browser and the victim's own reauth would release the attacker's
+	 * action. Anything other than `Sec-Fetch-Site: same-origin` must fail closed.
+	 *
+	 * @dataProvider non_same_origin_fetch_sites
+	 */
+	public function test_save_does_not_bind_unless_same_origin_initiated( ?string $fetch_site ): void {
+		$this->stub_stash_index_meta_io();
+
+		$_SERVER['REQUEST_METHOD'] = 'GET';
+		$_SERVER['HTTP_HOST']      = 'example.com';
+		$_SERVER['REQUEST_URI']    = '/wp-admin/plugins.php?action=activate&plugin=evil.php';
+
+		if ( null === $fetch_site ) {
+			unset( $_SERVER['HTTP_SEC_FETCH_SITE'] );
+		} else {
+			$_SERVER['HTTP_SEC_FETCH_SITE'] = $fetch_site;
+		}
+
+		// CRITICAL: under PHPUnit CLI headers_sent() is always true (progress dots),
+		// which would short-circuit mint_binding_proof() at the headers guard and make
+		// this assertion pass for the WRONG reason. Stub it false so the Sec-Fetch-Site
+		// guard is genuinely the thing under test.
+		Functions\when( 'headers_sent' )->justReturn( false );
+		Functions\when( 'setcookie' )->justReturn( true );
+		Functions\when( 'wp_generate_password' )->justReturn( 'abc123def456ghij' );
+		Functions\when( 'esc_url_raw' )->returnArg();
+		Functions\when( 'is_ssl' )->justReturn( true );
+		Functions\when( 'force_ssl_admin' )->justReturn( true );
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+		Functions\when( 'sanitize_text_field' )->returnArg();
+
+		$stored = null;
+		Functions\expect( 'set_transient' )
+			->once()
+			->andReturnUsing(
+				function ( $key, $value ) use ( &$stored ) {
+					$stored = $value;
+					return true;
+				}
+			);
+
+		$this->stash->save( 1, array( 'id' => 'plugin.activate', 'label' => 'Activate plugin' ) );
+
+		$this->assertSame(
+			'',
+			$stored['binding_hash'] ?? 'MISSING',
+			'A lured (non-same-origin) request must not mint a browser binding.'
+		);
+
+		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'], $_SERVER['HTTP_SEC_FETCH_SITE'] );
+	}
+
+	/**
+	 * #322 v2: a genuine same-origin request DOES mint a binding.
+	 *
+	 * The positive counterpart to the lure test above. Without this, deleting the
+	 * Sec-Fetch-Site guard entirely would go undetected — every negative case would
+	 * still pass because nothing asserts the guard ever lets anything through.
+	 */
+	public function test_save_binds_when_same_origin_initiated(): void {
+		$this->stub_stash_index_meta_io();
+
+		$_SERVER['REQUEST_METHOD']      = 'GET';
+		$_SERVER['HTTP_HOST']           = 'example.com';
+		$_SERVER['REQUEST_URI']         = '/wp-admin/plugins.php?action=activate&plugin=hello.php';
+		$_SERVER['HTTP_SEC_FETCH_SITE'] = 'same-origin';
+
+		Functions\when( 'headers_sent' )->justReturn( false );
+		Functions\when( 'wp_generate_password' )->justReturn( 'abc123def456ghij' );
+		Functions\when( 'esc_url_raw' )->returnArg();
+		Functions\when( 'is_ssl' )->justReturn( true );
+		Functions\when( 'force_ssl_admin' )->justReturn( true );
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+		Functions\when( 'sanitize_text_field' )->returnArg();
+
+		$cookie = array();
+		Functions\when( 'setcookie' )->alias(
+			function ( $name, $value, $options ) use ( &$cookie ) {
+				$cookie = array(
+					'name'    => $name,
+					'value'   => $value,
+					'options' => $options,
+				);
+				return true;
+			}
+		);
+
+		$stored = null;
+		Functions\expect( 'set_transient' )
+			->once()
+			->andReturnUsing(
+				function ( $key, $value ) use ( &$stored ) {
+					$stored = $value;
+					return true;
+				}
+			);
+
+		$this->stash->save( 1, array( 'id' => 'plugin.activate', 'label' => 'Activate plugin' ) );
+
+		$this->assertNotSame( '', $stored['binding_hash'] ?? '', 'A same-origin request must mint a binding.' );
+
+		// The cookie carries the PLAINTEXT secret; the stash stores only its hash.
+		$this->assertSame( Request_Stash::BINDING_COOKIE, $cookie['name'] ?? null );
+		$this->assertStringStartsWith( '__Host-', (string) ( $cookie['name'] ?? '' ), 'Must be __Host- prefixed (host-only, no Domain).' );
+		$this->assertSame( hash( 'sha256', (string) ( $cookie['value'] ?? '' ) ), $stored['binding_hash'] );
+		$this->assertNotSame( $cookie['value'] ?? '', $stored['binding_hash'], 'The plaintext secret must never be persisted.' );
+
+		// __Host- requires path=/ and no domain; the proof must not be script-readable.
+		$this->assertSame( '/', $cookie['options']['path'] ?? null );
+		$this->assertArrayNotHasKey( 'domain', $cookie['options'] ?? array() );
+		$this->assertTrue( $cookie['options']['secure'] ?? false );
+		$this->assertTrue( $cookie['options']['httponly'] ?? false );
+		$this->assertSame( 'Strict', $cookie['options']['samesite'] ?? null );
+
+		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'], $_SERVER['HTTP_SEC_FETCH_SITE'] );
+	}
+
+	/**
+	 * Fetch-site values that must NOT produce a binding.
+	 *
+	 * @return array<string, array{0: string|null}>
+	 */
+	public static function non_same_origin_fetch_sites(): array {
+		return array(
+			'cross-site'    => array( 'cross-site' ),
+			'same-site'     => array( 'same-site' ),
+			'none'          => array( 'none' ),
+			'absent header' => array( null ),
+		);
+	}
+
+	/**
+	 * #322 v2: the stash records the concrete target for informed confirmation.
+	 */
+	public function test_save_captures_target_for_informed_confirmation(): void {
+		$this->stub_stash_index_meta_io();
+
+		$_SERVER['REQUEST_METHOD'] = 'GET';
+		$_SERVER['HTTP_HOST']      = 'example.com';
+		$_SERVER['REQUEST_URI']    = '/wp-admin/plugins.php?action=activate&plugin=evil%2Fevil.php';
+		$_GET['plugin']            = 'evil/evil.php';
+
+		Functions\when( 'wp_generate_password' )->justReturn( 'abc123def456ghij' );
+		Functions\when( 'esc_url_raw' )->returnArg();
+		Functions\when( 'is_ssl' )->justReturn( true );
+		Functions\when( 'sanitize_text_field' )->returnArg();
+
+		$stored = null;
+		Functions\expect( 'set_transient' )
+			->once()
+			->andReturnUsing(
+				function ( $key, $value ) use ( &$stored ) {
+					$stored = $value;
+					return true;
+				}
+			);
+
+		$this->stash->save( 1, array( 'id' => 'plugin.activate', 'label' => 'Activate plugin' ) );
+
+		$this->assertSame(
+			'evil/evil.php',
+			$stored['target']['plugin'] ?? null,
+			'The challenge must be able to name WHAT is being authorized.'
+		);
+
+		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'], $_GET['plugin'] );
+	}
+
+	/**
+	 * #322 F4: a target param listed as sensitive is NOT recorded.
+	 *
+	 * capture_target() bypasses the per-rule POST allowlist, so it must run values
+	 * through the same filterable sensitive-key check that redaction uses.
+	 */
+	public function test_capture_target_skips_sensitive_params(): void {
+		$this->stub_stash_index_meta_io();
+
+		$_SERVER['REQUEST_METHOD'] = 'GET';
+		$_SERVER['HTTP_HOST']      = 'example.com';
+		$_SERVER['REQUEST_URI']    = '/wp-admin/options.php';
+		$_GET['option']            = 'super-secret-value';
+		$_GET['plugin']            = 'hello.php';
+
+		Functions\when( 'wp_generate_password' )->justReturn( 'abc123def456ghij' );
+		Functions\when( 'esc_url_raw' )->returnArg();
+		Functions\when( 'is_ssl' )->justReturn( true );
+		Functions\when( 'sanitize_text_field' )->returnArg();
+		// A site adds 'option' to the sensitive list via the documented filter.
+		Functions\when( 'apply_filters' )->alias(
+			static function ( $hook, $value ) {
+				if ( 'wp_sudo_sensitive_stash_keys' === $hook ) {
+					return array( 'option' );
+				}
+				return $value;
+			}
+		);
+
+		$stored = null;
+		Functions\expect( 'set_transient' )
+			->once()
+			->andReturnUsing(
+				function ( $key, $value ) use ( &$stored ) {
+					$stored = $value;
+					return true;
+				}
+			);
+
+		$this->stash->save( 1, array( 'id' => 'options.general', 'label' => 'Change settings' ) );
+
+		$this->assertArrayNotHasKey( 'option', $stored['target'], 'A sensitive param must not be recorded as a target.' );
+		$this->assertSame( 'hello.php', $stored['target']['plugin'] ?? null, 'Non-sensitive params are still captured.' );
+
+		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'], $_GET['option'], $_GET['plugin'] );
+	}
+
+	/**
+	 * #322 F5: truncation must not split a UTF-8 sequence.
+	 *
+	 * substr() can cut mid-codepoint; esc_html() then returns '' via
+	 * wp_check_invalid_utf8, silently blanking the Target line — i.e. removing the
+	 * primary control with no error. The stored value must survive escaping.
+	 */
+	public function test_capture_target_truncates_multibyte_safely(): void {
+		$this->stub_stash_index_meta_io();
+
+		// A THREE-byte character is required to make this test bite: the cap is 100,
+		// so a 2-byte char (é) would have substr() cut exactly on a boundary and stay
+		// valid UTF-8. At 3 bytes, byte 100 lands mid-codepoint (33 chars = 99 bytes),
+		// so a byte-wise substr() produces invalid UTF-8 and esc_html() blanks it.
+		$long = str_repeat( 'あ', 120 );
+
+		$_SERVER['REQUEST_METHOD'] = 'GET';
+		$_SERVER['HTTP_HOST']      = 'example.com';
+		$_SERVER['REQUEST_URI']    = '/wp-admin/plugins.php';
+		$_GET['plugin']            = $long;
+
+		Functions\when( 'wp_generate_password' )->justReturn( 'abc123def456ghij' );
+		Functions\when( 'esc_url_raw' )->returnArg();
+		Functions\when( 'is_ssl' )->justReturn( true );
+		Functions\when( 'sanitize_text_field' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+
+		$stored = null;
+		Functions\expect( 'set_transient' )
+			->once()
+			->andReturnUsing(
+				function ( $key, $value ) use ( &$stored ) {
+					$stored = $value;
+					return true;
+				}
+			);
+
+		$this->stash->save( 1, array( 'id' => 'plugin.activate', 'label' => 'Activate plugin' ) );
+
+		$captured = $stored['target']['plugin'] ?? '';
+
+		$this->assertNotSame( '', $captured );
+		$this->assertTrue(
+			mb_check_encoding( $captured, 'UTF-8' ),
+			'Truncated target must remain valid UTF-8 or esc_html() will blank the Target line.'
+		);
+
+		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'], $_GET['plugin'] );
+	}
+
+	/**
+	 * #322: bulk actions send arrays — the target must name the accounts, not vanish.
+	 *
+	 * Discarding array values left the confirmation EMPTY exactly where the action is
+	 * most destructive (bulk user delete / role change).
+	 */
+	public function test_capture_target_records_array_values(): void {
+		$this->stub_stash_index_meta_io();
+
+		$_SERVER['REQUEST_METHOD'] = 'POST';
+		$_SERVER['HTTP_HOST']      = 'example.com';
+		$_SERVER['REQUEST_URI']    = '/wp-admin/users.php';
+		$_POST['users']            = array( '5', '6', '7' );
+
+		$this->stub_target_env();
+
+		$stored = null;
+		Functions\expect( 'set_transient' )->once()->andReturnUsing(
+			function ( $key, $value ) use ( &$stored ) {
+				$stored = $value;
+				return true;
+			}
+		);
+
+		$this->stash->save( 1, array( 'id' => 'user.delete', 'label' => 'Delete user' ) );
+
+		$this->assertSame( '5, 6, 7', $stored['target']['users'] ?? null, 'Bulk targets must be named.' );
+
+		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'], $_POST['users'] );
+	}
+
+	/**
+	 * #322: the confirmation must name the value that will actually be replayed.
+	 *
+	 * A POST replay submits the stashed BODY, so reading the query first would let
+	 * `?plugin=benign.php` with a body of `plugin=evil.php` display the benign value
+	 * while the other is replayed — defeating informed confirmation entirely. The body
+	 * wins, and a disagreeing query value is surfaced rather than hidden.
+	 */
+	public function test_capture_target_prefers_the_replayed_value_and_flags_conflicts(): void {
+		$this->stub_stash_index_meta_io();
+
+		$_SERVER['REQUEST_METHOD'] = 'POST';
+		$_SERVER['HTTP_HOST']      = 'example.com';
+		$_SERVER['REQUEST_URI']    = '/wp-admin/plugins.php?plugin=benign.php';
+		$_GET['plugin']            = 'benign.php';
+		$_POST['plugin']           = 'evil.php';
+
+		$this->stub_target_env();
+
+		$stored = null;
+		Functions\expect( 'set_transient' )->once()->andReturnUsing(
+			function ( $key, $value ) use ( &$stored ) {
+				$stored = $value;
+				return true;
+			}
+		);
+
+		$this->stash->save( 1, array( 'id' => 'plugin.activate', 'label' => 'Activate plugin' ) );
+
+		$shown = $stored['target']['plugin'] ?? '';
+
+		$this->assertStringContainsString( 'evil.php', $shown, 'Must name the value that will be replayed.' );
+		$this->assertStringContainsString( 'benign.php', $shown, 'A conflicting value must be surfaced, not hidden.' );
+
+		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'], $_GET['plugin'], $_POST['plugin'] );
+	}
+
+	/**
+	 * #322: critical option names must appear in the confirmation.
+	 *
+	 * options.critical stashes siteurl/home/admin_email/default_role; without them the
+	 * most dangerous settings change would render an empty target.
+	 */
+	public function test_capture_target_records_critical_option_names(): void {
+		$this->stub_stash_index_meta_io();
+
+		$_SERVER['REQUEST_METHOD'] = 'POST';
+		$_SERVER['HTTP_HOST']      = 'example.com';
+		$_SERVER['REQUEST_URI']    = '/wp-admin/options.php';
+		$_POST['siteurl']          = 'https://evil.example';
+		$_POST['admin_email']      = 'attacker@example.com';
+
+		$this->stub_target_env();
+
+		$stored = null;
+		Functions\expect( 'set_transient' )->once()->andReturnUsing(
+			function ( $key, $value ) use ( &$stored ) {
+				$stored = $value;
+				return true;
+			}
+		);
+
+		$this->stash->save( 1, array( 'id' => 'options.critical', 'label' => 'Change critical settings' ) );
+
+		$this->assertSame( 'https://evil.example', $stored['target']['siteurl'] ?? null );
+		$this->assertSame( 'attacker@example.com', $stored['target']['admin_email'] ?? null );
+
+		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'], $_POST['siteurl'], $_POST['admin_email'] );
+	}
+
+	/**
+	 * #322: the no-mbstring fallback must still produce valid UTF-8.
+	 *
+	 * mbstring is optional even on supported PHP; a byte-wise cut would blank the
+	 * Target line via esc_html()/wp_check_invalid_utf8.
+	 */
+	public function test_truncate_target_value_is_utf8_safe_without_mbstring(): void {
+		\Patchwork\redefine(
+			'function_exists',
+			function ( string $name ) {
+				return 'mb_substr' === $name ? false : \Patchwork\relay();
+			}
+		);
+
+		$method = new \ReflectionMethod( $this->stash, 'truncate_target_value' );
+		@$method->setAccessible( true ); // phpcs:ignore WordPress.PHP.NoSilencedErrors.Discouraged
+
+		$out = $method->invoke( $this->stash, str_repeat( 'あ', 120 ) );
+
+		$this->assertNotSame( '', $out );
+		$this->assertTrue( mb_check_encoding( $out, 'UTF-8' ), 'Fallback truncation must stay valid UTF-8.' );
+	}
+
+	/**
+	 * Shared stubs for target-capture tests.
+	 */
+	private function stub_target_env(): void {
+		Functions\when( 'wp_generate_password' )->justReturn( 'abc123def456ghij' );
+		Functions\when( 'esc_url_raw' )->returnArg();
+		Functions\when( 'is_ssl' )->justReturn( true );
+		Functions\when( 'sanitize_text_field' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+	}
+
+	/**
 	 * Test save() still returns the key when transient storage fails.
 	 */
 	public function test_save_returns_key_when_set_transient_fails(): void {

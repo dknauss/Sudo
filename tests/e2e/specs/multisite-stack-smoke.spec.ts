@@ -111,25 +111,44 @@ test.describe( 'WP Sudo multisite alternative stack smoke tests', () => {
         );
         await page.fill( '#wp-sudo-challenge-password', DEFAULT_PASSWORD );
 
+        // #322: the stashed POST is NOT replayed after reauth — a cloned session could
+        // otherwise plant one and the victim's reauth would apply it. The user returns
+        // and submits again; the now-active sudo session passes that through.
         await Promise.all( [
-            page.waitForURL(
-                /\/wp-admin\/network\/settings\.php\?page=wp-sudo-settings(?:&updated=true)?$/,
-                { timeout: NAV_TIMEOUT }
-            ),
+            page.waitForURL( /wp_sudo_blocked_replay=1/, { timeout: NAV_TIMEOUT } ),
             forceClick( page.locator( '#wp-sudo-challenge-submit' ) ),
         ] );
 
-        await expect( sessionDuration ).toHaveValue( updatedValue );
-
-        await sessionDuration.fill( originalValue );
-        await Promise.all( [
-            page.waitForURL(
-                /\/wp-admin\/network\/settings\.php\?page=wp-sudo-settings(?:&updated=true)?$/,
-                { timeout: NAV_TIMEOUT }
-            ),
-            forceClick( page.locator( '#submit' ) ),
-        ] );
+        await page.goto( '/wp-admin/network/settings.php?page=wp-sudo-settings' );
         await expect( sessionDuration ).toHaveValue( originalValue );
+
+        /**
+         * Submit and confirm the value actually PERSISTED.
+         *
+         * Not `waitForURL`: the settings URL is already current here, so waitForURL
+         * resolves immediately and the assertion would only observe the value fill()
+         * just typed into the DOM — passing even if the save never committed.
+         */
+        const saveAndConfirm = async ( value: string ) => {
+            await sessionDuration.fill( value );
+            await forceClick( page.locator( '#submit' ) );
+
+            await expect
+                .poll(
+                    async () => {
+                        await page.goto( '/wp-admin/network/settings.php?page=wp-sudo-settings' );
+                        return sessionDuration.inputValue();
+                    },
+                    { timeout: NAV_TIMEOUT }
+                )
+                .toBe( value );
+        };
+
+        // The session is now active, so the user's own re-submit passes straight through.
+        await saveAndConfirm( updatedValue );
+
+        // Restore so stack smoke runs stay side-effect-light.
+        await saveAndConfirm( originalValue );
     } );
 
     test( 'MSTACK-03: network-admin policy preset applies and can be restored', async ( {
@@ -156,13 +175,21 @@ test.describe( 'WP Sudo multisite alternative stack smoke tests', () => {
                 );
                 await page.fill( '#wp-sudo-challenge-password', DEFAULT_PASSWORD );
 
+                // #322: reauth does not apply the stashed preset — a cloned session
+                // could have planted it. The user returns and submits again; the
+                // now-active sudo session passes that second submit through.
                 await Promise.all( [
-                    page.waitForURL(
-                        /\/wp-admin\/network\/settings\.php\?page=wp-sudo-settings(?:&updated=true)?$/,
-                        { timeout: NAV_TIMEOUT }
-                    ),
+                    page.waitForURL( /wp_sudo_blocked_replay=1/, { timeout: NAV_TIMEOUT } ),
                     forceClick( page.locator( '#wp-sudo-challenge-submit' ) ),
                 ] );
+
+                await page.goto( '/wp-admin/network/settings.php?page=wp-sudo-settings' );
+                await presetSelection.selectOption( preset );
+                await forceClick( page.locator( '#submit' ) );
+                await page.waitForURL(
+                    /\/wp-admin\/network\/settings\.php\?page=wp-sudo-settings/,
+                    { timeout: NAV_TIMEOUT }
+                );
             }
 
             await expect(

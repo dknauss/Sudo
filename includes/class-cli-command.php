@@ -182,6 +182,12 @@ class CLI_Command {
 		if ( ! $was_locked && ! $had_state ) {
 			Sudo_Session::clear_ip_failure_generation( $user_id );
 
+			// Audited the same as any other branch that discards state (see the
+			// wp_sudo_lockout_cleared docblock below): the epoch bump destroys
+			// real per-IP evidence this process cannot otherwise see, even
+			// though no per-user counter was touched. $was_locked is false.
+			do_action( 'wp_sudo_lockout_cleared', $user_id, false );
+
 			\WP_CLI::log(
 				sprintf(
 					'No active reauth lockout for user %d — invalidated any residual per-IP failure windows (including ones raised on other sites).',
@@ -195,19 +201,25 @@ class CLI_Command {
 		Sudo_Session::clear_reauth_lockout( $user_id );
 
 		/**
-		 * Fires when an operator clears reauth failure state via WP-CLI.
+		 * Fires when an operator discards reauth failure state via WP-CLI.
 		 *
-		 * Fires for a sub-threshold clear as well as a true lockout: both
-		 * discard accumulated failure tracking, so both are worth auditing.
-		 * Subscribers that need to tell them apart must read $was_locked —
-		 * the hook firing does NOT by itself mean the user was locked out.
+		 * Fires on every branch that mutates state for a resolved user: a full
+		 * lockout clear, a sub-threshold counter clear, and — see the earlier
+		 * call site above — a "nothing tracked" outcome that still bumps the
+		 * per-IP failure generation. The one branch that does not fire it is
+		 * the guard above, where `--user` resolves to nobody and the command
+		 * errors out before reading any state — there is no user to audit.
+		 * Subscribers that need to tell a true lockout apart from a
+		 * sub-threshold/generation-only clear must read $was_locked — the hook
+		 * firing does NOT by itself mean the user was locked out.
 		 *
 		 * @since TBD
 		 *
 		 * @param int  $user_id    The unlocked user.
 		 * @param bool $was_locked True only when a hard lockout was active at
 		 *                         invocation; false when the command cleared
-		 *                         pre-lockout counters instead.
+		 *                         pre-lockout counters or bumped the failure
+		 *                         generation instead.
 		 */
 		do_action( 'wp_sudo_lockout_cleared', $user_id, $was_locked );
 

@@ -1,8 +1,10 @@
 # POC Patch Sketches: Recent-Auth Gate at the Core Chokepoints
 
+> **Archived.** Replaced by the runnable slice at [`../../poc/install-package-gate/`](../../poc/install-package-gate/), which enforces at the same chokepoint against real core and is exercised by CI (`composer test:poc`). Retained for the shape of a chokepoint insertion, and as the record of *why* pseudocode was abandoned — it drifted alongside the spec and accumulated the nine defects listed below, none of which anything could catch, because a sketch has no CI. The slice found #387 within a day precisely because it executes.
+
 > # ⚠️ SUPERSEDED SECURITY SKETCH — DO NOT IMPLEMENT
 >
-> **This file predates the known-gaps review** ([`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md) §12) and the v1/provenance split decided in [#320](https://github.com/dknauss/Sudo/issues/320). It is retained to show the *shape* of a chokepoint insertion, not as a design to build. It is known to be vulnerable or out of date on every one of the following:
+> **This file predates the known-gaps review** ([`core-sudo-gate-implementation-spec.md`](../core-sudo-gate-implementation-spec.md) §12) and the v1/provenance split decided in [#320](https://github.com/dknauss/Sudo/issues/320). It is retained to show the *shape* of a chokepoint insertion, not as a design to build. It is known to be vulnerable or out of date on every one of the following:
 >
 > | Defect in this sketch | Tracked as |
 > |---|---|
@@ -18,7 +20,7 @@
 >
 > **The next PoC should be generated as a real patch branch against `wordpress-develop` and tested** — not maintained as pseudocode drifting alongside an evolving spec.
 
-**Status:** **Superseded** (see banner above). Illustrative sketches, not tested against a core checkout. Companion to [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md). Signatures verified against WordPress core: `wp_update_user` / `wp_insert_user` (returns `WP_Error`) in `wp-includes/user.php` and `wp_delete_user` (returns `bool`) in `wp-admin/includes/user.php`; `wp_set_password` in `wp-includes/pluggable.php`; `WP_User::set_role` / `add_role` in `wp-includes/class-wp-user.php`; `wpmu_create_user` (returns `int|false`) in `wp-includes/ms-functions.php`; the users controller in `wp-includes/rest-api/endpoints/class-wp-rest-users-controller.php` (canonical: <https://github.com/WordPress/wordpress-develop/tree/trunk/src/wp-includes>). Line anchors are approximate.
+**Status:** **Superseded** (see banner above). Illustrative sketches, not tested against a core checkout. Companion to [`core-sudo-gate-implementation-spec.md`](../core-sudo-gate-implementation-spec.md). Signatures verified against WordPress core: `wp_update_user` / `wp_insert_user` (returns `WP_Error`) in `wp-includes/user.php` and `wp_delete_user` (returns `bool`) in `wp-admin/includes/user.php`; `wp_set_password` in `wp-includes/pluggable.php`; `WP_User::set_role` / `add_role` in `wp-includes/class-wp-user.php`; `wpmu_create_user` (returns `int|false`) in `wp-includes/ms-functions.php`; the users controller in `wp-includes/rest-api/endpoints/class-wp-rest-users-controller.php` (canonical: <https://github.com/WordPress/wordpress-develop/tree/trunk/src/wp-includes>). Line anchors are approximate.
 **Purpose:** Make the spec's central claim concrete: that gating a handful of *data-layer chokepoints* covers admin UI, REST, and programmatic callers in one insertion, using error paths those functions already return.
 
 ## In plain language (read this first)
