@@ -1268,3 +1268,349 @@ C2. REDUNDANT MEMORY DUPLICATING CLAUDE.md
            cited line falls between the declaration you name and the NEXT one. Two
            commands, and it is falsifiable — "the nearest function above" is neither,
            and produced this entry, #55, and #47.
+
+60. PRE-RELEASE EXTERNAL-CLAIM AUDIT (v4.9.0) — eight new registry rows re-verified from
+    source; four defects found, and one of the audit's own negatives retracted (#66)
+   Files:  Audited range `git log v4.8.0..b30691a` (111 commits). Run in a fresh session
+           and in its own worktree with its own `composer install`, because a shared
+           `vendor/` makes the suite load `includes/` from another checkout — during #433
+           that hid a deliberately planted parse error.
+   Claim:  The issue body froze the tree at `39bcbd3` with a gate table reporting 1238
+           unit tests.
+   Reality: `39bcbd3` is four merges behind. `git log 39bcbd3..b30691a` lists #395, #428,
+           #433 and #383, and `git diff --stat 39bcbd3..b30691a -- tests/` shows 682 lines
+           of test change. `composer test:unit` on `b30691a` in this worktree: **1248
+           tests, 3722 assertions, OK** — matching the refreshed table in the issue's
+           fourth comment, not the body. Auditing the body's SHA would have checked the
+           wrong tree. `verify:metrics` and `verify:i18n` both in sync on `b30691a`.
+   Source: All eight `GB-*` rows added by #433 were re-read against
+           `raw.githubusercontent.com/WordPress/wordpress-develop/trunk`, fetched
+           2026-07-27, **not** against `docs/upstream-sources.md` and **not** by trusting
+           `composer verify:sources` — a must-contain check proves a snippet still exists
+           at a line, not that it supports the claim bolted to it. Result: the snippet,
+           the enclosing symbol and the supported claim all hold for
+           `GB-REFERER-SELFPOST` (`wp_get_referer()`, functions.php:1994),
+           `GB-USER-NEW-SELFPOST` (the `createuser` form, user-new.php:519 — no `action`
+           attribute; the sibling `adduser` form at :459 has none either),
+           `GB-ADMIN-POST-BLANK` (admin-post.php:67; no `admin-header.php` anywhere in
+           the file), `GB-OPTIONS-ALLSETTINGS` (options.php:393, guarded by
+           `'update' === $action` at :240, not by request method),
+           `GB-ADMIN-PHP-BLANK` (admin.php:429; the only `admin-header.php` requires are
+           at :244/:292 inside the `isset( $plugin_page )` block and :348 inside the
+           importer block), `GB-USER-EDIT-DIES` (user-edit.php:27; `profile.php` `define`s
+           `IS_PROFILE_PAGE` true then requires user-edit.php, so the preceding branch
+           takes it — verified by reading profile.php, all 18 lines of it), and
+           `GB-UPDATE-NEEDS-ACTION` (update.php:22; the body ends at the file's last line,
+           :372, and every `admin-header.php` require sits between them).
+           `GB-NETWORK-EDIT-REDIRECT` verified in substance with one prose defect — see
+           #63. Two rows added earlier in the range were re-checked as a spot sample and
+           hold: `GB-CORE-NOSIG` (class-core-upgrader.php:128, inside `upgrade()`
+           declared :66) and `GB-UPGRADER-PRE-INSTALL` (class-wp-upgrader.php:556). One
+           has drifted by line number only, which `verify-sources.sh` warns on rather
+           than failing: `GB-UPGRADER-PRE-DOWNLOAD` is now at :324, not :322.
+   Notes:  Three external claims outside the registry were also checked. The Patchstack
+           headline figures in `core-action-gate-proposal.md` §1 and
+           `core-sudo-gate-implementation-spec.md` §1 — 11,334 vulnerabilities in 2025, a
+           42% year-over-year rise, broken access control the most-exploited category,
+           and the quoted fragment about exploits that "look like normal authenticated
+           traffic with no obvious injection patterns" — all four verify against
+           patchstack.com/whitepaper/state-of-wordpress-security-in-2026/ as read
+           2026-07-27. The Abilities-API claim ("three read-only abilities:
+           `core/get-site-info`, `core/get-user-info`, `core/get-environment-info`")
+           verifies against `wp_register_core_abilities()` in
+           `src/wp-includes/abilities.php`, which contains exactly three
+           `wp_register_ability()` calls; note the reading was taken against trunk, which
+           is `7.1-beta3` today, so "as of WP 7.0" is not literally what was checked.
+           The package-signing claim in the proposal's scope paragraph verifies in both
+           of its code halves: `Core_Upgrader::upgrade()` passes `false` for
+           `$check_signatures` (class-core-upgrader.php:128), and verification soft-fails
+           by default — `apply_filters( 'wp_signature_softfail', true, $url )` at
+           wp-admin/includes/file.php:1347. Its third half — "the signed-updates keys
+           lapsed in 2021" — is a project-history claim with no registry row and no
+           source named in the doc; **it was not verified and is not verifiable from
+           source code.** Flagged, not corrected, because it predates this range.
+   Fix:    Two habits this run depended on, neither of which anything enforces: re-derive
+           the release SHA from the issue's newest comment rather than its body, and read
+           the upstream file *around* the cited line rather than the cited line. The
+           second is what turned `GB-NETWORK-EDIT-REDIRECT` from "snippet present, pass"
+           into #63.
+
+61. SIX STAGED FINDINGS TRIAGED — one fully verified, two split, none rejected outright
+    (the #421 handoff comment)
+   Files:  Six findings (A–F) staged on issue #421 by the session that wrote it, handed
+           over rather than logged by that session because it had been running for hours.
+           Verified here before appending; this entry records what survived that check.
+   Claim:  All six describe defects made during the #429 / #433 / #383 work.
+   Reality: **A (a guard whose condition could never be true, five instances)** — the
+           intermediate code states are not in git: PR #433 squash-merged to a single
+           commit (`eb6fe3f`), so `stash_posted_to_its_own_screen()` appears in no commit
+           on any branch. What *is* verifiable is every technical premise the finding
+           rests on, and all of them hold. `wp_get_referer()` returns `false` when the
+           referer equals `REQUEST_URI` (functions.php:1994) and `wp_referer_field()` sets
+           `_wp_http_referer` to `remove_query_arg( '_wp_http_referer' )`, i.e. the render
+           URI (:1937) — so a self-posting form yields no referer, and core's `createuser`
+           form carries no `action` (user-new.php:519). `Action_Registry::rules()` merges
+           `network_rules()` only inside `if ( is_multisite() )` at :664, and
+           `tests/TestCase.php:69` stubs `is_multisite` false for the whole suite — so a
+           walk that does not lift the stub covers the single-site half only. `pagenow`
+           and `method` do live under `$rule['admin']`, not at the rule's top level
+           (class-action-registry.php:340-343). Accepted on its premises.
+           **B (an invariant stated more broadly than proved)** — a reasoning claim, not a
+           code claim; nothing to falsify. Accepted as recorded judgement.
+           **C (prose describing coverage the test did not have)** — the *current* text is
+           true: `test_every_builtin_post_rule_lands_somewhere_usable()` lifts the
+           multisite stub, asserts `settings.php` is in the network-only set, resolves each
+           `pagenow` to a full URL under the right base, and runs the production predicate.
+           The intermediate state it describes is again inside the squash. Accepted on the
+           same basis as A.
+           **D (a release-baseline claim accepted from another session)** — fully verified,
+           and the only one of the six that was. `git show
+           v4.8.0:includes/class-challenge.php` shows the redacted-POST branch at
+           :1041-1046 redirecting to `$stash['return_url']` with a validated fallback —
+           not to the dashboard. So "the Dashboard landing is not new to 4.9.0" was false
+           for the *released* baseline, exactly as the finding says.
+           **E (`--force-with-lease` reported success while discarding a commit)** —
+           `git cat-file -t 951bf42` returns `commit`, and `git merge-base --is-ancestor
+           951bf42 fix/322-rule-tester-accuracy` exits non-zero. The commit exists and is
+           no longer on the branch: consistent with the account, and the object survives,
+           so nothing is lost. Accepted.
+           **F (two defects on one line, one fixed, the hit counted as discharged)** —
+           **split: the artefact is verified, the sweep attribution is not.**
+           *Verified.* `CHANGELOG.md` line 7 read "…and a same-origin request signal —
+           none of which a simulated request shape carries." at `22fe6a5` and `951bf42`,
+           and the phrase is gone at `5597efb` and at `b30691a`. The over-claim is real
+           and was real on the line finding F names. It is false in the way the shipped
+           text now spells out: a simulated shape *does* carry some of those inputs — the
+           URL establishes the scheme, and a recognised target parameter or sensitive
+           field is readable off the submitted shape — so "none of which" overstated by
+           exactly the inputs that are visible.
+           *Not verified, and dropped.* The claim that the line survived a specific
+           earlier sweep because it appeared in that sweep's grep results. The sweep named,
+           #414 (`775c415`), touched `docs/FAQ.md`, `docs/two-factor-integration.md`,
+           `readme.md` and `readme.txt` — never `CHANGELOG.md`. The maintainer has since
+           confirmed this half came from another session's self-report rather than from a
+           check. The rule it teaches — *a line is not discharged because you edited it;
+           re-read what else it says* — is kept, and did produce #64 below. The story of
+           which sweep it survived is not.
+           *The UI-label half is real*: `'Stash/replay eligible:'` existed at
+           `v4.8.0:includes/class-admin.php:2668` and is gone now, asserted by `AdminTest`.
+           This entry's first version rejected F outright on a clean negative that was an
+           artefact of how the history was searched. See #66.
+   Source: git object database and worktree at `b30691a`; wordpress-develop trunk fetched
+           2026-07-27.
+   Notes:  Two of the six needed splitting rather than accepting or rejecting whole. F
+           bundled a real artefact with an unsourced story about how it survived; A
+           bundled verifiable premises with intermediate code states the squash erased.
+           A finding is not one claim, and "accept" / "reject" is the wrong granularity
+           for a handoff written as narrative.
+   Fix:    When handing findings to another session, hand the command that reproduces
+           them, not only the narrative — and hand the SHAs, because for anything about a
+           branch's intermediate state the SHA is the *only* handle that works (#66). Four
+           of these six were checkable in under a minute once the command was obvious. F
+           took three attempts and a correction from the maintainer, entirely because the
+           handoff described the defect without naming a commit that contained it.
+
+62. SCOPE-WORD OVER-CLAIM IN AN UNREGISTERED SPEC CITATION — `__Host-` cookies "only over
+    HTTPS"
+   Files:  docs/security-model.md § Environmental Considerations, "HTTPS and
+           reauthentication replay (#322)"; docs/FAQ.md, the reauthentication-flow answer.
+           Both added in this range by #322 and both ship inside the release zip (#419).
+   Claim:  "The binding rides a `__Host-` prefixed cookie, which browsers accept **only
+           over HTTPS**" — the scope word bolded in the source.
+   Reality: RFC 6265bis §4.1.3.2 makes `__Host-` force `Secure` + `Path=/` + no `Domain`;
+           it says nothing about HTTPS. §4.1.2.5 defines the `Secure` attribute against a
+           "secure channel (typically HTTP over Transport Layer Security)" and leaves the
+           determination to the user agent. Major browsers treat `http://localhost` as a
+           trustworthy origin and do accept `Secure` cookies there — so the sentence is
+           falsifiable on the one non-HTTPS origin a developer actually uses.
+   Source: datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis, §4.1.3.2 and
+           §4.1.2.5, read 2026-07-27.
+   Notes:  The *plugin* is not wrong, which is why this survived review: WP Sudo never
+           delegates the decision to the browser. `Request_Stash::mint_binding_proof()`
+           returns early unless `Sudo_Session::cookie_secure()`
+           (class-request-stash.php:439), and that is `is_ssl() || force_ssl_admin()`
+           filtered through `wp_sudo_cookie_secure` (class-sudo-session.php:934-945). So
+           the paragraph's behavioural half — "on a site not served over HTTPS the binding
+           is never issued" — is true; only its stated *reason* is wrong. A true conclusion
+           resting on a false premise is the shape #59 flagged, and it is the shape that
+           survives review longest.
+           No registry row was added, deliberately. `bin/verify-sources.sh` pins a snippet
+           to a line number in a fetched file; an IETF draft is a moving, re-paginated HTML
+           document, and pinning it would reproduce the `FT-*` moving-branch problem
+           already waived for this release. The prose now states what WP Sudo checks —
+           which is testable in this repository — and cites the spec for the narrow
+           attribute fact only.
+   Fix:    Rewritten in both files: the prefix forces `Secure`, the spec leaves "secure
+           channel" to the user agent, and WP Sudo draws its own line with
+           `is_ssl() || force_ssl_admin()`. The FAQ now defers to the security model rather
+           than carrying a second copy.
+
+63. AN OVER-PRECISE PARAPHRASE OF UPSTREAM STRUCTURE IN A ROW THAT PASSES ITS OWN CHECK —
+    `GB-NETWORK-EDIT-REDIRECT`
+   Files:  docs/upstream-sources.md, `GB-NETWORK-EDIT-REDIRECT` row, added by #433.
+   Claim:  "The two lines immediately following this one are `if ( empty( $action ) ) {
+           wp_redirect( network_admin_url() ); exit; }`".
+   Reality: The cited line is `wp-admin/network/edit.php:13`. Line 14 is blank; the guard
+           occupies lines 15-18. So it is neither "the two lines" nor "immediately
+           following". The row's *conclusion* — a bare network `edit.php` redirects to the
+           network dashboard and exits, discarding the query — is correct, and so is its
+           stated reason for citing the assignment instead of the redirect:
+           `wp_redirect( network_admin_url() );` really does occur twice in the file, at
+           :16 and :40, so citing it would be ambiguous.
+   Source: raw.githubusercontent.com/WordPress/wordpress-develop/trunk/src/wp-admin/network/edit.php,
+           41 lines, fetched and read in full 2026-07-27.
+   Notes:  Worth logging precisely because it is small. `composer verify:sources` passes
+           this row — the snippet is at the line — and the claim it supports is true. The
+           only thing wrong is a sentence describing upstream *layout*, written from a
+           mental image of the file rather than from the file. That is the same generative
+           act as #59's wrong enclosing symbol, one notch less consequential, and nothing
+           mechanical will catch it: no checker reads the "Claim it supports" column.
+   Fix:    Row now says "the next statement after this assignment (a blank line, then a
+           four-line block)". If a row needs to describe surrounding structure, count the
+           lines in the fetched file; if that feels too fussy to bother with, that is the
+           signal the sentence should not make the claim at all.
+
+64. A THIRD-PARTY STATISTIC THAT COULD NOT BE VERIFIED, CARRIED THROUGH A LINE THAT WAS
+    EDITED THIS RELEASE
+   Files:  docs/security-model.md, "Kill chain analysis" paragraph. The line was rewritten
+           in this range (the Sudo-containment half was narrowed after #323/#399); its
+           statistic was carried across untouched.
+   Claim:  "XSS (47.7% of WP vulnerabilities) is primarily dangerous because…"
+   Reality: The 47.7% figure traces to the block above it, which sources the 2024 breakdown
+           to Patchstack's *State of WordPress Security in 2025*. That whitepaper's public
+           page states the total — "7,966 new security vulnerabilities were found in the
+           WordPress ecosystem in 2024" — and describes XSS qualitatively as "the most
+           commonly reported vulnerability type, making up almost half of all the new
+           entries". **The precise 47.7% is not on that page**, nor are the companion
+           figures 14.2% / 11.4% / 1.6% / 1.0%. They may come from a chart or the gated
+           PDF; from the source as published they cannot be confirmed. Separately, the
+           kill-chain sentence carried the number with no year and no source at all, in the
+           present tense, one section below a block that supersedes 2024 with 2025 data.
+   Source: patchstack.com/whitepaper/state-of-wordpress-security-in-2025/ and
+           /state-of-wordpress-security-in-2026/, both read 2026-07-27. The 2026 figures
+           the core-gate docs rely on — 11,334, 42%, broken access control most exploited,
+           and the "normal authenticated traffic" quote — all verify on that page; it is
+           only the 2024 per-category split that does not.
+   Notes:  This is the pattern #421 warned about and the reason it was worth looking: the
+           line was edited this release, so it was "handled", and the half that was not
+           edited was never re-read. One decimal place is a strong claim to make on someone
+           else's behalf.
+   Fix:    The kill-chain sentence now says "the largest discovery category in the 2024
+           breakdown above" and inherits that block's citation, so it carries no unsourced
+           precision and cannot rot into a present-tense claim about a different year. The
+           precise split in the 2024 block itself is left as-is — it predates this range
+           and its own sentence names the year and the report — but it should be re-sourced
+           or coarsened the next time that block is touched.
+
+65. A THIRD-PARTY CITATION THE REGISTRY MIGRATION MISSED — the WP 6.6 dev note, cited as a
+    bare URL in JavaScript
+   Files:  admin/js/wp-sudo-session-indicator.js, the Part B feature-detect comment. Not
+           corrected in this PR: the file is `.js`, and a commit touching it stops being
+           docs-only under `REVIEWER_TEXT_ONLY_PATTERN`.
+   Claim:  Process, not fact. `AGENTS.md` → Prose Discipline says third-party claims are
+           registered once in `docs/upstream-sources.md` and prose carries "a summary and
+           the registry ID, not a seventh copy of the URL". The registry and that rule both
+           landed in this range (#332), and #363/#369 migrated the Fortress and spec
+           citations into it.
+   Reality: The migration left one behind. The comment carries a raw
+           `make.wordpress.org/core/2024/06/18/editor-unified-extensibility-apis-in-6-6/`
+           and the claim that `wp.editor.PluginSidebar` is unified across the post and site
+           editors from 6.6, having lived in `wp.editPost` before. Grepping `includes/` and
+           `admin/` for third-party URLs returns exactly two hits not covered by a `GB-`
+           ID: this one and `spec.graphql.org/draft/` in `class-gate.php` — and the second
+           predates `v4.8.0`, so this is the only one introduced alongside the rule that
+           forbids it.
+   Source: The dev note itself checks out: it states that "WordPress 6.6 unified the
+           different slots and extensibility APIs between the post and site editors", names
+           `wp.editor` / `@wordpress/editor` / `wp-editor` as the new location, and gives
+           `wp.editPost` and `wp.editSite` as the prior ones. Read 2026-07-27. So the claim
+           is TRUE and the readme/CHANGELOG statements resting on it ("on 6.4 and 6.5 the
+           sidebar API is not available") stand.
+   Notes:  This entry's first draft said `bin/verify-sources.sh` "has no way to catch" an
+           unregistered citation and recommended building that scan. **It already exists**
+           and it is a FAIL, not a warning (`add_failure "$rel cites upstream code outside
+           the registry"`, with a shrinking `GRANDFATHERED_ORPHANS` list). The draft was
+           written from the shape of the dangling-ID scan rather than from the file, and
+           was caught only because running `composer verify:sources` printed six
+           `cites upstream code outside the registry (grandfathered)` warnings — the tool
+           contradicting the sentence being written about it. Recorded rather than quietly
+           fixed, because a wrong claim inside a correction is #53's pattern and this is
+           its fourth appearance.
+           What is actually true is narrower and more useful: the scan's three patterns
+           match `raw.githubusercontent.com/o/r`, `plugins.svn.wordpress.org/x`, and
+           `github.com/o/r/blob/`. A `make.wordpress.org` dev note matches none of them,
+           and neither would `patchstack.com`, `owasp.org`, `sucuri.net` or
+           `datatracker.ietf.org` — all of which this repo cites. The gap is host
+           coverage, not the absence of a check.
+   Fix:    Needs a `GB-` row and the URL replaced by the ID in the JS comment; filed as
+           follow-up rather than smuggled into a docs-only PR. The wider question it
+           raises — whether the orphan scan should match citation *hosts* beyond the three
+           code-hosting patterns, given that a `GB-` row's line/snippet check cannot
+           meaningfully pin a prose article anyway — belongs with #361, which is already
+           reconsidering what the registry is for.
+
+66. A CLEAN NEGATIVE THAT WAS AN ARTEFACT OF THE SEARCH — squash-merge and force-push both
+    erase the evidence for findings about intermediate branch states
+   Files:  Method, not a file. It produced the wrong half of #61 (the outright rejection
+           of staged finding F) and would silently produce the same error in every future
+           run of the pre-release audit.
+   Claim:  "`none of which` appears in no version of `CHANGELOG.md` at `v4.8.0`, at any of
+           PR #383's four commits, or on `main` in range." Written after running three
+           searches that all returned empty, and stated as a reason to reject a finding.
+   Reality: It appears on `CHANGELOG.md` **line 7** — the exact line the finding named — at
+           `22fe6a5` and `951bf42`, and is gone by `5597efb`:
+
+               for sha in 22fe6a5 951bf42 5597efb b30691a; do
+                 printf '%-10s ' "$sha"; git show $sha:CHANGELOG.md | grep -c "none of which"
+               done
+               22fe6a5    1
+               951bf42    1
+               5597efb    0
+               b30691a    0
+
+           Every search that missed it was correctly scoped and correctly run. Two
+           independent erasures stacked:
+           **1. The squash-merge.** #383 landed as one commit, so nothing on `main`'s
+           first-parent history records the branch's intermediate states, and a range
+           scoped `v4.8.0..b30691a` cannot reach them by construction.
+           **2. The force-push.** `22fe6a5` and `951bf42` were rewritten off
+           `fix/322-rule-tester-accuracy` — the same force-push staged finding E is about.
+           So `gh pr view 383 --json commits` lists the *surviving* four
+           (`4c0f366c`, `1c5f6938`, `fe3eb809`, `5597efbe`), which is what was swept, and
+           the two commits that carried the defect were not among them.
+   Source: This repository, 2026-07-27. `git merge-base --is-ancestor` reports all three of
+           `22fe6a5`, `951bf42` and `5597efb` unreachable from `b30691a`.
+   Notes:  **The obvious mitigation does not work, and this is the part worth keeping.**
+           The natural fix — "search `git log --all`, not just the range" — was proposed,
+           and it fails here:
+
+               git log --all --oneline -S "none of which" -- CHANGELOG.md   # no output
+               git log --reflog --oneline -S "none of which" -- CHANGELOG.md
+               22fe6a5 fix(322): the Rule Tester must not predict replay at all
+               dfe6b61 fix(322): the Rule Tester must not predict replay at all
+
+           `--all` walks *refs*, and `git branch -a --contains` shows `22fe6a5`, `951bf42`
+           and `dfe6b61` on no branch at all. They survive only as unreachable objects
+           held by the reflog. That makes them recoverable **on this clone and for a
+           limited time**: the reflog is never pushed, and unreachable entries expire under
+           `gc.reflogExpireUnreachable` (unset here, so the 30-day default). On a fresh
+           clone — CI, or a reviewer's checkout — the evidence for finding F does not
+           exist in any form. So the two erasures are not equivalent: the squash-merge
+           blind spot is defeated by `--all` while the branch ref survives; the force-push
+           blind spot is defeated by nothing durable.
+           The failure mode this creates is specific and nasty: the whole category "a
+           defect that was caught and fixed during review" lives in intermediate branch
+           states, so an audit scoped to reachable history returns **confident clean
+           negatives for exactly the findings most worth recording** — and a clean negative
+           reads like diligence.
+   Fix:    Three things, in order of how much they actually buy:
+           1. **A finding about a branch's intermediate state must carry its SHA.** This is
+              the only mitigation that survives a fresh clone, and it is the reporter's job,
+              not the auditor's: by the time the audit runs, the commit may be reachable
+              from nothing.
+           2. When no SHA is given, search `git log --all -S` **and** `git log --reflog -S`
+              before concluding absence, and say which of the two found it — they have
+              different lifetimes and a reflog hit is not reproducible for anyone else.
+           3. Never report "not reproducible" as though it were "did not happen". State the
+              refs searched. #61's first version did not, and the rejection read as a
+              finding rather than as the limit of a search.
