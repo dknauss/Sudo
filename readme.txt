@@ -438,7 +438,7 @@ See the plugin's `CHANGELOG.md` for all versions.
 == Upgrade Notice ==
 
 = 4.9.0 =
-Security release. Everyone must reauthenticate to sudo once after upgrading: the session proof is now a signed, per-login-session record and existing sessions carry no entry. No migration runs. Gated actions are no longer replayed automatically unless the challenge named the whole effect; custom rules whose fields are not recognised targets now require the user to re-issue the action.
+Security release. Everyone must reauthenticate to sudo once after upgrading: existing sessions carry no proof entry and no migration runs. Gated actions are no longer auto-replayed unless the challenge named the whole effect, so some custom rules now need the action re-issued.
 
 = 4.7.0 =
 Feature release: completes the in-editor reauthentication modal deferred from 4.6.0 — an in-place password modal over the block editor with automatic request re-dispatch, plus in-modal two-factor for modal-capable providers (TOTP, email, backup codes). No migration required.
