@@ -1109,7 +1109,7 @@ C2. REDUNDANT MEMORY DUPLICATING CLAUDE.md
     Fix:    Reverted the memory addition. Rule stays where it belongs
             (CLAUDE.md + profiles); the job is to execute it, not re-log it.
 
-54. INVENTED AN ENCLOSING SYMBOL FROM A GREP HIT — `Challenge::handle_replay_response()`
+55. INVENTED AN ENCLOSING SYMBOL FROM A GREP HIT — `Challenge::handle_replay_response()`
    Files:  docs/release-status.md (PR #398), and repeated in messages to three
            concurrent sessions before it was caught.
    Claim:  "`do_action( 'wp_sudo_action_replayed', … )` is live in
@@ -1133,7 +1133,7 @@ C2. REDUNDANT MEMORY DUPLICATING CLAUDE.md
    Fix:    Cite the symbol AND the line together, so the claim is checkable in one
            step. Standing rule already in AGENTS.md; this was a failure to apply it.
 
-55. PROPAGATED ANOTHER SESSION'S RETRACTED ANALYSIS, AND SHIPPED AN UNSAFE REMEDY
+56. PROPAGATED ANOTHER SESSION'S RETRACTED ANALYSIS, AND SHIPPED AN UNSAFE REMEDY
    Files:  docs/release-status.md (PR #398), the `wp_sudo_db_version` artifact note.
    Claim:  (a) The `5.0.0` stamp strands per-site on multisite, remedied by
            `wp site list | xargs -I{} wp --url={} option delete wp_sudo_db_version`.
@@ -1159,7 +1159,7 @@ C2. REDUNDANT MEMORY DUPLICATING CLAUDE.md
            operator action: since the guard is `>=`, the durable fix is the rule that
            no future routine is keyed at or below `5.0.0`.
 
-56. THREE FABRICATED CLAIMS ABOUT ANOTHER SESSION'S WORK — asserted from message
+57. THREE FABRICATED CLAIMS ABOUT ANOTHER SESSION'S WORK — asserted from message
     ordering, never from timestamps
    Files:  Cross-session messages during the four-session 4.9.0 coordination; one of
            the three was broadcast to all four sessions inside a document arguing for
@@ -1194,3 +1194,38 @@ C2. REDUNDANT MEMORY DUPLICATING CLAUDE.md
            verified; naming the SHA puts the evidence in the artifact where the reader
            can check it independently. Adopted for claims about reviews, which is where
            the failures were.
+
+58. THE CROSS-SESSION ANNOUNCEMENTS WERE THE LEAST-VERIFIED ARTIFACT I PRODUCED, AND
+    THE MOST WIDELY DISTRIBUTED
+   Files:  Cross-session messages to four concurrent sessions during the 4.9.0 work.
+           Not a file in this repo, which is the point.
+   Claim:  Numerous, asserted in prose to other agents: that a reviewer's finding was
+           stale (three times, entry 57); that a hook lived in a method that does not
+           exist (repeated to three sessions, entry 55); that another session's
+           multisite analysis was correct after they had retracted it (entry 56); and,
+           in the same message that set out a norm of checking claims before making
+           them, "I checked yours before repeating it" — which was true of one instance
+           and false as the general claim it was offered as.
+   Reality: Every code claim I made went through tests, lint, static analysis, metrics
+           gates, Codex, and a reviewing session. Every claim I made IN A MESSAGE went
+           through nothing. There is no CI for a sentence sent to another agent.
+   Source:  The corrections came from the sessions themselves, in every case.
+   Notes:  Three properties made this channel the worst place to be careless, and I
+           used it the most carelessly:
+           - **No gate.** A PR gets six required checks and a reviewer. A message gets
+             sent.
+           - **High fan-out, and it is acted upon.** One roster went to four sessions
+             at once; one of its six entries was fabricated. Sessions rebased branches,
+             deleted branches, and edited documents on the strength of these messages.
+           - **Retraction does not reach the acted-upon.** Correcting the source does
+             not recall the copies, so a wrong message keeps working after it is fixed.
+           Aggravating: several of these were assertions about ANOTHER session's work,
+           made by the session doing arbitration — maximum credibility, minimum
+           scrutiny. And the shape of the failure was constant throughout: a partial or
+           remembered answer completed from expectation, with the confidence borrowed
+           from some tool having run at all, at some point, about something.
+   Fix:    Treat a cross-session message as a publication, not a conversation. Verify a
+           claim before sending it exactly as before committing it; name the SHA or the
+           command; and when acting on someone else's claim, cite it, so a retraction
+           has a back-edge to travel along. The three habits are cheap and none of them
+           were in place.
