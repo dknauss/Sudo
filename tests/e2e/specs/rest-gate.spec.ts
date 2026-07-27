@@ -40,6 +40,8 @@ import path from 'path';
 import { wpEnvRunCli, containerBash } from '../fixtures/wp-env';
 
 const E2E_REST_NONCE_MU_PLUGIN = 'wp-sudo-e2e-rest-nonce.php';
+const E2E_TARGET_LOGIN = 'wp_sudo_rest_gate_target';
+const WP_PASSWORD = process.env.WP_PASSWORD ?? 'password';
 const LOCAL_SITE_PATH = ( process.env.WP_E2E_SITE_PATH ?? '' ).trim();
 const WP_ENV_PLUGIN_DIR =
     process.env.WP_E2E_PLUGIN_DIR?.trim() || path.basename( process.cwd() );
@@ -83,6 +85,12 @@ async function removeNonceMuPlugin(): Promise< void > {
         ] ),
         { timeout: 30_000 }
     );
+}
+
+/** Run a WP-CLI command, returning stdout. */
+async function wpCli( args: string[] ): Promise< string > {
+    const { stdout } = await wpEnvRunCli( 'cli', args, { timeout: 60_000 } );
+    return stdout;
 }
 
 /** Drop only the sudo cookies, leaving the login session intact. */
@@ -162,13 +170,36 @@ function expectSudoRequired( result: RestResult, what: string ): void {
 
 test.describe( 'REST gate', () => {
     let adminId = '';
+    let targetId = '';
+    let appPasswordAuth = '';
 
     test.beforeAll( async () => {
         await installNonceMuPlugin();
+
+        // Destructive probes never point at the shared admin. If the gate regresses,
+        // REST-01 would otherwise CHANGE the admin password before its assertion fails —
+        // locking every later test out of the site and breaking the wp-env credential.
+        // A disposable subscriber absorbs that instead, and is deleted in afterAll.
+        targetId = ( await wpCli( [
+            'wp', 'user', 'create', E2E_TARGET_LOGIN, 'rest-gate-target@example.com',
+            '--role=subscriber', '--porcelain',
+        ] ) ).trim();
+
+        // Application Password for the Authorization-header half of the Apache lane.
+        // Created for the ADMIN, because the assertion is that a non-gated read
+        // authenticates — not that a subscriber can read users.
+        const appPassword = ( await wpCli( [
+            'wp', 'user', 'application-password', 'create', 'admin', 'rest-gate-e2e', '--porcelain',
+        ] ) ).trim();
+        appPasswordAuth = 'Basic ' + Buffer.from( `admin:${ appPassword }` ).toString( 'base64' );
     } );
 
     test.afterAll( async () => {
         await removeNonceMuPlugin();
+        if ( targetId ) {
+            await wpCli( [ 'wp', 'user', 'delete', targetId, '--yes' ] );
+        }
+        await wpCli( [ 'wp', 'user', 'application-password', 'delete', 'admin', '--all' ] );
     } );
 
     test.beforeEach( async ( { page, visitAdminPage } ) => {
@@ -184,13 +215,16 @@ test.describe( 'REST gate', () => {
     } );
 
     /**
-     * REST-01: #213 — the password-change rule matched only PUT/PATCH, but core
-     * registers the users route under WP_REST_Server::EDITABLE, which includes POST.
+     * REST-01: #213 — the password-change rule matched only PUT/PATCH, so a POST
+     * slipped past it. The rule's own `methods` now lists POST; this test is the
+     * behavioural check that it does, and does not restate why core routes it that
+     * way — that reasoning lives in `Action_Registry`'s own comment, next to the
+     * rule, where it can be checked against the code it describes.
      */
     test( 'REST-01: POST /wp/v2/users/{id} changing a password is gated', async ( {
         page,
     } ) => {
-        const result = await restRequest( page, 'POST', `wp/v2/users/${ adminId }`, {
+        const result = await restRequest( page, 'POST', `wp/v2/users/${ targetId }`, {
             password: 'a-new-password-that-must-not-be-set',
         } );
 
@@ -203,8 +237,13 @@ test.describe( 'REST gate', () => {
     test( 'REST-02: POST /wp/v2/users/me changing a password is gated', async ( {
         page,
     } ) => {
+        // /me must stay pointed at the admin — the route IS the thing under test
+        // (core's update_current_item). Made safe on regression by submitting the
+        // password the admin already has: `user.change_password` gates on key
+        // PRESENCE (`array_key_exists( 'password', … )`, no value comparison), so the
+        // gate still fires, while a regression writes the value that is already set.
         const result = await restRequest( page, 'POST', 'wp/v2/users/me', {
-            password: 'a-new-password-that-must-not-be-set',
+            password: WP_PASSWORD,
         } );
 
         expectSudoRequired( result, 'a REST password change on /me' );
@@ -216,7 +255,7 @@ test.describe( 'REST gate', () => {
     test( 'REST-03: POST /wp/v2/users/{id} changing an email is gated', async ( {
         page,
     } ) => {
-        const result = await restRequest( page, 'POST', `wp/v2/users/${ adminId }`, {
+        const result = await restRequest( page, 'POST', `wp/v2/users/${ targetId }`, {
             email: 'attacker-controlled@example.com',
         } );
 
@@ -229,7 +268,7 @@ test.describe( 'REST gate', () => {
     test( 'REST-04: POST /wp/v2/users/{id} promoting a role is gated', async ( {
         page,
     } ) => {
-        const result = await restRequest( page, 'POST', `wp/v2/users/${ adminId }`, {
+        const result = await restRequest( page, 'POST', `wp/v2/users/${ targetId }`, {
             roles: [ 'administrator' ],
         } );
 
@@ -306,6 +345,47 @@ test.describe( 'REST gate', () => {
             'with an active sudo session the same write must pass the gate'
         ).toBe( 200 );
         expect( changed.code, 'an active sudo session must not produce a gate refusal' ).toBeNull();
+    } );
+
+    /**
+     * REST-09: Application Password authentication over the `Authorization` header.
+     *
+     * This is the half of #273's Apache lane that cookie auth cannot cover. The lane
+     * exists because `mod_rewrite`/`mod_headers` can silently drop `Authorization`
+     * before PHP sees it — a server-layer failure invisible to every other test here,
+     * and one that would disable App-Password auth entirely while the gate itself
+     * looked healthy.
+     *
+     * Deliberately a NON-gated read: the assertion is that the credential survives the
+     * hop and authenticates. Gating behaviour for App-Password callers is a policy
+     * question covered by `tests/Integration/RestGatingTest.php`, not a routing one.
+     */
+    test( 'REST-09: Application Password auth survives the Authorization header', async ( {
+        page,
+    } ) => {
+        const result = await page.evaluate( async ( auth ) => {
+            const response = await fetch( '/wp-json/wp/v2/users/me?context=edit', {
+                headers: { Authorization: auth as string },
+                // Cookies would authenticate this regardless and mask a dropped header.
+                credentials: 'omit',
+            } );
+            let body: unknown = null;
+            try {
+                body = await response.json();
+            } catch {
+                body = null;
+            }
+            return { status: response.status, body };
+        }, appPasswordAuth );
+
+        expect(
+            result.status,
+            'the Authorization header must reach PHP — a 401 here means the server dropped it'
+        ).toBe( 200 );
+        expect(
+            ( result.body as { slug?: string } )?.slug,
+            'the authenticated identity must be the admin the app password belongs to'
+        ).toBe( 'admin' );
     } );
 
     /**
