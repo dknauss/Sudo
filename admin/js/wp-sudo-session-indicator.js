@@ -237,11 +237,15 @@
 	} );
 
 	// --- Part B: feature-detected PluginSidebar (WP 6.6+ unified API) --------
-	// The unified wp.editor.PluginSidebar renders in BOTH the post and site editors
-	// starting in WordPress 6.6; before 6.6 it existed only as wp.editPost.PluginSidebar
-	// (post editor only). Verified against the 6.6 dev note "Editor unified extensibility
-	// APIs in 6.6" (make.wordpress.org/core/2024/06/18/editor-unified-extensibility-apis-in-6-6/).
-	// Below 6.6 wp.editor.PluginSidebar is absent and Part A (snackbar) carries the feature.
+	// wp.editor.PluginSidebar is the slot to register against: the component asks for the
+	// `core` complementary-area scope (GB-SIDEBAR-CORE-SCOPE), and the older
+	// wp.editPost.PluginSidebar is now a deprecation shim pointing callers at it, its
+	// notice dating the move at 6.6 (GB-EDITPOST-SLOT-DEPRECATED). So the guard below
+	// tests the location core itself points at. It is a feature detect, not a version
+	// test: wherever wp.editor.PluginSidebar is absent, Part A (snackbar) carries the
+	// feature alone.
+	// Each GB-* ID resolves to a row in docs/upstream-sources.md with the raw URL, line,
+	// and snippet; bin/verify-sources.sh checks them.
 	var PluginSidebar = wp.editor && wp.editor.PluginSidebar;
 	var registerPlugin = wp.plugins && wp.plugins.registerPlugin;
 	if ( ! PluginSidebar || ! registerPlugin ) {
