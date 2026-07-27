@@ -94,12 +94,32 @@ This slice implements a **reusable 15-minute window**. The spec has since moved 
 
 §11 item 3 ("flat freshness vs. scope-bound windows") is now **closed** — *"with no reusable window there is nothing to scope."* So what this slice does is not the spec's v1 recommendation; it is a **superseded** model that happens to be enough to demonstrate the seam.
 
-Concretely, the slice is missing:
+**What this slice is evidence about, and what it is not.** The spec is normative for *mechanism*; this slice is evidence about *behaviour*. It exercises a session-scoped proof with a TTL — the model that was current when it was written — and demonstrates two things that do not depend on which proof model is used:
 
-- **Per-action digest binding and single use.** Within its TTL the proof authorises *any* package write, so a session-riding attacker could substitute a different install ([#308](https://github.com/dknauss/Sudo/issues/308), and §5.1's redemption contract).
-- **An HMAC-signed record.** `has_proof()` trusts a transient. §4.2 requires the MAC to cover the proof hash, and a cache-bypassing read on the enforcement path, precisely because that storage is poisonable ([#310](https://github.com/dknauss/Sudo/issues/310)).
+- a copied login cookie cannot inherit a proof issued to another browser, and
+- `install_package()` fires after `unpack_package()`, so it is too late on its own.
 
-Both are tracked for alignment. The seam findings above — that the veto exists, and that `install_package()` fires too late — are independent of the proof model and stand regardless.
+Both hold under per-action step-up too. Neither is a claim that the TTL model is the right one.
+
+Concretely, the slice does **not** implement:
+
+- **Per-action digest binding and single use**, which §5.1 now requires. (Do not read the older #308 here as an open gap — it is **closed**, resolved by construction when §4.2 moved to per-action step-up: with no reusable window there is nothing to scope.)
+- **An HMAC-signed record.** `has_proof()` trusts a transient. §4.2 requires the MAC to cover the proof hash and a cache-bypassing read on the enforcement path, because that storage is poisonable ([#310](https://github.com/dknauss/Sudo/issues/310)).
+
+Reconciling the slice to per-action proofs is worthwhile but is not a prerequisite for either finding above.
+
+## Two traps this slice walked into, for whoever writes the next one
+
+**Drive the entry point, not the sink.** The first version of these tests called `install_package()` directly. That proves the check works *when reached* and says nothing about *whether it is reached* — which is exactly how the `unpack_package()` ordering above went unnoticed until a reviewer read `run()`. A gate test that invokes the gate is not a test of the gate's placement. Drive `run()`, or the admin request, or the REST route.
+
+**`git diff A B` does not answer "what would merging do."** It is a two-tree diff: files present on `A` and absent on `B` are reported as deletions, which reads exactly like `B` will delete them. It will not — a merge applies `B`'s diff *relative to its merge base*, so commits added to `A` afterwards survive. Ask the real question with:
+
+```bash
+git merge-tree $(git merge-base <branch> origin/main) <branch> origin/main   # paths from main show as `their`
+git diff $(git merge-base <branch> origin/main) <branch> -- <path>          # empty ⇒ branch never touched it
+```
+
+This cost a false alarm that `poc/` was about to be deleted by a stale branch. It wasn't.
 
 ## Running it
 
