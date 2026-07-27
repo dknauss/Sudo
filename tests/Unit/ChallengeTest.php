@@ -2052,6 +2052,48 @@ class ChallengeTest extends TestCase
 	}
 
 	/**
+	 * #322: a TRUTHY NON-ARRAY target is refused.
+	 *
+	 * This is the only input that reaches the `! is_array()` half of the guard — an
+	 * empty array and a missing key both trip `empty()` first. Without this test that
+	 * half is unverified: deleting `! is_array( $stash['target'] )` leaves the entire
+	 * suite green, so a refactor could drop it silently.
+	 *
+	 * What it defends is a corrupted or hand-forged stash whose `target` is a scalar.
+	 * The stash lives in a transient, and the threat model this whole feature is
+	 * written against (#278) includes an attacker who can write into the object cache —
+	 * so a non-array `target` is a shape the enforcement path can actually be handed,
+	 * not merely a type-system nicety. `foreach` over a scalar would emit a warning and
+	 * describe nothing, which is the vacuous-confirmation failure again by another
+	 * route.
+	 */
+	public function test_bound_stash_with_non_array_target_is_not_replayed(): void
+	{
+		$secret = 'super-secret-proof';
+		$_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE] = $secret;
+
+		$stash = $this->boundPostStash($secret);
+		$stash['target'] = 'plugins.php?plugin=evil.php'; // truthy, but not an array
+		$stash['target_complete'] = true;
+
+		$this->stash->shouldReceive('get')->once()->andReturn($stash);
+		$this->stash->shouldReceive('delete')->once();
+		$this->stubReplayEnv();
+
+		$data = $this->invokeReplay('scalar-target-key', true);
+
+		$this->assertArrayNotHasKey(
+			'replay',
+			$data,
+			'A stash whose target is not an array must fall back to the v1 landing'
+		);
+		$this->assertArrayNotHasKey('post_data', $data);
+		$this->assertTrue($data['post_replay_blocked']);
+
+		unset($_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE]);
+	}
+
+	/**
 	 * #322: a missing `target` key is the same refusal as an empty one.
 	 *
 	 * Guards the shape rather than one value — a stash written by an older build, or
