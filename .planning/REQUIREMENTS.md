@@ -1,65 +1,127 @@
-# Requirements: WP Sudo — v4.5 Session Governance & Admin UX
+# Requirements: Action Gate Research Program
 
-**Defined:** 2026-06-30
-**Core Value:** Every destructive WordPress admin action requires proof that the person at the keyboard is still the authenticated user — not a hijacked session, XSS payload, or unattended browser.
+**Defined:** 2026-07-27
+**Core value:** Prove a narrow, reviewable core boundary and a safe, usable
+pause-before-send flow for two executable-code effects.
 
-## v4.5 Requirements
+## Architecture truth
 
-Requirements for the Session Governance & Admin UX milestone. Each maps to a roadmap phase.
+- [ ] **ARCH-01:** One canonical architecture document distinguishes early veto,
+  preflight UX, and action-bound proof, and identifies only early veto as the
+  non-bypassable server boundary.
+- [ ] **ARCH-02:** The proposal separates copied-cookie, session-riding XSS, active
+  same-origin XSS, and malicious-server-code attackers; each closure claim names
+  the attacker it actually covers.
+- [ ] **ARCH-03:** Superseded registry-first, reusable-window, request-replay, and
+  same-document-modal claims are clearly retired from active implementation docs.
 
-### Session Revocation
+## Early veto
 
-- [x] **REVK-01**: An authorized admin can revoke another user's active sudo session via a "Revoke sudo session" Users-list row action, shown only for users in the active-session set (the same `_wp_sudo_expires > time()` enumeration as the existing "Sudo Active" filter). On multisite it acts on the current site's session; the operator's own row is excluded because the admin bar already ends one's own session.
-- [x] **REVK-02**: An authorized admin can revoke all active sudo sessions **on the current site** from the UI, behind a confirmation step. Single-user revocation acts immediately; only revoke-all confirms. (Scope decision, per 24-CONTEXT.md: v4.5 revoke-all is current-site-scoped — the same `_wp_sudo_expires > time()` enumeration the CLI and the per-site "Sudo Active" view use. True cross-site/network-wide revoke-all is deferred to REVK-F3.)
-- [x] **REVK-03**: Session revocation honors existing guardrails on every UI path — the `revoke_wp_sudo_sessions` capability, the per-revoker rate limit, and the `wp_sudo_session_revoked` audit hook.
-- [x] **REVK-04**: The Access-tab capability-holder table no longer offers per-holder session revocation (the "Revoke Session" button is removed). That table governs capabilities only; session revocation lives on the Users list.
-- [x] **REVK-05**: Every session-revocation path gives the operator clear, visible success and failure feedback — including a distinct, actionable message when the action is blocked because the operator has no active sudo session (the action is itself gated) or lacks `revoke_wp_sudo_sessions`. Never a silent no-op.
+- [ ] **VETO-01:** A veto-capable core seam runs immediately before plugin/theme
+  package installation writes executable files.
+- [ ] **VETO-02:** A veto-capable core seam runs immediately before plugin/theme
+  file-editor writes executable content.
+- [ ] **VETO-03:** Refusal has a structured error contract, propagates accurately to
+  callers, produces no success action/response, and leaves no partial effect.
+- [ ] **VETO-04:** Direct admin, AJAX/REST where applicable, and programmatic calls
+  to the in-scope effect reach the same server decision or have a documented,
+  tested exclusion.
+- [ ] **VETO-05:** Removing or bypassing each veto makes its named negative test
+  fail for the expected reason.
 
-### Governance Coverage Panel
+## Action-bound approval
 
-- [ ] **GCOV-01**: The "Sudo governance coverage" panel names the correct admin capability for the context (`manage_options` on single-site, `manage_network_options` on multisite).
-- [ ] **GCOV-02**: The coverage panel measures effective `wp_sudo_can()` access rather than raw `allcaps` — correct on single-site (listing unchanged) and multisite (super admins with effective access are not listed).
+- [ ] **PROOF-01:** Approval binds actor, login session, action, target, and
+  security-relevant parameters or content digest.
+- [ ] **PROOF-02:** Approval is short-lived, single-use, and atomically consumed
+  by a compare-and-delete or equivalently linearizable operation before the
+  effect; concurrent redemption cannot execute twice.
+- [ ] **PROOF-03:** A cloned authentication cookie cannot mint, discover, or redeem
+  approval issued to another browser merely because it can mint valid WP nonces.
+- [ ] **PROOF-04:** Failure of proof storage or verification fails closed for the
+  experimental gated effect.
+- [ ] **PROOF-05:** No general recent-auth window authorizes a different action.
 
-## Future Requirements
+## Trust and confirmation
 
-Deferred to a later milestone. Tracked but not in current roadmap.
+- [ ] **TRUST-01:** The design states where credentials and final action details are
+  displayed and why that surface is or is not trustworthy against active
+  same-origin XSS.
+- [ ] **TRUST-02:** Trusted UI names the concrete action and target from
+  server-defined data; attacker-controlled values render only as escaped data.
+- [ ] **TRUST-03:** The approval handoff cannot silently become an ambient,
+  general-purpose bearer available to any same-origin request.
+- [ ] **TRUST-04:** If active same-origin XSS is not closed by the first slice, every
+  proposal and demo says so plainly and makes no general “XSS → RCE closed” claim.
 
-### Session Revocation
+## wp-admin experience
 
-- **REVK-F1**: Access-tab "Active Sessions" panel — an in-settings list of all session-holders with per-row revoke (v4.5 uses the Users-list row action instead).
-- **REVK-F2**: Session metadata in the revoke UI — expiry countdown and bound context shown alongside the revoke control.
-- **REVK-F3**: Cross-site selective session revocation beyond the network-wide "revoke all" (e.g. per-site revocation from network admin).
+- [ ] **UX-01:** Integrated screens pause before transmission and preserve unsent
+  form state, upload selection, and validation state locally.
+- [ ] **UX-02:** A server preflight identifies the required action descriptor; the
+  client does not infer security decisions from URLs or rule-tester rows.
+- [ ] **UX-02A:** Preflight enforces the same action capability before describing
+  a target, rate-limits callers, and returns no target/state information that the
+  caller is not already authorized to read.
+- [ ] **UX-03:** After approval, the original operation is sent once. No server-side
+  stash reconstructs or automatically executes it.
+- [ ] **UX-04:** Without JavaScript or integration, the server refuses safely and
+  instructs the user to reauthenticate and resubmit; it never auto-replays.
+- [ ] **UX-05:** Cancellation, expiration, wrong factor, duplicate submit, and
+  changed-target paths preserve security and give honest recovery guidance.
+- [ ] **UX-06:** The server records a privacy-preserving diagnostic when an
+  integrated action reaches the veto without a valid preflight correlation, so
+  broken JavaScript, CSP, or plugin conflicts degrade safely but not invisibly.
 
-## Out of Scope
+## Demonstrator and evidence
 
-Explicitly excluded for v4.5. Documented to prevent scope creep.
+- [ ] **DEMO-01:** One reproducible environment demonstrates plugin/theme ZIP
+  upload and plugin/theme editor save with the experimental boundary on and off.
+- [ ] **DEMO-02:** A two-browser cloned-cookie test proves the exact copied-session
+  property and includes a differential unpatched control.
+- [ ] **DEMO-03:** Browser tests cover integrated, cancelled, expired, duplicate,
+  no-JavaScript, and direct-request paths.
+- [ ] **DEMO-04:** Each core-source assertion and patch is pinned to a
+  `wordpress-develop` commit SHA.
+- [ ] **DEMO-05:** The demonstrator explains which parts came from WP Sudo,
+  `poc/install-package-gate`, `wip/coregate-unit1`, and
+  `consequential-actions`, and which prior assumptions it rejects.
+- [ ] **DEMO-06:** Slice A and the original `consequential-actions` MVP remain
+  reproducible at immutable commits/tags; the successor work is additive and does
+  not rewrite the historical experiments into appearing architecturally current.
 
-| Feature | Reason |
-|---------|--------|
-| Access-tab "Active Sessions" panel | Chose the Users-list row action for v4.5 — it reuses the existing "Sudo Active" enumeration and lives where admins already manage users. |
-| Session metadata in revoke UI (countdown, bound IP) | Not required to perform a revocation; adds UI surface and potential info exposure — deferred. |
-| Cross-site selective revocation | Network-wide revoke-all covers the bulk case; per-site selection is a larger multisite feature. |
-| REST API session-revocation endpoint | Feature work; revocation stays an authenticated admin-UI/CLI action. |
+## Proposal readiness
+
+- [ ] **CORE-01:** The first upstream ask is limited to veto-capable seams and the
+  minimum approval contract required by the two effects.
+- [ ] **CORE-02:** The actions registry appears only as a possible later companion,
+  with no claim that it provides enforcement or must resemble Abilities.
+- [ ] **CORE-03:** Automation, provenance, broad identity-pivot coverage, and a
+  full wp-admin action-confirmation framework are explicitly follow-up work.
+- [ ] **CORE-03A:** Cut 1 states that plugin authors cannot register arbitrary
+  consequential actions; a general extension mechanism is deferred with the
+  registry/API work.
+- [ ] **CORE-04:** An independent reviewer can reproduce the demo, identify every
+  security assumption, and kill every claimed guard with the named mutation.
+
+## Out of scope
+
+- Production readiness or another normal plugin release.
+- Comprehensive coverage of all dangerous WordPress operations.
+- A general consequential-actions registry or Actions API.
+- Plugin sandboxing or protection from arbitrary in-process PHP.
+- Solving package authenticity or WordPress.org signed updates.
+- Automation/provenance policy for cron, WP-CLI, XML-RPC, or Application Passwords.
+- A polished universal wp-admin component before the two-action slice is proven.
 
 ## Traceability
 
-Which phases cover which requirements. Updated during roadmap creation.
-
-| Requirement | Phase | Status |
-|-------------|-------|--------|
-| REVK-01 | Phase 24 | Complete |
-| REVK-02 | Phase 24 | Complete |
-| REVK-03 | Phase 24 | Complete |
-| REVK-04 | Phase 24 | Complete |
-| REVK-05 | Phase 24 | Complete |
-| GCOV-01 | Phase 25 | Pending |
-| GCOV-02 | Phase 25 | Pending |
-
-**Coverage:**
-- v4.5 requirements: 7 total
-- Mapped to phases: 7
-- Unmapped: 0 ✓
-
----
-*Requirements defined: 2026-06-30*
-*Last updated: 2026-07-01 — Phase 24 plan 03 complete: REVK-04 marked Complete (Access-tab "Revoke Session" button removed, orphaned AJAX path consolidated). Phase 24 is now fully complete (REVK-01..05). Manual browser-based UI verification of REVK-01..05 remains deferred to a browser-capable session — see STATE.md Pending Todos.*
+| Requirement family | Phase |
+|---|---|
+| ARCH | 26 |
+| TRUST | 27 |
+| VETO | 28 |
+| PROOF | 29 |
+| UX | 30 |
+| DEMO | 31 |
+| CORE | 32 |
