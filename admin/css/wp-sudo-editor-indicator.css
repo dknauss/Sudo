@@ -11,23 +11,24 @@
  * `wp-sudo-editor-session-active`, so in the default editor an active session paints
  * nothing. See the rule's own comment below for why that mode is the exception.
  *
- * Deliberately not a chip per state. Core applies no semantic background colour to
- * these buttons: the pressed state fills with a neutral token,
- * `background: $components-color-foreground`
- * (packages/components/src/button/style.scss L342-348, Gutenberg trunk, fetched
- * 2026-07-26). A green chip for the whole session would both invent a convention and
- * hold colour in the header for the full session duration; the active and inactive
- * states are carried by the GLYPH instead (lock / unlock / warning in
- * admin/js/wp-sudo-session-indicator.js), which IS a core pattern on this control —
- * core itself swaps the icon out conditionally here (`icon={ showIconLabels ? check :
- * icon }`, complementary-area/index.js L280), and ComplementaryAreaToggle takes a
- * state-driven icon by design (`icon={ selectedIcon && isSelected ? selectedIcon :
- * icon }`, complementary-area-toggle/index.js L58). Colour reinforces the one urgent
- * moment rather than encoding the whole vocabulary, so wherever the glyph is ours the
- * states stay distinguishable in greyscale, under colour-vision deficiency, and in
- * forced-colors mode without depending on this file at all. Where the glyph is NOT
- * ours — core's "Show button text labels" preference takes the icon slot — this file
- * carries the active state instead, because nothing else can.
+ * Deliberately not a chip per state. Core's pressed state fills with a neutral token
+ * rather than a status colour (GB-PRESSED-FILL). A green chip for the whole session
+ * would both invent a convention and hold colour in the header for the full session
+ * duration; the active and inactive states are carried by the GLYPH instead (lock /
+ * unlock / warning in admin/js/wp-sudo-session-indicator.js), which IS a core pattern
+ * on this control — core swaps the icon out conditionally itself (GB-ICON-SWAP), and
+ * ComplementaryAreaToggle takes a state-driven icon by design (GB-SELECTED-ICON).
+ * Colour reinforces the one urgent moment rather than encoding the whole vocabulary,
+ * so wherever the glyph is ours the states stay distinguishable in greyscale, under
+ * colour-vision deficiency, and in forced-colors mode without depending on this file
+ * at all. Where the glyph is NOT ours — core's "Show button text labels" preference
+ * takes the icon slot — this file carries the active state instead, because nothing
+ * else can.
+ *
+ * Every GB-* ID above resolves to a row in docs/upstream-sources.md carrying the raw
+ * URL, line, exact snippet, and enclosing symbol; `composer verify:sources` checks
+ * each one against live upstream. Do not re-copy those details here — a citation
+ * duplicated across files is a citation that goes stale in all but one of them.
  *
  * Token source: admin/css/wp-sudo-admin-bar.css (verified — same red, same hover red,
  * same white glyph). Contrast against the white glyph: 5.62:1 expiring, 6.57:1
