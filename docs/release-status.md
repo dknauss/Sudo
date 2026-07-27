@@ -176,7 +176,11 @@ alarm — and `5.0.0` is wanted for the core-gate work, which will genuinely bre
 contracts.
 
 **Known artifact on sites that ran the unreleased `5.0.0` build.** Any dev or staging
-install activated during that window carries `wp_sudo_db_version` stamped `5.0.0`.
+install that served **any admin or WP-CLI request** while running that build carries
+`wp_sudo_db_version` stamped `5.0.0`. Activation is not required and is not the usual
+route: `Plugin::init()` calls `maybe_upgrade()` on every `is_admin()` or `WP_CLI`
+request, so simply loading wp-admin once was enough. An operator who never activated
+the build is not thereby unaffected.
 `Upgrader::maybe_upgrade()` returns early whenever the stored version is `>=`
 `WP_SUDO_VERSION`, so after the rollback it is never rewritten — and a future routine
 registered at `4.9.x`, **or at the real `5.0.0` when it ships**, would be skipped there.
