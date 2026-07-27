@@ -2218,22 +2218,7 @@ class ChallengeTest extends TestCase
 		// earlier cut of this test listed bare filenames, so `edit.php` absolved BOTH —
 		// meaning the test stayed green even when the network edit.php clause was
 		// removed from production, re-hiding the exact defect it was written to catch.
-		$verified_screens = array(
-			'https://example.com/wp-admin/authorize-application.php',
-			'https://example.com/wp-admin/edit.php',
-			'https://example.com/wp-admin/options-general.php',
-			'https://example.com/wp-admin/plugin-editor.php',
-			'https://example.com/wp-admin/plugins.php',
-			'https://example.com/wp-admin/profile.php',
-			'https://example.com/wp-admin/theme-editor.php',
-			'https://example.com/wp-admin/themes.php',
-			'https://example.com/wp-admin/update-core.php',
-			'https://example.com/wp-admin/user-new.php',
-			'https://example.com/wp-admin/users.php',
-			// Network Settings renders on a bare GET; network edit.php does not and is
-			// caught by the handler predicate, so it is deliberately absent here.
-			'https://example.com/wp-admin/network/settings.php',
-		);
+		$verified_screens = $this->verifiedScreens();
 
 		$single = $this->postCapablePagenow();
 
@@ -2297,6 +2282,150 @@ class ChallengeTest extends TestCase
 				. 'usable screen, add it to $verified_screens; if it renders a blank page, '
 				. 'a wp_die(), a raw dump, or a redirect that drops the query, add it to '
 				. 'Challenge::HANDLER_ENDPOINTS with a registry row for the evidence.'
+		);
+	}
+
+	/**
+	 * #463: the post-reauth notice must not name a form.
+	 *
+	 * Before 4.9.0 only POSTs reached this notice, so "review the form and submit it
+	 * again" pointed at a real form on the originating screen. Now every stash takes
+	 * the refusal path and four landing combinations reach it:
+	 *
+	 *   GET, query stripped, non-handler  -> originating list screen
+	 *   GET, queryless                    -> dashboard
+	 *   POST, non-handler                 -> originating screen
+	 *   POST on a HANDLER_ENDPOINTS file  -> dashboard
+	 *
+	 * Not that these screens lack forms — plugins.php and users.php render bulk-action
+	 * forms and the dashboard renders Quick Draft. None of them presents the form for
+	 * the action being repeated, which is what the copy told the user to look for.
+	 *
+	 * The last row is why selecting wording by $stash['method'] would not fix it:
+	 * is_handler_endpoint() sends a POST to options.php or user-edit.php to the
+	 * dashboard as well. Method does not decide what the user finds when they land,
+	 * so one wording accurate for all four rows is both correct and cheaper than a
+	 * query-arg vocabulary change.
+	 */
+	public function test_blocked_replay_notice_does_not_mention_a_form(): void
+	{
+		Functions\when('esc_html__')->returnArg(1);
+
+		$_GET[\WP_Sudo\Challenge::BLOCKED_REPLAY_QUERY_ARG] = '1';
+
+		ob_start();
+		$this->challenge->render_blocked_replay_notice();
+		$output = (string) ob_get_clean();
+
+		unset($_GET[\WP_Sudo\Challenge::BLOCKED_REPLAY_QUERY_ARG]);
+
+		$this->assertNotEmpty($output, 'The notice did not render at all.');
+		$this->assertStringNotContainsStringIgnoringCase(
+			'form',
+			$output,
+			'The notice still tells the user to review a form. None of the four landing '
+				. 'combinations presents the form for the action being repeated — the two '
+				. 'dashboard rows do not even show the originating screen, and a '
+				. 'link-driven action never had a form at all. Several of these screens '
+				. 'do render some form (plugins.php and users.php have bulk-action forms, '
+				. 'the dashboard has Quick Draft), which is why naming one misdirects '
+				. 'rather than merely being vague.'
+		);
+		$this->assertStringContainsString(
+			'Reauthentication complete',
+			$output,
+			'The notice must still confirm the reauthentication succeeded.'
+		);
+	}
+
+	/**
+	 * #434: a URL cannot be both a handler and a verified screen.
+	 *
+	 * The two lists make contradictory claims about the same URL.
+	 * Challenge::HANDLER_ENDPOINTS means "a bare GET here renders nothing usable";
+	 * $verifiedScreens means "a bare GET here renders a usable screen, read in
+	 * wordpress-develop". Both cannot be true, so overlap is always a mistake in
+	 * one of them.
+	 *
+	 * Without this, the overlap is invisible: the walk in
+	 * test_every_builtin_post_rule_lands_somewhere_usable() checks the handler
+	 * predicate FIRST and continues on a match, so a URL in both lists is absolved
+	 * by the handler branch and its verified-screen entry is never consulted.
+	 * Adding a real screen to HANDLER_ENDPOINTS then silently demotes every refused
+	 * POST on it to the dashboard while the suite stays green — demonstrated in
+	 * review with themes.php.
+	 *
+	 * Reordering the two checks would not fix that; it is the mirror-image bug. The
+	 * verified-screen branch would absolve first, HANDLER_ENDPOINTS membership would
+	 * go unconsulted, and the walk would assert a usable screen for a URL production
+	 * diverts to the dashboard. Same green suite, opposite lie. Disjointness is what
+	 * makes the ordering irrelevant.
+	 *
+	 * Asserted through the production predicate on the real URL, not by intersecting
+	 * filenames: is_handler_endpoint() matches the basename against the constant AND
+	 * carries a separate context clause for network edit.php, which is why site
+	 * edit.php is legitimately a verified screen while the network one is a handler.
+	 * A filename-level intersection does not cover that clause.
+	 */
+	public function test_handler_endpoints_and_verified_screens_are_disjoint(): void
+	{
+		$overlap = array();
+
+		foreach ($this->verifiedScreens() as $url) {
+			if ($this->isHandlerEndpoint($url)) {
+				$overlap[] = $url;
+			}
+		}
+
+		$this->assertSame(
+			array(),
+			$overlap,
+			'These URLs are in BOTH Challenge::HANDLER_ENDPOINTS and $verifiedScreens, '
+				. 'which claim opposite things about what a bare GET renders. Decide which '
+				. 'is true and remove the other entry: if the bare GET renders a usable '
+				. 'screen, drop it from HANDLER_ENDPOINTS; if it renders a blank page, a '
+				. 'wp_die(), a raw dump, or a redirect that drops the query, drop it from '
+				. '$verifiedScreens.'
+		);
+	}
+
+	/**
+	 * Admin URLs whose bare GET was read in wordpress-develop trunk and renders a
+	 * usable screen.
+	 *
+	 * Only pages the walk can actually reach are listed: a rule with method GET is
+	 * skipped, so its pagenow does not belong here — listing one would imply
+	 * coverage this test does not have.
+	 *
+	 * Keyed by URL, not filename, and that is load-bearing. edit.php is the Posts
+	 * list in site admin (a real screen) and a bare handler under network admin. An
+	 * earlier cut of this list used bare filenames, so `edit.php` absolved BOTH —
+	 * meaning the test stayed green even when the network edit.php clause was
+	 * removed from production, re-hiding the exact defect it was written to catch.
+	 *
+	 * Shared by the landing walk and the #434 disjointness guard. Kept in one place
+	 * on purpose: two copies of this list diverging is the same class of silent
+	 * failure the guard exists to catch.
+	 *
+	 * @return string[]
+	 */
+	private function verifiedScreens(): array
+	{
+		return array(
+			'https://example.com/wp-admin/authorize-application.php',
+			'https://example.com/wp-admin/edit.php',
+			'https://example.com/wp-admin/options-general.php',
+			'https://example.com/wp-admin/plugin-editor.php',
+			'https://example.com/wp-admin/plugins.php',
+			'https://example.com/wp-admin/profile.php',
+			'https://example.com/wp-admin/theme-editor.php',
+			'https://example.com/wp-admin/themes.php',
+			'https://example.com/wp-admin/update-core.php',
+			'https://example.com/wp-admin/user-new.php',
+			'https://example.com/wp-admin/users.php',
+			// Network Settings renders on a bare GET; network edit.php does not and is
+			// caught by the handler predicate, so it is deliberately absent here.
+			'https://example.com/wp-admin/network/settings.php',
 		);
 	}
 

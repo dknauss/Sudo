@@ -84,7 +84,12 @@ class Public_API {
 	 *   current request's authenticated user to be treated as authorized.
 	 * - rule_id (string): audit rule ID, defaults to public_api.require.
 	 * - redirect (bool): when false, fail with `false` instead of redirecting.
-	 * - return_url (string): optional challenge cancel/return URL.
+	 * - return_url (string): **inert since 4.9.0 (#322).** Still accepted and still
+	 *   emitted into the challenge URL, but nothing consumes it — the user is landed
+	 *   on a neutral admin page instead. Passing it non-empty raises
+	 *   `_deprecated_argument( 'wp_sudo_require', … )` (#461). Suppress in tests with
+	 *   `setExpectedDeprecated( 'wp_sudo_require' )`, or route the user onward
+	 *   yourself once this returns true.
 	 *
 	 * @since 2.12.0
 	 *
@@ -100,6 +105,43 @@ class Public_API {
 		);
 
 		$args = array_merge( $defaults, $args );
+
+		// #461: `return_url` went inert in 4.9.0 (#322) — still accepted, still
+		// emitted into the challenge URL, consumed by nothing. Emission is retained
+		// deliberately (the 4.9.0 docs say so, and PublicApiTest pins it); what was
+		// missing is any runtime signal, so an integrator's users just landed on the
+		// dashboard with nothing anywhere saying why.
+		//
+		// _deprecated_argument(), not _doing_it_wrong(): the caller made no mistake.
+		// They passed a documented argument that still appears in the reference. Core
+		// reserves _doing_it_wrong() for caller error and provides this function for
+		// "this argument no longer does anything", routing to E_USER_DEPRECATED and
+		// `deprecated_argument_run` so aggregators bucket it apart from real bugs.
+		//
+		// The version is 4.9.0 because core's contract for this parameter is "the
+		// version that deprecated the argument used" — not the version this notice
+		// ships in, which is _doing_it_wrong()'s different convention.
+		//
+		// Reported as `wp_sudo_require`, the symbol integrators actually call and the
+		// documented handle for setExpectedDeprecated(), rather than __METHOD__ —
+		// which would name a class method most callers never type.
+		//
+		// Fired before every early return below: the argument is inert regardless of
+		// whether a user resolves, whether a session is already active, or whether
+		// `redirect` is false. Placing it after the self::check() short-circuit would
+		// mean an integrator whose users usually hold a live session sees this rarely
+		// or never, which is the silence being fixed.
+		//
+		// Keyed on the caller's argument, never on the emitted value:
+		// sanitize_return_url() falls back to HTTP_REFERER, so the emitted URL is
+		// often non-empty on calls that never named the argument.
+		if ( isset( $args['return_url'] ) && is_string( $args['return_url'] ) && '' !== $args['return_url'] ) {
+			_deprecated_argument(
+				'wp_sudo_require',
+				'4.9.0',
+				esc_html__( 'The return_url argument has no effect. Automatic navigation to a caller-supplied destination after reauthentication was removed in 4.9.0, because it would run under the sudo authority just granted. Send the user onward yourself once wp_sudo_require() returns true.', 'wp-sudo' )
+			);
+		}
 
 		$user_id = (int) $args['user_id'];
 

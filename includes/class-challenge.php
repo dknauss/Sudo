@@ -172,7 +172,34 @@ class Challenge {
 	}
 
 	/**
-	 * Render a notice when automatic POST replay was intentionally disabled.
+	 * Render a notice when automatic replay was intentionally disabled.
+	 *
+	 * The wording is deliberately method-agnostic (#463). Four landing combinations
+	 * reach this notice: a stripped-query GET lands on its originating list screen, a
+	 * queryless GET lands on the dashboard, a non-handler POST lands on its
+	 * originating screen, and a POST to a HANDLER_ENDPOINTS file lands on the
+	 * dashboard because a bare GET there renders nothing usable.
+	 *
+	 * The claim is **not** that these screens have no form — most do. `plugins.php`
+	 * and `users.php` both render a bulk-action form, and the dashboard renders Quick
+	 * Draft. The claim is that none of them presents *the form for the action being
+	 * repeated*: a link-driven activation never had one, and the POST rows land on a
+	 * screen that has been re-requested as a GET carrying none of the discarded body.
+	 * The pre-4.9.0 copy said "review the form and submit it again", which was true
+	 * when only POSTs reached this path and pointed at a form on the originating
+	 * screen. It now misdirects, and on the two dashboard rows it names a form
+	 * belonging to something else entirely.
+	 *
+	 * Selecting the wording by the stashed request method would not fix it: method
+	 * does not decide whether a form is present, as the POST-to-handler row shows.
+	 *
+	 * Kept at notice-warning, deliberately. Since 4.9.0 this is the normal
+	 * post-reauthentication message rather than an exception report, which is an
+	 * argument for a softer level — but the user's action did not happen, and the
+	 * cost of them assuming it did is higher than the cost of an attention-getting
+	 * notice. The sentence is phrased as standing policy ("does not repeat") rather
+	 * than as an anomaly report, which addresses the register without understating
+	 * the outcome.
 	 *
 	 * @return void
 	 */
@@ -184,7 +211,7 @@ class Challenge {
 		}
 
 		echo '<div class="notice notice-warning is-dismissible"><p>'
-			. esc_html__( 'Reauthentication complete. For your security, this request was not replayed automatically. Review the form and submit it again to finish the change.', 'wp-sudo' )
+			. esc_html__( 'Reauthentication complete. For your security, Sudo does not repeat your last action automatically, so it was not carried out. Do it again to finish the change.', 'wp-sudo' )
 			. '</p></div>';
 	}
 

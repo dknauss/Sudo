@@ -102,6 +102,12 @@ function wp_sudo_check( ?int $user_id = null ): bool {
  *
  * See `WP_Sudo\Public_API::require()` for accepted args.
  *
+ * The `return_url` arg has been inert since 4.9.0 (#322) and passing it non-empty
+ * raises `_deprecated_argument( 'wp_sudo_require', … )` (#461). Suppress in tests
+ * with `setExpectedDeprecated( 'wp_sudo_require' )`, or stop passing it and route
+ * the user onward yourself once this returns true. This function's own name is the
+ * reported handle, because it is the symbol integrators call.
+ *
  * @since 2.12.0
  *
  * @param array<string, mixed> $args Optional API args.

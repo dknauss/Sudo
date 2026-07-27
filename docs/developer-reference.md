@@ -272,7 +272,9 @@ Accepted args:
 - `rule_id` (`string`) — audit identifier; defaults to `public_api.require`.
 - `redirect` (`bool`) — default `true`; set `false` to receive `false` instead of redirect.
 - `return_url` (`string`) — **inert since 4.9.0.** Still accepted, still emitted into
-  the challenge URL, and still ignored: nothing consumes it. See the note below.
+  the challenge URL, and still ignored: nothing consumes it. Passing it non-empty now
+  raises `_deprecated_argument( 'wp_sudo_require', '4.9.0', … )` (#461). See the note
+  below.
 
 **Behaviour change in 4.9.0 (#322): the user is no longer returned to your page.**
 After a successful challenge, WP Sudo lands the user on a neutral admin page instead
@@ -288,6 +290,29 @@ disguised with a leading `+`.
 
 `return_url` is retained in the signature rather than removed, so callers that pass it
 keep working. It has no effect.
+
+**It is not silent, though (#461).** Passing it non-empty raises
+`_deprecated_argument( 'wp_sudo_require', '4.9.0', … )`, so the inertness shows up in
+your debug log instead of only in this document. `_deprecated_argument()` rather than
+`_doing_it_wrong()` on purpose: you did not make a mistake — you passed a documented
+argument that stopped doing anything. It raises `E_USER_DEPRECATED` and fires
+`deprecated_argument_run`, both distinct from the `E_USER_NOTICE` and
+`doing_it_wrong_run` that `_doing_it_wrong()` uses, so tooling that separates the two
+can treat this as what it is. The notice fires on the *argument you passed*,
+not on the value emitted into the challenge URL, which is often non-empty from the
+`HTTP_REFERER` fallback even when you never named the argument. It also fires regardless
+of whether a session is already active, so it does not go quiet for integrators whose
+users are usually already elevated.
+
+**If this reddens your test suite, that is expected.** `WP_UnitTestCase` fails any test
+that triggers `deprecated_argument_run` without an explicit expectation. Declare it:
+
+```php
+$this->setExpectedDeprecated( 'wp_sudo_require' );
+```
+
+Or stop passing `return_url` and send the user onward yourself once `wp_sudo_require()`
+returns `true` — which is the fix the notice is pointing at.
 
 This is **MINOR**, not MAJOR, under the *Security-forced inertness* clause in
 [`VERSIONING.md`](../VERSIONING.md): the argument is still accepted, nothing errors,

@@ -197,6 +197,142 @@ class PublicApiTest extends TestCase {
 		);
 	}
 
+	/**
+	 * #461: an explicitly-passed return_url gets a runtime signal.
+	 *
+	 * The argument went inert in 4.9.0 (#322) — still accepted, still emitted into
+	 * the challenge URL, consumed by nothing, because navigating to a
+	 * requester-supplied destination after a successful challenge would execute
+	 * under the sudo authority just minted. Integrators who pass it got no signal
+	 * at all: their users land on the dashboard and nothing says why.
+	 *
+	 * _deprecated_argument() rather than _doing_it_wrong(): the caller made no
+	 * mistake. They followed a documented API and the argument is still documented
+	 * as accepted, so this is "this argument no longer does anything", which is
+	 * what _deprecated_argument() is for. It also routes to E_USER_DEPRECATED and
+	 * the deprecated_argument_run action, which aggregators bucket apart from real
+	 * bugs.
+	 *
+	 * Not to be read as reversing Admin::cleanup_inert_governance_mode_option(),
+	 * which deliberately used an audit hook INSTEAD of a notice (pinned by four
+	 * ->never() assertions in AdminTest). Its production comment gives the reason:
+	 * the option name "was never a callable, so _doing_it_wrong() was inappropriate
+	 * here". Here the subject is a callable and the misuse is one of its arguments.
+	 */
+	public function test_require_flags_an_explicitly_passed_return_url(): void {
+		$user_id = 88;
+
+		Functions\when( 'get_current_user_id' )->justReturn( $user_id );
+		Functions\when( 'get_user_meta' )->justReturn( '' );
+
+		Functions\expect( '_deprecated_argument' )
+			->once()
+			->with( 'wp_sudo_require', '4.9.0', \Mockery::type( 'string' ) );
+
+		Public_API::require(
+			array(
+				'rule_id'    => 'custom.action',
+				'redirect'   => false,
+				'return_url' => 'https://example.com/wp-admin/tools.php',
+			)
+		);
+	}
+
+	/**
+	 * #461: the overwhelmingly common call passes no return_url and must stay silent.
+	 */
+	public function test_require_does_not_flag_when_return_url_is_absent(): void {
+		$user_id = 89;
+
+		Functions\when( 'get_current_user_id' )->justReturn( $user_id );
+		Functions\when( 'get_user_meta' )->justReturn( '' );
+
+		Functions\expect( '_deprecated_argument' )->never();
+
+		Public_API::require(
+			array(
+				'rule_id'  => 'custom.action',
+				'redirect' => false,
+			)
+		);
+	}
+
+	/**
+	 * #461: an empty string is the default and is not a use of the argument.
+	 *
+	 * This also pins the referer fallback out of scope. sanitize_return_url()
+	 * derives a URL from HTTP_REFERER when the caller passes nothing, so the
+	 * emitted return_url is frequently non-empty on calls that never named it.
+	 * Keying the notice off the emitted value rather than the passed argument
+	 * would fire on callers who did nothing at all.
+	 */
+	public function test_require_does_not_flag_an_empty_return_url(): void {
+		$user_id = 90;
+
+		Functions\when( 'get_current_user_id' )->justReturn( $user_id );
+		Functions\when( 'get_user_meta' )->justReturn( '' );
+
+		Functions\expect( '_deprecated_argument' )->never();
+
+		Public_API::require(
+			array(
+				'rule_id'    => 'custom.action',
+				'redirect'   => false,
+				'return_url' => '',
+			)
+		);
+	}
+
+	/**
+	 * #461: the signal is about the call, not the outcome.
+	 *
+	 * Fired before the early returns, so it does not depend on a user resolving or
+	 * on there being no active session. An integrator whose users usually hold a
+	 * live session would otherwise see the notice rarely or never — which is
+	 * exactly the silence #461 exists to end.
+	 */
+	public function test_require_flags_return_url_even_when_sudo_is_already_active(): void {
+		$user_id = 91;
+
+		Functions\when( 'get_current_user_id' )->justReturn( $user_id );
+		Functions\when( 'get_user_meta' )->justReturn( '' );
+
+		Functions\expect( '_deprecated_argument' )
+			->once()
+			->with( 'wp_sudo_require', '4.9.0', \Mockery::type( 'string' ) );
+
+		// No session assertion here: the point is that the notice precedes the
+		// self::check() short-circuit, whichever way that check resolves.
+		Public_API::require(
+			array(
+				'rule_id'    => 'custom.action',
+				'redirect'   => false,
+				'return_url' => 'https://example.com/wp-admin/tools.php',
+			)
+		);
+	}
+
+	/**
+	 * #461: and not on the unresolved-user path either, which returns before the
+	 * gated-action hook ever fires.
+	 */
+	public function test_require_flags_return_url_when_no_user_resolves(): void {
+		Functions\when( 'get_current_user_id' )->justReturn( 0 );
+
+		Functions\expect( '_deprecated_argument' )
+			->once()
+			->with( 'wp_sudo_require', '4.9.0', \Mockery::type( 'string' ) );
+
+		$this->assertFalse(
+			Public_API::require(
+				array(
+					'rule_id'    => 'custom.action',
+					'return_url' => 'https://example.com/wp-admin/tools.php',
+				)
+			)
+		);
+	}
+
 	public function test_require_returns_false_when_headers_are_already_sent(): void {
 		$user_id = 21;
 
