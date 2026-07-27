@@ -1693,11 +1693,20 @@ C2. REDUNDANT MEMORY DUPLICATING CLAUDE.md
            five-row sweep missed because `wp-admin/admin.php` occurs in that file's own
            docblocks, so it resolved spuriously instead of failing. It was never red, so
            nobody looked at it. Six further rows had anchors with more than one candidate
-           occurrence at or before their cited line. One of those six, `GB-PROFILE-OBSERVE`,
-           proved to be the same defect once actually checked, and is repaired here; the
-           remaining five — `GB-ICON-SWAP`, `GB-NO-TOOLTIP`, `GB-SCOPED-SUBSCRIBE`,
-           `GB-CORE-SESSION-RMW`, `GB-PINNED-CLASS` — are recorded as unaudited rather than
-           assumed benign.
+           occurrence at or before their cited line. Two of those six are now closed:
+           `GB-PROFILE-OBSERVE` proved to be the same defect once actually checked and is
+           repaired here, and `GB-PINNED-CLASS` was already repaired by #448 — in this
+           branch's own base — which moved its `PinnedItems`, `Fill` and `Slot` spans out of
+           the symbol column into the claim column, leaving `PinnedItemsSlot` resolving
+           uniquely at L15. That row is the one place where the "move the disambiguation out
+           of the anchor column" remedy is demonstrated rather than proposed. **Four** remain
+           unaudited rather than assumed benign: `GB-ICON-SWAP`, `GB-NO-TOOLTIP`,
+           `GB-SCOPED-SUBSCRIBE`, `GB-CORE-SESSION-RMW`.
+           That figure has been wrong in three consecutive reviews of this entry — eight,
+           then six, then five — by an identical mechanism each time: the count was carried
+           forward from the previous run instead of re-derived against the tree being
+           committed. A number in prose ages exactly as badly as the state it describes, and
+           this one describes a set that the branch and its own base keep shrinking.
            **The fifth instance was in the repair of the fourth, and it is the tidiest of
            them.** The first version of those two repaired cells named the rejected token in
            prose — "NOT `if ( empty( $action ) ) {`, which resolves at L37" — *in backticks*.
@@ -1819,9 +1828,17 @@ C2. REDUNDANT MEMORY DUPLICATING CLAUDE.md
                      docs/upstream-sources.md tests/verify-sources/run.sh
                 docs/upstream-sources.md | 2 +-
 
-           The tell was available and was noticed: the two files differ in length, 103 lines
-           against 184, so an empty diff between them was impossible. That impossibility is
-           what prompted the re-run rather than any suspicion of the shell.
+           **What prompted the re-run was not the length check an earlier draft of this
+           entry claimed.** That draft said the operands "differ in length, 103 lines against
+           184, so an empty diff was impossible". They do not: `docs/upstream-sources.md` is
+           103 lines at both `f0e9ebd` and `650a451`, and the real difference between them is
+           one insertion and one deletion — length-preserving, so length would have said
+           nothing. The 184 belongs to a second comparison run in the same minute, against
+           `origin/main`, which was also empty and where the contradiction was genuine. What
+           made the result suspect was simply that it was empty without a reason to be. The
+           mis-stated tell was caught by the reviewer running `wc -l` on the operands: the
+           one self-crediting sentence in the entry was the one that did not survive being
+           checked.
    Source: This repository and this session's shell, 2026-07-27. `echo $SHELL` and the
            environment block both report zsh; the same command under `bash -c` splits and
            returns the 5.7 KB.
