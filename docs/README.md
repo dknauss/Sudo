@@ -10,6 +10,7 @@ source of truth for its topic; this index never restates content (see
 
 | I want to… | Read |
 |---|---|
+| Understand whether and where this project may be installed | [`../PROJECT-STATUS.md`](../PROJECT-STATUS.md) |
 | Understand what WP Sudo does and why | [`FAQ.md`](FAQ.md) |
 | Know the threat model and security boundaries | [`security-model.md`](security-model.md) |
 | Use the hooks, filters, and custom-rule API | [`developer-reference.md`](developer-reference.md) |

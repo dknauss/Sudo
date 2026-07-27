@@ -1,12 +1,18 @@
 # Security Policy
 
+> **Project boundary:** WP Sudo is a research prototype for disposable local
+> tests and WordPress Playground. It is not supported for production use.
+> Security reports improve the research; a supported version below means a
+> version that receives research fixes, not a production security guarantee.
+> See [`PROJECT-STATUS.md`](PROJECT-STATUS.md).
+
 ## Supported Versions
 
 The default branch (`main`) is the only supported version. Security fixes are
-applied to `main` and released as a new version. Older branches and released
-tags do not receive backported security patches. Once the plugin is published to
-the WordPress.org plugin directory, the most recently published version is the
-supported version.
+applied to `main` and may be included in a new research preview. Older branches
+and released tags do not receive backported security patches. Publication to
+the WordPress.org plugin directory is not planned while the project remains a
+research prototype.
 
 | Version | Supported |
 |---|---|

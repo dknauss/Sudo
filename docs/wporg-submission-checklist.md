@@ -154,11 +154,16 @@ WordPress.org hosts plugins in Subversion, not Git. Standard layout:
 ### 2.4 Slug-lock, brand, and header decision
 
 - Product name: **Sudo**.
-- WordPress.org **Plugin Name** header + readme title: **"Sudo – Admin Action Gating"**
-  (UI brand stays "Sudo"). Bare "Sudo" fails Plugin Check's ≥5-latin-letter rule
+- The shipped header and readme title are **"Sudo – Research Prototype"** (see
+  [`developer-reference.md`](developer-reference.md) → *Naming, Slug, and Repository
+  Identifiers*), because the project status must be visible in the installed plugin
+  list. Do **not** change the header back to satisfy this dormant section.
+- If submission were ever approved, the name would have to be re-decided at that point.
+  The historical candidate was **"Sudo – Admin Action Gating"** (UI brand stays "Sudo").
+  Bare "Sudo" fails Plugin Check's ≥5-latin-letter rule
   (`plugin_header_unsupported_plugin_name`); "WordPress" / "Sudo for WordPress" is
-  trademark-blocked (`Trademarks_Check` — only `for woocommerce` is exempt). "Sudo – Admin
-  Action Gating" passes both.
+  trademark-blocked (`Trademarks_Check` — only `for woocommerce` is exempt). Both
+  "Sudo – Admin Action Gating" and "Sudo – Research Prototype" pass those two rules.
 - Slug / text-domain: **`wp-sudo`** (immutable once published). ⚠️ The directory derives the
   slug from the Plugin Name at submission, which would yield `sudo-admin-action-gating`.
   **Lock the slug to `wp-sudo`** (matching the text-domain) at submission — request it

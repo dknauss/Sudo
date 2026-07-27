@@ -4,7 +4,17 @@
 
 # Sudo
 
-Require password confirmation before high-risk changes go through on your WordPress site — even from an already-authenticated admin session. Sudo also lets site owners define the shape of their administrative attack surface across admin UI, AJAX, REST, WP-CLI, Cron, XML-RPC, Application Passwords, and WPGraphQL. Built-in activity visibility, audit hooks, and governance controls help administrators see who is attempting sensitive actions and decide which users can manage Sudo policy.
+> [!CAUTION]
+> **Research prototype only. Do not install WP Sudo on production, public
+> staging, or any site containing real users, credentials, or data.** Use it
+> only in WordPress Playground or a disposable local test environment. It is
+> not a supported production security plugin or a security boundary. Read the
+> canonical [Project Status](PROJECT-STATUS.md) before evaluating it.
+
+WP Sudo is a conceptual demonstrator for action-gated reauthentication in
+WordPress. It explores requiring a recent identity check before selected
+high-risk effects and records the design lessons—including approaches that
+failed—so narrower primitives can be considered for WordPress core.
 
 [![License: GPL v2+](https://img.shields.io/badge/License-GPL%20v2%2B-blue.svg)](https://spdx.org/licenses/GPL-2.0-or-later.html) [![Security Policy](https://img.shields.io/badge/security-policy-4c1)](SECURITY.md) [![Docs](https://img.shields.io/badge/docs-available-0a7ea4.svg)](docs/) [![AI Authorship](https://img.shields.io/badge/AI%20authorship-disclosed-8a63d2.svg)](docs/ai-authorship.md)
 [![WordPress: 6.4+](https://img.shields.io/badge/WordPress-6.4%2B-0073aa.svg)](https://wordpress.org/)
@@ -97,7 +107,7 @@ This is the intended low-friction user experience: when a gated action trips Sud
 </tr>
 </table>
 
-## Features
+## Behaviors demonstrated
 
 - **Confirmation before destructive actions** — plugin installs/deletions, user management, settings changes, core updates, and more all require a fresh password before proceeding
 - **Two-factor support** — integrates with the [Two Factor plugin](https://wordpress.org/plugins/two-factor/) so the challenge includes your second factor when active
@@ -108,21 +118,25 @@ This is the intended low-friction user experience: when a gated action trips Sud
 - **Activity visibility** — audit hooks fire on every gated event; works with WP Activity Log, Stream, and similar plugins
 - **Multisite support** — network-aware; super admins governed separately from per-site admins
 
-## Quick start
+## Run the demonstrator
 
-1. Install and activate Sudo.
-2. Go to **Settings → Sudo**.
-3. Choose a session duration.
-4. Review the default policies for non-interactive surfaces.
-5. Optionally install the bundled mu-plugin loader from the settings page for earlier hook registration.
-6. Test a covered action such as plugin activation or a protected settings change.
+Do not follow these steps on a production, public staging, or
+production-derived site.
 
-### Recommended companion plugins
+1. Start a WordPress Playground instance above or create a disposable local
+   WordPress installation with synthetic credentials and data.
+2. Install and activate Sudo in that disposable environment.
+3. Go to **Settings → Sudo**.
+4. Choose a session duration and explore the entry-point policies.
+5. Test a covered action such as plugin activation or a protected settings
+   change.
 
-- [Two Factor](https://wordpress.org/plugins/two-factor/) — strongly recommended for password + second-factor challenge flows.
-- [WP Activity Log](https://wordpress.org/plugins/wp-security-audit-log/) or [Stream](https://wordpress.org/plugins/stream/) — recommended if you want audit visibility from Sudo's action hooks.
+### Optional demo companions
 
-## What gets protected
+- [Two Factor](https://wordpress.org/plugins/two-factor/) — demonstrates password + second-factor challenge flows.
+- [WP Activity Log](https://wordpress.org/plugins/wp-security-audit-log/) or [Stream](https://wordpress.org/plugins/stream/) — demonstrates consumption of Sudo's audit hooks.
+
+## Coverage demonstrated
 
 Sudo gates built-in operations across categories including:
 - plugin and theme installation, activation, and deletion
@@ -145,19 +159,32 @@ Sudo's challenge is a WordPress **password** check, so it assumes an account can
 
 WordPress has roles, capabilities, and authentication, but no native way to say "a logged-in session alone isn't enough for this action." Sudo adds that missing checkpoint for the parts of WordPress where a mistake, hijacked session, stale browser, or over-broad automation token can do the most damage.
 
-That helps site owners, agencies, network operators, and teams with multiple administrators reduce the blast radius of privileged accounts. It is especially useful on sites where people, scripts, application passwords, WP-CLI jobs, Cron tasks, XML-RPC clients, WPGraphQL clients, or AI/agentic tooling can all reach administrative surfaces.
+The demonstrator lets researchers examine how recent-auth checks could reduce
+the blast radius of selected privileged paths. It must not be treated as
+complete coverage or deployed as protection for a real site.
 
 Sudo also makes privilege use more visible. The dashboard widget shows active sudo sessions, policy posture, and recent privileged activity; audit hooks and bundled bridges let logging plugins such as WP Activity Log and Stream record sudo sessions, gated requests, policy changes, and governance events.
 
-The result is not just another password prompt. It is a way to define the shape and size of your site's administrative attack surface: close a surface entirely, limit it to non-destructive operations, require sudo for covered actions, or leave it unrestricted when that is the deliberate operational choice.
+The experiment explores defining the shape and size of an administrative
+attack surface: close a surface entirely, limit it to selected operations,
+require recent authentication for covered actions, or leave it unrestricted.
 
 Active sudo is **per browser session**, not site-wide. Sudo works alongside your existing roles and capabilities — it does not replace them.
 
 ## How it works
 
-More technically, Sudo is a Multisite-compatible, zero-trust-aligned security-hardening plugin for WordPress. It adds **action-gated reauthentication**, enables **attack surface definition** (open, closed, or sudo-gated), gives **visibility to privileged action requests**, and confines Sudo administration to explicitly designated users.
+More technically, Sudo is an experimental, Multisite-aware implementation of
+action-gated reauthentication. It demonstrates attack-surface policy,
+privileged-action visibility, and delegated governance; none of those
+demonstrations is a completeness or production-security guarantee.
 
-**Browser (wp-admin):** gated actions redirect to a challenge screen that names the action and, where the request carries a recognised target parameter, that concrete target. After successful reauthentication the user is returned to where they were, and — when the challenge named the whole effect, on HTTPS sites, in the same browser that started the action — the original request resumes automatically. Otherwise nothing is resumed and the user performs the action again, now covered by the active sudo session. A resumed request is bound to the browser that created it, so an action started elsewhere can never be completed by someone else's reauthentication.
+**Browser (wp-admin):** gated actions redirect to a challenge screen that names
+the action and, where the request carries a recognised target parameter, that
+concrete target. The intercepted server-side request is never executed
+automatically after reauthentication. The user deliberately performs the
+action again under the newly active sudo session. The block editor has a
+separate, owner-scoped in-tab retry demonstrator for the request initiated in
+that tab; it does not use the server-side stash.
 
 **AJAX and REST:** blocked requests receive a `sudo_required` error until reauthentication occurs.
 
@@ -184,7 +211,9 @@ In a lost, last administrator scenario where no one has access to Sudo's setting
 
 ## For developers and integrators
 
-Sudo exposes a small, stable API. Custom gated rules are plain associative arrays registered via the `wp_sudo_gated_actions` filter, with per-surface matchers for admin, AJAX, REST, and CLI. The `wp_sudo_can()` helper centralizes all governance checks — super-admin short-circuit and recovery-mode bypass, with always-strict capability checks (the `compatibility` mode was removed in 4.0.0) — so integrations don't touch capability internals directly. Audit hooks fire on every session event, capability grant or revoke, tamper detection, and policy change; bridge classes for WP Activity Log and Stream are bundled. The `wp_sudo_grant_session_on_login` filter lets SSO and kiosk integrations suppress the automatic browser-login session grant. All of this is covered by a dual-layer test suite (unit tests + a full integration matrix) and PHPStan level 6.
+Sudo exposes a small research API that carries no compatibility guarantee — see
+[Project Status](PROJECT-STATUS.md) and the banner in
+[docs/developer-reference.md](docs/developer-reference.md). Custom gated rules are plain associative arrays registered via the `wp_sudo_gated_actions` filter, with per-surface matchers for admin, AJAX, REST, and CLI. The `wp_sudo_can()` helper centralizes all governance checks — super-admin short-circuit and recovery-mode bypass, with always-strict capability checks (the `compatibility` mode was removed in 4.0.0) — so integrations don't touch capability internals directly. Audit hooks fire on every session event, capability grant or revoke, tamper detection, and policy change; bridge classes for WP Activity Log and Stream are bundled. The `wp_sudo_grant_session_on_login` filter lets SSO and kiosk integrations suppress the automatic browser-login session grant. All of this is covered by a dual-layer test suite (unit tests + a full integration matrix) and PHPStan level 6.
 
 ## Requirements
 

@@ -1,5 +1,11 @@
 # Security Model
 
+> **Research boundary:** This document analyzes an experimental design; it
+> does not assert that WP Sudo is a complete or production-ready security
+> boundary. Do not install it on production, public staging,
+> production-derived, or real-data sites. See the canonical
+> [Project Status](../PROJECT-STATUS.md).
+
 WP Sudo is a **hook-based interception layer**. It operates within WordPress's plugin API — `admin_init`, `pre_option_*`, `activate_plugin`, REST `permission_callback`, etc. — and is subject to the same boundaries as any WordPress plugin.
 
 ### Terminology Note

@@ -1,8 +1,8 @@
 <?php
 /**
- * Plugin Name:       Sudo – Admin Action Gating
+ * Plugin Name:       Sudo – Research Prototype
  * Plugin URI:        https://github.com/dknauss/Sudo
- * Description:       Action-gated reauthentication for WordPress. Dangerous operations require password confirmation before they proceed — regardless of user role.
+ * Description:       Research prototype for action-gated reauthentication. For disposable local tests and WordPress Playground only; not for production.
  * Version:           4.9.0
  * Requires at least: 6.4
  * Requires PHP:      8.2
