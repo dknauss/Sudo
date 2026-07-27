@@ -1662,8 +1662,15 @@ C2. REDUNDANT MEMORY DUPLICATING CLAUDE.md
            of this line supported that with `git log -S
            'interface-complementary-area__pin-unpin-item'` "returns only `04ef826`", which
            was wrong twice over: with no revision argument the pickaxe searches from `HEAD`
-           only, saying nothing about other refs or reflog-only commits — and run today it
-           returns four commits on `HEAD` and ten under `--all --reflog`. A log about claims
+           only, saying nothing about other refs or reflog-only commits. This correction
+           deliberately makes no claim about how many commits either form returns, or that
+           one returns more than the other: the result depends entirely on which refs and
+           reflogs the running clone happens to have. Some of what a wider search finds here
+           are this branch's own discarded pre-rebase heads, which exist in no fresh clone
+           at all, so even the ordering is not stable. Entry 66 on this page already says to name which of the two found a
+           commit, because they have different lifetimes and a reflog hit is not
+           reproducible for anyone else; publishing a combined number is the one place this
+           correction failed to take its own file's advice. A log about claims
            outrunning their evidence had cited a command that neither established what it
            was cited for nor produced the output attributed to it. Search with `--all
            --reflog` before concluding anything is unrecoverable. A log whose
