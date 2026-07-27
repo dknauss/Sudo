@@ -287,6 +287,13 @@ while IFS= read -r raw_row; do
 # five qualified anchors in the registry have a `class X` declaration at or before their
 # cited line, so this tightens without reddening a row.
 #
+# That expansion IDENTIFIES the two symbols; it does not bind them. AND proves each exists
+# above the snippet and nothing more, so the method moving to a different class in the same
+# file still satisfies both conjuncts. Containment is established separately, by the
+# class-extent check at the end of the anchor block — see the comment there. Read the two
+# together: neither is the whole mechanism, and an earlier draft of this paragraph claimed
+# the expansion alone was sufficient.
+#
 # The limit, stated rather than implied away: `class X` is a fixed-string PREFIX, so
 # `class Foo` is also satisfied by `class Foo_Helper`. It is not bounded here because
 # anchors are matched with `grep -F` deliberately — 26 of the 48 anchors carry regex
@@ -428,6 +435,10 @@ is_unanchored_legacy() {
 }
 
 	symbol_anchors="$(printf '%s' "$symbol_raw" | grep -oE '`[^`]+`' | tr -d '`' | expand_anchor_spans || true)"
+	# Kept UNEXPANDED as well. expand_anchor_spans() turns `X::m()` into two independent
+	# conjuncts, and AND proves only that each exists above the snippet — not that the
+	# method belongs to that class. Binding them needs the qualified form back.
+	qualified_anchors="$(printf '%s' "$symbol_raw" | grep -oE '`[^`]+`' | tr -d '`' | grep -E '::.+\(\)$' || true)"
 	# Exempt rows skip the ANCHOR comparison only. Everything else — fetch, snippet
 	# presence, line drift — still runs. `continue` here would turn a narrow exemption
 	# into a total one, so a legacy row whose upstream file vanished would pass in
@@ -559,6 +570,73 @@ is_unanchored_legacy() {
 	done <<< "$symbol_anchors"
 	# No span examined at all cannot count as satisfied.
 	[ "$anchor_count" -gt 0 ] || anchor_ok=0
+
+	# Bind a qualified anchor to its class. The two conjuncts above are checked
+	# INDEPENDENTLY, so `class X` staying in the file while `m()` moves to a different
+	# class earlier in it satisfies both and the row passes asserting something false.
+	# The conjunction is necessary but not sufficient: it proves both symbols exist,
+	# never that one contains the other.
+	#
+	# Approximated by ordering rather than parsed: PHP classes do not nest, so the method
+	# is inside class X exactly when its declaration follows `class X` with no other
+	# class/interface/trait/enum declaration in between. That is the whole check — no parser,
+	# which the header is explicit about not attempting. It is deliberately narrower than
+	# general containment: it does NOT prove the cited LINE sits in the method body, only
+	# that the method belongs to the class the row names.
+	#
+	# All five qualified anchors in the registry were verified to bind before this landed
+	# — Configurator::extract_assoc (class L13, method L274), Core_Upgrader::upgrade
+	# (L25/L66), WP_Ability::execute (L21/L598), WP_Automatic_Updater::update (L17/L362),
+	# WP_Upgrader::install_package (L52/L510) — so it reds nothing it ships with.
+	while IFS= read -r qualified; do
+		[ -n "$qualified" ] || continue
+		q_class="${qualified%%::*}"
+		q_method="${qualified##*::}"
+		q_method="${q_method%'()'}"
+
+		# $q_class / $q_method are interpolated into an ERE unescaped. Unreachable for a
+		# namespaced anchor (`Foo\Bar::baz()` would inject `\B`): such a span fails the
+		# conjunct loop above, so the `continue` below fires before this matters.
+		q_class_line="$(grep -nE "(^|[[:space:]])class[[:space:]]+${q_class}([[:space:]]|\{|$)" "$file_path" | head -n1 | cut -d: -f1 || true)"
+
+		# Searched from the class declaration DOWN, not from the top of the file. Taking
+		# the first `function m(` anywhere reds a CORRECT citation whenever an earlier
+		# class declares the same method name — the ordinary shape being an interface or
+		# abstract base above its implementation in one file:
+		#
+		#     interface Ability_Interface { public function execute( $input ); }
+		#     class WP_Ability implements Ability_Interface { public function execute() {} }
+		#
+		# The row is right, the first hit lands in the interface, and the reader is sent
+		# to re-read a file where the reported fact is not what is wrong. This file's own
+		# header argues a check that cries wolf gets switched off, so a false red is a
+		# defect here and not a nit.
+		q_method_line="$(awk -v a="${q_class_line:-0}" -v m="$q_method" '
+			NR > a && $0 ~ ("function[[:space:]]+&?" m "[[:space:]]*\\(") { print NR; exit }
+		' "$file_path" || true)"
+
+		# A missing CLASS conjunct is already reported above with a better message, so
+		# re-reporting it here would duplicate the finding.
+		[ -n "$q_class_line" ] || continue
+
+		# A missing method line now means something the conjunct loop cannot see: the
+		# method exists in the file (or the loop would have failed) but not after the
+		# class declaration, so it belongs to a different class.
+		if [ -z "$q_method_line" ]; then
+			anchor_ok=0
+			anchor_missing="$anchor_missing $qualified [no $q_method() declaration after class $q_class at L$q_class_line]"
+			continue
+		fi
+
+		q_boundary="$(awk -v a="$q_class_line" -v b="$q_method_line" '
+			NR > a && NR < b && /^[[:space:]]*(final[[:space:]]+|abstract[[:space:]]+|readonly[[:space:]]+)*(class|interface|trait|enum)[[:space:]]/ { print NR; exit }
+		' "$file_path" || true)"
+
+		if [ -n "$q_boundary" ]; then
+			anchor_ok=0
+			anchor_missing="$anchor_missing $qualified [method at L$q_method_line is outside $q_class, which ends at the declaration on L$q_boundary]"
+		fi
+	done <<< "$qualified_anchors"
 
 	if [ "$anchor_check" -eq 1 ] && [ "$anchor_ok" -eq 0 ]; then
 		if is_unanchored_legacy "$id"; then

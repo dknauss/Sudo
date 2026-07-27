@@ -821,6 +821,56 @@ fixture "$URL" 200 0 $'x\nneedle here'
 run
 expect_rc 0
 
+# 21. A `Class::method()` anchor expands to two conjuncts — `class X` and
+#     `function m(` — and AND only proves each exists above the snippet, not that the
+#     method belongs to that class. If the named class stays but the method moves to a
+#     DIFFERENT class earlier in the file, both needles still resolve and the row passes
+#     while asserting something false. The existing coverage tests a MISSING class, which
+#     this case satisfies, so it cannot catch it.
+start "qualified anchor fails when the method belongs to another class"
+new_sandbox qualified_split
+registry "$HDR
+| GB-QUAL | $URL | 6 | needle here | \`WP_Ability::execute()\` | a claim |"
+fixture "$URL" 200 0 $'class WP_Ability {\n}\nclass Other {\n\tfunction execute( $a ) {}\n}\nneedle here'
+run
+expect_rc 1
+
+# 21b. …and passes when the method really is inside the named class, so 21 cannot be
+#      satisfied by failing every qualified anchor.
+start "qualified anchor passes when the method is inside its class"
+new_sandbox qualified_bound
+registry "$HDR
+| GB-QUAL | $URL | 3 | needle here | \`WP_Ability::execute()\` | a claim |"
+fixture "$URL" 200 0 $'class WP_Ability {\n\tfunction execute( $a ) {\nneedle here'
+run
+expect_rc 0
+
+# 21c. …and a CORRECT citation must not red just because an earlier class declares a
+#      method of the same name. Searching for `function m(` from the top of the file
+#      lands in the interface below and reports "method declared before the class",
+#      which is both a false failure and a misleading one — it sends the reader to
+#      re-read a file where the stated fact is not what is wrong. The ordinary PHP
+#      shape is an interface or abstract base above its implementation in one file.
+start "qualified anchor does not red when an earlier class shares the method name"
+new_sandbox qualified_shadow
+registry "$HDR
+| GB-QUAL | $URL | 6 | needle here | \`WP_Ability::execute()\` | a claim |"
+fixture "$URL" 200 0 $'interface Ability_Interface {\n\tpublic function execute( $input );\n}\nclass WP_Ability implements Ability_Interface {\n\tpublic function execute( $input ) {\nneedle here'
+run
+expect_rc 0
+
+# 21d. …and the mirror of 21: the method exists ONLY in an earlier class, which is the
+#      shape the header names — "another class in the same file declaring the same
+#      method name above the snippet". The conjunct loop cannot see it, because
+#      `function m(` is genuinely present at or before the cited line.
+start "qualified anchor fails when the method is only in an earlier class"
+new_sandbox qualified_above
+registry "$HDR
+| GB-QUAL | $URL | 6 | needle here | \`WP_Ability::execute()\` | a claim |"
+fixture "$URL" 200 0 $'class Other {\n\tfunction execute( $a ) {}\n}\nclass WP_Ability {\n}\nneedle here'
+run
+expect_rc 1
+
 # --- summary ---------------------------------------------------------------------
 echo
 echo "verify-sources tests: $pass passed, $fail failed"
