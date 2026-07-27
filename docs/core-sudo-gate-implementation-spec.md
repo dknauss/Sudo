@@ -367,6 +367,28 @@ Alternatively, **explicitly bracket** any of these as out of scope — but brack
 by name, with the reason. What is not acceptable is the current silence, which reads as
 coverage the design does not have.
 
+### 5.5b Actor class needs a provenance signal core does not currently have
+
+§1 and AC7 say actor class is resolved from *the mechanism that authenticated the current
+user*. **That mechanism is not recoverable at the sink today.** `determine_current_user`
+resolves to a user **ID**, and once `wp_set_current_user()` has run, a chokepoint cannot tell
+whether the ID arrived from `wp_validate_logged_in_cookie()` or
+`wp_validate_application_password()` — cookie REST and Application-Password REST present an
+identical current user. Without a signal, an implementation must either gate the deferred API
+callers (breaking §9's pass-through) or let cookie requests through ungated (the #357 bypass).
+
+So the signal is part of the ask, not an implementation detail:
+
+- **Set provenance in the successful authentication callback**, where the mechanism is still
+  known — a request-scoped value recording which validator resolved the user.
+- **Lifecycle:** set once per request at authentication, immutable thereafter, and **absent
+  rather than defaulted** — an unset value must resolve to "unknown", which fails closed for
+  gating rather than defaulting to a passing class.
+- **Not inferrable from the call stack**, per §1: a nested call inherits the request's value.
+- This needs its own **§6 change-list row** against the authentication path; it is the
+  precondition for every actor-class decision in §9, and none of them are implementable
+  without it.
+
 ### 5.6 The registration-policy invariant, stated as an invariant (#311)
 
 `core/set-registration-policy` is currently enforced **at the moment `default_role` or
@@ -485,7 +507,8 @@ A gate that fails closed on a path with **no actor to challenge** does not prote
 - **Self-heal.** `validate_current_theme()` (`theme.php:898`) calls `switch_theme( WP_DEFAULT_THEME )` at `:927` with no actor, guarded only by `wp_installing()` and the `validate_current_theme` filter. A fail-closed theme gate without a carve-out leaves a site whose theme directory vanished unable to recover through any in-product route.
 - **Multisite lifecycle.** `get_active_blog_for_user()` calls `add_user_to_blog()` on the login/redirect path; `add_existing_user_to_blog()` runs from an invitation; `wpmu_activate_signup()` creates users as actor 0. Gating these fails ordinary login and signup.
 - **Install and recovery.** `wp_installing()` (already carved out for `core/create-user`, §8) and recovery mode.
-- **The key-verified password reset.** `reset_password()` (`wp-includes/user.php:3511`) calls `wp_set_password()` at `:3526` on the **actor-0** lost-password completion path, where the emailed reset key *is* the proof and no session exists. Gating `wp_set_password()` without carving this out refuses every legitimate reset site-wide under default-on fail-closed — the single most damaging false positive in the design, because it locks out exactly the users least able to route around it. Gate the **authenticated** password changes (`core/change-own-password`, `core/change-user-password`, which run through `wp_update_user()`); exempt the key-verified reset the same way `wp_installing()` is exempted.
+- **The key-verified password reset.** `reset_password()` (`wp-includes/user.php:3511`) calls `wp_set_password()` at `:3526` on the **actor-0** lost-password completion path, where the emailed reset key *is* the proof and no session exists. Gating `wp_set_password()` without carving this out refuses every legitimate reset site-wide under default-on fail-closed — the single most damaging false positive in the design, because it locks out exactly the users least able to route around it. Gate the **authenticated** password changes (`core/change-own-password`, `core/change-user-password`, which run through `wp_update_user()`).
+  **Exempt the reset on a positive signal, not on actorlessness.** `reset_password()` neither receives nor validates the emailed key and does not guarantee the caller is actor 0, so "no actor" is the wrong test in both directions: a low-level call that is not a reset would inherit the exemption, and a *logged-in* browser completing a legitimate reset would be challenged. The caller — `wp-login.php`'s reset flow — must set a trusted, request-scoped signal **after `check_password_reset_key()` succeeds**, and the exemption keys on that. Same shape as the provenance signal in §5.5b, and it fails closed if absent.
 
 The rule: a gate applies when there is an **authenticated actor whose intent can be proven**. With no actor, the correct behaviour is to allow and — where it matters — log, never to block. This is the same boundary §9 draws for non-interactive callers, applied to core's own internal calls.
 
