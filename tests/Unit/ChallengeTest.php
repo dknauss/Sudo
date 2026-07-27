@@ -2008,6 +2008,157 @@ class ChallengeTest extends TestCase
 	}
 
 	/**
+	 * #322: an EMPTY target must not be treated as a complete description.
+	 *
+	 * `capture_target()` initialises `$complete = true` and only ever sets it false on
+	 * truncation, so a request carrying none of `TARGET_PARAMS` stores
+	 * `target => [], target_complete => true`. `target_describes_payload()` then
+	 * iterates zero keys and agrees. The completeness check is satisfied VACUOUSLY.
+	 *
+	 * That matters because `render_page()` guards the confirmation on
+	 * `'' !== $action_target`, so an empty target renders NO `Target:` line at all —
+	 * the user confirms a coarse label ("Export site data") and nothing else. Replaying
+	 * there means the informed-confirmation control, which is the control that holds
+	 * when the browser binding is bypassed, was never shown.
+	 *
+	 * Ships live on `tools.export`: a GET rule on `export.php` gated when
+	 * `$_GET['download']` is set, whose parameters appear in none of `TARGET_PARAMS`.
+	 */
+	public function test_bound_stash_with_empty_target_is_not_replayed(): void
+	{
+		$secret = 'super-secret-proof';
+		$_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE] = $secret;
+
+		$stash = $this->boundPostStash($secret);
+		// Exactly what capture_target() stores for a request naming no known target.
+		$stash['target'] = array();
+		$stash['target_complete'] = true;
+
+		$this->stash->shouldReceive('get')->once()->andReturn($stash);
+		$this->stash->shouldReceive('delete')->once();
+		$this->stubReplayEnv();
+
+		$data = $this->invokeReplay('empty-target-key', true);
+
+		$this->assertArrayNotHasKey(
+			'replay',
+			$data,
+			'A stash whose confirmation named nothing must fall back to the v1 landing'
+		);
+		$this->assertArrayNotHasKey('post_data', $data);
+		$this->assertTrue($data['post_replay_blocked']);
+
+		unset($_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE]);
+	}
+
+	/**
+	 * #322: a TRUTHY NON-ARRAY target is refused.
+	 *
+	 * This is the only input that reaches the `! is_array()` half of the guard — an
+	 * empty array and a missing key both trip `empty()` first. Without this test that
+	 * half is unverified: deleting `! is_array( $stash['target'] )` leaves the entire
+	 * suite green, so a refactor could drop it silently.
+	 *
+	 * What it defends is a corrupted or hand-forged stash whose `target` is a scalar.
+	 * The stash lives in a transient, and the threat model this whole feature is
+	 * written against (#278) includes an attacker who can write into the object cache —
+	 * so a non-array `target` is a shape the enforcement path can actually be handed,
+	 * not merely a type-system nicety. `foreach` over a scalar would emit a warning and
+	 * describe nothing, which is the vacuous-confirmation failure again by another
+	 * route.
+	 */
+	public function test_bound_stash_with_non_array_target_is_not_replayed(): void
+	{
+		$secret = 'super-secret-proof';
+		$_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE] = $secret;
+
+		$stash = $this->boundPostStash($secret);
+		$stash['target'] = 'plugins.php?plugin=evil.php'; // truthy, but not an array
+		$stash['target_complete'] = true;
+
+		$this->stash->shouldReceive('get')->once()->andReturn($stash);
+		$this->stash->shouldReceive('delete')->once();
+		$this->stubReplayEnv();
+
+		$data = $this->invokeReplay('scalar-target-key', true);
+
+		$this->assertArrayNotHasKey(
+			'replay',
+			$data,
+			'A stash whose target is not an array must fall back to the v1 landing'
+		);
+		$this->assertArrayNotHasKey('post_data', $data);
+		$this->assertTrue($data['post_replay_blocked']);
+
+		unset($_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE]);
+	}
+
+	/**
+	 * #322: a target that renders NOTHING is refused, even though it is a
+	 * non-empty array.
+	 *
+	 * `describe_stash_target()` skips any entry whose value is not a non-empty
+	 * scalar, so `['plugin' => []]` produces no `Target:` line at all — the exact
+	 * vacuous-confirmation state this guard exists to prevent — while satisfying a
+	 * naive `! empty()` check.
+	 *
+	 * Guarded by asking the renderer rather than re-deriving its rule, so the
+	 * eligibility check and the thing the user actually sees cannot drift apart.
+	 */
+	public function test_bound_stash_whose_target_renders_nothing_is_not_replayed(): void
+	{
+		$secret = 'super-secret-proof';
+		$_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE] = $secret;
+
+		$stash = $this->boundPostStash($secret);
+		// Non-empty array, but no entry describe_stash_target() will render.
+		$stash['target'] = array('plugin' => array());
+		$stash['target_complete'] = true;
+
+		$this->stash->shouldReceive('get')->once()->andReturn($stash);
+		$this->stash->shouldReceive('delete')->once();
+		$this->stubReplayEnv();
+
+		$data = $this->invokeReplay('unrenderable-target-key', true);
+
+		$this->assertArrayNotHasKey(
+			'replay',
+			$data,
+			'A target that renders no confirmation must fall back to the v1 landing'
+		);
+		$this->assertTrue($data['post_replay_blocked']);
+
+		unset($_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE]);
+	}
+
+	/**
+	 * #322: a missing `target` key is the same refusal as an empty one.
+	 *
+	 * Guards the shape rather than one value — a stash written by an older build, or
+	 * by a future code path that forgets to record a target, must not inherit replay.
+	 */
+	public function test_bound_stash_with_missing_target_key_is_not_replayed(): void
+	{
+		$secret = 'super-secret-proof';
+		$_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE] = $secret;
+
+		$stash = $this->boundPostStash($secret);
+		unset($stash['target']);
+		$stash['target_complete'] = true;
+
+		$this->stash->shouldReceive('get')->once()->andReturn($stash);
+		$this->stash->shouldReceive('delete')->once();
+		$this->stubReplayEnv();
+
+		$data = $this->invokeReplay('no-target-key', true);
+
+		$this->assertArrayNotHasKey('replay', $data);
+		$this->assertTrue($data['post_replay_blocked']);
+
+		unset($_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE]);
+	}
+
+	/**
 	 * #322: never replay more than the confirmation described.
 	 *
 	 * `target_complete` is false when a displayed value was truncated (the first few

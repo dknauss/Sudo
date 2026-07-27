@@ -5,7 +5,7 @@ Tags:              reauthentication, access control, admin protection, multisite
 Requires at least: 6.4
 Tested up to:      7.0
 Requires PHP:      8.2
-Stable tag:        5.0.0
+Stable tag:        4.9.0
 License:           GPL-2.0-or-later
 License URI:       https://spdx.org/licenses/GPL-2.0-or-later.html
 
@@ -51,7 +51,7 @@ Developers can add custom rules via the `wp_sudo_gated_actions` filter.
 
 = How it works =
 
-**Browser requests (admin UI):** The user sees an interstitial challenge page naming the action and its concrete target. After entering their password (and 2FA code if configured) they are returned to where they were; on HTTPS sites, in the same browser that started the action, the original request resumes automatically. Otherwise nothing is resumed and the user performs the action again under the now-active sudo session. A resumed request is bound to the browser that created it, so an action started elsewhere can never be completed by someone else's reauthentication. **AJAX and REST requests** receive a `sudo_required` error; an admin notice on the next page load links to the challenge page.
+**Browser requests (admin UI):** The user sees an interstitial challenge page naming the action and, where the request carries a recognised target parameter, its concrete target. After entering their password (and 2FA code if configured) they are returned to where they were; when the challenge named the whole effect, on HTTPS sites, in the same browser that started the action, the original request resumes automatically. Otherwise nothing is resumed and the user performs the action again under the now-active sudo session. A resumed request is bound to the browser that created it, so an action started elsewhere can never be completed by someone else's reauthentication. **AJAX and REST requests** receive a `sudo_required` error; an admin notice on the next page load links to the challenge page.
 
 **Non-interactive requests (WP-CLI, Cron, XML-RPC, Application Passwords, WPGraphQL):** Configurable per-surface policies with three modes: **Disabled**, **Limited** (default), and **Unrestricted**.
 
@@ -436,6 +436,9 @@ This release hardens the reauthentication gate against a hijacked admin session 
 See the plugin's `CHANGELOG.md` for all versions.
 
 == Upgrade Notice ==
+
+= 4.9.0 =
+Security release. Everyone must reauthenticate to sudo once after upgrading: existing sessions carry no proof entry and no migration runs. Gated actions are no longer auto-replayed unless the challenge named the whole effect, so some custom rules now need the action re-issued.
 
 = 4.7.0 =
 Feature release: completes the in-editor reauthentication modal deferred from 4.6.0 — an in-place password modal over the block editor with automatic request re-dispatch, plus in-modal two-factor for modal-capable providers (TOTP, email, backup codes). No migration required.
