@@ -1,6 +1,146 @@
 # Session handoff — 2026-07-26 (core-gate reconciliation + doc consolidation)
 
-## ⇢⇢⇢ RESUME HERE (updated 2026-07-26 end of session — plugin security lane CLOSED + follow-ups)
+## ⇢⇢⇢ RESUME HERE (updated 2026-07-27 — v4.9.0 release integration)
+
+**Scope: the release lane.** Everything below this block is still current for the
+core-gate and process lanes; only the release/plugin status is superseded here.
+
+### State in one line
+
+**Both release blockers are merged. `main` is at `b30691a` and every §1 pre-tag gate
+is green. What remains is the external-claim audit (#421), the changelog date, and
+the tag.**
+
+### Do this next, in this order
+
+**1. The external-claim audit — #421 — take it in a FRESH session.**
+
+The issue says to run it in a fresh session and names a long-running one as the worst
+choice. That was followed: the integration session handed it off rather than doing it,
+having been wrong four consecutive times that night on a single fix.
+
+Everything needed is on the issue:
+- [comment 1](https://github.com/dknauss/Sudo/issues/421#issuecomment-5088372013) — six findings staged for the `docs/llm-lies-log.md` append. Numbering deliberately unassigned; the last append collided by assuming the next free number.
+- [comment 2](https://github.com/dknauss/Sudo/issues/421#issuecomment-5088447540) — refreshed candidate and re-measured gate table.
+
+**The issue body's frozen tree `39bcbd3` is STALE** — it reports 1238 tests against a
+tree that now has 1248. Audit `b30691a`. Scope is `git log v4.8.0..b30691a`. The claims
+added since that snapshot are the eight `GB-*` rows from #433; `composer verify:sources`
+passing does **not** discharge them — it proves a snippet still exists at a URL, not
+that it supports the claim attached to it.
+
+**2. Set the release date.** `CHANGELOG.md:3` and `readme.txt:198` both read
+`4.9.0 - 2026-07-26`. Already wrong. Left alone deliberately — the correct value is the
+date the tag is actually cut, a maintainer action on a maintainer's schedule. Set both
+immediately before tagging.
+
+**3. Tag — maintainer-owned.** Annotated `v4.9.0` from the release commit, then bump
+`blueprint.json` to `v4.9.0` **after** the tag, never before: the public Playground
+badge loads `blueprint.json` from `main`, so a pre-tag bump serves a 404.
+
+### Release candidate `b30691a`
+
+```
+b30691a fix(322): the Rule Tester must not predict replay at all (#383)
+eb6fe3f fix(429): return a refused POST to its originating screen, not the dashboard (#433)
+b50d0af docs(sources): GB-MS-SIGNUP-ROLE cited a line in the wrong function (#421) (#428)
+```
+
+| gate | result |
+|---|---|
+| Version sync — header, `WP_SUDO_VERSION`, `tests/bootstrap.php`, `phpstan-bootstrap.php` | all `4.9.0` |
+| `readme.txt` Stable tag | `4.9.0` |
+| `blueprint.json` | `v4.8.0` — correct pre-tag |
+| Unit | 1248 tests, 3722 assertions |
+| PHPCS · PHPStan L6 · Psalm | 0 · 0 · 0 |
+| `verify:metrics` · `verify:i18n` · `verify:sources` | in sync · in sync · 52 citations |
+
+**Re-run gates in a clean detached worktree with its own `composer install`** — not a
+symlinked `vendor/`. During #433 a symlink made the suite load `includes/` from a
+*different* worktree, so edits appeared to do nothing and a deliberately planted parse
+error did not fail. A gate run with shared vendor is not measuring the tree you think
+it is.
+
+### What landed
+
+**#429 (PR #433, `eb6fe3f`) — a real regression, caught late.** A gated POST landed the
+user on the Dashboard after reauth while showing *"… Re-enter them to finish the
+change"*, with no form on screen. **Introduced by the unreleased #350**, not
+pre-existing: at `v4.8.0` the same branch returned to the originating form.
+
+The landing now derives from `$stash['url']` — the URL the gate intercepted — with the
+query stripped, for POST as well as GET. `return_url` is read nowhere in the landing
+path; it comes from `wp_get_referer()`, so the requester chooses it.
+
+Seven endpoints route to the neutral page instead, each verified against
+`wordpress-develop` trunk and registered: `options.php`, `admin-post.php`, `admin.php`,
+`update.php`, `user-edit.php`, network `edit.php`, `admin-ajax.php`. **`user-edit.php`
+matters most** — the role/password/email rules all mark their stash non-replayable, so
+that landing is their every-time path, and it was a `wp_die()`.
+
+The handler list **fails open**, so `test_every_builtin_post_rule_lands_somewhere_usable()`
+walks the registry in both single-site and multisite form, resolves each rule to a full
+URL, and fails until every POST-capable landing has been checked.
+
+**#383 (`b30691a`)** — removed the Rule Tester's replay prediction; also corrected a
+`none of which` over-claim in the changelog that an earlier sweep had missed.
+
+### Open follow-ups, all deliberately out of the tag
+
+| # | What | Why deferred |
+|---|---|---|
+| [#434](https://github.com/dknauss/Sudo/issues/434) | Guard test checks the handler predicate **before** `$verified_screens`, so adding a real screen to `HANDLER_ENDPOINTS` silently demotes it and stays green | Fails **safe** — dashboard + notice intact, i.e. pre-#429 behaviour. One-line disjointness assertion. |
+| [#435](https://github.com/dknauss/Sudo/issues/435) | `$neutral_url` uses `is_network_admin()`, false on the ajax path, so network actions land on the site dashboard | Pre-existing, severable; notice still renders via `admin_notices` |
+| #431 | Challenge `Target:` shows raw IDs (`users: 2`) on bulk role change — `describe_stash_target()` resolves only `user_id`, but the Users list posts `users[]` | **Not a regression** — the Target line is new in 4.9.0, so the bulk path ships showing raw IDs where 4.8.0 showed nothing. Real design call: the array is flattened at capture time, resolution lives at display time, the 100-char cap is computed on IDs. Constraints on the issue: `users[]` is plural so naming only the first is worse than naming none; the `list_users` gate must stay or the challenge becomes a username-enumeration oracle. |
+| #377, #430, #432 | verify-sources hardening, dependabot bumps | post-4.9.0 |
+
+### Hazards — read before touching a shared branch
+
+**`--force-with-lease` is not the protection it reads as.** The bare form compares
+against your **remote-tracking ref**, not the remote, so any `git fetch` between
+someone else's push and your force-push silently satisfies the lease. It reads as "fail
+if the remote moved"; it means "fail if the remote moved *and I never fetched since*".
+It dropped Dan's merge `951bf42` from `fix/322-rule-tester-accuracy` tonight — verified
+recoverable, no unique line lost, but the mechanism is general and several sessions
+share this repo. Pin it: `--force-with-lease=<ref>:<sha-you-reviewed>`, and after any
+force-push to a shared branch diff the new head against the pre-push SHA in **both**
+directions before calling it clean.
+
+**A green suite is not evidence a guard works.** Five review rounds on #429, four
+rejections, every one a real defect, suite green at the start of all five. Three
+rejections were the *same* fault — a condition that cannot be true where it runs:
+`return_url` compared against a self-posting form's URL (always `''`);
+`is_network_admin()` under `admin-ajax.php` (always false); `is_multisite()` inside the
+guard test (stubbed false suite-wide). Twice the fault was inside the test written to
+catch the previous instance — the guard test closing the fail-open list read the wrong
+array key, walked **zero rules**, and passed. **If no mutation of the guarded code
+turns a test red, the test is not testing the guard.** Mutation caught every one;
+reading caught none.
+
+**A rule `AGENTS.md` does not have.** A claim about *what a previous release did* is an
+external claim and needs the same `git show` discipline as an upstream citation. That
+check is the only reason #429 was caught, and it was run on a hunch, not a rule. Had
+the integrator agreed with the assessment in front of them, the regression ships. Worth
+adding once the freeze lifts.
+
+**A line is not discharged because you edited it.** #383's over-claim survived an
+earlier sweep *because the line was in that sweep's grep results*. It carried two
+defects; one was fixed, the line was seen, the hit counted as handled. Grepping harder
+would not have helped.
+
+### Sessions
+
+Demonstrator (CA) has the sibling-flow check queued against `eb6fe3f`: a
+role/password/email change (was a `wp_die()`), a plugin or theme upload (was a blank
+page), Users → Add New (the original report), and a Sudo settings save (should land on
+the dashboard, **not** the raw All Settings dump). If a landing looks wrong and the
+suite is green, trust the eyes — the twelve verified-screen URLs in the guard test were
+vouched for by a human reading upstream, and if any is wrong the test now pins the
+error as fact.
+
+---
+
+## ⇢ Previous block — 2026-07-26 end of session (plugin security lane CLOSED + follow-ups)
 
 **Scope of this block: the plugin lane only.** It closes out the "Plugin lane (parallel,
 user launches separate sessions)" line in the core-gate block below — that lane is now
