@@ -108,7 +108,8 @@ the `#322` **v1** fix removed the only call site of `wp_sudo_action_replayed`, a
 
 **That premise did not survive.** PR #350 merged v1 **and** v2, and v2 restores
 origin-bound replay — so `do_action( 'wp_sudo_action_replayed', … )` is live in
-`Challenge::handle_replay_response()` on `main` today, and `docs/developer-reference.md`
+`Challenge::build_replay_response_data()` (`includes/class-challenge.php:1229`) on `main`
+today, and `docs/developer-reference.md`
 still documents its signature and event code `1900009` with no removal marker. **The
 removal never shipped.** Nothing documented is removed.
 
@@ -126,11 +127,12 @@ What the payload does add is two **new** documented public entries: the
 `wp_sudo_lockout_cleared` hook and the `wp sudo unlock` CLI command. Additions are what
 MINOR means. So `4.9.0`, by the rule — not by preference, and with no override needed.
 
-This is the outcome this document **anticipated when it deferred v2**: *"it restores replay,
-and therefore probably restores the removed hook — so its own version classification must be
-decided on its merits, not inherited from this release."* It was decided on its merits, and
-the merged payload is additive plus security fixes. (Sentence preserved from the closed
-PR #390, which would otherwise have taken it with it.)
+This is the rule **re-applied to changed facts, not an override of it** — and it is exactly the
+outcome this document anticipated when it deferred v2: *"it restores replay, and therefore
+probably restores the removed hook — so its own version classification must be decided on its
+merits, not inherited from this release."* It was, and the merged payload is additive plus
+security fixes: **`4.9.0`**. (Preserved from the closed PR #390, which would otherwise have
+taken it with it.)
 
 **The forced reauthentication is communicated in prose, not in the version digit.**
 Every user must reauthenticate once after upgrading, because pre-`4.9.0` sessions carry
