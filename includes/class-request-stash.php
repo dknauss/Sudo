@@ -381,19 +381,28 @@ class Request_Stash {
 	 * stored value and an array submission are all treated as a possible change,
 	 * because hiding a real target is far more dangerous than naming a spurious one.
 	 *
+	 * KNOWN LIMITATION, deliberately not fixed here: this runs for EVERY matched rule,
+	 * not only options.critical, because capture_target() has no rule context. A custom
+	 * rule whose effect field happens to be named `home`, `siteurl` or another entry
+	 * below, submitting a value equal to that stored option, has it suppressed from the
+	 * target — after which target_describes_payload() no longer names the whole payload
+	 * and the replay is refused. That fails CLOSED (the user re-submits manually;
+	 * nothing executes unnamed), which is why it is a functional wart rather than a
+	 * security defect, and why the fix — threading the matched rule through target
+	 * capture — was not made during a release freeze. Tracked as #452; remove this
+	 * block in the same commit that fixes it.
+	 *
 	 * @param string $param Request parameter name.
 	 * @param mixed  $raw   Value from the source that would be replayed.
 	 * @param mixed  $other Value from the other source, if present.
 	 * @return bool
 	 */
 	private function target_value_echoes_stored_option( string $param, $raw, $other ): bool {
-		$map = $this->critical_option_comparison_map();
-
-		if ( ! isset( $map[ $param ] ) ) {
+		if ( ! isset( self::CRITICAL_OPTION_SOURCES[ $param ] ) ) {
 			return false;
 		}
 
-		$stored = get_option( $map[ $param ] );
+		$stored = get_option( self::CRITICAL_OPTION_SOURCES[ $param ] );
 
 		// get_option() returns false when the option is absent. That is not evidence
 		// the submitted value is unchanged, so treat it as a change and show it.
@@ -424,11 +433,15 @@ class Request_Stash {
 	}
 
 	/**
-	 * Map each critical-option request field to the option it is compared against.
+	 * Map each option-shaped target field to the option it is compared against.
 	 *
-	 * Derived from the FILTERED critical option list so that narrowing
-	 * `wp_sudo_critical_options` narrows this too — parity with
-	 * Action_Registry::critical_option_rest_keys().
+	 * Deliberately NOT derived from `wp_sudo_critical_options`. Whether an option is
+	 * GATED and whether a displayed value is TRUE are different questions: a site that
+	 * narrows the filter to `new_admin_email` still posts unchanged `siteurl`, `home`,
+	 * `default_role` and `users_can_register` from the same form, and those keys stay
+	 * in TARGET_PARAMS. Deriving from the filtered list would leave them uncomparable
+	 * and name them as changes again — reinstating #431 on exactly the sites that
+	 * customised their protection set.
 	 *
 	 * The administration email address is the one field that is not self-titled: core
 	 * posts `new_admin_email` but prefills it with the current `admin_email` (see
@@ -436,18 +449,16 @@ class Request_Stash {
 	 * the stored address. Comparing it against the `new_admin_email` option — empty
 	 * unless a change is already pending — would report every save as a change.
 	 *
-	 * @return array<string, string>
+	 * @var array<string, string>
 	 */
-	private function critical_option_comparison_map(): array {
-		$aliases = array( 'new_admin_email' => 'admin_email' );
-		$map     = array();
-
-		foreach ( Action_Registry::critical_option_names() as $option ) {
-			$map[ $option ] = $aliases[ $option ] ?? $option;
-		}
-
-		return $map;
-	}
+	private const CRITICAL_OPTION_SOURCES = array(
+		'siteurl'            => 'siteurl',
+		'home'               => 'home',
+		'admin_email'        => 'admin_email',
+		'new_admin_email'    => 'admin_email',
+		'default_role'       => 'default_role',
+		'users_can_register' => 'users_can_register',
+	);
 
 	/**
 	 * Whether the captured target names every effect-bearing field in the payload.
