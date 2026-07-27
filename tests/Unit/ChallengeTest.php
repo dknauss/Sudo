@@ -2008,6 +2008,77 @@ class ChallengeTest extends TestCase
 	}
 
 	/**
+	 * #322: an EMPTY target must not be treated as a complete description.
+	 *
+	 * `capture_target()` initialises `$complete = true` and only ever sets it false on
+	 * truncation, so a request carrying none of `TARGET_PARAMS` stores
+	 * `target => [], target_complete => true`. `target_describes_payload()` then
+	 * iterates zero keys and agrees. The completeness check is satisfied VACUOUSLY.
+	 *
+	 * That matters because `render_page()` guards the confirmation on
+	 * `'' !== $action_target`, so an empty target renders NO `Target:` line at all —
+	 * the user confirms a coarse label ("Export site data") and nothing else. Replaying
+	 * there means the informed-confirmation control, which is the control that holds
+	 * when the browser binding is bypassed, was never shown.
+	 *
+	 * Ships live on `tools.export`: a GET rule on `export.php` gated when
+	 * `$_GET['download']` is set, whose parameters appear in none of `TARGET_PARAMS`.
+	 */
+	public function test_bound_stash_with_empty_target_is_not_replayed(): void
+	{
+		$secret = 'super-secret-proof';
+		$_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE] = $secret;
+
+		$stash = $this->boundPostStash($secret);
+		// Exactly what capture_target() stores for a request naming no known target.
+		$stash['target'] = array();
+		$stash['target_complete'] = true;
+
+		$this->stash->shouldReceive('get')->once()->andReturn($stash);
+		$this->stash->shouldReceive('delete')->once();
+		$this->stubReplayEnv();
+
+		$data = $this->invokeReplay('empty-target-key', true);
+
+		$this->assertArrayNotHasKey(
+			'replay',
+			$data,
+			'A stash whose confirmation named nothing must fall back to the v1 landing'
+		);
+		$this->assertArrayNotHasKey('post_data', $data);
+		$this->assertTrue($data['post_replay_blocked']);
+
+		unset($_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE]);
+	}
+
+	/**
+	 * #322: a missing `target` key is the same refusal as an empty one.
+	 *
+	 * Guards the shape rather than one value — a stash written by an older build, or
+	 * by a future code path that forgets to record a target, must not inherit replay.
+	 */
+	public function test_bound_stash_with_missing_target_key_is_not_replayed(): void
+	{
+		$secret = 'super-secret-proof';
+		$_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE] = $secret;
+
+		$stash = $this->boundPostStash($secret);
+		unset($stash['target']);
+		$stash['target_complete'] = true;
+
+		$this->stash->shouldReceive('get')->once()->andReturn($stash);
+		$this->stash->shouldReceive('delete')->once();
+		$this->stubReplayEnv();
+
+		$data = $this->invokeReplay('no-target-key', true);
+
+		$this->assertArrayNotHasKey('replay', $data);
+		$this->assertTrue($data['post_replay_blocked']);
+
+		unset($_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE]);
+	}
+
+	/**
 	 * #322: never replay more than the confirmation described.
 	 *
 	 * `target_complete` is false when a displayed value was truncated (the first few

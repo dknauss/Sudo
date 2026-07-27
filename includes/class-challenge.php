@@ -1128,6 +1128,21 @@ class Challenge {
 			return false;
 		}
 
+		// …and `target_complete` alone is not enough, because an EMPTY target satisfies
+		// it vacuously. `Request_Stash::capture_target()` initialises the flag true and
+		// only ever clears it on truncation, so a request naming none of TARGET_PARAMS
+		// stores `target => [], target_complete => true`, which
+		// `target_describes_payload()` then agrees with after iterating zero keys.
+		//
+		// That is the one case where the confirmation renders no `Target:` line at all
+		// (`render_page()` guards on a non-empty description), so the user consented to
+		// a coarse label and nothing else. Informed confirmation is the control that
+		// holds when the browser binding is bypassed; with no target named there is no
+		// control left, so refuse and take the v1 landing.
+		if ( empty( $stash['target'] ) || ! is_array( $stash['target'] ) ) {
+			return false;
+		}
+
 		$expected = isset( $stash['binding_hash'] ) && is_string( $stash['binding_hash'] ) ? $stash['binding_hash'] : '';
 
 		if ( '' === $expected ) {
