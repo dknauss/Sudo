@@ -114,6 +114,57 @@ versioning has neither hazard — a doubled increment is harmless.
    this one was working it. **Merge their commits, never force-push** — and re-run the gates
    after, since their new integration test arrived red.
 
+**Working alongside other sessions.** Four ran concurrently on 2026-07-26 and produced
+roughly a dozen cross-session errors, every one of the same shape: **a stale or partial
+answer, completed from expectation, carrying confidence borrowed from the fact that a tool
+ran at all.** These are the structural fixes, not the diligence ones — diligence rules decay.
+
+6. **Discovery beats broadcasting.** Three sessions opened the *same* version rollback
+   (#389/#390/#391) within six minutes. No amount of announcing would have caught it; nobody
+   ran `gh pr list` before branching. Check the repo, not your recollection of it.
+7. **Name the SHA a review applies to.** Post-then-fix races are constant here; two of my
+   reviews were called stale when they had actually preceded the fix, and one genuinely was.
+   `git fetch && git log --oneline -1 <branch>` immediately before posting settles it in the
+   artifact instead of in anyone's memory.
+8. **`git diff A B` is not a merge preview.** It reports files on `A` and absent on `B` as
+   deletions, which reads exactly like `B` will delete them. It will not — a merge applies
+   `B`'s diff *relative to its merge base*. Ask the real question with
+   `git merge-tree $(git merge-base A B) A B`, or `git diff $(git merge-base A B) B -- <path>`
+   (empty ⇒ never touched). Misreading this produced a false alarm that a branch would delete
+   the whole `poc/` tree, which in turn sent a session rebasing an already-closed PR.
+9. **A retraction never reaches whoever already acted on the claim.** Correcting the source
+   does not recall the copies. So: **correct in place *and* announce** — a body edit serves
+   future readers, a comment reaches existing subscribers, and doing only one is half a
+   retraction. Say what was *wrong*, not only what is now right, or the reader who
+   propagated the stale version stays confident and wrong.
+10. **Cite the claim you acted on.** A citation is a back-edge a retraction can travel along.
+    An uncited claim propagates as an orphan that no correction can ever reach.
+    *Worked example, chosen because the propagator knew the rule at the time:* a false claim
+    about a review's timing entered a broadcast roster, was repeated by a second session in an
+    apology **whose own subject was failing to check things**, and reached a third hop before
+    one `git show -s --format=%cI` falsified it. Nobody was careless; the claim simply had no
+    citation to travel back along. This session then committed the same error in the opposite
+    direction — handing another lane a derived contract instead of a citation, nearly
+    producing a third copy of a section that already existed on an unmerged branch.
+11. **A wrong justification for a correct test is more durable than a wrong test**, because
+    nothing fails to reveal it. Two live examples this session: an invented enclosing symbol
+    in the sentence carrying a release's whole version argument, and *"`sudo_required` …
+    which only `Gate` emits (verified)"* in the comment explaining why an E2E suite is not
+    vacuous — `Admin` emits it in three places. Both tests were fine; both explanations were
+    the load-bearing part.
+12. **Mutation-test a guard before believing its tests.** Delete the clause, run the filter.
+    Half of a two-clause security guard in #397 was verified by nothing — the full 1228-test
+    suite passed with it removed. Reading cannot answer "is this test doing work"; deleting
+    can, in two minutes.
+13. **Drive the entry point, not the sink.** A test that calls the guarded function directly
+    proves the check works *when reached* and says nothing about *whether it is reached*.
+14. **A command in a doc is not a claim, it is a change someone will execute.** Trace it on
+    single-site *and* multisite. A `wp option delete wp_sudo_db_version` remedy shipped in a
+    release doc would have replayed every migration from `0.0.0`, granting governance caps to
+    every administrator — and on multisite silently done nothing, since it targets a blog
+    option while the reader is a site option. Eight factual claims in that same section were
+    verified; the executable one was not.
+
 **Release-state note — the version is `4.9.0`. Do not re-derive it from this file.**
 This note has now been wrong in both directions inside a single session: first "#364 will bump
 to 4.9.0" (#364 was closed), then "5.0.0, not 4.9.0" (rolled back by #391). Treat
