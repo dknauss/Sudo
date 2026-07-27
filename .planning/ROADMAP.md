@@ -61,10 +61,11 @@ proof transport.
    - isolated top-level challenge and confirmation;
    - isolated popup with `noopener` and a constrained return channel; and
    - browser-mediated WebAuthn/passkey confirmation.
-4. Model the proof handoff under active same-origin XSS.
-5. Decide whether the first slice closes active XSS or explicitly narrows its
-   headline to copied-cookie/session-riding protection.
-6. Specify preflight as a security-sensitive read endpoint: same-capability
+4. Resolve one coupled mechanism-and-claim question: model what active
+   same-origin script can read, invoke, redirect, replay, or redeem through each
+   proof handoff, then derive the permitted XSS claim from that result. Do not
+   “fix” the wording while leaving the mechanism unresolved.
+5. Specify preflight as a security-sensitive read endpoint: same-capability
    authorization, response minimization, and rate limiting.
 
 **Required adversarial tests on paper and in a browser spike:**
@@ -82,9 +83,10 @@ proof transport.
 
 **Exit gate:**
 
-No Phase 28 implementation until the trust boundary, closure claim, and proof
-handoff are written without an unresolved fatal assumption. A narrowed claim is
-an acceptable result; hand-waving active XSS is not.
+No Phase 28 implementation until the trust boundary and proof handoff survive
+the named tests and the closure claim is derived from those results. A narrowed
+claim is an acceptable result; independently resolving the prose and mechanism
+is not.
 
 ## Phase 28 — Early-veto core slice
 

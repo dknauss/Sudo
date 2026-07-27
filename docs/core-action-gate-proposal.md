@@ -171,23 +171,27 @@ The decision object never encodes transport: business functions return a decisio
 - *Stamp `reauth_at` on the shared session record* — the stolen cookie **is** that record; it elevates the thief too.
 - *Trust a fresh `login` timestamp* — `wp_signon('','')` mints a fresh stamp from a held cookie with no credential entered.
 
-The design direction that survives uses a separate, action-bound proof and never
-auto-replays a consequential request. The preflight protocol in item 6 is the
-forward path; reauthenticate-then-resubmit is the safe legacy fallback:
+The surviving properties are narrower than an implementation: approval is
+bound to one server-canonical action digest, unavailable to a browser holding
+only a pre-challenge cookie copy, short-lived, and atomically consumed. Phase 27
+must choose the proof transport, storage, and handoff. Earlier drafts proposed
+an HttpOnly proof cookie plus a per-verifier HMAC record; those are retained in
+the superseded implementation inventory as hypotheses, not decisions. Whether
+same-origin JavaScript can read or exercise the selected proof is the same
+question that determines the permitted XSS claim.
 
-1. The proof secret lives only in the browser that answered the challenge; stored server-side only as a hash, keyed to the **current login-session token verifier** (`hash('sha256', wp_get_session_token())`) — **not per-user**, so concurrent sessions do not overwrite each other. Its cookie is scoped to the site root (`COOKIEPATH`), not `/wp-admin`, so it also reaches cookie-authenticated `/wp-json` REST.
-2. The assurance record is **self-authenticating**, and the MAC must cover the **proof hash too**: `hash_hmac('sha256', "$user_id|$verifier|$reauth_at|$scope|$proof_hash", wp_salt('auth'))`, verified before any field is trusted. (Signing only user/verifier/time/scope would let a cache-poisoning attacker keep the valid MAC and swap in the hash of a cookie *they* hold — defeating the separate proof.) `session_tokens` lives in the persistent, poisonable `user_meta` cache group (the wp2shell class; §10), which is why the record must be signed at all. Degradation: weaker when the `AUTH_SALT` family lives in `wp_options` rather than `wp-config.php`.
-3. **Only the challenge handler writes it**; core strips reserved `reauth_*` keys from the `attach_session_information` filter result.
-4. The read consults the **session store**, so "log out everywhere" revokes within the same request.
-5. Teardown clears only the `reauth_*` keys, bound to a credential change **for the target user** — never `destroy_all()`, and never on an admin editing another user.
-6. **Pre-submit interaction, with an honest fallback.** An integrated admin
+The interaction direction is settled even though proof issuance and final
+confirmation ordering are not:
+
+1. **Pre-submit interaction, with an honest fallback.** An integrated admin
    client pauses before sending the mutation, asks the server for the canonical
-   action and target digest, completes reauthentication, receives a short-lived
-   one-use proof for that digest, shows the final action, and submits once. A
+   action and target digest, completes trusted reauthentication and
+   action-specific confirmation, obtains authority to submit that exact digest,
+   and submits once. A
    legacy surface that cannot do this safely reauthenticates and then asks the
    user to submit again. Core never stores and later executes an already-submitted
    consequential request.
-7. **The challenge chrome is not the security boundary.** A modal is excellent
+2. **The challenge chrome is not the security boundary.** A modal is excellent
    UX but an ordinary same-origin modal or iframe can be inspected or imitated by
    active XSS. The server-side veto and digest-bound proof remain authoritative;
    WebAuthn/passkeys or an isolated provider surface provide stronger credential
@@ -205,9 +209,17 @@ In plain terms, the practical architecture has three layers:
 
 The intended interaction is:
 
-`click → pause locally → server preflight → reauthenticate → receive an action-bound proof → confirm → submit once`
+`click → pause locally → server preflight → trusted reauthentication and action-specific confirmation → submit once with action-bound authority`
 
-If core wants the thief's existing session *gone*, offer rotation as an explicit "sign out other sessions" affordance after step-up — not an implicit side effect of every elevation. The full mechanics (per-verifier keying, atomic write, lockout-as-remediation-hazard) are in the spec's §4.2.
+Phase 27 decides whether confirmation precedes proof issuance, is the act that
+causes issuance, or is combined with redemption inside an isolated flow. The
+document deliberately does not promise a JavaScript-readable token or an
+ambient proof cookie before that decision.
+
+If core wants the thief's existing session *gone*, offer rotation as an explicit
+"sign out other sessions" affordance after step-up—not an implicit side effect
+of every elevation. The superseded spec's §4.2 preserves prior mechanism
+research, but the GSD program controls what carries forward.
 
 ---
 

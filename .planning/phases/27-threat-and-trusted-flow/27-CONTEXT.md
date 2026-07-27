@@ -2,8 +2,10 @@
 
 ## The decision this phase must produce
 
-Before implementation, decide exactly which stolen-session/XSS attacker the first
-slice stops and how a trusted approval returns to the original unsent operation.
+Before implementation, decide how trusted approval returns to the original
+unsent operation and, from what active same-origin script can do to that
+handoff, derive exactly which stolen-session/XSS attacker the first slice stops.
+These are one decision: proof visibility and exercisability determine the claim.
 
 A clean outcome may be narrower than the motivating ambition. It may not be
 ambiguous.
@@ -94,9 +96,11 @@ bytes, or proof material.
 
 ## Required outputs
 
-1. Threat matrix with exact closure language.
-2. Trusted-surface decision.
-3. Proof-handoff sequence diagram.
+1. One handoff-and-claim decision record: threat matrix, trusted-surface choice,
+   proof-handoff sequence, browser observations, and the exact closure language
+   those mechanics support.
+2. Rejected handoff alternatives and the XSS claim each one would have allowed.
+3. Confirmation/issuance/redemption ordering.
 4. Preflight authorization and response schema.
 5. Atomic redemption storage decision.
 6. Browser-spike results for each XSS case above.

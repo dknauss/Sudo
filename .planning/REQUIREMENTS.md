@@ -49,10 +49,12 @@ pause-before-send flow for two executable-code effects.
   same-origin XSS.
 - [ ] **TRUST-02:** Trusted UI names the concrete action and target from
   server-defined data; attacker-controlled values render only as escaped data.
-- [ ] **TRUST-03:** The approval handoff cannot silently become an ambient,
-  general-purpose bearer available to any same-origin request.
-- [ ] **TRUST-04:** If active same-origin XSS is not closed by the first slice, every
-  proposal and demo says so plainly and makes no general “XSS → RCE closed” claim.
+- [ ] **TRUST-03:** The approval handoff is tested against active same-origin
+  script for every operation it exposes: read, invoke, redirect, replay, and
+  redeem. The result determines—not merely accompanies—the permitted XSS claim.
+- [ ] **TRUST-04:** Every proposal and demo states only the XSS property the
+  selected handoff actually survives. If it does not close active same-origin
+  XSS, it makes no general “XSS → RCE closed” claim.
 
 ## wp-admin experience
 

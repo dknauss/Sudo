@@ -90,10 +90,10 @@ session-riding property that was actually demonstrated.
   invocation contract without a general registry.
 - Which fields form each action digest and how upload bytes are represented.
 - Where trusted reauthentication and final confirmation render.
-- How the proof reaches the original page without becoming a general bearer
-  available to compromised same-origin script.
-- Whether active same-origin XSS is in the first closure claim or an explicitly
-  deferred attacker.
+- **One coupled handoff-and-claim decision:** determine what active same-origin
+  script can read, invoke, redirect, or redeem in the selected proof handoff;
+  then scope the XSS claim to exactly what that mechanism survives. The wording
+  cannot be settled independently of the transport.
 - Atomic proof issuance/redemption and behavior when a persistent object cache is
   unavailable or hostile.
 - Preflight authorization, response minimization, rate limiting, and diagnostics

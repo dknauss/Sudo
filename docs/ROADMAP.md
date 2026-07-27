@@ -281,8 +281,11 @@ confirm-then-redeem shape is the same idea at the core layer.
 - **Network admin tools** — cross-site session widget, super-admin visibility
   controls, cross-site session revocation, and a network policy hierarchy (site admins
   can only tighten).
-- **Abilities API / MCP** — monitor-only; add a REST rule to `Action_Registry` when a
-  destructive core ability (`DELETE` on `/run`) appears. Analysis:
+- **WP Sudo plugin compatibility with Abilities API / MCP** — monitor-only;
+  consider adding a plugin-local REST rule to WP Sudo's existing
+  `Action_Registry` if a destructive core ability (`DELETE` on `/run`) appears.
+  This is maintenance of the research plugin, not part of the proposed core
+  gate or a reason to restore a core registry. Analysis:
   [`abilities-api-assessment.md`](abilities-api-assessment.md).
 - **Internal admin least-privilege governance** — see
   [`archive/internal-admin-governance-spec.md`](archive/internal-admin-governance-spec.md).
