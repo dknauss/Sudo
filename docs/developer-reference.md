@@ -56,10 +56,15 @@ bypassed. Two consequences for rule authors:
   `Request_Stash::TARGET_PARAMS` — **read the constant, not this sentence**, because a
   prose copy drifts the moment a key is added. It currently covers plugin/theme/template
   identifiers, user and role targets (including `new_role`), bulk selections
-  (`checked`), most of the critical option keys, and app-password names. Note the
-  critical-option set is **not** a subset: it is filterable via
-  `wp_sudo_critical_options`, and `new_admin_email` is a critical option that is *not*
-  a recognised target — so adding an option there does not make it one. Such a rule still gates correctly and
+  (`checked`), the critical option keys, and app-password names. Note the
+  critical-option set and the recognised-target set are **independent**: the former is
+  filterable via `wp_sudo_critical_options`, so adding an option there does not make it
+  a recognised target, and a target key need not be a gated option. (`new_admin_email`
+  was the standing example of the gap until 4.9.0, when it was added to
+  `TARGET_PARAMS` — `options-general.php` posts the administration email under that
+  name, not `admin_email`, so an administration-email takeover rendered no `Target:`
+  line at all. See `GB-ADMIN-EMAIL-FIELD`.) A rule whose effect rides an unrecognised
+  parameter still gates correctly and
   still reauthenticates — it simply falls back to the manual landing, where the user
   re-issues the action against the session they now hold. This is deliberate: replaying
   against a coarse label alone is consent to a category, not to an action.
