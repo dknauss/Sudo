@@ -1890,3 +1890,49 @@ C2. REDUNDANT MEMORY DUPLICATING CLAUDE.md
            arguments), and treat an empty result as unverified until something about the
            inputs explains why it should be empty. Where a length, a count, or a known
            difference contradicts the emptiness, the emptiness is the thing that is wrong.
+
+70. A RETURN TYPE COPIED FROM A SUMMARY TABLE INSTEAD OF FROM CORE — the summary was
+    internally contradictory, and the half that got copied was the wrong half.
+   Claim:  In `docs/ROADMAP.md`, of the six identity-pivot sinks Slice B must close:
+           "`set_role()`, `add_role()`, `grant_super_admin()`, `switch_theme()` return
+           `void` and silently no-op."
+   Reality: `grant_super_admin()` returns `bool`, not `void` — `false` when the
+           `$GLOBALS['super_admins']` override is set or the site is not multisite,
+           `true` after appending to `site_admins`, `false` otherwise. The other three
+           in that list are void and were correct.
+
+           The real defect is worse than the one claimed, which is why the error
+           mattered rather than being cosmetic. `grant_super_admin()` calls
+           `update_site_option( 'site_admins', $super_admins )`, **discards its return
+           value**, and then returns `true` unconditionally. So the sink does not
+           silently do nothing — it silently reports success for a privilege write that
+           may not have happened. "Cannot refuse" understates it; it actively
+           misreports.
+   Source: WordPress 7.0, `wp-includes/capabilities.php`, `grant_super_admin()` —
+           `return false` at the override guard, `update_site_option()` with its result
+           unused, `return true` immediately after, `return false` at the end. Read in
+           `.tmp/wordpress` on 2026-07-27. The other five verified the same way in the
+           same pass: `wp_delete_user()` (`wp-admin/includes/user.php`, `@return bool`),
+           `wpmu_delete_user()` (`wp-admin/includes/ms.php`, `@return bool`),
+           `set_role()`/`add_role()` (`WP_User`, bare `return;`, no `@return`),
+           `switch_theme()` (`wp-includes/theme.php`, no `@return`, no `return`).
+   Notes:  The claim was copied from the seam table in issue #360 rather than read from
+           core. That table is **internally contradictory**: its Return column says
+           `void` while its Problem column for the same row says "the
+           `update_site_option()` return is discarded and `true` is returned regardless"
+           — which only makes sense if the function returns something. Both halves were
+           in view; the one that fit the sentence being written got copied.
+
+           This is the failure mode AGENTS.md → Verification Requirements names
+           explicitly, and the repo-internal source made it likelier, not less likely: a
+           table inside this project reads as already-verified in a way an external URL
+           does not, so it invited exactly the trust that the rule withholds from
+           training data. An in-repo summary is not a source. It is a claim with a
+           shorter path to being believed.
+
+           Caught by an external reviewer (Codex) reading the roadmap line against the
+           verified seam inventory, not by any check in this repository. Nothing
+           mechanical covers prose about third-party return types.
+   Fix:    Read the function. When a summary states a type, the summary is the thing to
+           check, not the thing to cite — and when its own columns disagree, that
+           disagreement is the signal to go to source, not a detail to route around.

@@ -32,10 +32,19 @@ contradicting it.
   `poc/install-package-gate/` wired into CI as `composer test:poc`, and needed **no** core
   patch — `WP_Upgrader::install_package()` already carries a vetoing `upgrader_pre_install`
   short-circuit. Slice B is the part that needs a real `wordpress-develop` branch, because
-  six identity-pivot sinks cannot refuse at all: `wp_delete_user()` / `wpmu_delete_user()`
-  return `bool`, where a `WP_Error` is **truthy** — a refusal reads to the caller as
-  success — and `set_role()`, `add_role()`, `grant_super_admin()`, `switch_theme()` return
-  `void` and silently no-op. It needs six `pre_*` filters modelled on `pre_delete_post`.
+  six identity-pivot sinks cannot refuse at all, in three distinct ways (each verified
+  against WordPress 7.0 source, not against the summary table in #360, which has
+  `grant_super_admin()` wrong): `wp_delete_user()` (`wp-admin/includes/user.php`) and
+  `wpmu_delete_user()` (`wp-admin/includes/ms.php`) return `bool`, where a `WP_Error` is
+  **truthy** — a refusal reads to the caller as success; `set_role()`, `add_role()`
+  (`WP_User`, bare `return;`) and `switch_theme()` (`wp-includes/theme.php`, no `@return`)
+  return `void` and silently no-op; and `grant_super_admin()`
+  (`wp-includes/capabilities.php`) returns `bool` — **not `void`** — but discards the
+  `update_site_option( 'site_admins', … )` return and then returns `true` unconditionally,
+  so a failed privilege write already reports success today. That last one is a stronger
+  argument for the seam work than a silent no-op would be: the sink does not merely fail
+  to refuse, it actively misreports. It needs `pre_*` filters modelled on
+  `pre_delete_post`.
   Unblocked: #358 (the chokepoint veto audit) is closed, and the "starts after 4.9.0 is
   tagged" condition cleared on 2026-07-27. Scope: `.planning/360-poc-patch-branch-scope.md`.
   The test that decides it: **two real browsers, cloned session** — browser B holds a copy
