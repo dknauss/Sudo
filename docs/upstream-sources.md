@@ -39,8 +39,18 @@ source removed.
    which is the habit this column exists to force.
 2. Add the row: a stable ID, the raw URL, the line, an exact snippet, the enclosing
    symbol, and the claim it supports.
-3. Run `bin/verify-sources.sh`.
-4. In prose, write `see GB-ICON-SWAP in docs/upstream-sources.md` rather than another
+3. In the symbol column, **backtick only things that appear in the file**. The backticked
+   tokens are exactly what the checker looks for, and every one of them must resolve at or
+   before the cited line — they are read as a conjunction, so surrounding prose is free-form
+   but each code span is a requirement. A **file path is not one of them**: five rows once
+   ended `… in `wp-admin/update.php``, and since a file never contains its own path, no
+   anchor could resolve once the column stopped accepting any single span as sufficient.
+   If the cited line is top-level code with nothing enclosing it, say so in prose and leave
+   the column with no backticked token rather than naming a nearby statement — a token that
+   merely sits above the line proves a token's address, not containment, which is the same
+   mistake as step 1 in a different costume.
+4. Run `bin/verify-sources.sh`.
+5. In prose, write `see GB-ICON-SWAP in docs/upstream-sources.md` rather than another
    copy of the URL and line.
 
 Escape any `|` inside a snippet as `\|`.
