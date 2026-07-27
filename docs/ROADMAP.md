@@ -184,9 +184,12 @@ The seam argument is usually stated as "one insertion reaches admin UI, REST, CL
 in-process callers," and for the identity pivots that holds. It does **not** hold
 universally, and the exception is already empirical rather than hypothetical: Slice A of
 the core PoC found that `unpack_package()` extracts the archive into `wp-content/upgrade/`
-**before** `install_package()` is ever reached ([#387](https://github.com/dknauss/Sudo/issues/387)),
-so gating the nominal chokepoint alone still lets attacker-controlled files land on disk.
-The slice gates `upgrader_pre_download` as well.
+**before** `install_package()` is ever reached ([#387](https://github.com/dknauss/Sudo/issues/387);
+registered sources `GB-UNPACK-BEFORE-INSTALL` and
+`GB-UPGRADER-PRE-DOWNLOAD` in
+[`upstream-sources.md`](upstream-sources.md)), so gating the nominal
+chokepoint alone still lets attacker-controlled files land on disk. The slice
+gates `upgrader_pre_download` as well.
 
 State the rule as: **the veto belongs at the last point where the effect can still be
 refused, which is not always the function that names the effect.** Some operations need
@@ -278,9 +281,6 @@ confirm-then-redeem shape is the same idea at the core layer.
 - **SSO / SAML / OIDC provider framework** — a provider interface parallel to the 2FA hooks.
 - **Third-party bridge discovery mode** — a report-only scanner for plugin
   AJAX / admin-post / REST entry points (not a generic hook firewall).
-- **Network admin tools** — cross-site session widget, super-admin visibility
-  controls, cross-site session revocation, and a network policy hierarchy (site admins
-  can only tighten).
 - **WP Sudo plugin compatibility with Abilities API / MCP** — monitor-only;
   consider adding a plugin-local REST rule to WP Sudo's existing
   `Action_Registry` if a destructive core ability (`DELETE` on `/run`) appears.

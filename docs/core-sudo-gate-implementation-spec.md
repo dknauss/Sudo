@@ -723,7 +723,7 @@ Explicitly deferred: WebAuthn ceremonies, external IdP redirects, multi-step TOT
 ### 8.1 Fail-closed recovery — the triggers need hardening (#329)
 
 Fail-closed gating is only safe if the escapes are reachable and the carve-outs cannot be
-turned on by an attacker. Three of them do not currently hold up.
+turned on by an attacker. Two retained Cut 1 concerns do not currently hold up.
 
 - **`wp_installing()` is a mutable runtime switch, not a constant.** Verified: it holds a
   `static $installing` seeded from `WP_INSTALLING` but reassignable by any caller passing
@@ -732,17 +732,6 @@ turned on by an attacker. Three of them do not currently hold up.
   anything running in-process can set it and walk through the exemption. Pair it with the
   actor test that carve-out actually means (**no authenticated actor**), and treat
   `wp_installing()` as a hint about context, never as authorisation.
-- **The catalog filter must union with the built-ins, not replace them.** A
-  `wp_consequential_actions` callback returning a reduced array silently disables gating
-  for everything it omitted; returning an empty array disables the gate site-wide while CI
-  and Site Health still report it enabled. Core must re-add any missing built-in entry
-  after filtering. **WP Sudo does not ship this guard**, and an earlier draft of this section said it did.
-  Verified: `normalize_filtered_rules()` validates and normalizes the filtered array only;
-  `get_rules()` *detects* missing built-ins and fires `wp_sudo_gated_actions_missing_builtin_rules`,
-  and the plugin explicitly documents that removal stays supported. So the plugin has
-  **observability**, not a union. Core needs the union on its own merits — a filter that can
-  silently disable gating site-wide while Site Health reports it enabled is the failure — and
-  the plugin's hook is worth having alongside it, but it is not precedent for the union.
 - **`wp_action_gate_enabled` cannot rescue an early failure.** The catalog registers at
   file load (§6 row 2) so that fail-closed gating cannot be defeated by a plugin
   unhooking `init`. A filter cannot exist that early, so at file-load time only
