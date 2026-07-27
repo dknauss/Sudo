@@ -100,13 +100,15 @@ problem this registry exists to solve.
    Auditing every anchor rather than the one reported found **three** rows in this state
    at once, in three different disguises (#449):
 
+   - a **conditional witness** — a heading directly above the cited line, inside a block
+     that closes before it. Listed first because it is the only one that looks *more*
+     trustworthy the closer it sits to the citation, which is the opposite of how the
+     other two read: a label immediately above a form is the anchor a careful person
+     picks;
    - a **real occurrence in the wrong construct** — one repair reproduced the defect it
      was repairing, its new anchor resolving inside an *unauthenticated* branch while the
      cited line sat in the authenticated one;
-   - a **bare identifier** common enough to occur many times in one file;
-   - a **conditional witness** — a heading directly above the cited line, inside a block
-     that closes before it. This is the one most likely to recur, because a label sitting
-     immediately above what you are citing looks like the safest possible anchor.
+   - a **bare identifier** common enough to occur many times in one file.
 
    Prefer a token that is unique in the file. Where you must use a repeated one, say in
    the cell which occurrence encloses and that the earlier one exists —
@@ -119,6 +121,9 @@ problem this registry exists to solve.
    row the checker does not — `GB-REFERER-SELFPOST`'s `wp_get_referer()` matches its own
    call site as well as its declaration — so a re-derivation done literally will disagree
    with the gate and look like a finding. That difference is not visible from this table.
+   Implemented as written here, the procedure has been run over every row both ways — with
+   faithful checker semantics and as this text prescribes it — and returns the same set the
+   checker does (#449).
 
 3. **An anchor cell states only what must be present.** Every backticked span in it is a
    requirement — they are ANDed, not alternatives — so contrast, negation and
