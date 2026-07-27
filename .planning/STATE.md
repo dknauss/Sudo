@@ -36,6 +36,13 @@ can do to it, then derive the permitted XSS claim from those results.
 The trusted confirmation and proof handoff under active same-origin XSS is not yet
 settled. This is the Phase 27 decision gate and blocks client implementation.
 
+Separately, #354 now demonstrates that WP Sudo's scalar liveness marker,
+serialized proof map, Site Health cleanup, and revocation enumeration are not
+safe storage prior art: cleanup violates the grace window, a low scalar can make
+bulk revocation fail open, and cache-bypassed reads do not solve concurrent
+read-modify-write. Phase 29 must design from authoritative per-proof state rather
+than inherit this model.
+
 ## Canonical sources
 
 - Architecture: `.planning/action-gate-architecture-charter.md`
