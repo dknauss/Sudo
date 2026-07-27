@@ -785,7 +785,7 @@ registry "$HDR
 fixture "$URL" 200 0 $'x\nneedle here'
 run
 expect_rc 0
-expect_out "predates the anchor requirement"
+expect_out "no enclosing construct exists at this citation"
 
 # 17b. An unanchored row NOT on that list still fails, so 17 cannot be satisfied by
 #      dropping the anchor requirement altogether.

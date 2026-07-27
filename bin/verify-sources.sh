@@ -422,7 +422,24 @@ symbol_needles() {
 # closed — the exact harm this checker exists to prevent. Whether the check should exempt
 # non-code sources by kind, or those rows be restructured to carry an anchor, is an open
 # design question; this list is what lets the requirement apply to NEW rows meanwhile.
+# The two GB- rows below are NOT legacy backlog and are listed for a different reason than
+# the FT- ones: they cite TOP-LEVEL statements in procedural admin templates, where no
+# enclosing construct exists. `network/edit.php:13` is a bare assignment with only a
+# require above it. `update.php:22` IS the conditional that wraps the body, so nothing
+# encloses it either — an earlier attempt anchored it to the L9 IFRAME_REQUEST guard,
+# which resolves but closes at L13 around a single define(): green, and asserting a
+# containment that does not exist. That is the failure this branch exists to close, so it
+# is recorded rather than quietly corrected.
+#
+# Three sibling rows added at the same time DO have real enclosing constructs and were
+# given them instead of an exemption: admin-post.php's `if ( empty( $action ) )` (L61-68,
+# genuine nesting), user-edit.php's guard chain (L25-31, same-statement containment), and
+# user-new.php's `if ( current_user_can( 'create_users' ) )` (L513-670). Reach for a real
+# anchor first, and confirm the construct CLOSES after the cited line — resolving before
+# it is necessary, not sufficient. This list is for when the language offers none.
 UNANCHORED_LEGACY_IDS="$(cat <<'EOF'
+GB-NETWORK-EDIT-REDIRECT
+GB-UPDATE-NEEDS-ACTION
 FT-SESSION-DROPIN
 FT-MU-LOADER
 FT-PROTECTED-CAPS
@@ -447,7 +464,7 @@ is_unanchored_legacy() {
 	anchor_check=1
 	if [ -z "$symbol_anchors" ]; then
 		if is_unanchored_legacy "$id"; then
-			add_warning "$id: enclosing context is not a named code symbol, so it predates the anchor requirement — snippet and drift are still verified"
+			add_warning "$id: no enclosing construct exists at this citation (a top-level statement, or a non-code source) — snippet and drift are still verified"
 			anchor_check=0
 		else
 			add_failure "$id: enclosing symbol has no \`backticked\` anchor token — wrap the symbol's upstream name in backticks so it can be checked against the file"
@@ -640,7 +657,7 @@ is_unanchored_legacy() {
 
 	if [ "$anchor_check" -eq 1 ] && [ "$anchor_ok" -eq 0 ]; then
 		if is_unanchored_legacy "$id"; then
-			add_warning "$id: recorded enclosing context is not a named code symbol and could not be located — predates the anchor requirement, exempt for now"
+			add_warning "$id: recorded enclosing context could not be located and no enclosing construct exists at this citation — exempt, snippet and drift still verified"
 		else
 			add_failure "$id: recorded enclosing symbol not found upstream at or before line $actual_line — $url
 	        symbol: $symbol
