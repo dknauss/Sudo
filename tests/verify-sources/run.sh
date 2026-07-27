@@ -871,6 +871,33 @@ fixture "$URL" 200 0 $'class Other {\n\tfunction execute( $a ) {}\n}\nclass WP_A
 run
 expect_rc 1
 
+# 22. A row whose cited line is TOP-LEVEL code has no enclosing symbol to name, so it is
+#     exempt from the anchor check by kind. Kept separate from the legacy list because
+#     these rows were written AFTER the anchor requirement — warning them with "predates
+#     the anchor requirement" would put a false statement in the gate's own output, which
+#     is the failure this checker exists to prevent, committed by the checker itself.
+start "top-level row with no anchor token warns rather than failing"
+new_sandbox toplevel_ok
+registry "$HDR
+| GB-UPDATE-NEEDS-ACTION | $URL | 2 | needle here | top-level statement — nothing encloses it | a claim |"
+fixture "$URL" 200 0 $'x\nneedle here'
+run
+expect_rc 0
+expect_out "top-level code with no enclosing symbol"
+expect_not_out "predates the anchor requirement"
+
+# 22b. …and the exemption is ANCHOR-only. A listed row whose snippet vanished upstream
+#      must still fail, or a narrow exemption silently becomes a total one — the same
+#      fail-open shape as the legacy list guards against in 18.
+start "top-level exempt row still fails when its snippet is gone"
+new_sandbox toplevel_snippet_gone
+registry "$HDR
+| GB-UPDATE-NEEDS-ACTION | $URL | 2 | needle here | top-level statement — nothing encloses it | a claim |"
+fixture "$URL" 200 0 $'x\nsomething else entirely'
+run
+expect_rc 1
+expect_out "snippet no longer present upstream"
+
 # --- summary ---------------------------------------------------------------------
 echo
 echo "verify-sources tests: $pass passed, $fail failed"

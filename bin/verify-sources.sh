@@ -434,6 +434,37 @@ is_unanchored_legacy() {
 	printf '%s\n' "$UNANCHORED_LEGACY_IDS" | grep -qxF -- "$1"
 }
 
+# Rows whose cited line is TOP-LEVEL code: not inside a function, class, or control
+# structure, so no enclosing symbol exists to name. Kept separate from the legacy list
+# above rather than merged into it, because these rows do NOT predate the anchor
+# requirement — they were written after it — and warning them with that message would
+# put a false statement in the gate's own output.
+#
+# The criterion is strict and checkable by hand: the cited line must sit at file top
+# level in a procedural script. Both current entries are `require_once`-and-statements
+# admin scripts where the citation is ABOUT the top-level control flow:
+#   - GB-NETWORK-EDIT-REDIRECT — network/edit.php:13 is `$action = $_GET['action'] ?? '';`
+#     with only comments and one require above it.
+#   - GB-UPDATE-NEEDS-ACTION — update.php:22 is itself the top-level conditional WRAPPING
+#     THE FILE BODY; the claim is that the whole body sits inside it, so nothing can
+#     enclose it by definition. Not the file's only top-level conditional — the
+#     IFRAME_REQUEST guard at L9 is another; the qualifier is what makes this true, and
+#     an earlier draft of this comment dropped it and asserted "sole".
+#
+# What is lost is nothing real: there is no enclosing symbol to rename or delete, so the
+# anchor check has no drift to detect here. Snippet presence and line drift still run, and
+# an anchor cell for these rows carries prose with NO backticked token — inventing one
+# would be a needle that proves nothing, which is the failure this file exists to prevent.
+TOP_LEVEL_STATEMENT_IDS="$(cat <<'EOF'
+GB-NETWORK-EDIT-REDIRECT
+GB-UPDATE-NEEDS-ACTION
+EOF
+)"
+
+is_top_level_statement() {
+	printf '%s\n' "$TOP_LEVEL_STATEMENT_IDS" | grep -qxF -- "$1"
+}
+
 	symbol_anchors="$(printf '%s' "$symbol_raw" | grep -oE '`[^`]+`' | tr -d '`' | expand_anchor_spans || true)"
 	# Kept UNEXPANDED as well. expand_anchor_spans() turns `X::m()` into two independent
 	# conjuncts, and AND proves only that each exists above the snippet — not that the
@@ -448,6 +479,9 @@ is_unanchored_legacy() {
 	if [ -z "$symbol_anchors" ]; then
 		if is_unanchored_legacy "$id"; then
 			add_warning "$id: enclosing context is not a named code symbol, so it predates the anchor requirement — snippet and drift are still verified"
+			anchor_check=0
+		elif is_top_level_statement "$id"; then
+			add_warning "$id: cited line is top-level code with no enclosing symbol — exempt from the anchor check by kind, not by age; snippet and drift are still verified"
 			anchor_check=0
 		else
 			add_failure "$id: enclosing symbol has no \`backticked\` anchor token — wrap the symbol's upstream name in backticks so it can be checked against the file"
