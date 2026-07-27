@@ -107,11 +107,13 @@ representative admin, AJAX, or REST request shape and see:
 
 - which rule would match
 - whether the request would be allowed, gated, soft-blocked, or hard-blocked
-- whether stash/replay would apply
 - notes about missing authentication or REST surface policy
 
 The tester is diagnostic only. It does not execute the request, stash it, or
-change live gate state.
+change live gate state. It also does not predict whether a gated action resumes
+after reauthentication — since #322 that is decided at request time by the
+browser holding the binding proof and a same-origin request signal, which a
+simulated shape cannot carry.
 
 ## Who can access Sudo settings?
 

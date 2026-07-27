@@ -595,17 +595,17 @@ msgid "Keep intentional API-driven workflows open while tightening legacy or opt
 msgstr ""
 
 #: includes/class-admin.php:880
-#: includes/class-admin.php:2978
+#: includes/class-admin.php:2977
 msgid "Current settings do not match any preset. Selecting a preset will overwrite the entry-point policy fields below."
 msgstr ""
 
 #: includes/class-admin.php:1126
-#: includes/class-challenge.php:249
+#: includes/class-challenge.php:271
 msgid "An error occurred."
 msgstr ""
 
 #: includes/class-admin.php:1127
-#: includes/class-challenge.php:250
+#: includes/class-challenge.php:272
 msgid "A network error occurred. Please try again."
 msgstr ""
 
@@ -966,477 +966,465 @@ msgstr ""
 msgid "Surface:"
 msgstr ""
 
-#: includes/class-admin.php:2668
-msgid "Stash/replay eligible:"
-msgstr ""
-
-#: includes/class-admin.php:2668
-msgid "Yes"
-msgstr ""
-
-#: includes/class-admin.php:2668
-msgid "No"
-msgstr ""
-
-#: includes/class-admin.php:2697
+#: includes/class-admin.php:2696
 msgid "Early Gate (MU-Plugin)"
 msgstr ""
 
-#: includes/class-admin.php:2699
+#: includes/class-admin.php:2698
 msgid "The optional MU-plugin shim ensures gate hooks are registered before any regular plugin loads. This prevents other plugins from deregistering or bypassing the gate. The shim delegates to a loader inside the plugin directory, so it never needs updating — regular plugin updates handle it automatically."
 msgstr ""
 
-#: includes/class-admin.php:2704
+#: includes/class-admin.php:2703
 msgid "Status"
 msgstr ""
 
-#: includes/class-admin.php:2709
+#: includes/class-admin.php:2708
 msgid "Installed"
 msgstr ""
 
-#: includes/class-admin.php:2712
+#: includes/class-admin.php:2711
 msgid "Not installed"
 msgstr ""
 
-#: includes/class-admin.php:2717
+#: includes/class-admin.php:2716
 msgid "Remove MU-Plugin"
 msgstr ""
 
-#: includes/class-admin.php:2721
+#: includes/class-admin.php:2720
 msgid "Install MU-Plugin"
 msgstr ""
 
-#: includes/class-admin.php:2724
-#: includes/class-admin.php:2740
+#: includes/class-admin.php:2723
+#: includes/class-admin.php:2739
 msgid "Manual install instructions"
 msgstr ""
 
-#: includes/class-admin.php:2727
-#: includes/class-admin.php:2746
+#: includes/class-admin.php:2726
+#: includes/class-admin.php:2745
 msgid "Locate the shim file inside the plugin directory:"
 msgstr ""
 
-#: includes/class-admin.php:2731
-#: includes/class-admin.php:2750
+#: includes/class-admin.php:2730
+#: includes/class-admin.php:2749
 msgid "Copy it into your mu-plugins directory:"
+msgstr ""
+
+#: includes/class-admin.php:2733
+#: includes/class-admin.php:2752
+msgid "Create the mu-plugins directory first if it does not exist."
 msgstr ""
 
 #: includes/class-admin.php:2734
 #: includes/class-admin.php:2753
-msgid "Create the mu-plugins directory first if it does not exist."
-msgstr ""
-
-#: includes/class-admin.php:2735
-#: includes/class-admin.php:2754
 msgid "The mu-plugin will be active on the next page load."
 msgstr ""
 
-#: includes/class-admin.php:2742
+#: includes/class-admin.php:2741
 msgid "Your hosting environment does not allow writing to the mu-plugins directory. Install the mu-plugin manually:"
 msgstr ""
 
-#: includes/class-admin.php:2758
+#: includes/class-admin.php:2757
 msgid "Processing…"
 msgstr ""
 
-#: includes/class-admin.php:2791
-#: includes/class-admin.php:2849
-#: includes/class-admin.php:3670
-#: includes/class-admin.php:3694
+#: includes/class-admin.php:2790
+#: includes/class-admin.php:2848
+#: includes/class-admin.php:3669
+#: includes/class-admin.php:3693
 msgid "Unauthorized."
 msgstr ""
 
-#: includes/class-admin.php:2799
-#: includes/class-admin.php:2857
-#: includes/class-admin.php:3627
-#: includes/class-admin.php:3679
+#: includes/class-admin.php:2798
+#: includes/class-admin.php:2856
+#: includes/class-admin.php:3626
+#: includes/class-admin.php:3678
 msgid "A sudo session is required. Activate one then try again."
 msgstr ""
 
-#: includes/class-admin.php:2810
+#: includes/class-admin.php:2809
 msgid "Source shim file not found."
 msgstr ""
 
-#: includes/class-admin.php:2817
+#: includes/class-admin.php:2816
 msgid "Could not create mu-plugins directory. Check file permissions."
 msgstr ""
 
-#: includes/class-admin.php:2824
+#: includes/class-admin.php:2823
 msgid "Could not read source shim file."
 msgstr ""
 
-#: includes/class-admin.php:2832
+#: includes/class-admin.php:2831
 msgid "Could not write to mu-plugins directory. Check file permissions."
 msgstr ""
 
-#: includes/class-admin.php:2835
+#: includes/class-admin.php:2834
 msgid "MU-plugin installed. It will be active on the next page load."
 msgstr ""
 
-#: includes/class-admin.php:2866
+#: includes/class-admin.php:2865
 msgid "MU-plugin is already removed."
 msgstr ""
 
-#: includes/class-admin.php:2872
+#: includes/class-admin.php:2871
 msgid "Could not remove MU-plugin file. Check file permissions."
 msgstr ""
 
-#: includes/class-admin.php:2875
+#: includes/class-admin.php:2874
 msgid "MU-plugin removed. It will be inactive on the next page load."
 msgstr ""
 
-#: includes/class-admin.php:2905
+#: includes/class-admin.php:2904
 msgid "Configure how long a sudo session lasts after reauthentication."
 msgstr ""
 
-#: includes/class-admin.php:2914
+#: includes/class-admin.php:2913
 msgid "Apply one-click policy bundles for incident response or headless environments. Presets only affect the remote and non-interactive surface settings below."
 msgstr ""
 
-#: includes/class-admin.php:2923
+#: includes/class-admin.php:2922
 msgid "Control how non-interactive entry points handle gated operations. Disabled shuts off the entire surface. Limited (default) blocks only gated actions and logs them. Unrestricted lets everything through with no blocking checks; allowed gated actions are still logged for audit visibility. Browser-based requests (admin UI, AJAX, REST with cookie auth) always get the interactive reauthentication challenge regardless of these settings."
 msgstr ""
 
-#: includes/class-admin.php:2938
+#: includes/class-admin.php:2937
 msgid "How long a sudo session lasts before automatically expiring. Range: 1–15 minutes. Default: 15 minutes."
 msgstr ""
 
-#: includes/class-admin.php:2968
-#: includes/class-admin.php:3512
-#: includes/class-admin.php:3516
+#: includes/class-admin.php:2967
+#: includes/class-admin.php:3511
+#: includes/class-admin.php:3515
 #: includes/class-dashboard-widget.php:866
 msgid "Custom"
 msgstr ""
 
-#: includes/class-admin.php:3005
-#: includes/class-admin.php:3527
-#: includes/class-admin.php:3622
+#: includes/class-admin.php:3004
+#: includes/class-admin.php:3526
+#: includes/class-admin.php:3621
 msgid "Disabled"
 msgstr ""
 
-#: includes/class-admin.php:3010
+#: includes/class-admin.php:3009
 msgid "Limited (default)"
 msgstr ""
 
-#: includes/class-admin.php:3015
-#: includes/class-admin.php:3528
-#: includes/class-admin.php:3624
+#: includes/class-admin.php:3014
+#: includes/class-admin.php:3527
+#: includes/class-admin.php:3623
 msgid "Unrestricted"
 msgstr ""
 
 #. translators: 1: preset label, 2: policy value (e.g. "limited").
-#: includes/class-admin.php:3291
+#: includes/class-admin.php:3290
 #, php-format
 msgid "%1$s preset applied. All surfaces are now %2$s."
 msgstr ""
 
 #. translators: 1: surface names, 2: is/are, 3: policy value.
-#: includes/class-admin.php:3304
+#: includes/class-admin.php:3303
 #, php-format
 msgid "%1$s %2$s now %3$s"
 msgstr ""
 
 #. translators: 1: preset label, 2: semicolon-separated policy summary.
-#: includes/class-admin.php:3312
+#: includes/class-admin.php:3311
 #, php-format
 msgid "%1$s preset applied. %2$s."
 msgstr ""
 
-#: includes/class-admin.php:3334
+#: includes/class-admin.php:3333
 msgid "Passed event logging is disabled by code override (constant/filter). Actions performed during active sudo sessions will not appear in dashboard event history."
 msgstr ""
 
-#: includes/class-admin.php:3358
+#: includes/class-admin.php:3357
 msgid "It is unscoped: while it is set, any user who holds the manage_options capability — manage_network_options on multisite — regains full Sudo governance access, regardless of role."
 msgstr ""
 
-#: includes/class-admin.php:3363
+#: includes/class-admin.php:3362
 msgid "It is scoped to a value that does not match any existing user, so no one is granted access — check WP_SUDO_RECOVERY_MODE in wp-config.php for a typo."
 msgstr ""
 
 #. translators: 1: user login, 2: user ID
-#: includes/class-admin.php:3369
+#: includes/class-admin.php:3368
 #, php-format
 msgid "It is scoped to the user \"%1$s\" (ID %2$d), who alone regains Sudo governance access while it is set — provided that user still holds administrator authority (manage_options, or manage_network_options on multisite); a scoped target who lacks it is still denied."
 msgstr ""
 
-#: includes/class-admin.php:3377
+#: includes/class-admin.php:3376
 msgid "Sudo break-glass recovery mode is active (WP_SUDO_RECOVERY_MODE is defined in wp-config.php)."
 msgstr ""
 
-#: includes/class-admin.php:3378
+#: includes/class-admin.php:3377
 msgid "Remove the constant as soon as normal access is restored — leaving it enabled weakens the governance model."
 msgstr ""
 
-#: includes/class-admin.php:3468
+#: includes/class-admin.php:3467
 msgid "Sudo removed a leftover permission-mode setting left over from before version 4.0.0. Sudo now always enforces strict, role-based permission checks. No action is needed."
 msgstr ""
 
-#: includes/class-admin.php:3529
-#: includes/class-admin.php:3623
+#: includes/class-admin.php:3528
+#: includes/class-admin.php:3622
 msgid "Limited"
 msgstr ""
 
-#: includes/class-admin.php:3621
+#: includes/class-admin.php:3620
 msgid "Global default"
 msgstr ""
 
-#: includes/class-admin.php:3628
+#: includes/class-admin.php:3627
 msgid "Sudo policy for this application password"
 msgstr ""
 
+#: includes/class-admin.php:3628
 #: includes/class-admin.php:3629
-#: includes/class-admin.php:3630
 msgid "Sudo Policy"
 msgstr ""
 
-#: includes/class-admin.php:3631
-#: includes/class-admin.php:3751
+#: includes/class-admin.php:3630
+#: includes/class-admin.php:3750
 msgid "Policy saved."
 msgstr ""
 
-#: includes/class-admin.php:3632
+#: includes/class-admin.php:3631
 msgid "Policy could not be saved."
 msgstr ""
 
-#: includes/class-admin.php:3689
+#: includes/class-admin.php:3688
 msgid "Invalid user."
 msgstr ""
 
-#: includes/class-admin.php:3704
+#: includes/class-admin.php:3703
 msgid "Invalid application password UUID."
 msgstr ""
 
-#: includes/class-admin.php:3710
+#: includes/class-admin.php:3709
 msgid "Invalid application password UUID format."
 msgstr ""
 
-#: includes/class-admin.php:3718
+#: includes/class-admin.php:3717
 msgid "Application password not found."
 msgstr ""
 
-#: includes/class-challenge.php:145
+#: includes/class-challenge.php:167
 msgid "Reauthentication complete. For your security, password and secret fields were not replayed. Re-enter them to finish the change."
 msgstr ""
 
-#: includes/class-challenge.php:162
+#: includes/class-challenge.php:184
 msgid "Reauthentication complete. For your security, this request was not replayed automatically. Review the form and submit it again to finish the change."
 msgstr ""
 
-#: includes/class-challenge.php:174
 #: includes/class-challenge.php:196
+#: includes/class-challenge.php:218
 msgid "Confirm Your Identity — Sudo"
 msgstr ""
 
-#: includes/class-challenge.php:248
+#: includes/class-challenge.php:270
 msgid "The server returned an unexpected response. Check the browser console for details."
 msgstr ""
 
-#: includes/class-challenge.php:251
+#: includes/class-challenge.php:273
 #: admin/js/wp-sudo-editor-reauth.js:238
 #: admin/js/wp-sudo-editor-reauth.js:400
 msgid "Authentication failed."
 msgstr ""
 
 #. translators: %s: countdown timer like "4:30"
-#: includes/class-challenge.php:253
+#: includes/class-challenge.php:275
 #, php-format
 msgid "Too many failed attempts. Try again in %s."
 msgstr ""
 
 #. translators: %s: countdown timer like "0:05"
-#: includes/class-challenge.php:255
+#: includes/class-challenge.php:277
 #, php-format
 msgid "Please wait %s before trying again."
 msgstr ""
 
 #. translators: %s: countdown timer like "9:30"
-#: includes/class-challenge.php:257
+#: includes/class-challenge.php:279
 #, php-format
 msgid "Time remaining: %s"
 msgstr ""
 
 #. translators: %s: countdown timer like "0:45"
-#: includes/class-challenge.php:259
+#: includes/class-challenge.php:281
 #, php-format
 msgid "⚠ Time remaining: %s"
 msgstr ""
 
-#: includes/class-challenge.php:260
+#: includes/class-challenge.php:282
 msgid "Your authentication session has expired."
 msgstr ""
 
-#: includes/class-challenge.php:261
+#: includes/class-challenge.php:283
 msgid "Your session may have expired."
 msgstr ""
 
-#: includes/class-challenge.php:262
+#: includes/class-challenge.php:284
 msgid "Start over"
 msgstr ""
 
-#: includes/class-challenge.php:263
+#: includes/class-challenge.php:285
 msgid "Password confirmed. Two-factor authentication required."
 msgstr ""
 
-#: includes/class-challenge.php:264
+#: includes/class-challenge.php:286
 msgid "Replaying your action…"
 msgstr ""
 
-#: includes/class-challenge.php:268
+#: includes/class-challenge.php:290
 msgid "Returning you to your page…"
 msgstr ""
 
-#: includes/class-challenge.php:269
+#: includes/class-challenge.php:291
 msgid "Leaving challenge page."
 msgstr ""
 
-#: includes/class-challenge.php:270
+#: includes/class-challenge.php:292
 msgid "Lockout expired. You may try again."
 msgstr ""
 
-#: includes/class-challenge.php:285
+#: includes/class-challenge.php:307
 msgid "You must be logged in."
 msgstr ""
 
-#: includes/class-challenge.php:306
+#: includes/class-challenge.php:328
 msgid "Activate sudo session"
 msgstr ""
 
-#: includes/class-challenge.php:311
+#: includes/class-challenge.php:333
 msgid "Invalid or expired challenge. Please try again."
 msgstr ""
 
-#: includes/class-challenge.php:314
+#: includes/class-challenge.php:336
 msgid "this action"
 msgstr ""
 
-#: includes/class-challenge.php:332
+#: includes/class-challenge.php:354
 msgid "Confirm Your Identity"
 msgstr ""
 
 #. translators: %s: action label (e.g. "Activate plugin")
-#: includes/class-challenge.php:338
+#: includes/class-challenge.php:360
 #, php-format
 msgid "To continue: %s — please enter your password."
 msgstr ""
 
 #. translators: %s: the concrete target of the action (e.g. a plugin file or user login)
-#: includes/class-challenge.php:348
+#: includes/class-challenge.php:370
 #, php-format
 msgid "Target: %s"
 msgstr ""
 
-#: includes/class-challenge.php:356
+#: includes/class-challenge.php:378
 msgid "Respect the privacy of others."
 msgstr ""
 
-#: includes/class-challenge.php:357
+#: includes/class-challenge.php:379
 msgid "Think before you type."
 msgstr ""
 
-#: includes/class-challenge.php:358
+#: includes/class-challenge.php:380
 msgid "With great power comes great responsibility."
 msgstr ""
 
-#: includes/class-challenge.php:365
+#: includes/class-challenge.php:387
 msgid "Too many failed attempts. The form is temporarily disabled. Please wait and try again."
 msgstr ""
 
 #. translators: %d: seconds remaining
-#: includes/class-challenge.php:374
+#: includes/class-challenge.php:396
 #, php-format
 msgid "Please wait %d seconds before trying again."
 msgstr ""
 
-#: includes/class-challenge.php:389
+#: includes/class-challenge.php:411
 #: admin/js/wp-sudo-editor-reauth.js:608
 msgid "Password"
 msgstr ""
 
-#: includes/class-challenge.php:396
-#: includes/class-challenge.php:425
+#: includes/class-challenge.php:418
+#: includes/class-challenge.php:447
 msgid "Confirm & Continue"
 msgstr ""
 
-#: includes/class-challenge.php:399
-#: includes/class-challenge.php:428
-#: includes/class-challenge.php:991
+#: includes/class-challenge.php:421
+#: includes/class-challenge.php:450
+#: includes/class-challenge.php:1013
 #: admin/js/wp-sudo-editor-reauth.js:557
 msgid "Cancel"
 msgstr ""
 
-#: includes/class-challenge.php:408
+#: includes/class-challenge.php:430
 msgid "Two-Factor Authentication"
 msgstr ""
 
-#: includes/class-challenge.php:438
+#: includes/class-challenge.php:460
 msgid "Authenticating…"
 msgstr ""
 
-#: includes/class-challenge.php:561
-#: includes/class-challenge.php:659
-#: includes/class-challenge.php:756
+#: includes/class-challenge.php:583
+#: includes/class-challenge.php:681
+#: includes/class-challenge.php:778
 msgid "Invalid request."
 msgstr ""
 
-#: includes/class-challenge.php:567
-#: includes/class-challenge.php:771
+#: includes/class-challenge.php:589
+#: includes/class-challenge.php:793
 msgid "Your authentication session has expired. Please start over."
 msgstr ""
 
-#: includes/class-challenge.php:597
+#: includes/class-challenge.php:619
 msgid "Too many code requests. Please use your current code or wait."
 msgstr ""
 
-#: includes/class-challenge.php:637
+#: includes/class-challenge.php:659
 msgid "Not logged in."
 msgstr ""
 
-#: includes/class-challenge.php:673
+#: includes/class-challenge.php:695
 msgid "Your challenge session has expired. Please try again."
 msgstr ""
 
 #. translators: %d: seconds remaining
-#: includes/class-challenge.php:711
-#: includes/class-challenge.php:798
-#: includes/class-challenge.php:818
-#: includes/class-challenge.php:874
+#: includes/class-challenge.php:733
+#: includes/class-challenge.php:820
+#: includes/class-challenge.php:840
+#: includes/class-challenge.php:896
 #, php-format
 msgid "Too many failed attempts. Please wait %d seconds."
 msgstr ""
 
-#: includes/class-challenge.php:723
+#: includes/class-challenge.php:745
 msgid "You are not allowed to perform this action."
 msgstr ""
 
-#: includes/class-challenge.php:729
-#: includes/class-challenge.php:738
+#: includes/class-challenge.php:751
+#: includes/class-challenge.php:760
 msgid "Incorrect password. Please try again."
 msgstr ""
 
 #. translators: %d: seconds remaining
-#: includes/class-challenge.php:782
+#: includes/class-challenge.php:804
 #, php-format
 msgid "Too many attempts. Please wait %d seconds."
 msgstr ""
 
-#: includes/class-challenge.php:840
+#: includes/class-challenge.php:862
 msgid "Too many resend attempts. Please try your current code or wait."
 msgstr ""
 
-#: includes/class-challenge.php:885
+#: includes/class-challenge.php:907
 msgid "Invalid authentication code. Please try again."
 msgstr ""
 
-#: includes/class-challenge.php:981
+#: includes/class-challenge.php:1003
 msgid "Session already confirmed"
 msgstr ""
 
-#: includes/class-challenge.php:984
+#: includes/class-challenge.php:1006
 msgid "Your sudo session is already active. Continuing…"
 msgstr ""
 
-#: includes/class-challenge.php:988
+#: includes/class-challenge.php:1010
 msgid "Continue"
 msgstr ""
 
@@ -1705,96 +1693,92 @@ msgstr ""
 msgid "Grant super admin"
 msgstr ""
 
-#: includes/class-gate.php:1517
+#: includes/class-gate.php:1538
 msgid "Only admin, AJAX, and REST request simulation is available in the current tester MVP."
 msgstr ""
 
-#: includes/class-gate.php:1536
+#: includes/class-gate.php:1557
 msgid "Sudo only gates authenticated users; anonymous requests fall through to WordPress authentication and capability checks first."
 msgstr ""
 
-#: includes/class-gate.php:1541
+#: includes/class-gate.php:1562
 msgid "No gated rule matched this request shape."
 msgstr ""
 
-#: includes/class-gate.php:1546
+#: includes/class-gate.php:1567
 msgid "An active sudo session would allow this matched request to proceed."
 msgstr ""
 
-#: includes/class-gate.php:1558
-msgid "Interactive admin request: gated, but this rule is non-replayable — after reauth the user re-submits the form."
+#: includes/class-gate.php:1573
+msgid "Interactive admin request: gated."
 msgstr ""
 
-#: includes/class-gate.php:1561
-msgid "Interactive admin requests use challenge + stash/replay."
-msgstr ""
-
-#: includes/class-gate.php:1568
+#: includes/class-gate.php:1579
 msgid "AJAX requests are blocked in-place and must be retried after activating sudo."
 msgstr ""
 
-#: includes/class-gate.php:1574
+#: includes/class-gate.php:1585
 msgid "Cookie-authenticated REST requests receive sudo_required and can be retried after activating sudo."
 msgstr ""
 
-#: includes/class-gate.php:1581
+#: includes/class-gate.php:1592
 msgid "REST Application Password policy is Unrestricted, so Sudo would allow the matched request."
 msgstr ""
 
-#: includes/class-gate.php:1588
+#: includes/class-gate.php:1599
 msgid "REST Application Password policy is Disabled, so Sudo would reject the request at the surface level."
 msgstr ""
 
-#: includes/class-gate.php:1592
+#: includes/class-gate.php:1603
 msgid "REST Application Password policy is Limited, so gated requests are blocked until policy changes."
 msgstr ""
 
-#: includes/class-gate.php:1880
+#: includes/class-gate.php:1891
 msgid "This REST API operation is disabled by Sudo policy."
 msgstr ""
 
-#: includes/class-gate.php:1890
+#: includes/class-gate.php:1901
 msgid "This operation requires sudo and cannot be performed via Application Passwords."
 msgstr ""
 
-#: includes/class-gate.php:1945
+#: includes/class-gate.php:1956
 msgid "WPGraphQL is disabled by Sudo policy."
 msgstr ""
 
-#: includes/class-gate.php:2007
+#: includes/class-gate.php:2018
 msgid "This GraphQL mutation requires sudo. Activate a sudo session and try again."
 msgstr ""
 
 #. translators: 1: action label (e.g. "Delete plugin"), 2: keyboard shortcut
-#: includes/class-gate.php:2630
-#: includes/class-gate.php:2738
+#: includes/class-gate.php:2641
+#: includes/class-gate.php:2749
 #, php-format
 msgid "This action (%1$s) requires reauthentication. Press %2$s to start a sudo session, then try again."
 msgstr ""
 
-#: includes/class-gate.php:2710
+#: includes/class-gate.php:2721
 #: includes/class-public-api.php:143
 msgid "Unable to redirect to the sudo challenge page."
 msgstr ""
 
-#: includes/class-gate.php:2840
+#: includes/class-gate.php:2851
 msgid "a protected action"
 msgstr ""
 
 #. translators: 1: action label, 2: challenge page link, 3: keyboard shortcut
-#: includes/class-gate.php:2860
+#: includes/class-gate.php:2871
 #, php-format
 msgid "Your recent action (%1$s) was blocked because it requires reauthentication. %2$s to activate a sudo session, then try again. You can also press %3$s."
 msgstr ""
 
-#: includes/class-gate.php:2862
-#: includes/class-gate.php:2922
+#: includes/class-gate.php:2873
+#: includes/class-gate.php:2933
 #: admin/js/wp-sudo-editor-reauth.js:633
 msgid "Confirm your identity"
 msgstr ""
 
 #. translators: 1: challenge page link, 2: keyboard shortcut
-#: includes/class-gate.php:2921
+#: includes/class-gate.php:2932
 #, php-format
 msgid "Installing, activating, updating, and deleting themes and plugins requires an active sudo session. %1$s or press %2$s to start one."
 msgstr ""
