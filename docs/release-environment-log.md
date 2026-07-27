@@ -212,6 +212,56 @@ gap was about are now permanent tests rather than a one-off manual run.
 - **Not claimed:** this is PHP-level coverage. It does not exercise a real web server on
   the floor; lane 1 covers the server layer, on the current WordPress lane only.
 
+### Public screenshot gate — **deliberately re-approved, not refreshed**
+
+`docs/wporg-submission-checklist.md` §1 requires the listing screenshot set to be
+refreshed **or deliberately re-approved** when a release changes public UI. `4.9.0`
+changes three surfaces. Two were already captured; the third could not be, so the
+gate is met by re-approval and the reason is recorded here rather than left implicit.
+
+- **In-editor header padlock (#288)** — `screenshot-12`, captured the day it landed.
+- **In-editor session indicator (#262)** — `screenshot-11`, same.
+- **Challenge-page `Target:` panel (#322)** — **not captured.** New UI, and the only
+  surface that pictures the control this release argues for.
+
+**Why it is not captured (#417).** Playwright *and* raw CDP `Page.captureScreenshot`
+both hang on the challenge page whenever a stash is present — headless and headed
+alike — while the plain session-only challenge captures in ~8.7 s. Falsified as
+causes: the gate redirect, layout movement, animations, JS timers, pending requests,
+and `render_resume_page()`'s navigation (that branch does not run; `render_page()`
+did, proven by the `Target:` assertion passing). Mechanism unexplained. It is a
+capture-tooling problem, tracked in #417.
+
+**The page itself is fine, and this was verified rather than assumed.** An earlier
+escalation claimed the page never paints, on the strength of
+`performance.getEntriesByType('paint')` returning `[]` in a controlled differential.
+That was **wrong and has been retracted**: the maintainer loaded the URL with a live
+stash in an ordinary logged-in browser and it renders correctly, `Target:` panel
+present. Recorded because the error is instructive — three direct observations
+(`evaluate()`, `boundingBox()`, `waitFor()` all resolving) outweighed one timing API
+returning an empty array, and the empty buffer did not mean what it appeared to mean.
+
+**What covers the surface instead, and covers it better.** The capture spec's
+`Target:` assertion passes against a real intercepted plugin activation — the first
+automated proof that #322 v2 renders the named target on a gated flow. It is being
+converted into an E2E spec with the capture removed and wired into the `e2e.yml`
+matrix. A picture illustrates the control; that assertion verifies it.
+
+**Two preservation notes, so a later reader does not "fix" either:**
+
+- **`screenshot-1` is correct as-is and must not be refreshed.** It depicts the
+  session-only flow, which legitimately renders no `Target:` panel because there is
+  no stashed action to name. Re-capturing it would change nothing and would arm the
+  #301 hazard, since shots 1–9 share one test and running it overwrites
+  `screenshot-9` with a different surface.
+- The unproduced shots were numbered **13/14 additively**, so shots 1–12 are never
+  regenerated and #301 keeps its own separate decision.
+
+**Disposition:** gate **met by deliberate re-approval** of the existing set for
+`4.9.0`, under the §1 clause. Residual accepted: the listing does not picture the
+`Target:` panel. The panel is described in `CHANGELOG.md` and the `readme.txt`
+Upgrade Notice, and verified by test.
+
 ## Required evidence for completed lanes
 
 When a lane is completed, add or update a dated package row with:
