@@ -151,10 +151,12 @@ tag.
 it comfortably.** `Request_Stash::build_stashed_post_params()` returns an empty array for
 any non-POST request, so on a GET there is no payload for `target_describes_payload()` to
 walk and it returns true after zero iterations. A GET-reached rule is therefore refused
-only when its captured target is **empty or malformed** — the case `4.9.0` adds. A custom
-GET rule whose effect rides an unrecognised parameter, alongside any recognised parameter
-at all, still satisfies the check and can still replay, while the challenge names only the
-recognised one.
+only when its captured target is **empty or malformed** — the case `4.9.0` adds. **A custom
+GET rule whose effect rides an unrecognised parameter is therefore not reliably refused**,
+and the challenge may name only a different, recognised parameter. The construction is in
+[#412](https://github.com/dknauss/Sudo/issues/412) rather than here: an integrator needs to
+know whether their rule is affected, which the sentence above answers, and does not need
+the recipe.
 
 Scope of that residue, checked rule by rule rather than assumed: it requires the *effect
 itself* to sit on an unrecognised parameter. Every built-in GET-reachable rule carries its
