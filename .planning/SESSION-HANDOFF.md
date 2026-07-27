@@ -139,6 +139,13 @@ ran at all.** These are the structural fixes, not the diligence ones — diligen
    propagated the stale version stays confident and wrong.
 10. **Cite the claim you acted on.** A citation is a back-edge a retraction can travel along.
     An uncited claim propagates as an orphan that no correction can ever reach.
+    *Worked example, chosen because the propagator knew the rule at the time:* a false claim
+    about a review's timing entered a broadcast roster, was repeated by a second session in an
+    apology **whose own subject was failing to check things**, and reached a third hop before
+    one `git show -s --format=%cI` falsified it. Nobody was careless; the claim simply had no
+    citation to travel back along. This session then committed the same error in the opposite
+    direction — handing another lane a derived contract instead of a citation, nearly
+    producing a third copy of a section that already existed on an unmerged branch.
 11. **A wrong justification for a correct test is more durable than a wrong test**, because
     nothing fails to reveal it. Two live examples this session: an invented enclosing symbol
     in the sentence carrying a release's whole version argument, and *"`sudo_required` …
