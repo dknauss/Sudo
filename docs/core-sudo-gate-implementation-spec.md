@@ -197,6 +197,20 @@ Mechanics — each numbered point is a required invariant, not an implementation
 
 Open question **closed**: scope-bound vs. flat freshness no longer applies — Cut 1 has no reusable window to scope (§11-Q3).
 
+> **The PoC slice and this section currently disagree — deliberately recorded, not resolved.**
+> `poc/install-package-gate/` (#380) implements a **session-scoped proof with a TTL**, and says
+> so plainly: its header notes the proof "is not action- or target-bound (#308)". This section
+> is normative for **per-action step-up** (§4.2, adopted in #367) — single-use proofs bound to
+> one action digest, no reusable window.
+>
+> The slice landed after that change, so it demonstrates the *earlier* mechanism. Nothing is
+> wrong with it as a slice — it proved the browser-binding property it set out to prove, and it
+> produced the extraction finding in §5.4 that no sketch could have. But the disagreement must
+> not be left implicit: **the spec is normative for mechanism, the slice is evidence about
+> behaviour**, and a reader comparing them should know which is which. Reconciling the slice to
+> per-action proofs, or narrowing its README to say which mechanism it is testing, is tracked
+> with #360.
+
 ### 4.3 The gate helper
 
 ```php
@@ -294,6 +308,19 @@ Role changes are the subtlest path and need a dedicated guard, mirroring the plu
 The terminal code routes are gated at **two shared sinks plus one effect**, not per-page or per-capability, so route multiplicity (admin UI, bulk, AJAX updaters, REST, programmatic) collapses to a handful of insertions:
 
 - **`WP_Upgrader::install_package()`** — the package-write funnel beneath `Plugin_Upgrader`/`Theme_Upgrader` `install()`/`upgrade()`/`bulk_upgrade()`, the AJAX updaters, and the REST plugins controller (`core/install-plugin` / `-theme` / `core/update-plugin` / `-theme`). Gate here rather than `Plugin_Upgrader::install()` (which misses bulk/update/AJAX/auto-updater) and rather than the capability layer (`upload_plugins`→`install_plugins` in `map_meta_cap`, so a capability gate cannot separate an attacker ZIP from a repository install and would disrupt CLI/automation). It also covers language-pack writes into `WP_LANG_DIR`, a directory core executes (`.l10n.php` is `include`d).
+  **It fires too late to prevent extraction — found by running it (#380).** `WP_Upgrader::run()`
+  calls `unpack_package()`, which extracts the archive into `wp_content_dir() . 'upgrade/'`,
+  **before** `install_package()` is reached (verified against trunk). So a gate at
+  `install_package()` refuses the final move into `plugins/` while attacker-controlled PHP is
+  already sitting in `wp-content/upgrade/` — a directory many hosts serve and execute. A
+  session-riding attacker who can request a known path has execution regardless of the refusal
+  that follows.
+  This corrects §3's claim that `install_package()` is *the* code-write seam: for the
+  interactive branch it is **necessary but not sufficient**. Either gate earlier — at
+  `unpack_package()` or before the download in `run()` — or state the residual plainly. The
+  PoC slice (`poc/install-package-gate/`) is what surfaced this; it is exactly the class of
+  error a pseudocode sketch cannot produce, and the reason #360 asked for real code.
+
   **It does not cover core update.** `Core_Upgrader::upgrade()` reaches `update_core()` directly — `install_package(` never appears in `class-core-upgrader.php` (verified) — so "gate the shared package sink" is true of plugin, theme and language packages and false of core. `core/update-core` therefore takes its own insertion at `Core_Upgrader::upgrade()`/`update_core()`; treating the sink as universal is exactly how the most powerful write in core came to be the one the catalog missed (#302).
 - **`wp_edit_theme_plugin_file()`** — the single write sink for both the plugin and theme file editors, including the `wp_ajax_edit_theme_plugin_file()` path (`core/edit-plugin-file` / `-theme-file`). Gate the sink *and* challenge early at editor-open so a user does not write a draft only to discover the requirement at save.
 - **`activate_plugin()`** (`core/activate-plugin`) — reachable directly via REST `update_item` on an already-installed plugin; success returns **`null`**, `WP_Error` on failure, so adapters key on `is_wp_error()`, not a truthy return.
