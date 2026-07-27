@@ -296,6 +296,41 @@ behaviour as seriously as a line of code that asserts it.
   hold, is preferred over silently rewriting it — the reasoning usually still has value
   even when the description does not.
 
+### A remedy is executable advice — verify it like code
+
+Prose that says something can be wrong. Prose that tells someone **what to run** can do
+damage, and it is read by whoever is already having a bad day.
+
+The worked example is `llm-lies-log.md` #55: a release note shipped
+`wp option delete wp_sudo_db_version` as an operator remedy. On multisite it did nothing
+(`get_db_version()` reads `get_site_option()`, one network-wide row in `wp_sitemeta`, while
+the per-site loop targets `wp_options`), and everywhere it was **dangerous** — clearing the
+stamp replays every upgrade routine from `0.0.0`, and `upgrade_2_0_0()` unconditionally
+removes the `site_manager` role while `upgrade_3_3_0()` grants four governance capabilities
+to every administrator. A security plugin recommending that does more harm than the artifact
+it was clearing.
+
+So, before a command reaches a doc:
+
+- **MUST** trace what it actually touches — option vs site-option, per-site vs network,
+  which code path consumes it — not what its name suggests.
+- **MUST** ask what happens when it succeeds, not only whether it works. The failure above
+  was not "the command errors"; it was "the command works and replays destructive
+  migrations".
+- **MUST** check it on multisite specifically. Single-site correctness is not evidence.
+- Prefer describing the state to be corrected over supplying a command, when the safe
+  command depends on context you cannot see.
+
+### Read the repo, not the mailbox
+
+A retraction does not reach anyone who already acted on the claim. #55 also happened because
+a correction arrived an hour after the original analysis, and the analysis had already been
+acted on — that is a property of message passing, not of anyone's care.
+
+So when a claim from another session is about to become a change in the repo: **re-derive it
+with a command before acting**, and prefer `gh`/`git` queries over recollection of what
+someone said. Messages are a lossy cache of state you can query directly.
+
 ### Run the mechanical checks after *every* edit, including comment-only ones
 
 - `composer verify:metrics` after any change that adds or removes lines in tracked
