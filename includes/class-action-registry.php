@@ -574,10 +574,20 @@ class Action_Registry {
 				// than the whole page can reproduce the effect, and a wider one would
 				// carry fields the confirmation cannot name.
 				//
-				// So this is a reauthenticate-then-resubmit action: block, confirm, land
-				// the user back on the settings screen, and let them submit the real form
-				// with its full payload. One extra click, and nothing executes merely
-				// because authentication succeeded.
+				// So this is a reauthenticate-then-resubmit action: block, confirm, then
+				// let the user submit the real form with its full payload. Nothing
+				// executes merely because authentication succeeded.
+				//
+				// The landing is the DASHBOARD, not Settings -> General: the intercepted
+				// URL is options.php, which Challenge::HANDLER_ENDPOINTS classifies as a
+				// handler because returning a refused Settings-API POST "to its screen"
+				// renders the raw All Settings dump (GB-OPTIONS-ALLSETTINGS). That
+				// costs the user the trip back to the settings page, and it is what
+				// already happened here before this rule became non-replayable, since
+				// new_admin_email sat in the stashed payload and never in the target.
+				// Returning a settings save to its own screen with its values intact is
+				// worth doing and is tracked separately; it is not a property of the
+				// replay decision.
 				'stash'    => self::stash_no_replay(),
 			),
 

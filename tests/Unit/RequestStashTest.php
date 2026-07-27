@@ -880,6 +880,62 @@ class RequestStashTest extends TestCase {
 	}
 
 	/**
+	 * #431: narrowing wp_sudo_critical_options must not reinstate the false target.
+	 *
+	 * Whether an option is GATED and whether a displayed value is TRUE are separate
+	 * questions. A site that narrows the protection set to new_admin_email still posts
+	 * unchanged siteurl/home/default_role/users_can_register from the same form, and
+	 * those keys stay in TARGET_PARAMS — so a comparison map derived from the filtered
+	 * list would leave them uncomparable and name them as changes again, reinstating
+	 * this bug on exactly the sites that customised their protection set.
+	 */
+	public function test_narrowed_critical_options_filter_does_not_restore_false_target(): void {
+		$this->stub_stash_index_meta_io();
+
+		$_SERVER['REQUEST_METHOD'] = 'POST';
+		$_SERVER['HTTP_HOST']      = 'example.com';
+		$_SERVER['REQUEST_URI']    = '/wp-admin/options.php';
+		$_POST                     = $this->options_general_payload();
+		$_POST['new_admin_email']  = 'attacker@evil.example';
+
+		Functions\when( 'wp_generate_password' )->justReturn( 'abc123def456ghij' );
+		Functions\when( 'esc_url_raw' )->returnArg();
+		Functions\when( 'is_ssl' )->justReturn( true );
+		Functions\when( 'sanitize_text_field' )->returnArg();
+		Functions\when( 'get_option' )->alias(
+			function ( $name ) {
+				$stored = $this->options_general_stored();
+				return $stored[ $name ] ?? false;
+			}
+		);
+		// A site that gates ONLY the administration email address.
+		Functions\when( 'apply_filters' )->alias(
+			function ( $hook, $value ) {
+				return 'wp_sudo_critical_options' === $hook ? array( 'new_admin_email' ) : $value;
+			}
+		);
+
+		$stored = null;
+		Functions\expect( 'set_transient' )->once()->andReturnUsing(
+			function ( $key, $value ) use ( &$stored ) {
+				$stored = $value;
+				return true;
+			}
+		);
+
+		$this->stash->save( 1, $this->options_critical_rule() );
+
+		$this->assertSame(
+			array( 'new_admin_email' => 'attacker@evil.example' ),
+			$stored['target'],
+			'Only the changed option may be named, whatever the site chose to gate.'
+		);
+
+		unset( $_SERVER['REQUEST_METHOD'], $_SERVER['HTTP_HOST'], $_SERVER['REQUEST_URI'] );
+		$_POST = array();
+	}
+
+	/**
 	 * #431: a non-options rule keeps naming its own target.
 	 */
 	public function test_capture_target_unaffected_for_non_option_rules(): void {
