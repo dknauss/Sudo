@@ -632,6 +632,29 @@ run
 expect_rc 1
 expect_out "anchor token"
 
+# 18. A legacy-exempt row is exempt from the ANCHOR check only — its snippet must
+#     still be verified. Skipping the rest of verification would turn a narrow
+#     exemption into a total one, so a legacy row whose upstream snippet vanished
+#     would pass silently. That is the same fail-open shape as the word-splitting bug.
+start "legacy-exempt row still fails when its snippet is gone"
+new_sandbox legacy_snippet_gone
+registry "$HDR
+| FT-EULA | $URL | 2 | needle here | clause 3.1 of some document | a claim |"
+fixture "$URL" 200 0 $'x\nsomething else entirely'
+run
+expect_rc 1
+expect_out "snippet no longer present upstream"
+
+# 18b. And it still passes when the snippet IS present, so 18 cannot be satisfied by
+#      failing every legacy row.
+start "legacy-exempt row passes when its snippet is present"
+new_sandbox legacy_snippet_ok
+registry "$HDR
+| FT-EULA | $URL | 2 | needle here | clause 3.1 of some document | a claim |"
+fixture "$URL" 200 0 $'x\nneedle here'
+run
+expect_rc 0
+
 # --- summary ---------------------------------------------------------------------
 echo
 echo "verify-sources tests: $pass passed, $fail failed"

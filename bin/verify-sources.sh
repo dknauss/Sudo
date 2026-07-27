@@ -344,8 +344,6 @@ symbol_needles() {
 # non-code sources by kind, or those rows be restructured to carry an anchor, is an open
 # design question; this list is what lets the requirement apply to NEW rows meanwhile.
 UNANCHORED_LEGACY_IDS="$(cat <<'EOF'
-FT-SUDO-MODE
-FT-SESSION-TIMEOUTS
 FT-SESSION-DROPIN
 FT-MU-LOADER
 FT-PROTECTED-CAPS
@@ -360,13 +358,20 @@ is_unanchored_legacy() {
 }
 
 	symbol_anchors="$(printf '%s' "$symbol_raw" | grep -oE '`[^`]+`' | tr -d '`' || true)"
+	# Exempt rows skip the ANCHOR comparison only. Everything else — fetch, snippet
+	# presence, line drift — still runs. `continue` here would turn a narrow exemption
+	# into a total one, so a legacy row whose upstream file vanished would pass in
+	# silence: a checker reporting success while verifying nothing, which is the failure
+	# this file exists to prevent.
+	anchor_check=1
 	if [ -z "$symbol_anchors" ]; then
 		if is_unanchored_legacy "$id"; then
-			add_warning "$id: enclosing context is not a named code symbol, so it predates the anchor requirement — exempt for now, see the open scope question"
+			add_warning "$id: enclosing context is not a named code symbol, so it predates the anchor requirement — snippet and drift are still verified"
+			anchor_check=0
 		else
 			add_failure "$id: enclosing symbol has no \`backticked\` anchor token — wrap the symbol's upstream name in backticks so it can be checked against the file"
+			continue
 		fi
-		continue
 	fi
 
 	checked=$((checked + 1))
@@ -475,7 +480,7 @@ is_unanchored_legacy() {
 		fi
 	done <<< "$symbol_anchors"
 
-	if [ "$anchor_ok" -eq 0 ]; then
+	if [ "$anchor_check" -eq 1 ] && [ "$anchor_ok" -eq 0 ]; then
 		if is_unanchored_legacy "$id"; then
 			add_warning "$id: recorded enclosing context is not a named code symbol and could not be located — predates the anchor requirement, exempt for now"
 		else
