@@ -67,11 +67,20 @@ sequencing). All items below are ✅ done.
 The tree was **code-complete and green in CI** on the release commit. As with the
 `4.5.0`–`4.7.0` sequence, the version-sync + `blueprint.json` bump landed with the
 tag (PR #221); this file's update was applied as a follow-on reconciliation. All
-items below are ✅ done **except item 2** (the release-environment-matrix decision),
-which is a ⚠️ **retroactive gap still open** for a maintainer reuse-or-rerun call.
+items below are ✅ done, including item 2 (the release-environment-matrix decision),
+which was a ⚠️ retroactive gap and is now **resolved** — see the `4.9.0` matrix in
+[`release-environment-log.md`](release-environment-log.md) and issue #273.
 
 1. **CI gate — ✅ green (PR #221 version-sync commit).** Full required suite passed; local pre-commit gate green: `composer test:unit` (1111 tests), PHPStan L6 no errors, Psalm 0, PHPCS 0.
-2. **Release-environment matrix — ⚠️ decision not recorded at tag time (retroactive gap).** Unlike `4.6.0`/`4.7.0` (admin-side JS + `admin-ajax` only), `4.8.0` changed **server-facing REST routing/method matching** (the gates now match `POST` and `show_in_rest` aliases on `/wp/v2/users` and `/wp/v2/settings`) — the class of change the manual Apache/managed-host/min-WP matrix exists to catch, so a blind reuse of the `4.6.0`/`4.5.0` matrix is **not** obviously justified. Live end-to-end security verification of the new REST gates **was** performed and recorded ([`docs/security-test-results-4.8.0.md`](security-test-results-4.8.0.md): WordPress Studio / WP 7.0.2 / PHP 8.5.8 / SQLite, headless WP-CLI + App-Password/cookie REST, plus a Redis backend for the cache-bypass rows), but that is a **functional** security pass, **not** the Apache/managed-host/min-WP environment matrix. A conscious reuse-or-rerun decision for those lanes is flagged for the maintainer in [`docs/release-environment-log.md`](release-environment-log.md); the tag was already cut, so this is recorded as a retroactive reconciliation item, not a pre-tag block.
+2. **Release-environment matrix — ✅ resolved 2026-07-26 (was a retroactive gap).** The
+   assertions this gap concerned are now permanent Playwright specs (`REST-01`..`REST-08`)
+   running in the release-confidence Apache job, so the lane is covered durably rather than
+   by a late manual run; the managed-host lane is waived by explicit maintainer approval
+   with residual risk recorded, and the min-WP floor is CI-covered. Full reasoning and the
+   condition attached to the Apache lane are in
+   [`release-environment-log.md`](release-environment-log.md).
+
+   *Historical context, retained as the record of why the gap existed:* unlike `4.6.0`/`4.7.0` (admin-side JS + `admin-ajax` only), `4.8.0` changed **server-facing REST routing/method matching** (the gates now match `POST` and `show_in_rest` aliases on `/wp/v2/users` and `/wp/v2/settings`) — the class of change the manual Apache/managed-host/min-WP matrix exists to catch, so a blind reuse of the `4.6.0`/`4.5.0` matrix is **not** obviously justified. Live end-to-end security verification of the new REST gates **was** performed and recorded ([`docs/security-test-results-4.8.0.md`](security-test-results-4.8.0.md): WordPress Studio / WP 7.0.2 / PHP 8.5.8 / SQLite, headless WP-CLI + App-Password/cookie REST, plus a Redis backend for the cache-bypass rows), but that is a **functional** security pass, **not** the Apache/managed-host/min-WP environment matrix. A conscious reuse-or-rerun decision for those lanes is flagged for the maintainer in [`docs/release-environment-log.md`](release-environment-log.md); the tag was already cut, so this is recorded as a retroactive reconciliation item, not a pre-tag block.
 3. **Version sync — ✅ done** (PR #221). All five points at `4.8.0` (`wp-sudo.php` header + constant, `tests/bootstrap.php`, `phpstan-bootstrap.php`, `readme.txt` Stable tag), plus the `blueprint.json` install target.
 4. **CHANGELOG + readme.txt — ✅ done** (PR #220). `4.8.0` dated section (`2026-07-23`) in `CHANGELOG.md`; matching `readme.txt` changelog entry. External/core symbol references cited to WordPress core source in the changelog.
 5. **Cut the annotated tag — ✅ done.** `v4.8.0` (annotated) on `10587a4`; GitHub Release published with `wp-sudo.zip` attached.
