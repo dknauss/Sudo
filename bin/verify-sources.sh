@@ -440,18 +440,25 @@ is_unanchored_legacy() {
 # requirement — they were written after it — and warning them with that message would
 # put a false statement in the gate's own output.
 #
-# The criterion is strict and checkable by hand: the cited line must sit at file top
-# level in a procedural script. Both current entries are `require_once`-and-statements
-# admin scripts where the citation is ABOUT the top-level control flow:
-#   - GB-NETWORK-EDIT-REDIRECT — network/edit.php:15 is `if ( empty( $action ) ) {`, the
-#     guard the row's claim is about, with only comments, one require and the $action
-#     assignment above it. (It cited the L13 assignment until #443 moved it; the reason
-#     for the exemption is unchanged, since nothing encloses L15 either.)
-#   - GB-UPDATE-NEEDS-ACTION — update.php:22 is itself the top-level conditional WRAPPING
-#     THE FILE BODY; the claim is that the whole body sits inside it, so nothing can
-#     enclose it by definition. Not the file's only top-level conditional — the
-#     IFRAME_REQUEST guard at L9 is another; the qualifier is what makes this true, and
-#     an earlier draft of this comment dropped it and asserted "sole".
+# The criterion is strict and checkable by hand: the cited line must sit at file top level
+# in a procedural script, so that no construct in the file opens before it and closes after
+# it. Both current entries — GB-NETWORK-EDIT-REDIRECT and GB-UPDATE-NEEDS-ACTION — are
+# admin scripts whose citation is ABOUT the top-level control flow. Their file, line,
+# enclosing context and the reason each qualifies live in their rows in
+# docs/upstream-sources.md, and are NOT restated here.
+#
+# That omission is the point. An earlier version of this comment carried its own copy of
+# each row's line number, and of the cited expression for one of them, and when #443
+# re-cited that row the copy here went stale while `verify-sources.sh` stayed green.
+#
+# The split is what makes the new shape safe, and it is worth stating exactly. Nothing
+# checks a line number or an expression written in this file — those are third-party
+# claims with no verifier, which is the problem the registry exists to solve. The IDs are
+# checked: the dangling-reference scan below greps the whole repo, and `bin/` is not among
+# its excluded directories, so renaming or deleting either row hard-fails this file. So the
+# block keeps what is verified and drops what was not. It is the rule the registry's own
+# header states for prose — register the claim once, reference the ID — applied to the
+# checker rather than to documentation.
 #
 # What is lost is nothing real: there is no enclosing symbol to rename or delete, so the
 # anchor check has no drift to detect here. Snippet presence and line drift still run, and
