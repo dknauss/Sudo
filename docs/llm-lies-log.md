@@ -1108,3 +1108,53 @@ C2. REDUNDANT MEMORY DUPLICATING CLAUDE.md
             anti-pattern. Added churn, not value.
     Fix:    Reverted the memory addition. Rule stays where it belongs
             (CLAUDE.md + profiles); the job is to execute it, not re-log it.
+
+54. INVENTED AN ENCLOSING SYMBOL FROM A GREP HIT — `Challenge::handle_replay_response()`
+   Files:  docs/release-status.md (PR #398), and repeated in messages to three
+           concurrent sessions before it was caught.
+   Claim:  "`do_action( 'wp_sudo_action_replayed', … )` is live in
+           `Challenge::handle_replay_response()` on `main` today."
+   Reality: No such method exists. `git grep -n "function handle_replay_response"
+           origin/main -- includes/` returns nothing. The enclosing symbol is
+           `Challenge::build_replay_response_data()`, opening at
+           `includes/class-challenge.php:1185`, with the hook at :1229.
+   Source:  Caught in review by a concurrent session, which grepped the name.
+   Notes:  Produced by grepping for the hook, taking the line number, and filling in
+           the function name from memory of the design — the exact failure AGENTS.md
+           → Prose Discipline names by example ("if you cannot name the function or
+           component containing the line, you have not read it, you have grepped
+           it"), committed inside the document whose entire MINOR-versus-MAJOR
+           argument rests on that one citation. Load-bearing, not cosmetic: a reader
+           verifying the release decision greps the given name, finds nothing, and
+           concludes the justification is unsupported.
+           The aggravating factor is repetition. Having written it once, I restated
+           it to three sessions, so it acquired the appearance of a checked fact by
+           being consistent. Consistency is not evidence — it was consistently wrong.
+   Fix:    Cite the symbol AND the line together, so the claim is checkable in one
+           step. Standing rule already in AGENTS.md; this was a failure to apply it.
+
+55. PROPAGATED ANOTHER SESSION'S RETRACTED ANALYSIS, AND SHIPPED AN UNSAFE REMEDY
+   Files:  docs/release-status.md (PR #398), the `wp_sudo_db_version` artifact note.
+   Claim:  (a) The `5.0.0` stamp strands per-site on multisite, remedied by
+           `wp site list | xargs -I{} wp --url={} option delete wp_sudo_db_version`.
+           (b) On single-site, `wp option delete wp_sudo_db_version` is a safe remedy.
+   Reality: (a) `Upgrader::get_db_version()` uses `get_site_option()` on multisite, so
+           the stamp is ONE network-wide row in `wp_sitemeta`. The loop targets
+           `wp_options`, deletes rows the Upgrader never reads, and appears to work.
+           (b) Deleting the stamp replays every routine from `0.0.0`.
+           `upgrade_2_0_0()` calls `remove_role( 'site_manager' )` unconditionally, and
+           `upgrade_3_3_0()` grants four governance capabilities to every administrator
+           when it finds no holder — silent privilege escalation, recommended by a
+           security plugin's own release documentation.
+   Source:  The originating session retracted (a) an hour before I repeated it, and
+           supplied (b) from its own design review. Both verified against
+           `origin/main` before this entry was written.
+   Notes:  Two failures, one shape. I praised an analysis instead of checking it, and
+           I shipped an operator-facing command I had not run. A remedy in a release
+           doc is executable advice; it deserves the verification a code change gets.
+           Recorded because the corrective instinct — "give operators something to
+           run" — is what produced the danger.
+   Fix:    Removed the command entirely. The note now states the artifact and its real
+           scope and defers disposition to #393, where the accepted approach needs no
+           operator action: since the guard is `>=`, the durable fix is the rule that
+           no future routine is keyed at or below `5.0.0`.

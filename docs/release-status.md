@@ -145,19 +145,33 @@ alarm — and `5.0.0` is wanted for the core-gate work, which will genuinely bre
 contracts.
 
 **Known artifact on sites that ran the unreleased `5.0.0` build.** Any dev or staging
-site activated during that window has `wp_sudo_db_version` stamped `5.0.0`.
+install activated during that window carries `wp_sudo_db_version` stamped `5.0.0`.
 `Upgrader::maybe_upgrade()` returns early whenever the stored version is `>=`
-`WP_SUDO_VERSION`, so after the rollback that stamp is never rewritten — and a future
-routine registered at `4.9.x` or at the real `5.0.0` would be **skipped** there. Nothing
-is skipped today (the highest `Upgrader::UPGRADES` entry is `4.0.0`). Deliberately not
-fixed in production code: a downgrade detector for a version that never shipped publicly
-is machinery the released plugin should not carry. Clear it by hand where it matters:
+`WP_SUDO_VERSION`, so after the rollback it is never rewritten — and a future routine
+registered at `4.9.x`, **or at the real `5.0.0` when it ships**, would be skipped there.
+Nothing is skipped today: the highest entry in `Upgrader::UPGRADES` is `4.0.0`.
 
-```bash
-wp option delete wp_sudo_db_version
-```
+Scope, read from `Upgrader::get_db_version()`: it uses `get_site_option()` on multisite
+and `get_option()` otherwise, so the stamp is **one network-wide value in `wp_sitemeta`**
+on a network, and per-site only on single-site.
 
-The next request re-stamps it at the running version.
+**Do not clear the stamp by deleting the option.** Deleting it replays every routine from
+`0.0.0`, and two of those are destructive: `upgrade_2_0_0()` calls `remove_role(
+'site_manager' )` unconditionally, destroying any role holding that slug whatever its
+origin; and `upgrade_3_3_0()`, on a single site with no `manage_wp_sudo` holder, grants
+the four governance capabilities to **every administrator** — silent privilege escalation
+on an install that deliberately revoked governance and relies on scoped
+`WP_SUDO_RECOVERY_MODE`, which this plugin documents as a supported configuration.
+
+**Disposition is tracked in [#393](https://github.com/dknauss/Sudo/issues/393), not
+here.** The approach under consideration needs no operator action at all: because the
+guard is `>=`, a routine keyed at exactly `5.0.0` would never run on a poisoned install
+even after `5.0.0` genuinely ships — so the durable fix is the rule *no future routine is
+keyed at or below `5.0.0`*, enforced by a test and a note in the "HOW TO ADD A NEW
+UPGRADE" docblock. That lets the defect expire on its own. The repo has learned this
+before: `upgrade_3_3_0()`'s own HISTORY docblock records a routine keyed at `3.1.0` that
+never ran for sites stamped `3.1.1`–`3.1.3`, and the fix was re-keying above every stamp
+in the wild rather than rewriting stamps.
 
 **`4.9.0` payload.** Landed: forge-resistant per-login-session assurance (#278, #279,
 PR #348), the reauth-lockout out-of-band clear (#280, PR #343), and the stash
