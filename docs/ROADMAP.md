@@ -1,57 +1,81 @@
 ---
 status: current
-applies_to: 4.9.x
+applies_to: 4.9.x (research prototype — see PROJECT-STATUS.md)
 last_verified: 2026-07-27
-canonical_for: forward roadmap (Now / Next / Later / Non-goals)
+canonical_for: forward roadmap (Now / Next / Deferred / Later / Non-goals)
 ---
 
 # Roadmap
 
 Forward-looking only. Shipped work lives in [`CHANGELOG.md`](../CHANGELOG.md); open
 work is tracked as GitHub issues; design analyses live in their own docs. Current
-release state is canonical in [`release-status.md`](release-status.md). Near-term work
-is grouped in the [**post-4.9.0** milestone](https://github.com/dknauss/Sudo/milestone/5);
-the full backlog is in the [issues](https://github.com/dknauss/Sudo/issues), labeled
+release state is canonical in [`release-status.md`](release-status.md). The full
+backlog is in the [issues](https://github.com/dknauss/Sudo/issues), labeled
 `priority: high` / `medium` / `low`.
+
+**What earns a place in Now/Next, since the reclassification.**
+[`PROJECT-STATUS.md`](../PROJECT-STATUS.md) makes this a research demonstrator and says
+a snapshot is published "only when it materially supports the conceptual project or an
+upstream WordPress core proposal." That is a priority *filter*, and this file is where it
+bites: work that makes the plugin a better product for operators running it in production
+no longer sorts to the top, because production is out of scope. **Now** and **Next** are
+therefore the core-gate program plus the findings that keep the demonstrator honest.
+Operator-product work is not cancelled — it is parked in *Deferred while the project is a
+research prototype* below, so the ordering reflects the stated status rather than
+contradicting it.
 
 ## Now
 
-- **Network-wide role/capability lockdown sweep** ([#219](https://github.com/dknauss/Sudo/issues/219)) —
-  the 4.8.0 lockdown audit covers only the current blog
-  (`Role_Audit::collect_current_state()` uses `get_current_blog_id()`; `diff()`
-  iterates a single site), so subsite privilege drift is invisible to one
-  `wp sudo manifest diff` / Site Health / cron run. Walk the network (manifest sites,
-  or all blogs via `switch_to_blog()`), keep the cache-bypass reads per-blog, and
-  consider a `--site=<id|url>` scope flag with batching for large networks.
-  `priority: high`, in the [post-4.9.0 milestone](https://github.com/dknauss/Sudo/milestone/5); documented MVP limitation until shipped.
+- **Core-gate PoC, Slice B — identity pivots** ([#360](https://github.com/dknauss/Sudo/issues/360),
+  the sole open item in the [Cut 1-readiness milestone](https://github.com/dknauss/Sudo/milestone/3),
+  which is otherwise 23/24 closed). Slice A landed (#380) as a plugin at
+  `poc/install-package-gate/` wired into CI as `composer test:poc`, and needed **no** core
+  patch — `WP_Upgrader::install_package()` already carries a vetoing `upgrader_pre_install`
+  short-circuit. Slice B is the part that needs a real `wordpress-develop` branch, because
+  six identity-pivot sinks cannot refuse at all: `wp_delete_user()` / `wpmu_delete_user()`
+  return `bool`, where a `WP_Error` is **truthy** — a refusal reads to the caller as
+  success — and `set_role()`, `add_role()`, `grant_super_admin()`, `switch_theme()` return
+  `void` and silently no-op. It needs six `pre_*` filters modelled on `pre_delete_post`.
+  Unblocked: #358 (the chokepoint veto audit) is closed, and the "starts after 4.9.0 is
+  tagged" condition cleared on 2026-07-27. Scope: `.planning/360-poc-patch-branch-scope.md`.
+  The test that decides it: **two real browsers, cloned session** — browser B holds a copy
+  of A's auth cookie and must not inherit A's elevation.
+- **Post-4.9.0 correctness followups that bear on the research claims** — chiefly
+  [#354](https://github.com/dknauss/Sudo/issues/354) (Site Health's stale-session cleanup
+  deletes live proof maps: it classifies staleness from the scalar marker read *through the
+  object cache*, while enforcement reads the signed proof *cache-bypassed*, so the exact
+  cache-invalidation failure #278 exists to tolerate can wipe every valid proof) and
+  [#404](https://github.com/dknauss/Sudo/issues/404) (an upgrade replay from `0.0.0` grants
+  governance caps to every administrator, because the routine cannot distinguish "predates
+  governance caps" from "deliberately has none"). Both are reachable in the v4.9.0 tag the
+  public Playground badge installs.
 
 ## Next
 
-- **Cross-site (network-admin) session revocation** ([#239](https://github.com/dknauss/Sudo/issues/239), `priority: high`, post-4.9.0) —
-  network revoke-all / by-user / by-site for incident response, reusing
-  `Sudo_Session::deactivate()`.
+- **Preflight demonstrator, plugin side** — the two-operation demonstrator named in
+  "4.10 — Action-confirmation API" below (plugin/theme upload, file-editor save). This is
+  the plugin's contribution to the core proposal rather than a product feature: it is where
+  the `click → pause → preflight → proof → confirm → submit once` protocol gets exercised
+  against real screens before core is asked to adopt it. Deliberately two operations, not a
+  `wp-admin` modernisation.
 - **Session-store architecture** — evaluate and likely implement a dedicated
-  sudo-session table (authoritative table + usermeta shadow writes). Design:
+  sudo-session table (authoritative table + usermeta shadow writes). Retained near the top
+  because it answers **open question 2** of the core proposal — whether the proof record
+  should build on `WP_Session_Tokens` or a dedicated store — so the plugin's choice here is
+  evidence for the core one, not just plumbing. Design:
   [`session-store-evaluation.md`](session-store-evaluation.md). Snicco Fortress's
   per-token session-row model (one row per token via the `session_token_manager`
   drop-in) independently validates this direction — see the design-borrowing
   assessment in
   [`sudo-architecture-comparison-matrix.md`](sudo-architecture-comparison-matrix.md#design-borrowing-assessment-fortress-session--sudo-patterns).
-- **Sudo Activity screen + export surface** — a dedicated list-table Activity admin
-  screen (search, sortable columns, CSV export with capability + nonce checks) that
-  gives the reserved `export_wp_sudo_activity` capability a UI surface. Keep it lean
-  (recent events, short retention) and prepare it for External Audit Mode delegation.
-  Include audit-visibility integrity warnings (flag when local passed-event logging is
-  disabled or delegated coverage is missing).
 - **Multisite terminology + coverage pass** — remaining Core-Trac-alignment work:
   standardize "network administrator" vs. "super admin"; review network-level
   gated-action coverage. Maps to Trac [#20140](https://core.trac.wordpress.org/ticket/20140).
-- **Scoped single-user recovery form** ([#240](https://github.com/dknauss/Sudo/issues/240), `priority: high`, post-4.9.0) —
-  `define( 'WP_SUDO_RECOVERY_MODE', <user> )`, plus a `Site_Health::test_recovery_mode()`
-  status; the open follow-up to the hardened break-glass (Phase R3).
 - **Test-scaffolding hardening** — blueprint rot-guard smoke lane (do first),
   tag-pinned blueprint copies at each release, and run the release environment matrix
-  every release.
+  every release. **Raised in importance by the reclassification, not lowered:** Playground
+  is now one of the few sanctioned ways to run this at all, so a rotted blueprint is no
+  longer a broken demo link — it is the evaluation path itself failing.
 - **Screenshot refresh for the in-editor session indicator** ([#262](https://github.com/dknauss/Sudo/issues/262)
   client UI shipped in PR #277) — the indicator itself is now implemented and live-verified: a
   `core/notices` snackbar baseline (WP 6.4+ floor) plus a feature-detected `PluginSidebar` "Sudo"
@@ -66,6 +90,36 @@ the full backlog is in the [issues](https://github.com/dknauss/Sudo/issues), lab
   channel could propagate grants to every open editor. Informational-only, so the staleness is
   cosmetic and self-heals (the server stays authoritative and re-challenges as needed).
   Distinct from the shipped in-editor reauth *modal* (Milestones A/B, v4.6/4.7).
+
+## Deferred while the project is a research prototype
+
+Not cancelled, and not judged low-value — these are the **operator-product** layer, and
+[`PROJECT-STATUS.md`](../PROJECT-STATUS.md) puts the operators they serve out of scope. They
+sort below the core-gate program until that status changes, and several would only be
+*testable* on the production and multisite networks the project now tells people not to use.
+They are recorded here rather than in Now/Next so the ordering matches the stated status; the
+issues stay open.
+
+- **Cross-site (network-admin) session revocation** ([#239](https://github.com/dknauss/Sudo/issues/239)) —
+  network revoke-all / by-user / by-site for incident response, reusing
+  `Sudo_Session::deactivate()`. Still labeled `priority: high`, which is now a priority
+  *within this deferred layer*, not against the core-gate work.
+- **Network-wide role/capability lockdown sweep** ([#219](https://github.com/dknauss/Sudo/issues/219)) —
+  the 4.8.0 lockdown audit covers only the current blog
+  (`Role_Audit::collect_current_state()` uses `get_current_blog_id()`; `diff()` iterates a
+  single site), so subsite privilege drift is invisible to one `wp sudo manifest diff` /
+  Site Health / cron run. Walk the network (manifest sites, or all blogs via
+  `switch_to_blog()`), keep the cache-bypass reads per-blog, and consider a
+  `--site=<id|url>` scope flag with batching. Remains a **documented MVP limitation** until
+  shipped — that documentation obligation is not deferred.
+- **Sudo Activity screen + export surface** — a dedicated list-table Activity admin screen
+  (search, sortable columns, CSV export with capability + nonce checks) giving the reserved
+  `export_wp_sudo_activity` capability a UI surface. Keep it lean and prepare it for
+  External Audit Mode delegation, with audit-visibility integrity warnings.
+- **Network admin tools, Protection Status panel, expanded Site Health, inline policy help**
+  ([#243](https://github.com/dknauss/Sudo/issues/243)–[#247](https://github.com/dknauss/Sudo/issues/247),
+  [#249](https://github.com/dknauss/Sudo/issues/249)) — the operator-console cluster in the
+  post-4.9.0 milestone.
 
 ## 4.10 — Action-confirmation API (design)
 
@@ -124,6 +178,22 @@ Properties that matter:
 Form contents never leave the page: passwords, uploads, selections and validation state
 stay in the document, so nothing sensitive is stored server-side awaiting replay.
 
+### One effect does not always mean one veto point
+
+The seam argument is usually stated as "one insertion reaches admin UI, REST, CLI and
+in-process callers," and for the identity pivots that holds. It does **not** hold
+universally, and the exception is already empirical rather than hypothetical: Slice A of
+the core PoC found that `unpack_package()` extracts the archive into `wp-content/upgrade/`
+**before** `install_package()` is ever reached ([#387](https://github.com/dknauss/Sudo/issues/387)),
+so gating the nominal chokepoint alone still lets attacker-controlled files land on disk.
+The slice gates `upgrader_pre_download` as well.
+
+State the rule as: **the veto belongs at the last point where the effect can still be
+refused, which is not always the function that names the effect.** Some operations need
+more than one. Writing this down matters for the core proposal specifically — a reviewer
+who finds the upgrader exception themselves will discount the whole one-seam framing,
+whereas the framing survives fine once the exception is part of it.
+
 ### Three layers, and only one of them is the boundary
 
 1. **Early server veto** — the non-bypassable enforcement layer. Unchanged in kind from
@@ -158,6 +228,26 @@ This bears directly on a standing decline below: passkeys were declined in 2026-
 **UX** grounds — OS biometric autofill already covered it. That reasoning does not
 answer an XSS-resistance argument, which is a security claim. The decline is not
 reversed here, but it must be re-decided on the new grounds rather than inherited.
+
+**Unresolved, and it needs deciding before the core proposal is submitted.** The XSS
+caveat and the proposal's own non-goals currently point in opposite directions from the
+same fact. Proposal §5 already concedes the gate "cannot stop code already running
+in-process" — and active script in the admin document *is* code running in-process. So
+either:
+
+- **scope it out**, consistently: active admin-page XSS is outside the boundary, the same
+  way in-process code already is, and the modal is then a perfectly acceptable rendering
+  of a challenge whose security rests on the server-side veto and the digest-bound proof;
+  or
+- **scope it in**, and a browser-mediated factor stops being a "Later" item and becomes
+  part of the Cut 1 challenge-provider contract.
+
+What should not ship is the current in-between, where the flagship UX is documented as
+untrustworthy against a threat the proposal neither excludes nor defends. The cheaper and
+more defensible option is the first: it costs nothing, it makes two documents agree, and
+it does not commit core to a credential mechanism in its first patch. Recorded as an open
+decision rather than settled here, because it is a threat-model change and belongs to the
+maintainer.
 
 ### Proposed demonstrator
 
