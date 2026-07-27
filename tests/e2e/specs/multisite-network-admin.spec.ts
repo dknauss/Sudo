@@ -162,7 +162,7 @@ test.describe( 'Multisite network admin flow', () => {
         }
     } );
 
-    test( 'MULTI-01: network plugins reauth returns to the same network admin page', async ( {
+    test( 'MULTI-01: network plugins reauth lands neutral and grants the session', async ( {
         page,
         context,
     } ) => {
@@ -225,9 +225,13 @@ test.describe( 'Multisite network admin flow', () => {
         expect( visitedChallengeUrl.pathname ).toBe( '/wp-admin/network/admin.php' );
         expect( visitedChallengeUrl.searchParams.get( 'page' ) ).toBe( 'wp-sudo-challenge' );
         expect( visitedChallengeUrl.searchParams.get( 'return_url' ) ).toBe( networkPluginsUrl );
-        await expect(
-            page.locator( '#wp-sudo-challenge-password-step a.button:has-text("Cancel")' )
-        ).toHaveAttribute( 'href', networkPluginsUrl );
+        // #322: the Cancel link is server-chosen and neutral, not the page the user
+        // came from. return_url is still EMITTED (asserted above) but consumed by
+        // nothing — the emit/consume split is deliberate and documented.
+        const cancelHref = await page
+            .locator( '#wp-sudo-challenge-password-step a.button:has-text("Cancel")' )
+            .getAttribute( 'href' );
+        expect( cancelHref ?? '' ).not.toContain( 'plugins.php' );
 
         await page.waitForFunction(
             () => typeof ( window as Window & { wpSudoChallenge?: unknown } ).wpSudoChallenge !== 'undefined'
@@ -235,15 +239,16 @@ test.describe( 'Multisite network admin flow', () => {
         await page.fill( '#wp-sudo-challenge-password', DEFAULT_PASSWORD );
 
         await Promise.all( [
-            page.waitForURL( networkPluginsUrl, { timeout: 15_000 } ),
+            page.waitForURL( ( url ) => ! /page=wp-sudo-challenge/.test( url.href ), { timeout: 15_000 } ),
             page.click( '#wp-sudo-challenge-submit' ),
         ] );
 
-        await expect( page ).toHaveURL( networkPluginsUrl );
+        // #322: lands neutral rather than back on the network plugins screen.
+        expect( page.url() ).not.toContain( 'plugins.php' );
         await expect( page.locator( '#wp-admin-bar-wp-sudo-active' ) ).toBeVisible();
     } );
 
-    test( 'MULTI-02: network settings POST replay survives 2FA lockout expiry recovery', async ( {
+    test( 'MULTI-02: network settings POST is not replayed after 2FA lockout recovery', async ( {
         page,
     } ) => {
         const configuredBaseUrl = process.env.WP_BASE_URL ?? '';
@@ -322,16 +327,21 @@ test.describe( 'Multisite network admin flow', () => {
             await page.fill( '#wp-sudo-e2e-two-factor-code', E2E_TWO_FACTOR_CODE );
 
             await Promise.all( [
-                page.waitForURL( /\/wp-admin\/network\/settings\.php\?page=wp-sudo-settings(?:&updated=true)?$/, {
+                page.waitForURL( ( url ) => ! /page=wp-sudo-challenge/.test( url.href ), {
                     timeout: 15_000,
                 } ),
                 page.click( '#wp-sudo-challenge-2fa-submit' ),
             ] );
 
-            await expect( page ).toHaveURL(
-                /\/wp-admin\/network\/settings\.php\?page=wp-sudo-settings(?:&updated=true)?$/
-            );
-            await expect( page.locator( '#session_duration' ) ).toHaveValue( updatedValue );
+            // #322: the stashed settings POST is NOT replayed. The user lands neutral
+            // holding the session they just earned, and the change has not been
+            // applied — they re-submit it themselves. This previously asserted the
+            // opposite: landing back on the settings screen with the new value already
+            // saved. That is the behaviour this release removes.
+            expect( page.url() ).not.toContain( 'page=wp-sudo-settings' );
+
+            await page.goto( '/wp-admin/network/settings.php?page=wp-sudo-settings' );
+            await expect( page.locator( '#session_duration' ) ).toHaveValue( originalValue );
         } finally {
             await disableE2eTwoFactor( sitePath, configuredBaseUrl );
             await clearSudoFailureMeta( sitePath, configuredBaseUrl );

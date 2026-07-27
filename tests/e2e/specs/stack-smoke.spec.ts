@@ -223,10 +223,13 @@ test.describe( 'WP Sudo alternative stack smoke tests', () => {
         await page
             .locator( '#wp-sudo-challenge-password-step a.button:has-text("Cancel")' )
             .evaluate( ( link ) => ( link as HTMLAnchorElement ).click() );
-        await expect( page ).toHaveURL(
-            /\/wp-admin\/options-general\.php\?page=wp-sudo-settings$/,
-            { timeout: 15_000 }
-        );
+        // #322: cancel lands neutral, not back on the settings screen. Assert we
+        // left the challenge; the destination is server-chosen.
+        await expect( page ).not.toHaveURL( /page=wp-sudo-challenge/, { timeout: 15_000 } );
+        expect( page.url() ).not.toContain( 'page=wp-sudo-settings' );
+
+        // The change must still not have been applied — that is what this test is for.
+        await page.goto( '/wp-admin/options-general.php?page=wp-sudo-settings' );
 
         await page.reload();
         await expect( sessionDuration ).toHaveValue( originalValue );
