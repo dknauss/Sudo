@@ -583,6 +583,30 @@ run
 expect_rc 1
 expect_out "enclosing symbol"
 
+# 16. A multiword anchor must be searched whole. Unquoted command substitution
+#     word-splits it, so `## Relationship between the timeouts` becomes five needles
+#     and the generic `##` matches ANY heading — the check then passes vacuously for
+#     every markdown source, which fails OPEN and is worse than the false positives
+#     the needle forms were added to fix.
+start "multiword anchor absent from the file still fails"
+new_sandbox multiword
+registry "$HDR
+| GB-HDR | $URL | 3 | needle here | \`## Missing Heading\` | a claim |"
+fixture "$URL" 200 0 $'## Other Heading\nx\nneedle here'
+run
+expect_rc 1
+expect_out "enclosing symbol"
+
+# 16b. And a multiword anchor that IS present still passes, so 16 cannot be satisfied
+#      by refusing every anchor containing a space.
+start "multiword anchor present in the file passes"
+new_sandbox multiwordok
+registry "$HDR
+| GB-HDR | $URL | 3 | needle here | \`## Real Heading\` | a claim |"
+fixture "$URL" 200 0 $'## Real Heading\nx\nneedle here'
+run
+expect_rc 0
+
 # --- summary ---------------------------------------------------------------------
 echo
 echo "verify-sources tests: $pass passed, $fail failed"

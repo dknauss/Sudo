@@ -413,7 +413,14 @@ symbol_needles() {
 		# declaration sitting right above it.
 		anchor_line=""
 		anchor_best=""
-		for anchor_needle in $(symbol_needles "$anchor"); do
+		# Read newline-delimited: anchors are frequently multiword — the registry holds
+		# markdown headings like `## Relationship between the timeouts`. Iterating an
+		# unquoted command substitution word-splits those, and the resulting generic `##`
+		# needle matches ANY heading, so the check would pass vacuously for every
+		# markdown source. That fails OPEN, which is worse than the false positives the
+		# needle forms exist to fix.
+		while IFS= read -r anchor_needle; do
+			[ -n "$anchor_needle" ] || continue
 			cand="$(grep -nF -- "$anchor_needle" "$file_path" | head -n1 || true)"
 			cand="${cand%%:*}"
 			[ -n "$cand" ] || continue
@@ -422,7 +429,7 @@ symbol_needles() {
 				anchor_best="$cand"
 				break
 			fi
-		done
+		done <<< "$(symbol_needles "$anchor")"
 		anchor_line="$anchor_best"
 		if [ -n "$anchor_line" ]; then
 			anchor_seen="$anchor_seen $anchor(L$anchor_line)"
