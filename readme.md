@@ -211,7 +211,9 @@ In a lost, last administrator scenario where no one has access to Sudo's setting
 
 ## For developers and integrators
 
-Sudo exposes a small, stable API. Custom gated rules are plain associative arrays registered via the `wp_sudo_gated_actions` filter, with per-surface matchers for admin, AJAX, REST, and CLI. The `wp_sudo_can()` helper centralizes all governance checks — super-admin short-circuit and recovery-mode bypass, with always-strict capability checks (the `compatibility` mode was removed in 4.0.0) — so integrations don't touch capability internals directly. Audit hooks fire on every session event, capability grant or revoke, tamper detection, and policy change; bridge classes for WP Activity Log and Stream are bundled. The `wp_sudo_grant_session_on_login` filter lets SSO and kiosk integrations suppress the automatic browser-login session grant. All of this is covered by a dual-layer test suite (unit tests + a full integration matrix) and PHPStan level 6.
+Sudo exposes a small research API that carries no compatibility guarantee — see
+[Project Status](PROJECT-STATUS.md) and the banner in
+[docs/developer-reference.md](docs/developer-reference.md). Custom gated rules are plain associative arrays registered via the `wp_sudo_gated_actions` filter, with per-surface matchers for admin, AJAX, REST, and CLI. The `wp_sudo_can()` helper centralizes all governance checks — super-admin short-circuit and recovery-mode bypass, with always-strict capability checks (the `compatibility` mode was removed in 4.0.0) — so integrations don't touch capability internals directly. Audit hooks fire on every session event, capability grant or revoke, tamper detection, and policy change; bridge classes for WP Activity Log and Stream are bundled. The `wp_sudo_grant_session_on_login` filter lets SSO and kiosk integrations suppress the automatic browser-login session grant. All of this is covered by a dual-layer test suite (unit tests + a full integration matrix) and PHPStan level 6.
 
 ## Requirements
 

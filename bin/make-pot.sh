@@ -30,7 +30,7 @@ mkdir -p "$(dirname "${DESTINATION_PATH}")"
 wp i18n make-pot "${ROOT_DIR}" "${DESTINATION_PATH}" \
 	--slug=wp-sudo \
 	--domain=wp-sudo \
-	--package-name='Sudo – Admin Action Gating' \
+	--package-name='Sudo – Research Prototype' \
 	--include='wp-sudo.php,uninstall.php,includes,bridges,mu-plugin,admin/js' \
 	--exclude='vendor,node_modules,.git,.github,.tmp,tests,docs,.planning,.wordpress-org,assets,languages,coverage,coverage.xml,playwright-report,test-results' \
 	--headers='{"Report-Msgid-Bugs-To":"https://github.com/dknauss/Sudo/issues","Language-Team":"LANGUAGE <LL@li.org>","POT-Creation-Date":""}' \

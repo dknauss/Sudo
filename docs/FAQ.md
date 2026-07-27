@@ -58,14 +58,16 @@ If the exploit runs inside the **same** browser session that already has an acti
 
 ## How is Sudo different from WordPress security plugins?
 
-Most WordPress security tools focus on the perimeter, vulnerability
-intelligence, authentication, or post-compromise detection. WP Sudo instead
-experiments with a recent-authentication check near selected consequential
+WP Sudo deliberately does not attempt perimeter filtering, vulnerability
+intelligence, login-time authentication hardening (2FA enrollment, login rate
+limiting), or post-compromise detection. It experiments
+instead with a recent-authentication check placed near selected consequential
 operations reached through admin, AJAX, REST, CLI, scheduled, XML-RPC, and
-WPGraphQL surfaces.
+WPGraphQL surfaces. Whether that placement is worth its cost is the point of
+the experiment.
 
-That distinction is the research question, not a claim that Sudo is a final
-layer or comprehensive control. Its registry enumerates selected request
+That scoping decision is the research question, not a claim that Sudo is a
+final layer or comprehensive control. Its registry enumerates selected request
 patterns, and its effect-level backstops cover only the effects for which the
 project found suitable hooks. Third-party and future WordPress code can reach
 effects by routes the demonstrator does not observe. For a feature-by-feature

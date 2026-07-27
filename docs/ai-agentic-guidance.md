@@ -1,5 +1,13 @@
 # AI and Agentic Tool Guidance
 
+> **Research boundary:** the configurations below describe how the demonstrator
+> behaves in a disposable evaluation environment. They are not deployment
+> recommendations for a real site, and "recommended" below always means
+> "recommended *for the scenario being demonstrated*". Do not install WP Sudo on
+> production, public staging, production-derived, or real-data sites, and do not
+> hand it real deployment credentials. See the canonical
+> [Project Status](../PROJECT-STATUS.md).
+
 WP Sudo provides action-gated reauthentication for WordPress. This document explains how AI assistants, automated agents, and agentic toolchains interact with WP Sudo's policies -- and how to configure the plugin for common AI-driven workflows.
 
 The key insight: **AI tools do not introduce new WordPress entry points.** They use existing ones -- REST API, WPGraphQL, WP-CLI, browser-based cookie authentication -- all of which WP Sudo already governs through its configurable three-tier policies.
@@ -111,7 +119,7 @@ All five policies set to **Limited**:
 | XML-RPC | Limited |
 | WPGraphQL | Limited |
 
-AI agents can perform content operations (create posts, upload media, read data) but cannot make structural changes (install plugins, delete users, modify critical settings). This is the default configuration and is appropriate for most sites.
+AI agents can perform content operations (create posts, upload media, read data) but cannot make structural changes (install plugins, delete users, modify critical settings). This is the configuration the plugin ships with, and the one most evaluation scenarios should start from.
 
 ### AI Content Workflow
 
@@ -119,7 +127,7 @@ Same as Conservative. Content creation via REST API is not a gated operation, so
 
 ### Automated Deployment Pipeline
 
-For CI/CD pipelines or deployment bots that need to activate plugins, switch themes, or perform other gated operations:
+Modelling a CI/CD pipeline or deployment bot that needs to activate plugins, switch themes, or perform other gated operations. Use synthetic credentials in a disposable environment — do not point a real pipeline's Application Password or WP-CLI access at a site running this demonstrator:
 
 **Option A:** Set REST API (App Passwords) to **Unrestricted**. This grants all Application Password credentials full access, which may be acceptable when only trusted automation uses Application Passwords.
 
@@ -139,7 +147,7 @@ All five policies set to **Disabled**:
 | XML-RPC | Disabled |
 | WPGraphQL | Disabled |
 
-Only browser-based operations with interactive reauthentication are permitted. All non-interactive entry points are shut off entirely. This is appropriate for sites that do not use any headless automation and want maximum protection against compromised credentials.
+Only browser-based operations with interactive reauthentication are permitted. All non-interactive entry points are shut off entirely. This is the configuration to exercise when demonstrating the narrowest policy surface — no headless automation at all.
 
 Note that Disabled mode for REST API only affects non-cookie authentication. Browser-based REST requests (block editor, admin AJAX) continue to work normally with the standard challenge-and-retry flow.
 
