@@ -45,6 +45,31 @@ is present, the user can still reauthenticate but the POST body is not replayed
 automatically. Use `post_mode => 'none'` for uploads, file-editor saves, or
 other requests that cannot be safely reconstructed from POST fields alone.
 
+**Replay eligibility requires the confirmation to name the whole effect (#322).**
+Automatic replay after reauthentication is not the default outcome — it happens only
+when the challenge page was able to name the concrete target of the action, because
+that named confirmation is the control that holds if the per-browser binding is
+bypassed. Two consequences for rule authors:
+
+- A rule whose effect is carried in a parameter WP Sudo does not recognise as a target
+  renders **no** `Target:` line. The recognised set is
+  `Request_Stash::TARGET_PARAMS` — **read the constant, not this sentence**, because a
+  prose copy drifts the moment a key is added. It currently covers plugin/theme/template
+  identifiers, user and role targets (including `new_role`), bulk selections
+  (`checked`), most of the critical option keys, and app-password names. Note the
+  critical-option set is **not** a subset: it is filterable via
+  `wp_sudo_critical_options`, and `new_admin_email` is a critical option that is *not*
+  a recognised target — so adding an option there does not make it one. Such a rule still gates correctly and
+  still reauthenticates — it simply falls back to the manual landing, where the user
+  re-issues the action against the session they now hold. This is deliberate: replaying
+  against a coarse label alone is consent to a category, not to an action.
+- A `stash.post_fields` allowlist naming a field outside that set has the same effect on
+  POST: the payload carries an effect the confirmation did not describe, so the rule
+  falls back to the manual path.
+
+Neither case is an error, and neither weakens gating. If a rule's action matters enough
+to replay seamlessly, express its target through a recognised parameter.
+
 ```php
 add_filter( 'wp_sudo_gated_actions', function ( array $rules ): array {
     $rules[] = array(
@@ -71,6 +96,12 @@ add_filter( 'wp_sudo_gated_actions', function ( array $rules ): array {
         ),
         'stash'    => array(
             'post_mode'   => 'allowlist',
+            // NOTE (4.9.0): `item_id` is not a recognised target param, so this rule
+            // gates and reauthenticates normally but is NOT auto-replayed — the user
+            // re-issues the action. It DID auto-replay at 4.8.0. Deliberately left as
+            // written: this is the shape people copy, and every copy already in the
+            // wild behaves this way. To get replay back, carry the effect in a key
+            // from `Request_Stash::TARGET_PARAMS`. See "Replay eligibility" above.
             'post_fields' => array( '_wpnonce', '_wp_http_referer', 'action', 'item_id' ),
         ),
     );
