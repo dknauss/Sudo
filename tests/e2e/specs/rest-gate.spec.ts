@@ -262,7 +262,7 @@ test.describe( 'REST gate', () => {
         page,
     } ) => {
         // /me must stay pointed at the admin — the route IS the thing under test
-        // (core's own current-user update handler). Made safe on regression by
+        // (the current-user route). Made safe on regression by
         // submitting the password the admin already has: `user.change_password` gates
         // on key PRESENCE (`array_key_exists( 'password', … )`, no value comparison),
         // so the gate still fires, while a regression writes the value already set.
@@ -394,11 +394,11 @@ test.describe( 'REST gate', () => {
     /**
      * REST-09: Application Password authentication over the `Authorization` header.
      *
-     * This is the half of #273's Apache lane that cookie auth cannot cover. The lane
-     * exists because `mod_rewrite`/`mod_headers` can silently drop `Authorization`
-     * before PHP sees it — a server-layer failure invisible to every other test here,
-     * and one that would disable App-Password auth entirely while the gate itself
-     * looked healthy.
+     * This is the half of #273's Apache lane that cookie auth cannot cover: whether an
+     * `Authorization` header sent by the client actually arrives with the request
+     * authenticated. A server that drops it disables Application Password auth
+     * entirely while the gate itself looks perfectly healthy — invisible to every
+     * other test here, all of which authenticate by cookie.
      *
      * Deliberately a NON-gated read: the assertion is that the credential survives the
      * hop and authenticates. Gating behaviour for App-Password callers is a policy
