@@ -102,36 +102,67 @@ post-`4.8.0` churn.
 | Core proposal research | `core-gate proposal — v1 readiness` | No | Proposal/spec findings; **no plugin release depends on these** |
 | Core proposal, deferred | `core-gate: provenance/automation policy (deferred project)` | No | The automated-update provenance split (#320) |
 
-> ⚠️ **Superseded — the version was rolled back to `4.9.0`.** The version strings in
-> all five sync points, the POT, and the version facts above are now `4.9.0`. The
-> argument below is kept as the decision record for why `5.0.0` was taken at the
-> time; it has **not** been rewritten, and it no longer describes the version on
-> `main`. The milestones have been renamed to match (`4.9.0 — security`,
-> `post-4.9.0`, and the feature batch reclaiming `v5.0.0`). What the rollback
-> reopens is the **MAJOR-vs-MINOR** question this section settles: `VERSIONING.md`
-> classes the `#322` hook removal as MAJOR, and at `4.9.0` that removal ships in a
-> MINOR. That needs deciding separately from this string change.
+**Why `4.9.0` and not `5.0.0`.** `main` briefly carried `5.0.0`, taken by the rule:
+the `#322` **v1** fix removed the only call site of `wp_sudo_action_replayed`, and
+[`VERSIONING.md`](../VERSIONING.md) classes removing a documented public hook as MAJOR.
 
-**Why `5.0.0` and not `4.9.0`.** The `#322` fix removes the only call site of
-`wp_sudo_action_replayed` — the gate no longer replays a stashed request, so there is
-no replay left to announce. That hook is a **documented public extension point**
-(`docs/developer-reference.md`, event code `1900009`), and [`VERSIONING.md`](../VERSIONING.md)
-classes removing a documented hook as **MAJOR**. Taken by the rule rather than by
-override: the release is `5.0.0`. Everything else in the payload would have been a
-MINOR on its own.
+**That premise did not survive.** PR #350 merged v1 **and** v2, and v2 restores
+origin-bound replay — so `do_action( 'wp_sudo_action_replayed', … )` is live in
+`Challenge::handle_replay_response()` on `main` today, and `docs/developer-reference.md`
+still documents its signature and event code `1900009` with no removal marker. **The
+removal never shipped.** Nothing documented is removed.
+
+Two further checks, made against the source rather than assumed:
+
+- The session meta keys (`_wp_sudo_token`, `_wp_sudo_expires`, `_wp_sudo_session_bind`,
+  `_wp_sudo_proofs`) appear **nowhere** in `docs/developer-reference.md`. Replacing the
+  proof format is therefore an internal storage change, not an API break —
+  `VERSIONING.md` explicitly does not cover undocumented behaviour.
+- `wp_sudo_action_replayed` keeps its signature `(int $user_id, string $rule_id)`. Under
+  v2 it fires only for bound same-browser replays, so it fires *less often* — a narrowed
+  event, not a changed contract.
+
+What the payload does add is two **new** documented public entries: the
+`wp_sudo_lockout_cleared` hook and the `wp sudo unlock` CLI command. Additions are what
+MINOR means. So `4.9.0`, by the rule — not by preference, and with no override needed.
+
+**The forced reauthentication is communicated in prose, not in the version digit.**
+Every user must reauthenticate once after upgrading, because pre-`4.9.0` sessions carry
+no proof entry and no migration runs. That is the strongest argument anyone will make
+for a major, and it is a communication problem rather than a versioning one: it is
+handled by the **Upgrade Notice** in `readme.txt`, which reaches operators far more
+reliably than a version number. A MAJOR is a promise that integrators have work to do;
+here every hook still fires and every signature holds, so spending it would be a false
+alarm — and `5.0.0` is wanted for the core-gate work, which will genuinely break
+contracts.
+
+**Known artifact on sites that ran the unreleased `5.0.0` build.** Any dev or staging
+site activated during that window has `wp_sudo_db_version` stamped `5.0.0`.
+`Upgrader::maybe_upgrade()` returns early whenever the stored version is `>=`
+`WP_SUDO_VERSION`, so after the rollback that stamp is never rewritten — and a future
+routine registered at `4.9.x` or at the real `5.0.0` would be **skipped** there. Nothing
+is skipped today (the highest `Upgrader::UPGRADES` entry is `4.0.0`). Deliberately not
+fixed in production code: a downgrade detector for a version that never shipped publicly
+is machinery the released plugin should not carry. Clear it by hand where it matters:
+
+```bash
+wp option delete wp_sudo_db_version
+```
+
+The next request re-stamps it at the running version.
 
 **`4.9.0` payload.** Landed: forge-resistant per-login-session assurance (#278, #279,
-PR #348) and the reauth-lockout out-of-band clear (#280, PR #343). Open: the stash
-confused-deputy fix (#322, PR #368 — the v1 fail-closed half). #273
-(release-environment matrix) rides the milestone as a **tag-time gate**, not payload —
-it was left open through `4.8.0` and must be run or explicitly waived before the tag
-is cut.
+PR #348), the reauth-lockout out-of-band clear (#280, PR #343), and the stash
+confused-deputy fix (#322, PR #350 — **v1 fail-closed plus the v2 origin-bound replay
+layer**; the v1-only split PR #368 is closed as superseded). #273 (release-environment
+matrix) rides the milestone as a **tag-time gate**, not payload.
 
-**Deferred out of `4.9.0`.** The `#322` **v2** layer (informed confirmation +
-origin-bound replay, PR #350) is held back: all of its open review threads sit on that
-layer, none on v1. It restores replay, and therefore probably restores the removed
-hook — so its own version classification must be decided on its merits, not inherited
-from this release.
+**Open review gate on the v2 layer.** The v1/v2 split was meant to give origin-bound
+replay its own adversarial pass; #350 merged both before that happened. That review has
+since been run — the brief and its eight findings are on issue
+[#322](https://github.com/dknauss/Sudo/issues/322). The first (a stash whose
+confirmation named nothing was replayed anyway) is fixed in PR #397. The remainder
+should be triaged before the tag.
 
 **Membership rule.** A review finding that is not a regression introduced by the PR
 under review gets **filed and deferred**, never bolted onto the PR in flight. #354,

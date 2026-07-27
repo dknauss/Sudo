@@ -437,6 +437,9 @@ See the plugin's `CHANGELOG.md` for all versions.
 
 == Upgrade Notice ==
 
+= 4.9.0 =
+Security release. Everyone must reauthenticate to sudo once after upgrading: the session proof is now a signed, per-login-session record and existing sessions carry no entry. No migration runs. Concurrent browsers now hold independent sudo sessions.
+
 = 4.7.0 =
 Feature release: completes the in-editor reauthentication modal deferred from 4.6.0 — an in-place password modal over the block editor with automatic request re-dispatch, plus in-modal two-factor for modal-capable providers (TOTP, email, backup codes). No migration required.
 
