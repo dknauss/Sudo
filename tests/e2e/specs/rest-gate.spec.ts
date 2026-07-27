@@ -1,5 +1,5 @@
 /**
- * REST gate tests — REST-01 through REST-08
+ * REST gate tests — REST-01 through REST-09
  *
  * Closes the manual lane in #273. `4.8.0` changed **server-facing REST routing and
  * method matching** — the gates now match `POST` on `/wp/v2/users` (#213), add a
@@ -262,10 +262,16 @@ test.describe( 'REST gate', () => {
         page,
     } ) => {
         // /me must stay pointed at the admin — the route IS the thing under test
-        // (core's update_current_item). Made safe on regression by submitting the
-        // password the admin already has: `user.change_password` gates on key
-        // PRESENCE (`array_key_exists( 'password', … )`, no value comparison), so the
-        // gate still fires, while a regression writes the value that is already set.
+        // (core's own current-user update handler). Made safe on regression by
+        // submitting the password the admin already has: `user.change_password` gates
+        // on key PRESENCE (`array_key_exists( 'password', … )`, no value comparison),
+        // so the gate still fires, while a regression writes the value already set.
+        //
+        // Residual, stated rather than implied: a regression would re-hash that
+        // password and WordPress invalidates other sessions on a password change, so
+        // the run would fail loudly from that point. That is the correct outcome for a
+        // security regression — the credential itself is unchanged, so the environment
+        // is recoverable, and a silent pass would be far worse.
         const result = await restRequest( page, 'POST', 'wp/v2/users/me', {
             password: WP_PASSWORD,
         } );
@@ -307,8 +313,16 @@ test.describe( 'REST gate', () => {
     test( 'REST-05: POST /wp/v2/settings changing url (siteurl alias) is gated', async ( {
         page,
     } ) => {
+        // The value is the site's CURRENT url, not an attacker one. `options.critical`
+        // matches on key PRESENCE (`array_key_exists`, no value comparison), so the gate
+        // still fires — while a regression writes back what is already set instead of
+        // repointing the site and breaking every subsequent test.
+        const before = await restRequest( page, 'GET', 'wp/v2/settings' );
+        const currentUrl = String( ( before.body as { url?: string } )?.url ?? '' );
+        expect( currentUrl, 'could not read the current site url' ).not.toBe( '' );
+
         const result = await restRequest( page, 'POST', 'wp/v2/settings', {
-            url: 'https://attacker.example.com',
+            url: currentUrl,
         } );
 
         expectSudoRequired( result, 'a REST site-URL change via the show_in_rest alias' );
@@ -320,8 +334,14 @@ test.describe( 'REST gate', () => {
     test( 'REST-06: POST /wp/v2/settings changing email (admin_email alias) is gated', async ( {
         page,
     } ) => {
+        // Same reasoning as REST-05: the current admin email, so a regressed gate
+        // writes back what is already there rather than redirecting site mail.
+        const before = await restRequest( page, 'GET', 'wp/v2/settings' );
+        const currentEmail = String( ( before.body as { email?: string } )?.email ?? '' );
+        expect( currentEmail, 'could not read the current admin email' ).not.toBe( '' );
+
         const result = await restRequest( page, 'POST', 'wp/v2/settings', {
-            email: 'attacker-controlled@example.com',
+            email: currentEmail,
         } );
 
         expectSudoRequired( result, 'a REST admin-email change via the show_in_rest alias' );
@@ -357,7 +377,7 @@ test.describe( 'REST gate', () => {
         );
         expect( originalEmail, 'could not read the current admin email' ).not.toBe( '' );
 
-        await activateSudoSession( page );
+        await activateSudoSession( page, WP_PASSWORD );
         await visitAdminPage( 'index.php' );
 
         const changed = await restRequest( page, 'POST', 'wp/v2/settings', {
