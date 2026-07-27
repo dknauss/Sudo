@@ -1504,13 +1504,34 @@ class Gate {
 			$method = 'GET';
 		}
 
+		/*
+		 * Deliberately reports NO replay verdict, and must not regain one.
+		 *
+		 * Since #322 replay is authorised by a conjunction this method cannot
+		 * evaluate. Some conjuncts ARE visible from the inputs — the URL carries the
+		 * scheme, and a recognised target parameter or POST field can be read off
+		 * the submitted shape. The decisive ones are not: whether the
+		 * reauthentication happens in the browser that created the stash (binding
+		 * cookie) and whether Sec-Fetch-Site said same-origin are properties of a
+		 * real request, not a simulated one. Knowing some conjuncts does not decide
+		 * the conjunction, so the outcome is undecidable here.
+		 *
+		 * Earlier revisions predicted replay anyway and softened the wording each
+		 * time a case was found wrong; every one of those findings was the same
+		 * defect, which is that a static answer was being given to a runtime
+		 * question. Reporting the stash policy instead is no better: interpreting
+		 * post_mode/post_fields here re-implements Request_Stash::get_stash_policy()
+		 * in Gate, and the two had already diverged.
+		 *
+		 * The tester answers what it can determine — does this request match a
+		 * rule, and what is the decision for that surface and policy.
+		 */
 		$result = array(
-			'matched_rule_id'       => null,
-			'matched_rule_label'    => null,
-			'matched_surface'       => null,
-			'decision'              => 'allow',
-			'stash_replay_eligible' => false,
-			'notes'                 => array(),
+			'matched_rule_id'    => null,
+			'matched_rule_label' => null,
+			'matched_surface'    => null,
+			'decision'           => 'allow',
+			'notes'              => array(),
 		);
 
 		if ( ! in_array( $surface, array( 'admin', 'ajax', 'rest' ), true ) ) {
@@ -1530,47 +1551,6 @@ class Gate {
 			$result['matched_rule_id']    = $matched_rule['id'] ?? null;
 			$result['matched_rule_label'] = $matched_rule['label'] ?? ( $matched_rule['id'] ?? null );
 			$result['matched_surface']    = $surface;
-			// Whether the RULE permits replay is a property of the rule, so derive it
-			// as soon as one matches — not after the early returns below. Otherwise a
-			// replayable rule checked with "active sudo session" (which returns early)
-			// keeps the array default of false and reports "never replayed", the
-			// opposite of what the same rule reports with the box cleared. Scoped to
-			// the admin surface because stash/replay only exists there: AJAX and REST
-			// return a sudo_required error and are never replayed, so false is right.
-			if ( 'admin' === $surface ) {
-				$stash_mode  = $matched_rule['stash']['post_mode'] ?? 'allowlist';
-				$post_fields = $matched_rule['stash']['post_fields'] ?? array();
-
-				// A POST rule with no allowlist cannot be replayed either, even though
-				// its post_mode is not 'none': build_stashed_post_params() marks that
-				// stash post_replay_blocked with REPLAY_BLOCKED_NO_ALLOWLIST. Reporting
-				// only on post_mode would say a custom rule permits replay when it never
-				// can.
-				$result['stash_replay_eligible'] = 'none' !== $stash_mode
-					&& ( 'POST' !== $method || ! empty( $post_fields ) );
-
-				// Append the conditions HERE, not in the gate branch below: the
-				// active-sudo and unauthenticated paths return before that branch, and
-				// the row reads "Yes — subject to the conditions below", so the operator
-				// would be promised a note that never appeared.
-				// The listed conditions are necessary, NOT sufficient, and the note says
-				// so. Replay is also refused when the stash redacted a sensitive field
-				// (sanitize_params() omits pass1/pass2 and friends) and when no origin
-				// binding could be minted because Sec-Fetch-Site was absent or not
-				// same-origin — neither of which the operator can read off the rule.
-				// Enumerating every predicate here would rot at the next change to
-				// may_replay_bound_stash(); saying the list is partial does not.
-				$result['notes'][] = $result['stash_replay_eligible']
-					? __( 'Replay conditions: this rule permits replay, but the action only resumes automatically when — among other conditions — the same browser that started it completes the reauthentication over HTTPS and the challenge was able to name the whole action. Replay is also refused when the stashed request contained sensitive fields the stash declined to keep, or when the browser sent no same-origin signal. Otherwise the user is returned to the page and performs it again.', 'wp-sudo' )
-					// NOT "never replayed". That absolute is falsifiable today: the stash
-					// policy is applied inside build_stashed_post_params(), which returns
-					// before consulting it when the method is not POST or the body is
-					// empty — so a no-replay rule reached by GET is still replayed (see
-					// the network.theme_disable case). Until that ordering is fixed, the
-					// honest claim is about what the rule DECLARES, which is verifiable
-					// from the rule itself and stays true either way.
-					: __( 'Replay conditions: this rule declares its submitted form data non-replayable, so after reauthentication the user re-submits the form.', 'wp-sudo' );
-			}
 		}
 
 		if ( ! $is_authenticated ) {
@@ -1590,9 +1570,7 @@ class Gate {
 
 		if ( 'admin' === $surface ) {
 			$result['decision'] = 'gate';
-			// The replay conditions were already appended when the rule matched, so they
-			// reach the early-return paths too. Only the gate decision is added here.
-			$result['notes'][] = __( 'Interactive admin request: gated.', 'wp-sudo' );
+			$result['notes'][]  = __( 'Interactive admin request: gated.', 'wp-sudo' );
 			return $result;
 		}
 

@@ -1075,7 +1075,6 @@ class AdminTest extends TestCase {
 					'matched_rule_label'    => 'Delete plugin',
 					'matched_surface'       => 'rest',
 					'decision'              => 'hard-block',
-					'stash_replay_eligible' => false,
 					'notes'                 => array( 'REST Application Password policy is Limited, so gated requests are blocked until policy changes.' ),
 				)
 			);
@@ -1154,15 +1153,13 @@ class AdminTest extends TestCase {
 		$this->assertStringContainsString( 'role="status"', $output );
 		$this->assertStringContainsString( 'aria-live="polite"', $output );
 
-		// The bolded summary row must not assert an absolute the runtime
-		// contradicts. "never replayed" is falsifiable: build_stashed_post_params()
-		// applies the stash policy after an early return keyed on method and body
-		// emptiness, so a stash_no_replay rule reached by GET is replayed anyway
-		// (#413). The row is more prominent than the note beneath it, so an
-		// overclaim here is the worse of the two. The wording must also stay true
-		// for AJAX/REST, where no replay genuinely ever happens.
+		// The tester reports no replay verdict at all since #322 (see the comment
+		// in Gate::evaluate_diagnostic_request()). Guard against it coming back:
+		// a static answer to a runtime-conditional question was wrong in a new way
+		// each time it was reworded.
+		$this->assertStringNotContainsString( 'Stash/replay eligible', $output );
+		$this->assertStringNotContainsString( 'Replay permitted', $output );
 		$this->assertStringNotContainsString( 'never replayed', $output );
-		$this->assertStringContainsString( 'not replayed by this rule', $output );
 
 		unset( $_POST['wp_sudo_request_tester_submit'], $_POST['wp_sudo_request_tester'], $_SERVER['REQUEST_METHOD'], $_GET['tab'] );
 	}
@@ -1250,7 +1247,6 @@ class AdminTest extends TestCase {
 					'matched_rule_label'    => 'Update connector credentials',
 					'matched_surface'       => 'rest',
 					'decision'              => 'gate',
-					'stash_replay_eligible' => false,
 					'notes'                 => array(),
 				)
 			);

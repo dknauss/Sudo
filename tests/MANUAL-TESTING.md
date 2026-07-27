@@ -1051,18 +1051,13 @@ no stash transients are written, and no audit hooks fire.
 5. **Expected:**
    - Matched rule: `plugin.activate`
    - Decision: `gate`
-   - Replay permitted by this rule: `Yes — subject to the conditions below`
-   - A note states that the rule permits replay but the action only resumes
-     automatically when — **among other conditions** — the same browser that
-     started it completes the reauthentication over HTTPS and the challenge could
-     name the whole action; otherwise the user is returned to the page and
-     performs it again (#322).
-   - Check the phrase "among other conditions" is present, and that the note also
-     mentions refusal when the stashed request held sensitive fields the stash
-     declined to keep, or when the browser sent no same-origin signal. The list is
-     deliberately partial: redaction and origin binding also refuse a replay, and
-     an operator who read the three named checks as a complete checklist would
-     wrongly conclude that satisfying them guarantees automatic replay.
+   - **No replay row and no replay claim anywhere in the result.** Since #322 the
+     tester does not predict whether the action resumes: that is decided at
+     request time, chiefly by the binding cookie and a same-origin
+     `Sec-Fetch-Site`, which no simulated shape carries. If you see the pre-4.9.0 **Stash/replay
+     eligible** row, or any of "Replay permitted", "replay eligible", "will
+     replay", or "never replayed", the prediction has been reintroduced and the
+     result is not trustworthy.
 
 #### Test B — AJAX surface: install plugin
 
@@ -1072,9 +1067,7 @@ no stash transients are written, and no audit hooks fire.
 4. **Expected:**
    - Matched rule: `plugin.install`
    - Decision: `soft-block`
-   - Replay permitted by this rule: `No — not replayed by this rule` (AJAX and
-     REST return a `sudo_required` error and are never replayed — the label is
-     worded for the admin case too, where "never" would overclaim)
+   - No replay row (see Test A).
    - A note indicates that AJAX requests must be retried after activating sudo.
 
 #### Test C — REST surface: connector credential write
@@ -1097,6 +1090,14 @@ no stash transients are written, and no audit hooks fire.
    - A note indicates the REST App Passwords policy is Limited and gated requests
      are blocked until the policy changes (or until it explains the current policy
      setting).
+   - **Error code depends on the policy, and is not `sudo_required`.** Only the
+     cookie-authenticated path in step 5 returns `sudo_required`. For non-cookie
+     auth, `Gate::intercept_rest()` returns `sudo_blocked` under **Limited**
+     (logged, `wp_sudo_action_blocked` fires) and `sudo_disabled` under
+     **Disabled** (blocked without logging). If you are checking the live response
+     rather than the tester, expect those codes — treating every REST refusal as
+     `sudo_required` will hide the Disabled path entirely, since it is the one
+     that writes no audit event.
 
 #### Test D — Unmatched request
 
