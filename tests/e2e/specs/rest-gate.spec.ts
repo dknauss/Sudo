@@ -18,8 +18,15 @@
  * WHY EACH ASSERTION CHECKS THE ERROR CODE, NOT JUST THE STATUS
  * A bare `expect(status).toBe(403)` would pass for the wrong reasons — a stale
  * nonce, a missing capability, or a route that 403s before the gate is consulted.
- * Every gated assertion therefore requires `code === 'sudo_required'`, which only
- * `Gate` emits. Source: includes/class-gate.php (verified).
+ * Every gated assertion therefore requires `code === 'sudo_required'`.
+ *
+ * That code is NOT unique to `Gate` repo-wide: `class-admin.php` also emits it from
+ * `handle_mu_install()`, `handle_mu_uninstall()` and `handle_app_password_policy_save()`.
+ * The narrower claim these tests actually rely on is that it is unique **on REST
+ * routes** — all three of those are admin-ajax handlers and cannot serve `/wp/v2/*`.
+ * Stated precisely because the broad version would be silently invalidated by any
+ * future REST-facing emitter outside `Gate`, and this is the sentence a reviewer
+ * leans on to decide the suite is not vacuous.
  *
  * POSITIVE CONTROLS
  * REST-07 repeats a gated write *with* an active sudo session and requires it to
@@ -260,7 +267,22 @@ test.describe( 'REST gate', () => {
     /**
      * REST-07: POSITIVE CONTROL. The same write must succeed once sudo is active.
      * Without this the whole file would pass if something 403'd every REST write.
-     * Restores the original value so the run stays side-effect-light.
+     *
+     * WHY THIS ROUTE, AND WHY IT IS NOT INTERCHANGEABLE. The write sets `email` back
+     * to its existing value, so it must still trip the gate to be a control at all.
+     * It does, because `options.critical` matches on **key presence**
+     * (`array_key_exists`) with no value comparison — a no-op write is still a gated
+     * write on `/wp/v2/settings`.
+     *
+     * The identical trick aimed at `/wp/v2/users/{id}` would be **ungated**:
+     * `user.change_email` is *difference*-matched via
+     * `Action_Registry::email_change_differs()`, which compares the submitted address
+     * against the stored one. Writing the same value back there matches nothing, the
+     * request passes, and the control would report success no matter what the gate
+     * did — proving nothing while looking green.
+     *
+     * So this control is one route away from vacuous. If it is ever moved, the
+     * replacement must be key-matched, not difference-matched.
      */
     test( 'REST-07: the gated settings write succeeds with an active sudo session', async ( {
         page,
