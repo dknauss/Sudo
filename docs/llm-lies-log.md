@@ -1652,8 +1652,16 @@ C2. REDUNDANT MEMORY DUPLICATING CLAUDE.md
            row to route around a mechanism defect and reporting it closed, leaving every
            other multi-token row exposed. Two sessions, independently, neither catching it in
            its own work; that is what makes it a pattern rather than a slip.
-           **The second instance is the stronger one**, recorded here at that session's
-           request and on its own account. Its `GB-PIN-STAR` rewording was not a failure to
+           **The second instance is the stronger one — self-reported by the Development
+           session, and not verified from repository artifacts.** It is marked that way at
+           that session's own request. The mechanism behind it *is* reproducible: mutate
+           `anchor_ok=0` in `bin/verify-sources.sh` on `main` and a multi-token row is
+           satisfied by a generic span. The conduct and timeline below are not:
+           `git log -S 'interface-complementary-area__pin-unpin-item'` returns only `04ef826`
+           from #332, and the rework is squashed inside `650a451`, so the sequence cannot be
+           reconstructed from history and rests on that session's testimony. A log whose
+           subject is claims outrunning their evidence must not print a checkable finding and
+           an unfalsifiable account at the same weight. Its `GB-PIN-STAR` rewording was not a failure to
            notice the mechanism: its own mutation test had already shown a second backticked
            span in that cell resolving generically — it had observed that *any* code span in
            the column could satisfy the check — and it still fixed that one row's wording and
@@ -1667,13 +1675,65 @@ C2. REDUNDANT MEMORY DUPLICATING CLAUDE.md
            L15 guard; rewording the description of that gap was the accommodation, and moving
            the citation (#443) dissolves the need for the sentence altogether. Someone reading
            63 on its own cannot see this, which is why it is written here.
-   Fix:    #441 anchors `if ( empty( $action ) ) {` at L61 — the construct that encloses the
-           cited line — and "How to add a row" now says that a token merely sitting above the
-           line proves an address, not containment. Left open on purpose, rather than turned
+   Fix:    **The first fix reproduced the defect, and that is the fourth instance.** #441
+           re-anchored the row on `if ( empty( $action ) ) {`, described as "L61, the construct
+           that encloses the cited line". That line first occurs at **L37**, in the
+           unauthenticated branch, and an anchor resolves at its FIRST occurrence — so the
+           repaired row was green without ever reaching L61, exactly as before. This entry
+           asserted the fix in those terms and was wrong in the same way. Codex found it on
+           #443, reviewing the entry that records the pattern.
+           The row now anchors, and anchors only, the docblock at L63 — `Fires on an
+           authenticated admin post request where no action is supplied.` — unique in the
+           file and inside the branch the claim is about.
+           **Auditing the mechanism rather than the row** — the step skipped at every earlier
+           instance — found two more: `GB-USER-NEW-SELFPOST`, also repaired by #441, anchored
+           `if ( current_user_can( 'create_users' ) ) {` whose first occurrence is L390 in the
+           page-title conditional, not the L513 block containing the cited form; and
+           `GB-ADMIN-PHP-BLANK` still carried a backticked **file path**, which #441's
+           five-row sweep missed because `wp-admin/admin.php` occurs in that file's own
+           docblocks, so it resolved spuriously instead of failing. It was never red, so
+           nobody looked at it. Six further rows had anchors with more than one candidate
+           occurrence at or before their cited line. One of those six, `GB-PROFILE-OBSERVE`,
+           proved to be the same defect once actually checked, and is repaired here; the
+           remaining five — `GB-ICON-SWAP`, `GB-NO-TOOLTIP`, `GB-SCOPED-SUBSCRIBE`,
+           `GB-CORE-SESSION-RMW`, `GB-PINNED-CLASS` — are recorded as unaudited rather than
+           assumed benign.
+           **The fifth instance was in the repair of the fourth, and it is the tidiest of
+           them.** The first version of those two repaired cells named the rejected token in
+           prose — "NOT `if ( empty( $action ) ) {`, which resolves at L37" — *in backticks*.
+           A backticked span in that column IS an anchor, AND-joined with the others, so both
+           cells asserted in words that a token was not a witness while registering it as one,
+           and the checker reported them satisfied. The audit count published two lines above
+           then read "eight further rows" because it was counting the two artifacts the fix
+           had just left behind. Caught by the pre-commit reviewer, which replicated the
+           anchor resolution across all 54 rows instead of reading the prose. The disclaimers
+           are now unbackticked, and the same hazard is already documented in
+           `bin/verify-sources.sh` itself: "a row's own disambiguating prose then WEAKENS it:
+           the more carefully it is written, the more alternatives it offers".
+           "How to add a row" now says that a token merely sitting above the line proves an
+           address, not containment. Left open on purpose, rather than turned
            into a rule from two coincident examples: whether the criterion should be
            containment — does any construct open before the cited line and close after it —
-           rather than precedence. `GB-PROFILE-OBSERVE` satisfies both readings today, so
-           there is no third case to test a tightened rule against.
+           rather than precedence. **This entry asserted there was no third case to test a
+           tightened rule against. There was, and it was named two lines above as
+           "unaudited".** `GB-PROFILE-OBSERVE` anchors the bare `IS_PROFILE_PAGE`, whose first
+           occurrence is the L21 definition guard — a block closing at L23, which cannot
+           contain the cited L149 — while the row's own prose names the enclosing conditional
+           at L139. Precedence passes, containment fails, and the row was green throughout.
+           Codex found it on this PR; listing a row as unaudited is not the same as knowing it
+           is benign, and this entry treated the two as interchangeable in its own conclusion.
+           It now anchors the L141 docblock, unique in the file and inside the L139 branch.
+           **It is not, however, a third case of the thing the open question was about, and
+           saying so would repeat this entry's mistake one size up.** Two separate questions
+           were being run together: (a) which rows deserve the top-level exemption, whose two
+           examples are `GB-NETWORK-EDIT-REDIRECT` and `GB-UPDATE-NEEDS-ACTION`, both cited
+           lines with nothing enclosing them at all; and (b) whether the anchor check should
+           require containment rather than first-occurrence precedence. `GB-PROFILE-OBSERVE`
+           is evidence for (b) — it *has* an enclosing conditional at L139, and the anchor
+           simply resolved outside it — and it is evidence against its own exemption, since a
+           row with an enclosing construct is one that should be anchored, as it now is. For
+           (a) the count is still two, and the rule still should not be written from them.
+           The distinction was raised by the Development session, which owns that predicate.
 
 68. AN ANCESTRY ANSWER READ AS A CONTENT ANSWER — "that branch is stale" about work already
     merged
@@ -1690,17 +1750,32 @@ C2. REDUNDANT MEMORY DUPLICATING CLAUDE.md
                5
 
            Nothing to rebase; the branch is spent.
+           **This evidence is not reproducible from a fresh clone**, and saying so is the
+           point of #66. `f0e9ebd` was only ever local to another session's worktree; once
+           that branch is deleted the first command exits 128, "Not a valid object name",
+           rather than printing 1. The second command is the durable half — it runs against
+           `main` and will keep answering.
    Source: This repository, 2026-07-27. Caught by the Development session, which had written
            the commit and therefore knew where it had landed.
    Notes:  The same root as #66 approached from the other side. #66 is about squash-merge
            hiding content from a *search*; this is about squash-merge letting an ancestry
            predicate answer a question nobody asked. `--is-ancestor` answers "is this commit
-           reachable" and never "is this change present", and the two come apart at exactly
-           one place: a squash merge. Every repository that squash-merges has this trap
-           permanently armed.
+           reachable" and never "is this change present". A squash merge is where they came
+           apart here; it is not the only place they can. Cherry-picks, rebases, and manually
+           reapplied patches all leave the original commit unreachable while its changes are
+           present, so the general form is "any history rewrite", and the squash case is
+           merely the one this incident checked. An earlier draft of this entry said "exactly
+           one place", which turned one verified incident into a false rule about git —
+           a scope word standing in for a check, which AGENTS.md forbids two sections above.
            The cost was not holding the belief, it was relaying it: two sessions were told to
            rebase work that was already merged, which is a duplicate-work hazard of the kind
            the concurrent-session rules exist to prevent — reached, this time, through a
            claim rather than through a missing check.
-   Fix:    Before asserting that a branch needs rebasing, grep `main` for a distinctive token
-           from its diff. One command, and it answers the question the ancestry test does not.
+   Fix:    Before asserting that a branch needs rebasing, compare its **whole diff** against
+           `main` — `git diff main...branch` empty, or `git cherry main branch` reporting no
+           unmerged commits. An earlier draft of this line said to grep for one distinctive
+           token, which proves only that the token is present: a branch carrying two changes,
+           or one whose chosen token already existed independently, would read as spent while
+           work remained, and the remedy would then destroy it. That is the same defect as
+           #67 — accepting a witness weaker than the claim — written into the fix for a
+           different one.
