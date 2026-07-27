@@ -1,6 +1,6 @@
 # Session handoff — 2026-07-26 (core-gate reconciliation + doc consolidation)
 
-## ⇢⇢⇢ RESUME HERE (updated 2026-07-26 late — plugin security lane CLOSED: #278/#279/#280)
+## ⇢⇢⇢ RESUME HERE (updated 2026-07-26 end of session — plugin security lane CLOSED + follow-ups)
 
 **Scope of this block: the plugin lane only.** It closes out the "Plugin lane (parallel,
 user launches separate sessions)" line in the core-gate block below — that lane is now
@@ -28,7 +28,7 @@ roster of every IP touched): the serialized read-modify-write reintroduces a los
 race, and pruning a *sliding* 24 h window by first-seen can drop a still-live entry. Key
 versioning has neither hazard — a doubled increment is harmless.
 
-**Follow-ups filed from review** (verified real, deliberately out of scope):
+**Follow-ups from review** — everything the Codex passes surfaced that was not fixed inside #348/#343. All verified real before filing; the merged ones were done later in the same session:
 - **#354 (open)** — Site Health `find_stale_sessions()` classifies from the *cached*
   `_wp_sudo_expires` and then deletes `PROOF_META_KEY`, so the same failed-invalidation
   scenario #278 exists to tolerate can delete every live proof for a user. Fail-closed, but
@@ -40,9 +40,30 @@ versioning has neither hazard — a doubled increment is harmless.
 - **#356 (closed)** — uninstall left the IP-scoped transients behind. Fixed in-flight by a
   concurrent session inside #343 (prefix `DELETE` on `wp_options`, since the keys are hashed
   and cannot be enumerated for a `delete_transient()` loop).
-- **Running in a separate session:** `bin/verify-sources.sh` walks the working tree rather
-  than tracked files, so a local (gitignored) `reviewer-approved` flag containing an upstream
-  URL fails `composer verify:sources` while CI passes. Not yet an issue/PR.
+- **#374 (merged)** — `bin/verify-sources.sh` walked the working tree rather than tracked
+  files, so a local (gitignored) `reviewer-approved` flag containing an upstream URL failed
+  `composer verify:sources` while CI, on a clean checkout, passed. Now filters with
+  `git check-ignore` — deliberately "ignored", not "untracked", so an uncommitted doc still
+  has to satisfy the registry rule. **The spawned session that wrote it stopped without
+  committing**; the work was sound but sat unpushed in its worktree until picked up. Worth
+  assuming that failure mode rather than trusting a completion signal.
+- **#375 (merged)** — follow-up review of #343 after it landed. The `wp sudo unlock`
+  "nothing tracked" branch bumps the epoch (a real state write) but did not fire
+  `wp_sudo_lockout_cleared`, contradicting the hook's own contract; it now fires with
+  `$was_locked = false`. Also swept the stale "no epoch write" claims this session's own
+  unconditional-bump change left behind.
+- **#371 (open)** — the uninstall transient sweep reaches `wp_options` only. On a site with a
+  persistent external object cache the transients live in the cache, so a reinstall inside
+  that TTL can still revive a cleared window at epoch 0. Proposed fix is a
+  per-installation-instance nonce in the key material; deferred because `ip_key_material()`
+  is on the per-failed-attempt path and wants its own TDD pass.
+- **#379 (open)** — the enforcement gap behind trap 1 below. `CHANGELOG.md` is still in
+  `GRANDFATHERED_ORPHANS`, held there by a *single* line in the frozen `## 4.8.0` section, so
+  a reverted citation only warns. Proposal: scope the scan to `## Unreleased` and ungrandfather
+  the file, leaving released sections as frozen history. **Filed against the #377 lane**
+  (`fix/verify-sources-hardening`) rather than implemented here, because that PR is rewriting
+  the same script — editing it concurrently would reproduce the collision class the issue is
+  about.
 
 **Traps this session hit — read before merging `main` into any open branch:**
 
@@ -52,6 +73,10 @@ versioning has neither hazard — a doubled increment is harmless.
    duplicated Gutenberg paths and snippets. Both were caught by review, not by CI —
    `verify:sources` only *warns* on `CHANGELOG.md` (grandfathered). **Resolve the Unreleased
    list additively and then `grep -o "GB-[A-Z-]*" CHANGELOG.md` to confirm nothing was lost.**
+   Tracked as #379. **Corollary, learned the hard way in #375:** a claim about behaviour
+   usually exists in *three* places here — the inline docblock, `docs/developer-reference.md`,
+   and `CHANGELOG.md`. Fixing two of three is the default failure. `grep -rn` the phrase before
+   calling it done.
 2. **`uninstall.php` can only be `require`d once per PHP process.** The two existing require
    sites never collide because one is single-site and the other multisite. A *second*
    single-site integration test that requires it fatals with "Cannot redeclare
@@ -66,17 +91,122 @@ versioning has neither hazard — a doubled increment is harmless.
 4. **A `PHPUnit` red is often a cascade.** It is a summary job; when Code Quality fails
    (i18n, lint, static analysis), PHPUnit reports `dependency did not succeed`. Read the
    Code Quality log first.
+6. **`git diff A B` does not answer "what would merging do".** It is a two-tree diff, so
+   files that exist only on `main` read as *deletions* — one session concluded a branch
+   would delete the ~900-line `poc/` tree from that output alone. Use
+   `git merge-tree $(git merge-base A B) A B`, which shows those paths as **added in
+   remote**. The wrong command here does not error; it answers a different question
+   confidently.
+7. **A closed PR's patch survives its branch being deleted.**
+   `gh api repos/OWNER/REPO/pulls/N/files` still returns it. #390's branch was deleted as
+   redundant and its best paragraph was recovered from the closed PR afterwards. Do not
+   assume content is gone because the branch is.
+8. **Verify the enclosing symbol even when the claim comes from a source you trust.** A
+   hook was cited to `Challenge::handle_replay_response()` in cross-session messages and
+   in a PR comment; that method does not exist — the hook is in
+   `Challenge::build_replay_response_data()`. It survived because each reader verified the
+   parts they doubted and passed the symbol through, so repetition made it look
+   corroborated. `git grep -c "function <name>"` costs nothing and is the whole check.
+   Related: the repo's own prose rule already says a symbol you cannot name is a symbol you
+   have not read — that applies to symbols you were *handed*, not only ones you looked up.
+
 5. **Branches here can be shared.** Another session pushed to `fix/280-lockout-clear` while
    this one was working it. **Merge their commits, never force-push** — and re-run the gates
    after, since their new integration test arrived red.
 
-**Release-state note:** `main` is still `4.8.0` at all five version-sync points, but the
-4.9.0 proof format is already named in code docblocks and `docs/security-model.md`.
-**PR #364 (blocked)** does the bump and records the lanes — land it before anything reads the
-version as authoritative. Counts (tests, LOC, hooks) move constantly; `docs/current-metrics.md`
-is the source of truth and `composer verify:metrics` is the gate.
+**Working alongside other sessions.** Four ran concurrently on 2026-07-26 and produced
+roughly a dozen cross-session errors, every one of the same shape: **a stale or partial
+answer, completed from expectation, carrying confidence borrowed from the fact that a tool
+ran at all.** These are the structural fixes, not the diligence ones — diligence rules decay.
 
-Main is at `3ebd2e6`.
+6. **Discovery beats broadcasting.** Three sessions opened the *same* version rollback
+   (#389/#390/#391) within six minutes. No amount of announcing would have caught it; nobody
+   ran `gh pr list` before branching. Check the repo, not your recollection of it.
+7. **Name the SHA a review applies to.** Post-then-fix races are constant here. Two reviews
+   of mine were called stale when both had in fact *preceded* the fix by 44 s and by 5 m 40 s;
+   the genuine error in this class was different — reading another session's force-push as the
+   branch owner's, which sent me rebasing an already-closed PR.
+   `git fetch && git log --oneline -1 <branch>` immediately before posting settles it in the
+   artifact instead of in anyone's memory.
+   **Corollary — a claim about a session's conduct goes to that session, not only to the
+   others.** The asymmetry is structural, not a matter of care: when a coordinating node is
+   wrong *about source*, anyone can run the command, and tonight we caught every such case
+   cheaply. When it is wrong *about a session's conduct*, only that session can check, and
+   only if it hears the claim. Three were made about this session; two were heard. The third
+   would have stood indefinitely — not through carelessness, but because its subject was never
+   in the room. A node accumulates uncontested claims about participants in proportion to how
+   well it routes, so the fix is not "assert less", it is **assert to the subject**.
+8. **`git diff A B` is not a merge preview.** It reports files on `A` and absent on `B` as
+   deletions, which reads exactly like `B` will delete them. It will not — a merge applies
+   `B`'s diff *relative to its merge base*. Ask the real question with
+   `git merge-tree $(git merge-base A B) A B`, or `git diff $(git merge-base A B) B -- <path>`
+   (empty ⇒ never touched). Misreading this produced a false alarm that a branch would delete
+   the whole `poc/` tree, which in turn sent a session rebasing an already-closed PR.
+9. **A retraction never reaches whoever already acted on the claim.** Correcting the source
+   does not recall the copies. So: **correct in place *and* announce** — a body edit serves
+   future readers, a comment reaches existing subscribers, and doing only one is half a
+   retraction. Say what was *wrong*, not only what is now right, or the reader who
+   propagated the stale version stays confident and wrong.
+10. **Cite the claim you acted on.** A citation is a back-edge a retraction can travel along.
+    An uncited claim propagates as an orphan that no correction can ever reach.
+    *Worked example, chosen because the propagator knew the rule at the time:* a false claim
+    about a review's timing entered a broadcast roster, was repeated by a second session in an
+    apology **whose own subject was failing to check things**, and reached a third hop before
+    one `git show -s --format=%cI` falsified it. Nobody was careless; the claim simply had no
+    citation to travel back along. This session then committed the same error in the opposite
+    direction — handing another lane a derived contract instead of a citation, nearly
+    producing a third copy of a section that already existed on an unmerged branch.
+11. **A wrong justification for a correct test is more durable than a wrong test**, because
+    nothing fails to reveal it. Two live examples this session: an invented enclosing symbol
+    in the sentence carrying a release's whole version argument, and *"`sudo_required` …
+    which only `Gate` emits (verified)"* in the comment explaining why an E2E suite is not
+    vacuous — `Admin` emits it in three places. Both tests were fine; both explanations were
+    the load-bearing part.
+12. **Mutation-test a guard before believing its tests.** Delete the clause, run the filter.
+    Half of a two-clause security guard in #397 was verified by nothing — the full 1228-test
+    suite passed with it removed. Reading cannot answer "is this test doing work"; deleting
+    can, in two minutes.
+13. **Drive the entry point, not the sink.** A test that calls the guarded function directly
+    proves the check works *when reached* and says nothing about *whether it is reached*.
+14. **A command in a doc is not a claim, it is a change someone will execute.** Trace it on
+    single-site *and* multisite. A `wp option delete wp_sudo_db_version` remedy shipped in a
+    release doc would have replayed every migration from `0.0.0`, granting governance caps to
+    every administrator — and on multisite silently done nothing, since it targets a blog
+    option while the reader is a site option. Eight factual claims in that same section were
+    verified; the executable one was not.
+
+**Release-state note — the version is `4.9.0`. Do not re-derive it from this file.**
+This note has now been wrong in both directions inside a single session: first "#364 will bump
+to 4.9.0" (#364 was closed), then "5.0.0, not 4.9.0" (rolled back by #391). Treat
+`docs/release-status.md` as canonical and this line as a pointer, not a source.
+
+**Why it moved twice.** #372 took `5.0.0` **by the rule**, on the premise that #322 removed the
+only call site of `wp_sudo_action_replayed` and `VERSIONING.md` classes removing a documented
+public hook as MAJOR. That premise did not hold: PR #350 merged the #322 **v1 and v2** layers,
+and v2 restores origin-bound replay — so the hook still fires (`includes/class-challenge.php`).
+Nothing documented was removed, no MAJOR trigger fired, and the same rule yields a MINOR.
+Verified in #392: no hook or public method removed since `v4.8.0` (`verify_token()` was
+`private static`, which `VERSIONING.md` excludes), min WP/PHP unchanged, slug unchanged.
+The rule was applied faithfully both times; only the facts about #350 changed.
+
+**⚠ Known inconsistency on `main` as of this writing.** #391 rolled the version string back but
+deliberately deferred the rationale, so `docs/release-status.md` still carries a
+**`## Why 5.0.0 and not 4.9.0`** section built on the false premise, directly contradicting the
+`4.9.0` in its own version bullets a few lines above. #389 rewrites it but is currently
+**DIRTY**; #390, which had the best rewrite, is closed. Until one lands, do not read that
+section as authority for anything — see #392.
+
+**Upgrade artifact worth knowing** (caught in #389): any dev/staging site that activated a build
+from the `5.0.0` window has `wp_sudo_db_version` stamped `5.0.0`. `Upgrader::maybe_upgrade()`
+returns early whenever the stored version is `>=` `WP_SUDO_VERSION`, so that stamp is never
+rewritten and a future routine at `4.9.x` — or at a real `5.0.0` — would be **skipped** on
+exactly those sites. Nothing is skipped today (the highest `Upgrader::UPGRADES` entry is
+`4.0.0`), and it is deliberately not fixed in production code; clear it by hand where it matters.
+
+Counts (tests, LOC, hooks) move constantly; `docs/current-metrics.md` is the source of truth
+and `composer verify:metrics` is the gate.
+
+Main is at `ec0e0ec` (#391, the 4.9.0 rollback). Since this block was first written it has taken #369, #374, #372, #350 (#322 v1), #381, #375, #382, #380, and #391.
 
 ---
 

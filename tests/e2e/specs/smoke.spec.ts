@@ -61,6 +61,18 @@ test.describe( 'WP Sudo smoke tests', () => {
                 await page
                     .locator( '#wp-sudo-challenge-password-form' )
                     .evaluate( ( form ) => ( form as HTMLFormElement ).requestSubmit() );
+
+                // #322: reauth no longer replays the stashed POST — a cloned session
+                // could otherwise plant one and the victim's reauth would apply it.
+                // The user returns and submits again themselves; the now-active sudo
+                // session lets that second submit straight through.
+                await page.waitForURL( /wp_sudo_blocked_replay=1/, { timeout: 15_000 } );
+
+                await page.goto( '/wp-admin/options-general.php?page=wp-sudo-settings' );
+                await presetSelection.selectOption( preset );
+                await page
+                    .locator( '#submit' )
+                    .evaluate( ( button ) => ( button as HTMLInputElement ).form?.requestSubmit() );
                 await expect( page ).toHaveURL( isSettingsUrl, { timeout: 15_000 } );
                 await expect( successNotice ).toContainText( `${ expectedLabel } preset applied.`, {
                     timeout: 15_000,

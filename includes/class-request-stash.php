@@ -47,6 +47,84 @@ class Request_Stash {
 	private const KEY_LENGTH = 16;
 
 	/**
+	 * Cookie carrying the per-browser stash binding proof (#322 v2).
+	 *
+	 * `__Host-` prefixed on purpose: the prefix forces Secure + Path=/ and, crucially,
+	 * forbids a `Domain` attribute, so the cookie is host-only and a sibling subdomain
+	 * cannot plant or overwrite it (cookie tossing). On subdomain multisite
+	 * COOKIE_DOMAIN is `.example.com`, which would otherwise let any host under the
+	 * network transplant a proof the attacker legitimately owns.
+	 *
+	 * @var string
+	 */
+	public const BINDING_COOKIE = '__Host-wp_sudo_stash_proof';
+
+	/**
+	 * Request params that identify the concrete target of a gated action.
+	 *
+	 * Recorded so the challenge can name what is about to happen ("Activate plugin:
+	 * evil/evil.php") instead of only the coarse rule label. Informed confirmation is
+	 * the control that survives a binding bypass — the user is consenting to a NAMED
+	 * action, not signing a blank cheque.
+	 *
+	 * @var string[]
+	 */
+	private const TARGET_PARAMS = array(
+		'plugin',
+		'theme',
+		'stylesheet',
+		'template',
+		'user_id',
+		'users',
+		'option',
+		'file',
+		'id',
+		'post',
+		'blog_id',
+		'app_name',
+		// options.critical stashes these; without them the most dangerous settings
+		// change (site URL takeover, admin email, default role) would render an EMPTY
+		// target — i.e. no informed confirmation exactly where it matters most.
+		'siteurl',
+		'home',
+		'admin_email',
+		'default_role',
+		'users_can_register',
+		// Effect fields for built-ins whose target is not the rule's own noun:
+		// plugin.delete identifies its plugins with checked[], user.promote its
+		// destination with new_role. Without these the confirmation is blank while the
+		// full payload replays.
+		'checked',
+		'new_role',
+	);
+
+	/**
+	 * Request fields that carry no effect and need not be described.
+	 *
+	 * Mirrors Action_Registry::DEFAULT_REPLAY_POST_FIELDS — nonces, referrers and
+	 * submit buttons say nothing about WHAT an action does, so their presence must not
+	 * make an otherwise-describable request undescribable.
+	 *
+	 * @var string[]
+	 */
+	private const NON_EFFECT_FIELDS = array(
+		'_wpnonce',
+		'_wp_http_referer',
+		'option_page',
+		'action',
+		'action2',
+		'submit',
+		'stash_key',
+	);
+
+	/**
+	 * Maximum stored length of a single target value.
+	 *
+	 * @var int
+	 */
+	private const TARGET_MAX_LENGTH = 100;
+
+	/**
 	 * Reason code for POST requests that are intentionally not replayed.
 	 *
 	 * @var string
@@ -135,6 +213,7 @@ class Request_Stash {
 		$redacted_fields_omitted  = false;
 		$post_replay_blocked      = false;
 		$post_replay_block_reason = '';
+		$target_complete          = true;
 		$method                   = $this->get_request_method();
 		$post                     = $this->build_stashed_post_params(
 			$matched_rule,
@@ -156,7 +235,16 @@ class Request_Stash {
 			'post_replay_blocked'      => $post_replay_blocked || $redacted_fields_omitted,
 			'post_replay_block_reason' => $redacted_fields_omitted ? 'redacted_fields_omitted' : $post_replay_block_reason,
 			'created'                  => time(),
+			'target'                   => $this->capture_target( $target_complete ),
+			'target_complete'          => $target_complete,
+			'binding_hash'             => $this->mint_binding_proof(),
 		);
+
+		// A replay may only run when the confirmation described the WHOLE effect. If a
+		// value was truncated for display, or the payload carries an effect field the
+		// target does not name (a custom rule's own field, say), the user would be
+		// confirming less than what executes — so fall back to the manual path.
+		$data['target_complete'] = $target_complete && $this->target_describes_payload( $data['target'], $post );
 
 		$this->set_stash_transient( self::TRANSIENT_PREFIX . $key, $data, self::TTL );
 
@@ -164,6 +252,219 @@ class Request_Stash {
 		$this->add_to_stash_index( $user_id, $key );
 
 		return $key;
+	}
+
+	/**
+	 * Capture the concrete target of the gated request for informed confirmation.
+	 *
+	 * Read-only, sanitized, length-capped. Never used to route or replay — it exists
+	 * solely so the challenge page can name the action the user is authorizing.
+	 *
+	 * @param bool $complete Set false when any value was truncated for display,
+	 *                            so the caller can refuse to replay more than the
+	 *                            confirmation described.
+	 * @return array<string, string>
+	 */
+	private function capture_target( bool &$complete ): array {
+		$complete  = true;
+		$target    = array();
+		$sensitive = $this->sensitive_field_keys();
+
+		foreach ( self::TARGET_PARAMS as $param ) {
+			// Read the source that will actually be REPLAYED first. A POST replay
+			// submits the stashed body, so preferring the query would let
+			// `plugins.php?plugin=benign.php` with a body of `plugin=evil.php` display
+			// the benign value and replay the other — defeating the whole point of
+			// informed confirmation. When both are present and disagree, show both
+			// rather than silently picking one.
+			// phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- Display metadata only, never used to route or replay; sanitized below.
+			$from_query = $_GET[ $param ] ?? null;
+			// phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- Display metadata only, never used to route or replay; sanitized below.
+			$from_body = $_POST[ $param ] ?? null;
+
+			$is_post = 'POST' === strtoupper( $this->get_request_method() );
+			$raw     = $is_post ? ( $from_body ?? $from_query ) : ( $from_query ?? $from_body );
+			$other   = $is_post ? $from_query : $from_body;
+
+			if ( null === $raw || '' === $raw ) {
+				continue;
+			}
+
+			// Never record a secret-shaped value, even though no default target param
+			// is secret-shaped: a site may add one via the sensitive-key filter, and
+			// this path bypasses the per-rule POST allowlist and redaction.
+			if ( $this->is_sensitive_key( $param, $sensitive ) ) {
+				continue;
+			}
+
+			// Bulk actions ('users' on bulk delete / role change) arrive as ARRAYS.
+			// Discarding them left the target EMPTY exactly where the action is most
+			// destructive — no informed confirmation on a bulk user delete.
+			if ( is_array( $raw ) ) {
+				$parts = array();
+
+				foreach ( $raw as $item ) {
+					if ( ! is_scalar( $item ) ) {
+						continue;
+					}
+
+					$item = sanitize_text_field( wp_unslash( (string) $item ) );
+
+					if ( '' !== $item ) {
+						$parts[] = $item;
+					}
+				}
+
+				if ( ! $parts ) {
+					continue;
+				}
+
+				$value = implode( ', ', $parts );
+			} else {
+				$value = sanitize_text_field( wp_unslash( (string) $raw ) );
+			}
+
+			if ( '' === $value ) {
+				continue;
+			}
+
+			// Surface a query/body disagreement instead of hiding it — the confirmation
+			// must not name one value while another is replayed.
+			if ( null !== $other && ! is_array( $other ) && ! is_array( $raw ) ) {
+				$other_value = sanitize_text_field( wp_unslash( (string) $other ) );
+
+				if ( '' !== $other_value && $other_value !== $value ) {
+					$value .= ' (conflicting value in request: ' . $other_value . ')';
+				}
+			}
+
+			$shown = $this->truncate_target_value( $value );
+
+			// Truncating the DISPLAY while replaying the FULL value would let a user
+			// approve the first few accounts of a bulk delete and silently remove the
+			// rest. Record that the description is partial.
+			if ( $shown !== $value ) {
+				$complete = false;
+			}
+
+			$target[ $param ] = $shown;
+		}
+
+		return $target;
+	}
+
+	/**
+	 * Whether the captured target names every effect-bearing field in the payload.
+	 *
+	 * TARGET_PARAMS is a fixed list, but rules are extensible: a custom rule (or a
+	 * built-in whose effect field is not in the list) can allowlist a field the target
+	 * never mentions. Replaying that would execute more than the confirmation showed,
+	 * so such a stash is not eligible for bound replay.
+	 *
+	 * @param array<string, string> $target Captured target.
+	 * @param array<string, mixed>  $post   Stashed POST payload.
+	 * @return bool
+	 */
+	private function target_describes_payload( array $target, array $post ): bool {
+		foreach ( array_keys( $post ) as $key ) {
+			$key = (string) $key;
+
+			if ( in_array( $key, self::NON_EFFECT_FIELDS, true ) ) {
+				continue;
+			}
+
+			if ( ! array_key_exists( $key, $target ) ) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * Truncate a target value without breaking UTF-8.
+	 *
+	 * Splitting a multibyte sequence makes esc_html() emit '' (wp_check_invalid_utf8),
+	 * which silently blanks the Target line — quietly removing the primary #322
+	 * control instead of erroring. mbstring is optional even on supported PHP, so the
+	 * fallback trims any trailing partial sequence rather than truncating by bytes.
+	 *
+	 * @param string $value Sanitized target value.
+	 * @return string
+	 */
+	private function truncate_target_value( string $value ): string {
+		if ( function_exists( 'mb_substr' ) ) {
+			return mb_substr( $value, 0, self::TARGET_MAX_LENGTH );
+		}
+
+		$cut = substr( $value, 0, self::TARGET_MAX_LENGTH );
+
+		// Drop a trailing incomplete multibyte sequence (lead byte + any continuation
+		// bytes) so the result is always valid UTF-8.
+		return (string) preg_replace( '/[\xC0-\xFF][\x80-\xBF]*$/', '', $cut );
+	}
+
+	/**
+	 * Mint a per-browser binding proof for this stash (#322 v2).
+	 *
+	 * Returns the sha256 of a fresh random secret and sets the plaintext secret in a
+	 * host-only, httponly, SameSite=Strict cookie. Only the HASH is ever stored, so a
+	 * stash read does not yield the proof.
+	 *
+	 * Deliberately refuses to mint (returns '') unless ALL hold:
+	 *  - the gated request was same-origin initiated (`Sec-Fetch-Site: same-origin`).
+	 *    WordPress nonces are bound to the session token, NOT the browser (GB-NONCE-TOKEN,
+	 *    GB-SESSION-TOKEN-SRC), so an attacker holding a stolen login cookie can mint
+	 *    a valid nonce and lure the victim into issuing the gated request — which would
+	 *    otherwise mint the binding in the VICTIM's browser and defeat the whole
+	 *    mechanism. A missing or cross-site/same-site header fails closed.
+	 *  - cookies are Secure (`__Host-` requires it; without TLS there is no binding
+	 *    worth trusting anyway).
+	 *  - headers are not already sent, so the cookie can actually reach the browser.
+	 *    Storing a hash the browser can never satisfy would strand the stash.
+	 *
+	 * Binding is defence-in-depth only. It is never sufficient on its own to authorize
+	 * a replay — informed confirmation of the named target is the primary control.
+	 *
+	 * @return string sha256 hex digest, or '' when no binding is minted.
+	 */
+	private function mint_binding_proof(): string {
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended -- Fetch metadata header, not user input.
+		$fetch_site = isset( $_SERVER['HTTP_SEC_FETCH_SITE'] ) ? sanitize_text_field( wp_unslash( (string) $_SERVER['HTTP_SEC_FETCH_SITE'] ) ) : '';
+
+		if ( 'same-origin' !== $fetch_site ) {
+			return '';
+		}
+
+		if ( ! Sudo_Session::cookie_secure() || headers_sent() ) {
+			return '';
+		}
+
+		// random_bytes(): unfilterable, unlike wp_generate_password(), whose
+		// `random_password` filter a third-party plugin could collapse.
+		try {
+			$secret = bin2hex( random_bytes( 32 ) );
+		} catch ( \Exception $e ) {
+			return '';
+		}
+
+		// phpcs:ignore WordPressVIPMinimum.Functions.RestrictedFunctions.cookies_setcookie
+		setcookie(
+			self::BINDING_COOKIE,
+			$secret,
+			array(
+				'expires'  => time() + self::TTL,
+				// __Host- requires path=/ and forbids an explicit domain.
+				'path'     => '/',
+				'secure'   => true,
+				'httponly' => true,
+				'samesite' => 'Strict',
+			)
+		);
+
+		$_COOKIE[ self::BINDING_COOKIE ] = $secret; // phpcs:ignore WordPressVIPMinimum.Variables.RestrictedVariables.cache_constraints___COOKIE
+
+		return hash( 'sha256', $secret );
 	}
 
 	/**
@@ -560,6 +861,31 @@ class Request_Stash {
 	 * @return string[] Lowercase sensitive field key names.
 	 */
 	private function sensitive_field_keys(): array {
+		// Memoized per request: the list is consulted by sanitize_params() (which
+		// recurses) and by capture_target(), and the filter should be applied once per
+		// stash, not once per nested field.
+		if ( null !== $this->sensitive_keys_cache ) {
+			return $this->sensitive_keys_cache;
+		}
+
+		$this->sensitive_keys_cache = $this->build_sensitive_field_keys();
+
+		return $this->sensitive_keys_cache;
+	}
+
+	/**
+	 * Memoized sensitive-key list for this instance.
+	 *
+	 * @var string[]|null
+	 */
+	private ?array $sensitive_keys_cache = null;
+
+	/**
+	 * Build the filterable sensitive-key list.
+	 *
+	 * @return string[] Lowercase sensitive field key names.
+	 */
+	private function build_sensitive_field_keys(): array {
 		/**
 		 * Filter the list of POST parameter keys that should be
 		 * omitted from the request stash before storage.
