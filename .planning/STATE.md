@@ -16,13 +16,12 @@ commit.
 
 ## Immediate next work
 
-1. Complete the active-document disposition inventory.
-2. Mark the broad core implementation spec and proposal sections that still
-   prescribe server-carried requests or registry-first work as superseded.
-3. Reconcile `docs/ROADMAP.md` and `docs/README.md` with this program.
-4. Triage open core-gate and post-4.9 issues into the new phases or deferred work.
-5. Prepare Phase 27 context and research documents; do not implement a proof or
-   client yet.
+1. Complete the remaining artifact moves/archive links in Phase 26.
+2. Add preservation/successor notices to Slice A and
+   `consequential-actions`.
+3. Triage open core-gate and post-4.9 issues into the new phases or deferred work.
+4. Prepare the Phase 27 threat traces and browser spike; do not implement a proof
+   or client yet.
 
 ## Decisions carried forward
 

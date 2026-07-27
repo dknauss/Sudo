@@ -68,6 +68,10 @@ Preview** while this status remains in effect. Pushing a tag does not publish
 a release; publication requires a separate, deliberate manual workflow run
 for that existing tag.
 
+The current research direction and its evidence gates are defined by the
+[Action Gate Research Program charter](.planning/action-gate-architecture-charter.md)
+and [GSD roadmap](.planning/ROADMAP.md).
+
 ## Security reports
 
 Security reports are welcome because failures improve the research and its

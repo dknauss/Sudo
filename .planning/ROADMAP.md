@@ -47,7 +47,7 @@ accidental requirements.
 **Goal:** Decide what the first slice can honestly claim before choosing UI or
 proof transport.
 
-**Requirements:** ARCH-02, TRUST-01..04
+**Requirements:** ARCH-02, TRUST-01..04, UX-02A
 
 **Work:**
 
@@ -162,7 +162,7 @@ Failure of the cloned-cookie test blocks the protocol and Phase 30.
 **Goal:** Demonstrate editor-quality continuity without trusting the client as the
 security boundary.
 
-**Requirements:** UX-01..05
+**Requirements:** UX-01..06
 
 **Work:**
 
@@ -191,7 +191,7 @@ security boundary.
 
 **Goal:** Turn the vertical slice into evidence a core reviewer can falsify.
 
-**Requirements:** DEMO-01..05
+**Requirements:** DEMO-01..06
 
 **Work:**
 
@@ -217,7 +217,7 @@ that each claimed guard's removal is detected by the named test.
 **Goal:** Present the smallest credible upstream change, supported by executable
 evidence rather than a framework vision.
 
-**Requirements:** CORE-01..04
+**Requirements:** CORE-01..04, including CORE-03A
 
 **Work:**
 

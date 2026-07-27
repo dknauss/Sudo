@@ -26,29 +26,14 @@ contradicting it.
 
 ## Now
 
-- **Core-gate PoC, Slice B — identity pivots** ([#360](https://github.com/dknauss/Sudo/issues/360),
-  the sole open item in the [Cut 1-readiness milestone](https://github.com/dknauss/Sudo/milestone/3),
-  which is otherwise 23/24 closed). Slice A landed (#380) as a plugin at
-  `poc/install-package-gate/` wired into CI as `composer test:poc`, and needed **no** core
-  patch — `WP_Upgrader::install_package()` already carries a vetoing `upgrader_pre_install`
-  short-circuit. Slice B is the part that needs a real `wordpress-develop` branch, because
-  six identity-pivot sinks cannot refuse at all, in three distinct ways (each verified
-  against WordPress 7.0 source, not against the summary table in #360, which has
-  `grant_super_admin()` wrong): `wp_delete_user()` (`wp-admin/includes/user.php`) and
-  `wpmu_delete_user()` (`wp-admin/includes/ms.php`) return `bool`, where a `WP_Error` is
-  **truthy** — a refusal reads to the caller as success; `set_role()`, `add_role()`
-  (`WP_User`, bare `return;`) and `switch_theme()` (`wp-includes/theme.php`, no `@return`)
-  return `void` and silently no-op; and `grant_super_admin()`
-  (`wp-includes/capabilities.php`) returns `bool` — **not `void`** — but discards the
-  `update_site_option( 'site_admins', … )` return and then returns `true` unconditionally,
-  so a failed privilege write already reports success today. That last one is a stronger
-  argument for the seam work than a silent no-op would be: the sink does not merely fail
-  to refuse, it actively misreports. It needs `pre_*` filters modelled on
-  `pre_delete_post`.
-  Unblocked: #358 (the chokepoint veto audit) is closed, and the "starts after 4.9.0 is
-  tagged" condition cleared on 2026-07-27. Scope: `.planning/360-poc-patch-branch-scope.md`.
-  The test that decides it: **two real browsers, cloned session** — browser B holds a copy
-  of A's auth cookie and must not inherit A's elevation.
+- **Action Gate Research Program, Phases 26–27** — establish one current
+  architecture, inventory and label superseded work, then settle the threat
+  claim and trusted confirmation/proof handoff before implementation. The
+  [architecture charter](../.planning/action-gate-architecture-charter.md),
+  [requirements](../.planning/REQUIREMENTS.md), and
+  [GSD roadmap](../.planning/ROADMAP.md) are authoritative. The program begins
+  with plugin/theme upload and file-editor save only. A general registry and the
+  former identity-pivot Slice B are not prerequisites.
 - **Post-4.9.0 correctness followups that bear on the research claims** — chiefly
   [#354](https://github.com/dknauss/Sudo/issues/354) (Site Health's stale-session cleanup
   deletes live proof maps: it classifies staleness from the scalar marker read *through the
@@ -61,25 +46,17 @@ contradicting it.
 
 ## Next
 
-- **Preflight demonstrator, plugin side** — the two-operation demonstrator named in
-  "4.10 — Action-confirmation API" below (plugin/theme upload, file-editor save). This is
-  the plugin's contribution to the core proposal rather than a product feature: it is where
-  the `click → pause → preflight → proof → confirm → submit once` protocol gets exercised
-  against real screens before core is asked to adopt it. Deliberately two operations, not a
-  `wp-admin` modernisation.
-- **Session-store architecture** — evaluate and likely implement a dedicated
-  sudo-session table (authoritative table + usermeta shadow writes). Retained near the top
-  because it answers **open question 2** of the core proposal — whether the proof record
-  should build on `WP_Session_Tokens` or a dedicated store — so the plugin's choice here is
-  evidence for the core one, not just plumbing. Design:
-  [`session-store-evaluation.md`](session-store-evaluation.md). Snicco Fortress's
-  per-token session-row model (one row per token via the `session_token_manager`
-  drop-in) independently validates this direction — see the design-borrowing
-  assessment in
-  [`sudo-architecture-comparison-matrix.md`](sudo-architecture-comparison-matrix.md#design-borrowing-assessment-fortress-session--sudo-patterns).
-- **Multisite terminology + coverage pass** — remaining Core-Trac-alignment work:
-  standardize "network administrator" vs. "super admin"; review network-level
-  gated-action coverage. Maps to Trac [#20140](https://core.trac.wordpress.org/ticket/20140).
+- **Phases 28–31, only after the Phase-27 gate** — prove the two early veto
+  seams, then the atomic action-bound proof, then the pause-before-send client,
+  and finally the reproducible attack demonstrator. Each phase has an explicit
+  stopping rule; a failed cloned-cookie or trust-boundary test blocks the next
+  phase rather than expanding the design.
+- **Preserve and adapt the existing evidence** — keep Slice A
+  (`poc/install-package-gate/`) runnable as the record of the pre-unpack finding
+  and differential filesystem test. Preserve the tagged `consequential-actions`
+  MVP and reuse its Playground narrator and comparison harness in a separately
+  named successor. Do not retrofit either historical experiment to make it
+  appear architecturally current.
 - **Test-scaffolding hardening** — blueprint rot-guard smoke lane (do first),
   tag-pinned blueprint copies at each release, and run the release environment matrix
   every release. **Raised in importance by the reclassification, not lowered:** Playground
@@ -130,10 +107,24 @@ issues stay open.
   [#249](https://github.com/dknauss/Sudo/issues/249)) — the operator-console cluster in the
   post-4.9.0 milestone.
 
-## 4.10 — Action-confirmation API (design)
+The following **research architecture** is also deferred until the two-effect
+vertical slice establishes a viable boundary:
 
-**The organising idea for 4.10, and a correction to how this project has framed the
-problem.** Everything below is design direction, not committed scope.
+- **Identity-pivot Slice B** ([#360](https://github.com/dknauss/Sudo/issues/360)) —
+  preserve its verified seam inventory, including the corrected
+  `grant_super_admin()` false-success behavior, but do not patch six additional
+  sinks before the Phase-27 trust decision and the Phase-28/29 slice pass.
+- **Dedicated session/proof store** — storage is a Phase-29 decision driven by
+  atomic redemption and the active WordPress session-store contract. The
+  existing [`session-store-evaluation.md`](session-store-evaluation.md) and
+  Fortress comparison are background evidence, not an implementation mandate.
+- **Multisite terminology and broad coverage expansion** — revisit after the
+  single-site two-effect mechanism is falsifiable and reproducible.
+
+## Action-confirmation direction
+
+**The organising idea, and a correction to how this project has framed the
+problem.** The GSD roadmap controls execution order and stopping gates.
 
 ### The defect class it closes
 
@@ -238,25 +229,18 @@ This bears directly on a standing decline below: passkeys were declined in 2026-
 answer an XSS-resistance argument, which is a security claim. The decline is not
 reversed here, but it must be re-decided on the new grounds rather than inherited.
 
-**Unresolved, and it needs deciding before the core proposal is submitted.** The XSS
-caveat and the proposal's own non-goals currently point in opposite directions from the
-same fact. Proposal §5 already concedes the gate "cannot stop code already running
-in-process" — and active script in the admin document *is* code running in-process. So
-either:
+**Unresolved, and it is the Phase-27 stopping gate.** Active browser script and
+arbitrary server-side PHP are not one attacker class. Server-side PHP can bypass
+WordPress policy directly; browser script still encounters the server veto but
+may manipulate the compromised document, approval surface, or proof handoff.
+The first slice must separately test script confined to the original page,
+script reaching ordinary admin pages, script reaching the selected confirmation
+route, and a copied cookie in another browser.
 
-- **scope it out**, consistently: active admin-page XSS is outside the boundary, the same
-  way in-process code already is, and the modal is then a perfectly acceptable rendering
-  of a challenge whose security rests on the server-side veto and the digest-bound proof;
-  or
-- **scope it in**, and a browser-mediated factor stops being a "Later" item and becomes
-  part of the Cut 1 challenge-provider contract.
-
-What should not ship is the current in-between, where the flagship UX is documented as
-untrustworthy against a threat the proposal neither excludes nor defends. The cheaper and
-more defensible option is the first: it costs nothing, it makes two documents agree, and
-it does not commit core to a credential mechanism in its first patch. Recorded as an open
-decision rather than settled here, because it is a threat-model change and belongs to the
-maintainer.
+If the isolated flow cannot withstand one of those cases, the proposal must
+narrow its claim to the exact persistence/reach assumption demonstrated. It
+must not obtain a simpler Cut 1 merely by declaring the motivating XSS attacker
+equivalent to already-running PHP.
 
 ### Proposed demonstrator
 
@@ -275,25 +259,10 @@ confirm-then-redeem shape is the same idea at the core layer.
 
 ## Later (need design work)
 
-- **Standard wp-admin preflight and action confirmation** — the preferred successor to
-  server-side stash/replay, and the plugin-side counterpart of "4.10 — Action-confirmation
-  API" above. Opted-in screens pause before sending, obtain a server-canonical
-  action/target digest, reauthenticate through the standard provider UI, and submit once
-  with a short-lived one-use proof. Legacy screens fall back to
-  reauthenticate-then-resubmit. Start with a narrow demonstrator for plugin/theme upload
-  and file-editor save; **do not build a generic request-capture/replay layer.** An
-  ordinary same-origin modal is not an XSS security boundary, so the design must support
-  browser-mediated factors or an isolated provider surface. Normative core direction:
-  [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md)
-  §5.1/§7.1.
-
-  This entry replaces **"Client-side modal challenge (GitHub-style inline reauth)"**,
-  whose stated rationale was "no security gain over stash → challenge → replay". That
-  is no longer defensible: the replay path carries a cost the in-page path does not,
-  demonstrated in the 4.9.0 cycle by a reachable settings-blanking route and by
-  reconstruction being *impossible* for Settings-API screens. If built, re-evaluate the
-  password-first OS-autofill decision (see
-  [`security-model.md`](security-model.md#reauthentication-flow-password-first-design-rationale)).
+- **General-purpose wp-admin preflight and action-confirmation API** — consider
+  only after the two-screen demonstrator passes. Cut 1 may expose no reusable
+  public client API at all; derive one later from demonstrated integrations
+  rather than generalizing the experiment in advance.
 - **REST sudo-grant endpoint** (`POST /wp/v2/sudo`) for headless clients.
 - **Per-session / device sudo isolation** via `WP_Session_Tokens` — deferred:
   architectural, not a hardening item.
@@ -320,9 +289,6 @@ confirm-then-redeem shape is the same idea at the core layer.
 - **Request-stash conservative pattern redaction** — broaden beyond the suffix list
   (camelCase secrets such as `clientSecret`); a future option, not an open gap.
 - **Environment-diversity and mutation testing** — deferred testing milestones.
-- **WordPress core recent-auth gate proposal** — the strategic core work
-  ([`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md) and
-  companions; Trac #20140).
 - **General Consequential-Actions registry/API** — possible future complement,
   not part of the core gate Cut 1. Revisit only when a concrete consumer proves
   the need for a public taxonomy and metadata contract; do not pattern it on
@@ -334,7 +300,7 @@ confirm-then-redeem shape is the same idea at the core layer.
 - **Passkey / WebAuthn as a standalone reauth factor** — declined 2026-02-28 on **UX**
   grounds: OS biometric autofill already covers the experience. (Key
   registration/deletion *gating* is a separate concern, shipped via the WebAuthn bridge.)
-  **Open to re-decision on different grounds:** the 4.10 preflight direction raises an
+  **Open to re-decision on different grounds:** the preflight direction raises an
   XSS-resistance argument — a same-origin modal cannot be trusted against active
   admin-page script — which the 2026-02-28 reasoning never addressed. Still declined
   until re-decided; recorded here so the decline is not inherited as though it answered
