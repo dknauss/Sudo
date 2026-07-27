@@ -45,6 +45,12 @@ is present, the user can still reauthenticate but the POST body is not replayed
 automatically. Use `post_mode => 'none'` for uploads, file-editor saves, or
 other requests that cannot be safely reconstructed from POST fields alone.
 
+Declaring a `stash` policy is **necessary but no longer sufficient** for replay —
+see [Replay eligibility](#replay-eligibility) below. The example that follows
+allowlists `item_id`, which is *not* a recognised target parameter, so as written
+it reauthenticates correctly but **does not auto-replay** on 4.9.0. It is kept as
+the worked example of the breaking case because it is the shape people copy.
+
 ```php
 add_filter( 'wp_sudo_gated_actions', function ( array $rules ): array {
     $rules[] = array(
@@ -190,6 +196,53 @@ critical. In those cases:
   identify the dangerous write
 - prefer **over-matching inside the sensitive class** to under-matching and
   missing a destructive credential or policy change
+
+### Replay eligibility
+
+**New in 4.9.0.** A stashed request is auto-replayed only when the reauthentication
+screen named the **whole effect**. This is the `#322` control: the user consents to
+*this plugin* or *this user*, not to "an action". A rule that cannot name its effect
+still gates and still reauthenticates — it simply returns the user to the page with a
+"review and submit again" notice instead of replaying.
+
+Replay requires **all** of the following:
+
+1. **Every effect-bearing field you allowlist is a recognised target parameter.**
+   `Request_Stash::capture_target()` records only these:
+
+   `plugin`, `theme`, `stylesheet`, `template`, `user_id`, `users`, `option`, `file`,
+   `id`, `post`, `blog_id`, `app_name`, `siteurl`, `home`, `admin_email`,
+   `default_role`, `users_can_register`, `checked`, `new_role`
+
+2. **Every other allowlisted field is recognised as non-effect-bearing.**
+   `target_describes_payload()` walks the stashed payload; any key that is neither in
+   the captured target nor in this list refuses replay:
+
+   `_wpnonce`, `_wp_http_referer`, `option_page`, `action`, `action2`, `submit`,
+   `stash_key`
+
+3. **The target value is not truncated** — a truncated value clears completeness.
+4. **The target is a non-empty array** — an empty or non-array target refuses replay
+   outright.
+
+So a custom rule earns replay only if each field that changes what happens is one of
+the nineteen names above. `item_id` is not, which is why the example rule reauthenticates
+but does not replay.
+
+**If your rule broke on upgrade**, you have three options, in order of preference:
+
+- **Express the effect through a recognised parameter** — e.g. carry the identifier in
+  `id` or `post` rather than `item_id`. This restores replay and, more importantly, makes
+  the confirmation screen name the thing being changed.
+- **Accept reauth-then-resubmit.** Set `post_mode => 'none'`. The user reauthenticates
+  and repeats the action. For a rarely-used destructive operation this is often the right
+  answer regardless.
+- **Do not** work around it by allowlisting fewer fields so the payload looks complete.
+  That makes the confirmation screen name less than the request actually does, which is
+  the failure the check exists to prevent.
+
+This is enforced in `Request_Stash`; the parameter lists above are `TARGET_PARAMS` and
+`NON_EFFECT_FIELDS` there, and are the authority if this document drifts.
 
 ## Public API Helpers
 
