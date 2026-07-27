@@ -552,6 +552,19 @@ run
 expect_rc 0
 expect_out "grandfathered"
 
+# 12g. The self-link filter is a substring test, so a THIRD-PARTY url whose path merely
+#       contains the repo name is discarded as if it were our own — silently dropping a
+#       real unregistered citation. Only the owner/repo segment of a known host counts.
+start "third-party url containing the repo name is still an orphan"
+new_sandbox selflinkpath
+registry "$HDR
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
+fixture "$URL" 200 0 $'x\nneedle here'
+printf 'see https://raw.githubusercontent.com/WordPress/gutenberg/trunk/dknauss/Sudo/z.js\n' > "$SANDBOX/docs/thirdparty.md"
+run
+expect_rc 1
+expect_out "thirdparty.md"
+
 # 13. Non-raw host URL (rendered blob) is rejected.
 start "rendered blob url rejected"
 new_sandbox blob
@@ -622,6 +635,68 @@ fixture "$URL" 200 0 $'x\nfunction do_thing( $arg ) {\ny\nneedle here'
 run
 expect_rc 1
 expect_out "enclosing symbol"
+
+# 15c. A `foo()` anchor asserts the DECLARATION. A call site is a weaker witness than
+#      the claim, so an earlier call must not satisfy it. Live case: GB-AUTOUPDATER-UPGRADE,
+#      whose declaration sits at L362. The old bare `foo(` needle is a PREFIX and matched
+#      L195, `public function should_update(` — a DIFFERENT method ending in the anchor
+#      name, above the snippet — so the row passed having never seen the function it names.
+start "foo() anchor is not satisfied by a call site alone"
+new_sandbox declcall
+registry "$HDR
+| GB-FN | $URL | 4 | needle here | \`do_thing()\` | a claim |"
+fixture "$URL" 200 0 $'x\n\tdo_thing( $arg );\ny\nneedle here'
+run
+expect_rc 1
+expect_out "enclosing symbol"
+
+# 15d. The counterpart: a real declaration above the snippet still passes, so 15c is not
+#      satisfied by refusing every function anchor. All 16 `()` anchors in the live
+#      registry have a `function NAME(` declaration at or before their cited line, so
+#      requiring one tightens without reddening any existing row.
+start "foo() anchor is satisfied by a declaration even with a call site present"
+new_sandbox declok
+registry "$HDR
+| GB-FN | $URL | 5 | needle here | \`do_thing()\` | a claim |"
+fixture "$URL" 200 0 $'function do_thing( $arg ) {\n}\n\tdo_thing( 1 );\ny\nneedle here'
+run
+expect_rc 0
+
+# 15e. Multiple code spans in an anchor cell are a CONJUNCTION, not alternatives. The
+#      rows express containment — "`X` in `Y`" — so ORing them means either half alone
+#      satisfies the check, and the more carefully a row is disambiguated the weaker its
+#      check becomes. All spans must resolve.
+start "every code span in an anchor cell must resolve"
+new_sandbox anchorand
+registry "$HDR
+| GB-FN | $URL | 4 | needle here | \`present_thing\` in \`absent_thing\` | a claim |"
+fixture "$URL" 200 0 $'x\npresent_thing\ny\nneedle here'
+run
+expect_rc 1
+expect_out "enclosing symbol"
+
+# 15f. And the conjunction passes when both halves are genuinely present, so 15e cannot
+#      be satisfied by failing every multi-span row.
+start "a conjunction anchor passes when all spans resolve"
+new_sandbox anchorandok
+registry "$HDR
+| GB-FN | $URL | 5 | needle here | \`present_thing\` in \`outer_thing\` | a claim |"
+fixture "$URL" 200 0 $'outer_thing\nx\npresent_thing\ny\nneedle here'
+run
+expect_rc 0
+
+# 15g. A JSX element anchor is written closed (`<Foo>`) while the source carries an open
+#      tag with props (`<Foo scope={ x }>`). This is a USAGE anchor — GB-ICON-SWAP claims
+#      the toggle is "rendered inside `<PinnedItems>`" — so a usage-shaped witness IS the
+#      claim, not a proxy for it. Contrast 15c, where a call site is a weaker witness than
+#      the declaration being asserted.
+start "JSX element anchor matches an open tag carrying props"
+new_sandbox jsxopen
+registry "$HDR
+| GB-FN | $URL | 4 | needle here | \`<Foo>\` | a claim |"
+fixture "$URL" 200 0 $'x\n<Foo scope={ scope }>\ny\nneedle here'
+run
+expect_rc 0
 
 # 16. A multiword anchor must be searched whole. Unquoted command substitution
 #     word-splits it, so `## Relationship between the timeouts` becomes five needles

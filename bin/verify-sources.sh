@@ -255,23 +255,59 @@ while IFS= read -r raw_row; do
 #                          (`public static function method( $args )`), so the qualified
 #                          form never appears at all.
 #
-# Emitting the unqualified, paren-stripped form as a fallback keeps the check honest
-# without loosening it: an anchor absent from the file in every form still fails, and
-# the at-or-before-line test still decides enclosure.
+# An anchor absent from the file in every form still fails, and the at-or-before-line test
+# still decides enclosure. How each form is derived is set out immediately below. The
+# paren-stripped `foo(` fallback that earlier revisions of this comment described is gone:
+# it was itself the prefix defect.
+#
+# The witness must be the SHAPE the anchor asserts. A `foo()` anchor asserts the
+# DECLARATION, so a call site is a weaker witness than the claim: emitting a bare `foo(`
+# accepted an earlier `foo( $arg );` and the check passed without ever seeing the
+# function. Worse in practice, and verified against trunk: the bare `foo(` needle is a
+# PREFIX, so it also matches a longer identifier merely ENDING in the anchor name. For
+# GB-AUTOUPDATER-UPGRADE (anchor `WP_Automatic_Updater::update()`, declaration at L362) the
+# old needle `update(` matched L195 — `public function should_update(`, a DIFFERENT method
+# sitting above the snippet — so the row passed while the check had never seen the function
+# it names. So a `()` anchor emits `function NAME(` and NOT the
+# bare name: every one of the 16 `()` anchors in the registry has such a declaration at or
+# before its cited line, so this tightens without reddening a row, and a row that genuinely
+# has no declaration now fails loudly instead of matching prose.
+#
+# A `<Foo>` anchor is the opposite case and must NOT be read as the same leniency. It is a
+# USAGE anchor — the row claims something is *rendered inside* `<Foo>` — so the render site
+# IS the claim rather than a proxy for it, and the source writes the element open with
+# props (`<Foo scope={ x }>`) while the row writes it closed. Matching `<Foo` is therefore
+# exact for what is asserted, where matching `foo(` was not.
 symbol_needles() {
 	local raw="$1"
+	case "$raw" in
+		*'()')
+			# Declaration-shaped only. The raw `foo()` form is deliberately not emitted:
+			# upstream declares `foo( $args )`, so a literal `foo()` matches only prose
+			# (`@see foo()`), which is the documentation-anchoring failure this avoids.
+			local fname="${raw%()}"
+			fname="${fname##*::}"
+			# PHP-shaped, which covers all 16 `()` anchors in the registry today. A
+			# future JS/TS anchor written `foo()` for a class method or arrow function
+			# has no `function foo(` line and will hard-fail here. Add that language's
+			# declaration form as another needle — do NOT reinstate the bare `foo(`
+			# fallback, which is what matched `should_update(` for an `update()` anchor.
+			printf 'function %s(\n' "$fname"
+			return
+			;;
+		'<'*'>')
+			# Exact form first, so a literal `<Foo>` wins over the open-tag form. `<Foo`
+			# is a prefix and would also match `<FooBar …>`; no live collision, but a row
+			# whose point is distinguishing `Foo` from `FooBar` should say so in its
+			# rationale column rather than rely on this ordering.
+			printf '%s\n' "$raw"
+			printf '%s\n' "${raw%>}"
+			return
+			;;
+	esac
 	printf '%s\n' "$raw"
 	case "$raw" in
-		*'()') printf '%s\n' "${raw%)}" ;;
-	esac
-	case "$raw" in
-		*'::'*)
-			local tail="${raw##*::}"
-			printf '%s\n' "$tail"
-			case "$tail" in
-				*'()') printf '%s\n' "${tail%)}" ;;
-			esac
-			;;
+		*'::'*) printf '%s\n' "${raw##*::}" ;;
 	esac
 }
 
@@ -432,23 +468,28 @@ is_unanchored_legacy() {
 	# and TS, which is a different tool. The residual case — an identical unique line
 	# relocating into a *different* symbol whose recorded anchor still appears earlier in
 	# the file — shows up as a drift WARN, because such a move almost always changes the
-	# line number. Anchors are OR'd: the column may carry several tokens (`PinnedItems`
-	# alongside `PinnedItemsSlot`) and only the enclosing one need be positioned.
-	anchor_ok=0
+	# line number.
+	#
+	# Every code span in the cell must resolve — AND, not OR. The rows express
+	# containment ("`X` in `Y`"), so ORing them means either half alone satisfies the
+	# check, and a row's own disambiguating prose then WEAKENS it: the more carefully it
+	# is written, the more alternatives it offers. AND is also the safe direction — it can
+	# only tighten, and a span that turns out absent goes visibly red rather than silently
+	# absorbing the check.
+	anchor_ok=1
+	anchor_count=0
+	anchor_missing=""
 	anchor_seen=""
 	while IFS= read -r anchor; do
 		[ -n "$anchor" ] || continue
-		# A symbol recorded as `foo()` is the conventional shorthand for a function.
-		# Upstream declares it as `foo( $args )`, so a fixed-string search for the
-		# literal `foo()` matches only PROSE mentions — `@see foo()` in a docblock —
-		# and never the declaration. That inverts the check: it anchors to
-		# documentation and misses the code. Drop the closing paren so `foo(` matches
-		# the declaration, and prose mentions still match as a prefix.
-		# Try the anchor as written, then progressively-normalised forms, and prefer a
-		# form whose first occurrence satisfies the at-or-before-line test. Taking the
-		# first form that matches ANYTHING is wrong: `foo()` matches a `@see foo()`
-		# docblock far below the snippet, which would then decide the check against a
-		# declaration sitting right above it.
+		# Which needle forms a recorded symbol produces, and why each is the shape the
+		# anchor asserts, is documented once at symbol_needles(). That header is
+		# authoritative; this comment deliberately does not restate it.
+		#
+		# Where more than one form is emitted, prefer whichever first occurrence
+		# satisfies the at-or-before-line test rather than the first form matching
+		# ANYTHING: a match far below the snippet would otherwise decide the check
+		# against a declaration sitting right above it.
 		anchor_line=""
 		anchor_best=""
 		# Read newline-delimited: anchors are frequently multiword — the registry holds
@@ -469,14 +510,16 @@ is_unanchored_legacy() {
 			fi
 		done <<< "$(symbol_needles "$anchor")"
 		anchor_line="$anchor_best"
-		if [ -n "$anchor_line" ]; then
+		anchor_count=$((anchor_count + 1))
+		if [ -n "$anchor_line" ] && [ "$anchor_line" -le "$actual_line" ]; then
 			anchor_seen="$anchor_seen $anchor(L$anchor_line)"
-			if [ "$anchor_line" -le "$actual_line" ]; then
-				anchor_ok=1
-				break
-			fi
+		else
+			anchor_ok=0
+			anchor_missing="$anchor_missing $anchor${anchor_line:+(L$anchor_line, after the snippet)}"
 		fi
 	done <<< "$symbol_anchors"
+	# No span examined at all cannot count as satisfied.
+	[ "$anchor_count" -gt 0 ] || anchor_ok=0
 
 	if [ "$anchor_check" -eq 1 ] && [ "$anchor_ok" -eq 0 ]; then
 		if is_unanchored_legacy "$id"; then
@@ -484,7 +527,8 @@ is_unanchored_legacy() {
 		else
 			add_failure "$id: recorded enclosing symbol not found upstream at or before line $actual_line — $url
 	        symbol: $symbol
-	        found:${anchor_seen:- none of its anchor tokens appear in the file}
+	        resolved:${anchor_seen:- none}
+	        unresolved:${anchor_missing:- none}
 	        the snippet is still present, so either it moved into different code or the symbol was renamed — re-read the file and fix the row"
 		fi
 		continue
@@ -656,8 +700,14 @@ orphan_counts="$(while IFS= read -r record; do
 	# Self-link: tested against the URL alone, never the filename.
 	# The leading `(` on each pattern is required, not style: bash 3.2 mis-parses a
 	# bare `pattern)` inside `$( … )` and dies with "syntax error near unexpected token".
+	# Anchored to the host, because a bare *dknauss/sudo* substring also discards a
+	# THIRD-PARTY url whose PATH happens to contain the repo name — silently dropping a real
+	# unregistered citation, which is the failure this scan exists to catch. Every pattern in
+	# this scan starts at the host, so matching from the start of the string is exact.
+	# No apostrophes in this comment: bash 3.2 mis-parses a quote inside a comment inside $( ).
 	case "$(printf '%s' "$orphan_url" | tr '[:upper:]' '[:lower:]')" in
-		(*dknauss/sudo*|*dknauss%2fsudo*) continue ;;
+		(github.com/dknauss/sudo*|raw.githubusercontent.com/dknauss/sudo*) continue ;;
+		(github.com/dknauss%2fsudo*|raw.githubusercontent.com/dknauss%2fsudo*) continue ;;
 	esac
 
 	# Files that carry citation patterns for reasons other than making a claim.
