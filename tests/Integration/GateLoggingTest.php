@@ -216,6 +216,54 @@ class GateLoggingTest extends TestCase {
 	}
 
 	// ─────────────────────────────────────────────────────────────────────
+	// wp_sudo_replay_refused hook → 'replay_refused' event
+	// ─────────────────────────────────────────────────────────────────────
+
+	/**
+	 * Firing wp_sudo_replay_refused logs an event whose reason is retrievable.
+	 *
+	 * Asserts the reason in the `surface` column specifically. Event_Store::recent()
+	 * selects `*`, so a context-only reason would still be readable through this
+	 * call — what it would NOT survive is the activity widget, whose
+	 * recent_for_dashboard() SELECT omits `context` entirely. Asserting `surface`
+	 * here is what pins the reason to the column the widget can actually read.
+	 */
+	public function test_replay_refused_hook_logs_event_with_retrievable_reason(): void {
+		$user = $this->make_admin();
+		wp_set_current_user( $user->ID );
+
+		do_action( 'wp_sudo_replay_refused', $user->ID, 'user.delete', 'proof_mismatch' );
+
+		$events = Event_Store::recent( 10, 'replay_refused' );
+		$this->assertNotEmpty( $events, 'Event_Store should contain replay_refused event.' );
+
+		$event = $events[0];
+		$this->assertSame( 'replay_refused', $event['event'] );
+		$this->assertSame( (string) $user->ID, $event['user_id'] );
+		$this->assertSame( 'user.delete', $event['rule_id'] );
+		$this->assertSame( 'proof_mismatch', $event['surface'], 'the refusal reason must survive to the queryable column.' );
+	}
+
+	/**
+	 * The no-credential refusal is recorded, not filtered out.
+	 *
+	 * That reason arises on the already-active-session resume paths, which look
+	 * routine but are the branch the #322 confused-deputy attack lands on when
+	 * the lured victim already holds a sudo session — no password step occurs.
+	 * Dropping it as noise would blind the audit trail to the worst case.
+	 */
+	public function test_replay_refused_records_the_no_credential_reason(): void {
+		$user = $this->make_admin();
+		wp_set_current_user( $user->ID );
+
+		do_action( 'wp_sudo_replay_refused', $user->ID, 'plugin.activate', 'no_credential_this_request' );
+
+		$events = Event_Store::recent( 10, 'replay_refused' );
+		$this->assertNotEmpty( $events, 'the no-credential refusal must not be filtered out.' );
+		$this->assertSame( 'no_credential_this_request', $events[0]['surface'] );
+	}
+
+	// ─────────────────────────────────────────────────────────────────────
 	// Event_Store::count_since() verification
 	// ─────────────────────────────────────────────────────────────────────
 

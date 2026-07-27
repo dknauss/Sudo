@@ -22,6 +22,7 @@ namespace WP_Sudo;
  * - wp_sudo_action_allowed (policy: non-interactive request permitted)
  * - wp_sudo_action_passed (feature: gated action succeeds during active session)
  * - wp_sudo_action_replayed (flow: stashed request replayed after reauth)
+ * - wp_sudo_replay_refused (security: stashed request discarded, with reason)
  * - wp_sudo_recovery_mode_active (security: break-glass access, sampled hourly)
  * - wp_sudo_session_revoked (security: operator revoked sudo session(s) via UI)
  *
@@ -42,6 +43,7 @@ class Event_Recorder {
 		'wp_sudo_action_allowed'       => 3, // user_id, rule_id, surface.
 		'wp_sudo_action_passed'        => 3, // user_id, rule_id, surface.
 		'wp_sudo_action_replayed'      => 2, // user_id, rule_id.
+		'wp_sudo_replay_refused'       => 3, // user_id, rule_id, reason (#322 fail-closed counterpart).
 		'wp_sudo_recovery_mode_active' => 1, // user_id.
 		'wp_sudo_session_revoked'      => 4, // target_user_id, revoker_user_id, reason, site_id.
 		'wp_sudo_role_drift_detected'  => 1, // report (high-severity role/cap drift audit alarm).
@@ -348,6 +350,54 @@ class Event_Recorder {
 				'event'   => 'action_replayed',
 				'rule_id' => $rule_id,
 				'surface' => '',
+			)
+		);
+	}
+
+	/**
+	 * Handle wp_sudo_replay_refused event.
+	 *
+	 * Fired when a stashed request was NOT replayed — the #322 fail-closed
+	 * counterpart to `action_replayed`. Without this row the refusal is silent
+	 * and indistinguishable from nothing having happened.
+	 *
+	 * EVERY reason is recorded, including `no_credential_this_request`. That one
+	 * is not routine noise to be filtered: it is the branch the confused-deputy
+	 * attack lands on when the lured victim already holds a sudo session, so no
+	 * password step occurs. Volume is bounded because
+	 * `build_replay_response_data()` consumes (deletes) the stash before firing:
+	 * one refusal per gated interception at most. Every such interception
+	 * already writes an `action_gated` row, so this adds at most one row per row
+	 * the recorder was writing anyway.
+	 *
+	 * The reason lands in `surface` rather than only `context` because
+	 * Event_Store::recent_for_dashboard() selects DASHBOARD_SELECT_COLUMNS,
+	 * which omits `context` — a context-only reason would be invisible in the
+	 * activity widget. (Event_Store::recent() selects `*`, so context IS
+	 * readable there; the widget is the constraint.) As with `session_revoked`,
+	 * the widget's Surface column therefore shows a reason tag rather than a
+	 * request surface.
+	 *
+	 * The reason is mirrored into `context` as headroom, not as a current
+	 * rescue: `surface` is clamped to 30 characters and the longest reason
+	 * (`no_credential_this_request`) is 26, so nothing truncates today. The
+	 * mirror keeps a longer future reason recoverable.
+	 *
+	 * @since 4.9.0
+	 *
+	 * @param int    $user_id User whose stashed action was discarded.
+	 * @param string $rule_id Action Registry rule ID.
+	 * @param string $reason  Why the replay was refused.
+	 * @return void
+	 */
+	public static function on_replay_refused( int $user_id, string $rule_id, string $reason ): void {
+		self::enqueue(
+			array(
+				'user_id' => $user_id,
+				'event'   => 'replay_refused',
+				'rule_id' => $rule_id,
+				'surface' => $reason,
+				'context' => array( 'reason' => $reason ),
 			)
 		);
 	}

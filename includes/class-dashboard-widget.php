@@ -323,6 +323,7 @@ class Dashboard_Widget {
 			'action_allowed'     => __( 'Allowed', 'wp-sudo' ),
 			'action_passed'      => __( 'Passed', 'wp-sudo' ),
 			'action_replayed'    => __( 'Replayed', 'wp-sudo' ),
+			'replay_refused'     => __( 'Not replayed', 'wp-sudo' ),
 			'recovery_mode'      => __( 'Break-glass', 'wp-sudo' ),
 			'escalation_blocked' => __( 'Escalation', 'wp-sudo' ),
 			'session_revoked'    => __( 'Revoked', 'wp-sudo' ),
@@ -412,6 +413,7 @@ class Dashboard_Widget {
 		echo esc_html__( 'Passed', 'wp-sudo' );
 		echo '</option>';
 		echo '<option value="action_replayed">' . esc_html__( 'Replayed', 'wp-sudo' ) . '</option>';
+		echo '<option value="replay_refused">' . esc_html__( 'Not replayed', 'wp-sudo' ) . '</option>';
 		echo '</select>';
 
 		// Surface dropdown.
@@ -1201,6 +1203,13 @@ class Dashboard_Widget {
 	background: #e7f0ff;
 	border-color: #c2d5fb;
 	color: #2e5fa9;
+}
+/* Amber, not the replayed blue: a refusal is the fail-closed outcome, and #322
+makes telling the two apart at a glance the point of logging it at all. */
+#wp_sudo_activity .wp-sudo-event-pill-replay-refused {
+	background: #fdf3e4;
+	border-color: #f0dcb8;
+	color: #8a5a1b;
 }
 #wp_sudo_activity .wp-sudo-event-pill-escalation-blocked {
 	background: #fbeeee;

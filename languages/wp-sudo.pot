@@ -529,8 +529,8 @@ msgid "Controls non-cookie-auth REST requests (Application Passwords, Bearer tok
 msgstr ""
 
 #: includes/class-admin.php:731
-#: includes/class-dashboard-widget.php:424
-#: includes/class-dashboard-widget.php:799
+#: includes/class-dashboard-widget.php:426
+#: includes/class-dashboard-widget.php:801
 #: includes/class-site-health.php:227
 msgid "WP-CLI"
 msgstr ""
@@ -540,8 +540,8 @@ msgid "Disabled blocks all WP-CLI commands. Limited blocks only gated operations
 msgstr ""
 
 #: includes/class-admin.php:744
-#: includes/class-dashboard-widget.php:425
-#: includes/class-dashboard-widget.php:800
+#: includes/class-dashboard-widget.php:427
+#: includes/class-dashboard-widget.php:802
 #: includes/class-site-health.php:228
 msgid "Cron"
 msgstr ""
@@ -551,8 +551,8 @@ msgid "Disabled stops all cron execution (WP-Cron and server-level cron). Limite
 msgstr ""
 
 #: includes/class-admin.php:757
-#: includes/class-dashboard-widget.php:426
-#: includes/class-dashboard-widget.php:801
+#: includes/class-dashboard-widget.php:428
+#: includes/class-dashboard-widget.php:803
 #: includes/class-site-health.php:229
 msgid "XML-RPC"
 msgstr ""
@@ -734,7 +734,7 @@ msgstr ""
 
 #: includes/class-admin.php:2008
 #: includes/class-admin.php:2284
-#: includes/class-dashboard-widget.php:458
+#: includes/class-dashboard-widget.php:460
 msgid "Action"
 msgstr ""
 
@@ -743,24 +743,24 @@ msgid "Surfaces"
 msgstr ""
 
 #: includes/class-admin.php:2020
-#: includes/class-dashboard-widget.php:420
+#: includes/class-dashboard-widget.php:422
 msgid "Admin"
 msgstr ""
 
 #: includes/class-admin.php:2023
-#: includes/class-dashboard-widget.php:421
+#: includes/class-dashboard-widget.php:423
 msgid "AJAX"
 msgstr ""
 
 #: includes/class-admin.php:2026
-#: includes/class-dashboard-widget.php:422
+#: includes/class-dashboard-widget.php:424
 msgid "REST"
 msgstr ""
 
 #: includes/class-admin.php:2044
 #: includes/class-admin.php:2046
-#: includes/class-dashboard-widget.php:427
-#: includes/class-dashboard-widget.php:806
+#: includes/class-dashboard-widget.php:429
+#: includes/class-dashboard-widget.php:808
 msgid "GraphQL"
 msgstr ""
 
@@ -787,7 +787,7 @@ msgstr ""
 #: includes/class-admin.php:2084
 #: includes/class-admin.php:2161
 #: includes/class-admin.php:2283
-#: includes/class-dashboard-widget.php:456
+#: includes/class-dashboard-widget.php:458
 msgid "User"
 msgstr ""
 
@@ -885,8 +885,8 @@ msgid "See how Sudo would evaluate a representative request without executing it
 msgstr ""
 
 #: includes/class-admin.php:2594
-#: includes/class-dashboard-widget.php:459
-#: includes/class-dashboard-widget.php:793
+#: includes/class-dashboard-widget.php:461
+#: includes/class-dashboard-widget.php:795
 msgid "Surface"
 msgstr ""
 
@@ -1104,7 +1104,7 @@ msgstr ""
 #: includes/class-admin.php:2968
 #: includes/class-admin.php:3512
 #: includes/class-admin.php:3516
-#: includes/class-dashboard-widget.php:864
+#: includes/class-dashboard-widget.php:866
 msgid "Custom"
 msgstr ""
 
@@ -1473,198 +1473,203 @@ msgid "View all sudo-active users (%d) →"
 msgstr ""
 
 #: includes/class-dashboard-widget.php:320
-#: includes/class-dashboard-widget.php:407
+#: includes/class-dashboard-widget.php:408
 msgid "Lockout"
 msgstr ""
 
 #: includes/class-dashboard-widget.php:321
-#: includes/class-dashboard-widget.php:408
+#: includes/class-dashboard-widget.php:409
 msgid "Gated"
 msgstr ""
 
 #: includes/class-dashboard-widget.php:322
-#: includes/class-dashboard-widget.php:409
+#: includes/class-dashboard-widget.php:410
 msgid "Blocked"
 msgstr ""
 
 #: includes/class-dashboard-widget.php:323
-#: includes/class-dashboard-widget.php:410
+#: includes/class-dashboard-widget.php:411
 msgid "Allowed"
 msgstr ""
 
 #: includes/class-dashboard-widget.php:324
-#: includes/class-dashboard-widget.php:412
+#: includes/class-dashboard-widget.php:413
 msgid "Passed"
 msgstr ""
 
 #: includes/class-dashboard-widget.php:325
-#: includes/class-dashboard-widget.php:414
+#: includes/class-dashboard-widget.php:415
 msgid "Replayed"
 msgstr ""
 
 #: includes/class-dashboard-widget.php:326
-msgid "Break-glass"
+#: includes/class-dashboard-widget.php:416
+msgid "Not replayed"
 msgstr ""
 
 #: includes/class-dashboard-widget.php:327
-msgid "Escalation"
+msgid "Break-glass"
 msgstr ""
 
 #: includes/class-dashboard-widget.php:328
+msgid "Escalation"
+msgstr ""
+
+#: includes/class-dashboard-widget.php:329
 msgid "Revoked"
 msgstr ""
 
-#: includes/class-dashboard-widget.php:392
+#: includes/class-dashboard-widget.php:393
 msgid "Recent Events"
 msgstr ""
 
-#: includes/class-dashboard-widget.php:395
+#: includes/class-dashboard-widget.php:396
 msgid "Recent events filters"
 msgstr ""
 
-#: includes/class-dashboard-widget.php:398
+#: includes/class-dashboard-widget.php:399
 msgid "Filter events by time range"
 msgstr ""
 
-#: includes/class-dashboard-widget.php:399
+#: includes/class-dashboard-widget.php:400
 msgid "All Time"
 msgstr ""
 
-#: includes/class-dashboard-widget.php:400
+#: includes/class-dashboard-widget.php:401
 msgid "Last 24 Hours"
 msgstr ""
 
-#: includes/class-dashboard-widget.php:401
+#: includes/class-dashboard-widget.php:402
 msgid "Last 7 Days"
 msgstr ""
 
-#: includes/class-dashboard-widget.php:405
+#: includes/class-dashboard-widget.php:406
 msgid "Filter events by session event type"
 msgstr ""
 
-#: includes/class-dashboard-widget.php:406
+#: includes/class-dashboard-widget.php:407
 msgid "All Sessions"
 msgstr ""
 
-#: includes/class-dashboard-widget.php:418
+#: includes/class-dashboard-widget.php:420
 msgid "Filter events by request surface"
 msgstr ""
 
-#: includes/class-dashboard-widget.php:419
+#: includes/class-dashboard-widget.php:421
 msgid "All Surfaces"
 msgstr ""
 
-#: includes/class-dashboard-widget.php:423
+#: includes/class-dashboard-widget.php:425
 msgid "App Pass"
 msgstr ""
 
-#: includes/class-dashboard-widget.php:428
+#: includes/class-dashboard-widget.php:430
 msgid "Public API"
 msgstr ""
 
-#: includes/class-dashboard-widget.php:437
+#: includes/class-dashboard-widget.php:439
 msgid "Passed events are currently hidden by a code-level policy override."
 msgstr ""
 
-#: includes/class-dashboard-widget.php:444
+#: includes/class-dashboard-widget.php:446
 msgid "No recent activity"
 msgstr ""
 
-#: includes/class-dashboard-widget.php:451
+#: includes/class-dashboard-widget.php:453
 msgid "Recent event history"
 msgstr ""
 
-#: includes/class-dashboard-widget.php:453
+#: includes/class-dashboard-widget.php:455
 msgid "Recent sudo session events"
 msgstr ""
 
-#: includes/class-dashboard-widget.php:455
+#: includes/class-dashboard-widget.php:457
 msgid "Sort by Time"
 msgstr ""
 
-#: includes/class-dashboard-widget.php:455
+#: includes/class-dashboard-widget.php:457
 msgid "Time"
 msgstr ""
 
-#: includes/class-dashboard-widget.php:456
+#: includes/class-dashboard-widget.php:458
 msgid "Sort by User"
 msgstr ""
 
-#: includes/class-dashboard-widget.php:457
+#: includes/class-dashboard-widget.php:459
 msgid "Sort by Event"
 msgstr ""
 
-#: includes/class-dashboard-widget.php:457
+#: includes/class-dashboard-widget.php:459
 msgid "Event"
 msgstr ""
 
-#: includes/class-dashboard-widget.php:458
+#: includes/class-dashboard-widget.php:460
 msgid "Sort by Action"
 msgstr ""
 
-#: includes/class-dashboard-widget.php:459
+#: includes/class-dashboard-widget.php:461
 msgid "Sort by Surface"
 msgstr ""
 
 #. translators: %d is the deleted user's numeric ID.
-#: includes/class-dashboard-widget.php:476
+#: includes/class-dashboard-widget.php:478
 #, php-format
 msgid "Deleted user (#%d)"
 msgstr ""
 
-#: includes/class-dashboard-widget.php:517
+#: includes/class-dashboard-widget.php:519
 msgid "Critical"
 msgstr ""
 
 #. translators: %s is the technical action ID (for example options.wp_sudo).
-#: includes/class-dashboard-widget.php:521
+#: includes/class-dashboard-widget.php:523
 #, php-format
 msgid "Technical action ID: %s"
 msgstr ""
 
-#: includes/class-dashboard-widget.php:785
+#: includes/class-dashboard-widget.php:787
 msgid "Policy Summary"
 msgstr ""
 
-#: includes/class-dashboard-widget.php:786
+#: includes/class-dashboard-widget.php:788
 msgid "Mode:"
 msgstr ""
 
-#: includes/class-dashboard-widget.php:789
+#: includes/class-dashboard-widget.php:791
 msgid "Policy details"
 msgstr ""
 
-#: includes/class-dashboard-widget.php:791
+#: includes/class-dashboard-widget.php:793
 msgid "Entry-point surface policies"
 msgstr ""
 
-#: includes/class-dashboard-widget.php:794
+#: includes/class-dashboard-widget.php:796
 msgid "Policy"
 msgstr ""
 
-#: includes/class-dashboard-widget.php:798
+#: includes/class-dashboard-widget.php:800
 msgid "App Passwords"
 msgstr ""
 
-#: includes/class-dashboard-widget.php:901
+#: includes/class-dashboard-widget.php:903
 msgid "No matching events"
 msgstr ""
 
-#: includes/class-dashboard-widget.php:902
+#: includes/class-dashboard-widget.php:904
 msgid "Event filters updated."
 msgstr ""
 
 #. translators: 1: sort column label (for example, Time), 2: direction (ascending/descending).
-#: includes/class-dashboard-widget.php:904
+#: includes/class-dashboard-widget.php:906
 #, php-format
 msgid "Sorted by %1$s (%2$s)."
 msgstr ""
 
-#: includes/class-dashboard-widget.php:905
+#: includes/class-dashboard-widget.php:907
 msgid "ascending"
 msgstr ""
 
-#: includes/class-dashboard-widget.php:906
+#: includes/class-dashboard-widget.php:908
 msgid "descending"
 msgstr ""
 
