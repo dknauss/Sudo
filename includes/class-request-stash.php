@@ -85,9 +85,16 @@ class Request_Stash {
 		// options.critical stashes these; without them the most dangerous settings
 		// change (site URL takeover, admin email, default role) would render an EMPTY
 		// target — i.e. no informed confirmation exactly where it matters most.
+		//
+		// `new_admin_email` is the field options-general.php actually posts for the
+		// administration email address; that screen never submits `admin_email` (see
+		// GB-ADMIN-EMAIL-FIELD in docs/upstream-sources.md). Capturing only the latter
+		// left the single most dangerous change on the page unnamed. Both are listed
+		// because options.php and REST callers can send the raw option name.
 		'siteurl',
 		'home',
 		'admin_email',
+		'new_admin_email',
 		'default_role',
 		'users_can_register',
 		// Effect fields for built-ins whose target is not the rule's own noun:
@@ -297,6 +304,16 @@ class Request_Stash {
 				continue;
 			}
 
+			// A critical-option field that only repeats the value already stored is not
+			// part of what this request changes. options-general.php posts every one of
+			// them on every save, so a Site Title change rendered
+			// "Target: default_role: subscriber" — the confirmation asserting a change
+			// that was not happening (#431). Naming the wrong thing is worse than
+			// naming nothing: it teaches users that the Target line can be skimmed.
+			if ( $this->target_value_echoes_stored_option( $param, $raw, $other ) ) {
+				continue;
+			}
+
 			// Bulk actions ('users' on bulk delete / role change) arrive as ARRAYS.
 			// Discarding them left the target EMPTY exactly where the action is most
 			// destructive — no informed confirmation on a bulk user delete.
@@ -351,6 +368,85 @@ class Request_Stash {
 		}
 
 		return $target;
+	}
+
+	/**
+	 * Whether a critical-option field only repeats the value already stored.
+	 *
+	 * Compares every source present in the request against the stored option and
+	 * reports "unchanged" only when they ALL match, so a query/body disagreement is
+	 * still surfaced by the caller rather than quietly dropped here.
+	 *
+	 * Fails toward SHOWING the value. An option that cannot be read, a non-scalar
+	 * stored value and an array submission are all treated as a possible change,
+	 * because hiding a real target is far more dangerous than naming a spurious one.
+	 *
+	 * @param string $param Request parameter name.
+	 * @param mixed  $raw   Value from the source that would be replayed.
+	 * @param mixed  $other Value from the other source, if present.
+	 * @return bool
+	 */
+	private function target_value_echoes_stored_option( string $param, $raw, $other ): bool {
+		$map = $this->critical_option_comparison_map();
+
+		if ( ! isset( $map[ $param ] ) ) {
+			return false;
+		}
+
+		$stored = get_option( $map[ $param ] );
+
+		// get_option() returns false when the option is absent. That is not evidence
+		// the submitted value is unchanged, so treat it as a change and show it.
+		if ( false === $stored || ! is_scalar( $stored ) ) {
+			return false;
+		}
+
+		$stored = (string) $stored;
+
+		foreach ( array( $raw, $other ) as $candidate ) {
+			if ( null === $candidate ) {
+				continue;
+			}
+
+			if ( ! is_scalar( $candidate ) ) {
+				return false;
+			}
+
+			// Compare the value that would REPLAY, before display sanitization:
+			// sanitize_text_field() can reduce a payload to something matching the
+			// stored value while the unsanitized value is what actually replays.
+			if ( (string) wp_unslash( (string) $candidate ) !== $stored ) {
+				return false;
+			}
+		}
+
+		return true;
+	}
+
+	/**
+	 * Map each critical-option request field to the option it is compared against.
+	 *
+	 * Derived from the FILTERED critical option list so that narrowing
+	 * `wp_sudo_critical_options` narrows this too — parity with
+	 * Action_Registry::critical_option_rest_keys().
+	 *
+	 * The administration email address is the one field that is not self-titled: core
+	 * posts `new_admin_email` but prefills it with the current `admin_email` (see
+	 * GB-ADMIN-EMAIL-FIELD in docs/upstream-sources.md), so an untouched save submits
+	 * the stored address. Comparing it against the `new_admin_email` option — empty
+	 * unless a change is already pending — would report every save as a change.
+	 *
+	 * @return array<string, string>
+	 */
+	private function critical_option_comparison_map(): array {
+		$aliases = array( 'new_admin_email' => 'admin_email' );
+		$map     = array();
+
+		foreach ( Action_Registry::critical_option_names() as $option ) {
+			$map[ $option ] = $aliases[ $option ] ?? $option;
+		}
+
+		return $map;
 	}
 
 	/**

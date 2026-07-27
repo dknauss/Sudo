@@ -565,7 +565,20 @@ class Action_Registry {
 						return false;
 					},
 				),
-				'stash'    => self::stash_allowlist( self::critical_option_names() ),
+				// NOT replayable. options.php writes every option in the page's
+				// allow-list, using null for any the POST omits — see
+				// GB-OPTIONS-NULL-WRITE in docs/upstream-sources.md. An allowlist
+				// carrying only the critical options therefore does not replay a subset
+				// of the save; it BLANKS the rest of the page (site title, tagline,
+				// timezone, date formats, site icon, language). No allowlist narrower
+				// than the whole page can reproduce the effect, and a wider one would
+				// carry fields the confirmation cannot name.
+				//
+				// So this is a reauthenticate-then-resubmit action: block, confirm, land
+				// the user back on the settings screen, and let them submit the real form
+				// with its full payload. One extra click, and nothing executes merely
+				// because authentication succeeded.
+				'stash'    => self::stash_no_replay(),
 			),
 
 			array(
