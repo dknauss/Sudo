@@ -285,7 +285,6 @@ class ChallengeTest extends TestCase
 			'sessionExpired',
 			'startOver',
 			'twoFactorRequired',
-			'replayingAction',
 			'leavingChallenge',
 		);
 		foreach ($expected_keys as $key) {
@@ -1100,6 +1099,172 @@ class ChallengeTest extends TestCase
 	 * still contains &tab=access — this is the URL the challenge JS uses for
 	 * the code==='authenticated' (session-only-success) redirect target.
 	 */
+	/**
+	 * #322: a stash released without a credential must be distinguishable in audit.
+	 *
+	 * An independent review mutated the `! $credential_verified` branch away — so
+	 * every refusal reported `replay_disabled` — and the suite stayed green. That is
+	 * the one value an operator can correlate on (an active-session release, which is
+	 * either an ordinary multi-tab resume or a lure that landed on a session-holder;
+	 * the server cannot tell them apart). Coverage stopped exactly at the reason that
+	 * matters for detection.
+	 */
+	public function test_release_without_a_credential_is_audited_distinctly(): void
+	{
+		$this->stash->shouldReceive('get')->once()->andReturn($this->boundPostStash('secret'));
+		$this->stash->shouldReceive('delete')->once();
+		$this->stubReplayEnv();
+
+		$captured = null;
+		Actions\expectDone('wp_sudo_replay_refused')
+			->once()
+			->whenHappen(function ($user_id, $rule_id, $reason) use (&$captured) {
+				$captured = $reason;
+			});
+
+		$this->invokeReplay('no-credential-key', false);
+
+		$this->assertSame(
+			'no_credential_this_request',
+			$captured,
+			'An active-session release must not be flattened into the ordinary disabled-replay reason.'
+		);
+	}
+
+	/**
+	 * #322: the "session already confirmed" page must not auto-navigate.
+	 *
+	 * An independent review mutated this fix away — re-inserting the deleted
+	 * DOMContentLoaded redirect — and the entire suite stayed green. A guard no test
+	 * kills is not a guard: it can be lost to a careless merge, a rebase conflict
+	 * resolution, or the planned 4.10 cleanup of the surrounding dormant machinery,
+	 * with CI reporting success the whole way.
+	 *
+	 * The page must render the Continue and Cancel anchors and NOTHING that navigates
+	 * on load, so the second action stays explicit.
+	 */
+	public function test_resume_page_does_not_auto_navigate(): void
+	{
+		Functions\when('__')->returnArg();
+		Functions\when('esc_html__')->returnArg();
+		Functions\when('esc_html_e')->alias(static function ($t) { echo $t; });
+		Functions\when('esc_url')->returnArg();
+		Functions\when('esc_attr')->returnArg();
+		Functions\when('wp_json_encode')->alias(static fn($v) => json_encode($v));
+
+		$this->stash->shouldReceive('exists')->andReturn(false);
+
+		$method = new \ReflectionMethod($this->challenge, 'render_resume_page');
+		if ( PHP_VERSION_ID < 80100 ) {
+			$method->setAccessible(true);
+		}
+
+		ob_start();
+		$method->invoke($this->challenge, 42, '', 'https://example.com/wp-admin/');
+		$html = (string) ob_get_clean();
+
+		$this->assertStringNotContainsString(
+			'window.location.href',
+			$html,
+			'The resume page must not navigate on load — the Continue click is the explicit second action.'
+		);
+        $this->assertStringNotContainsString(
+			'DOMContentLoaded',
+			$html,
+			'No load-time script may run here at all.'
+		);
+		$this->assertStringContainsString('Continue', $html, 'The explicit action must still be offered.');
+	}
+
+	/**
+	 * #322: the cancelUrl the challenge JS navigates to must not carry an effect.
+	 *
+	 * This is the zero-click path, and it is NOT the Continue/Cancel anchor case.
+	 * `Challenge::enqueue_assets()` localises `cancelUrl`, and on a session-only
+	 * success `admin/js/wp-sudo-challenge.js` runs
+	 * `window.location.href = config.cancelUrl` for `code === 'authenticated'` —
+	 * reached by a FRESH password success when no stash_key is present, with no
+	 * interaction at all.
+	 *
+	 * `wp_validate_redirect()` constrains the HOST only, so a same-host admin URL
+	 * carrying `action` and a valid `_wpnonce` survived it intact. An attacker
+	 * holding a cloned cookie can mint that nonce, so the victim typing their
+	 * password was enough to execute the attacker's action under the session they
+	 * had just created.
+	 */
+	public function test_enqueue_assets_cancel_url_strips_action_and_nonce(): void
+	{
+		$_GET['page'] = 'wp-sudo-challenge';
+		$_GET['return_url'] = 'https://example.com/wp-admin/plugins.php?action=activate&plugin=evil%2Fevil.php&_wpnonce=VALIDNONCE';
+
+		$captured = $this->captureLocalizedChallengeConfig();
+
+		$this->assertIsArray($captured);
+		$this->assertStringNotContainsString('action=activate', $captured['cancelUrl'], 'The dispatch must be stripped.');
+		$this->assertStringNotContainsString('_wpnonce', $captured['cancelUrl'], 'The proof must be stripped.');
+		$this->assertStringContainsString('plugins.php', $captured['cancelUrl'], 'The screen itself is a fine place to land.');
+	}
+
+	/**
+	 * #322: cancelUrl must remain same-host.
+	 *
+	 * Guards the `wp_validate_redirect()` call itself. Without a test here, dropping
+	 * that call turns the sink above into a full cross-host open redirect for the
+	 * victim's authenticated browser and nothing goes red — one of two branches an
+	 * independent review found surviving mutation.
+	 */
+	public function test_enqueue_assets_cancel_url_rejects_a_foreign_host(): void
+	{
+		$_GET['page'] = 'wp-sudo-challenge';
+		$_GET['return_url'] = 'https://evil.example/collect?x=1';
+
+		$captured = $this->captureLocalizedChallengeConfig();
+
+		$this->assertIsArray($captured);
+		$this->assertStringNotContainsString('evil.example', $captured['cancelUrl'], 'A foreign host must never survive.');
+	}
+
+	/**
+	 * Run enqueue_assets() and return the array it localises.
+	 *
+	 * @return array<string, mixed>|null
+	 */
+	private function captureLocalizedChallengeConfig(): ?array
+	{
+		Functions\when('__')->returnArg();
+		Functions\when('get_current_user_id')->justReturn(42);
+		Functions\when('wp_enqueue_style')->justReturn(null);
+		Functions\when('wp_enqueue_script')->justReturn(null);
+		Functions\when('wp_create_nonce')->justReturn('test-nonce');
+		Functions\when('sanitize_text_field')->alias(static fn($value) => $value);
+		Functions\when('wp_unslash')->alias(static fn($value) => $value);
+		Functions\when('admin_url')->alias(
+			static fn(string $path = ''): string => 'https://example.com/wp-admin/' . $path
+		);
+		Functions\when('wp_validate_redirect')->alias(
+			static function (string $location, $fallback = '') {
+				$host = parse_url($location, PHP_URL_HOST);
+				return ('example.com' === $host) ? $location : $fallback;
+			}
+		);
+
+		$captured = null;
+		Functions\expect('wp_localize_script')
+			->once()
+			->with(
+				'wp-sudo-challenge',
+				'wpSudoChallenge',
+				\Mockery::on(function ($data) use (&$captured) {
+					$captured = $data;
+					return true;
+				})
+			);
+
+		$this->challenge->enqueue_assets();
+
+		return $captured;
+	}
+
 	public function test_enqueue_assets_cancel_url_preserves_tab_query_arg_from_access_tab(): void
 	{
 		$_GET['page'] = 'wp-sudo-challenge';

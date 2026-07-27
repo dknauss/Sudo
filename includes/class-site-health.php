@@ -65,11 +65,6 @@ class Site_Health {
 			'test'  => array( $this, 'test_gated_action_integrity' ),
 		);
 
-		$tests['direct']['wp_sudo_replay_binding'] = array(
-			'label' => __( 'Sudo Reauthentication Replay', 'wp-sudo' ),
-			'test'  => array( $this, 'test_replay_binding' ),
-		);
-
 		$tests['direct']['wp_sudo_recovery_mode'] = array(
 			'label' => __( 'Sudo Break-Glass Recovery Mode', 'wp-sudo' ),
 			'test'  => array( $this, 'test_recovery_mode' ),
@@ -437,53 +432,6 @@ class Site_Health {
 			'badge'       => $badge,
 			'description' => '<p>' . $scope . '</p><p>' . __( 'Remove WP_SUDO_RECOVERY_MODE from wp-config.php as soon as normal access is restored — leaving it enabled weakens the governance model.', 'wp-sudo' ) . '</p>',
 			'test'        => 'wp_sudo_recovery_mode',
-		);
-	}
-
-	/**
-	 * Report whether seamless reauthentication replay is available (#322).
-	 *
-	 * After reauthenticating, WP Sudo can resume the action the user was performing.
-	 * That resume is bound to the browser that started it — a cloned session (stolen
-	 * cookie, no password) must not be able to plant an action for someone else's
-	 * reauthentication to carry out. The binding rides a `__Host-` prefixed cookie,
-	 * which browsers only accept over HTTPS.
-	 *
-	 * Without HTTPS the binding is never issued and reauthentication always falls back
-	 * to the safe behaviour: nothing is resumed and the user repeats the action. This
-	 * is a usability note, not a vulnerability — the fallback is the secure path.
-	 *
-	 * @return array<string, mixed>
-	 */
-	public function test_replay_binding(): array {
-		$badge = array(
-			'label' => __( 'Security', 'wp-sudo' ),
-			'color' => 'blue',
-		);
-
-		// BOTH conditions, because either one alone gives a wrong answer:
-		// - the transport the browser actually sees, since wp_sudo_cookie_secure is
-		// filterable and a staging site forcing it true over plain HTTP would be told
-		// replay works while the browser still rejects the __Host- cookie;
-		// - the effective cookie setting, since the same filter can suppress Secure on
-		// an HTTPS site, in which case no binding is ever minted and nothing resumes.
-		if ( ( is_ssl() || force_ssl_admin() ) && Sudo_Session::cookie_secure() ) {
-			return array(
-				'label'       => __( 'Reauthentication can resume your action', 'wp-sudo' ),
-				'status'      => 'good',
-				'badge'       => $badge,
-				'description' => '<p>' . __( 'This site is served over HTTPS, so WP Sudo can safely resume the action you were performing once you reauthenticate. The resume is bound to your own browser, so an action started elsewhere can never be completed by your confirmation.', 'wp-sudo' ) . '</p>',
-				'test'        => 'wp_sudo_replay_binding',
-			);
-		}
-
-		return array(
-			'label'       => __( 'Reauthentication will not resume your action', 'wp-sudo' ),
-			'status'      => 'recommended',
-			'badge'       => $badge,
-			'description' => '<p>' . __( 'This site is not served over HTTPS. WP Sudo binds a resumed action to the browser that started it using a cookie browsers accept only over HTTPS, so on this site nothing is resumed after reauthentication: you will be returned to the page you came from and will need to perform the action again.', 'wp-sudo' ) . '</p>'
-				. '<p>' . __( 'This is the safe fallback, not a fault — the confirmation you give can never complete an action someone else started. Serving the admin over HTTPS restores the smoother flow.', 'wp-sudo' ) . '</p>',
-			'test'        => 'wp_sudo_replay_binding',
 		);
 	}
 

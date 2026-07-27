@@ -253,9 +253,13 @@ class Challenge {
 		$default_url = is_network_admin() ? network_admin_url() : admin_url();
 
 		$return_url = isset( $_GET['return_url'] ) && is_string( $_GET['return_url'] ) ? esc_url_raw( wp_unslash( $_GET['return_url'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Routing data only; sanitized in helper.
-		$cancel_url = $return_url
-			? wp_validate_redirect( $return_url, $default_url )
-			: $default_url;
+		// Reduced to a destination that cannot act — see safe_return_target(). This is
+		// the value localized as `cancelUrl`, and the challenge JS assigns it to
+		// `window.location.href` on `code === 'authenticated'`, which is reached by a
+		// FRESH password success when no stash_key is present. Host-only validation
+		// left that a zero-click execution of a requester-supplied, nonce-bearing
+		// admin URL immediately after the victim typed their password.
+		$cancel_url = $this->safe_return_target( $return_url, $default_url );
 
 		wp_localize_script(
 			'wp-sudo-challenge',
@@ -286,7 +290,6 @@ class Challenge {
 					'sessionMayExpired'    => __( 'Your session may have expired.', 'wp-sudo' ),
 					'startOver'            => __( 'Start over', 'wp-sudo' ),
 					'twoFactorRequired'    => __( 'Password confirmed. Two-factor authentication required.', 'wp-sudo' ),
-					'replayingAction'      => __( 'Replaying your action…', 'wp-sudo' ),
 					// #322: most responses do not replay — the action is not resumed and
 					// the user returns to re-perform it. Announcing a replay there would
 					// tell screen-reader users the opposite of what happened.
@@ -316,9 +319,7 @@ class Challenge {
 		// Compute cancel URL — mirrors enqueue_assets() logic.
 		$default_url = is_network_admin() ? network_admin_url() : admin_url();
 		$return_url  = isset( $_GET['return_url'] ) && is_string( $_GET['return_url'] ) ? esc_url_raw( wp_unslash( $_GET['return_url'] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Routing data only; sanitized in helper.
-		$cancel_url  = $return_url
-			? wp_validate_redirect( $return_url, $default_url )
-			: $default_url;
+		$cancel_url  = $this->safe_return_target( $return_url, $default_url );
 
 		if ( Sudo_Session::is_active( $user_id ) ) {
 			$this->render_resume_page( $user_id, $stash_key, $cancel_url );
@@ -1020,12 +1021,13 @@ class Challenge {
 		</div>
 		<?php
 		/*
-		 * #322 v1: this auto-submit branch is DORMANT — build_replay_response_data()
-		 * fails closed and can no longer return `replay`/`url`/`post_data`, so only
-		 * the `else` redirect below runs. It is retained (not deleted) because #322 v2
-		 * (origin-bound replay) re-activates it for the same-browser case, where the
-		 * stash's binding cookie proves the replaying browser is the one that created
-		 * it. If v2 is abandoned, delete this branch and render_hidden_fields().
+		 * This auto-submit branch is DEAD. `build_replay_response_data()` can no
+		 * longer return `replay`/`url`/`post_data` — automatic replay was removed in
+		 * 4.9.0 (#322) — so the form below is never populated and never submitted.
+		 *
+		 * It is retained for one release rather than deleted so the security change
+		 * stays a small, reviewable diff. It goes in 4.10 with the rest of the dormant
+		 * machinery. Do NOT read its presence as evidence that replay still happens.
 		 */
 		?>
 		<?php if ( ! empty( $data['replay'] ) && ! empty( $data['url'] ) ) : ?>
@@ -1130,6 +1132,84 @@ class Challenge {
 		}
 
 		return implode( ', ', $parts );
+	}
+
+	/**
+	 * Reduce a requester-supplied return URL to a destination that cannot act.
+	 *
+	 * `return_url` arrives in `$_GET` and is therefore chosen by whoever built the
+	 * link. `wp_validate_redirect()` only proves same host, which is not enough: a
+	 * same-host admin URL carrying an action and a valid nonce **executes**. The
+	 * attacker this release is about holds a cloned session cookie and can mint that
+	 * nonce (a WordPress nonce derives from the session token, not from anything
+	 * browser-specific — GB-NONCE-TOKEN), so `plugins.php?action=deactivate&…` is a
+	 * live destination for them.
+	 *
+	 * Removing the automatic navigation was not sufficient. The Continue and Cancel
+	 * anchors still pointed here, so the attack survived as one click — on a button
+	 * labelled **Cancel**, which is worse than an honest one, because the user
+	 * believes they are declining.
+	 *
+	 * The query is where the effect lives (action + nonce), so it is dropped and the
+	 * bare screen re-validated. What remains is a page the user can look at.
+	 *
+	 * @param string      $return_url Requester-supplied return URL, possibly empty.
+	 * @param string|null $fallback   Neutral fallback.
+	 * @return string Same-host screen URL with no query, or the neutral fallback.
+	 */
+	private function safe_return_target( string $return_url, ?string $fallback ): string {
+		$fallback = is_string( $fallback ) ? $fallback : '';
+
+		if ( '' === $return_url ) {
+			return $fallback;
+		}
+
+		$validated = wp_validate_redirect( $return_url, $fallback );
+		$query_pos = strpos( $validated, '?' );
+
+		if ( false === $query_pos ) {
+			return $this->is_handler_endpoint( $validated ) ? $fallback : $validated;
+		}
+
+		$screen = substr( $validated, 0, $query_pos );
+		$query  = substr( $validated, $query_pos + 1 );
+
+		if ( '' === $screen || $this->is_handler_endpoint( $screen ) ) {
+			return $fallback;
+		}
+
+		// Strip the dispatch and the proof, keep the rest. A destructive wp-admin GET
+		// needs BOTH an `action` to dispatch on and a nonce to survive
+		// check_admin_referer(), so removing them defangs the URL while leaving
+		// benign navigation state intact — `tab=access`, `page=…`, paging and
+		// filters, which users legitimately expect Cancel to return them to.
+		//
+		// A denylist is the wrong shape in general; it is right here because the two
+		// things being removed are exactly the two WordPress requires to execute a
+		// GET action, and an allowlist would silently break third-party screens.
+		$kept = array();
+
+		foreach ( explode( '&', $query ) as $pair ) {
+			if ( '' === $pair ) {
+				continue;
+			}
+
+			$name = strtolower( rawurldecode( explode( '=', $pair, 2 )[0] ) );
+
+			if ( 'action' === $name || 'action2' === $name ) {
+				continue;
+			}
+
+			if ( 'nonce' === $name || 0 === strpos( $name, '_wpnonce' ) || 0 === strpos( $name, '_ajax_nonce' ) ) {
+				continue;
+			}
+
+			$kept[] = $pair;
+		}
+
+		$rebuilt = $kept ? $screen . '?' . implode( '&', $kept ) : $screen;
+
+		return wp_validate_redirect( $rebuilt, $fallback );
 	}
 
 	/**
@@ -1262,10 +1342,20 @@ class Challenge {
 		 * #322 — automatic replay is DISABLED, unconditionally.
 		 *
 		 * The release invariant: after reauthentication, WP Sudo never automatically
-		 * executes a previously intercepted server-side request. Every method, every
-		 * rule, every surface. There is no eligibility test here because there is no
-		 * eligibility question — this method has no branch that can return a replay
-		 * instruction, which is the whole guarantee and is verifiable by reading it.
+		 * executes a previously intercepted **server-stashed** request. Every method,
+		 * every rule, every admin surface that stashes. There is no eligibility test
+		 * here because there is no eligibility question — this method has no branch
+		 * that can return a replay instruction, which is the whole guarantee and is
+		 * verifiable by reading it.
+		 *
+		 * SCOPE, because the wording matters: this covers requests the SERVER
+		 * stashed. The block editor's in-tab retry is not an exception to it —
+		 * `handleSudoRequired()` re-dispatches only `result.isOwner`, the request the
+		 * user actioned in that tab moments earlier, which never left the browser and
+		 * was never stored anywhere an attacker could reach. A concurrent non-owner
+		 * rejection is explicitly not re-dispatched. What made the stash a confused
+		 * deputy was that someone else could plant one; nobody can plant a click in
+		 * your editor tab.
 		 *
 		 * This replaces a per-request eligibility check (a `__Host-` binding cookie
 		 * plus a confirmation naming the target). That approach was sound in outline
@@ -1277,18 +1367,26 @@ class Challenge {
 		 * answering. Removing the primitive makes every one of those cases moot
 		 * rather than individually correct, and removal fails closed.
 		 *
-		 * The dead machinery — `may_replay_bound_stash()`, the binding cookie, the
-		 * captured target used for eligibility — is deliberately left in place and
-		 * uncalled for this release, so the security change is one unreachable
-		 * branch rather than an architectural deletion. It is removed in 4.10.
+		 * Most of the dead machinery — the binding cookie, the captured target once
+		 * used for eligibility — is deliberately left in place and uncalled for this
+		 * release, so the security change stays small and reviewable rather than
+		 * becoming an architectural deletion. It is removed in 4.10.
+		 *
+		 * One exception: `may_replay_bound_stash()` IS deleted here, because PHPStan
+		 * level 6 rejects an unused private method and the project forbids
+		 * suppressing that error. Left-in-place was the intent; the gate decided.
 		 */
 		$refusal_reason = 'replay_disabled';
 
 		if ( ! $credential_verified ) {
-			// The lure footprint: a stash released by someone who already held an
-			// active session rather than by the browser that created it. Worth
-			// distinguishing because it is the only reason here an operator would
-			// alert on — `replay_disabled` is now the ordinary case.
+			// The stash was released without a credential verified on THIS request.
+			// Two things produce that and the server cannot tell them apart: a
+			// legitimate resume (the session was activated in another tab, and this
+			// stale challenge is being cleaned up), and a lure that landed on a
+			// session-holder. Both look identical from here, so this reason is
+			// recorded as what it is — an active-session release — and NOT as
+			// evidence of an attack. Alerting on it alone produces false positives
+			// on ordinary multi-tab use; correlate with other signals instead.
 			$refusal_reason = 'no_credential_this_request';
 		}
 
@@ -1330,11 +1428,14 @@ class Challenge {
 		 *                        - `replay_disabled` — the ordinary case. Replay is
 		 *                          off; there is nothing to be eligible for.
 		 *                        - `no_credential_this_request` — the stash was
-		 *                          released without a credential verified on this
-		 *                          request, i.e. by someone who already held an
-		 *                          active session rather than by the browser that
-		 *                          created it. This is the lure footprint and the
-		 *                          only value here worth alerting on.
+		 *                          released by a request that verified no credential,
+		 *                          i.e. the user already held an active session.
+		 *                          **Not on its own evidence of an attack.** A
+		 *                          session activated in another tab produces this on
+		 *                          a perfectly ordinary cleanup, and so does a lure
+		 *                          that landed on a session-holder; the server cannot
+		 *                          distinguish them. Treat it as a correlation
+		 *                          signal, not an alert.
 		 */
 		do_action( 'wp_sudo_replay_refused', $user_id, $stash['rule_id'] ?? '', $refusal_reason );
 

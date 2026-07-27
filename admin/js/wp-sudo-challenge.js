@@ -304,12 +304,10 @@
 	 * it to screen readers before performing the redirect or form submit.
 	 */
 	function handleReplay(data) {
-		// #322: only say "replaying" when something is actually being replayed. Most
-		// responses now carry a plain redirect (the action is NOT resumed), and
-		// announcing a replay there tells screen-reader users the opposite of what
-		// happened — the one cohort that cannot see the notice on the next page.
-		var willReplay = !!(data && (data.replay || data.replaying));
-		var message = willReplay ? strings.replayingAction : strings.returningToPage;
+		// #322: nothing is ever replayed, so the message is always the honest one.
+		// A "replaying" announcement would tell screen-reader users the opposite of
+		// what happened — the one cohort that cannot see the notice on the next page.
+		var message = strings.returningToPage;
 
 		loadingOverlay.hidden = false;
 		var srOnly = loadingOverlay.querySelector('.wp-sudo-sr-only');
@@ -327,57 +325,32 @@
 			return;
 		}
 
-		// Simple redirect for GET or when no replay data.
-		if (data.redirect && !data.replay) {
+		// The server's chosen landing. It is the only destination this function
+		// honours, and the server computes it with the effect-bearing query stripped
+		// and re-validated same-origin. `data.replay` is deliberately not consulted:
+		// see below.
+		if (data.redirect) {
 			window.location.href = data.redirect;
 			return;
 		}
 
-		// POST replay: build and auto-submit a hidden form.
-		if (data.replay && data.url) {
-			var form = document.createElement('form');
-			form.method = data.method || 'POST';
-			form.action = data.url;
-			form.style.display = 'none';
-
-			// Add POST fields.
-			var postData = data.post_data || {};
-			appendFields(form, postData, '');
-
-			document.body.appendChild(form);
-
-			// Use the prototype method because stashed POST data may include
-			// a field named "submit" which shadows the native form.submit().
-			HTMLFormElement.prototype.submit.call(form);
-			return;
-		}
+		// #322: there is NO client-side replay branch, deliberately.
+		//
+		// This function used to build a hidden form from `data.replay`/`data.url`/
+		// `data.post_data` and auto-submit it via
+		// HTMLFormElement.prototype.submit(). The server no longer emits those keys,
+		// so that engine was dormant — but dormant by restraint, in one place, with
+		// no test on this side of the wire at all. Anything that ever emitted those
+		// keys again (a regression, a merge that reverts one PHP method, a
+		// third-party AJAX handler answering this endpoint) would have been executed
+		// faithfully, with no second control.
+		//
+		// The invariant is now enforced on both sides: the server cannot ask for a
+		// replay, and the client would not perform one if asked. Removing the gadget
+		// is what makes that true rather than merely currently-unreachable.
 
 		// Fallback: just go to the dashboard.
 		window.location.href = window.location.origin + '/wp-admin/';
-	}
-
-	/**
-	 * Recursively append hidden inputs to a form.
-	 *
-	 * Handles nested arrays using PHP bracket notation (e.g. "checked[]").
-	 */
-	function appendFields(form, data, prefix) {
-		var keys = Object.keys(data);
-		for (var i = 0; i < keys.length; i++) {
-			var key = keys[i];
-			var value = data[key];
-			var name = prefix ? prefix + '[' + key + ']' : key;
-
-			if (typeof value === 'object' && value !== null) {
-				appendFields(form, value, name);
-			} else {
-				var input = document.createElement('input');
-				input.type = 'hidden';
-				input.name = name;
-				input.value = value;
-				form.appendChild(input);
-			}
-		}
 	}
 
 	// ── Escape key — announce then navigate to cancel URL ────────────

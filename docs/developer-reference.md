@@ -45,8 +45,11 @@ is present, the user can still reauthenticate but the POST body is not replayed
 automatically. Use `post_mode => 'none'` for uploads, file-editor saves, or
 other requests that cannot be safely reconstructed from POST fields alone.
 
-**Nothing is replayed after reauthentication (#322, 4.9.0).** Automatic replay was
-removed outright — every method, every rule, every surface. A gated request is
+**A server-stashed request is never replayed after reauthentication (#322, 4.9.0).**
+Automatic replay was removed outright for every method, every rule and every admin
+surface that stashes. This is scoped to requests the *server* stashed: the block
+editor's in-tab retry re-dispatches the request the user actioned in that tab moments
+earlier, which never left the browser and which nobody else can plant. A gated request is
 stashed so the challenge can name what is being authorised, and the stash is then
 **consumed, never executed**: the user is returned to the screen the request came
 from, holding the sudo session they just earned, to re-issue the action themselves.
@@ -646,10 +649,13 @@ do_action( 'wp_sudo_action_replayed', int $user_id, string $rule_id ); // dorman
 //
 // This is NOT limited to the post-reauthentication path: it also fires from the
 // already-active-session resume paths, where no credential is presented and the
-// reason is no_credential_this_request. That reason is the one worth alerting on
-// and the easiest to dismiss as noise: it is the footprint of a lure that landed
-// on a session-holder and was REFUSED. may_replay_bound_stash() rejects on a
-// missing credential before any other check, so nothing executed — it is not a
+// reason is no_credential_this_request. That reason means only that no credential
+// was verified on the releasing request — an ordinary multi-tab resume produces it
+// just as a lure landing on a session-holder does, and the server cannot tell them
+// apart. Correlate it; do not alert on it alone.
+// on a session-holder — but ALSO by an ordinary resume when the session was
+// activated in another tab. The server cannot tell those apart, so correlate
+// rather than alert. Nothing executes on any path: replay is removed.
 // live hole — but the attempt is visible nowhere else. Fires at most once per
 // stash (the stash is consumed before the hook runs).
 do_action( 'wp_sudo_replay_refused', int $user_id, string $rule_id, string $reason );
