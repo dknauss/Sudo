@@ -93,34 +93,6 @@ async function wpCli( args: string[] ): Promise< string > {
     return stdout;
 }
 
-/** Read the whole settings option as JSON, or '' when it has never been saved. */
-async function captureSettings(): Promise< string > {
-    try {
-        return ( await wpCli( [ 'wp', 'option', 'get', 'wp_sudo_settings', '--format=json' ] ) ).trim();
-    } catch {
-        return '';
-    }
-}
-
-/** Set only cli_policy, preserving every other stored key. */
-async function setCliPolicy( policy: string ): Promise< void > {
-    const current = await captureSettings();
-    const settings = current ? JSON.parse( current ) : {};
-    settings.cli_policy = policy;
-    await wpCli( [
-        'wp', 'option', 'update', 'wp_sudo_settings', JSON.stringify( settings ), '--format=json',
-    ] );
-}
-
-/** Put the option back exactly as it was — including not existing at all. */
-async function restoreSettings( original: string ): Promise< void > {
-    if ( '' === original ) {
-        await wpCli( [ 'wp', 'option', 'delete', 'wp_sudo_settings' ] );
-        return;
-    }
-    await wpCli( [ 'wp', 'option', 'update', 'wp_sudo_settings', original, '--format=json' ] );
-}
-
 /** Drop only the sudo cookies, leaving the login session intact. */
 async function clearSudoCookies( page: Page ): Promise< void > {
     const context = page.context();
@@ -201,43 +173,22 @@ test.describe( 'REST gate', () => {
     let targetId = '';
     let appPasswordAuth = '';
     let appPasswordRaw = '';
-    let originalSettings = '';
 
     test.beforeAll( async () => {
         await installNonceMuPlugin();
 
-        // Creating the fixture user is itself a gated action: under the default
-        // Limited CLI policy the plugin refuses it with "This operation (Create new
-        // user) requires sudo and cannot be performed via WP-CLI." That is the gate
-        // working, so the fixture asks for the exemption explicitly and hands it back,
-        // rather than the suite quietly running against a weakened policy.
-        //
-        // The whole option is captured and restored rather than patched: `cli_policy`
-        // has no stored value until someone saves the settings screen — the default
-        // lives in PHP — so `option patch update` fails with "No data exists for key".
-        // Capturing also restores the ORIGINAL value instead of assuming it was
-        // `limited`, which would silently rewrite a site configured otherwise.
-        originalSettings = await captureSettings();
-        await setCliPolicy( 'unrestricted' );
+        // The mu-plugin above creates the probe target at `init`; look it up rather
+        // than creating it here. `wp user create` is refused by the gate on the CLI
+        // surface, and the policy cannot be relaxed from CLI either because changing
+        // WP Sudo's settings is gated on that same surface — the gate cannot be
+        // disarmed from the surface it protects.
+        targetId = ( await wpCli( [
+            'wp', 'user', 'get', E2E_TARGET_LOGIN, '--field=ID',
+        ] ) ).trim();
 
-        try {
-            // Destructive probes never point at the shared admin. If the gate regresses,
-            // REST-01 would otherwise CHANGE the admin password before its assertion fails —
-            // locking every later test out of the site and breaking the wp-env credential.
-            // A disposable subscriber absorbs that instead, and is deleted in afterAll.
-            targetId = ( await wpCli( [
-                'wp', 'user', 'create', E2E_TARGET_LOGIN, 'rest-gate-target@example.com',
-                '--role=subscriber', '--porcelain',
-            ] ) ).trim();
-
-            appPasswordRaw = ( await wpCli( [
-                'wp', 'user', 'application-password', 'create', 'admin', 'rest-gate-e2e', '--porcelain',
-            ] ) ).trim();
-        } finally {
-            // Restored in a finally so a failed fixture cannot leave the CLI surface
-            // unrestricted for every spec that runs after this one.
-            await restoreSettings( originalSettings );
-        }
+        appPasswordRaw = ( await wpCli( [
+            'wp', 'user', 'application-password', 'create', 'admin', 'rest-gate-e2e', '--porcelain',
+        ] ) ).trim();
 
         // Application Password for the Authorization-header half of the Apache lane.
         // Created for the ADMIN, because the assertion is that a non-gated read
@@ -247,17 +198,9 @@ test.describe( 'REST gate', () => {
 
     test.afterAll( async () => {
         await removeNonceMuPlugin();
-        // Deleting a user is gated for the same reason creating one is.
-        const before = await captureSettings();
-        await setCliPolicy( 'unrestricted' );
-        try {
-            if ( targetId ) {
-                await wpCli( [ 'wp', 'user', 'delete', targetId, '--yes' ] );
-            }
-            await wpCli( [ 'wp', 'user', 'application-password', 'delete', 'admin', '--all' ] );
-        } finally {
-            await restoreSettings( before );
-        }
+        // The probe target is left in place: deleting a user is gated on this surface
+        // too, and it is a subscriber owned by the fixture mu-plugin, removed with it.
+        await wpCli( [ 'wp', 'user', 'application-password', 'delete', 'admin', '--all' ] );
     } );
 
     test.beforeEach( async ( { page, visitAdminPage } ) => {
