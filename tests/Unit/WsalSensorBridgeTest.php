@@ -69,6 +69,7 @@ class WsalSensorBridgeTest extends TestCase {
 			'wp_sudo_action_allowed',
 			'wp_sudo_action_passed',
 			'wp_sudo_action_replayed',
+			'wp_sudo_replay_refused',
 			'wp_sudo_capability_tampered',
 			'wp_sudo_policy_preset_applied',
 		);
@@ -107,6 +108,40 @@ class WsalSensorBridgeTest extends TestCase {
 		$this->assertSame( 42, $event[1]['user_id'] ?? null );
 		$this->assertSame( 'plugin.activate', $event[1]['rule_id'] ?? null );
 		$this->assertSame( 'cli', $event[1]['surface'] ?? null );
+	}
+
+	/**
+	 * Test a refused replay maps to its own WSAL event carrying the reason.
+	 *
+	 * Distinct event_id from wp_sudo_action_replayed (1900009) so alerting can
+	 * subscribe to a refusal — the #322 fail-closed signal — separately from a
+	 * successful replay.
+	 */
+	public function test_03b_bridge_maps_replay_refused_with_reason(): void {
+		$this->define_wsal_alert_manager_stub();
+
+		$callbacks = array();
+		Functions\when( 'add_action' )->alias(
+			static function ( string $hook, callable $callback ) use ( &$callbacks ): bool {
+				$callbacks[ $hook ] = $callback;
+				return true;
+			}
+		);
+
+		include __DIR__ . '/../../bridges/wp-sudo-wsal-sensor.php';
+
+		$this->assertArrayHasKey( 'wp_sudo_replay_refused', $callbacks );
+
+		$callbacks['wp_sudo_replay_refused']( 42, 'user.delete', 'proof_mismatch' );
+
+		$this->assertNotEmpty( \WSAL\Controllers\Alert_Manager::$events );
+
+		$event = \WSAL\Controllers\Alert_Manager::$events[0];
+		$this->assertSame( 1900019, $event[0] );
+		$this->assertSame( 'wp_sudo_replay_refused', $event[1]['hook'] ?? null );
+		$this->assertSame( 42, $event[1]['user_id'] ?? null );
+		$this->assertSame( 'user.delete', $event[1]['rule_id'] ?? null );
+		$this->assertSame( 'proof_mismatch', $event[1]['reason'] ?? null );
 	}
 
 	/**

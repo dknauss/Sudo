@@ -1300,16 +1300,27 @@ class Challenge {
 		$this->clear_binding_cookie();
 
 		/**
-		 * Fires when a stashed action was NOT replayed after reauthentication.
+		 * Fires when a stashed action was discarded instead of replayed.
 		 *
 		 * The counterpart to `wp_sudo_action_replayed`. Without it the fail-closed
 		 * path is silent, so the case this whole mechanism exists to stop — someone
 		 * completing a reauthentication in a browser that did not start the action —
 		 * leaves no audit trail at all, and looks identical to nothing happening.
 		 *
+		 * NOT limited to the post-reauthentication path. This method also runs from
+		 * `complete_active_session_request()` and `render_resume_page()`, where no
+		 * credential is presented and the reason is `no_credential_this_request`. A
+		 * consumer that assumes every fire follows a password step will misread
+		 * those. They are not filler: when a lured victim already holds a sudo
+		 * session there is no password step, so the #322 confused-deputy attack
+		 * lands on exactly that branch.
+		 *
+		 * Fires at most once per stash — the stash is consumed (deleted) above
+		 * before this point, and a subsequent request finds nothing to refuse.
+		 *
 		 * @since 4.9.0
 		 *
-		 * @param int    $user_id The user who reauthenticated.
+		 * @param int    $user_id The user whose stashed action was discarded.
 		 * @param string $rule_id The rule ID that was gated.
 		 * @param string $reason  Why the replay was refused: no_credential_this_request,
 		 *                        redacted_fields, replay_blocked, incomplete_target,

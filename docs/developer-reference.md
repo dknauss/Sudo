@@ -607,13 +607,20 @@ do_action( 'wp_sudo_action_allowed', int $user_id, string $rule_id, string $surf
 do_action( 'wp_sudo_action_passed', int $user_id, string $rule_id, string $surface ); // Active session (v3.0.0).
 do_action( 'wp_sudo_action_replayed', int $user_id, string $rule_id );
 
-// Fires when a stashed action was NOT replayed after reauthentication (#322).
-// The counterpart to the above: without it the fail-closed path is silent, so a
+// Fires when a stashed action was discarded instead of replayed (#322). The
+// counterpart to the above: without it the fail-closed path is silent, so a
 // reauthentication completed in a browser that did not start the action leaves no
 // audit trail and looks identical to nothing happening. $reason is one of
 // no_credential_this_request, redacted_fields, replay_blocked, incomplete_target,
 // no_binding_minted, no_proof_presented, proof_mismatch, url_altered,
 // insecure_replay_url.
+//
+// This is NOT limited to the post-reauthentication path: it also fires from the
+// already-active-session resume paths, where no credential is presented and the
+// reason is no_credential_this_request. Do not treat those as filler — with no
+// password step involved, that is the branch the confused-deputy attack lands on
+// when the lured victim already holds a sudo session. Fires at most once per
+// stash (the stash is consumed before the hook runs).
 do_action( 'wp_sudo_replay_refused', int $user_id, string $rule_id, string $reason );
 
 // Admin-escalation guard (v4.1.0, opt-in via the wp_sudo_guard_escalation filter,
@@ -826,6 +833,7 @@ Event mapping:
 | `wp_sudo_capability_revoked` | `1900016` |
 | `wp_sudo_gated_actions_missing_builtin_rules` | `1900017` |
 | `wp_sudo_rule_regex_error` | `1900018` |
+| `wp_sudo_replay_refused` | `1900019` |
 
 `wp_sudo_recovery_mode_active` fires on every recovery-mode page load by
 design; the bridge throttles it to one event per user per hour (mirroring

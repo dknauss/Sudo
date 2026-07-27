@@ -205,6 +205,10 @@ class EventRecorderTest extends TestCase {
 			->once()
 			->with( array( Event_Recorder::class, 'on_session_revoked' ), 10, 4 );
 
+		Actions\expectAdded( 'wp_sudo_replay_refused' )
+			->once()
+			->with( array( Event_Recorder::class, 'on_replay_refused' ), 10, 3 );
+
 		new Event_Recorder();
 	}
 
@@ -255,6 +259,7 @@ class EventRecorderTest extends TestCase {
 			'wp_sudo_action_allowed'       => 3,
 			'wp_sudo_action_passed'        => 3,
 			'wp_sudo_action_replayed'      => 2,
+			'wp_sudo_replay_refused'       => 3,
 			'wp_sudo_recovery_mode_active' => 1,
 			'wp_sudo_session_revoked'      => 4,
 			'wp_sudo_role_drift_detected'  => 1,
@@ -307,6 +312,7 @@ class EventRecorderTest extends TestCase {
 			'wp_sudo_action_allowed'       => 3,
 			'wp_sudo_action_passed'        => 3,
 			'wp_sudo_action_replayed'      => 2,
+			'wp_sudo_replay_refused'       => 3,
 			'wp_sudo_recovery_mode_active' => 1,
 			'wp_sudo_session_revoked'      => 4,
 			'wp_sudo_role_drift_detected'  => 1,
@@ -517,6 +523,58 @@ class EventRecorderTest extends TestCase {
 		$context = is_string( $data['context'] ) ? json_decode( $data['context'], true ) : $data['context'];
 		$this->assertIsArray( $context );
 		$this->assertSame( 7, $context['revoked_by'] );
+
+		$this->restoreWpdb();
+	}
+
+	/**
+	 * Test on_replay_refused() records the refusal reason in the surface column.
+	 *
+	 * The reason follows on_session_revoked()'s precedent and lands in `surface`
+	 * rather than only in context. See Event_Recorder::on_replay_refused() for
+	 * why: the activity widget's SELECT omits the context column.
+	 *
+	 * @return void
+	 */
+	public function testOnReplayRefusedRecordsReasonAsSurface(): void {
+		$this->setUpFakeWpdb();
+
+		Event_Recorder::on_replay_refused( 42, 'user.delete', 'proof_mismatch' );
+
+		$this->assertCount( 1, $this->fake_wpdb->inserts );
+
+		$data = $this->fake_wpdb->inserts[0]['data'];
+		$this->assertSame( 42, $data['user_id'] );
+		$this->assertSame( 'replay_refused', $data['event'] );
+		$this->assertSame( 'user.delete', $data['rule_id'] );
+		$this->assertSame( 'proof_mismatch', $data['surface'] );
+
+		$context = is_string( $data['context'] ) ? json_decode( $data['context'], true ) : $data['context'];
+		$this->assertIsArray( $context );
+		$this->assertSame( 'proof_mismatch', $context['reason'] );
+
+		$this->restoreWpdb();
+	}
+
+	/**
+	 * Test the no-credential refusal is recorded like any other.
+	 *
+	 * `no_credential_this_request` is NOT routine noise to be filtered out: it is
+	 * the branch the #322 confused-deputy attack lands on when the lured victim
+	 * already holds a sudo session, so no password step occurs. Dropping or
+	 * throttling it would blind the audit trail to the most dangerous case. The
+	 * stash is consumed (deleted) before the hook fires, so a refusal is bounded
+	 * to one per gated interception — each of which already writes a row.
+	 *
+	 * @return void
+	 */
+	public function testOnReplayRefusedRecordsTheNoCredentialReason(): void {
+		$this->setUpFakeWpdb();
+
+		Event_Recorder::on_replay_refused( 9, 'plugin.activate', 'no_credential_this_request' );
+
+		$this->assertCount( 1, $this->fake_wpdb->inserts, 'the no-credential refusal must not be filtered out.' );
+		$this->assertSame( 'no_credential_this_request', $this->fake_wpdb->inserts[0]['data']['surface'] );
 
 		$this->restoreWpdb();
 	}
