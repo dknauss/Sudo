@@ -1707,15 +1707,26 @@ C2. REDUNDANT MEMORY DUPLICATING CLAUDE.md
            the symbol column into the claim column, leaving `PinnedItemsSlot` resolving
            uniquely at L15. That row is the one place where the "move the disambiguation out
            of the anchor column" remedy is demonstrated rather than proposed. The rest are
-           screened, not audited, and this entry no longer prints how many. That figure was
-           wrong in four consecutive reviews — eight, six, five, four — three times because
-           it was carried forward instead of re-derived against the tree being committed,
-           and once because a new row landed on `main` from #444 while the correction was
-           being written. A count in prose ages exactly as badly as the state it describes,
+           screened, not audited, and this entry no longer prints how many. Three published
+           figures were wrong — eight, five, four — two carried forward instead of
+           re-derived against the tree being committed, one overtaken when #444 landed a new
+           row on `main` mid-correction. A fourth, six, was **correct when it was written**
+           and false within the hour, once #443 squash-merged and the branch was rebuilt on
+           top of #448. That one is the entry's best evidence and an earlier draft spent it
+           by miscounting it as an error: a number can be accurate, checked, and published,
+           and still be a lie by the time it is read. A count in prose ages exactly as badly as the state it describes,
            and this one describes a set other sessions are changing hourly. Re-derive it
            against whatever tree you are looking at: for each row take every backticked span
-           in the symbol column, find its occurrences in the fetched file, and flag any span
-           with more than one occurrence at or before the cited line.
+           in the symbol column, search the fetched file **the way `bin/verify-sources.sh`
+           searches it** — `symbol_needles()` expands `foo()` to `function foo(` and
+           `Class::method()` to `class X` plus `function method(`, never the literal form —
+           and flag any span with more than one occurrence at or before the cited line.
+           Searching the spans literally instead adds `GB-REFERER-SELFPOST`, whose
+           `wp_get_referer()` matches its own call site at L1965 as well as the declaration
+           at L1986. That is not a finding, it is the documentation-anchoring match
+           `symbol_needles()` exists to refuse, and an earlier draft of this very sentence
+           prescribed it — which would have handed the next reader a sixth row and a reason
+           to correct an entry that was right.
            **That screen is not a defect list, and reading it as one would repeat the error
            it exists to prevent.** `GB-OPTIONS-GENERAL-MULTISITE`, added by #444 during this
            PR, trips it on `$allowed_options['general']` at L187, L190 and L193 — but its
@@ -1856,8 +1867,8 @@ C2. REDUNDANT MEMORY DUPLICATING CLAUDE.md
            one self-crediting sentence in the entry was the one that did not survive being
            checked.
    Source: This repository and this session's shell, 2026-07-27. `echo $SHELL` and the
-           environment block both report zsh; the same command under `bash -c` splits and
-           returns the 5.7 KB.
+           environment block both report zsh; the same comparison under `bash -c` splits and
+           returns 80 bytes in the `--stat` form shown, 5.7 KB without it.
    Notes:  The same shape as #66 — a search that returns nothing for a reason unrelated to
            the question — but a different mechanism, and a more portable one: #66 needed a
            squash merge and a force-push to arise, this needs only a variable and the wrong
