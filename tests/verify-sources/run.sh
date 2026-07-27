@@ -581,6 +581,19 @@ run
 expect_rc 1
 expect_out "two-factor-ecosystem.md"
 
+# 12i. The self-link filter must bound the repository NAME, not just its prefix. A
+#       citation of a different repo whose name merely starts with the same string is a
+#       third-party source and must still fail.
+start "a repo whose name merely starts with Sudo is not a self-link"
+new_sandbox selflinkprefix
+registry "$HDR
+| GB-ONE | $URL | 2 | needle here | \`x\` | a claim |"
+fixture "$URL" 200 0 $'x\nneedle here'
+printf 'see https://github.com/dknauss/Sudo-tools/blob/main/z.php\n' > "$SANDBOX/docs/othersudo.md"
+run
+expect_rc 1
+expect_out "othersudo.md"
+
 # 13. Non-raw host URL (rendered blob) is rejected.
 start "rendered blob url rejected"
 new_sandbox blob
@@ -711,6 +724,28 @@ new_sandbox jsxopen
 registry "$HDR
 | GB-FN | $URL | 4 | needle here | \`<Foo>\` | a claim |"
 fixture "$URL" 200 0 $'x\n<Foo scope={ scope }>\ny\nneedle here'
+run
+expect_rc 0
+
+# 15h. A qualified anchor asserts a method IN A NAMED CLASS. Searching only for
+#      `function method(` drops the identity the qualification exists to pin: another
+#      class in the same file declaring the same method name before the snippet would
+#      satisfy it. Both the class and the method declaration must resolve.
+start "qualified anchor is not satisfied by the same method on another class"
+new_sandbox qualwrongclass
+registry "$HDR
+| GB-FN | $URL | 6 | needle here | \`Right_Class::do_thing()\` | a claim |"
+fixture "$URL" 200 0 $'class Other_Class {\n\tfunction do_thing( $a ) {}\n}\nx\ny\nneedle here'
+run
+expect_rc 1
+expect_out "enclosing symbol"
+
+# 15i. And the qualified form still passes when both halves are genuinely present.
+start "qualified anchor passes when class and method both resolve"
+new_sandbox qualok
+registry "$HDR
+| GB-FN | $URL | 5 | needle here | \`Right_Class::do_thing()\` | a claim |"
+fixture "$URL" 200 0 $'class Right_Class {\n\tfunction do_thing( $a ) {}\n}\ny\nneedle here'
 run
 expect_rc 0
 

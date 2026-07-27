@@ -278,6 +278,42 @@ while IFS= read -r raw_row; do
 # IS the claim rather than a proxy for it, and the source writes the element open with
 # props (`<Foo scope={ x }>`) while the row writes it closed. Matching `<Foo` is therefore
 # exact for what is asserted, where matching `foo(` was not.
+# A QUALIFIED anchor (`Class::method()`) names an identity, not just a method. Searching
+# only for `function method(` throws away the half that does the identifying: another class
+# in the same file declaring the same method name above the snippet would satisfy it, which
+# is precisely the miscitation the qualification exists to prevent. So a qualified span is
+# expanded into TWO required anchors — the class declaration and the method declaration —
+# and the AND semantics of the anchor loop then require both. Verified against trunk: all
+# five qualified anchors in the registry have a `class X` declaration at or before their
+# cited line, so this tightens without reddening a row.
+#
+# The limit, stated rather than implied away: `class X` is a fixed-string PREFIX, so
+# `class Foo` is also satisfied by `class Foo_Helper`. It is not bounded here because
+# anchors are matched with `grep -F` deliberately — 26 of the 48 anchors carry regex
+# metacharacters, and `grep -E` does not merely reinterpret them, it hard-errors:
+# GB-META-SHORTCIRCUIT's anchor is the unbalanced `function update_metadata(`, which -E
+# rejects outright. Bounding this needle is not a matter of flipping that flag for one
+# form either: the needle loop runs a single shared `grep -nF` over every form a symbol
+# produces, so it would mean branching the grep mode per needle. A trailing space
+# (`class X `) would bound it without touching grep, but trades a false pass
+# for a false fail on `class X{` formatting, which is its own decision with its own
+# red-on-arrival question. The residual is strictly narrower than the hole it closes: the
+# method name alone identified nothing, whereas this fails only when a longer class name
+# shares the anchor's prefix.
+expand_anchor_spans() {
+	while IFS= read -r a; do
+		[ -n "$a" ] || continue
+		case "$a" in
+			*'::'*'()')
+				printf 'class %s\n' "${a%%::*}"
+				m="${a##*::}"
+				printf 'function %s(\n' "${m%()}"
+				;;
+			*) printf '%s\n' "$a" ;;
+		esac
+	done
+}
+
 symbol_needles() {
 	local raw="$1"
 	case "$raw" in
@@ -391,7 +427,7 @@ is_unanchored_legacy() {
 	printf '%s\n' "$UNANCHORED_LEGACY_IDS" | grep -qxF -- "$1"
 }
 
-	symbol_anchors="$(printf '%s' "$symbol_raw" | grep -oE '`[^`]+`' | tr -d '`' || true)"
+	symbol_anchors="$(printf '%s' "$symbol_raw" | grep -oE '`[^`]+`' | tr -d '`' | expand_anchor_spans || true)"
 	# Exempt rows skip the ANCHOR comparison only. Everything else — fetch, snippet
 	# presence, line drift — still runs. `continue` here would turn a narrow exemption
 	# into a total one, so a legacy row whose upstream file vanished would pass in
@@ -512,10 +548,13 @@ is_unanchored_legacy() {
 		anchor_line="$anchor_best"
 		anchor_count=$((anchor_count + 1))
 		if [ -n "$anchor_line" ] && [ "$anchor_line" -le "$actual_line" ]; then
-			anchor_seen="$anchor_seen $anchor(L$anchor_line)"
+			# Bracketed, not parenthesised: an anchor may itself end in `(`
+			# (`function foo(`), and `foo((L2)` reads as a typo on the one line a
+			# reader lands on when the check fires.
+			anchor_seen="$anchor_seen $anchor [L$anchor_line]"
 		else
 			anchor_ok=0
-			anchor_missing="$anchor_missing $anchor${anchor_line:+(L$anchor_line, after the snippet)}"
+			anchor_missing="$anchor_missing $anchor${anchor_line:+ [L$anchor_line, after the snippet]}"
 		fi
 	done <<< "$symbol_anchors"
 	# No span examined at all cannot count as satisfied.
@@ -706,8 +745,13 @@ orphan_counts="$(while IFS= read -r record; do
 	# this scan starts at the host, so matching from the start of the string is exact.
 	# No apostrophes in this comment: bash 3.2 mis-parses a quote inside a comment inside $( ).
 	case "$(printf '%s' "$orphan_url" | tr '[:upper:]' '[:lower:]')" in
-		(github.com/dknauss/sudo*|raw.githubusercontent.com/dknauss/sudo*) continue ;;
-		(github.com/dknauss%2fsudo*|raw.githubusercontent.com/dknauss%2fsudo*) continue ;;
+		# The repo NAME must end at a slash or at the string end. A trailing * alone also
+		# swallows github.com/dknauss/sudo-tools, a DIFFERENT repository, which would then
+		# be dropped as our own instead of failing as an unregistered third-party source.
+		(github.com/dknauss/sudo|github.com/dknauss/sudo/*) continue ;;
+		(raw.githubusercontent.com/dknauss/sudo|raw.githubusercontent.com/dknauss/sudo/*) continue ;;
+		(github.com/dknauss%2fsudo|github.com/dknauss%2fsudo/*) continue ;;
+		(raw.githubusercontent.com/dknauss%2fsudo|raw.githubusercontent.com/dknauss%2fsudo/*) continue ;;
 	esac
 
 	# Files that carry citation patterns for reasons other than making a claim.
