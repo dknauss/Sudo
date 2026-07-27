@@ -1221,6 +1221,94 @@ class ChallengeTest extends TestCase
 			$js,
 			'The single navigation helper must exist.'
 		);
+
+		// Pin the BODY, not just the call sites. An independent review mutated
+		// `return config.neutralUrl || …` to `return config.cancelUrl || …` and every
+		// assertion above still held — the call-site count was unchanged and the
+		// forbidden literal was `return`, not `window.location.href =`. That is the
+		// one line deciding where all three success branches go, and no browser test
+		// can catch it either: `cancelUrl` and `neutralUrl` are the same PHP variable
+		// on every request, so the mutant is observationally equivalent end to end.
+		$body = (string) preg_replace(
+			'/^.*function neutralDestination\(\)\s*\{(.*?)\}.*$/s',
+			'$1',
+			$js
+		);
+
+		$this->assertStringContainsString(
+			'config.neutralUrl',
+			$body,
+			'neutralDestination() must resolve the server-chosen neutral page.'
+		);
+		$this->assertStringNotContainsString(
+			'cancelUrl',
+			$body,
+			'neutralDestination() must not resolve anything on the cancel path.'
+		);
+
+		// Pin the TOTAL number of cancelUrl uses, not just the shape of the ones we
+		// know about. The count assertion above catches a success branch being
+		// REPLACED; it cannot catch one being ADDED — a review mutant that appended a
+		// new `code === "resumed"` branch reading config.cancelUrl left all three
+		// existing calls intact and survived the whole suite. Additions are how this
+		// file will actually grow, so the guard has to bound them.
+		//
+		// The two permitted uses are the Escape-key affordance: its `if` condition and
+		// its assignment. If you are adding a legitimate third, this test is asking
+		// you to justify it in review rather than blocking you.
+		$code = (string) preg_replace('#/\*.*?\*/#s', '', $js);
+		$code = (string) preg_replace('#^\s*//.*$#m', '', $code);
+
+		$this->assertSame(
+			2,
+			substr_count($code, 'config.cancelUrl'),
+			'cancelUrl may be read only by the Escape-key affordance (its condition and '
+				. 'its assignment). A third use means a new navigation path can reach the '
+				. 'cancel value — state why in review.'
+		);
+	}
+
+	/**
+	 * #322: the client-side replay engine must stay removed.
+	 *
+	 * `handleReplay()` used to build a hidden form from `data.replay`/`data.url`/
+	 * `data.post_data` and auto-submit it with
+	 * `HTMLFormElement.prototype.submit.call()` — chosen deliberately so a stashed
+	 * field named `submit` could not shadow the method. It is gone.
+	 *
+	 * Nothing asserted that it stays gone: an independent review re-added a working
+	 * branch and the entire suite remained green. The invariant's client half was
+	 * correct by authorship rather than by test, which is the state this release
+	 * exists to stop accepting.
+	 */
+	public function test_challenge_js_contains_no_form_submission_engine(): void
+	{
+		$js = (string) file_get_contents( dirname( __DIR__, 2 ) . '/admin/js/wp-sudo-challenge.js' );
+
+		$this->assertNotSame('', $js);
+
+		// Strip comments first: this asserts about CODE, not prose. The file
+		// deliberately explains what was removed and why, and that explanation is
+		// worth keeping — a future reader who finds no trace of the engine has no
+		// way to know it was a decision rather than an oversight.
+		$code = (string) preg_replace('#/\*.*?\*/#s', '', $js);
+		$code = (string) preg_replace('#^\s*//.*$#m', '', $code);
+
+		foreach (
+			array(
+				'HTMLFormElement.prototype.submit' => 'the shadow-proof auto-submitter',
+				"createElement('form')"            => 'form construction',
+				'appendFields'                     => 'the recursive hidden-input builder',
+				'post_data'                        => 'the stashed request body',
+				'.replay'                          => 'the replay branch selector',
+			) as $needle => $what
+		) {
+			$this->assertStringNotContainsString(
+				$needle,
+				$code,
+				'The challenge script must not reintroduce ' . $what . '.'
+			);
+		}
 	}
 
 	/**

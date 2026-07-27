@@ -1,21 +1,27 @@
 /**
- * Post-challenge landing — LAND-01 through LAND-04
+ * Post-challenge landing — LAND-01 through LAND-05
  *
- * The release invariant has a client half that PHP tests cannot reach:
+ * The release invariant:
  *
  *   No successful challenge automatically navigates to any requester-supplied
  *   destination.
  *
- * `admin/js/wp-sudo-challenge.js` performs the navigation. This repository has no
- * JavaScript unit harness, so a browser test is the only thing that can fail when
- * someone restores `window.location.href = config.cancelUrl` in a success branch —
- * and an independent review demonstrated that exact mutation surviving the entire
- * PHP suite.
+ * The server half is covered by PHP tests. This file covers the CLIENT half, and
+ * covers it in two different ways on purpose, because the obvious way is not
+ * sufficient:
  *
- * Each case supplies an attacker-shaped `return_url` and asserts the browser did
- * NOT go there. The queryless case matters most: an earlier fix filtered `action`
- * and nonce parameters out of `return_url`, which a path-borne custom action
- * sails straight through.
+ * LAND-01..04 plant a hostile `return_url` and assert the browser never lands
+ * there. Those prove the end-to-end behaviour, but they cannot fail for a
+ * client-only regression — the server forces `cancelUrl` to the neutral page
+ * before the client ever sees it, so restoring `config.cancelUrl` in a success
+ * branch still lands on the dashboard. An independent review established that;
+ * an earlier version of this header claimed the opposite and was wrong.
+ *
+ * LAND-05 closes that gap by injecting the hostile value into the localized
+ * config from the browser, before the page script runs. That tests the client's
+ * contract independently of what the server currently supplies — which is the
+ * only way to catch a regression that is dangerous *in combination with* a
+ * future server regression, the combination nothing else tests.
  */
 import { test, expect, activateSudoSession } from '../fixtures/test';
 import type { Page } from '@playwright/test';
@@ -98,6 +104,52 @@ test.describe( 'Post-challenge landing is never requester-supplied', () => {
 
 		const html = await page.content();
 		expect( html ).not.toContain( 'wp-sudo-hostile-landing' );
+	} );
+
+	test( 'LAND-05: a hostile cancelUrl in the config is still never navigated to', async ( {
+		page,
+	} ) => {
+		// Inject before any page script runs. The server currently supplies a neutral
+		// cancelUrl, so without this the client's own contract is untested: a success
+		// branch reading config.cancelUrl would still land on the dashboard and pass.
+		await page.addInitScript( () => {
+			let held: Record< string, unknown > | undefined;
+			Object.defineProperty( window, 'wpSudoChallenge', {
+				configurable: true,
+				set( value: Record< string, unknown > ) {
+					value.cancelUrl = '/wp-admin/options-general.php?page=wp-sudo-hostile-landing';
+					held = value;
+				},
+				get() {
+					return held;
+				},
+			} );
+		} );
+
+		await page.goto( challengeUrl( '/wp-admin/' ) );
+		await expect( page.locator( '#wp-sudo-challenge-password-step' ) ).toBeVisible();
+
+		await page.waitForFunction(
+			() => typeof ( window as Window & { wpSudoChallenge?: unknown } ).wpSudoChallenge !== 'undefined'
+		);
+
+		// Confirm the injection actually took, so a silently-failing setup cannot
+		// masquerade as a passing test.
+		const injected = await page.evaluate(
+			() =>
+				( window as Window & { wpSudoChallenge?: Record< string, unknown > } ).wpSudoChallenge
+					?.cancelUrl
+		);
+		expect( String( injected ) ).toContain( 'wp-sudo-hostile-landing' );
+
+		await page.fill( '#wp-sudo-challenge-password', DEFAULT_PASSWORD );
+
+		await Promise.all( [
+			page.waitForURL( ( url ) => ! /page=wp-sudo-challenge/.test( url.href ), { timeout: 15_000 } ),
+			page.click( '#wp-sudo-challenge-submit' ),
+		] );
+
+		await expect( page ).not.toHaveURL( /wp-sudo-hostile-landing/ );
 	} );
 
 	test( 'LAND-04: cancelling does not reach the requester destination either', async ( { page } ) => {
