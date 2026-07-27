@@ -27,7 +27,7 @@ The sudo session is **only activated after both steps succeed**. A correct passw
 
 The 2FA step is entirely optional. If no 2FA plugin is active or the user has not configured 2FA, the session activates immediately after a successful password.
 
-The same two-step flow is reached through **two surfaces**: the **full-page challenge** (interactive admin and cookie-REST actions, which stash the intercepted request and replay it on success) and the **in-editor modal** (a gated block-editor `apiFetch` that returns `sudo_required`, prompting an in-place password step and — for modal-capable accounts — in-modal 2FA via a server-rendered partial; WebAuthn/push or a throttled/expired second factor falls back to the full-page challenge, and the original request is transparently re-dispatched rather than stashed). The diagram shows both.
+The same two-step flow is reached through **two surfaces**: the **full-page challenge** (interactive admin and cookie-REST actions, which stash the intercepted request and replay it on success — only when the challenge named the whole effect and the same browser returns; see [FAQ](FAQ.md#how-does-sudo-gating-work)) and the **in-editor modal** (a gated block-editor `apiFetch` that returns `sudo_required`, prompting an in-place password step and — for modal-capable accounts — in-modal 2FA via a server-rendered partial; WebAuthn/push or a throttled/expired second factor falls back to the full-page challenge, and the original request is transparently re-dispatched rather than stashed). The diagram shows both.
 
 ```mermaid
 flowchart TD
@@ -68,7 +68,7 @@ When the user submits their password, the JavaScript sends an AJAX request to `w
 2. Validates the password with `wp_check_password()`.
 3. Calls `Sudo_Session::needs_two_factor( $user_id )`.
 
-If 2FA is **not** required, the session activates immediately and the original request is replayed. If the stashed request contained redacted password, token, API-key, or secret fields, WP Sudo redirects the user back instead and asks them to re-enter the secret while the sudo session is active.
+If 2FA is **not** required, the session activates immediately and the original request is replayed — subject to the eligibility conditions in the [FAQ](FAQ.md#how-does-sudo-gating-work): a request the challenge could not fully name is never replayed. If the stashed request contained redacted password, token, API-key, or secret fields, WP Sudo redirects the user back instead and asks them to re-enter the secret while the sudo session is active.
 
 If 2FA **is** required, the server:
 

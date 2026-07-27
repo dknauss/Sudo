@@ -90,7 +90,7 @@ which was a ⚠️ retroactive gap and is now **resolved** — see the `4.9.0` m
 ## Current `main` release state
 
 - **Current `main` version:** `4.9.0` (runtime constant) — **unreleased**. The latest tag remains `v4.8.0` (cut 2026-07-23, on `10587a4`). `main` was bumped off the released identity on 2026-07-26 so that an unreleased tree stops advertising a shipped version; the bump carries no payload of its own. Unlike the `4.7.0` state, `main` has progressed **past** the tag with unreleased work (see next bullet). (`4.8.0` is the REST-gate security-hardening release plus the opt-in role/capability lockdown audit MVP; see the payload note above.)
-- **Unreleased work on `main` past `v4.8.0`:** one security-hardening change plus three small features, documentation, and CI tooling — none version-bumped. **Security (the largest unreleased change):** the sudo proof format is replaced by a **self-authenticating, per-login-session record** (`_wp_sudo_proofs`, keyed by `sha256(verifier)`, entries `{ token, expires, hmac }`). The enforcement path verifies an `hash_hmac('sha256', …, wp_salt('auth'))` over the record and reads it **cache-bypassed**, closing a forged-assurance path in which an object-cache-poisoning primitive could plant a token hash for an attacker-controlled cookie and obtain sudo with no challenge (#278); keying per login session additionally gives a user's concurrent browsers independent sudo sessions (#279), and a just-expired proof is retained through its 120 s grace window so one browser's reauth cannot cancel another's in-flight replay. Pre-4.9.0 sessions carry no proof entry and require one reauthentication after upgrade (no migration). Doc'd in `docs/security-model.md`; the docblocks name the format as **4.9.0**. The next tag is **MAJOR** — decided, not open: the `#322` fix removes the documented `wp_sudo_action_replayed` hook, which `VERSIONING.md` classes as MAJOR (see *Development lanes* below). This assurance change on its own would have been a MINOR. **Features:** (1) the optional critical-event alert bridge now pushes a high-severity alert on role/capability drift (`wp_sudo_role_drift_detected` → bridge push), a backward-compatible addition in the optional companion bridge (PR #226); (2) **scoped break-glass recovery** — `WP_SUDO_RECOVERY_MODE` now accepts a user ID or login (grants break-glass to one named user instead of every `manage_options` holder), plus a pull-based Site Health critical status that flags active recovery mode and names its scope (PR #268, issue #240); (3) the **in-editor sudo session-status indicator** client UI — a build-free editor module surfacing session state via an announce-once snackbar (WP 6.4+) and a feature-detected countdown sidebar (WP 6.6+), with no read endpoint and no polling (PR #277 / #262). **Docs/CI:** the 4.8.0 live/manual security-test checklist + results (#223–#225); core-proposal, roadmap, and accuracy docs (#227–#234); the **ROADMAP restructure** — Pass 1/2 (forward-only Now/Next/Later + design essays promoted to standalone docs) merged as PR #236. (The feature backlog has been *filed* as GitHub issues **#238–#257**, but the ROADMAP sections that duplicate them are removed only by the **still-open Pass-3 PR #258** — so on `main` the backlog still lives in `ROADMAP.md` for now.) And the **persistent-options metrics gate** — a tokenizer-based dev/CI scanner (`bin/scan-persistent-options.php`) wired into `composer verify:metrics` (PR #237). None of those bumped `WP_SUDO_VERSION` when they landed; `main` now carries `4.9.0` (see the version bullets above). **This bullet is a convenience summary — the canonical, always-current drift source is `git log v4.8.0..main --oneline`.**
+- **Unreleased work on `main` past `v4.8.0`:** one security-hardening change plus three small features, documentation, and CI tooling — none version-bumped. **Security (the largest unreleased change):** the sudo proof format is replaced by a **self-authenticating, per-login-session record** (`_wp_sudo_proofs`, keyed by `sha256(verifier)`, entries `{ token, expires, hmac }`). The enforcement path verifies an `hash_hmac('sha256', …, wp_salt('auth'))` over the record and reads it **cache-bypassed**, closing a forged-assurance path in which an object-cache-poisoning primitive could plant a token hash for an attacker-controlled cookie and obtain sudo with no challenge (#278); keying per login session additionally gives a user's concurrent browsers independent sudo sessions (#279), and a just-expired proof is retained through its 120 s grace window so one browser's reauth cannot cancel another's in-flight replay. Pre-4.9.0 sessions carry no proof entry and require one reauthentication after upgrade (no migration). Doc'd in `docs/security-model.md`; the docblocks name the format as **4.9.0**. The next tag is **MINOR** — see *Why `4.9.0` and not `5.0.0`* below. The `#322` v2 layer restored replay and with it the hook, so nothing documented is removed; this assurance change is an internal storage format (the proof meta keys are not in `developer-reference.md`). **Features:** (1) the optional critical-event alert bridge now pushes a high-severity alert on role/capability drift (`wp_sudo_role_drift_detected` → bridge push), a backward-compatible addition in the optional companion bridge (PR #226); (2) **scoped break-glass recovery** — `WP_SUDO_RECOVERY_MODE` now accepts a user ID or login (grants break-glass to one named user instead of every `manage_options` holder), plus a pull-based Site Health critical status that flags active recovery mode and names its scope (PR #268, issue #240); (3) the **in-editor sudo session-status indicator** client UI — a build-free editor module surfacing session state via an announce-once snackbar (WP 6.4+) and a feature-detected countdown sidebar (WP 6.6+), with no read endpoint and no polling (PR #277 / #262). **Docs/CI:** the 4.8.0 live/manual security-test checklist + results (#223–#225); core-proposal, roadmap, and accuracy docs (#227–#234); the **ROADMAP restructure** — Pass 1/2 (forward-only Now/Next/Later + design essays promoted to standalone docs) merged as PR #236. (The feature backlog has been *filed* as GitHub issues **#238–#257**, but the ROADMAP sections that duplicate them are removed only by the **still-open Pass-3 PR #258** — so on `main` the backlog still lives in `ROADMAP.md` for now.) And the **persistent-options metrics gate** — a tokenizer-based dev/CI scanner (`bin/scan-persistent-options.php`) wired into `composer verify:metrics` (PR #237). None of those bumped `WP_SUDO_VERSION` when they landed; `main` now carries `4.9.0` (see the version bullets above). **This bullet is a convenience summary — the canonical, always-current drift source is `git log v4.8.0..main --oneline`.**
 - **Runtime version constant:** `4.9.0` on `main`. `WP_SUDO_VERSION` is set in `wp-sudo.php` (header + constant), `tests/bootstrap.php`, and `phpstan-bootstrap.php`; `readme.txt` Stable tag is `4.9.0`. All five version-sync points are in sync at `4.9.0`. **`blueprint.json` deliberately still targets the `v4.8.0` tag ZIP:** per [`VERSIONING.md`](../VERSIONING.md) the Playground install target is bumped **after** the tag is cut, never before, because the public "Try latest release" badge loads `blueprint.json` from `main` and a pre-tag bump would point the demo at a ZIP that does not exist yet. Bumping it is a tag-time step, not a drift.
 - **Current package metadata (on `main`):** `readme.txt` Stable tag `4.9.0` == header Version (no `stable_tag_mismatch`); `Requires at least 6.4`, `Requires PHP 8.2`, `Tested up to 7.0`. Package/listing name: **"Sudo – Admin Action Gating"** (UI brand "Sudo"; slug/text-domain stay `wp-sudo`).
 - **Last archived release checklist:** `docs/archive/release-3.0.0-checklist.md`
@@ -111,36 +111,155 @@ post-`4.8.0` churn.
 | Core proposal research | `core-gate proposal — v1 readiness` | No | Proposal/spec findings; **no plugin release depends on these** |
 | Core proposal, deferred | `core-gate: provenance/automation policy (deferred project)` | No | The automated-update provenance split (#320) |
 
-> ⚠️ **Superseded — the version was rolled back to `4.9.0`.** The version strings in
-> all five sync points, the POT, and the version facts above are now `4.9.0`. The
-> argument below is kept as the decision record for why `5.0.0` was taken at the
-> time; it has **not** been rewritten, and it no longer describes the version on
-> `main`. The milestones have been renamed to match (`4.9.0 — security`,
-> `post-4.9.0`, and the feature batch reclaiming `v5.0.0`). What the rollback
-> reopens is the **MAJOR-vs-MINOR** question this section settles: `VERSIONING.md`
-> classes the `#322` hook removal as MAJOR, and at `4.9.0` that removal ships in a
-> MINOR. That needs deciding separately from this string change.
+**Why `4.9.0` and not `5.0.0`.** `main` briefly carried `5.0.0`, taken by the rule:
+the `#322` **v1** fix removed the only call site of `wp_sudo_action_replayed`, and
+[`VERSIONING.md`](../VERSIONING.md) classes removing a documented public hook as MAJOR.
 
-**Why `5.0.0` and not `4.9.0`.** The `#322` fix removes the only call site of
-`wp_sudo_action_replayed` — the gate no longer replays a stashed request, so there is
-no replay left to announce. That hook is a **documented public extension point**
-(`docs/developer-reference.md`, event code `1900009`), and [`VERSIONING.md`](../VERSIONING.md)
-classes removing a documented hook as **MAJOR**. Taken by the rule rather than by
-override: the release is `5.0.0`. Everything else in the payload would have been a
-MINOR on its own.
+**That premise did not survive.** PR #350 merged v1 **and** v2, and v2 restores
+origin-bound replay — so `do_action( 'wp_sudo_action_replayed', … )` is live in
+`Challenge::build_replay_response_data()` (`includes/class-challenge.php:1229`) on `main`
+today, and `docs/developer-reference.md`
+still documents its signature and event code `1900009` with no removal marker. **The
+removal never shipped.** Nothing documented is removed.
+
+Two further checks, made against the source rather than assumed:
+
+- The session meta keys (`_wp_sudo_token`, `_wp_sudo_expires`, `_wp_sudo_session_bind`,
+  `_wp_sudo_proofs`) appear **nowhere** in `docs/developer-reference.md`. Replacing the
+  proof format is therefore an internal storage change, not an API break —
+  `VERSIONING.md` explicitly does not cover undocumented behaviour.
+- `wp_sudo_action_replayed` keeps its signature `(int $user_id, string $rule_id)`. Under
+  v2 it fires only for bound same-browser replays, so it fires *less often* — a narrowed
+  event, not a changed contract.
+
+What the payload does add is **new** documented public entries — the
+`wp_sudo_lockout_cleared` hook, the `wp sudo unlock` CLI command, and the scoped-recovery
+helpers `wp_sudo_user_matches_recovery()`, `wp_sudo_recovery_mode_is_unscoped()` and
+`wp_sudo_recovery_mode_user()` from #240. Additions are what MINOR means. So `4.9.0`, by
+the rule — not by preference, and with no override needed.
+
+This is the rule **re-applied to changed facts, not an override of it** — and it is exactly the
+outcome this document anticipated when it deferred v2: *"it restores replay, and therefore
+probably restores the removed hook — so its own version classification must be decided on its
+merits, not inherited from this release."* It was, and the merged payload is additive plus
+security fixes: **`4.9.0`**. (Preserved from the closed PR #390, which would otherwise have
+taken it with it.)
+
+**One documented behaviour DOES break, and it is not a removal.** The `#322` v2 layer
+(PR #350) will not auto-replay a stashed action unless the confirmation named the whole
+effect. `Request_Stash::target_describes_payload()` compares the stashed payload against
+a fixed `TARGET_PARAMS` set, and a payload field in neither that set nor
+`NON_EFFECT_FIELDS` marks the target incomplete, which refuses replay.
+
+That reaches a **documented** integration. `docs/developer-reference.md` shows a custom
+rule allowlisting `array( '_wpnonce', '_wp_http_referer', 'action', 'item_id' )`, and
+`item_id` is in neither set — so that rule auto-replayed at `4.8.0` and will not at
+`4.9.0` **when it is reached by POST**. Verified: `target_describes_payload`,
+`TARGET_PARAMS` and `may_replay_bound_stash` have **zero** occurrences at the `v4.8.0`
+tag.
+
+**The guarantee is narrower on GET, and stating it precisely matters more than stating
+it comfortably.** `Request_Stash::build_stashed_post_params()` returns an empty array for
+any non-POST request, so on a GET there is no payload for `target_describes_payload()` to
+walk and it returns true after zero iterations. A GET-reached rule is therefore refused only when its captured target fails to
+describe anything at all — empty, not an array, or containing nothing
+`describe_stash_target()` will render. Those three shapes are what `4.9.0` adds (#397). **A custom
+GET rule whose effect rides an unrecognised parameter is therefore not reliably refused**,
+and the challenge may name only a different, recognised parameter. The construction is in
+[#412](https://github.com/dknauss/Sudo/issues/412) rather than here: an integrator needs to
+know whether their rule is affected, which the sentence above answers, and does not need
+the recipe.
+
+Scope of that residue, checked rule by rule rather than assumed: it requires the *effect
+itself* to sit on an unrecognised parameter. Every built-in GET-reachable rule carries its
+effect in a recognised target — `plugin`, `stylesheet`, `theme`, `users`, `id` — so
+appending a decoy hides nothing, and the sole built-in with no recognised parameter,
+`tools.export`, is refused by the empty-target case. **The residue is confined to custom
+GET rules.**
+
+It is not a regression this release introduces. At `4.8.0` there was no target naming, no
+browser binding, and unconditional auto-replay — `describe_stash_target`,
+`mint_binding_proof` and `TARGET_PARAMS` all have zero occurrences at that tag. `4.9.0`
+narrows a total hole to a specific one. Closing the remainder needs a rule to declare
+which of its fields are *effects*, which `stash.post_fields` does not express — it cannot
+separate `plugin_status`/`paged`/`s` (declared, not effects) from `item_id` (declared,
+the effect). That is new public API and it is tracked as its own design pass rather than
+rushed into a security release.
+
+It is classified **MINOR with disclosure** rather than MAJOR, deliberately:
+
+- Nothing an integrator wrote stops working. The rule still matches, still gates, still
+  reauthenticates; no symbol is removed, no signature or rule structure changes. What
+  changes is that the user re-issues the action instead of it resuming by itself.
+- The removed behaviour **is the vulnerability**. Auto-replay without informed
+  confirmation is precisely what `#322` reports. `VERSIONING.md` files a
+  *backward-compatible* security fix under PATCH; this one is not backward-compatible,
+  which places it above PATCH, and calling a security fix MAJOR because the unsafe
+  behaviour was documented would price every such fix out of a minor.
+
+What is **not** available is silence: an integrator with a custom rule loses seamless
+replay on upgrade, so it belongs in the release notes and the Upgrade Notice, not only
+here. Custom rules that want replay back should express their effect through a
+recognised target parameter. The replay-eligibility contract is documented in
+`docs/developer-reference.md` (landed in PR #397).
+
+**The forced reauthentication is communicated in prose, not in the version digit.**
+Every user must reauthenticate once after upgrading, because pre-`4.9.0` sessions carry
+no proof entry and no migration runs. That is the strongest argument anyone will make
+for a major, and it is a communication problem rather than a versioning one: it is
+handled by the **Upgrade Notice** in `readme.txt`, which reaches operators far more
+reliably than a version number. A MAJOR is a promise that integrators have work to do;
+here every hook still fires and every signature holds, so spending it would be a false
+alarm — and the next MAJOR is wanted for the core-gate work, which will genuinely break
+contracts.
+
+**Known artifact on sites that ran the unreleased `5.0.0` build.** Any dev or staging
+install that served **any admin or WP-CLI request** while running that build carries
+`wp_sudo_db_version` stamped `5.0.0`. Activation is not required and is not the usual
+route: `Plugin::init()` calls `maybe_upgrade()` on every `is_admin()` or `WP_CLI`
+request, so simply loading wp-admin once was enough. An operator who never activated
+the build is not thereby unaffected.
+`Upgrader::maybe_upgrade()` returns early whenever the stored version is `>=`
+`WP_SUDO_VERSION`, so after the rollback it is never rewritten — and a future routine
+registered at `4.9.x`, **or at the real `5.0.0` when it ships**, would be skipped there.
+Nothing is skipped today: the highest entry in `Upgrader::UPGRADES` is `4.0.0`.
+
+Scope, read from `Upgrader::get_db_version()`: it uses `get_site_option()` on multisite
+and `get_option()` otherwise, so the stamp is **one network-wide value in `wp_sitemeta`**
+on a network, and per-site only on single-site.
+
+**Do not clear the stamp by deleting the option.** Deleting it replays every routine from
+`0.0.0`, and two of those are destructive: `upgrade_2_0_0()` calls `remove_role(
+'site_manager' )` unconditionally, destroying any role holding that slug whatever its
+origin; and `upgrade_3_3_0()`, on a single site with no `manage_wp_sudo` holder, grants
+the four governance capabilities to **every administrator** — silent privilege escalation
+on an install that deliberately revoked governance and relies on scoped
+`WP_SUDO_RECOVERY_MODE`, which this plugin documents as a supported configuration.
+
+**Disposition is tracked in [#393](https://github.com/dknauss/Sudo/issues/393), not
+here.** The approach under consideration needs no operator action at all: because the
+guard is `>=`, a routine keyed at exactly `5.0.0` would never run on a poisoned install
+even after `5.0.0` genuinely ships — so the durable fix is the rule *no future routine is
+keyed at or below `5.0.0`*, enforced by a test and a note in the "HOW TO ADD A NEW
+UPGRADE" docblock. That lets the defect expire on its own. The repo has learned this
+before: `upgrade_3_3_0()`'s own HISTORY docblock records a routine keyed at `3.1.0` that
+never ran for sites stamped `3.1.1`–`3.1.3`, and the fix was re-keying above every stamp
+in the wild rather than rewriting stamps.
 
 **`4.9.0` payload.** Landed: forge-resistant per-login-session assurance (#278, #279,
-PR #348) and the reauth-lockout out-of-band clear (#280, PR #343). Open: the stash
-confused-deputy fix (#322, PR #368 — the v1 fail-closed half). #273
-(release-environment matrix) rides the milestone as a **tag-time gate**, not payload —
-it was left open through `4.8.0` and must be run or explicitly waived before the tag
-is cut.
+PR #348), the reauth-lockout out-of-band clear (#280, PR #343), and the stash
+confused-deputy fix (#322, PR #350 — **v1 fail-closed plus the v2 origin-bound replay
+layer**; the v1-only split PR #368 is closed as superseded). #273 (release-environment
+matrix) rides the milestone as a **tag-time gate**, not payload.
 
-**Deferred out of `4.9.0`.** The `#322` **v2** layer (informed confirmation +
-origin-bound replay, PR #350) is held back: all of its open review threads sit on that
-layer, none on v1. It restores replay, and therefore probably restores the removed
-hook — so its own version classification must be decided on its merits, not inherited
-from this release.
+**Open review gate on the v2 layer.** The v1/v2 split was meant to give origin-bound
+replay its own adversarial pass; #350 merged both before that happened. That review has
+since been run — the brief and its eight findings are on issue
+[#322](https://github.com/dknauss/Sudo/issues/322). The first (a stash whose
+confirmation named nothing was replayed anyway) is **fixed** in PR #397, which closed
+three shapes of it: an empty target, a non-array target, and a target that renders
+nothing because `describe_stash_target()` skips non-scalar values. The remainder
+should be triaged before the tag.
 
 **Membership rule.** A review finding that is not a regression introduced by the PR
 under review gets **filed and deferred**, never bolted onto the PR in flight. #354,

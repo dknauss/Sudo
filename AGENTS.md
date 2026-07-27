@@ -349,7 +349,15 @@ contract already existed on a third, unmerged branch. Both greps ran; both retur
 the conclusion was still wrong, because **the message had chosen the scope of the check**.
 
 The rule is therefore *verify the question, not the claim*: decide what would falsify the
-statement **before** running anything, and let that choose the command. This survives the
+statement **before** running anything, and let that choose the command.
+
+**The worst version of this is a command that answers confidently and wrongly.**
+`git branch -a --sort=-committerdate | head -20` is the reflex for "is anyone already working
+on this" — and it sorts by the date of the **commit a branch points at**, not the branch's
+creation. A branch cut minutes ago from an older commit sorts by that older date and falls
+off the list. It exits 0, prints a plausible answer, and omits exactly the case the command
+exists to catch. Prefer an explicit search — `git branch -a --list "*<issue>*"`, or
+`gh pr list` — and treat any "nothing found" from a sorted-and-truncated listing as unproven. This survives the
 common case where the claim is honest and merely narrow — which is most cases, and which a
 check aimed at dishonesty would miss entirely.
 
@@ -361,7 +369,8 @@ check aimed at dishonesty would miss entirely.
 - *"Does upstream never do Y?"* is **not** answerable by a `docs/upstream-sources.md` row.
   A must-contain snippet confirms a positive fact and cannot falsify an absence: if upstream
   added the call on an adjacent line, the row still passes while the claim silently becomes
-  false (see #388, and the note on `GB-CORE-UPDATE-SINK`).
+  false (see #388, and the "not machine-checked" note carried on the core-update row in
+  `docs/upstream-sources.md`).
 
 Both are the same error — treating "I looked and did not find it" as equivalent to "it is not
 there", when the looking was scoped by something other than the question. **Absence claims
