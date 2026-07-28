@@ -1,6 +1,6 @@
 # Phase 27 — Trusted Handoff Decision Record
 
-**Status:** Experiment design in progress; no handoff selected
+**Status:** Same-document negative control rejected; no handoff selected
 
 **Scope:** Plugin/theme package upload and plugin/theme file-editor write only
 
@@ -161,6 +161,18 @@ surface trustworthy information about its bytes, the first claim must narrow or
 package upload must use a different two-stage transport. The documentation may
 not hide this conflict behind “canonical digest.”
 
+This suggests a target-kind split for the first core cut:
+
+- a scalar target that the server can independently resolve and canonicalize
+  may be eligible for an isolated confirmation-and-redemption ceremony; while
+- payload-bearing actions whose bytes the server has never received remain out
+  until a transport gives the isolated surface possession of exactly what it
+  attests to.
+
+This is an experiment hypothesis, not yet a scope decision. It does not remove
+package upload from the research catalog; it prevents results for scalar targets
+from being generalized to unseen bytes.
+
 ## Confirmation, issuance, and redemption variants
 
 The spike will compare:
@@ -168,7 +180,8 @@ The spike will compare:
 1. **Issue then confirm** — expected unsafe; authority exists before approval.
 2. **Confirm then issue to parent** — parent may read or exercise authority.
 3. **Confirm then issue an HttpOnly ambient cookie** — unreadable does not mean
-   unusable; parent may navigate or submit a matching request.
+   authority-contained; parent JavaScript may navigate or submit a matching
+   request and cause the browser to redeem the cookie without reading it.
 4. **Confirm and redeem inside the isolated surface** — strongest intent
    ordering, but it may require the trusted surface to possess the exact payload.
 5. **Confirm, seal a one-use server-side intent, then parent submits exact
@@ -181,10 +194,90 @@ No variant is selected until the browser and server mutations are recorded.
 
 | Candidate | Read | Invoke | Redirect | Replay | Redeem | Mutate | Clone | Verdict |
 |---|---|---|---|---|---|---|---|---|
-| Same-document modal | pending | pending | pending | pending | pending | pending | pending | expected reject |
-| Isolated popup | pending | pending | pending | pending | pending | pending | pending | pending |
+| Same-document modal | yes | yes | not needed for rejection | pending | pending | pending | pending | rejected |
+| Isolated popup | returned bearer: yes | pending | pending | pending | yes | pending | pending | readable-bearer variant rejected |
 | Isolated top-level | pending | pending | pending | pending | pending | pending | pending | pending |
 | WebAuthn/passkey | pending | pending | pending | pending | pending | pending | pending | pending |
+
+### Same-document observation — 2026-07-27
+
+The research fixture places the password field, approval button, application
+handler, and a modeled compromised script in one document. The test performs
+only these user operations:
+
+1. open the upload approval modal; and
+2. enter `victim-secret` in the password field.
+
+The modeled compromised script observes the input event, reads the exact
+password value, and clicks the approval button. The server consequently records
+both:
+
+- `read: victim-secret`; and
+- `invoke: core/upload-extension-package`.
+
+The test does not click **Approve upload**. The same-document modal is therefore
+rejected before redirect, replay, digest mutation, or copied-browser behavior
+needs to be characterized: script in that document already controls both the
+credential and the purported final approval.
+
+This was the predeclared convincing defeat: exact credential capture plus
+invocation without a user approval click. A null observation would have
+invalidated the fixture, not established modal safety.
+
+Focused command:
+
+```sh
+npx playwright test --config tests/e2e/research.playwright.config.ts --project=chromium tests/e2e/specs/research/phase27-same-document-modal.spec.ts
+```
+
+Focused mutation:
+
+```sh
+PHASE27_DISABLE_COMPROMISED_HANDLER=1 npx playwright test --config tests/e2e/research.playwright.config.ts --project=chromium tests/e2e/specs/research/phase27-same-document-modal.spec.ts
+```
+
+The ordinary run passes. The mutation removes only the modeled compromised
+handler; the named test then fails in its observation assertion with an empty
+server log. This demonstrates that the test is killed by removal of the
+attacker behavior it claims to observe.
+
+This result does not establish anything about an isolated popup, an isolated
+top-level route, WebAuthn, or Browser B with a copied cookie.
+
+### `noopener` popup return-channel observation — 2026-07-27
+
+The parent opens a same-origin confirmation popup with the `noopener` feature.
+Chromium reports `window.opener === null` inside the popup. After a simulated
+user enters the password and clicks **Approve exact action**, the popup sends a
+bearer over a same-origin `BroadcastChannel`. Script already running in the
+parent reads that bearer and invokes the modeled redemption endpoint.
+
+This rejects one variant, not popup isolation as a whole:
+
+- `noopener` did remove the popup's opener reference in this observation;
+- it did not make a same-origin return channel trusted;
+- returning readable authority to the compromised parent restores the
+  compromised document to the authorization path.
+
+The observation does not show that the parent read the popup's credential or
+DOM, and it does not yet test a design where the isolated surface redeems the
+action itself.
+
+Focused command:
+
+```sh
+npx playwright test --config tests/e2e/research.playwright.config.ts --project=chromium tests/e2e/specs/research/phase27-same-document-modal.spec.ts --grep "noopener popup"
+```
+
+Focused mutation:
+
+```sh
+PHASE27_DISABLE_POPUP_RETURN_HANDLER=1 npx playwright test --config tests/e2e/research.playwright.config.ts --project=chromium tests/e2e/specs/research/phase27-same-document-modal.spec.ts --grep "noopener popup"
+```
+
+The ordinary run passes. With the compromised parent's return handler removed,
+the popup still reports a null opener, but the named test fails because no
+`authority-read` or `redeem` observation occurs.
 
 ## Claim discipline
 
@@ -207,6 +300,11 @@ Build a research-only same-origin fixture with:
 - a server-observed one-use intent ledger; and
 - explicit logs for read, invoke, redirect, replay, redeem, mutate, and clone.
 
-Run the modal first as the negative control, then change one browser relationship
-at a time. Every accepted property receives a focused mutation that removes its
-guard and must make the named test fail.
+The modal negative control and readable popup-bearer probe are complete. Next,
+keep the popup isolated but do not return authority to the parent: have the
+trusted surface redeem a server-held, exact action descriptor itself. Test
+whether the compromised parent can substitute that descriptor, race redemption,
+or cause a second effect. Package upload remains a separate experiment because
+the isolated surface must possess the exact archive bytes it approves. Every
+accepted property receives a focused mutation that removes its guard and must
+make the named test fail.
