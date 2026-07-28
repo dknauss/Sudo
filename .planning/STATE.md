@@ -2,24 +2,31 @@
 gsd_state_version: 1.0
 milestone: Action Gate Research Program
 last_updated: "2026-07-27"
-status: Phase 27 active — proof handoff and XSS claim decision
+status: Phase 27 decision complete — copied-auth-cookie-only handoff selected
 ---
 
 # Planning State
 
 ## Current position
 
-Phase 26's architecture reset landed in PR #467. Phase 27 now owns one coupled
-decision: select the proof handoff by testing what active same-origin JavaScript
-can do to it, then derive the permitted XSS claim from those results.
+Phase 27 selected an editor-style pause/preflight/reauthenticate/submit-once
+handoff for the copied-auth-cookie-only threat. Browser tests cover file writes
+and byte-faithful package uploads in two contexts sharing one WordPress auth
+cookie but not the independent browser binding. A boundary test shows that
+cloning both cookies defeats this property. Ordinary same-origin modal, popup,
+top-level, and WebAuthn ceremonies were rejected as an active-XSS trust boundary.
 
 ## Immediate next work
 
-1. Write the Phase 27 handoff decision record and attacker traces.
-2. Build the research-only browser spike for the candidate flows.
-3. Run the read/invoke/redirect/replay/redeem/mutate/clone matrix.
-4. Select a handoff and exact claim, or stop the program if none survives.
-5. Do not implement the proof primitive or client integration yet.
+1. Independently review and merge the Phase 27 decision and browser evidence.
+2. Phase 28: prove the early effect vetoes for package writes and file-editor
+   writes.
+3. Phase 29: implement authoritative per-intent proof state and demonstrate one
+   winner under real concurrent redemption.
+4. Phase 30: adapt the existing editor pause-before-send UX to the named classic
+   wp-admin actions without a generic form or route guesser.
+5. Phase 30B: reuse the proven mechanism for password/email changes to privileged
+   accounts, administrator creation/promotion, and super-admin grants.
 
 ## Decisions carried forward
 
@@ -30,11 +37,19 @@ can do to it, then derive the permitted XSS claim from those results.
 - Approval is action-bound and single-use.
 - Registry is a possible future companion, not a prerequisite.
 - The first slice covers plugin/theme upload and file-editor save only.
+- The closure MVP adds five identity pivots only after that two-effect slice
+  proves the boundary; identity-only gating would not close the direct
+  editor/uploader route.
+- The closure claim is copied-auth-cookie-only protection, not protection from a
+  full cookie-state clone or active same-origin script in the approving browser.
+- Password remains the default reauthentication factor; 2FA and passkeys are
+  optional integrations.
 
 ## Active blocker
 
-The trusted confirmation and proof handoff under active same-origin XSS is not yet
-settled. This is the Phase 27 decision gate and blocks client implementation.
+No Phase 27 browser-decision blocker remains. The next security blocker is the
+Phase 29 storage primitive: the research fixture's synchronous in-memory
+compare-and-consume must not be mistaken for a proven WordPress atomic store.
 
 Separately, #354 now demonstrates that WP Sudo's scalar liveness marker,
 serialized proof map, Site Health cleanup, and revocation enumeration are not

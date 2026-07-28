@@ -8,7 +8,10 @@
 
 WP Sudo is a research environment for developing a narrowly scoped WordPress core
 proposal: early veto points plus an action-bound step-up approval flow for effects
-that introduce executable plugin or theme code.
+that introduce executable plugin or theme code, followed by the smallest identity
+pivot set that would otherwise let an attacker holding a copied WordPress
+authentication cookie—but not the independent browser-binding cookie—preserve or
+recreate administrator access.
 
 It is not being developed as a production security plugin. Earlier plugin
 features remain useful evidence, test material, and records of failed approaches.
@@ -17,7 +20,8 @@ features remain useful evidence, test material, and records of failed approaches
 
 Produce falsifiable evidence that WordPress can stop two high-risk code effects at
 their true mutation boundary while giving integrated wp-admin screens a smooth
-pause-before-send experience.
+pause-before-send experience, then reuse the proven boundary for five narrowly
+named identity pivots.
 
 ## Current milestone
 
@@ -46,7 +50,10 @@ The general actions registry is not part of this milestone.
 - No request auto-replay.
 - No reusable approval window for the in-scope effects.
 - No registry dependency.
-- No broad action catalog until the two-action slice passes.
+- No identity-pivot implementation until the two-action boundary and proof
+  protocol pass.
+- No broad action catalog beyond the two code effects and five named identity
+  pivots in this milestone.
 - No claim that an ordinary same-origin modal is safe against active XSS.
 - TDD and guard-specific mutation checks are mandatory for security boundaries.
 

@@ -15,6 +15,19 @@ The narrow objective is to make an ordinary authenticated session insufficient t
 - upload executable plugin or theme code; or
 - write executable code through the plugin or theme file editors.
 
+The minimum companion perimeter prevents the same session from bypassing that
+boundary by taking over or manufacturing a privileged identity. It covers only:
+
+- changing the password or email of an existing privileged account;
+- creating a new administrator;
+- promoting an existing user to administrator; and
+- granting super-admin status on multisite.
+
+Identity-pivot gating alone is not closure: the copied session can still attempt
+the direct uploader and editor effects. The two code effects are therefore the
+load-bearing first slice; the five identity pivots reuse the mechanism only after
+that slice and its proof protocol pass.
+
 This program does not attempt to classify every consequential action or make the
 WP Sudo plugin a complete security boundary.
 
@@ -47,13 +60,35 @@ user initiates action
   → early server veto redeems the proof or refuses the effect
 ```
 
+## Surface boundary
+
+The Phase 27 handoff is an interactive, cookie-authenticated browser design. It
+depends on preserving an unsent operation in the browser, an independent
+browser-binding cookie, and a user who can complete reauthentication. It does
+not directly apply to WP-CLI, cron, XML-RPC, Application Passwords, background
+updates, or arbitrary server-side PHP calls.
+
+The early veto seam is intentionally lower and broader: every caller of the
+effect reaches it. That structural reach does not decide policy for every caller.
+The first demonstrator may require browser-bound approval only for explicitly
+identified cookie-authenticated interactive paths. Each non-browser or
+programmatic path must be either:
+
+- covered by a separately specified authorization/provenance policy; or
+- named as an explicit, tested exclusion.
+
+It must not be accidentally blocked because it cannot perform browser
+reauthentication, and it must not be accidentally allowed because the browser
+adapter was bypassed. Automation/provenance policy remains a separate project;
+Phase 27 does not generalize its browser result to those surfaces.
+
 ## Security claims that must remain separate
 
 The research must not use “stolen session” as one undifferentiated attacker.
 
 | Attacker | Candidate protection | Honest limit |
 |---|---|---|
-| Copied authentication cookie in a different browser | Separate, action-bound proof unavailable to the clone | A later theft of the complete approved browser state may include usable material until it expires |
+| Copied WordPress authentication cookie, but not the independent browser-binding cookie, in a different browser | Separate, action-bound proof unavailable to the clone | A clone of both possession cookies can race to use an ambient approval; a later theft of complete approved browser state may also include usable material until it expires |
 | Session-riding request from an XSS | Trusted confirmation must name the effect and require a deliberate approval | A same-origin script can manipulate the compromised admin document; an ordinary modal in that document is not a trusted boundary |
 | Active same-origin XSS throughout the flow | Browser-mediated credential or isolated top-level/popup confirmation may raise the bar | This is not considered closed until the handoff, persistence reach, and browser-isolation assumptions are tested explicitly |
 | Malicious installed plugin or arbitrary server-side PHP | None | Server-side in-process code can bypass WordPress policy; plugin sandboxing is a different project |
@@ -61,6 +96,10 @@ The research must not use “stolen session” as one undifferentiated attacker.
 No proposal may claim to close “XSS → RCE” generally unless its evidence covers
 the active-XSS row. Otherwise it must name the narrower copied-cookie or
 session-riding property that was actually demonstrated.
+
+In this program, “copied-cookie” is shorthand only for a copied WordPress
+authentication cookie without the independent browser-binding cookie. It never
+means a complete cookie-jar or browser-state clone.
 
 ## Architectural decisions
 
@@ -74,6 +113,8 @@ session-riding property that was actually demonstrated.
   mint valid nonces.
 - Do not use a reusable “recently authenticated” window for the in-scope effects.
 - Start with plugin/theme upload and plugin/theme file-editor writes only.
+- After that boundary and proof protocol pass, add only the five named identity
+  pivots as a separately testable companion perimeter.
 - Preserve the registry idea as a possible later companion. It is not a
   dependency, enforcement point, or current implementation phase.
 - Accept that Cut 1 therefore has no general registration API for plugins to
@@ -132,8 +173,9 @@ protocol work for the two core effects.
 - A green broad suite is not evidence that a specific guard works.
 - Core-source claims are verified against a pinned `wordpress-develop` commit and
   recorded with that SHA.
-- No phase expands the action catalog. New effects are follow-up work after the
-  two-action slice passes.
+- Phase 27 does not expand the action catalog. The five named identity pivots
+  enter only after the two-action boundary and proof protocol pass; any other
+  effects are follow-up work.
 - No production release is cut for planning progress. A research prerelease is
   justified only by a reproducible demonstration that materially advances the
   core proposal.
@@ -146,10 +188,14 @@ observe:
 1. both in-scope effects succeed normally without the experimental gate;
 2. the same requests are refused at the effect boundary without an adequate
    proof and cause no partial effect;
-3. a copied-cookie browser cannot obtain or redeem another browser's approval;
+3. a browser holding only the copied WordPress authentication cookie cannot
+   obtain or redeem another browser's approval, while the full-cookie-state
+   boundary failure is visible;
 4. an integrated wp-admin flow preserves unsent work and sends the operation once;
 5. the no-JavaScript path fails safely and never auto-replays;
-6. the documentation states exactly which XSS/session attacker was and was not
+6. the five named identity pivots cannot be used by the copied-cookie browser to
+   preserve or recreate privileged access;
+7. the documentation states exactly which XSS/session attacker was and was not
    stopped; and
-7. the proposed core changes are narrow enough to review independently of a
+8. the proposed core changes are narrow enough to review independently of a
    general actions registry or the WP Sudo plugin.

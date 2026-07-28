@@ -1,8 +1,10 @@
 # GSD Roadmap — Action Gate Research Program
 
-**Status:** Planning started; Phase 26 is active
+**Status:** Phase 27 decision complete; Phase 28 is next
 **Goal:** Produce a narrow, executable case for early core veto points plus safe
-action-bound step-up approval for plugin/theme upload and file-editor writes.
+action-bound step-up approval for plugin/theme upload and file-editor writes,
+then apply the proven mechanism to five identity pivots that would otherwise
+preserve or recreate privileged access.
 
 The phases are sequential because each phase decides whether the next one is
 safe to build. Parallel documentation work is allowed; parallel mechanism work
@@ -107,6 +109,10 @@ before irreversible mutation.
    occurs after refusal.
 6. Test direct and alternate callers; document exclusions rather than broadening
    scope invisibly.
+7. Keep seam reach separate from actor policy: demonstrate the
+   cookie-authenticated browser denial, and enumerate every non-browser caller as
+   separately governed or explicitly excluded rather than forcing it through a
+   browser proof.
 
 **Slice A salvage rule:** keep `poc/install-package-gate` runnable and historically
 honest. Do not retrofit its reusable-window proof into the new protocol. Extract
@@ -149,8 +155,10 @@ browser/session context.
 
 **Exit gate:**
 
-- Browser B with Browser A's copied auth cookie and fresh WP nonces cannot redeem
-  Browser A's approval.
+- Browser B with Browser A's copied WordPress auth cookie, but not Browser A's
+  independent browser-binding cookie, cannot redeem Browser A's approval.
+- A full cookie-state clone is demonstrated as a boundary failure rather than
+  silently included in the accepted claim.
 - Two concurrent redemptions execute at most once.
 - The concurrency test proves the storage operation is compare-and-delete (or
   equivalently linearizable), not a read followed by a separate delete.
@@ -189,6 +197,52 @@ security boundary.
 - A deliberately broken client integration is visible through the diagnostic,
   while the action still fails closed.
 
+## Phase 30B — Identity-pivot companion perimeter
+
+**Goal:** Prevent a copied-cookie browser from bypassing the code-effect boundary
+by taking over or manufacturing a privileged identity.
+
+**Requirements:** IDENT-01..04
+
+**Scope:**
+
+1. Change the password of an existing privileged account, including self.
+2. Change the email address of an existing privileged account, including self.
+3. Create a new administrator.
+4. Promote an existing user to administrator.
+5. Grant super-admin status on multisite.
+
+Password and email changes count as two actions even when one profile submission
+can request both. “Privileged account” and the target identity must be resolved
+from authoritative server state, not client labels.
+
+**Work:**
+
+1. Inventory and pin every core mutation seam and caller for the five actions.
+2. Add the smallest early vetoes needed where existing seams cannot refuse.
+3. Define server-canonical scalar descriptors and reuse the Phase 29
+   browser-bound, exact-action, single-use approval primitive.
+4. Add named adapters only for the corresponding wp-admin/REST surfaces; do not
+   introduce a general action registry or route guesser.
+5. Test direct and alternate callers, copied-cookie contexts, target changes,
+   combined profile updates, multisite behavior, and every guard mutation.
+
+**Exit gate:**
+
+- Refusal leaves passwords, email addresses, roles, capabilities, and network
+  super-admin membership unchanged.
+- Browser B with Browser A's copied WordPress auth cookie, but not Browser A's
+  independent browser-binding cookie, cannot approve or redeem Browser A's
+  identity intent.
+- A proof for one target, identity mutation, or privilege level cannot authorize
+  another.
+- Each of the five actions has a focused test that fails when its veto, binding,
+  descriptor, or atomic-use guard is removed.
+
+This phase is a companion perimeter, not a substitute for the two direct
+executable-code effects. It starts only after Phases 28 and 29 prove the shared
+boundary.
+
 ## Phase 31 — Reproducible demonstrator and attack evidence
 
 **Goal:** Turn the vertical slice into evidence a core reviewer can falsify.
@@ -202,11 +256,13 @@ security boundary.
    preflight flow.
 3. Automate cloned-cookie, direct-request, no-JavaScript, duplicate, cancellation,
    expiration, and changed-target cases.
-4. Preserve the original `consequential-actions` MVP at an immutable tag and
+4. Demonstrate that the five identity pivots cannot recreate or preserve
+   privileged access for the copied-cookie browser.
+5. Preserve the original `consequential-actions` MVP at an immutable tag and
    build an additive successor demo around effects and the new boundary. Reuse
    its Playground blueprint/narrator/test-shell assets; do not port its window or
    registry into the new mechanism.
-5. Publish a concise evidence report with commands, SHAs, expected results, and
+6. Publish a concise evidence report with commands, SHAs, expected results, and
    honest residual risk.
 
 **Exit gate:**
@@ -224,14 +280,17 @@ evidence rather than a framework vision.
 **Work:**
 
 1. Rewrite `docs/core-action-gate-proposal.md` around the two-effect closure and
-   early veto ask.
+   early veto ask, with the five identity pivots as a distinct companion
+   perimeter rather than a general catalog.
 2. Replace or archive the current broad implementation spec.
 3. Provide separately reviewable patch units:
    - veto seams;
-   - proof/confirmation primitive, if required in the initial ask; and
+   - proof/confirmation primitive, if required in the initial ask;
+   - identity-pivot companion seams; and
    - optional client demonstrator.
-4. Put the registry, automation/provenance, identity pivots, broad action catalog,
-   and general wp-admin API in a clearly marked future-work appendix.
+4. Put the registry, automation/provenance, identity actions beyond the five
+   named pivots, broad action catalog, and general wp-admin API in a clearly
+   marked future-work appendix.
 5. State that plugins cannot register arbitrary consequential effects in Cut 1;
    do not imply that a private core catalog is an ecosystem API.
 6. Request upstream review of the seam and threat claim—not endorsement of WP
@@ -253,6 +312,7 @@ evidence rather than a framework vision.
 | 28 | threat/flow contract settled | no narrow pre-effect veto exists |
 | 29 | veto seams proven | copied-cookie or atomic-use property fails |
 | 30 | proof protocol proven | smooth flow requires weakening the boundary |
+| 30B | two-effect UX and proof protocol proven | identity seams cannot remain narrow or fail closed |
 | 31 | vertical slice passes | independent reproduction fails |
 | 32 | evidence package passes | upstream ask cannot remain narrow |
 
@@ -260,11 +320,12 @@ evidence rather than a framework vision.
 
 - General actions/consequences registry.
 - Abilities integration.
-- Broad identity-pivot catalog.
+- Identity actions beyond the five named pivots.
 - Signed-update/package-provenance architecture.
 - Non-browser automation policy.
 - Production hardening of WP Sudo.
 - General-purpose wp-admin action-confirmation API.
 
-Those may become later milestones only after the two-action evidence changes the
-question from “is the boundary viable?” to “where else is it worth applying?”
+Those may become later milestones only after the two-action evidence and narrow
+identity companion change the question from “is the boundary viable?” to “where
+else is it worth applying?”

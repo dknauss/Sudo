@@ -2,7 +2,9 @@
 
 **Defined:** 2026-07-27
 **Core value:** Prove a narrow, reviewable core boundary and a safe, usable
-pause-before-send flow for two executable-code effects.
+pause-before-send flow for two executable-code effects, then apply that proven
+boundary to the five identity pivots needed to prevent trivial persistence or
+account takeover through a copied administrator session.
 
 ## Architecture truth
 
@@ -25,7 +27,8 @@ pause-before-send flow for two executable-code effects.
   callers, produces no success action/response, and leaves no partial effect.
 - [ ] **VETO-04:** Direct admin, AJAX/REST where applicable, and programmatic calls
   to the in-scope effect reach the same server decision or have a documented,
-  tested exclusion.
+  tested exclusion. Reaching the same seam does not imply that non-browser
+  callers share the browser reauthentication policy.
 - [ ] **VETO-05:** Removing or bypassing each veto makes its named negative test
   fail for the expected reason.
 
@@ -36,23 +39,26 @@ pause-before-send flow for two executable-code effects.
 - [ ] **PROOF-02:** Approval is short-lived, single-use, and atomically consumed
   by a compare-and-delete or equivalently linearizable operation before the
   effect; concurrent redemption cannot execute twice.
-- [ ] **PROOF-03:** A cloned authentication cookie cannot mint, discover, or redeem
-  approval issued to another browser merely because it can mint valid WP nonces.
+- [ ] **PROOF-03:** A browser holding a cloned WordPress authentication cookie,
+  but not the independent browser-binding cookie, cannot mint, discover, or
+  redeem approval issued to another browser merely because it can mint valid WP
+  nonces. A full cookie-state clone is tested and documented as outside this
+  property.
 - [ ] **PROOF-04:** Failure of proof storage or verification fails closed for the
   experimental gated effect.
 - [ ] **PROOF-05:** No general recent-auth window authorizes a different action.
 
 ## Trust and confirmation
 
-- [ ] **TRUST-01:** The design states where credentials and final action details are
+- [x] **TRUST-01:** The design states where credentials and final action details are
   displayed and why that surface is or is not trustworthy against active
   same-origin XSS.
-- [ ] **TRUST-02:** Trusted UI names the concrete action and target from
+- [x] **TRUST-02:** Trusted UI names the concrete action and target from
   server-defined data; attacker-controlled values render only as escaped data.
-- [ ] **TRUST-03:** The approval handoff is tested against active same-origin
+- [x] **TRUST-03:** The approval handoff is tested against active same-origin
   script for every operation it exposes: read, invoke, redirect, replay, and
   redeem. The result determines—not merely accompanies—the permitted XSS claim.
-- [ ] **TRUST-04:** Every proposal and demo states only the XSS property the
+- [x] **TRUST-04:** Every proposal and demo states only the XSS property the
   selected handoff actually survives. If it does not close active same-origin
   XSS, it makes no general “XSS → RCE closed” claim.
 
@@ -75,12 +81,26 @@ pause-before-send flow for two executable-code effects.
   integrated action reaches the veto without a valid preflight correlation, so
   broken JavaScript, CSP, or plugin conflicts degrade safely but not invisibly.
 
+## Identity-pivot companion
+
+- [ ] **IDENT-01:** The same approval contract gates changing the password or
+  email address of an existing privileged account, including the current
+  account, at an authoritative pre-mutation seam.
+- [ ] **IDENT-02:** The same approval contract gates creating a new administrator
+  and promoting an existing user to administrator.
+- [ ] **IDENT-03:** On multisite, the same approval contract gates granting
+  super-admin status.
+- [ ] **IDENT-04:** Each identity veto has direct, alternate-surface where
+  applicable, copied-cookie, changed-target, and guard-mutation tests; refusal
+  leaves identity and privilege state unchanged.
+
 ## Demonstrator and evidence
 
 - [ ] **DEMO-01:** One reproducible environment demonstrates plugin/theme ZIP
   upload and plugin/theme editor save with the experimental boundary on and off.
-- [ ] **DEMO-02:** A two-browser cloned-cookie test proves the exact copied-session
-  property and includes a differential unpatched control.
+- [ ] **DEMO-02:** A two-browser cloned-auth-cookie test and a full-cookie-state
+  boundary test prove the exact property and include a differential unpatched
+  control.
 - [ ] **DEMO-03:** Browser tests cover integrated, cancelled, expired, duplicate,
   no-JavaScript, and direct-request paths.
 - [ ] **DEMO-04:** Each core-source assertion and patch is pinned to a
@@ -95,11 +115,13 @@ pause-before-send flow for two executable-code effects.
 ## Proposal readiness
 
 - [ ] **CORE-01:** The first upstream ask is limited to veto-capable seams and the
-  minimum approval contract required by the two effects.
+  minimum approval contract required by the two code effects, with the five
+  identity pivots presented as a separately reviewable companion patch.
 - [ ] **CORE-02:** The actions registry appears only as a possible later companion,
   with no claim that it provides enforcement or must resemble Abilities.
-- [ ] **CORE-03:** Automation, provenance, broad identity-pivot coverage, and a
-  full wp-admin action-confirmation framework are explicitly follow-up work.
+- [ ] **CORE-03:** Automation, provenance, identity actions beyond the five named
+  pivots, and a full wp-admin action-confirmation framework are explicitly
+  follow-up work.
 - [ ] **CORE-03A:** Cut 1 states that plugin authors cannot register arbitrary
   consequential actions; a general extension mechanism is deferred with the
   registry/API work.
@@ -109,7 +131,8 @@ pause-before-send flow for two executable-code effects.
 ## Out of scope
 
 - Production readiness or another normal plugin release.
-- Comprehensive coverage of all dangerous WordPress operations.
+- Comprehensive coverage of all dangerous WordPress operations or identity
+  mutations beyond the five named pivots.
 - A general consequential-actions registry or Actions API.
 - Plugin sandboxing or protection from arbitrary in-process PHP.
 - Solving package authenticity or WordPress.org signed updates.
@@ -125,5 +148,6 @@ pause-before-send flow for two executable-code effects.
 | VETO | 28 |
 | PROOF | 29 |
 | UX | 30 |
+| IDENT | 30B |
 | DEMO | 31 |
 | CORE | 32 |
