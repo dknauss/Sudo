@@ -1984,8 +1984,9 @@ C2. REDUNDANT MEMORY DUPLICATING CLAUDE.md
     asserted from reading one core file, then defended twice by citing the wrong link
     in the chain that produces the value.
    Files:  includes/class-challenge.php (`Challenge::is_handler_endpoint()`),
-           docs/upstream-sources.md (`GB-NETWORK-EDIT-REDIRECT`, and the
-           `GB-NETWORK-ADMIN-CONST` row added while "fixing" this),
+           docs/upstream-sources.md (`GB-NETWORK-EDIT-REDIRECT`, and a second row
+           for the network-admin constant, added while "fixing" this and removed
+           again — deliberately not named here, see the note below),
            tests/Unit/ChallengeTest.php
            (`test_network_edit_php_is_a_handler_without_consulting_context()`),
            .planning/post-4.1.0-dev-scopes.md (still open — issue #491)
@@ -2031,6 +2032,17 @@ C2. REDUNDANT MEMORY DUPLICATING CLAUDE.md
            Three siblings, each found in a file the previous round had not read, over
            three consecutive review rounds. The last was in a test docblock three
            files from anything the change touched.
+
+           This entry cannot name that row's ID. `bin/verify-sources.sh` scans the
+           WHOLE repository for anything matching `ID_REGEX` and fails on any
+           reference without a row — so a historical record that names a RETIRED id
+           creates the exact dangling citation it is describing. The first draft of
+           this entry did precisely that and turned `main` red; it merged because
+           #495 was docs-only, and the docs-only path skips the job that runs
+           `verify:sources`. Two lessons, neither about the original claim: a
+           write-only audit log is still an input to the repo's own checkers, and
+           "docs-only, so the gates do not apply" is false whenever a gate reads
+           prose.
 
            Also caught in passing: adding one of those registry rows required adding
            its ID to the `TOP_LEVEL_STATEMENT_IDS` exemption in `bin/verify-sources.sh`.
