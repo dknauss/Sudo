@@ -361,12 +361,15 @@ class Site_Health {
 		// defect, and the same root cause was additionally fail-OPEN for
 		// revoke_all_active_sessions(), which selects `META_KEY > time()` in SQL
 		// and silently skipped a user whose sudo was still enforcing. Both are
-		// closed by deriving the scalar structurally in Sudo_Session::set_token()
-		// from the cache-bypassed merged proof map, rather than from a cached read
-		// of the scalar itself — so the worked example above describes the defect
-		// this pair of changes removes, not a live hazard. It is kept because the
-		// query below is only safe while that derivation holds, and a future
-		// change that reintroduced a cached read here would silently re-open it.
+		// narrowed by deriving the scalar in Sudo_Session::set_token() from the
+		// cache-bypassed merged proof map rather than from a cached read of the
+		// scalar itself. The worked example above is cache-specific and its cause
+		// is removed — but the OUTCOME is not: two concurrent activations can
+		// still interleave their two non-atomic meta writes and leave a too-low
+		// marker with no stale read involved, reproducing both the destructive
+		// sweep and the revoke skip (#475). The query below is safe against the
+		// cached cause, not against that race, and a future change reintroducing a
+		// cached read here would re-open the cause as well.
 		//
 		// The set is exactly the session-identity rows. It deliberately omits
 		// LOCKOUT_UNTIL_META_KEY, FAILURE_EVENT_META_KEY and
@@ -509,10 +512,16 @@ class Site_Health {
 		// missing.
 		//
 		// Reading the proof map here instead was considered and rejected: this
-		// sweep runs for *other* users and, as a `direct` test, also under core's
-		// scheduled check with no user context, so it cannot use
-		// resolve_valid_proof() (which requires the current user and their
-		// cookie) and would be trusting an unverified `expires` — while
+		// sweep runs for *other* users, so it cannot use resolve_valid_proof()
+		// (which requires the current user AND their wp_sudo_token cookie) and
+		// would be trusting an unverified `expires` — the map is keyed by
+		// sha256(verifier) and the HMAC covers the raw verifier, which a sweep
+		// never holds. (One record type is theoretically verifiable: the shared
+		// empty-verifier slot set_token() describes for cookie-less surfaces,
+		// whose sha256 is known. The sweep does not attempt verification for any
+		// record, so nothing turns on it — and activate() is public API that
+		// docs/FAQ.md points SSO integrations at, so such records are not
+		// hypothetical.) Meanwhile
 		// cache-bypassing per user would evict each user's entire `user_meta`
 		// bucket, not just this key.
 		//

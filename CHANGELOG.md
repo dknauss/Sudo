@@ -21,8 +21,14 @@
   from `Sudo_Session::GRACE_SECONDS` so they cannot drift apart again.
 
   **Operator-visible:** cleanup of an expired session is now deferred by up to
-  120 seconds. That is the intended trade — the session is not enforcing during
-  that window, only its record is retained.
+  120 seconds. Be precise about what that window is: the sudo timer has expired,
+  but a cookie- and HMAC-bound proof is still **accepted by gated paths** during
+  it — `Gate` admits `is_active() || is_within_grace()`, so a gated action
+  initiated in that window still passes. The window exists so a reauthentication
+  completed moments earlier is not wasted, and the sweep was deleting proofs
+  inside it. Retaining them for the window it was already designed to honour is
+  the trade; describing it as "not enforcing" would understate the authority
+  that remains.
 
 - **Security — "revoke all sessions" could silently skip a live sudo session
   (fix, #354).** The per-user expiry marker has one contract: it is at least as
@@ -39,15 +45,34 @@
   Users list for the same reason. A session that cannot be revoked is a worse
   failure than one cleaned up too eagerly. The same too-low marker is also what
   let the stale-session sweep above delete a live proof once the marker aged
-  past its cutoff, so this is what closes that path rather than narrowing it.
+  past its cutoff; removing the stale-read cause narrows that path substantially
+  but does not close it, for the reason given below.
 
   The marker is now derived in `set_token()` from the merged proof map it
   already holds cache-bypassed, which always contains the activation being
-  written. The contract is therefore structural rather than maintained by
-  convention: the value cannot be lowered by a stale read, and the documented
-  #279 behaviour — a shorter session in one browser must not shrink the marker
-  for another — follows from the derivation instead of from a `max()` over a
-  cached value. No stored format changes and no migration is required.
+  written. The value can no longer be lowered by a **stale read**, and the
+  documented #279 behaviour — a shorter session in one browser must not shrink
+  the marker for another — follows from the derivation instead of from a `max()`
+  over a cached value. No stored format changes and no migration is required.
+
+  **Scope, stated because an earlier draft of this note overstated it:** this
+  removes the cache as a cause, not concurrency. The marker and the proof map are
+  still two non-atomic `update_user_meta()` calls, so two browsers activating at
+  the same moment can interleave such that the shorter session's marker is
+  written last while the longer session's proof survives in the map. Same too-low
+  marker, reached without any stale read. The condition is on the later
+  marker-writer alone: its value is too low if it read the map before the other
+  wrote its proof, whatever the other's read position was.
+
+  That race predates this change, and to be exact rather than flattering, the
+  derivation gives up an accidental cover the old read-back had: a second
+  activation was previously unsafe only if it read before the first wrote the
+  **marker**, and is now unsafe if it reads before the first writes the
+  **proof** — strictly later, so the pure-interleaving window is wider by the
+  duration of one `update_user_meta()`. That is traded against removing the far
+  larger cache-staleness cause, which is why this is still a clear improvement,
+  but it is a trade and not a free one. Tracked in
+  [#475](https://github.com/dknauss/Sudo/issues/475).
 
 - **Project status clarified:** WP Sudo is explicitly classified as a research
   prototype and security-design demonstrator, not a supported production

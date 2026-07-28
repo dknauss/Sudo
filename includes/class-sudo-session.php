@@ -1065,7 +1065,7 @@ class Sudo_Session {
 		// too-low scalar later lets Site_Health's sweep delete that live proof
 		// once it ages past the sweep's cutoff.
 		//
-		// Deriving it here makes the contract structural instead of conventional:
+		// Deriving it here removes the cache as a way to break the contract:
 		// $map is already the authoritative, cache-bypassed, merged set and always
 		// contains this activation's entry, so the maximum is >= $expires by
 		// construction and cannot be lowered by a stale read. Grace-retained

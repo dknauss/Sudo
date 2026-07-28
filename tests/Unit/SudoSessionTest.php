@@ -597,7 +597,7 @@ class SudoSessionTest extends TestCase
 	}
 
 	/**
-	 * #279, now structural: activating a shorter session in one browser must not
+	 * #279, now derived rather than maintained: activating a shorter session in one browser must not
 	 * shrink the marker for another. Previously an intended property maintained
 	 * by a max() over a cached read; now a consequence of deriving the scalar
 	 * from the merged map, exercised with no cache failure involved.
