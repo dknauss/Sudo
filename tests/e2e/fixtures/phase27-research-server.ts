@@ -1,4 +1,8 @@
-import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import {
+    createServer,
+    type IncomingMessage,
+    type ServerResponse,
+} from 'node:http';
 import { createHash, randomBytes } from 'node:crypto';
 
 type Operation =
@@ -28,7 +32,9 @@ type Operation =
     | 'upload-envelope-digest'
     | 'upload-part-digest'
     | 'upload-effect'
-    | 'upload-replay-blocked';
+    | 'upload-replay-blocked'
+    | 'preflight-target-resolver-called'
+    | 'upload-bytes-read';
 
 type Observation = {
     operation: Operation;
@@ -61,6 +67,19 @@ type UploadIntent = {
     preparedBinding: string;
     used: boolean;
 };
+
+type CandidatePreflight = {
+    action: string;
+    digest: string;
+    target: string;
+};
+
+type CappedBody = {
+    body: Buffer | null;
+    bytesRead: number;
+};
+
+const MAX_UPLOAD_ENVELOPE_BYTES = 1024;
 
 const compromisedSameDocumentHandler =
     process.env.PHASE27_DISABLE_COMPROMISED_HANDLER === '1'
@@ -659,14 +678,35 @@ function readBody( request: IncomingMessage ): Promise<string> {
     } );
 }
 
-function readBodyBuffer( request: IncomingMessage ): Promise<Buffer> {
+function readBodyBufferCapped(
+    request: IncomingMessage,
+    maximumBytes: number,
+): Promise<CappedBody> {
     return new Promise( ( resolve, reject ) => {
         const chunks: Buffer[] = [];
+        let bytesRead = 0;
+        let finished = false;
+        const finish = (body: Buffer | null) => {
+            if (!finished) {
+                finished = true;
+                resolve({ body, bytesRead });
+            }
+        };
 
         request.on( 'data', ( chunk: Buffer ) => {
+            if (finished) {
+                return;
+            }
+
+            bytesRead += chunk.length;
+            if (bytesRead > maximumBytes) {
+                request.pause();
+                finish(null);
+                return;
+            }
             chunks.push( chunk );
         } );
-        request.on( 'end', () => resolve( Buffer.concat( chunks ) ) );
+        request.on('end', () => finish(Buffer.concat(chunks)));
         request.on( 'error', reject );
     } );
 }
@@ -674,11 +714,11 @@ function readBodyBuffer( request: IncomingMessage ): Promise<Buffer> {
 function multipartFileBytes(
     request: IncomingMessage,
     body: Buffer,
-    fieldName: string
+    fieldName: string,
 ): Buffer | null {
     const contentType = request.headers[ 'content-type' ] ?? '';
     const boundaryMatch = contentType.match(
-        /^multipart\/form-data;\s*boundary=(?:"([^"]+)"|([^;\s]+))$/i
+        /^multipart\/form-data;\s*boundary=(?:"([^"]+)"|([^;\s]+))$/i,
     );
     const boundary = boundaryMatch?.[ 1 ] ?? boundaryMatch?.[ 2 ] ?? '';
 
@@ -702,7 +742,7 @@ function multipartFileBytes(
             body
                 .subarray(
                     markerIndex + marker.length,
-                    markerIndex + marker.length + 2
+                    markerIndex + marker.length + 2,
                 )
                 .equals( Buffer.from( '--' ) )
         ) {
@@ -743,7 +783,7 @@ function send(
     response: ServerResponse,
     status: number,
     contentType: string,
-    body: string
+    body: string,
 ): void {
     response.writeHead( status, {
         'Content-Type': contentType,
@@ -792,10 +832,29 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
     const candidateIntents = new Map<string, CandidateIntent>();
     const uploadIntents = new Map<string, UploadIntent>();
 
+    function resolveCandidateTarget(
+        preflight: CandidatePreflight,
+    ): CandidatePreflight | null {
+        observations.push({
+            operation: 'preflight-target-resolver-called',
+            value: preflight.target,
+        });
+
+        if (
+            preflight.action !== 'core/write-extension-file' ||
+            preflight.target !== 'sample-plugin/sample.php' ||
+            preflight.digest !== 'sha256:server-held-proposed-bytes'
+        ) {
+            return null;
+        }
+
+        return preflight;
+    }
+
     function authorizePreflight(
         request: IncomingMessage,
         response: ServerResponse,
-        scope: string
+        scope: string,
     ): boolean {
         const auth = cookieValue( request, 'wp_auth' );
         const binding = cookieValue( request, '__Host-phase27_binding' );
@@ -813,8 +872,15 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
             return false;
         }
 
-        // Bind the budget to the authenticated login session, not the
-        // attacker-rotatable browser cookie used to bind an approval.
+        // Keyed on the login session rather than the browser binding, so
+        // rotating the binding cookie does not reset the budget. Note the
+        // narrower truth: `auth` is read from a caller-supplied cookie, and
+        // only the capability check above — which accepts one literal — stops
+        // it being rotated too. Under PHASE27_DISABLE_PREFLIGHT_CAPABILITY a
+        // rotating wp_auth mints a fresh budget every request. Production keys
+        // on a session verifier the caller cannot choose, and re-login there
+        // mints a new one, so the scope is an open Phase 28 question rather
+        // than a settled property.
         const rateKey = scope + ':' + auth;
         const now = Date.now();
         const existingBudget = preflightAttempts.get( rateKey );
@@ -833,7 +899,12 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
             process.env.PHASE27_DISABLE_PREFLIGHT_RATE_LIMIT !== '1' &&
             budget.attempts > 3
         ) {
-            send( response, 429, 'text/plain; charset=utf-8', 'Too many requests' );
+            send(
+                response,
+                429,
+                'text/plain; charset=utf-8',
+                'Too many requests',
+            );
             return false;
         }
 
@@ -843,19 +914,16 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
     function authorizeApprovalFactor(
         auth: string,
         password: string,
-        response: ServerResponse
+        response: ServerResponse,
     ): boolean {
         const failures = approvalFailures.get( auth ) ?? 0;
 
-        if (
-            ! approvalRateDisabled &&
-            failures >= 3
-        ) {
+        if (!approvalRateDisabled && failures >= 3) {
             send(
                 response,
                 429,
                 'application/json; charset=utf-8',
-                JSON.stringify( { status: 'rate_limited' } )
+                JSON.stringify({ status: 'rate_limited' }),
             );
             return false;
         }
@@ -868,7 +936,7 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
                 response,
                 403,
                 'application/json; charset=utf-8',
-                JSON.stringify( { status: 'rejected' } )
+                JSON.stringify({ status: 'rejected' }),
             );
             return false;
         }
@@ -878,7 +946,12 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
 
     const server = createServer( async ( request, response ) => {
         if ( request.method === 'GET' && request.url === '/same-document' ) {
-            send( response, 200, 'text/html; charset=utf-8', sameDocumentFixture );
+            send(
+                response,
+                200,
+                'text/html; charset=utf-8',
+                sameDocumentFixture,
+            );
             return;
         }
 
@@ -892,7 +965,7 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
                 response,
                 200,
                 'text/html; charset=utf-8',
-                popupConfirmationFixture
+                popupConfirmationFixture,
             );
             return;
         }
@@ -902,7 +975,7 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
                 response,
                 200,
                 'text/html; charset=utf-8',
-                isolatedParentFixture
+                isolatedParentFixture,
             );
             return;
         }
@@ -915,7 +988,7 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
                 response,
                 200,
                 'text/html; charset=utf-8',
-                tamperedPopupParentFixture
+                tamperedPopupParentFixture,
             );
             return;
         }
@@ -925,7 +998,7 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
                 response,
                 200,
                 'text/html; charset=utf-8',
-                topLevelParentFixture
+                topLevelParentFixture,
             );
             return;
         }
@@ -938,7 +1011,7 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
                 response,
                 200,
                 'text/html; charset=utf-8',
-                counterfeitTopLevelParentFixture
+                counterfeitTopLevelParentFixture,
             );
             return;
         }
@@ -1027,7 +1100,7 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
                     digest: uploadIntent.digest,
                     id: uploadIntent.id,
                     label: 'Upload one plugin package',
-                } )
+                }),
             );
             return;
         }
@@ -1041,21 +1114,32 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
                 password: string;
             };
             const binding = cookieValue( request, '__Host-phase27_binding' );
-            const authenticated =
-                cookieValue( request, 'wp_auth' ) === 'copied-login-session';
+            const auth = cookieValue( request, 'wp_auth' );
+            const authenticated = auth === 'copied-login-session';
             const uploadIntent = uploadIntents.get( approval.intent );
 
             if (
                 ! authenticated ||
                 binding === '' ||
                 uploadIntent === undefined ||
-                ( process.env
-                    .PHASE27_DISABLE_UPLOAD_APPROVAL_BINDING !== '1' &&
-                    binding !== uploadIntent.preparedBinding ) ||
-                ( process.env.PHASE27_DISABLE_UPLOAD_PASSWORD_CHECK !== '1' &&
-                    approval.password !== 'victim-secret' )
+                (process.env.PHASE27_DISABLE_UPLOAD_APPROVAL_BINDING !== '1' &&
+                    binding !== uploadIntent.preparedBinding )
             ) {
                 send( response, 403, 'text/plain; charset=utf-8', 'Forbidden' );
+                return;
+            }
+
+            // The factor check has to share `authorizeApprovalFactor`'s budget
+            // with /candidate-approve rather than compare the password inline.
+            // Both endpoints authenticate the same wp_auth principal against
+            // the same factor, so an unbudgeted twin recovers the very factor
+            // the other endpoint's budget protects: 500 wrong-password POSTs
+            // here used to return 500 clean 403s, after which the correct
+            // password was accepted and the effect ran.
+            if (
+                process.env.PHASE27_DISABLE_UPLOAD_PASSWORD_CHECK !== '1' &&
+                ! authorizeApprovalFactor( auth, approval.password, response )
+            ) {
                 return;
             }
 
@@ -1064,7 +1148,7 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
                 response,
                 200,
                 'application/json; charset=utf-8',
-                JSON.stringify( { status: 'approved' } )
+                JSON.stringify({ status: 'approved' }),
             );
             return;
         }
@@ -1073,7 +1157,48 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
             request.method === 'POST' &&
             request.url === '/candidate-upload-effect'
         ) {
-            const envelope = await readBodyBuffer( request );
+            const declaredLength = Number(request.headers['content-length']);
+            if (
+                !mutationEnabled('UPLOAD_DECLARED_LENGTH_CAP') &&
+                Number.isSafeInteger(declaredLength) &&
+                declaredLength > MAX_UPLOAD_ENVELOPE_BYTES
+            ) {
+                observations.push({
+                    operation: 'upload-bytes-read',
+                    value: '0',
+                });
+                request.resume();
+                send(
+                    response,
+                    413,
+                    'text/plain; charset=utf-8',
+                    'Payload Too Large',
+                );
+                return;
+            }
+
+            const cappedBody = await readBodyBufferCapped(
+                request,
+                mutationEnabled('UPLOAD_STREAM_CAP')
+                    ? Number.MAX_SAFE_INTEGER
+                    : MAX_UPLOAD_ENVELOPE_BYTES,
+            );
+            observations.push({
+                operation: 'upload-bytes-read',
+                value: String(cappedBody.bytesRead),
+            });
+            if (cappedBody.body === null) {
+                request.resume();
+                send(
+                    response,
+                    413,
+                    'text/plain; charset=utf-8',
+                    'Payload Too Large',
+                );
+                return;
+            }
+
+            const envelope = cappedBody.body;
             const parsedBody = multipartFileBytes( request, envelope, 'package' );
             const body =
                 parsedBody === null && mutationEnabled( 'UPLOAD_MULTIPART' )
@@ -1082,8 +1207,7 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
             const binding = cookieValue( request, '__Host-phase27_binding' );
             const authenticated =
                 cookieValue( request, 'wp_auth' ) === 'copied-login-session';
-            const submittedIntent =
-                request.headers[ 'x-phase27-intent' ] ?? '';
+            const submittedIntent = request.headers['x-phase27-intent'] ?? '';
             const uploadIntent = uploadIntents.get( String( submittedIntent ) );
 
             if ( body === null ) {
@@ -1091,7 +1215,7 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
                     response,
                     400,
                     'text/plain; charset=utf-8',
-                    'One package file is required'
+                    'One package file is required',
                 );
                 return;
             }
@@ -1119,7 +1243,12 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
                     operation: 'upload-replay-blocked',
                     value: String( submittedIntent ),
                 } );
-                send( response, 409, 'text/plain; charset=utf-8', 'Already used' );
+                send(
+                    response,
+                    409,
+                    'text/plain; charset=utf-8',
+                    'Already used',
+                );
                 return;
             }
 
@@ -1161,22 +1290,25 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
             request.method === 'POST' &&
             request.url === '/candidate-preflight'
         ) {
+            let preflight: CandidatePreflight | null = null;
+            let target: CandidatePreflight | null = null;
+            if (mutationEnabled('PREFLIGHT_ORACLE')) {
+                preflight = JSON.parse(
+                    await readBody(request),
+                ) as CandidatePreflight;
+                target = resolveCandidateTarget(preflight);
+            }
             if ( ! authorizePreflight( request, response, 'file-write' ) ) {
                 return;
             }
 
-            const preflight = JSON.parse( await readBody( request ) ) as {
-                action: string;
-                digest: string;
-                target: string;
-            };
+            preflight ??= JSON.parse(
+                await readBody(request),
+            ) as CandidatePreflight;
+            target ??= resolveCandidateTarget(preflight);
             const binding = cookieValue( request, '__Host-phase27_binding' );
 
-            if (
-                preflight.action !== 'core/write-extension-file' ||
-                preflight.target !== 'sample-plugin/sample.php' ||
-                preflight.digest !== 'sha256:server-held-proposed-bytes'
-            ) {
+            if (target === null) {
                 send( response, 403, 'text/plain; charset=utf-8', 'Forbidden' );
                 return;
             }
@@ -1206,7 +1338,7 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
                     id: candidateIntent.id,
                     label: candidateIntent.label,
                     target: candidateIntent.target,
-                } )
+                }),
             );
             return;
         }
@@ -1227,8 +1359,8 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
                 ! authenticated ||
                 binding === '' ||
                 candidateIntent === undefined ||
-                ( process.env
-                    .PHASE27_DISABLE_CANDIDATE_APPROVAL_BINDING !== '1' &&
+                (process.env.PHASE27_DISABLE_CANDIDATE_APPROVAL_BINDING !==
+                    '1' &&
                     binding !== candidateIntent.preparedBinding )
             ) {
                 observations.push( {
@@ -1239,7 +1371,7 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
                     response,
                     403,
                     'application/json; charset=utf-8',
-                    JSON.stringify( { status: 'rejected' } )
+                    JSON.stringify({ status: 'rejected' }),
                 );
                 return;
             }
@@ -1256,7 +1388,7 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
                 response,
                 200,
                 'application/json; charset=utf-8',
-                JSON.stringify( { status: 'approved' } )
+                JSON.stringify({ status: 'approved' }),
             );
             return;
         }
@@ -1297,7 +1429,12 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
                     operation: 'candidate-replay-blocked',
                     value: submission.intent,
                 } );
-                send( response, 409, 'text/plain; charset=utf-8', 'Already used' );
+                send(
+                    response,
+                    409,
+                    'text/plain; charset=utf-8',
+                    'Already used',
+                );
                 return;
             }
 
@@ -1333,7 +1470,7 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
                 response,
                 200,
                 'text/html; charset=utf-8',
-                isolatedConfirmationFixture
+                isolatedConfirmationFixture,
             );
             return;
         }
@@ -1346,7 +1483,7 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
                 response,
                 200,
                 'text/html; charset=utf-8',
-                isolatedConfirmationFixture
+                isolatedConfirmationFixture,
             );
             return;
         }
@@ -1365,7 +1502,7 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
                     id: intent.id,
                     label: intent.label,
                     target: intent.target,
-                } )
+                }),
             );
             return;
         }
@@ -1402,7 +1539,12 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
                     operation: 'replay-blocked',
                     value: intent.id,
                 } );
-                send( response, 409, 'text/plain; charset=utf-8', 'Already used' );
+                send(
+                    response,
+                    409,
+                    'text/plain; charset=utf-8',
+                    'Already used',
+                );
                 return;
             }
 
@@ -1425,7 +1567,7 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
                 response,
                 200,
                 'application/json; charset=utf-8',
-                JSON.stringify( { status: 'executed' } )
+                JSON.stringify({ status: 'executed' }),
             );
             return;
         }
@@ -1438,7 +1580,7 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
                 JSON.stringify( {
                     action: 'core/upload-extension-package',
                     authority: 'phase27-action-bearer',
-                } )
+                }),
             );
             return;
         }
@@ -1464,7 +1606,7 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
 
         if ( request.method === 'POST' && request.url === '/observe' ) {
             const observation = JSON.parse(
-                await readBody( request )
+                await readBody(request),
             ) as Observation;
             observations.push( observation );
             send( response, 204, 'text/plain; charset=utf-8', '' );

@@ -21,7 +21,7 @@ const fixturePath = new URL(
 const manifest = JSON.parse( readFileSync( manifestPath, 'utf8' ) );
 const fixture = readFileSync( fixturePath, 'utf8' );
 const codeGuardIds = [
-    ...fixture.matchAll( /mutationEnabled\(\s*'([A-Z][A-Z0-9_]+)'\s*\)/g ),
+    ...fixture.matchAll( /mutationEnabled\(\s*['"]([A-Z][A-Z0-9_]+)['"]\s*\)/g ),
 ].map( ( match ) => match[ 1 ] );
 const manifestGuardIds = manifest.guards.map( ( guard ) => guard.id );
 const unique = ( values ) => [ ...new Set( values ) ].sort();
@@ -177,5 +177,5 @@ console.log(
 );
 
 if ( results.some( ( result ) => ! result.passed ) ) {
-    process.exit( 1 );
+    process.exitCode = 1;
 }

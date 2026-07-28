@@ -1,6 +1,47 @@
 import { expect, test } from '@playwright/test';
+import { request as httpRequest } from 'node:http';
 
 import { startPhase27ResearchServer } from '../fixtures/phase27-research-server';
+
+function postRaw(
+    serverUrl: string,
+    headers: Record<string, string>,
+    chunks: Buffer[],
+): Promise<{
+    body: string;
+    headers: Record<string, string | string[]>;
+    status: number;
+}> {
+    const url = new URL('/candidate-upload-effect', serverUrl);
+
+    return new Promise((resolve, reject) => {
+        const request = httpRequest(
+            {
+                headers,
+                hostname: url.hostname,
+                method: 'POST',
+                path: url.pathname,
+                port: url.port,
+            },
+            (response) => {
+                const body: Buffer[] = [];
+                response.on('data', (chunk: Buffer) => body.push(chunk));
+                response.on('end', () =>
+                    resolve({
+                        body: Buffer.concat(body).toString('utf8'),
+                        headers: response.headers,
+                        status: response.statusCode ?? 0,
+                    }),
+                );
+            },
+        );
+        request.on('error', reject);
+        for (const chunk of chunks) {
+            request.write(chunk);
+        }
+        request.end();
+    });
+}
 
 test.describe( 'Phase 27 same-document modal negative control', () => {
     test( 'compromised parent script can read and drive the approval ceremony', async ( {
@@ -26,7 +67,7 @@ test.describe( 'Phase 27 same-document modal negative control', () => {
                             operation: 'invoke',
                             value: 'core/upload-extension-package',
                         },
-                    ] )
+                    ]),
                 );
         } finally {
             await server.close();
@@ -70,7 +111,7 @@ test.describe( 'Phase 27 noopener popup return-channel probe', () => {
                             operation: 'redeem',
                             value: 'core/upload-extension-package',
                         },
-                    ] )
+                    ]),
                 );
         } finally {
             await server.close();
@@ -94,10 +135,10 @@ test.describe( 'Phase 27 isolated confirmation and self-redemption', () => {
             const popup = await popupPromise;
 
             await expect( popup.getByTestId( 'action' ) ).toHaveText(
-                'Write sample-plugin/sample.php'
+                'Write sample-plugin/sample.php',
             );
             await expect( popup.getByTestId( 'digest' ) ).toHaveText(
-                'sha256:server-held-proposed-bytes'
+                'sha256:server-held-proposed-bytes',
             );
 
             await popup.getByLabel( 'Password' ).fill( 'victim-secret' );
@@ -106,7 +147,7 @@ test.describe( 'Phase 27 isolated confirmation and self-redemption', () => {
                 .click();
             await expect( popup.getByRole( 'status' ) ).toHaveText( 'Written' );
             await expect( popup.getByTestId( 'response-contract' ) ).toHaveText(
-                '{"status":"executed"}'
+                '{"status":"executed"}',
             );
 
             const replay = await popup.request.post(
@@ -116,7 +157,7 @@ test.describe( 'Phase 27 isolated confirmation and self-redemption', () => {
                         intent: 'file-write-1',
                         password: 'victim-secret',
                     },
-                }
+                },
             );
             expect( replay.status() ).toBe( 409 );
 
@@ -144,13 +185,13 @@ test.describe( 'Phase 27 isolated confirmation and self-redemption', () => {
                             operation: 'replay-blocked',
                             value: 'file-write-1',
                         },
-                    ] )
+                    ]),
                 );
 
             expect(
                 server
                     .observations()
-                    .filter( ( item ) => item.operation === 'effect' )
+                    .filter((item) => item.operation === 'effect'),
             ).toHaveLength( 1 );
         } finally {
             await server.close();
@@ -189,7 +230,7 @@ test.describe( 'Phase 27 isolated confirmation and self-redemption', () => {
                             operation: 'effect',
                             value: 'sample-plugin/sample.php',
                         },
-                    ] )
+                    ]),
                 );
         } finally {
             await server.close();
@@ -209,14 +250,14 @@ test.describe( 'Phase 27 top-level replacement and self-redemption', () => {
                 .getByRole( 'button', { name: 'Review exact file write' } )
                 .click();
             await page.waitForURL(
-                server.url + '/top-level-confirm?intent=file-write-1'
+                server.url + '/top-level-confirm?intent=file-write-1',
             );
 
             await expect( page.getByTestId( 'action' ) ).toHaveText(
-                'Write sample-plugin/sample.php'
+                'Write sample-plugin/sample.php',
             );
             await expect( page.getByTestId( 'digest' ) ).toHaveText(
-                'sha256:server-held-proposed-bytes'
+                'sha256:server-held-proposed-bytes',
             );
 
             await page.getByLabel( 'Password' ).fill( 'victim-secret' );
@@ -228,7 +269,7 @@ test.describe( 'Phase 27 top-level replacement and self-redemption', () => {
                         operation: 'parent-unloaded',
                         value: 'top-level-parent',
                     },
-                ] )
+                ]),
             );
             expect(
                 server
@@ -236,8 +277,8 @@ test.describe( 'Phase 27 top-level replacement and self-redemption', () => {
                     .some(
                         ( item ) =>
                             item.operation === 'top-level-credential-read' ||
-                            item.operation === 'effect'
-                    )
+                            item.operation === 'effect',
+                    ),
             ).toBe( false );
 
             await page
@@ -245,7 +286,7 @@ test.describe( 'Phase 27 top-level replacement and self-redemption', () => {
                 .click();
             await expect( page.getByRole( 'status' ) ).toHaveText( 'Written' );
             await expect( page.getByTestId( 'response-contract' ) ).toHaveText(
-                '{"status":"executed"}'
+                '{"status":"executed"}',
             );
 
             const replay = await page.request.post(
@@ -255,14 +296,14 @@ test.describe( 'Phase 27 top-level replacement and self-redemption', () => {
                         intent: 'file-write-1',
                         password: 'victim-secret',
                     },
-                }
+                },
             );
             expect( replay.status() ).toBe( 409 );
 
             expect(
                 server
                     .observations()
-                    .filter( ( item ) => item.operation === 'effect' )
+                    .filter((item) => item.operation === 'effect'),
             ).toEqual( [
                 {
                     operation: 'effect',
@@ -285,7 +326,7 @@ test.describe( 'Phase 27 top-level replacement and self-redemption', () => {
                 .getByRole( 'button', { name: 'Review exact file write' } )
                 .click();
             await page.waitForURL(
-                server.url + '/top-level-confirm?intent=file-write-1'
+                server.url + '/top-level-confirm?intent=file-write-1',
             );
 
             await page.getByLabel( 'Password' ).fill( 'victim-secret' );
@@ -302,12 +343,12 @@ test.describe( 'Phase 27 top-level replacement and self-redemption', () => {
                             operation: 'effect',
                             value: 'sample-plugin/sample.php',
                         },
-                    ] )
+                    ]),
                 );
             expect(
-                server.observations().some(
-                    ( item ) => item.operation === 'parent-unloaded'
-                )
+                server
+                    .observations()
+                    .some((item) => item.operation === 'parent-unloaded'),
             ).toBe( false );
         } finally {
             await server.close();
@@ -326,7 +367,7 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
             serverUrl: string,
             pagePath: string,
             endpoint: string,
-            body: Record<string, string>
+            body: Record<string, string>,
         ) {
             const anonymous = await browser.newContext();
             const lowPrivilege = await browser.newContext();
@@ -379,7 +420,7 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                                 status: response.status,
                             };
                         },
-                        { body, endpoint }
+                        { body, endpoint },
                     );
                     expect( result ).toEqual( {
                         body: 'Forbidden',
@@ -398,7 +439,7 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                         } );
                         return response.status;
                     },
-                    { body, endpoint }
+                    { body, endpoint },
                 );
                 expect( initial ).toBe( 200 );
 
@@ -407,26 +448,22 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                     probeStatuses.push(
                         await pageB.evaluate(
                             async ( request ) => {
-                                const response = await fetch(
-                                    request.endpoint,
-                                    {
+                                const response = await fetch(request.endpoint, {
                                         method: 'POST',
                                         headers: {
                                             'Content-Type': 'application/json',
                                         },
                                         body: JSON.stringify( request.body ),
-                                    }
-                                );
+                                });
                                 return response.status;
                             },
-                            { body, endpoint }
-                        )
+                            { body, endpoint },
+                        ),
                     );
                 }
-                expect(
-                    probeStatuses,
-                    'P27-PREFLIGHT-RATE'
-                ).toEqual( [ 200, 200, 429 ] );
+                expect(probeStatuses, 'P27-PREFLIGHT-RATE').toEqual([
+                    200, 200, 429,
+                ]);
             } finally {
                 await Promise.allSettled( [
                     anonymous.close(),
@@ -446,17 +483,16 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                     action: 'core/write-extension-file',
                     digest: 'sha256:server-held-proposed-bytes',
                     target: 'sample-plugin/sample.php',
-                }
+                },
             );
             await exercisePreflight(
                 uploadServer.url,
                 '/copied-cookie-upload-candidate',
                 '/candidate-upload-preflight',
                 {
-                    digest:
-                        '17f75876c4a7e94e98d23d54290a11c43d386ea46977a387b6aa249a2e930b01',
+                    digest: '17f75876c4a7e94e98d23d54290a11c43d386ea46977a387b6aa249a2e930b01',
                     kind: 'plugin',
-                }
+                },
             );
         } finally {
             await Promise.allSettled( [
@@ -493,10 +529,10 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                 .getByRole( 'button', { name: 'Prepare exact write' } )
                 .click();
             await expect( pageA.getByTestId( 'action' ) ).toHaveText(
-                'Write sample-plugin/sample.php'
+                'Write sample-plugin/sample.php',
             );
             await expect( pageA.getByTestId( 'digest' ) ).toHaveText(
-                'sha256:server-held-proposed-bytes'
+                'sha256:server-held-proposed-bytes',
             );
             const intentA = await pageA.getByTestId( 'intent' ).textContent();
             expect( intentA ).not.toBeNull();
@@ -519,7 +555,8 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
             expect( browserBPreflight.status ).toBe( 200 );
             expect( browserBPreflight.body.id ).not.toBe( intentA );
 
-            const wrongPasswordApproval = await pageA.evaluate( async ( intentId ) => {
+            const wrongPasswordApproval = await pageA.evaluate(
+                async (intentId) => {
                 const response = await fetch( '/candidate-approve', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -529,7 +566,9 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                     } ),
                 } );
                 return response.status;
-            }, intentA );
+                },
+                intentA,
+            );
             expect( wrongPasswordApproval ).toBe( 403 );
 
             const browserBApproval = await pageB.evaluate( async ( intentId ) => {
@@ -564,10 +603,11 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                 .click();
             await expect( pageA.getByRole( 'status' ) ).toHaveText( 'Approved' );
             await expect(
-                pageA.getByTestId( 'approval-response-contract' )
+                pageA.getByTestId('approval-response-contract'),
             ).toHaveText( '{"status":"approved"}' );
 
-            const browserBRedemption = await pageB.evaluate( async ( intentId ) => {
+            const browserBRedemption = await pageB.evaluate(
+                async (intentId) => {
                 const response = await fetch( '/candidate-effect', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -578,7 +618,9 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                     } ),
                 } );
                 return response.status;
-            }, intentA );
+                },
+                intentA,
+            );
             expect( browserBRedemption ).toBe( 403 );
 
             const mutation = await pageA.evaluate( async ( intentId ) => {
@@ -638,20 +680,15 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                             operation: 'candidate-replay-blocked',
                             value: intentA,
                         },
-                    ] )
+                    ]),
                 );
             expect(
                 server
                     .observations()
-                    .filter(
-                        ( item ) => item.operation === 'candidate-effect'
-                    )
+                    .filter((item) => item.operation === 'candidate-effect'),
             ).toHaveLength( 1 );
         } finally {
-            await Promise.allSettled( [
-                browserA.close(),
-                browserB.close(),
-            ] );
+            await Promise.allSettled([browserA.close(), browserB.close()]);
             await server.close();
         }
     } );
@@ -679,22 +716,22 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
             await pageA.goto( server.url + '/copied-cookie-candidate' );
             await pageB.goto( server.url + '/copied-cookie-candidate' );
             const bindingA = ( await browserA.cookies() ).find(
-                ( cookie ) => cookie.name === '__Host-phase27_binding'
+                (cookie) => cookie.name === '__Host-phase27_binding',
             );
 
             expect( bindingA?.secure, 'P27-BIND-HOST-SECURE' ).toBe( true );
             expect( bindingA?.httpOnly, 'P27-BIND-HOST-HTTPONLY' ).toBe( true );
             expect( bindingA?.path, 'P27-BIND-HOST-PATH' ).toBe( '/' );
             expect( bindingA?.domain, 'P27-BIND-HOST-HOSTONLY' ).toBe(
-                '127.0.0.1'
+                '127.0.0.1',
             );
             expect(
                 await pageA.evaluate( () => document.cookie ),
-                'P27-BIND-NOT-SCRIPT-READABLE'
+                'P27-BIND-NOT-SCRIPT-READABLE',
             ).not.toContain( '__Host-phase27_binding' );
 
             const preflight = async (
-                page: typeof pageA
+                page: typeof pageA,
             ): Promise< { body: Record< string, string >; status: number } > =>
                 page.evaluate( async () => {
                     const response = await fetch( '/candidate-preflight', {
@@ -719,18 +756,14 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
             const intentA = await preflight( pageA );
             const intentB = await preflight( pageB );
 
-            expect(
-                intentA.status,
-                'P27-PREFLIGHT-A-CREATES-INTENT'
-            ).toBe( 200 );
+            expect(intentA.status, 'P27-PREFLIGHT-A-CREATES-INTENT').toBe(200);
             expect(
                 intentB.status,
-                'P27-PREFLIGHT-B-CREATES-INDEPENDENT-INTENT'
+                'P27-PREFLIGHT-B-CREATES-INDEPENDENT-INTENT',
             ).toBe( 200 );
-            expect(
-                intentB.body.id,
-                'P27-PREFLIGHT-INDEPENDENT-IDS'
-            ).not.toBe( intentA.body.id );
+            expect(intentB.body.id, 'P27-PREFLIGHT-INDEPENDENT-IDS').not.toBe(
+                intentA.body.id,
+            );
 
             const wrongIntentApproval = await pageA.evaluate( async () => {
                 const response = await fetch( '/candidate-approve', {
@@ -758,10 +791,7 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                 return response.status;
             }, intentA.body.id );
 
-            expect(
-                approvalA,
-                'P27-PREFLIGHT-B-DOES-NOT-OVERWRITE-A'
-            ).toBe( 200 );
+            expect(approvalA, 'P27-PREFLIGHT-B-DOES-NOT-OVERWRITE-A').toBe(200);
 
             const wrongIntentEffect = await pageA.evaluate(
                 async ( { digest, target } ) => {
@@ -779,7 +809,7 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                 {
                     digest: intentA.body.digest,
                     target: intentA.body.target,
-                }
+                },
             );
 
             expect( wrongIntentEffect, 'P27-EFFECT-EXACT-A' ).toBe( 403 );
@@ -801,15 +831,12 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                     digest: intentA.body.digest,
                     intentId: intentA.body.id,
                     target: intentA.body.target,
-                }
+                },
             );
 
             expect( effectA, 'P27-EFFECT-A-SUCCEEDS' ).toBe( 204 );
         } finally {
-            await Promise.allSettled( [
-                browserA.close(),
-                browserB.close(),
-            ] );
+            await Promise.allSettled([browserA.close(), browserB.close()]);
             await server.close();
         }
     } );
@@ -853,6 +880,21 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
             const intentA = await createIntent( pageA );
             const intentB = await createIntent( pageB );
 
+            // The same browser binding covers both approval endpoints, so an
+            // upload intent prepared here reaches /candidate-upload-approve's
+            // factor check rather than stopping at its binding check.
+            const uploadA = await pageA.evaluate( async () => {
+                const response = await fetch( '/candidate-upload-preflight', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify( {
+                        digest: '0'.repeat( 64 ),
+                        kind: 'plugin',
+                    } ),
+                } );
+                return response.json();
+            } );
+
             const fail = ( page: typeof pageA, intent: string ) =>
                 page.evaluate( async ( intentId ) => {
                     const response = await fetch( '/candidate-approve', {
@@ -866,14 +908,32 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                     return response.status;
                 }, intent );
 
+            const failUpload = ( page: typeof pageA, intent: string ) =>
+                page.evaluate( async ( intentId ) => {
+                    const response = await fetch( '/candidate-upload-approve', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify( {
+                            intent: intentId,
+                            password: 'wrong',
+                        } ),
+                    } );
+                    return response.status;
+                }, intent );
+
+            // Interleaved on purpose. The third element proves an upload
+            // failure spends the shared budget; the fourth proves the upload
+            // endpoint is itself refused once that budget is gone. Exercising
+            // only /candidate-approve leaves the upload twin unbudgeted, which
+            // is how 500 wrong-password upload approvals previously ran clean.
             expect(
                 [
                     await fail( pageA, intentA.id ),
                     await fail( pageB, intentB.id ),
-                    await fail( pageA, intentA.id ),
-                    await fail( pageB, intentB.id ),
+                    await failUpload( pageA, uploadA.id ),
+                    await failUpload( pageA, uploadA.id ),
                 ],
-                'P27-APPROVE-ACCOUNT-RATE'
+                'P27-APPROVE-ACCOUNT-RATE',
             ).toEqual( [ 403, 403, 403, 429 ] );
 
             expect(
@@ -888,13 +948,10 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                     } );
                     return response.status;
                 }, intentA.id ),
-                'P27-APPROVE-VICTIM-LOCKOUT-BOUNDARY'
+                'P27-APPROVE-VICTIM-LOCKOUT-BOUNDARY',
             ).toBe( 429 );
         } finally {
-            await Promise.allSettled( [
-                browserA.close(),
-                browserB.close(),
-            ] );
+            await Promise.allSettled([browserA.close(), browserB.close()]);
             await server.close();
         }
     } );
@@ -921,13 +978,13 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                 .getByRole( 'button', { name: 'Prepare exact write' } )
                 .click();
             await expect( pageA.getByTestId( 'action' ) ).toHaveText(
-                'Write sample-plugin/sample.php'
+                'Write sample-plugin/sample.php',
             );
             const intentA = await pageA.getByTestId( 'intent' ).textContent();
             expect( intentA ).not.toBeNull();
 
             const binding = ( await browserA.cookies() ).find(
-                ( cookie ) => cookie.name === '__Host-phase27_binding'
+                (cookie) => cookie.name === '__Host-phase27_binding',
             );
             expect( binding ).toBeDefined();
 
@@ -957,7 +1014,8 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                 .click();
             await expect( pageA.getByRole( 'status' ) ).toHaveText( 'Approved' );
 
-            const cloneRedemption = await clonePage.evaluate( async ( intentId ) => {
+            const cloneRedemption = await clonePage.evaluate(
+                async (intentId) => {
                 const response = await fetch( '/candidate-effect', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -968,21 +1026,119 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                     } ),
                 } );
                 return response.status;
-            }, intentA );
+                },
+                intentA,
+            );
 
             expect( cloneRedemption ).toBe( 204 );
             expect(
                 server
                     .observations()
-                    .filter(
-                        ( item ) => item.operation === 'candidate-effect'
-                    )
+                    .filter((item) => item.operation === 'candidate-effect'),
             ).toHaveLength( 1 );
         } finally {
-            await Promise.allSettled( [
-                browserA.close(),
-                browserClone.close(),
-            ] );
+            await Promise.allSettled([browserA.close(), browserClone.close()]);
+            await server.close();
+        }
+    });
+
+    test('preflight failures do not reveal target validity or resolve a target before authorization', async ({
+        browser,
+    }) => {
+        const server = await startPhase27ResearchServer();
+        const context = await browser.newContext();
+
+        try {
+            const page = await context.newPage();
+            await page.goto(server.url + '/copied-cookie-candidate');
+            const preflight = (target: string) =>
+                page.evaluate(async (requestedTarget) => {
+                    const response = await fetch('/candidate-preflight', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            action: 'core/write-extension-file',
+                            digest: 'sha256:server-held-proposed-bytes',
+                            target: requestedTarget,
+                        }),
+                    });
+                    return {
+                        body: await response.text(),
+                        cacheControl: response.headers.get('cache-control'),
+                        status: response.status,
+                    };
+                }, target);
+
+            const validTarget = await preflight('sample-plugin/sample.php');
+            const invalidTarget = await preflight(
+                'attacker-plugin/attacker.php',
+            );
+
+            expect(validTarget, 'P27-PREFLIGHT-ORACLE-EQUIVALENT').toEqual(
+                invalidTarget,
+            );
+            expect(validTarget).toEqual({
+                body: 'Forbidden',
+                cacheControl: 'no-store',
+                status: 403,
+            });
+            expect(
+                server
+                    .observations()
+                    .filter(
+                        (item) =>
+                            item.operation ===
+                            'preflight-target-resolver-called',
+                    ),
+                'P27-PREFLIGHT-NO-UNAUTHORIZED-TARGET-RESOLUTION',
+            ).toHaveLength(0);
+        } finally {
+            await Promise.allSettled([context.close(), server.close()]);
+        }
+    });
+
+    test('upload body limits reject declared length before reading and stop chunked input at cap plus one byte', async () => {
+        const server = await startPhase27ResearchServer();
+        const cap = 1024;
+
+        try {
+            const declared = await postRaw(
+                server.url,
+                {
+                    'Content-Length': String(cap + 1),
+                    'Content-Type': 'application/octet-stream',
+                },
+                [Buffer.alloc(cap + 1)],
+            );
+            expect(
+                declared,
+                'P27-UPLOAD-DECLARED-LENGTH-PREFLIGHT',
+            ).toMatchObject({
+                body: 'Payload Too Large',
+                headers: { 'cache-control': 'no-store' },
+                status: 413,
+            });
+
+            const chunked = await postRaw(
+                server.url,
+                { 'Content-Type': 'application/octet-stream' },
+                [Buffer.alloc(cap), Buffer.alloc(1)],
+            );
+            expect(chunked, 'P27-UPLOAD-CHUNKED-CAP-PLUS-ONE').toMatchObject({
+                body: 'Payload Too Large',
+                headers: { 'cache-control': 'no-store' },
+                status: 413,
+            });
+            expect(
+                server.observations(),
+                'P27-UPLOAD-BYTES-READ-EVIDENCE',
+            ).toEqual(
+                expect.arrayContaining([
+                    { operation: 'upload-bytes-read', value: '0' },
+                    { operation: 'upload-bytes-read', value: String(cap + 1) },
+                ]),
+            );
+        } finally {
             await server.close();
         }
     } );
@@ -1025,10 +1181,10 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                 .getByRole( 'button', { name: 'Prepare exact upload' } )
                 .click();
             await expect( pageA.getByTestId( 'action' ) ).toHaveText(
-                'Upload one plugin package'
+                'Upload one plugin package',
             );
             await expect( pageA.getByTestId( 'digest' ) ).toHaveText(
-                'sha256:17f75876c4a7e94e98d23d54290a11c43d386ea46977a387b6aa249a2e930b01'
+                'sha256:17f75876c4a7e94e98d23d54290a11c43d386ea46977a387b6aa249a2e930b01',
             );
             const intentA = await pageA.getByTestId( 'intent' ).textContent();
             expect( intentA ).not.toBeNull();
@@ -1045,19 +1201,18 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                     } );
                     return response.status;
                 },
-                { bytes: Array.from( trustedPackage ), intentId: intentA }
+                { bytes: Array.from(trustedPackage), intentId: intentA },
             );
-            expect(
-                rawUploadStatus,
-                'P27-UPLOAD-REQUIRES-MULTIPART'
-            ).toBe( 400 );
+            expect(rawUploadStatus, 'P27-UPLOAD-REQUIRES-MULTIPART').toBe(400);
 
             const duplicateUploadStatus = await pageA.evaluate(
                 async ( { bytes, intentId } ) => {
                     const file = new File(
                         [ new Uint8Array( bytes ) ],
                         'sample-plugin.zip',
-                        { type: 'application/zip' }
+                        {
+                            type: 'application/zip',
+                        },
                     );
                     const form = new FormData();
                     form.append( 'package', file );
@@ -1069,11 +1224,11 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                     } );
                     return response.status;
                 },
-                { bytes: Array.from( trustedPackage ), intentId: intentA }
+                { bytes: Array.from(trustedPackage), intentId: intentA },
             );
             expect(
                 duplicateUploadStatus,
-                'P27-UPLOAD-REJECTS-DUPLICATE-PART'
+                'P27-UPLOAD-REJECTS-DUPLICATE-PART',
             ).toBe( 400 );
 
             const browserBPreflight = await pageB.evaluate( async () => {
@@ -1093,7 +1248,8 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
             expect( browserBPreflight.status ).toBe( 200 );
             expect( browserBPreflight.body.id ).not.toBe( intentA );
 
-            const wrongPasswordApproval = await pageA.evaluate( async ( intentId ) => {
+            const wrongPasswordApproval = await pageA.evaluate(
+                async (intentId) => {
                 const response = await fetch( '/candidate-upload-approve', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -1103,7 +1259,9 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                     } ),
                 } );
                 return response.status;
-            }, intentA );
+                },
+                intentA,
+            );
             expect( wrongPasswordApproval ).toBe( 403 );
 
             const browserBApproval = await pageB.evaluate( async ( intentId ) => {
@@ -1138,16 +1296,14 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                 .click();
             await expect( pageA.getByRole( 'status' ) ).toHaveText( 'Approved' );
 
-            const browserBRedemption = await pageB.evaluate( async ( {
-                bytes,
-                intentId,
-            } ) => {
+            const browserBRedemption = await pageB.evaluate(
+                async ({ bytes, intentId }) => {
                 const form = new FormData();
                 form.append(
                     'package',
                     new File( [ new Uint8Array( bytes ) ], 'sample-plugin.zip', {
                         type: 'application/zip',
-                    } )
+                        }),
                 );
                 const response = await fetch( '/candidate-upload-effect', {
                     method: 'POST',
@@ -1157,7 +1313,9 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                     body: form,
                 } );
                 return response.status;
-            }, { bytes: Array.from( trustedPackage ), intentId: intentA } );
+                },
+                { bytes: Array.from(trustedPackage), intentId: intentA },
+            );
             expect( browserBRedemption ).toBe( 403 );
 
             await pageA.getByLabel( 'Plugin package' ).setInputFiles( {
@@ -1170,7 +1328,7 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                 .click();
             await expect(
                 pageA.getByRole( 'status' ),
-                'P27-UPLOAD-CONTENT-HASH'
+                'P27-UPLOAD-CONTENT-HASH',
             ).toHaveText( 'Rejected' );
 
             await pageA.getByLabel( 'Plugin package' ).setInputFiles( {
@@ -1183,16 +1341,14 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                 .click();
             await expect( pageA.getByRole( 'status' ) ).toHaveText( 'Uploaded' );
 
-            const replay = await pageA.evaluate( async ( {
-                bytes,
-                intentId,
-            } ) => {
+            const replay = await pageA.evaluate(
+                async ({ bytes, intentId }) => {
                 const form = new FormData();
                 form.append(
                     'package',
                     new File( [ new Uint8Array( bytes ) ], 'sample-plugin.zip', {
                         type: 'application/zip',
-                    } )
+                        }),
                 );
                 const response = await fetch( '/candidate-upload-effect', {
                     method: 'POST',
@@ -1202,7 +1358,9 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                     body: form,
                 } );
                 return response.status;
-            }, { bytes: Array.from( trustedPackage ), intentId: intentA } );
+                },
+                { bytes: Array.from(trustedPackage), intentId: intentA },
+            );
             expect( replay ).toBe( 409 );
 
             await expect
@@ -1229,12 +1387,12 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                             operation: 'upload-replay-blocked',
                             value: intentA,
                         },
-                    ] )
+                    ]),
                 );
             expect(
                 server
                     .observations()
-                    .filter( ( item ) => item.operation === 'upload-effect' )
+                    .filter((item) => item.operation === 'upload-effect'),
             ).toHaveLength( 1 );
             const envelopeDigest = server
                 .observations()
@@ -1244,13 +1402,10 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                 .find( ( item ) => item.operation === 'upload-part-digest' );
             expect(
                 envelopeDigest?.value,
-                'P27-UPLOAD-HASHES-PART-NOT-ENVELOPE'
+                'P27-UPLOAD-HASHES-PART-NOT-ENVELOPE',
             ).not.toBe( partDigest?.value );
         } finally {
-            await Promise.allSettled( [
-                browserA.close(),
-                browserB.close(),
-            ] );
+            await Promise.allSettled([browserA.close(), browserB.close()]);
             await server.close();
         }
     } );

@@ -18,7 +18,7 @@
     },
     {
       "id": "APPROVE_ACCOUNT_RATE",
-      "clause": "Failed approval attempts share one account-scoped budget across intents and browser bindings.",
+      "clause": "Failed approval attempts share one account-scoped budget across intents, browser bindings, and both the file-write and package-upload approval endpoints.",
       "focusedTest": "approval throttling survives intent and binding rotation and exposes victim lockout",
       "assertionId": "P27-APPROVE-ACCOUNT-RATE",
       "implementationStatus": "mutation-verified"
@@ -70,6 +70,27 @@
       "clause": "The upload effect hashes the decoded package bytes and rejects post-approval substitution.",
       "focusedTest": "browser-bound package approval sends bytes once and rejects clone, mutation, and replay",
       "assertionId": "P27-UPLOAD-CONTENT-HASH",
+      "implementationStatus": "mutation-verified"
+    },
+    {
+      "id": "PREFLIGHT_ORACLE",
+      "clause": "An unauthorized preflight returns an equivalent status, body, and cache contract without resolving the requested target.",
+      "focusedTest": "preflight failures do not reveal target validity or resolve a target before authorization",
+      "assertionId": "P27-PREFLIGHT-NO-UNAUTHORIZED-TARGET-RESOLUTION",
+      "implementationStatus": "mutation-verified"
+    },
+    {
+      "id": "UPLOAD_DECLARED_LENGTH_CAP",
+      "clause": "A declared upload body larger than the cap is rejected before body bytes are read. Without the guard the stream cap still returns 413, so the distinguishing observation is the byte-count evidence, not the status.",
+      "focusedTest": "upload body limits reject declared length before reading and stop chunked input at cap plus one byte",
+      "assertionId": "P27-UPLOAD-BYTES-READ-EVIDENCE",
+      "implementationStatus": "mutation-verified"
+    },
+    {
+      "id": "UPLOAD_STREAM_CAP",
+      "clause": "A chunked upload stops at the cap plus one byte and rejects the body.",
+      "focusedTest": "upload body limits reject declared length before reading and stop chunked input at cap plus one byte",
+      "assertionId": "P27-UPLOAD-CHUNKED-CAP-PLUS-ONE",
       "implementationStatus": "mutation-verified"
     }
   ]
