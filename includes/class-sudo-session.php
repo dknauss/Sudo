@@ -405,17 +405,10 @@ class Sudo_Session {
 		$duration = (int) Admin::get( 'session_duration', 15 );
 		$expires  = time() + ( $duration * MINUTE_IN_SECONDS );
 
-		// The scalar is the per-user liveness marker used by enumeration (the
-		// "Sudo Active (N)" count, the dashboard widget, bulk revoke, and
-		// is_session_live). Keep it at the furthest live expiry across this user's
-		// concurrent browsers so activating a shorter session in one browser does
-		// not shrink the marker for another (#279). Enforcement uses the
-		// per-browser proof record, not this scalar.
-		$existing = (int) get_user_meta( $user_id, self::META_KEY, true );
-		$scalar   = $existing > time() ? max( $existing, $expires ) : $expires;
-		update_user_meta( $user_id, self::META_KEY, $scalar );
-
 		// Write the self-authenticating proof for this browser and set the cookie.
+		// set_token() also writes the per-user liveness scalar (META_KEY), derived
+		// from the merged proof map it holds — see the note there for why the
+		// scalar is no longer computed here (#354).
 		self::set_token( $user_id, $expires );
 
 		// Clear any failed-attempt counters on successful activation.
@@ -1040,6 +1033,51 @@ class Sudo_Session {
 			'expires' => $expires,
 			'hmac'    => self::build_hmac( $user_id, $verifier, $token_hash, $expires ),
 		);
+
+		// Ordering is deliberate: the marker is written BEFORE the proof.
+		//
+		// A crash between the two writes must fail in the safe direction. Marker
+		// without proof means an enumerable, revocable record with no sudo behind
+		// it — harmless, and self-corrects on the next activation. Proof without
+		// marker is the opposite: a live, enforcing sudo session invisible to
+		// revoke_all_active_sessions() and is_session_live(), which is exactly the
+		// fail-open this change exists to close. Writing the proof first would
+		// reintroduce it in miniature.
+
+		// The per-user liveness scalar, derived from the map above (#354).
+		//
+		// It is the marker used by enumeration — the "Sudo Active (N)" count, the
+		// dashboard widget, is_session_live(), Site_Health's stale sweep, and
+		// revoke_all_active_sessions(). Enforcement never reads it; it reads the
+		// per-browser proof record. Its one contract is that it is at least as
+		// late as every proof in the map, so nothing that enumerates on it can
+		// miss a user whose sudo is still enforcing.
+		//
+		// That contract used to be maintained in activate(), by reading the
+		// scalar back with get_user_meta() and max()-ing it — a **cached** read,
+		// twelve lines above the cache-BYPASSED read of this map. A stale-low
+		// cached read made the `$existing > time()` branch false and wrote the new
+		// browser's expiry alone, which can sit beneath another browser's live
+		// proof. The wrong value then lands in the database, where
+		// revoke_all_active_sessions() reads it with SQL: the operator's "revoke
+		// all sessions" silently skips a user whose sudo is still live, and
+		// is_session_live() hides the per-user revoke. Fail-open, and the same
+		// too-low scalar later lets Site_Health's sweep delete that live proof
+		// once it ages past the sweep's cutoff.
+		//
+		// Deriving it here removes the cache as a way to break the contract:
+		// $map is already the authoritative, cache-bypassed, merged set and always
+		// contains this activation's entry, so the maximum is >= $expires by
+		// construction and cannot be lowered by a stale read. Grace-retained
+		// entries are expired and therefore never the maximum.
+		$scalar = $expires;
+		foreach ( $map as $entry ) {
+			if ( is_array( $entry ) && isset( $entry['expires'] ) ) {
+				$scalar = max( $scalar, (int) $entry['expires'] );
+			}
+		}
+
+		update_user_meta( $user_id, self::META_KEY, $scalar );
 
 		update_user_meta( $user_id, self::PROOF_META_KEY, $map );
 

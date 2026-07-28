@@ -2,6 +2,78 @@
 
 ## Unreleased
 
+- **Site Health's stale-session sweep no longer deletes live or grace-eligible
+  sudo sessions (fix, #354).** The sweep selected users on the expiry marker
+  being set, then re-read that marker with `get_user_meta()` — a **cached**
+  read — while the enforcement path reads the signed proof record
+  **cache-bypassed**, precisely because a persistent `user_meta` entry can be
+  stale. The two could disagree, and a failed cache invalidation let the sweep
+  classify a live session as stale and delete every valid browser proof for
+  that user. Selection and classification now happen in one SQL query, so the
+  database is authoritative for both paths.
+
+  The same pass fixes a second defect that needed **no** cache failure at all:
+  the sweep used a bare "expired" test while `Sudo_Session::set_token()`'s own
+  housekeeping excludes the 120-second grace window, which exists so a
+  just-expired session can still finish an in-flight gated form rather than
+  losing the user's work. The sweep therefore deleted grace-eligible proofs up
+  to two minutes early on ordinary timing. Both sweeps now derive the boundary
+  from `Sudo_Session::GRACE_SECONDS` so they cannot drift apart again.
+
+  **Operator-visible:** cleanup of an expired session is now deferred by up to
+  120 seconds. Be precise about what that window is: the sudo timer has expired,
+  but a cookie- and HMAC-bound proof is still **accepted by gated paths** during
+  it — `Gate` admits `is_active() || is_within_grace()`, so a gated action
+  initiated in that window still passes. The window exists so a reauthentication
+  completed moments earlier is not wasted, and the sweep was deleting proofs
+  inside it. Retaining them for the window it was already designed to honour is
+  the trade; describing it as "not enforcing" would understate the authority
+  that remains.
+
+- **Security — "revoke all sessions" could silently skip a live sudo session
+  (fix, #354).** The per-user expiry marker has one contract: it is at least as
+  late as every proof in the user's map, so nothing that enumerates on it can
+  miss a user whose sudo is still enforcing. `Sudo_Session::activate()`
+  maintained that contract by reading the marker back through the object cache
+  — twelve lines above a deliberately **cache-bypassed** read of the proof map.
+  A stale-low cached read wrote the new browser's expiry alone, which can sit
+  beneath another browser's live proof, and that value lands in the database.
+
+  `revoke_all_active_sessions()` selects on the marker in **SQL**, so an
+  operator's bulk revoke silently skipped a user whose sudo session was still
+  live and enforcing, and `is_session_live()` hid the per-user revoke on the
+  Users list for the same reason. A session that cannot be revoked is a worse
+  failure than one cleaned up too eagerly. The same too-low marker is also what
+  let the stale-session sweep above delete a live proof once the marker aged
+  past its cutoff; removing the stale-read cause narrows that path substantially
+  but does not close it, for the reason given below.
+
+  The marker is now derived in `set_token()` from the merged proof map it
+  already holds cache-bypassed, which always contains the activation being
+  written. The value can no longer be lowered by a **stale read**, and the
+  documented #279 behaviour — a shorter session in one browser must not shrink
+  the marker for another — follows from the derivation instead of from a `max()`
+  over a cached value. No stored format changes and no migration is required.
+
+  **Scope, stated because an earlier draft of this note overstated it:** this
+  removes the cache as a cause, not concurrency. The marker and the proof map are
+  still two non-atomic `update_user_meta()` calls, so two browsers activating at
+  the same moment can interleave such that the shorter session's marker is
+  written last while the longer session's proof survives in the map. Same too-low
+  marker, reached without any stale read. The condition is on the later
+  marker-writer alone: its value is too low if it read the map before the other
+  wrote its proof, whatever the other's read position was.
+
+  That race predates this change, and to be exact rather than flattering, the
+  derivation gives up an accidental cover the old read-back had: a second
+  activation was previously unsafe only if it read before the first wrote the
+  **marker**, and is now unsafe if it reads before the first writes the
+  **proof** — strictly later, so the pure-interleaving window is wider by the
+  duration of one `update_user_meta()`. That is traded against removing the far
+  larger cache-staleness cause, which is why this is still a clear improvement,
+  but it is a trade and not a free one. Tracked in
+  [#475](https://github.com/dknauss/Sudo/issues/475).
+
 - **Project status clarified:** WP Sudo is explicitly classified as a research
   prototype and security-design demonstrator, not a supported production
   plugin or security boundary. Public documentation now limits evaluation to

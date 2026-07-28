@@ -384,9 +384,34 @@ always goes through the cache-bypassed, HMAC-verified proof. It can, however,
 the cache, and both `Admin::revoke_session_core()` and the Users-list row-action
 visibility gate consult it. A stale, expired copy therefore reports
 `target_expired` and can hide or refuse revocation for a session that is
-genuinely active — a fail-closed nuisance rather than a bypass, but a real one
-on a misconfigured cache. The reverse (a stale *live* value) only inflates the
+genuinely active. The reverse (a stale *live* value) only inflates the
 "Sudo Active" count, which is benign since revoking a phantom is a no-op.
+
+**This was previously described here as "a fail-closed nuisance rather than a
+bypass". That understated it, and the stored-value half is now fixed (#354).**
+The nuisance framing holds only while the marker in the *database* is correct
+and merely read stale. It was not: `activate()` maintained the marker's
+"at least as late as every proof" relationship from a **cached** read of the
+marker itself, so a stale-low read wrote a too-low marker into the database.
+`revoke_all_active_sessions()` selects on that marker in **SQL**, where no cache
+is involved — so an operator's bulk revoke silently skipped a user whose sudo
+was still enforcing. A session that cannot be revoked is not a nuisance.
+
+The marker is now derived in `Sudo_Session::set_token()` from the merged proof
+map, which is read cache-bypassed and always contains the activation being
+written, so a stale read cannot lower it. `Site_Health`'s stale-session sweep
+likewise classifies in SQL rather than re-reading the marker through the cache,
+and excludes the grace window.
+
+**What remains is the reader, and one race.** `is_session_live()` still reads
+the marker through the cache, so the fail-closed hiding described above is still
+reachable on a misconfigured cache even though the stale-read cause of a wrong
+stored value is removed (tracked in #474). Separately, the marker and the proof map are written as two
+non-atomic `update_user_meta()` calls: two browsers activating concurrently can
+interleave so that a shorter session's marker is paired with a longer session's
+live proof, reproducing the too-low marker without any cache involvement. The
+derivation removes the cache as a cause, not concurrency. Tracked in
+[#475](https://github.com/dknauss/Sudo/issues/475).
 
 **Risk: Stale rate-limit state.** If append-row failure events
 (`_wp_sudo_failure_event`) or lockout/throttle timestamps

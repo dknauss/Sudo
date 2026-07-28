@@ -330,10 +330,10 @@ class SiteHealthTest extends TestCase {
 	public function test_stale_sessions_cleans_expired_tokens(): void {
 		Functions\when( '__' )->returnArg();
 		Functions\when( '_n' )->returnArg();
-		$expired_time = time() - 60;
 
+		// Every ID the query returns is stale by construction now — the
+		// threshold lives in the meta_query, not in a post-filter loop.
 		Functions\when( 'get_users' )->justReturn( array( 10, 20 ) );
-		Functions\when( 'get_user_meta' )->justReturn( $expired_time );
 
 		// Expect delete_user_meta for each stale user: META_KEY + PROOF_META_KEY + TOKEN_META_KEY + SESSION_BIND_META_KEY = 4 per user = 8 total.
 		Functions\expect( 'delete_user_meta' )
@@ -345,26 +345,109 @@ class SiteHealthTest extends TestCase {
 		$this->assertSame( 'wp_sudo_stale_sessions', $result['test'] );
 	}
 
-	public function test_stale_sessions_skips_active_sessions(): void {
+	/**
+	 * #354: the sweep must not classify from a cached scalar read.
+	 *
+	 * Selection and classification now happen in one SQL query, so the database
+	 * is authoritative. The previous shape selected on `META_KEY > 0` and then
+	 * re-read each user's scalar with get_user_meta() — a cached read, while
+	 * enforcement reads the signed proof cache-bypassed via read_proof(). A
+	 * failed cache invalidation therefore let the sweep classify a live session
+	 * as stale and delete every valid browser proof for that user.
+	 *
+	 * Asserted by the absence of the per-user read: get_user_meta() carries a
+	 * never() expectation, so the test fails if the sweep calls it at all.
+	 */
+	public function test_stale_sessions_does_not_read_user_meta_through_the_cache(): void {
 		Functions\when( '__' )->returnArg();
-		$future_time = time() + 300;
+		Functions\when( '_n' )->returnArg();
 
 		Functions\when( 'get_users' )->justReturn( array( 10 ) );
-		Functions\when( 'get_user_meta' )->justReturn( $future_time );
+		Functions\expect( 'get_user_meta' )->never();
 
-		// No cleanups should happen for active sessions.
-		Functions\expect( 'delete_user_meta' )->never();
+		// times(4) rather than a permissive stub: 'good' is returned on both
+		// branches, so without pinning the deletions this would pass vacuously if
+		// a later change made the query return nothing.
+		Functions\expect( 'delete_user_meta' )->times( 4 );
 
 		$result = $this->health->test_stale_sessions();
 
 		$this->assertSame( 'good', $result['status'] );
 	}
 
-	public function test_stale_sessions_paginates_beyond_100_users(): void {
+	/**
+	 * #354: the sweep must honour the same grace window the enforcement path does.
+	 *
+	 * Sudo_Session::is_within_grace() keeps a just-expired proof usable for
+	 * GRACE_SECONDS so an in-flight gated form is not lost (#279), and
+	 * set_token()'s housekeeping sweep uses `expires + GRACE_SECONDS < now` for
+	 * exactly that reason. This sweep used a bare `expires < now`, so it deleted
+	 * grace-eligible proofs up to two minutes early — no cache failure required,
+	 * just timing.
+	 *
+	 * The threshold is asserted against the constant rather than a literal: a
+	 * literal here is what let the old test's `time() - 60` sit inside a 120 s
+	 * window without anyone noticing when GRACE_SECONDS was introduced.
+	 */
+	public function test_stale_sessions_excludes_the_grace_window_from_the_query(): void {
 		Functions\when( '__' )->returnArg();
 		Functions\when( '_n' )->returnArg();
 
-		$expired_time = time() - 60;
+		$captured = null;
+
+		Functions\expect( 'get_users' )
+			->once()
+			->with(
+				\Mockery::on(
+					static function ( $args ) use ( &$captured ) {
+						$captured = $args;
+						return true;
+					}
+				)
+			)
+			->andReturn( array() );
+
+		$this->health->test_stale_sessions();
+
+		$this->assertIsArray( $captured, 'get_users() was not called with an argument array.' );
+		$this->assertArrayHasKey( 'meta_query', $captured, 'Classification is not expressed in the query.' );
+
+		$thresholds = array();
+		foreach ( $captured['meta_query'] as $key => $clause ) {
+			if ( ! is_array( $clause ) || ! isset( $clause['compare'] ) ) {
+				continue;
+			}
+			$thresholds[ $clause['compare'] ] = $clause;
+		}
+
+		$this->assertArrayHasKey( '<', $thresholds, 'No upper-bound clause — nothing excludes live sessions.' );
+
+		$cutoff = (int) $thresholds['<']['value'];
+		$now    = time();
+
+		// Allow one second of clock drift between the sweep and this assertion.
+		$this->assertGreaterThanOrEqual(
+			$now - \WP_Sudo\Sudo_Session::GRACE_SECONDS - 1,
+			$cutoff,
+			'The cutoff reaches further back than the grace window requires.'
+		);
+		$this->assertLessThanOrEqual(
+			$now - \WP_Sudo\Sudo_Session::GRACE_SECONDS,
+			$cutoff,
+			'The cutoff does not exclude the grace window — a just-expired proof '
+				. 'that is still usable under is_within_grace() would be deleted.'
+		);
+		$this->assertSame(
+			'NUMERIC',
+			$thresholds['<']['type'] ?? null,
+			'Without an explicit NUMERIC type the comparison is lexical, so an '
+				. 'expiry timestamp would be compared as a string.'
+		);
+	}
+
+	public function test_stale_sessions_paginates_beyond_100_users(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( '_n' )->returnArg();
 
 		// First batch: 100 user IDs (triggers next page). Second batch: 5 user IDs (stops loop).
 		$first_batch  = range( 1, 100 );
@@ -373,8 +456,6 @@ class SiteHealthTest extends TestCase {
 		Functions\expect( 'get_users' )
 			->twice()
 			->andReturnValues( array( $first_batch, $second_batch ) );
-
-		Functions\when( 'get_user_meta' )->justReturn( $expired_time );
 
 		// 105 stale users × 4 meta keys each (META_KEY + PROOF_META_KEY + TOKEN_META_KEY + SESSION_BIND_META_KEY) = 420 deletions.
 		Functions\expect( 'delete_user_meta' )

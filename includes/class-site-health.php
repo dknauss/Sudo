@@ -336,8 +336,47 @@ class Site_Health {
 		$count = count( $stale_users );
 
 		// Clean up stale sessions automatically. The scalar expiry marker is
-		// >= every proof's expiry, so a stale scalar means all proofs are stale
-		// too; clear the whole proof record plus any legacy pre-4.9.0 rows.
+		// intended to be >= every proof's expiry, so a scalar older than the
+		// grace cutoff means all of that user's proofs are past grace too; clear
+		// the whole proof record plus any legacy pre-4.9.0 rows.
+		//
+		// "Intended to be" is deliberate, because that relationship used to be
+		// breakable. Sudo_Session::activate() maintained it by reading the scalar
+		// back through the object cache, so a stale-low cached read could write a
+		// scalar beneath a live proof's expiry — into the database, where this
+		// query reads it.
+		//
+		// Worked example, all in-range: duration 15 min, browser A activates at
+		// T0 (proof expires T0+900, scalar T0+900). An operator lowers the
+		// duration to 1 min. At T0+10 browser B activates; a stale-low cached
+		// read makes activate()'s `$existing > time()` false, so the scalar is
+		// written as T0+70 — beneath A's live proof. At T0+200 this sweep's
+		// cutoff is T0+80, T0+70 is below it, and A's proof is deleted with ~11
+		// minutes of life left. So the failure was fail-closed only while the
+		// too-low scalar was still in the future, and destructive once it aged
+		// past the cutoff. Past tense throughout: the derivation described below
+		// removes the mechanism.
+		//
+		// That was #354's own symptom reached through the other half of the
+		// defect, and the same root cause was additionally fail-OPEN for
+		// revoke_all_active_sessions(), which selects `META_KEY > time()` in SQL
+		// and silently skipped a user whose sudo was still enforcing. Both are
+		// narrowed by deriving the scalar in Sudo_Session::set_token() from the
+		// cache-bypassed merged proof map rather than from a cached read of the
+		// scalar itself. The worked example above is cache-specific and its cause
+		// is removed — but the OUTCOME is not: two concurrent activations can
+		// still interleave their two non-atomic meta writes and leave a too-low
+		// marker with no stale read involved, reproducing both the destructive
+		// sweep and the revoke skip (#475). The query below is safe against the
+		// cached cause, not against that race, and a future change reintroducing a
+		// cached read here would re-open the cause as well.
+		//
+		// The set is exactly the session-identity rows. It deliberately omits
+		// LOCKOUT_UNTIL_META_KEY, FAILURE_EVENT_META_KEY and
+		// THROTTLE_UNTIL_META_KEY: sweeping those would let an expired sudo
+		// session silently clear an active rate-limit lockout, turning a
+		// housekeeping pass into a lockout reset. The omission is a decision, not
+		// an oversight.
 		foreach ( $stale_users as $uid ) {
 			delete_user_meta( $uid, Sudo_Session::META_KEY );
 			delete_user_meta( $uid, Sudo_Session::PROOF_META_KEY );
@@ -459,27 +498,76 @@ class Site_Health {
 		$batch_size = 100;
 		$offset     = 0;
 		$stale      = array();
-		$now        = time();
+
+		// Classify in the query, not in a follow-up read (#354).
+		//
+		// The previous shape selected on `META_KEY > 0` and then re-read each
+		// user's scalar with get_user_meta() — a **cached** read. Enforcement
+		// reads the signed proof cache-BYPASSED (Sudo_Session::read_proof()),
+		// precisely because a persistent user_meta cache entry can be stale or
+		// poisoned. So the sweep and the enforcement path could disagree, and a
+		// failed cache invalidation let this classify a live session as stale and
+		// delete every valid browser proof for that user. Deciding in SQL makes
+		// the database authoritative for both, which is the property that was
+		// missing.
+		//
+		// Reading the proof map here instead was considered and rejected: this
+		// sweep runs for *other* users, so it cannot use resolve_valid_proof()
+		// (which requires the current user AND their wp_sudo_token cookie) and
+		// would be trusting an unverified `expires` — the map is keyed by
+		// sha256(verifier) and the HMAC covers the raw verifier, which a sweep
+		// never holds. (One record type is theoretically verifiable: the shared
+		// empty-verifier slot set_token() describes for cookie-less surfaces,
+		// whose sha256 is known. The sweep does not attempt verification for any
+		// record, so nothing turns on it — and activate() is public API that
+		// docs/FAQ.md points SSO integrations at, so such records are not
+		// hypothetical.) Meanwhile
+		// cache-bypassing per user would evict each user's entire `user_meta`
+		// bucket, not just this key.
+		//
+		// The cutoff excludes the grace window. A proof that expired within the
+		// last GRACE_SECONDS is still usable under is_within_grace(), which
+		// exists so an in-flight gated form is not lost (#279), and
+		// Sudo_Session::set_token()'s own housekeeping sweep uses the same
+		// `expires + GRACE_SECONDS` boundary. A bare `expires < now` here deleted
+		// grace-eligible proofs up to two minutes early, with no cache failure
+		// involved. Derived from the constant so the two sweeps cannot drift
+		// apart again.
+		$cutoff = time() - Sudo_Session::GRACE_SECONDS;
 
 		do {
 			$users = get_users(
 				array(
-					'meta_key'     => Sudo_Session::META_KEY, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
-					'meta_value'   => '0', // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value
-					'meta_compare' => '>',
-					'fields'       => 'ID',
-					'number'       => $batch_size,
-					'offset'       => $offset,
+					// phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_query -- Bounded, batched maintenance sweep; mirrors revoke_all_active_sessions().
+					'meta_query' => array(
+						'relation' => 'AND',
+						array(
+							'key'     => Sudo_Session::META_KEY,
+							'value'   => 0,
+							'compare' => '>',
+							'type'    => 'NUMERIC',
+						),
+						array(
+							'key'     => Sudo_Session::META_KEY,
+							'value'   => $cutoff,
+							'compare' => '<',
+							'type'    => 'NUMERIC',
+						),
+					),
+					'fields'     => 'ID',
+					'number'     => $batch_size,
+					'offset'     => $offset,
 				)
 			);
+
+			if ( ! is_array( $users ) ) {
+				break;
+			}
 
 			$found = count( $users );
 
 			foreach ( $users as $uid ) {
-				$expires = (int) get_user_meta( (int) $uid, Sudo_Session::META_KEY, true );
-				if ( $expires > 0 && $expires < $now ) {
-					$stale[] = (int) $uid;
-				}
+				$stale[] = (int) $uid;
 			}
 
 			$offset += $batch_size;
