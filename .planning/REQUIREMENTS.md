@@ -11,7 +11,7 @@ account takeover through a copied administrator session.
 - [ ] **ARCH-01:** One canonical architecture document distinguishes early veto,
   preflight UX, and action-bound proof, and identifies only early veto as the
   non-bypassable server boundary.
-- [ ] **ARCH-02:** The proposal separates copied-cookie, session-riding XSS, active
+- [x] **ARCH-02:** The proposal separates copied-cookie, session-riding XSS, active
   same-origin XSS, and malicious-server-code attackers; each closure claim names
   the attacker it actually covers.
 - [ ] **ARCH-03:** Superseded registry-first, reusable-window, request-replay, and
