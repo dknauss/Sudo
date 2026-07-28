@@ -373,11 +373,18 @@ re-derived.
 `phase27-research-server.ts` is never loaded by the WordPress lane, whose
 Playwright config `testMatch`es only `phase27-wordpress.spec.ts` and
 `phase27-wordpress-failures.spec.ts`. The one module that imports it is the Node
-spec `tests/e2e/research/phase27-handoff.spec.ts`; two other places read it as
-*text* rather than loading it — `bin/run-phase27-mutations.mjs` and the
-`phase27-evidence-audit` job in `.github/workflows/phase27-research.yml`, both
-of which regex-scan it for `mutationEnabled(...)` ids to cross-check the guard
-manifest.
+spec `tests/e2e/research/phase27-handoff.spec.ts`; one other place reads it as
+*text* rather than loading it — `bin/run-phase27-guard-ids.mjs`, which
+regex-scans it for `mutationEnabled(...)` ids to cross-check the guard manifest.
+Both `bin/run-phase27-mutations.mjs` and the `phase27-evidence-audit` job in
+`.github/workflows/phase27-research.yml` reach that check by spawning that
+script. Each previously carried its own regex — the job's written inside a
+single-quoted shell string, so its quote class could never be byte-compared
+against the runner's — and they had drifted: the job matched single-quoted ids
+only, so a guard written `mutationEnabled( "FOO" )` passed locally and failed
+only in CI. Byte-identity across that shell-quoting boundary is not
+expressible, which is why the check moved to one script instead of two
+cross-referenced copies.
 
 Context: issue #490.
 

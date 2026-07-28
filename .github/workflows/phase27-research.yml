@@ -164,6 +164,6 @@ jobs:
           test ! -L node_modules
           test ! -L vendor
           php -r '$m = require "vendor/composer/autoload_classmap.php"; $expected = realpath(getcwd() . "/includes/class-gate.php"); $actual = realpath($m["WP_Sudo\\Gate"] ?? ""); exit($actual === $expected ? 0 : 1);'
-          node -e 'const fs=require("fs"); const fixture=fs.readFileSync("tests/e2e/fixtures/phase27-research-server.ts","utf8"); const code=[...fixture.matchAll(/mutationEnabled\(\s*\x27([A-Z][A-Z0-9_]+)\x27\s*\)/g)].map(m=>m[1]).sort(); const manifest=JSON.parse(fs.readFileSync("tests/e2e/research/phase27-guard-manifest.json","utf8")).guards.map(g=>g.id).sort(); if (new Set(code).size!==code.length || JSON.stringify([...new Set(code)])!==JSON.stringify(manifest)) process.exit(1);'
+          node bin/run-phase27-guard-ids.mjs
           node -e 'const fs=require("fs"); for (const file of ["tests/e2e/research/phase27-guard-manifest.json","tests/e2e/research/phase27-wordpress-guard-manifest.json"]) { const data=JSON.parse(fs.readFileSync(file,"utf8")); if (!Array.isArray(data.guards) || data.guards.length===0) process.exit(1); }'
           test -z "$(git status --porcelain)"

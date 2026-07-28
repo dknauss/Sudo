@@ -14,19 +14,10 @@ const manifestPath = new URL(
     'tests/e2e/research/phase27-guard-manifest.json',
     root
 );
-const fixturePath = new URL(
-    'tests/e2e/fixtures/phase27-research-server.ts',
-    root
+const guardIdCheckPath = fileURLToPath(
+    new URL( 'run-phase27-guard-ids.mjs', import.meta.url )
 );
 const manifest = JSON.parse( readFileSync( manifestPath, 'utf8' ) );
-const fixture = readFileSync( fixturePath, 'utf8' );
-const codeGuardIds = [
-    ...fixture.matchAll( /mutationEnabled\(\s*['"]([A-Z][A-Z0-9_]+)['"]\s*\)/g ),
-].map( ( match ) => match[ 1 ] );
-const manifestGuardIds = manifest.guards.map( ( guard ) => guard.id );
-const unique = ( values ) => [ ...new Set( values ) ].sort();
-const codeIds = unique( codeGuardIds );
-const declaredIds = unique( manifestGuardIds );
 const artifactRoot = mkdtempSync( join( tmpdir(), 'phase27-mutations-' ) );
 
 for ( const dependencyDirectory of [ 'node_modules', 'vendor' ] ) {
@@ -83,24 +74,17 @@ if ( process.env.PHASE27_REQUIRE_CLEAN === '1' ) {
     }
 }
 
-if ( JSON.stringify( codeIds ) !== JSON.stringify( declaredIds ) ) {
-    console.error(
-        JSON.stringify(
-            {
-                codeOnly: codeIds.filter( ( id ) => ! declaredIds.includes( id ) ),
-                manifestOnly: declaredIds.filter(
-                    ( id ) => ! codeIds.includes( id )
-                ),
-            },
-            null,
-            2
-        )
-    );
-    process.exit( 1 );
-}
-
-if ( codeGuardIds.length !== codeIds.length ) {
-    console.error( 'A guard ID is used more than once in fixture code.' );
+// Spawned rather than imported so the same script serves the workflow's
+// evidence-audit job, which has no module to import into. Its stdout is routed
+// to stderr so this runner's own stdout stays parseable JSON.
+const guardIds = spawnSync( process.execPath, [ guardIdCheckPath ], {
+    cwd: rootPath,
+    encoding: 'utf8',
+} );
+if ( guardIds.status !== 0 ) {
+    process.stderr.write( guardIds.stdout );
+    process.stderr.write( guardIds.stderr );
+    console.error( 'Phase 27 guard IDs do not match the manifest.' );
     process.exit( 1 );
 }
 
