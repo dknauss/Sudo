@@ -242,15 +242,26 @@ or effect endpoint without `wp_auth`.** The candidate fixture pages fire those
 endpoints only on click, so the anonymous pages that merely `goto` them never
 get there.
 
-`lowPrivilege` is also the cheapest route to closing this. It already carries a
-`wp_auth` value that fails `auth === 'copied-login-session'`, so it is a
-ready-made negative principal for the four approve/effect endpoints — it simply
-never fetches them today. Closing U-3 likely needs no new context, only that one
-pointed at an approve endpoint with the 403 asserted, plus a guard wrapping the
-shared check. Note the shadowing constraint: `! authenticated` sits in the same
-`if` as the binding disjunct, so a request that lacks `wp_auth` *and* lacks the
-prepared binding still returns 403 with the guard removed. A mutation that dies
-needs the correct binding and intent, and only the login session missing.
+What closing it requires is constrained by shadowing. `! authenticated` sits in
+the same `if` as `binding === ''`, `intent === undefined`, and the binding
+comparison, so removing it still returns 403 whenever any other disjunct trips.
+A mutation that actually dies needs the correct binding **and** the correct
+intent, with only the login session missing.
+
+That rules out the obvious shortcut. `lowPrivilege` looks like a ready-made
+negative principal — it already carries a `wp_auth` that fails
+`auth === 'copied-login-session'`, and it would hold a binding merely by loading
+a fixture page, since the page GET handlers issue one. But it cannot obtain an
+intent: `authorizePreflight()` rejects on the capability check before anything
+else runs, so a `lowPrivilege` approve request still 403s on
+`intent === undefined` with the guard removed. An earlier draft here suggested
+repointing `lowPrivilege` would be enough; it is not.
+
+The fixture that kills the mutant is an **authorized** context that completes
+preflight and approval prep normally and then drops or downgrades `wp_auth`
+immediately before the approve call — binding and intent correct, login session
+alone missing. That is a new context or a mid-test cookie edit, plus a guard
+wrapping the shared check.
 
 Nor is the axis unexercised everywhere: on the **preflight** endpoints it is
 exercised negatively — the anonymous context asserts a `403 Forbidden` in
