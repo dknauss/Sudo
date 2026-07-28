@@ -61,10 +61,21 @@ git add --chmod=+x .githooks/<hook-name>
 ```
 
 Git runs a hook only if the file is executable. Under `core.hooksPath` a
-non-executable hook is skipped **silently** — no hook, no warning, no error, and
-the repository looks correctly configured. `.githooks/pre-commit` is mode 100755;
-a new file committed at the default 100644 would appear installed and never run.
-Check with `git ls-files -s .githooks/`.
+non-executable hook is **skipped**, and git says so once:
+
+```
+hint: The '.githooks/pre-commit' hook was ignored because it's not set as executable.
+```
+
+That hint depends on `advice.ignoredHook`, which defaults on but is commonly
+disabled in shared setups — and a hint above a successful commit is easy to read
+past, so the repository can look correctly configured while nothing runs.
+`.githooks/pre-commit` is mode 100755; a new file committed at the default 100644
+would appear installed and never fire. Check with `git ls-files -s .githooks/`.
+
+(An earlier version of this paragraph said the skip was silent with "no warning,
+no error". Verified false on git 2.50.1: the hint above is emitted with default
+advice settings.)
 
 For your own (non-AI) commits, bypass the hook with `USER_COMMIT=1`:
 
@@ -88,6 +99,37 @@ This narrows, but does not remove, the shared-checkout caveat: when several agen
 sessions share **one checkout**, an approval written by one session can still be
 consumed by another — but only if that session commits the *identical* staged
 tree. Separate worktrees avoid it entirely, since each resolves its own root.
+
+**A staged file may not also have unstaged changes.** For a code commit the hook
+refuses when any staged path is also dirty in the working tree, and names the
+paths. The reason is that the approval binds to the **index** while every check —
+tests, lint, PHPStan — reads the **working tree**. While those differ a green
+validation says nothing about the bytes being committed: a broken staged
+implementation with an unstaged fix would validate green and commit broken, and
+the approval would faithfully record the broken tree.
+
+This does block a `git add -p` workflow that leaves the rest of a file dirty.
+Two compliant paths:
+
+```bash
+git add <file>                    # include the rest
+git stash push --keep-index       # set the rest aside, keep what you staged
+```
+
+Use `--keep-index`. A plain `git stash` also stashes the staged change, leaving
+nothing to commit.
+
+**The staged tree is re-checked after validation, not only before.** Validation
+takes tens of seconds and the index is shared — several sessions work this
+repository at once — so a `lint --fix` staging its own output, or another
+session's `git add`, could otherwise commit a tree nobody approved while the flag
+was already consumed. The hook compares `git write-tree` again as its last act
+and refuses on a mismatch.
+
+The flag is consumed at the *start* of validation rather than the end,
+deliberately: any failure worth fixing changes the tree, which invalidates the
+approval through the binding anyway, and early consumption means an interrupted
+run cannot leave a live token behind.
 
 **A branch without `.githooks/` is ungated, silently.** `core.hooksPath` is set once
 per clone and shared by every worktree, but it is a *relative* path, so each worktree

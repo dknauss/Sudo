@@ -40,9 +40,12 @@ if git diff --cached --quiet; then
 	exit 1
 fi
 
-# `git write-tree` is the id of the current index. It writes tree objects but
-# does not move HEAD, modify the worktree, or alter the index. It fails on
-# unmerged entries, which is the correct time to refuse.
+# `git write-tree` is the id of the current index. It does not move HEAD or touch
+# the worktree. It does rewrite `.git/index` when the cache-tree extension is
+# missing or stale — git persists that extension — but the staged content is
+# unchanged and `git status` is unaffected. Stated to match the hook's own note
+# rather than contradict it. Fails on unmerged entries, which is the correct time
+# to refuse.
 if ! STAGED_TREE=$(git write-tree 2>/dev/null); then
 	echo "refusing to approve: git write-tree failed (unmerged index entries?)." >&2
 	exit 1

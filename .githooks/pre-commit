@@ -116,6 +116,42 @@ if [ -e "$REPO_ROOT/vendor" ]; then
   echo ""
 fi
 
+# ── Step 0b: Staged content must be what gets validated ─────────────────────
+# The approval binds to the staged tree, but every validation command below —
+# tests, lint, build — reads the WORKING TREE. When a staged file also has
+# unstaged modifications those are two different things, so a broken staged
+# implementation with an unstaged fix validates green and commits broken. The
+# binding would faithfully record approval of the broken tree.
+#
+# Rather than paper over the gap, refuse: for a code commit, a staged file must
+# have no unstaged modifications, so that what is validated and what is approved
+# and what is committed are all the same bytes.
+if [ "$USER_COMMIT" != "1" ] && [ "$NON_TEXT_FILES" -gt 0 ]; then
+  # Intersect via sort/uniq, NOT a shell loop. `for f in $(git diff --name-only)`
+  # word-splits on IFS and glob-expands, and git does not quote spaces in that
+  # output — this repository tracks ".planning/research/Threat Landscape/…", so a
+  # staged path with a space silently escaped the check while an unrelated dirty
+  # file got named in its place. Git quotes newline paths identically in both
+  # lists, so they intersect correctly here too.
+  BOTH=$( { git diff --cached --name-only; git diff --name-only; } | sort | uniq -d )
+
+  if [ -n "$BOTH" ]; then
+    echo -e "${RED}❌ BLOCKED: staged files also have unstaged changes${NC}"
+    printf '%s\n' "$BOTH" | sed 's/^/   /'
+    echo ""
+    echo "   Tests, lint and build read the working tree; the approval binds to the"
+    echo "   index. While those differ, a green validation says nothing about the"
+    echo "   bytes being committed."
+    echo ""
+    echo "   Stage the rest:   git add <file>"
+    echo "   Or set it aside:  git stash push --keep-index"
+    echo ""
+    echo "   Plain 'git stash' would also stash what you staged, leaving nothing to"
+    echo "   commit; --keep-index is the flag that keeps the reviewed bytes in place."
+    exit 1
+  fi
+fi
+
 # ── Step 1: Reviewer approval ────────────────────────────────────────────────
 echo "1️⃣  Checking reviewer agent approval..."
 
@@ -172,8 +208,23 @@ elif [ -f "$APPROVAL_FILE" ]; then
     echo "   Re-run the reviewer against the current staged tree."
     rm -f "$APPROVAL_FILE"
     exit 1
+  elif [ "$TIME_DIFF" -lt 0 ]; then
+    # A future timestamp means the clock moved backward since approval (restored
+    # VM snapshot, NTP correction) or the flag was hand-written. An upper-bound
+    # test alone would treat that as valid indefinitely, until the clock caught
+    # up, so it is rejected outright rather than clamped.
+    echo -e "${RED}❌ BLOCKED: Approval timestamp is in the future (${TIME_DIFF}s)${NC}"
+    echo "   The clock moved backward since approval, or the flag was written by hand."
+    rm -f "$APPROVAL_FILE"
+    exit 1
   elif [ "$TIME_DIFF" -lt "$REVIEWER_APPROVAL_TIMEOUT" ]; then
     echo -e "${GREEN}✅ Reviewer agent approved (${TIME_DIFF}s ago, tree ${STAGED_TREE})${NC}"
+    # Consumed here rather than after validation, deliberately. Any failure worth
+    # fixing changes the tree, which invalidates the flag through the binding
+    # anyway, so late consumption would only help a flaky test passing on retry
+    # against an identical tree — where re-review is cheap. Early consumption is
+    # strictly safer: a Ctrl-C during the validation window cannot leave a live
+    # token behind.
     rm "$APPROVAL_FILE"
   else
     echo -e "${RED}❌ BLOCKED: Reviewer approval expired (${TIME_DIFF}s old, max ${REVIEWER_APPROVAL_TIMEOUT}s)${NC}"
@@ -305,6 +356,25 @@ if [ "$USER_COMMIT" != "1" ] && [ "$NON_TEXT_FILES" -gt 0 ]; then
 fi
 
 echo "=============================="
+# ── Final: the tree must still be the approved one ───────────────────────────
+# Re-check, because everything above takes time and the index is shared. Git
+# commits whatever the index holds when it returns, not what it held when Step 1
+# ran — so a lint --fix that stages its own output, or a concurrent session
+# running `git add` in this checkout during the validation window, would commit a
+# tree nobody approved while the flag was already consumed. Several sessions work
+# this repository at once, so that window is real rather than theoretical.
+if [ "$USER_COMMIT" != "1" ] && [ -n "$APPROVAL_TREE" ]; then
+  FINAL_TREE=$(git write-tree 2>/dev/null || echo "")
+
+  if [ "$FINAL_TREE" != "$APPROVAL_TREE" ]; then
+    echo -e "${RED}❌ BLOCKED: staged tree changed during validation${NC}"
+    echo "   approved: $APPROVAL_TREE"
+    echo "   now:      ${FINAL_TREE:-<unreadable>}"
+    echo "   Something staged content while the checks were running. Re-review."
+    exit 1
+  fi
+fi
+
 echo -e "${GREEN}✅ COMMIT ALLOWED${NC}"
 echo ""
 exit 0
