@@ -1249,14 +1249,17 @@ class Challenge {
 		 *
 		 *   - admin-ajax.php. handle_ajax_auth() and handle_ajax_2fa() are wp_ajax_
 		 *     handlers; complete_active_session_request(), the third replay_stash()
-		 *     caller, is registered to no hook and runs only from inside those two,
-		 *     so all three execute in the same request. admin-ajax.php never
-		 *     calls set_current_screen() and does not define WP_NETWORK_ADMIN, so
-		 *     is_network_admin() is false there even for a genuine network action.
+		 *     caller, is registered to no hook and runs only from inside whichever
+		 *     of those two the request dispatched — never both. So every
+		 *     replay_stash() call site runs under admin-ajax.php, which calls no
+		 *     set_current_screen() and does not define WP_NETWORK_ADMIN, leaving
+		 *     is_network_admin() to fall through to false (GB-IS-NETWORK-ADMIN)
+		 *     even for a genuine network action.
 		 *   - the challenge page render: render_page() -> render_resume_page() ->
 		 *     build_replay_response_data(). register() hangs that page off
-		 *     network_admin_menu as well as admin_menu on multisite, so here
-		 *     is_network_admin() can legitimately be true.
+		 *     network_admin_menu as well as admin_menu on multisite, and the network
+		 *     admin bootstrap defines WP_NETWORK_ADMIN (GB-NETWORK-ADMIN-CONST), so
+		 *     here is_network_admin() can legitimately be true.
 		 *
 		 * Classifying one stashed URL two ways depending on which entry the user came
 		 * through is not a guard. The path travels with the URL and reads the same on
