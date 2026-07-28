@@ -77,16 +77,22 @@ class Challenge {
 	public const AJAX_REFRESH_NONCE_ACTION = 'wp_sudo_refresh_grant_nonce';
 
 	/**
-	 * Query arg used to show a notice after redirecting instead of replaying
-	 * a POST that contained redacted secret fields.
+	 * Query arg used to show a notice on the landing page when the POST that was
+	 * intercepted contained redacted secret fields, so the user knows to re-enter
+	 * them. Nothing is replayed on any path (#322); this distinguishes WHY the
+	 * user must redo the action, not WHETHER.
 	 *
 	 * @var string
 	 */
 	public const REDACTED_REPLAY_QUERY_ARG = 'wp_sudo_redacted_replay';
 
 	/**
-	 * Query arg used to show a notice after redirecting instead of replaying
-	 * a POST that was intentionally not stored for replay.
+	 * Query arg added to the landing URL for a consumed stash whose secrets were
+	 * NOT redacted — the default of the two notice flags, chosen in
+	 * build_replay_response_data() whenever `redacted_fields_omitted` is falsy.
+	 * Applies to GET stashes too, not only POSTs. It tells the user the action
+	 * was not carried out and must be re-issued; nothing is replayed on any
+	 * path (#322).
 	 *
 	 * @var string
 	 */
@@ -155,7 +161,8 @@ class Challenge {
 	}
 
 	/**
-	 * Render a notice when a redacted secret prevented automatic POST replay.
+	 * Render a notice telling the user to re-enter secret fields that were
+	 * redacted from the stash. (Nothing is replayed regardless — #322.)
 	 *
 	 * @return void
 	 */
@@ -172,7 +179,9 @@ class Challenge {
 	}
 
 	/**
-	 * Render a notice when automatic POST replay was intentionally disabled.
+	 * Render the default post-challenge notice: the action was not carried out
+	 * and must be re-issued. Shown for any consumed stash whose secrets were not
+	 * redacted (the redacted case has its own notice above).
 	 *
 	 * @return void
 	 */
@@ -311,9 +320,9 @@ class Challenge {
 					'sessionMayExpired'    => __( 'Your session may have expired.', 'wp-sudo' ),
 					'startOver'            => __( 'Start over', 'wp-sudo' ),
 					'twoFactorRequired'    => __( 'Password confirmed. Two-factor authentication required.', 'wp-sudo' ),
-					// #322: most responses do not replay — the action is not resumed and
-					// the user returns to re-perform it. Announcing a replay there would
-					// tell screen-reader users the opposite of what happened.
+					// #322: nothing is ever replayed — the action is not resumed and the
+					// user returns to re-perform it. Announcing a replay would tell
+					// screen-reader users the opposite of what happened.
 					'returningToPage'      => __( 'Returning you to your page…', 'wp-sudo' ),
 					'leavingChallenge'     => __( 'Leaving challenge page.', 'wp-sudo' ),
 					'lockoutExpired'       => __( 'Lockout expired. You may try again.', 'wp-sudo' ),
@@ -714,7 +723,8 @@ class Challenge {
 		}
 
 		// Verify the stash exists — only when a stash_key is provided (challenge page flow).
-		// Session-only auth sends no stash_key (session activation only, no replay).
+		// Session-only auth sends no stash_key — there is no intercepted request to
+		// describe or land on, just a session to activate.
 		if ( $stash_key && ! $this->stash->exists( $stash_key, $user_id ) ) {
 			wp_send_json_error(
 				array( 'message' => __( 'Your challenge session has expired. Please try again.', 'wp-sudo' ) ),
@@ -727,7 +737,9 @@ class Challenge {
 		switch ( $result['code'] ) {
 			case 'success':
 				if ( $stash_key ) {
-					// Password just verified on this request → bound replay is eligible.
+					// A credential was verified on THIS request, so the refusal reason
+					// is `replay_disabled` rather than `no_credential_this_request`.
+					// Nothing is replayed either way (#322).
 					$this->replay_stash( $user_id, $stash_key, true );
 				} else {
 					// Session-only flow — session is now active, user retries manually.
@@ -943,7 +955,9 @@ class Challenge {
 		Sudo_Session::activate( $user_id );
 
 		if ( $stash_key ) {
-			// Second factor just verified on this request → bound replay is eligible.
+			// A credential was verified on THIS request, so the refusal reason is
+			// `replay_disabled` rather than `no_credential_this_request`. Nothing is
+			// replayed either way (#322).
 			$this->replay_stash( $user_id, $stash_key, true );
 		} else {
 			// Session-only flow — session is now active, user retries manually.
@@ -958,11 +972,11 @@ class Challenge {
 	}
 
 	/**
-	 * Prepare the stashed request for replay and send the JSON response.
+	 * Discard the stashed request and send the JSON landing response.
 	 *
-	 * The browser JS receives the replay data and either:
-	 *   - Redirects for GET requests.
-	 *   - Builds and submits a hidden form for POST requests.
+	 * Nothing is replayed (#322). The browser JS receives a landing URL and
+	 * redirects to it — the originating screen where one is known, otherwise a
+	 * neutral admin URL — and the user re-issues the action themselves.
 	 *
 	 * @param int    $user_id             The user ID.
 	 * @param string $stash_key           The stash key.
@@ -977,8 +991,9 @@ class Challenge {
 	 * Complete an already-active session during an AJAX challenge request.
 	 *
 	 * A stale challenge tab should not block the user once the browser already
-	 * holds an active sudo session. Replay a still-valid stash when possible;
-	 * otherwise instruct the client to leave the challenge page.
+	 * holds an active sudo session. Consume a still-valid stash so the landing
+	 * can return the user to the originating screen; otherwise instruct the
+	 * client to leave the challenge page. Nothing is replayed (#322).
 	 *
 	 * @param int    $user_id   Current user ID.
 	 * @param string $stash_key Challenge stash key.
@@ -1000,7 +1015,10 @@ class Challenge {
 	}
 
 	/**
-	 * Render an auto-resume screen for already-authenticated users.
+	 * Render the landing screen for users who already hold a sudo session.
+	 *
+	 * Named "resume" historically; it resumes nothing (#322). It discards the
+	 * stash and points the user back at where the action started.
 	 *
 	 * @param int    $user_id   Current user ID.
 	 * @param string $stash_key Challenge stash key.
@@ -1177,8 +1195,12 @@ class Challenge {
 	 * - user-edit.php  — without a user_id it calls wp_die( 'Invalid user ID.' ): no
 	 *                    chrome, no notice, no form (GB-USER-EDIT-DIES). Reached by the
 	 *                    profile role/password/email rules, whose stash is marked
-	 *                    non-replayable, so this landing is their EVERY-TIME path
-	 *                    rather than an attack-only one.
+	 *                    `stash_no_replay()`, and by `network.super_admin`, which
+	 *                    carries no stash policy at all and so stores no body via
+	 *                    the missing-allowlist branch instead. Since
+	 *                    nothing is resumed anywhere (#322), this landing is the
+	 *                    every-time path for the rules that reach it, not an
+	 *                    attack-only one.
 	 * - update.php     — its whole body is inside `isset( $_GET['action'] )`, so a bare
 	 *                    GET renders nothing at all (GB-UPDATE-NEEDS-ACTION). Reached by
 	 *                    the plugin/theme install, upload and update rules.
@@ -1229,8 +1251,8 @@ class Challenge {
 	/**
 	 * Clear the one-time stash binding cookie.
 	 *
-	 * Cleared on BOTH the replay and fail-closed paths so a proof never outlives the
-	 * stash it belonged to.
+	 * Cleared on every path that consumes a stash, so a proof never outlives the
+	 * stash it belonged to. (There is no replay path to distinguish — #322.)
 	 *
 	 * @return void
 	 */
@@ -1256,7 +1278,11 @@ class Challenge {
 	}
 
 	/**
-	 * Build replay response data for a stashed request.
+	 * Consume a stashed request and build the landing response.
+	 *
+	 * Named for the replay it used to authorise; it authorises none (#322). This
+	 * method has no branch that can return a replay instruction, which is the
+	 * whole guarantee and is verifiable by reading it.
 	 *
 	 * @param int         $user_id      The user ID.
 	 * @param string      $stash_key    The stash key.
@@ -1398,8 +1424,10 @@ class Challenge {
 		 * re-performing it is a re-click or a re-submit that the now-active sudo
 		 * session passes straight through. Both carry the "review and submit again"
 		 * notice (the redacted variant when secret fields were dropped at stash time).
-		 * No per-rule taxonomy is involved. #322 v2 (origin-bound replay) restores
-		 * seamless auto-replay for the same-browser case without reopening this hole.
+		 * No per-rule taxonomy is involved. An interim #322 v2 design would have
+		 * restored seamless auto-replay for the same-browser case behind an
+		 * origin-bound proof; 4.9.0 removed automatic replay outright instead, so
+		 * nothing here resumes an intercepted request.
 		 *
 		 * #429: POSTs previously landed on the dashboard, on the reasoning that their
 		 * re-submit needs the form re-filled regardless. That was wrong in the case it

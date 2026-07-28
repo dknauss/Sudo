@@ -1,6 +1,6 @@
 <?php
 /**
- * Request stash — serialize and replay intercepted requests.
+ * Request stash — retain an intercepted request so the challenge can describe it.
  *
  * @package WP_Sudo
  */
@@ -15,11 +15,15 @@ if ( ! defined( 'ABSPATH' ) ) {
 /**
  * Class Request_Stash
  *
- * When a gated admin action is intercepted, the replay target (URL, method,
- * and allowlisted POST parameters) is serialized into a short-lived transient.
- * After the user successfully reauthenticates, the stashed request is
- * retrieved and replayed — via redirect for GET, or a self-submitting
- * form for POST.
+ * When a gated admin action is intercepted, its URL, method and allowlisted POST
+ * parameters are serialized into a short-lived transient. That record exists so
+ * the challenge can NAME the concrete target — informed consent to a known
+ * action rather than a category — and so the user can be landed back on the
+ * screen the action started from.
+ *
+ * It is never used to re-issue the request. Automatic replay was removed
+ * outright in 4.9.0 (#322): after reauthenticating, the stash is discarded and
+ * the user performs the action again themselves.
  *
  * @since 2.0.0
  */
@@ -100,7 +104,7 @@ class Request_Stash {
 		// Effect fields for built-ins whose target is not the rule's own noun:
 		// plugin.delete identifies its plugins with checked[], user.promote its
 		// destination with new_role. Without these the confirmation is blank while the
-		// full payload replays.
+		// request still carries the effect.
 		'checked',
 		'new_role',
 	);
@@ -132,7 +136,9 @@ class Request_Stash {
 	private const TARGET_MAX_LENGTH = 100;
 
 	/**
-	 * Reason code for POST requests that are intentionally not replayed.
+	 * Reason code set when a rule's stash policy is `post_mode => 'none'`, so the
+	 * POST body is not stored. `Action_Registry::stash_no_replay()` is the usual
+	 * way to get that, but a custom rule can set `post_mode` directly.
 	 *
 	 * @var string
 	 */
@@ -247,10 +253,13 @@ class Request_Stash {
 			'binding_hash'             => $this->mint_binding_proof(),
 		);
 
-		// A replay may only run when the confirmation described the WHOLE effect. If a
-		// value was truncated for display, or the payload carries an effect field the
-		// target does not name (a custom rule's own field, say), the user would be
-		// confirming less than what executes — so fall back to the manual path.
+		// Records whether the confirmation could describe the WHOLE effect. If a value
+		// was truncated for display, or the payload carries an effect field the target
+		// does not name (a custom rule's own field, say), the challenge names less than
+		// the request carries. Nothing is replayed either way (#322), so the flag no
+		// longer gates anything: it is computed and stored, and at present nothing
+		// reads it. Retained because the capture it summarises still drives the
+		// Target: line the user actually sees.
 		$data['target_complete'] = $target_complete && $this->target_describes_payload( $data['target'], $post );
 
 		$this->set_stash_transient( self::TRANSIENT_PREFIX . $key, $data, self::TTL );
@@ -267,9 +276,9 @@ class Request_Stash {
 	 * Read-only, sanitized, length-capped. Never used to route or replay — it exists
 	 * solely so the challenge page can name the action the user is authorizing.
 	 *
-	 * @param bool $complete Set false when any value was truncated for display,
-	 *                            so the caller can refuse to replay more than the
-	 *                            confirmation described.
+	 * @param bool $complete Set false when any value was truncated for display, so
+	 *                       the caller can record that the confirmation described
+	 *                       less than the request actually carried.
 	 * @return array<string, string>
 	 */
 	private function capture_target( bool &$complete ): array {
@@ -278,12 +287,12 @@ class Request_Stash {
 		$sensitive = $this->sensitive_field_keys();
 
 		foreach ( self::TARGET_PARAMS as $param ) {
-			// Read the source that will actually be REPLAYED first. A POST replay
-			// submits the stashed body, so preferring the query would let
-			// `plugins.php?plugin=benign.php` with a body of `plugin=evil.php` display
-			// the benign value and replay the other — defeating the whole point of
-			// informed confirmation. When both are present and disagree, show both
-			// rather than silently picking one.
+			// Read the source that carries the EFFECT first — for a POST, that is the
+			// body. Preferring the query would let `plugins.php?plugin=benign.php`
+			// with a body of `plugin=evil.php` display the benign value while the
+			// request carries the other — defeating the whole point of informed
+			// confirmation. When both are present and disagree, show both rather than
+			// silently picking one.
 			// phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- Display metadata only, never used to route or replay; sanitized below.
 			$from_query = $_GET[ $param ] ?? null;
 			// phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized, WordPress.Security.ValidatedSanitizedInput.MissingUnslash -- Display metadata only, never used to route or replay; sanitized below.
@@ -346,7 +355,7 @@ class Request_Stash {
 			}
 
 			// Surface a query/body disagreement instead of hiding it — the confirmation
-			// must not name one value while another is replayed.
+			// must not name one value while the request carries another.
 			if ( null !== $other && ! is_array( $other ) && ! is_array( $raw ) ) {
 				$other_value = sanitize_text_field( wp_unslash( (string) $other ) );
 
@@ -357,9 +366,12 @@ class Request_Stash {
 
 			$shown = $this->truncate_target_value( $value );
 
-			// Truncating the DISPLAY while replaying the FULL value would let a user
-			// approve the first few accounts of a bulk delete and silently remove the
-			// rest. Record that the description is partial.
+			// Truncating the DISPLAY while the request carried the FULL value WOULD HAVE
+			// let a user approve the first few accounts of a bulk delete and silently
+			// remove the rest — back when the stash was replayed. It cannot now: nothing
+			// is resumed (#322), so a bulk delete is re-selected and re-submitted by hand.
+			// Still recorded as a partial description, though nothing reads the flag today
+			// (see target_complete below).
 			if ( $shown !== $value ) {
 				$complete = false;
 			}
@@ -384,16 +396,21 @@ class Request_Stash {
 	 * KNOWN LIMITATION, deliberately not fixed here: this runs for EVERY matched rule,
 	 * not only options.critical, because capture_target() has no rule context. A custom
 	 * rule whose effect field happens to be named `home`, `siteurl` or another entry
-	 * below, submitting a value equal to that stored option, has it suppressed from the
-	 * target — after which target_describes_payload() no longer names the whole payload
-	 * and the replay is refused. That fails CLOSED (the user re-submits manually;
-	 * nothing executes unnamed), which is why it is a functional wart rather than a
-	 * security defect, and why the fix — threading the matched rule through target
-	 * capture — was not made during a release freeze. Tracked as #452; remove this
-	 * block in the same commit that fixes it.
+	 * below, submitting a value equal to that stored option, has that field suppressed
+	 * from the target. target_describes_payload() then reports the target as incomplete
+	 * via `target_complete` — which nothing currently reads.
+	 *
+	 * Nothing executes unnamed, but that is because automatic replay was removed
+	 * outright (#322), NOT because this mechanism refuses anything. What the
+	 * limitation now costs is display honesty: the user sees a Target: line silently
+	 * missing a field the request carries, with no compensating refusal. That is a
+	 * weaker position than when this block was written, so read #452 as still open on
+	 * its merits rather than downgraded. The fix — threading the matched rule through
+	 * target capture — was deferred during a release freeze. Remove this block in the
+	 * same commit that fixes it.
 	 *
 	 * @param string $param Request parameter name.
-	 * @param mixed  $raw   Value from the source that would be replayed.
+	 * @param mixed  $raw   Value from the source that carries the effect.
 	 * @param mixed  $other Value from the other source, if present.
 	 * @return bool
 	 */
@@ -421,9 +438,9 @@ class Request_Stash {
 				return false;
 			}
 
-			// Compare the value that would REPLAY, before display sanitization:
+			// Compare the value the REQUEST carries, before display sanitization:
 			// sanitize_text_field() can reduce a payload to something matching the
-			// stored value while the unsanitized value is what actually replays.
+			// stored value while the unsanitized value is what the request actually carries.
 			if ( (string) wp_unslash( (string) $candidate ) !== $stored ) {
 				return false;
 			}
@@ -465,8 +482,10 @@ class Request_Stash {
 	 *
 	 * TARGET_PARAMS is a fixed list, but rules are extensible: a custom rule (or a
 	 * built-in whose effect field is not in the list) can allowlist a field the target
-	 * never mentions. Replaying that would execute more than the confirmation showed,
-	 * so such a stash is not eligible for bound replay.
+	 * never mentions — so the challenge would name less than the request carries.
+	 * Nothing is replayed (#322), so this no longer gates anything. The result is
+	 * stored on the stash as `target_complete`, and at present nothing reads it —
+	 * do not describe it as feeding a notice or a decision without checking first.
 	 *
 	 * @param array<string, string> $target Captured target.
 	 * @param array<string, mixed>  $post   Stashed POST payload.
@@ -530,8 +549,10 @@ class Request_Stash {
 	 *  - headers are not already sent, so the cookie can actually reach the browser.
 	 *    Storing a hash the browser can never satisfy would strand the stash.
 	 *
-	 * Binding is defence-in-depth only. It is never sufficient on its own to authorize
-	 * a replay — informed confirmation of the named target is the primary control.
+	 * The binding is INERT since 4.9.0 removed automatic replay outright (#322). It is
+	 * still minted here, but nothing reads it to authorize anything — no intercepted
+	 * request is resumed on any path. Retained so the cookie's lifecycle stays intact
+	 * and a future design has the seam available.
 	 *
 	 * @return string sha256 hex digest, or '' when no binding is minted.
 	 */
@@ -575,7 +596,17 @@ class Request_Stash {
 	}
 
 	/**
-	 * Get a safe return URL for flows that cannot replay redacted secrets.
+	 * Capture the referrer at stash time.
+	 *
+	 * Called unconditionally by save() for every stash, not only redacted ones.
+	 * Stored as `return_url` and, since #322/#429, read by NOTHING: the landing is
+	 * computed from `$stash['url']`, and Challenge::build_replay_response_data()
+	 * deliberately does not consult return_url even to classify it, because the
+	 * request that planted the stash chose it. Retained as the recorded value that
+	 * path is documented as ignoring.
+	 *
+	 * Distinct from `$_GET['return_url']` on the challenge URL, which is a separate,
+	 * live parameter handled in Public_API and Gate — do not conflate the two.
 	 *
 	 * @return string Referrer URL or an empty string.
 	 */
@@ -799,13 +830,15 @@ class Request_Stash {
 	}
 
 	/**
-	 * Build the POST payload that is safe to store and replay for the matched rule.
+	 * Build the POST payload that is safe to store for the matched rule.
 	 *
 	 * @param array<string, mixed> $matched_rule             The matched action rule.
 	 * @param string               $method                   Request method.
 	 * @param bool                 $redacted_fields_omitted  Whether any sensitive field was omitted.
-	 * @param bool                 $post_replay_blocked      Whether automatic POST replay is blocked.
-	 * @param string               $post_replay_block_reason Replay block reason.
+	 * @param bool                 $post_replay_blocked      Set when the POST body was
+	 *                                                       deliberately not stored. Legacy
+	 *                                                       name: nothing replays (#322).
+	 * @param string               $post_replay_block_reason Why the body was not stored.
 	 * @return array<string, mixed> Sanitized, allowlisted POST params.
 	 */
 	private function build_stashed_post_params(
@@ -815,7 +848,7 @@ class Request_Stash {
 		bool &$post_replay_blocked,
 		string &$post_replay_block_reason
 	): array {
-		if ( 'POST' !== $method || empty( $_POST ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Presence check only; values are filtered below for replay storage after gate matching.
+		if ( 'POST' !== $method || empty( $_POST ) ) { // phpcs:ignore WordPress.Security.NonceVerification.Missing -- Presence check only; values are filtered below before storage, after gate matching.
 			return array();
 		}
 
@@ -842,7 +875,7 @@ class Request_Stash {
 	}
 
 	/**
-	 * Resolve replay policy metadata from a rule.
+	 * Resolve stash-retention policy metadata from a rule.
 	 *
 	 * @param array<string, mixed> $matched_rule The matched action rule.
 	 * @return array{post_mode:string, post_fields:string[]}
@@ -877,7 +910,7 @@ class Request_Stash {
 	}
 
 	/**
-	 * Keep only top-level request params named by the replay allowlist.
+	 * Keep only top-level request params named by the stash allowlist.
 	 *
 	 * @param array<string, mixed> $params Raw request params.
 	 * @param string[]             $fields Allowed top-level field names.
@@ -897,11 +930,12 @@ class Request_Stash {
 	/**
 	 * Recursively sanitize request parameters, omitting sensitive fields.
 	 *
-	 * Sensitive keys (passwords, tokens, API keys) are omitted entirely —
-	 * not replaced with a placeholder. The JS replay mechanism submits all
-	 * post_data fields verbatim as hidden form inputs; a sentinel value like
-	 * __REDACTED__ would be submitted as the actual field value (e.g. as the
-	 * new password), which is incorrect behavior.
+	 * Sensitive keys (passwords, tokens, API keys) are omitted entirely — not
+	 * replaced with a placeholder. The resulting array is stored on the stash and
+	 * has no production reader today, so this is a conservative default rather
+	 * than a guard on a live path: a stored sentinel like __REDACTED__ is still a
+	 * value, and any future consumer could not tell it from something the user
+	 * actually submitted. Omitting the key cannot be misread that way.
 	 *
 	 * Key matching is case-insensitive. Nested array values are recursed.
 	 * See sensitive_field_keys() for the filterable default list.
@@ -924,7 +958,7 @@ class Request_Stash {
 			} else {
 				$redacted_fields_omitted = true;
 			}
-			// Sensitive keys are omitted entirely — not stored, not sent to JS replay.
+			// Sensitive keys are omitted entirely — never stored.
 		}
 		return $result;
 	}
@@ -955,7 +989,7 @@ class Request_Stash {
 	/**
 	 * Return the list of POST parameter keys to omit from the request stash.
 	 *
-	 * Keys are matched case-insensitively. Omitted fields are not replayed —
+	 * Keys are matched case-insensitively. Omitted fields are never stored —
 	 * the user must re-enter them after reauthentication. This is correct
 	 * UX: for password changes, WordPress treats absent pass1/pass2 as
 	 * "no password change requested."
@@ -998,7 +1032,7 @@ class Request_Stash {
 		 * omitted from the request stash before storage.
 		 *
 		 * Keys are matched case-insensitively. Nested array keys are
-		 * also matched. Omitted fields are not replayed — the user
+		 * also matched. Omitted fields are never stored — the user
 		 * must re-enter them after reauthentication.
 		 *
 		 * @since 2.11.0
