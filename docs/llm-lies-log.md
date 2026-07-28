@@ -1936,3 +1936,45 @@ C2. REDUNDANT MEMORY DUPLICATING CLAUDE.md
    Fix:    Read the function. When a summary states a type, the summary is the thing to
            check, not the thing to cite — and when its own columns disagree, that
            disagreement is the signal to go to source, not a detail to route around.
+
+71. A MECHANISM INVENTED TO EXPLAIN A REAL FAILURE — the failure was real, the
+    check written for it was correct, and the reason given for both was false.
+   Claim:  In `.githooks/pre-commit`, its user-facing error message, and
+           `CONTRIBUTING.md` (three places): "Composer bakes absolute paths into
+           `vendor/composer/autoload_psr4.php`", so a symlinked `vendor/` makes
+           the PSR-4 map point at another checkout.
+   Reality: Composer writes **no** absolute paths. Both `autoload_psr4.php` and
+           `autoload_classmap.php` open with `$vendorDir = dirname(__DIR__);
+           $baseDir = dirname($vendorDir);` and emit entries as
+           `$baseDir . '/includes/class-gate.php'`.
+
+               $ grep -c '/Users/' vendor/composer/autoload_psr4.php     # 0
+               $ grep -c '/Users/' vendor/composer/autoload_classmap.php # 0
+
+           The real mechanism is PHP: `__DIR__` resolves symlinks, so including
+           the autoloader *through* a symlinked `vendor/` makes `$baseDir` land
+           in the real tree the symlink points at.
+   Source: `vendor/composer/autoload_psr4.php` and `autoload_classmap.php` in
+           this repo, read 2026-07-27.
+   Notes:  The underlying failure was real and independently reproduced twice the
+           same day — a guard test written to fail against an injected defect
+           passed, because the defect was injected in one worktree and the class
+           loaded from another; then a reviewer reproducing that result hit the
+           identical trap. Having *seen* the symptom made the explanation feel
+           established, and it was never checked.
+
+           Two things follow. First, a correct guard can rest on a false
+           rationale: the vendor-root check is right, but the stated reason would
+           lead a maintainer to widen it pointlessly — a `cp -r vendor` is
+           harmless under the true mechanism and fatal under the invented one.
+           Second, the claim propagated to three places before anyone read the
+           file, including a user-facing error message, because each copy was
+           written from the same unchecked belief rather than from the source.
+
+           Caught by an external reviewer running the one-line grep. The distance
+           between "I watched this fail twice" and "I know why it failed" is the
+           whole entry.
+   Fix:    A reproduced symptom licenses no claim about its cause. When writing
+           the *reason* into a comment, an error message, or docs, open the file
+           that would falsify it — especially when the symptom is already
+           convincing, which is when the check feels least necessary.

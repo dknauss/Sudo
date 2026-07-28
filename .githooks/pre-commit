@@ -3,7 +3,11 @@
 # Source: https://github.com/jazzsequence/claude-code-reviewer
 #
 # Reads configuration from .reviewer-config.sh in the project root.
-# Copy to .git/hooks/pre-commit and chmod +x, or use install.sh.
+#
+# Enable with `git config core.hooksPath .githooks` (see CONTRIBUTING.md).
+# Upstream suggests copying this file into .git/hooks/ instead; do not — this
+# fork has diverged from upstream and a copy goes stale, silently reverting the
+# merge-commit and docs-only exemptions below.
 
 set -e
 
@@ -66,6 +70,88 @@ echo "🔍 Pre-Commit Validation"
 echo "=============================="
 echo ""
 
+# ── Step 0: Dependency root ──────────────────────────────────────────────────
+# Confirm vendor/ belongs to THIS worktree before trusting any test result.
+#
+# The mechanism is PHP's __DIR__, not baked paths. vendor/composer/autoload_psr4.php
+# computes `$vendorDir = dirname(__DIR__); $baseDir = dirname($vendorDir);` — no
+# absolute path is written into it (`grep -c '/Users/'` returns 0). But __DIR__
+# resolves symlinks, so including the autoloader through a symlinked vendor/ makes
+# $baseDir land in the *other* checkout, and PSR-4 then loads every class from
+# there. The suite runs green against source you did not change, and edits to this
+# worktree's includes/ are invisible to it.
+#
+# Observed twice on 2026-07-27: a guard test written to fail against an injected
+# defect passed, because the defect was injected here and the class was loaded
+# from there — and again when a reviewer reproducing that result hit the same trap.
+#
+# Because the paths are runtime-relative, `cp -r vendor` from another checkout is
+# harmless; only a symlink breaks it. That is exactly what this check catches, so
+# it is deliberately narrow rather than a blanket ban on sharing dependencies.
+if [ -e "$REPO_ROOT/vendor" ]; then
+  ROOT_REAL=$(cd "$REPO_ROOT" && pwd -P)
+  VENDOR_REAL=$(cd "$REPO_ROOT/vendor" 2>/dev/null && pwd -P || echo "")
+
+  # Exact match, not a prefix. A prefix test passes for a checkout NESTED under
+  # this one — and this repo nests them: `git worktree list` shows checkouts under
+  # .claude/worktrees/. A vendor symlink pointing at one of those resolves to
+  # $ROOT_REAL/.claude/worktrees/<x>/vendor, which satisfies "$ROOT_REAL"/* while
+  # loading every class from that other checkout. The prefix form would therefore
+  # have passed in precisely the layout this check exists to protect.
+  if [ "$VENDOR_REAL" = "$ROOT_REAL/vendor" ]; then
+    : # vendor/ is this worktree's own — results are about this code.
+  else
+      echo -e "${RED}❌ BLOCKED: vendor/ does not belong to this worktree${NC}"
+      echo "   worktree: $ROOT_REAL"
+      echo "   vendor:   ${VENDOR_REAL:-<unresolvable>}"
+      echo ""
+      echo "   PHP resolves symlinks in __DIR__, so Composer's autoloader would"
+      echo "   compute its base directory in that other tree and load every class"
+      echo "   from there — tests pass without exercising your changes."
+      echo "   Run 'composer install' in this worktree (a copy is fine, a symlink"
+      echo "   is not)."
+      exit 1
+  fi
+  echo -e "${GREEN}✅ vendor/ is this worktree's own${NC}"
+  echo ""
+fi
+
+# ── Step 0b: Staged content must be what gets validated ─────────────────────
+# The approval binds to the staged tree, but every validation command below —
+# tests, lint, build — reads the WORKING TREE. When a staged file also has
+# unstaged modifications those are two different things, so a broken staged
+# implementation with an unstaged fix validates green and commits broken. The
+# binding would faithfully record approval of the broken tree.
+#
+# Rather than paper over the gap, refuse: for a code commit, a staged file must
+# have no unstaged modifications, so that what is validated and what is approved
+# and what is committed are all the same bytes.
+if [ "$USER_COMMIT" != "1" ] && [ "$NON_TEXT_FILES" -gt 0 ]; then
+  # Intersect via sort/uniq, NOT a shell loop. `for f in $(git diff --name-only)`
+  # word-splits on IFS and glob-expands, and git does not quote spaces in that
+  # output — this repository tracks ".planning/research/Threat Landscape/…", so a
+  # staged path with a space silently escaped the check while an unrelated dirty
+  # file got named in its place. Git quotes newline paths identically in both
+  # lists, so they intersect correctly here too.
+  BOTH=$( { git diff --cached --name-only; git diff --name-only; } | sort | uniq -d )
+
+  if [ -n "$BOTH" ]; then
+    echo -e "${RED}❌ BLOCKED: staged files also have unstaged changes${NC}"
+    printf '%s\n' "$BOTH" | sed 's/^/   /'
+    echo ""
+    echo "   Tests, lint and build read the working tree; the approval binds to the"
+    echo "   index. While those differ, a green validation says nothing about the"
+    echo "   bytes being committed."
+    echo ""
+    echo "   Stage the rest:   git add <file>"
+    echo "   Or set it aside:  git stash push --keep-index"
+    echo ""
+    echo "   Plain 'git stash' would also stash what you staged, leaving nothing to"
+    echo "   commit; --keep-index is the flag that keeps the reviewed bytes in place."
+    exit 1
+  fi
+fi
+
 # ── Step 1: Reviewer approval ────────────────────────────────────────────────
 echo "1️⃣  Checking reviewer agent approval..."
 
@@ -78,16 +164,72 @@ elif [ "$NON_TEXT_FILES" -eq 0 ]; then
   # Consume any leftover approval flag so it cannot be reused by a later code commit.
   rm -f "$APPROVAL_FILE"
 elif [ -f "$APPROVAL_FILE" ]; then
-  APPROVAL_TIME=$(cat "$APPROVAL_FILE")
+  APPROVAL_TIME=$(sed -n '1p' "$APPROVAL_FILE")
+  APPROVAL_TREE=$(sed -n '2p' "$APPROVAL_FILE")
   CURRENT_TIME=$(date +%s)
   TIME_DIFF=$((CURRENT_TIME - APPROVAL_TIME))
 
-  if [ "$TIME_DIFF" -lt "$REVIEWER_APPROVAL_TIMEOUT" ]; then
-    echo -e "${GREEN}✅ Reviewer agent approved (${TIME_DIFF}s ago)${NC}"
+  # Content binding. A timestamp alone answers "was something approved
+  # recently", never "was THIS approved" — so any edit between approval and
+  # commit rode in unreviewed, and the flag looked perfectly valid. Bind to the
+  # index instead: `git write-tree` is the id of the exact staged content, so
+  # touching any staged file invalidates the approval. It is stricter than
+  # hashing `git diff --cached`, which is sensitive to diff config and says
+  # nothing about files staged after review.
+  #
+  # write-tree does not move HEAD or touch the worktree. It does rewrite
+  # .git/index — git persists the cache-tree extension — but alters no staged
+  # content, and `git status` is unchanged. It fails on unmerged entries, which
+  # is why the merge path above never reaches here.
+  #
+  # The binding also survives the staging shortcuts, because git hands the hook a
+  # temporary index via GIT_INDEX_FILE: under `git commit -a` and under
+  # `git commit <pathspec>`, write-tree here sees the tree that will ACTUALLY be
+  # committed, not the pre-existing index. Both fail closed against a stale
+  # approval. Verified 2026-07-27.
+  STAGED_TREE=$(git write-tree 2>/dev/null || echo "")
+
+  if [ -z "$APPROVAL_TREE" ]; then
+    echo -e "${RED}❌ BLOCKED: Approval flag has no content binding${NC}"
+    echo "   This flag records only a timestamp, so it cannot prove it approved"
+    echo "   the code you are committing. Re-approve with:"
+    echo "       bash bin/reviewer-approve.sh"
+    rm -f "$APPROVAL_FILE"
+    exit 1
+  elif [ -z "$STAGED_TREE" ]; then
+    echo -e "${RED}❌ BLOCKED: Could not read the staged tree${NC}"
+    echo "   git write-tree failed — unmerged index entries?"
+    exit 1
+  elif [ "$APPROVAL_TREE" != "$STAGED_TREE" ]; then
+    echo -e "${RED}❌ BLOCKED: Staged content changed since approval${NC}"
+    echo "   approved tree: $APPROVAL_TREE"
+    echo "   staged tree:   $STAGED_TREE"
+    echo "   The reviewer approved different bytes than you are committing."
+    echo "   Re-run the reviewer against the current staged tree."
+    rm -f "$APPROVAL_FILE"
+    exit 1
+  elif [ "$TIME_DIFF" -lt 0 ]; then
+    # A future timestamp means the clock moved backward since approval (restored
+    # VM snapshot, NTP correction) or the flag was hand-written. An upper-bound
+    # test alone would treat that as valid indefinitely, until the clock caught
+    # up, so it is rejected outright rather than clamped.
+    echo -e "${RED}❌ BLOCKED: Approval timestamp is in the future (${TIME_DIFF}s)${NC}"
+    echo "   The clock moved backward since approval, or the flag was written by hand."
+    rm -f "$APPROVAL_FILE"
+    exit 1
+  elif [ "$TIME_DIFF" -lt "$REVIEWER_APPROVAL_TIMEOUT" ]; then
+    echo -e "${GREEN}✅ Reviewer agent approved (${TIME_DIFF}s ago, tree ${STAGED_TREE})${NC}"
+    # Consumed here rather than after validation, deliberately. Any failure worth
+    # fixing changes the tree, which invalidates the flag through the binding
+    # anyway, so late consumption would only help a flaky test passing on retry
+    # against an identical tree — where re-review is cheap. Early consumption is
+    # strictly safer: a Ctrl-C during the validation window cannot leave a live
+    # token behind.
     rm "$APPROVAL_FILE"
   else
     echo -e "${RED}❌ BLOCKED: Reviewer approval expired (${TIME_DIFF}s old, max ${REVIEWER_APPROVAL_TIMEOUT}s)${NC}"
     echo "   Spawn reviewer agent again and get a fresh approval."
+    rm -f "$APPROVAL_FILE"
     exit 1
   fi
 else
@@ -214,6 +356,25 @@ if [ "$USER_COMMIT" != "1" ] && [ "$NON_TEXT_FILES" -gt 0 ]; then
 fi
 
 echo "=============================="
+# ── Final: the tree must still be the approved one ───────────────────────────
+# Re-check, because everything above takes time and the index is shared. Git
+# commits whatever the index holds when it returns, not what it held when Step 1
+# ran — so a lint --fix that stages its own output, or a concurrent session
+# running `git add` in this checkout during the validation window, would commit a
+# tree nobody approved while the flag was already consumed. Several sessions work
+# this repository at once, so that window is real rather than theoretical.
+if [ "$USER_COMMIT" != "1" ] && [ -n "$APPROVAL_TREE" ]; then
+  FINAL_TREE=$(git write-tree 2>/dev/null || echo "")
+
+  if [ "$FINAL_TREE" != "$APPROVAL_TREE" ]; then
+    echo -e "${RED}❌ BLOCKED: staged tree changed during validation${NC}"
+    echo "   approved: $APPROVAL_TREE"
+    echo "   now:      ${FINAL_TREE:-<unreadable>}"
+    echo "   Something staged content while the checks were running. Re-review."
+    exit 1
+  fi
+fi
+
 echo -e "${GREEN}✅ COMMIT ALLOWED${NC}"
 echo ""
 exit 0

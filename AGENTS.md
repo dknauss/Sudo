@@ -28,13 +28,22 @@ When reviewing for commit approval:
 
 4. **If all checks PASS** — write the approval flag and respond APPROVED:
    ```
-   Bash({ command: "date +%s" })           ← get Unix timestamp
-   Write({
-     file_path: "<PROJECT_ROOT>/reviewer-approved",
-     content: "<timestamp>"
-   })
+   Bash({ command: "bash bin/reviewer-approve.sh" })
    ```
    Then respond: **"✅ APPROVED. Approval flag written."**
+
+   Do **not** write the file with the Write tool. The flag binds to the id of the
+   **staged tree**, so the script has to read the index; a hand-written timestamp
+   is rejected by the hook rather than silently honoured (#427). The script also
+   refuses when nothing is staged, which catches reviewing the working tree
+   instead of what will actually be committed — the two differ, and the hook
+   compares against the index.
+
+   **Review the staged tree, not the working tree.** `git show :<path>` reads the
+   staged blob; `git diff --cached` is the change being approved. A report that
+   describes edits which were never staged has approved nothing, and the tree
+   binding will not catch that — it pins *which* bytes were approved, not whether
+   you read them.
 
 5. **If any check FAILS** — respond REJECTED:
    **"❌ BLOCKED: [list specific issues with actionable fixes]"**
@@ -99,12 +108,31 @@ No build step. No production dependencies — only dev dependencies (PHPUnit 9.6
 
 ### Worktree dependency isolation
 
-Every Git worktree must run its own `composer install`. **Never symlink or share
-`vendor/` between worktrees.** Composer generates absolute paths in
-`vendor/composer/autoload_classmap.php`; a shared directory can therefore load
-`WP_Sudo\*` production classes from another checkout while tests appear to run
-normally. This has produced a real false-green guard verification in this
-project.
+Every Git worktree must run its own `composer install`. **Never symlink
+`vendor/` between worktrees.**
+
+The mechanism is PHP, not Composer. Composer generates **no** absolute paths —
+`vendor/composer/autoload_classmap.php` and `autoload_psr4.php` both open with
+`$vendorDir = dirname(__DIR__); $baseDir = dirname($vendorDir);` and emit entries
+as `$baseDir . '/includes/…'`. Verify at any time:
+
+```bash
+grep -c '/Users/' vendor/composer/autoload_classmap.php   # 0
+```
+
+What breaks isolation is that PHP resolves symlinks in `__DIR__`. Loading the
+autoloader *through* a symlinked `vendor/` therefore computes `$baseDir` in the
+checkout the symlink points at, and every `WP_Sudo\*` production class loads
+from there while tests appear to run normally. This has produced a real
+false-green guard verification in this project — twice in one day, the second
+time to a reviewer reproducing the first.
+
+The distinction is operative, not pedantic: because the paths are derived at
+runtime, a **`cp -r` of another worktree's `vendor/` is harmless**, and only a
+symlink breaks it. The earlier wording here ("Composer generates absolute paths")
+would lead a maintainer to ban copying too, or to distrust the narrow check in
+`.githooks/pre-commit` that blocks exactly the symlink case. Recorded as
+[`llm-lies-log.md`](docs/llm-lies-log.md) #71.
 
 Before trusting tests in a worktree, verify both the directory and the resolved
 production class:

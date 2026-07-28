@@ -14,10 +14,15 @@ composer install
 ```
 
 When using a Git worktree, run `composer install` separately inside every
-worktree. Do not symlink or share `vendor/`: Composer's generated classmap uses
-absolute paths and can silently load WP Sudo production classes from a different
-checkout, producing false-green tests. Confirm the active mapping before
-trusting a worktree test run:
+worktree, and do **not** symlink `vendor/`. Composer writes no absolute paths —
+both `autoload_classmap.php` and `autoload_psr4.php` derive them at runtime from
+`$baseDir = dirname(dirname(__DIR__))` — but PHP resolves symlinks in `__DIR__`,
+so loading the autoloader through a symlinked `vendor/` puts `$baseDir` in the
+*other* checkout and silently loads WP Sudo production classes from there. The
+tests then pass without exercising your changes: green, but about the wrong code.
+A `cp -r` of another checkout's `vendor/` is therefore harmless; only a symlink
+breaks it, and the pre-commit hook blocks exactly that case. Confirm the active
+mapping before trusting a worktree test run:
 
 ```bash
 test -d vendor && test ! -L vendor
@@ -26,18 +31,112 @@ php -r '$m = require "vendor/composer/autoload_classmap.php"; $expected = realpa
 
 ### Git hooks
 
-Install the pre-commit hook to enforce reviewer agent approval before every AI-generated commit:
+Point git at the versioned hooks directory to enforce reviewer agent approval
+before every AI-generated commit:
 
 ```bash
-cp .githooks/pre-commit .git/hooks/pre-commit
-chmod +x .git/hooks/pre-commit
+git config core.hooksPath .githooks
 ```
+
+Run it once per clone. Git cannot enable hooks automatically — they execute
+arbitrary code, so a fresh clone never runs them until someone opts in. Nothing
+in CI verifies you have done this; see [#427](https://github.com/dknauss/Sudo/issues/427).
+
+This replaces the older `cp .githooks/pre-commit .git/hooks/pre-commit`. Prefer
+`core.hooksPath` for two reasons:
+
+- **`cp` takes a snapshot.** `.githooks/pre-commit` is maintained — it has since
+  gained a merge-commit exemption and a docs-only approval skip. A copy made
+  before those keeps blocking merges and docs commits, which is the fastest way
+  to train everyone to pass `--no-verify`.
+- **`core.hooksPath` covers every worktree.** It resolves through the common git
+  directory, so one setting applies to all of them. A copy into `.git/hooks`
+  reaches them too, but only until it goes stale — and `git worktree` checkouts
+  are how most work in this repo happens.
+
+**If you add a hook to `.githooks/`, commit it executable:**
+
+```bash
+git add --chmod=+x .githooks/<hook-name>
+```
+
+Git runs a hook only if the file is executable. Under `core.hooksPath` a
+non-executable hook is **skipped**, and git says so once:
+
+```
+hint: The '.githooks/pre-commit' hook was ignored because it's not set as executable.
+```
+
+That hint depends on `advice.ignoredHook`, which defaults on but is commonly
+disabled in shared setups — and a hint above a successful commit is easy to read
+past, so the repository can look correctly configured while nothing runs.
+`.githooks/pre-commit` is mode 100755; a new file committed at the default 100644
+would appear installed and never fire. Check with `git ls-files -s .githooks/`.
+
+(An earlier version of this paragraph said the skip was silent with "no warning,
+no error". Verified false on git 2.50.1: the hint above is emitted with default
+advice settings.)
 
 For your own (non-AI) commits, bypass the hook with `USER_COMMIT=1`:
 
 ```bash
 USER_COMMIT=1 git commit -m "message"
 ```
+
+The approval flag is single-use, bound to content, and expires after 30 minutes
+(`REVIEWER_APPROVAL_TIMEOUT` in `.reviewer-config.sh`); the hook deletes it once
+consumed, and an expired flag blocks rather than passes.
+
+**Content binding (#427).** The flag records the id of the staged tree
+(`git write-tree`) alongside the timestamp, and the hook refuses to commit if the
+staged tree has changed since approval. A timestamp alone only answers "was
+something approved recently" — never "was *this* approved" — so an edit made
+after approval used to ride in unreviewed behind a flag that still looked valid.
+Write the flag with `bash bin/reviewer-approve.sh`, never by hand: a
+timestamp-only flag is rejected rather than silently accepted.
+
+This narrows, but does not remove, the shared-checkout caveat: when several agent
+sessions share **one checkout**, an approval written by one session can still be
+consumed by another — but only if that session commits the *identical* staged
+tree. Separate worktrees avoid it entirely, since each resolves its own root.
+
+**A staged file may not also have unstaged changes.** For a code commit the hook
+refuses when any staged path is also dirty in the working tree, and names the
+paths. The reason is that the approval binds to the **index** while every check —
+tests, lint, PHPStan — reads the **working tree**. While those differ a green
+validation says nothing about the bytes being committed: a broken staged
+implementation with an unstaged fix would validate green and commit broken, and
+the approval would faithfully record the broken tree.
+
+This does block a `git add -p` workflow that leaves the rest of a file dirty.
+Two compliant paths:
+
+```bash
+git add <file>                    # include the rest
+git stash push --keep-index       # set the rest aside, keep what you staged
+```
+
+Use `--keep-index`. A plain `git stash` also stashes the staged change, leaving
+nothing to commit.
+
+**The staged tree is re-checked after validation, not only before.** Validation
+takes tens of seconds and the index is shared — several sessions work this
+repository at once — so a `lint --fix` staging its own output, or another
+session's `git add`, could otherwise commit a tree nobody approved while the flag
+was already consumed. The hook compares `git write-tree` again as its last act
+and refuses on a mismatch.
+
+The flag is consumed at the *start* of validation rather than the end,
+deliberately: any failure worth fixing changes the tree, which invalidates the
+approval through the binding anyway, and early consumption means an interrupted
+run cannot leave a live token behind.
+
+**A branch without `.githooks/` is ungated, silently.** `core.hooksPath` is set once
+per clone and shared by every worktree, but it is a *relative* path, so each worktree
+resolves it against its own checkout. A branch cut before `.githooks/pre-commit`
+existed therefore runs no hook at all — no warning, exit 0. There is no
+`.git/hooks/pre-commit` fallback. Rebase such a branch onto `main` before relying on
+the gate.
 
 ## Running Tests
 

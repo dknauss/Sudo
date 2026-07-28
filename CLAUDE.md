@@ -67,7 +67,22 @@ Example prompt:
 
 ### Reviewer approval flag
 
-The **reviewer agent** writes `reviewer-approved` using the Write tool after deciding APPROVE.
+The **reviewer agent** writes the flag after deciding APPROVE, by running:
+
+```bash
+bash bin/reviewer-approve.sh
+```
+
+Not with the Write tool. The flag is now two lines — a timestamp and the id of
+the **staged tree** (`git write-tree`) — and the hook rejects a flag whose tree
+does not match what is being committed. A hand-written timestamp is rejected
+outright rather than silently accepted, because a degraded binding that still
+looks like enforcement is worse than none (#427).
+
+This closes a real hole: the old flag proved only that *something* was approved
+recently, never that **this** was approved, so any edit between approval and
+commit rode in unreviewed behind a valid-looking flag.
+
 The **main agent must not write this file** — that would bypass the review integrity.
 
 ### When to skip
