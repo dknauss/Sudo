@@ -286,10 +286,10 @@ class PublicApiTest extends TestCase {
 	/**
 	 * #461: the signal is about the call, not the outcome.
 	 *
-	 * Fired before the early returns, so it does not depend on a user resolving or
-	 * on there being no active session. An integrator whose users usually hold a
-	 * live session would otherwise see the notice rarely or never — which is
-	 * exactly the silence #461 exists to end.
+	 * Fired at every exit path, so it does not depend on a user resolving or on
+	 * there being no active session. An integrator whose users usually hold a live
+	 * session would otherwise see the notice rarely or never — which is exactly
+	 * the silence #461 exists to end.
 	 */
 	public function test_require_flags_return_url_even_when_sudo_is_already_active(): void {
 		$user_id = 91;
@@ -301,8 +301,8 @@ class PublicApiTest extends TestCase {
 			->once()
 			->with( 'wp_sudo_require', '4.9.0', \Mockery::type( 'string' ) );
 
-		// No session assertion here: the point is that the notice precedes the
-		// self::check() short-circuit, whichever way that check resolves.
+		// No session assertion here: the point is that the check() short-circuit
+		// still emits on its way out, whichever way that check resolves.
 		Public_API::require(
 			array(
 				'rule_id'    => 'custom.action',
@@ -351,6 +351,61 @@ class PublicApiTest extends TestCase {
 				array(
 					'rule_id' => 'plugin.activate',
 				)
+			)
+		);
+	}
+
+	/**
+	 * #461 regression: the notice must never be emitted before the redirect.
+	 *
+	 * `_deprecated_argument()` prints under WP_DEBUG with display_errors on. Any
+	 * output makes `headers_sent()` true, and `can_redirect_to_challenge()`
+	 * returns the negation of that — so emitting the notice at the top of
+	 * require() cancelled the challenge redirect outright, on exactly the
+	 * debug-enabled installs whose developers would be reading the notice. A
+	 * cosmetic gap became a functional one.
+	 *
+	 * This pins "not before", not "after": `wp_safe_redirect` is stubbed to throw
+	 * (the suite's standard way of stopping short of `exit`), so nothing past it
+	 * is reachable here. The emission on the redirect path therefore never runs
+	 * in this test, and `never()` is exactly right — under the original ordering
+	 * the notice fired before the redirect and this assertion fails.
+	 *
+	 * The redirect-path interaction is exercised by the PUB-01 E2E test, whose
+	 * fixture passes `return_url` and expects the challenge — that is what caught
+	 * this, and no existing unit test did. (PUB-02 shares the fixture and reaches
+	 * the check()-true exit with the same non-empty `return_url`, so it emits too;
+	 * only the redirect coupling is PUB-01's.)
+	 */
+	public function test_require_does_not_emit_the_return_url_notice_before_redirecting(): void {
+		$user_id = 92;
+
+		Functions\when( 'get_current_user_id' )->justReturn( $user_id );
+		Functions\when( 'get_user_meta' )->justReturn( '' );
+		Functions\when( 'headers_sent' )->justReturn( false );
+		Functions\when( 'wp_doing_ajax' )->justReturn( false );
+		Functions\when( 'wp_doing_cron' )->justReturn( false );
+		Functions\when( 'is_network_admin' )->justReturn( false );
+		Functions\when( 'admin_url' )->alias(
+			static function ( string $path = '' ): string {
+				return 'https://example.com/wp-admin/' . ltrim( $path, '/' );
+			}
+		);
+		$this->stub_faithful_add_query_arg();
+
+		Functions\expect( 'wp_safe_redirect' )
+			->once()
+			->andThrow( new \RuntimeException( 'redirected' ) );
+
+		// The assertion: nothing was emitted on the way to the redirect.
+		Functions\expect( '_deprecated_argument' )->never();
+
+		$this->expectException( \RuntimeException::class );
+
+		Public_API::require(
+			array(
+				'rule_id'    => 'custom.action',
+				'return_url' => 'https://example.com/wp-admin/tools.php',
 			)
 		);
 	}

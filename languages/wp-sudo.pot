@@ -1753,7 +1753,7 @@ msgid "This action (%1$s) requires reauthentication. Press %2$s to start a sudo 
 msgstr ""
 
 #: includes/class-gate.php:2721
-#: includes/class-public-api.php:185
+#: includes/class-public-api.php:197
 msgid "Unable to redirect to the sudo challenge page."
 msgstr ""
 
@@ -1779,7 +1779,7 @@ msgstr ""
 msgid "Installing, activating, updating, and deleting themes and plugins requires an active sudo session. %1$s or press %2$s to start one."
 msgstr ""
 
-#: includes/class-public-api.php:142
+#: includes/class-public-api.php:252
 msgid "The return_url argument has no effect. Automatic navigation to a caller-supplied destination after reauthentication was removed in 4.9.0, because it would run under the sudo authority just granted. Send the user onward yourself once wp_sudo_require() returns true."
 msgstr ""
 

@@ -2,6 +2,40 @@
 
 ## Unreleased
 
+- **`wp_sudo_require()` now reports its inert `return_url` argument (#461).** The
+  argument has done nothing since 4.9.0 (#322), because navigating to a
+  caller-supplied destination after a successful challenge would run under the
+  sudo authority just granted. It stayed accepted and still reaches the challenge
+  URL, but nothing consumes it — and integrators got no runtime signal at all,
+  so their users landed on the dashboard with nothing anywhere saying why.
+
+  Passing it non-empty now raises `_deprecated_argument( 'wp_sudo_require',
+  '4.9.0', … )`. `_deprecated_argument()` rather than `_doing_it_wrong()` because
+  the caller made no mistake: they passed a documented argument that stopped doing
+  anything.
+
+  **This will redden integrator test suites.** `WP_UnitTestCase` fails any test
+  that triggers `deprecated_argument_run` without an explicit expectation. Declare
+  it with `setExpectedDeprecated( 'wp_sudo_require' )`, or stop passing the
+  argument and route the user onward yourself once the helper returns `true` —
+  which is the fix the notice points at. The reported handle is deliberately
+  `wp_sudo_require`, the symbol integrators call, because that string is also the
+  key `setExpectedDeprecated()` matches on.
+
+  The notice is emitted at each exit path, and on the redirect path only after the
+  `Location` header has been sent. An earlier cut emitted it at the top of the
+  function, where its output under `WP_DEBUG` made `headers_sent()` true and
+  silently cancelled the challenge redirect — a cosmetic gap turned into a
+  functional one, on exactly the debug-enabled installs whose developers would be
+  reading the notice. Caught by the PUB-01 E2E test.
+
+- **The post-reauthentication notice no longer tells you to review a form (#463).**
+  Before 4.9.0 only POSTs reached it, so "review the form and submit it again"
+  pointed at a real form. Now four landing combinations reach it and none presents
+  the form for the action being repeated — a link-driven activation never had one,
+  and the two dashboard landings do not show the originating screen at all. The
+  wording is now method-agnostic.
+
 - **Project status clarified:** WP Sudo is explicitly classified as a research
   prototype and security-design demonstrator, not a supported production
   plugin or security boundary. Public documentation now limits evaluation to
