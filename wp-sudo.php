@@ -104,8 +104,11 @@ function wp_sudo_check( ?int $user_id = null ): bool {
  *
  * The `return_url` arg has been inert since 4.9.0 (#322) and passing it non-empty
  * raises `_deprecated_argument( 'wp_sudo_require', … )` (#461). Suppress in tests
- * with `setExpectedDeprecated( 'wp_sudo_require' )`, or stop passing it and route
- * the user onward yourself once this returns true. This function's own name is the
+ * with `setExpectedDeprecated( 'wp_sudo_require' )`, or stop passing it. If you
+ * redirect after this returns true, the destination must be fixed or validated by
+ * your own code: the user now holds sudo, so navigating to a request-supplied
+ * destination runs under the authority just granted and reintroduces #322's
+ * confused deputy behind your redirect. This function's own name is the
  * reported handle, because it is the symbol integrators call.
  *
  * @since 2.12.0

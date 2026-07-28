@@ -17,8 +17,12 @@
   **This will redden integrator test suites.** `WP_UnitTestCase` fails any test
   that triggers `deprecated_argument_run` without an explicit expectation. Declare
   it with `setExpectedDeprecated( 'wp_sudo_require' )`, or stop passing the
-  argument and route the user onward yourself once the helper returns `true` —
-  which is the fix the notice points at. The reported handle is deliberately
+  argument, which is the fix the notice points at. If you redirect after the
+  helper returns `true`, do **not** reuse the value you were passing as
+  `return_url`: the user holds sudo by then, so a request-supplied destination
+  runs under the authority just granted and reintroduces the confused deputy
+  #322 removed. `wp_validate_redirect()` is not sufficient — it constrains the
+  host and scheme, not whether the path performs an action. The reported handle is deliberately
   `wp_sudo_require`, the symbol integrators call, because that string is also the
   key `setExpectedDeprecated()` matches on.
 

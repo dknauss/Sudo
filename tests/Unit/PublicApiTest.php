@@ -293,22 +293,53 @@ class PublicApiTest extends TestCase {
 	 */
 	public function test_require_flags_return_url_even_when_sudo_is_already_active(): void {
 		$user_id = 91;
+		$token   = 'active-session-token';
 
+		// An earlier cut of this test stubbed get_user_meta() to '' throughout, so
+		// check() resolved FALSE and the call took the ordinary gated path. It
+		// asserted nothing about the branch its name claims: moving the emission
+		// below the check() short-circuit would have left it green. A real proof
+		// and cookie are installed here so check() returns true and the
+		// short-circuit is the exit actually exercised.
 		Functions\when( 'get_current_user_id' )->justReturn( $user_id );
-		Functions\when( 'get_user_meta' )->justReturn( '' );
+
+		$_COOKIE[ Sudo_Session::TOKEN_COOKIE ] = $token;
+
+		$record = $this->make_proof_map( $user_id, $token, time() + 300 );
+
+		Functions\when( 'get_user_meta' )->alias(
+			static function ( int $uid, string $meta_key, bool $single ) use ( $user_id, $record ) {
+				if ( $uid !== $user_id || true !== $single ) {
+					return '';
+				}
+
+				if ( Sudo_Session::META_KEY === $meta_key ) {
+					return time() + 300;
+				}
+
+				if ( Sudo_Session::PROOF_META_KEY === $meta_key ) {
+					return $record;
+				}
+
+				return '';
+			}
+		);
 
 		Functions\expect( '_deprecated_argument' )
 			->once()
 			->with( 'wp_sudo_require', '4.9.0', \Mockery::type( 'string' ) );
 
-		// No session assertion here: the point is that the check() short-circuit
-		// still emits on its way out, whichever way that check resolves.
-		Public_API::require(
-			array(
-				'rule_id'    => 'custom.action',
-				'redirect'   => false,
-				'return_url' => 'https://example.com/wp-admin/tools.php',
-			)
+		// Returning true proves the check() short-circuit was the exit taken, and
+		// the expectation above proves it still emitted on the way out.
+		$this->assertTrue(
+			Public_API::require(
+				array(
+					'rule_id'    => 'custom.action',
+					'redirect'   => false,
+					'return_url' => 'https://example.com/wp-admin/tools.php',
+				)
+			),
+			'Precondition: sudo must be active so the check() short-circuit is exercised.'
 		);
 	}
 

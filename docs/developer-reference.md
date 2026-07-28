@@ -295,9 +295,12 @@ keep working. It has no effect.
 `_deprecated_argument( 'wp_sudo_require', '4.9.0', … )`, so the inertness shows up in
 your debug log instead of only in this document. `_deprecated_argument()` rather than
 `_doing_it_wrong()` on purpose: you did not make a mistake — you passed a documented
-argument that stopped doing anything. It raises `E_USER_DEPRECATED` and fires
-`deprecated_argument_run`, both distinct from the `E_USER_NOTICE` and
-`doing_it_wrong_run` that `_doing_it_wrong()` uses, so tooling that separates the two
+argument that stopped doing anything. It fires `deprecated_argument_run`
+**unconditionally**, and raises `E_USER_DEPRECATED` only when `WP_DEBUG` is on and
+the `deprecated_argument_trigger_error` filter allows it — so the action is the
+reliable signal and the error is the visible one (`GB-DEPARG-ACTION`). Both are
+distinct from `doing_it_wrong_run` and the `E_USER_NOTICE` that
+`_doing_it_wrong()` produces (`GB-DIW-NOTICE`), so tooling that separates the two
 can treat this as what it is. The notice fires on the *argument you passed*,
 not on the value emitted into the challenge URL, which is often non-empty from the
 `HTTP_REFERER` fallback even when you never named the argument. It also fires regardless
@@ -311,8 +314,17 @@ that triggers `deprecated_argument_run` without an explicit expectation. Declare
 $this->setExpectedDeprecated( 'wp_sudo_require' );
 ```
 
-Or stop passing `return_url` and send the user onward yourself once `wp_sudo_require()`
-returns `true` — which is the fix the notice is pointing at.
+Or stop passing `return_url`, which is the fix the notice points at.
+
+**If you redirect after `wp_sudo_require()` returns `true`, do not reuse the value
+you were passing as `return_url`.** By that point the user holds a sudo session, so
+navigating to a destination taken from the request runs under the authority just
+granted — a crafted same-origin action URL is carried out with no further challenge.
+That is exactly the confused deputy #322 removed, reintroduced behind your redirect
+instead of ours. Send the user to a destination your own code fixes, or one you
+validate against an allowlist you control; `wp_validate_redirect()` is not sufficient — it
+constrains the host and scheme, not whether the path performs an action
+(`GB-VALIDATE-REDIRECT-HOST`).
 
 This is **MINOR**, not MAJOR, under the *Security-forced inertness* clause in
 [`VERSIONING.md`](../VERSIONING.md): the argument is still accepted, nothing errors,

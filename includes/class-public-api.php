@@ -88,8 +88,10 @@ class Public_API {
 	 *   emitted into the challenge URL, but nothing consumes it — the user is landed
 	 *   on a neutral admin page instead. Passing it non-empty raises
 	 *   `_deprecated_argument( 'wp_sudo_require', … )` (#461). Suppress in tests with
-	 *   `setExpectedDeprecated( 'wp_sudo_require' )`, or route the user onward
-	 *   yourself once this returns true.
+	 *   `setExpectedDeprecated( 'wp_sudo_require' )`, or drop the argument. If you
+	 *   redirect after this returns true, the destination must be fixed or
+	 *   validated by your own code — a request-supplied one reintroduces #322's
+	 *   confused deputy behind your redirect.
 	 *
 	 * @since 2.12.0
 	 *
@@ -249,7 +251,7 @@ class Public_API {
 		_deprecated_argument(
 			'wp_sudo_require',
 			'4.9.0',
-			esc_html__( 'The return_url argument has no effect. Automatic navigation to a caller-supplied destination after reauthentication was removed in 4.9.0, because it would run under the sudo authority just granted. Send the user onward yourself once wp_sudo_require() returns true.', 'wp-sudo' )
+			esc_html__( 'The return_url argument has no effect. Automatic navigation to a caller-supplied destination after reauthentication was removed in 4.9.0, because it would run under the sudo authority just granted. If you redirect after wp_sudo_require() returns true, use a destination your own code fixes or validates — not one taken from the request — or the same problem returns with your redirect instead of ours.', 'wp-sudo' )
 		);
 	}
 
