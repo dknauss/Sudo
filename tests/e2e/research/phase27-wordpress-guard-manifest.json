@@ -1,0 +1,19 @@
+{
+  "guards": [
+    {
+      "id": "ATOMIC_CONSUME",
+      "focusedTest": "real PHP multipart bytes are bound and concurrent consumption has one winner",
+      "assertionId": "P27-WP-ATOMIC-CONSUME-ONE-WINNER-2"
+    },
+    {
+      "id": "EFFECT_RECORDED",
+      "focusedTest": "real PHP multipart bytes are bound and concurrent consumption has one winner",
+      "assertionId": "P27-WP-EFFECT-ONCE-2"
+    },
+    {
+      "id": "EFFECT_INPUT",
+      "focusedTest": "real PHP multipart bytes are bound and concurrent consumption has one winner",
+      "assertionId": "P27-WP-EFFECT-CONSUMED-APPROVED-BYTES-2"
+    }
+  ]
+}

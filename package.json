@@ -19,7 +19,9 @@
     "test:e2e:update-snapshots": "playwright test --config tests/e2e/playwright.config.ts --update-snapshots",
     "test:research:phase27:node": "playwright test --config tests/e2e/research.playwright.config.ts --project=chromium tests/e2e/research/phase27-handoff.spec.ts",
     "test:research:phase27:mutations": "node bin/run-phase27-mutations.mjs",
+    "test:research:phase27:wordpress": "node bin/run-phase27-wordpress.mjs",
     "verify:research:phase27:node": "npm run test:research:phase27:node && npm run test:research:phase27:mutations",
+    "verify:research:phase27": "npm run verify:research:phase27:node && npm run test:research:phase27:wordpress",
     "screenshots": "WP_SUDO_CAPTURE=1 playwright test --config tests/e2e/playwright.config.ts --project=chromium tests/e2e/specs/capture-screenshots.spec.ts"
   },
   "devDependencies": {
