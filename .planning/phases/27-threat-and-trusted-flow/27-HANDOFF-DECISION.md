@@ -1,11 +1,26 @@
 # Phase 27 — Trusted Handoff Decision Record
 
-**Status:** Copied-auth-cookie-only handoff selected; active-XSS handoff rejected
+**Status:** Rejected evidence — superseded by `27-02-RECONSTRUCTION-PLAN.md`
 
 **Scope:** Plugin/theme package upload and plugin/theme file-editor write only
 
-**Rule:** The mechanism result limits the claim to copied-auth-cookie-only
-protection
+**Rule:** Do not use this record to authorize Phase 28 or make a security claim
+
+## Supersession notice
+
+Independent review found that the selected-candidate fixture stored one global
+file intent and one global upload intent. Browser B was rejected because
+Browser A had already occupied that singleton state, rather than because the
+protocol safely supported two independent intents. Several guards also survived
+their intended mutations, and the fixture did not exercise real WordPress
+multipart parsing, cookie handling, persistent throttling, or concurrent
+consumption.
+
+The conclusions below are retained as a record of the failed experiment. They
+are not current findings. Phase 27 has reopened under
+`27-02-RECONSTRUCTION-PLAN.md`; Phase 28 may not begin until that plan's exit
+criteria are satisfied against both the browser model and a WordPress/PHP
+adapter.
 
 ## Decision to make
 
