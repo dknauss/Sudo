@@ -224,10 +224,14 @@ add_filter(
 			'stash'    => array(
 				'post_mode'   => 'allowlist',
 				// Preserve the source-verified core profile fields used by
-				// user-edit.php/edit_user() so a mixed profile + Two Factor
-				// submission replays as a complete core profile save after the
-				// WP Sudo challenge. Third-party profile fields are deliberately
-				// outside this verified bridge allowlist.
+				// user-edit.php/edit_user(). Nothing is replayed (#322), so this does
+				// not reconstruct the save. Its live effect is the notice: pass1,
+				// pass2 and pass1-text are in BOTH this allowlist and Request_Stash's
+				// sensitive-key list, so build_stashed_post_params() drops them and
+				// sets redacted_fields_omitted — which selects the "re-enter the
+				// secret fields" landing notice instead of the generic one.
+				// Third-party profile fields are deliberately outside this verified
+				// bridge allowlist.
 				'post_fields' => array(
 					'_wpnonce',
 					'_wp_http_referer',

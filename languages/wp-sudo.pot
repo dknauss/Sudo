@@ -76,24 +76,24 @@ msgid "Backup code:"
 msgstr ""
 
 #: includes/class-action-registry.php:102
-#: includes/class-gate.php:341
-#: includes/class-gate.php:730
+#: includes/class-gate.php:344
+#: includes/class-gate.php:733
 msgid "Activate plugin"
 msgstr ""
 
 #: includes/class-action-registry.php:119
-#: includes/class-gate.php:745
+#: includes/class-gate.php:748
 msgid "Deactivate plugin"
 msgstr ""
 
 #: includes/class-action-registry.php:136
-#: includes/class-gate.php:349
-#: includes/class-gate.php:758
+#: includes/class-gate.php:352
+#: includes/class-gate.php:761
 msgid "Delete plugin"
 msgstr ""
 
 #: includes/class-action-registry.php:155
-#: includes/class-gate.php:488
+#: includes/class-gate.php:491
 msgid "Install plugin"
 msgstr ""
 
@@ -102,23 +102,23 @@ msgid "Upload plugin"
 msgstr ""
 
 #: includes/class-action-registry.php:188
-#: includes/class-gate.php:489
+#: includes/class-gate.php:492
 msgid "Update plugin"
 msgstr ""
 
 #: includes/class-action-registry.php:206
-#: includes/class-gate.php:769
+#: includes/class-gate.php:772
 msgid "Switch theme"
 msgstr ""
 
 #: includes/class-action-registry.php:220
-#: includes/class-gate.php:357
-#: includes/class-gate.php:782
+#: includes/class-gate.php:360
+#: includes/class-gate.php:785
 msgid "Delete theme"
 msgstr ""
 
 #: includes/class-action-registry.php:236
-#: includes/class-gate.php:494
+#: includes/class-gate.php:497
 msgid "Install theme"
 msgstr ""
 
@@ -127,106 +127,106 @@ msgid "Upload theme"
 msgstr ""
 
 #: includes/class-action-registry.php:266
-#: includes/class-gate.php:495
+#: includes/class-gate.php:498
 msgid "Update theme"
 msgstr ""
 
 #: includes/class-action-registry.php:284
-#: includes/class-gate.php:365
-#: includes/class-gate.php:807
+#: includes/class-gate.php:368
+#: includes/class-gate.php:810
 msgid "Delete user"
 msgstr ""
 
 #: includes/class-action-registry.php:301
 #: includes/class-action-registry.php:338
-#: includes/class-gate.php:839
+#: includes/class-gate.php:842
 msgid "Change user role"
 msgstr ""
 
-#: includes/class-action-registry.php:361
+#: includes/class-action-registry.php:362
 msgid "Change password"
 msgstr ""
 
-#: includes/class-action-registry.php:399
+#: includes/class-action-registry.php:400
 msgid "Change email address"
 msgstr ""
 
-#: includes/class-action-registry.php:450
-#: includes/class-gate.php:824
+#: includes/class-action-registry.php:451
+#: includes/class-gate.php:827
 msgid "Create new user"
 msgstr ""
 
-#: includes/class-action-registry.php:467
+#: includes/class-action-registry.php:468
 msgid "Create application password"
 msgstr ""
 
-#: includes/class-action-registry.php:497
+#: includes/class-action-registry.php:500
 msgid "Edit plugin file"
 msgstr ""
 
-#: includes/class-action-registry.php:513
+#: includes/class-action-registry.php:516
 msgid "Edit theme file"
 msgstr ""
 
-#: includes/class-action-registry.php:531
-#: includes/class-gate.php:854
+#: includes/class-action-registry.php:534
+#: includes/class-gate.php:857
 msgid "Change critical site setting"
 msgstr ""
 
-#: includes/class-action-registry.php:596
+#: includes/class-action-registry.php:599
 msgid "Update connector credentials"
 msgstr ""
 
-#: includes/class-action-registry.php:613
-#: includes/class-action-registry.php:834
-#: includes/class-gate.php:873
-#: includes/class-gate.php:885
+#: includes/class-action-registry.php:616
+#: includes/class-action-registry.php:837
+#: includes/class-gate.php:876
+#: includes/class-gate.php:888
 msgid "Change Sudo settings"
 msgstr ""
 
-#: includes/class-action-registry.php:632
+#: includes/class-action-registry.php:635
 msgid "Change Sudo access controls"
 msgstr ""
 
-#: includes/class-action-registry.php:653
+#: includes/class-action-registry.php:656
 msgid "Update WordPress core"
 msgstr ""
 
-#: includes/class-action-registry.php:669
-#: includes/class-gate.php:373
-#: includes/class-gate.php:898
+#: includes/class-action-registry.php:672
+#: includes/class-gate.php:376
+#: includes/class-gate.php:901
 msgid "Export site data"
 msgstr ""
 
-#: includes/class-action-registry.php:707
+#: includes/class-action-registry.php:710
 msgid "Network enable theme"
 msgstr ""
 
-#: includes/class-action-registry.php:724
+#: includes/class-action-registry.php:727
 msgid "Network disable theme"
 msgstr ""
 
-#: includes/class-action-registry.php:741
+#: includes/class-action-registry.php:744
 msgid "Delete site"
 msgstr ""
 
-#: includes/class-action-registry.php:754
+#: includes/class-action-registry.php:757
 msgid "Deactivate site"
 msgstr ""
 
-#: includes/class-action-registry.php:767
+#: includes/class-action-registry.php:770
 msgid "Mark site as spam"
 msgstr ""
 
-#: includes/class-action-registry.php:780
+#: includes/class-action-registry.php:783
 msgid "Archive site"
 msgstr ""
 
-#: includes/class-action-registry.php:793
+#: includes/class-action-registry.php:796
 msgid "Grant or revoke super admin"
 msgstr ""
 
-#: includes/class-action-registry.php:813
+#: includes/class-action-registry.php:816
 msgid "Change network settings"
 msgstr ""
 
@@ -1658,123 +1658,123 @@ msgid "descending"
 msgstr ""
 
 #. translators: %s: action label
-#: includes/class-gate.php:419
+#: includes/class-gate.php:422
 #, php-format
 msgid "This operation (%s) requires sudo. Activate a sudo session and try again."
 msgstr ""
 
-#: includes/class-gate.php:545
+#: includes/class-gate.php:548
 msgid "WP-CLI is disabled by Sudo policy."
 msgstr ""
 
-#: includes/class-gate.php:586
+#: includes/class-gate.php:589
 msgid "WP-Cron is disabled by Sudo policy. The wp cron command is not available."
 msgstr ""
 
 #. translators: 1: action label, 2: surface name
-#: includes/class-gate.php:714
+#: includes/class-gate.php:717
 #, php-format
 msgid "This operation (%1$s) requires sudo and cannot be performed via %2$s."
 msgstr ""
 
-#: includes/class-gate.php:796
+#: includes/class-gate.php:799
 msgid "Install or update plugin/theme"
 msgstr ""
 
-#: includes/class-gate.php:1018
+#: includes/class-gate.php:1021
 msgid "Grant administrator"
 msgstr ""
 
-#: includes/class-gate.php:1082
+#: includes/class-gate.php:1085
 msgid "Grant super admin"
 msgstr ""
 
-#: includes/class-gate.php:1538
+#: includes/class-gate.php:1545
 msgid "Only admin, AJAX, and REST request simulation is available in the current tester MVP."
 msgstr ""
 
-#: includes/class-gate.php:1557
+#: includes/class-gate.php:1564
 msgid "Sudo only gates authenticated users; anonymous requests fall through to WordPress authentication and capability checks first."
 msgstr ""
 
-#: includes/class-gate.php:1562
+#: includes/class-gate.php:1569
 msgid "No gated rule matched this request shape."
 msgstr ""
 
-#: includes/class-gate.php:1567
+#: includes/class-gate.php:1574
 msgid "An active sudo session would allow this matched request to proceed."
 msgstr ""
 
-#: includes/class-gate.php:1573
+#: includes/class-gate.php:1580
 msgid "Interactive admin request: gated."
 msgstr ""
 
-#: includes/class-gate.php:1579
+#: includes/class-gate.php:1586
 msgid "AJAX requests are blocked in-place and must be retried after activating sudo."
 msgstr ""
 
-#: includes/class-gate.php:1585
+#: includes/class-gate.php:1592
 msgid "Cookie-authenticated REST requests receive sudo_required and can be retried after activating sudo."
 msgstr ""
 
-#: includes/class-gate.php:1592
+#: includes/class-gate.php:1599
 msgid "REST Application Password policy is Unrestricted, so Sudo would allow the matched request."
 msgstr ""
 
-#: includes/class-gate.php:1599
+#: includes/class-gate.php:1606
 msgid "REST Application Password policy is Disabled, so Sudo would reject the request at the surface level."
 msgstr ""
 
-#: includes/class-gate.php:1603
+#: includes/class-gate.php:1610
 msgid "REST Application Password policy is Limited, so gated requests are blocked until policy changes."
 msgstr ""
 
-#: includes/class-gate.php:1891
+#: includes/class-gate.php:1898
 msgid "This REST API operation is disabled by Sudo policy."
 msgstr ""
 
-#: includes/class-gate.php:1901
+#: includes/class-gate.php:1908
 msgid "This operation requires sudo and cannot be performed via Application Passwords."
 msgstr ""
 
-#: includes/class-gate.php:1956
+#: includes/class-gate.php:1963
 msgid "WPGraphQL is disabled by Sudo policy."
 msgstr ""
 
-#: includes/class-gate.php:2018
+#: includes/class-gate.php:2025
 msgid "This GraphQL mutation requires sudo. Activate a sudo session and try again."
 msgstr ""
 
 #. translators: 1: action label (e.g. "Delete plugin"), 2: keyboard shortcut
-#: includes/class-gate.php:2641
-#: includes/class-gate.php:2749
+#: includes/class-gate.php:2648
+#: includes/class-gate.php:2757
 #, php-format
 msgid "This action (%1$s) requires reauthentication. Press %2$s to start a sudo session, then try again."
 msgstr ""
 
-#: includes/class-gate.php:2721
+#: includes/class-gate.php:2729
 #: includes/class-public-api.php:143
 msgid "Unable to redirect to the sudo challenge page."
 msgstr ""
 
-#: includes/class-gate.php:2851
+#: includes/class-gate.php:2859
 msgid "a protected action"
 msgstr ""
 
 #. translators: 1: action label, 2: challenge page link, 3: keyboard shortcut
-#: includes/class-gate.php:2871
+#: includes/class-gate.php:2879
 #, php-format
 msgid "Your recent action (%1$s) was blocked because it requires reauthentication. %2$s to activate a sudo session, then try again. You can also press %3$s."
 msgstr ""
 
-#: includes/class-gate.php:2873
-#: includes/class-gate.php:2933
+#: includes/class-gate.php:2881
+#: includes/class-gate.php:2941
 #: admin/js/wp-sudo-editor-reauth.js:633
 msgid "Confirm your identity"
 msgstr ""
 
 #. translators: 1: challenge page link, 2: keyboard shortcut
-#: includes/class-gate.php:2932
+#: includes/class-gate.php:2940
 #, php-format
 msgid "Installing, activating, updating, and deleting themes and plugins requires an active sudo session. %1$s or press %2$s to start one."
 msgstr ""

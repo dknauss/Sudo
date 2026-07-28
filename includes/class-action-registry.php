@@ -66,7 +66,7 @@ class Action_Registry {
 	private static ?array $connector_setting_names_cache = null;
 
 	/**
-	 * Default WordPress form fields that are replay-safe when paired with a rule allowlist.
+	 * Default WordPress form fields that are safe to retain alongside a rule allowlist.
 	 *
 	 * @var string[]
 	 */
@@ -349,10 +349,11 @@ class Action_Registry {
 				),
 				'ajax'     => null,
 				'rest'     => null,
-				// Gated profile saves are non-replayable: after reauth the user
-				// re-submits the form. This is the honest, silent-drop-free choice —
-				// the profile form always submits empty pass1/pass2, which the stash
-				// redacts, so an allowlist could never losslessly auto-replay anyway.
+				// Gated profile saves store NO POST body. Since 4.9.0 nothing is
+				// resumed anywhere, so the user re-submits regardless — retaining the
+				// body would add exposure without adding capability. It was never
+				// losslessly retainable either: the profile form always submits empty
+				// pass1/pass2, which the stash redacts.
 				'stash'    => self::stash_no_replay(),
 			),
 
@@ -389,8 +390,8 @@ class Action_Registry {
 						return array_key_exists( 'password', $request->get_params() );
 					},
 				),
-				// Non-replayable: a password change is already blocked from replay by
-				// sensitive-field redaction, so this is the equivalent explicit choice.
+				// Body not stored: a password change is already stripped by
+				// sensitive-field redaction, so this makes the same outcome explicit.
 				'stash'    => self::stash_no_replay(),
 			),
 
@@ -441,7 +442,7 @@ class Action_Registry {
 						return self::email_change_differs( (string) $params['email'], $target );
 					},
 				),
-				// Non-replayable: reauth, then re-submit (see the profile rules above).
+				// Body not stored: reauth, then re-submit (see the profile rules above).
 				'stash'    => self::stash_no_replay(),
 			),
 
@@ -481,11 +482,13 @@ class Action_Registry {
 					'route'   => '#^/wp/v2/users/(?:\d+|me)/application-passwords$#',
 					'methods' => array( 'POST' ),
 				),
-				// #322: never replayed. This POST MINTS A CREDENTIAL and hands it to
-				// success_url, so it is the exfil sink in the stash confused deputy.
+				// #322: body not stored. This POST MINTS A CREDENTIAL and hands it to
+				// success_url, so it was the exfil sink in the stash confused deputy —
+				// the vector that turned a borrowed session into a DURABLE credential.
 				// Dropping success_url alone was not enough: without post_mode 'none'
-				// the approval itself would still be auto-submitted under v2's bound
-				// replay, minting a password the attacker planted the request for.
+				// the approval would have been auto-submitted under the interim v2
+				// bound-replay design, minting a password the attacker planted the
+				// request for. Replay is gone, but the body still must not be retained.
 				// The user re-approves themselves; their own submit carries success_url.
 				'stash'    => self::stash_no_replay(),
 			),
@@ -565,10 +568,10 @@ class Action_Registry {
 						return false;
 					},
 				),
-				// NOT replayable. options.php writes every option in the page's
+				// Body not stored. options.php writes every option in the page's
 				// allow-list, using null for any the POST omits — see
 				// GB-OPTIONS-NULL-WRITE in docs/upstream-sources.md. An allowlist
-				// carrying only the critical options therefore does not replay a subset
+				// carrying only the critical options therefore could not reproduce a subset
 				// of the save; it BLANKS the rest of the page (site title, tagline,
 				// timezone, date formats, site icon, language). No allowlist narrower
 				// than the whole page can reproduce the effect, and a wider one would
@@ -583,11 +586,11 @@ class Action_Registry {
 				// handler because returning a refused Settings-API POST "to its screen"
 				// renders the raw All Settings dump (GB-OPTIONS-ALLSETTINGS). That
 				// costs the user the trip back to the settings page, and it is what
-				// already happened here before this rule became non-replayable, since
+				// already happened here before this rule stopped storing its body, since
 				// new_admin_email sat in the stashed payload and never in the target.
 				// Returning a settings save to its own screen with its values intact is
 				// worth doing and is tracked separately; it is not a property of the
-				// replay decision.
+				// retention decision.
 				'stash'    => self::stash_no_replay(),
 			),
 
@@ -846,7 +849,7 @@ class Action_Registry {
 	}
 
 	/**
-	 * Build allowlist metadata for POST replay-safe fields.
+	 * Build allowlist metadata for POST fields that are safe to retain.
 	 *
 	 * @param string[] $fields Rule-specific top-level POST field names.
 	 * @return array{post_mode:string, post_fields:string[]}
@@ -859,7 +862,7 @@ class Action_Registry {
 	}
 
 	/**
-	 * Build metadata for actions whose POST body should not be replayed.
+	 * Build metadata for actions whose POST body must not be stored at all.
 	 *
 	 * @return array{post_mode:string}
 	 */
@@ -941,7 +944,7 @@ class Action_Registry {
 		 *       'methods'  => string[],          // e.g. array( 'PUT', 'PATCH' )
 		 *       'callback' => callable( WP_REST_Request $request ): bool, // optional narrowing
 		 *   )
-		 *   `stash` => array(...)                // optional; replay allowlist via self::stash_allowlist()
+		 *   `stash` => array(...)                // optional; stash allowlist via self::stash_allowlist()
 		 *
 		 * There are no `action`, `page`, `post_type`, `rest_route`, `rest_method`,
 		 * `rest_callback`, or `network` keys — a rule using those validates but

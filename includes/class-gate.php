@@ -144,7 +144,7 @@ class Gate {
 		// invoked through a non-enumerated handler (e.g. a third-party
 		// admin-post.php route) cannot run while no sudo window is open.
 		// Enumerated flows are still handled by intercept() at priority 1
-		// (challenge + stash/replay); this only catches what request-pattern
+		// (challenge, then the user re-issues); this only catches what request-pattern
 		// matching cannot see.
 		add_action( 'admin_init', array( $this, 'register_interactive_backstop' ), 0, 0 );
 
@@ -287,10 +287,13 @@ class Gate {
 			}
 
 			if ( $this->is_rest_cookie_auth() ) {
-				// Cookie-authenticated browser request — hard block. An effect
-				// hook cannot stash and replay the request the way intercept_rest()
-				// does for enumerated routes, so surface a blocked (not gated)
-				// audit on 'rest': no challenge will follow.
+				// Cookie-authenticated browser request — hard block. This effect hook
+				// fires after routing with no WP_REST_Request and no matched rule, so it
+				// cannot compose the gated WP_Error-with-challenge_url that
+				// intercept_rest() returns for enumerated routes; it can only die.
+				// Neither path stashes — REST creates no Request_Stash entry at all
+				// (the sole stash->save() is in challenge_admin()). So surface a
+				// blocked (not gated) audit on 'rest': no challenge will follow.
 				/** This action is documented in includes/class-gate.php */
 				do_action( 'wp_sudo_action_blocked', $user_id, $rule_id, 'rest' );
 				$this->die_sudo_required( $label );
@@ -1428,7 +1431,7 @@ class Gate {
 			return;
 		}
 
-		// Admin UI: stash-challenge-replay.
+		// Admin UI: stash so the challenge can name it, then land the user back.
 		$this->challenge_admin( $user_id, $matched_rule );
 	}
 
@@ -1507,14 +1510,18 @@ class Gate {
 		/*
 		 * Deliberately reports NO replay verdict, and must not regain one.
 		 *
-		 * Since #322 replay is authorised by a conjunction this method cannot
-		 * evaluate. Some conjuncts ARE visible from the inputs — the URL carries the
-		 * scheme, and a recognised target parameter or POST field can be read off
-		 * the submitted shape. The decisive ones are not: whether the
-		 * reauthentication happens in the browser that created the stash (binding
-		 * cookie) and whether Sec-Fetch-Site said same-origin are properties of a
-		 * real request, not a simulated one. Knowing some conjuncts does not decide
-		 * the conjunction, so the outcome is undecidable here.
+		 * Since 4.9.0 there is no verdict to report: automatic replay was removed
+		 * outright (#322), so nothing is resumed on any path and every gated action
+		 * is re-issued by the user. `Challenge::build_replay_response_data()` has no
+		 * branch that can return a replay instruction.
+		 *
+		 * The reason this method must not regain a verdict outlives the removal.
+		 * An interim design authorised replay behind a conjunction — a binding
+		 * cookie proving the reauthentication happened in the browser that created
+		 * the stash, plus `Sec-Fetch-Site: same-origin` — and those are properties
+		 * of a real request, not a simulated one. Knowing some conjuncts never
+		 * decided the conjunction. If replay is ever reintroduced, that is still
+		 * true, and this method still cannot answer it.
 		 *
 		 * Earlier revisions predicted replay anyway and softened the wording each
 		 * time a case was found wrong; every one of those findings was the same
@@ -2655,8 +2662,9 @@ class Gate {
 	 *
 	 * REST requests do not create a Request_Stash entry. Editor clients must
 	 * re-dispatch their own in-memory REST request after the challenge grants a
-	 * sudo session; routing REST through stash/replay would cross the admin form
-	 * replay boundary and risk replaying stale client state.
+	 * sudo session. The server never re-issues it: automatic replay was removed
+	 * outright in 4.9.0 (#322), and a server-held copy of a client's request was
+	 * the confused deputy that removal closed.
 	 *
 	 * REST does not reliably run in an admin or network-admin screen context, so
 	 * infer network-admin routing from the validated referrer when available.

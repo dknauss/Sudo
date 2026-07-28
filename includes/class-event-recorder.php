@@ -21,7 +21,7 @@ namespace WP_Sudo;
  * - wp_sudo_escalation_blocked (security: high-severity admin-escalation alarm)
  * - wp_sudo_action_allowed (policy: non-interactive request permitted)
  * - wp_sudo_action_passed (feature: gated action succeeds during active session)
- * - wp_sudo_action_replayed (flow: stashed request replayed after reauth)
+ * - wp_sudo_action_replayed (flow: the plugin no longer fires it since 4.9.0)
  * - wp_sudo_replay_refused (security: stashed request discarded, with reason)
  * - wp_sudo_recovery_mode_active (security: break-glass access, sampled hourly)
  * - wp_sudo_session_revoked (security: operator revoked sudo session(s) via UI)
@@ -337,7 +337,15 @@ class Event_Recorder {
 	/**
 	 * Handle wp_sudo_action_replayed event.
 	 *
-	 * Fired when a stashed request is replayed after successful reauthentication.
+	 * DORMANT. Automatic replay was removed outright in 4.9.0 (#322), so nothing
+	 * fires this hook — no producer in includes/, bridges/, mu-plugin/,
+	 * wp-sudo.php or uninstall.php (bin/demo-events.php fires it to seed demo
+	 * rows, and it stays a public hook). The listener is retained
+	 * because wp_sudo_action_replayed is a PUBLIC documented hook: the plugin no
+	 * longer fires it, but third-party code still may, and if it does the event
+	 * should be recorded consistently. Removing the hook itself would be MAJOR.
+	 * Its successor at the same lifecycle point is wp_sudo_replay_refused, which
+	 * fires for every consumed stash and carries a reason.
 	 *
 	 * @param int    $user_id User ID.
 	 * @param string $rule_id Action Registry rule ID.
