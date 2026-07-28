@@ -1,0 +1,76 @@
+{
+  "status": "reconstruction-tranche-1",
+  "description": "The first TDD tranche covers the singleton-state defect. Later tranches must expand this manifest to the complete ledger in 27-02-RECONSTRUCTION-PLAN.md before any candidate can pass Phase 27.",
+  "guards": [
+    {
+      "id": "BIND_SECURE",
+      "clause": "The browser binding cookie carries the Secure attribute.",
+      "focusedTest": "independent browsers sharing one login session create separate immutable file intents",
+      "assertionId": "P27-BIND-HOST-SECURE",
+      "implementationStatus": "mutation-verified"
+    },
+    {
+      "id": "PREFLIGHT_RATE",
+      "clause": "Preflight probing is bounded across browser-binding rotation for one authenticated actor and action.",
+      "focusedTest": "preflight withholds descriptors by capability and rate-limits authorized probing",
+      "assertionId": "P27-PREFLIGHT-RATE",
+      "implementationStatus": "mutation-verified"
+    },
+    {
+      "id": "APPROVE_ACCOUNT_RATE",
+      "clause": "Failed approval attempts share one account-scoped budget across intents and browser bindings.",
+      "focusedTest": "approval throttling survives intent and binding rotation and exposes victim lockout",
+      "assertionId": "P27-APPROVE-ACCOUNT-RATE",
+      "implementationStatus": "mutation-verified"
+    },
+    {
+      "id": "PREFLIGHT_RANDOM_ID",
+      "clause": "Each successful preflight creates a fresh opaque intent ID.",
+      "focusedTest": "independent browsers sharing one login session create separate immutable file intents",
+      "assertionId": "P27-PREFLIGHT-INDEPENDENT-IDS",
+      "implementationStatus": "mutation-verified"
+    },
+    {
+      "id": "PREFLIGHT_NEW_RECORD",
+      "clause": "A successful preflight inserts a new record and never overwrites another browser's intent.",
+      "focusedTest": "independent browsers sharing one login session create separate immutable file intents",
+      "assertionId": "P27-PREFLIGHT-B-DOES-NOT-OVERWRITE-A",
+      "implementationStatus": "mutation-verified"
+    },
+    {
+      "id": "APPROVE_LOOKUP",
+      "clause": "Approval selects the exact intent named in the request and never falls back to global state.",
+      "focusedTest": "independent browsers sharing one login session create separate immutable file intents",
+      "assertionId": "P27-APPROVE-EXACT-A",
+      "implementationStatus": "mutation-verified"
+    },
+    {
+      "id": "EFFECT_LOOKUP",
+      "clause": "Redemption selects the exact submitted intent and never falls back to global state.",
+      "focusedTest": "independent browsers sharing one login session create separate immutable file intents",
+      "assertionId": "P27-EFFECT-EXACT-A",
+      "implementationStatus": "mutation-verified"
+    },
+    {
+      "id": "UPLOAD_MULTIPART",
+      "clause": "The upload effect accepts a real multipart request rather than treating the envelope as package bytes.",
+      "focusedTest": "browser-bound package approval sends bytes once and rejects clone, mutation, and replay",
+      "assertionId": "P27-UPLOAD-REQUIRES-MULTIPART",
+      "implementationStatus": "mutation-verified"
+    },
+    {
+      "id": "UPLOAD_SINGLE_PART",
+      "clause": "The upload effect accepts exactly one package part.",
+      "focusedTest": "browser-bound package approval sends bytes once and rejects clone, mutation, and replay",
+      "assertionId": "P27-UPLOAD-REJECTS-DUPLICATE-PART",
+      "implementationStatus": "mutation-verified"
+    },
+    {
+      "id": "UPLOAD_CONTENT_HASH",
+      "clause": "The upload effect hashes the decoded package bytes and rejects post-approval substitution.",
+      "focusedTest": "browser-bound package approval sends bytes once and rejects clone, mutation, and replay",
+      "assertionId": "P27-UPLOAD-CONTENT-HASH",
+      "implementationStatus": "mutation-verified"
+    }
+  ]
+}

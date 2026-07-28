@@ -423,7 +423,10 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                         )
                     );
                 }
-                expect( probeStatuses ).toEqual( [ 409, 409, 429 ] );
+                expect(
+                    probeStatuses,
+                    'P27-PREFLIGHT-RATE'
+                ).toEqual( [ 200, 200, 429 ] );
             } finally {
                 await Promise.allSettled( [
                     anonymous.close(),
@@ -495,6 +498,8 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
             await expect( pageA.getByTestId( 'digest' ) ).toHaveText(
                 'sha256:server-held-proposed-bytes'
             );
+            const intentA = await pageA.getByTestId( 'intent' ).textContent();
+            expect( intentA ).not.toBeNull();
 
             const browserBPreflight = await pageB.evaluate( async () => {
                 const response = await fetch( '/candidate-preflight', {
@@ -506,34 +511,38 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                         target: 'sample-plugin/sample.php',
                     } ),
                 } );
-                return response.status;
+                return {
+                    body: response.ok ? await response.json() : {},
+                    status: response.status,
+                };
             } );
-            expect( browserBPreflight ).toBe( 409 );
+            expect( browserBPreflight.status ).toBe( 200 );
+            expect( browserBPreflight.body.id ).not.toBe( intentA );
 
-            const wrongPasswordApproval = await pageA.evaluate( async () => {
+            const wrongPasswordApproval = await pageA.evaluate( async ( intentId ) => {
                 const response = await fetch( '/candidate-approve', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify( {
-                        intent: 'candidate-file-write-1',
+                        intent: intentId,
                         password: '',
                     } ),
                 } );
                 return response.status;
-            } );
+            }, intentA );
             expect( wrongPasswordApproval ).toBe( 403 );
 
-            const browserBApproval = await pageB.evaluate( async () => {
+            const browserBApproval = await pageB.evaluate( async ( intentId ) => {
                 const response = await fetch( '/candidate-approve', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify( {
-                        intent: 'candidate-file-write-1',
+                        intent: intentId,
                         password: 'victim-secret',
                     } ),
                 } );
                 return response.status;
-            } );
+            }, intentA );
             expect( browserBApproval ).toBe( 403 );
 
             const wrongIntentApproval = await pageA.evaluate( async () => {
@@ -558,32 +567,32 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                 pageA.getByTestId( 'approval-response-contract' )
             ).toHaveText( '{"status":"approved"}' );
 
-            const browserBRedemption = await pageB.evaluate( async () => {
+            const browserBRedemption = await pageB.evaluate( async ( intentId ) => {
                 const response = await fetch( '/candidate-effect', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify( {
-                        intent: 'candidate-file-write-1',
+                        intent: intentId,
                         target: 'sample-plugin/sample.php',
                         digest: 'sha256:server-held-proposed-bytes',
                     } ),
                 } );
                 return response.status;
-            } );
+            }, intentA );
             expect( browserBRedemption ).toBe( 403 );
 
-            const mutation = await pageA.evaluate( async () => {
+            const mutation = await pageA.evaluate( async ( intentId ) => {
                 const response = await fetch( '/candidate-effect', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify( {
-                        intent: 'candidate-file-write-1',
+                        intent: intentId,
                         target: 'attacker-plugin/attacker.php',
                         digest: 'sha256:server-held-proposed-bytes',
                     } ),
                 } );
                 return response.status;
-            } );
+            }, intentA );
             expect( mutation ).toBe( 409 );
 
             await pageA
@@ -591,18 +600,18 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                 .click();
             await expect( pageA.getByRole( 'status' ) ).toHaveText( 'Written' );
 
-            const replay = await pageA.evaluate( async () => {
+            const replay = await pageA.evaluate( async ( intentId ) => {
                 const response = await fetch( '/candidate-effect', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify( {
-                        intent: 'candidate-file-write-1',
+                        intent: intentId,
                         target: 'sample-plugin/sample.php',
                         digest: 'sha256:server-held-proposed-bytes',
                     } ),
                 } );
                 return response.status;
-            } );
+            }, intentA );
             expect( replay ).toBe( 409 );
 
             await expect
@@ -610,16 +619,12 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                 .toEqual(
                     expect.arrayContaining( [
                         {
-                            operation: 'candidate-preflight-clone-blocked',
-                            value: 'candidate-file-write-1',
-                        },
-                        {
                             operation: 'clone-reauth-blocked',
                             value: 'attacker-file-write',
                         },
                         {
                             operation: 'clone-redemption-blocked',
-                            value: 'candidate-file-write-1',
+                            value: intentA,
                         },
                         {
                             operation: 'candidate-mutation-blocked',
@@ -631,7 +636,7 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                         },
                         {
                             operation: 'candidate-replay-blocked',
-                            value: 'candidate-file-write-1',
+                            value: intentA,
                         },
                     ] )
                 );
@@ -642,6 +647,249 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                         ( item ) => item.operation === 'candidate-effect'
                     )
             ).toHaveLength( 1 );
+        } finally {
+            await Promise.allSettled( [
+                browserA.close(),
+                browserB.close(),
+            ] );
+            await server.close();
+        }
+    } );
+
+    test( 'independent browsers sharing one login session create separate immutable file intents', async ( {
+        browser,
+    } ) => {
+        const server = await startPhase27ResearchServer();
+        const browserA = await browser.newContext();
+        const browserB = await browser.newContext();
+
+        try {
+            for ( const context of [ browserA, browserB ] ) {
+                await context.addCookies( [
+                    {
+                        name: 'wp_auth',
+                        value: 'copied-login-session',
+                        url: server.url,
+                    },
+                ] );
+            }
+
+            const pageA = await browserA.newPage();
+            const pageB = await browserB.newPage();
+            await pageA.goto( server.url + '/copied-cookie-candidate' );
+            await pageB.goto( server.url + '/copied-cookie-candidate' );
+            const bindingA = ( await browserA.cookies() ).find(
+                ( cookie ) => cookie.name === '__Host-phase27_binding'
+            );
+
+            expect( bindingA?.secure, 'P27-BIND-HOST-SECURE' ).toBe( true );
+            expect( bindingA?.httpOnly, 'P27-BIND-HOST-HTTPONLY' ).toBe( true );
+            expect( bindingA?.path, 'P27-BIND-HOST-PATH' ).toBe( '/' );
+            expect( bindingA?.domain, 'P27-BIND-HOST-HOSTONLY' ).toBe(
+                '127.0.0.1'
+            );
+            expect(
+                await pageA.evaluate( () => document.cookie ),
+                'P27-BIND-NOT-SCRIPT-READABLE'
+            ).not.toContain( '__Host-phase27_binding' );
+
+            const preflight = async (
+                page: typeof pageA
+            ): Promise< { body: Record< string, string >; status: number } > =>
+                page.evaluate( async () => {
+                    const response = await fetch( '/candidate-preflight', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify( {
+                            action: 'core/write-extension-file',
+                            digest: 'sha256:server-held-proposed-bytes',
+                            target: 'sample-plugin/sample.php',
+                        } ),
+                    } );
+
+                    return {
+                        body:
+                            response.status === 200
+                                ? await response.json()
+                                : {},
+                        status: response.status,
+                    };
+                } );
+
+            const intentA = await preflight( pageA );
+            const intentB = await preflight( pageB );
+
+            expect(
+                intentA.status,
+                'P27-PREFLIGHT-A-CREATES-INTENT'
+            ).toBe( 200 );
+            expect(
+                intentB.status,
+                'P27-PREFLIGHT-B-CREATES-INDEPENDENT-INTENT'
+            ).toBe( 200 );
+            expect(
+                intentB.body.id,
+                'P27-PREFLIGHT-INDEPENDENT-IDS'
+            ).not.toBe( intentA.body.id );
+
+            const wrongIntentApproval = await pageA.evaluate( async () => {
+                const response = await fetch( '/candidate-approve', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify( {
+                        intent: 'missing-intent',
+                        password: 'victim-secret',
+                    } ),
+                } );
+                return response.status;
+            } );
+
+            expect( wrongIntentApproval, 'P27-APPROVE-EXACT-A' ).toBe( 403 );
+
+            const approvalA = await pageA.evaluate( async ( intentId ) => {
+                const response = await fetch( '/candidate-approve', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify( {
+                        intent: intentId,
+                        password: 'victim-secret',
+                    } ),
+                } );
+                return response.status;
+            }, intentA.body.id );
+
+            expect(
+                approvalA,
+                'P27-PREFLIGHT-B-DOES-NOT-OVERWRITE-A'
+            ).toBe( 200 );
+
+            const wrongIntentEffect = await pageA.evaluate(
+                async ( { digest, target } ) => {
+                    const response = await fetch( '/candidate-effect', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify( {
+                            digest,
+                            intent: 'missing-intent',
+                            target,
+                        } ),
+                    } );
+                    return response.status;
+                },
+                {
+                    digest: intentA.body.digest,
+                    target: intentA.body.target,
+                }
+            );
+
+            expect( wrongIntentEffect, 'P27-EFFECT-EXACT-A' ).toBe( 403 );
+
+            const effectA = await pageA.evaluate(
+                async ( { digest, intentId, target } ) => {
+                    const response = await fetch( '/candidate-effect', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify( {
+                            digest,
+                            intent: intentId,
+                            target,
+                        } ),
+                    } );
+                    return response.status;
+                },
+                {
+                    digest: intentA.body.digest,
+                    intentId: intentA.body.id,
+                    target: intentA.body.target,
+                }
+            );
+
+            expect( effectA, 'P27-EFFECT-A-SUCCEEDS' ).toBe( 204 );
+        } finally {
+            await Promise.allSettled( [
+                browserA.close(),
+                browserB.close(),
+            ] );
+            await server.close();
+        }
+    } );
+
+    test( 'approval throttling survives intent and binding rotation and exposes victim lockout', async ( {
+        browser,
+    } ) => {
+        const server = await startPhase27ResearchServer();
+        const browserA = await browser.newContext();
+        const browserB = await browser.newContext();
+
+        try {
+            for ( const context of [ browserA, browserB ] ) {
+                await context.addCookies( [
+                    {
+                        name: 'wp_auth',
+                        value: 'copied-login-session',
+                        url: server.url,
+                    },
+                ] );
+            }
+
+            const pageA = await browserA.newPage();
+            const pageB = await browserB.newPage();
+            await pageA.goto( server.url + '/copied-cookie-candidate' );
+            await pageB.goto( server.url + '/copied-cookie-candidate' );
+
+            const createIntent = ( page: typeof pageA ) =>
+                page.evaluate( async () => {
+                    const response = await fetch( '/candidate-preflight', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify( {
+                            action: 'core/write-extension-file',
+                            digest: 'sha256:server-held-proposed-bytes',
+                            target: 'sample-plugin/sample.php',
+                        } ),
+                    } );
+                    return response.json();
+                } );
+            const intentA = await createIntent( pageA );
+            const intentB = await createIntent( pageB );
+
+            const fail = ( page: typeof pageA, intent: string ) =>
+                page.evaluate( async ( intentId ) => {
+                    const response = await fetch( '/candidate-approve', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify( {
+                            intent: intentId,
+                            password: 'wrong',
+                        } ),
+                    } );
+                    return response.status;
+                }, intent );
+
+            expect(
+                [
+                    await fail( pageA, intentA.id ),
+                    await fail( pageB, intentB.id ),
+                    await fail( pageA, intentA.id ),
+                    await fail( pageB, intentB.id ),
+                ],
+                'P27-APPROVE-ACCOUNT-RATE'
+            ).toEqual( [ 403, 403, 403, 429 ] );
+
+            expect(
+                await pageA.evaluate( async ( intentId ) => {
+                    const response = await fetch( '/candidate-approve', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify( {
+                            intent: intentId,
+                            password: 'victim-secret',
+                        } ),
+                    } );
+                    return response.status;
+                }, intentA.id ),
+                'P27-APPROVE-VICTIM-LOCKOUT-BOUNDARY'
+            ).toBe( 429 );
         } finally {
             await Promise.allSettled( [
                 browserA.close(),
@@ -675,9 +923,11 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
             await expect( pageA.getByTestId( 'action' ) ).toHaveText(
                 'Write sample-plugin/sample.php'
             );
+            const intentA = await pageA.getByTestId( 'intent' ).textContent();
+            expect( intentA ).not.toBeNull();
 
             const binding = ( await browserA.cookies() ).find(
-                ( cookie ) => cookie.name === 'phase27_binding'
+                ( cookie ) => cookie.name === '__Host-phase27_binding'
             );
             expect( binding ).toBeDefined();
 
@@ -688,11 +938,13 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                     url: server.url,
                 },
                 {
+                    domain: binding?.domain ?? '127.0.0.1',
                     httpOnly: true,
-                    name: 'phase27_binding',
+                    name: '__Host-phase27_binding',
+                    path: '/',
                     sameSite: 'Strict',
+                    secure: true,
                     value: binding?.value ?? '',
-                    url: server.url,
                 },
             ] );
 
@@ -705,18 +957,18 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                 .click();
             await expect( pageA.getByRole( 'status' ) ).toHaveText( 'Approved' );
 
-            const cloneRedemption = await clonePage.evaluate( async () => {
+            const cloneRedemption = await clonePage.evaluate( async ( intentId ) => {
                 const response = await fetch( '/candidate-effect', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify( {
-                        intent: 'candidate-file-write-1',
+                        intent: intentId,
                         target: 'sample-plugin/sample.php',
                         digest: 'sha256:server-held-proposed-bytes',
                     } ),
                 } );
                 return response.status;
-            } );
+            }, intentA );
 
             expect( cloneRedemption ).toBe( 204 );
             expect(
@@ -778,6 +1030,51 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
             await expect( pageA.getByTestId( 'digest' ) ).toHaveText(
                 'sha256:17f75876c4a7e94e98d23d54290a11c43d386ea46977a387b6aa249a2e930b01'
             );
+            const intentA = await pageA.getByTestId( 'intent' ).textContent();
+            expect( intentA ).not.toBeNull();
+
+            const rawUploadStatus = await pageA.evaluate(
+                async ( { bytes, intentId } ) => {
+                    const response = await fetch( '/candidate-upload-effect', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/octet-stream',
+                            'X-Phase27-Intent': intentId,
+                        },
+                        body: new Uint8Array( bytes ),
+                    } );
+                    return response.status;
+                },
+                { bytes: Array.from( trustedPackage ), intentId: intentA }
+            );
+            expect(
+                rawUploadStatus,
+                'P27-UPLOAD-REQUIRES-MULTIPART'
+            ).toBe( 400 );
+
+            const duplicateUploadStatus = await pageA.evaluate(
+                async ( { bytes, intentId } ) => {
+                    const file = new File(
+                        [ new Uint8Array( bytes ) ],
+                        'sample-plugin.zip',
+                        { type: 'application/zip' }
+                    );
+                    const form = new FormData();
+                    form.append( 'package', file );
+                    form.append( 'package', file );
+                    const response = await fetch( '/candidate-upload-effect', {
+                        method: 'POST',
+                        headers: { 'X-Phase27-Intent': intentId },
+                        body: form,
+                    } );
+                    return response.status;
+                },
+                { bytes: Array.from( trustedPackage ), intentId: intentA }
+            );
+            expect(
+                duplicateUploadStatus,
+                'P27-UPLOAD-REJECTS-DUPLICATE-PART'
+            ).toBe( 400 );
 
             const browserBPreflight = await pageB.evaluate( async () => {
                 const response = await fetch( '/candidate-upload-preflight', {
@@ -788,34 +1085,38 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                         kind: 'plugin',
                     } ),
                 } );
-                return response.status;
+                return {
+                    body: response.ok ? await response.json() : {},
+                    status: response.status,
+                };
             } );
-            expect( browserBPreflight ).toBe( 409 );
+            expect( browserBPreflight.status ).toBe( 200 );
+            expect( browserBPreflight.body.id ).not.toBe( intentA );
 
-            const wrongPasswordApproval = await pageA.evaluate( async () => {
+            const wrongPasswordApproval = await pageA.evaluate( async ( intentId ) => {
                 const response = await fetch( '/candidate-upload-approve', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify( {
-                        intent: 'candidate-upload-1',
+                        intent: intentId,
                         password: '',
                     } ),
                 } );
                 return response.status;
-            } );
+            }, intentA );
             expect( wrongPasswordApproval ).toBe( 403 );
 
-            const browserBApproval = await pageB.evaluate( async () => {
+            const browserBApproval = await pageB.evaluate( async ( intentId ) => {
                 const response = await fetch( '/candidate-upload-approve', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify( {
-                        intent: 'candidate-upload-1',
+                        intent: intentId,
                         password: 'victim-secret',
                     } ),
                 } );
                 return response.status;
-            } );
+            }, intentA );
             expect( browserBApproval ).toBe( 403 );
 
             const wrongIntentApproval = await pageA.evaluate( async () => {
@@ -837,17 +1138,26 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                 .click();
             await expect( pageA.getByRole( 'status' ) ).toHaveText( 'Approved' );
 
-            const browserBRedemption = await pageB.evaluate( async ( bytes ) => {
+            const browserBRedemption = await pageB.evaluate( async ( {
+                bytes,
+                intentId,
+            } ) => {
+                const form = new FormData();
+                form.append(
+                    'package',
+                    new File( [ new Uint8Array( bytes ) ], 'sample-plugin.zip', {
+                        type: 'application/zip',
+                    } )
+                );
                 const response = await fetch( '/candidate-upload-effect', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/octet-stream',
-                        'X-Phase27-Intent': 'candidate-upload-1',
+                        'X-Phase27-Intent': intentId,
                     },
-                    body: new Uint8Array( bytes ),
+                    body: form,
                 } );
                 return response.status;
-            }, Array.from( trustedPackage ) );
+            }, { bytes: Array.from( trustedPackage ), intentId: intentA } );
             expect( browserBRedemption ).toBe( 403 );
 
             await pageA.getByLabel( 'Plugin package' ).setInputFiles( {
@@ -858,7 +1168,10 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
             await pageA
                 .getByRole( 'button', { name: 'Upload approved package once' } )
                 .click();
-            await expect( pageA.getByRole( 'status' ) ).toHaveText( 'Rejected' );
+            await expect(
+                pageA.getByRole( 'status' ),
+                'P27-UPLOAD-CONTENT-HASH'
+            ).toHaveText( 'Rejected' );
 
             await pageA.getByLabel( 'Plugin package' ).setInputFiles( {
                 name: 'sample-plugin.zip',
@@ -870,17 +1183,26 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                 .click();
             await expect( pageA.getByRole( 'status' ) ).toHaveText( 'Uploaded' );
 
-            const replay = await pageA.evaluate( async ( bytes ) => {
+            const replay = await pageA.evaluate( async ( {
+                bytes,
+                intentId,
+            } ) => {
+                const form = new FormData();
+                form.append(
+                    'package',
+                    new File( [ new Uint8Array( bytes ) ], 'sample-plugin.zip', {
+                        type: 'application/zip',
+                    } )
+                );
                 const response = await fetch( '/candidate-upload-effect', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/octet-stream',
-                        'X-Phase27-Intent': 'candidate-upload-1',
+                        'X-Phase27-Intent': intentId,
                     },
-                    body: new Uint8Array( bytes ),
+                    body: form,
                 } );
                 return response.status;
-            }, Array.from( trustedPackage ) );
+            }, { bytes: Array.from( trustedPackage ), intentId: intentA } );
             expect( replay ).toBe( 409 );
 
             await expect
@@ -888,24 +1210,24 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                 .toEqual(
                     expect.arrayContaining( [
                         {
-                            operation: 'upload-preflight-clone-blocked',
-                            value: 'candidate-upload-1',
-                        },
-                        {
                             operation: 'upload-clone-blocked',
-                            value: 'candidate-upload-1',
+                            value: intentA,
                         },
                         {
                             operation: 'upload-mutation-blocked',
-                            value: 'candidate-upload-1',
+                            value: intentA,
                         },
                         {
                             operation: 'upload-effect',
                             value: '17f75876c4a7e94e98d23d54290a11c43d386ea46977a387b6aa249a2e930b01',
                         },
                         {
+                            operation: 'upload-part-digest',
+                            value: '17f75876c4a7e94e98d23d54290a11c43d386ea46977a387b6aa249a2e930b01',
+                        },
+                        {
                             operation: 'upload-replay-blocked',
-                            value: 'candidate-upload-1',
+                            value: intentA,
                         },
                     ] )
                 );
@@ -914,6 +1236,16 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                     .observations()
                     .filter( ( item ) => item.operation === 'upload-effect' )
             ).toHaveLength( 1 );
+            const envelopeDigest = server
+                .observations()
+                .find( ( item ) => item.operation === 'upload-envelope-digest' );
+            const partDigest = server
+                .observations()
+                .find( ( item ) => item.operation === 'upload-part-digest' );
+            expect(
+                envelopeDigest?.value,
+                'P27-UPLOAD-HASHES-PART-NOT-ENVELOPE'
+            ).not.toBe( partDigest?.value );
         } finally {
             await Promise.allSettled( [
                 browserA.close(),

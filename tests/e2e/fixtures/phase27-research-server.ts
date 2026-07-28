@@ -25,6 +25,8 @@ type Operation =
     | 'upload-preflight-clone-blocked'
     | 'upload-clone-blocked'
     | 'upload-mutation-blocked'
+    | 'upload-envelope-digest'
+    | 'upload-part-digest'
     | 'upload-effect'
     | 'upload-replay-blocked';
 
@@ -37,6 +39,27 @@ type ResearchServer = {
     close: () => Promise<void>;
     observations: () => Observation[];
     url: string;
+};
+
+type CandidateIntent = {
+    action: 'core/write-extension-file';
+    approvedBinding: string;
+    digest: string;
+    id: string;
+    label: string;
+    preparedBinding: string;
+    target: string;
+    used: boolean;
+};
+
+type UploadIntent = {
+    action: 'core/upload-extension-package';
+    approvedBinding: string;
+    digest: string;
+    id: string;
+    kind: 'plugin';
+    preparedBinding: string;
+    used: boolean;
 };
 
 const compromisedSameDocumentHandler =
@@ -433,6 +456,7 @@ const copiedCookieCandidateFixture = `<!doctype html>
 <body>
     <p data-testid="action"></p>
     <p data-testid="digest"></p>
+    <p data-testid="intent"></p>
     <button id="prepare-candidate" type="button">Prepare exact write</button>
     <label for="candidate-password">Password</label>
     <input
@@ -467,6 +491,9 @@ const copiedCookieCandidateFixture = `<!doctype html>
                         document.querySelector(
                             '[data-testid="digest"]'
                         ).textContent = descriptor.digest;
+                        document.querySelector(
+                            '[data-testid="intent"]'
+                        ).textContent = descriptor.id;
                         return descriptor;
                     } );
             }
@@ -475,11 +502,12 @@ const copiedCookieCandidateFixture = `<!doctype html>
         document.querySelector( '#approve-candidate' ).addEventListener(
             'click',
             async () => {
+                const descriptor = await descriptorPromise;
                 const response = await fetch( '/candidate-approve', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify( {
-                        intent: 'candidate-file-write-1',
+                        intent: descriptor.id,
                         password: document.querySelector(
                             '#candidate-password'
                         ).value,
@@ -524,6 +552,7 @@ const copiedCookieUploadCandidateFixture = `<!doctype html>
 <body>
     <p data-testid="action"></p>
     <p data-testid="digest"></p>
+    <p data-testid="intent"></p>
     <label for="package">Plugin package</label>
     <input id="package" type="file" accept=".zip,application/zip">
     <button id="prepare-upload" type="button">Prepare exact upload</button>
@@ -542,6 +571,7 @@ const copiedCookieUploadCandidateFixture = `<!doctype html>
     <p role="status"></p>
     <script>
         const packageInput = document.querySelector( '#package' );
+        let descriptorPromise;
 
         async function selectedFileDigest() {
             const file = packageInput.files[ 0 ];
@@ -558,30 +588,33 @@ const copiedCookieUploadCandidateFixture = `<!doctype html>
             'click',
             async () => {
                 const digest = await selectedFileDigest();
-                const response = await fetch( '/candidate-upload-preflight', {
+                descriptorPromise = fetch( '/candidate-upload-preflight', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify( {
                         digest,
                         kind: 'plugin',
                     } ),
-                } );
-                const descriptor = await response.json();
+                } ).then( ( response ) => response.json() );
+                const descriptor = await descriptorPromise;
                 document.querySelector( '[data-testid="action"]' ).textContent =
                     descriptor.label;
                 document.querySelector( '[data-testid="digest"]' ).textContent =
                     'sha256:' + descriptor.digest;
+                document.querySelector( '[data-testid="intent"]' ).textContent =
+                    descriptor.id;
             }
         );
 
         document.querySelector( '#approve-upload-candidate' ).addEventListener(
             'click',
             async () => {
+                const descriptor = await descriptorPromise;
                 const response = await fetch( '/candidate-upload-approve', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify( {
-                        intent: 'candidate-upload-1',
+                        intent: descriptor.id,
                         password: document.querySelector(
                             '#upload-password'
                         ).value,
@@ -595,13 +628,15 @@ const copiedCookieUploadCandidateFixture = `<!doctype html>
         document.querySelector( '#submit-upload-candidate' ).addEventListener(
             'click',
             async () => {
+                const descriptor = await descriptorPromise;
+                const form = new FormData();
+                form.append( 'package', packageInput.files[ 0 ] );
                 const response = await fetch( '/candidate-upload-effect', {
                     method: 'POST',
                     headers: {
-                        'Content-Type': 'application/octet-stream',
-                        'X-Phase27-Intent': 'candidate-upload-1',
+                        'X-Phase27-Intent': descriptor.id,
                     },
-                    body: packageInput.files[ 0 ],
+                    body: form,
                 } );
                 document.querySelector( '[role="status"]' ).textContent =
                     response.ok ? 'Uploaded' : 'Rejected';
@@ -636,6 +671,74 @@ function readBodyBuffer( request: IncomingMessage ): Promise<Buffer> {
     } );
 }
 
+function multipartFileBytes(
+    request: IncomingMessage,
+    body: Buffer,
+    fieldName: string
+): Buffer | null {
+    const contentType = request.headers[ 'content-type' ] ?? '';
+    const boundaryMatch = contentType.match(
+        /^multipart\/form-data;\s*boundary=(?:"([^"]+)"|([^;\s]+))$/i
+    );
+    const boundary = boundaryMatch?.[ 1 ] ?? boundaryMatch?.[ 2 ] ?? '';
+
+    if ( boundary === '' ) {
+        return null;
+    }
+
+    const marker = Buffer.from( '--' + boundary );
+    const headerSeparator = Buffer.from( '\r\n\r\n' );
+    const closing = Buffer.from( '\r\n--' + boundary );
+    const matches: Buffer[] = [];
+    let cursor = 0;
+
+    while ( true ) {
+        const markerIndex = body.indexOf( marker, cursor );
+        if ( markerIndex === -1 ) {
+            break;
+        }
+
+        if (
+            body
+                .subarray(
+                    markerIndex + marker.length,
+                    markerIndex + marker.length + 2
+                )
+                .equals( Buffer.from( '--' ) )
+        ) {
+            break;
+        }
+
+        const headerStart = markerIndex + marker.length + 2;
+        const headerEnd = body.indexOf( headerSeparator, headerStart );
+        if ( headerEnd === -1 ) {
+            return null;
+        }
+
+        const headers = body.subarray( headerStart, headerEnd ).toString( 'utf8' );
+        const contentStart = headerEnd + headerSeparator.length;
+        const contentEnd = body.indexOf( closing, contentStart );
+        if ( contentEnd === -1 ) {
+            return null;
+        }
+
+        if (
+            headers.toLowerCase().includes( 'content-disposition: form-data' ) &&
+            headers.includes( 'name="' + fieldName + '"' )
+        ) {
+            matches.push( body.subarray( contentStart, contentEnd ) );
+        }
+
+        cursor = contentEnd + 2;
+    }
+
+    if ( mutationEnabled( 'UPLOAD_SINGLE_PART' ) && matches.length > 0 ) {
+        return matches[ 0 ];
+    }
+
+    return matches.length === 1 ? matches[ 0 ] : null;
+}
+
 function send(
     response: ServerResponse,
     status: number,
@@ -663,12 +766,21 @@ function cookieValue( request: IncomingMessage, name: string ): string {
     return '';
 }
 
+function mutationEnabled( guardId: string ): boolean {
+    return process.env.PHASE27_MUTATION === guardId;
+}
+
 export async function startPhase27ResearchServer(): Promise<ResearchServer> {
     const observations: Observation[] = [];
+    const approvalRateDisabled = mutationEnabled( 'APPROVE_ACCOUNT_RATE' );
+    const bindingCookieAttributes = mutationEnabled( 'BIND_SECURE' )
+        ? '; HttpOnly; SameSite=Strict; Path=/'
+        : '; Secure; HttpOnly; SameSite=Strict; Path=/';
     const preflightAttempts = new Map<
         string,
         { attempts: number; windowStartedAt: number }
     >();
+    const approvalFailures = new Map<string, number>();
     const intent = {
         action: 'core/write-extension-file',
         digest: 'sha256:server-held-proposed-bytes',
@@ -677,22 +789,8 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
         target: 'sample-plugin/sample.php',
         used: false,
     };
-    const candidateIntent = {
-        approvedBinding: '',
-        digest: '',
-        id: 'candidate-file-write-1',
-        label: 'Write sample-plugin/sample.php',
-        preparedBinding: '',
-        target: '',
-        used: false,
-    };
-    const uploadIntent = {
-        approvedBinding: '',
-        digest: '',
-        id: 'candidate-upload-1',
-        preparedBinding: '',
-        used: false,
-    };
+    const candidateIntents = new Map<string, CandidateIntent>();
+    const uploadIntents = new Map<string, UploadIntent>();
 
     function authorizePreflight(
         request: IncomingMessage,
@@ -700,7 +798,7 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
         scope: string
     ): boolean {
         const auth = cookieValue( request, 'wp_auth' );
-        const binding = cookieValue( request, 'phase27_binding' );
+        const binding = cookieValue( request, '__Host-phase27_binding' );
 
         if (
             process.env.PHASE27_DISABLE_PREFLIGHT_CAPABILITY !== '1' &&
@@ -731,10 +829,47 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
         preflightAttempts.set( rateKey, budget );
 
         if (
+            ! mutationEnabled( 'PREFLIGHT_RATE' ) &&
             process.env.PHASE27_DISABLE_PREFLIGHT_RATE_LIMIT !== '1' &&
             budget.attempts > 3
         ) {
             send( response, 429, 'text/plain; charset=utf-8', 'Too many requests' );
+            return false;
+        }
+
+        return true;
+    }
+
+    function authorizeApprovalFactor(
+        auth: string,
+        password: string,
+        response: ServerResponse
+    ): boolean {
+        const failures = approvalFailures.get( auth ) ?? 0;
+
+        if (
+            ! approvalRateDisabled &&
+            failures >= 3
+        ) {
+            send(
+                response,
+                429,
+                'application/json; charset=utf-8',
+                JSON.stringify( { status: 'rate_limited' } )
+            );
+            return false;
+        }
+
+        if ( password !== 'victim-secret' ) {
+            if ( ! approvalRateDisabled ) {
+                approvalFailures.set( auth, failures + 1 );
+            }
+            send(
+                response,
+                403,
+                'application/json; charset=utf-8',
+                JSON.stringify( { status: 'rejected' } )
+            );
             return false;
         }
 
@@ -812,7 +947,7 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
             request.method === 'GET' &&
             request.url === '/copied-cookie-candidate'
         ) {
-            let binding = cookieValue( request, 'phase27_binding' );
+            let binding = cookieValue( request, '__Host-phase27_binding' );
 
             if ( binding === '' ) {
                 binding = randomBytes( 32 ).toString( 'base64url' );
@@ -822,9 +957,9 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
                 'Cache-Control': 'no-store',
                 'Content-Type': 'text/html; charset=utf-8',
                 'Set-Cookie':
-                    'phase27_binding=' +
+                    '__Host-phase27_binding=' +
                     binding +
-                    '; HttpOnly; SameSite=Strict; Path=/',
+                    bindingCookieAttributes,
             } );
             response.end( copiedCookieCandidateFixture );
             return;
@@ -834,7 +969,7 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
             request.method === 'GET' &&
             request.url === '/copied-cookie-upload-candidate'
         ) {
-            let binding = cookieValue( request, 'phase27_binding' );
+            let binding = cookieValue( request, '__Host-phase27_binding' );
 
             if ( binding === '' ) {
                 binding = randomBytes( 32 ).toString( 'base64url' );
@@ -844,9 +979,9 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
                 'Cache-Control': 'no-store',
                 'Content-Type': 'text/html; charset=utf-8',
                 'Set-Cookie':
-                    'phase27_binding=' +
+                    '__Host-phase27_binding=' +
                     binding +
-                    '; HttpOnly; SameSite=Strict; Path=/',
+                    bindingCookieAttributes,
             } );
             response.end( copiedCookieUploadCandidateFixture );
             return;
@@ -864,7 +999,7 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
                 digest: string;
                 kind: string;
             };
-            const binding = cookieValue( request, 'phase27_binding' );
+            const binding = cookieValue( request, '__Host-phase27_binding' );
 
             if (
                 preflight.kind !== 'plugin' ||
@@ -874,23 +1009,16 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
                 return;
             }
 
-            if (
-                process.env
-                    .PHASE27_DISABLE_UPLOAD_PREFLIGHT_IMMUTABILITY !== '1' &&
-                uploadIntent.digest !== '' &&
-                ( binding !== uploadIntent.preparedBinding ||
-                    preflight.digest !== uploadIntent.digest )
-            ) {
-                observations.push( {
-                    operation: 'upload-preflight-clone-blocked',
-                    value: uploadIntent.id,
-                } );
-                send( response, 409, 'text/plain; charset=utf-8', 'Immutable' );
-                return;
-            }
-
-            uploadIntent.digest = preflight.digest;
-            uploadIntent.preparedBinding = binding;
+            const uploadIntent: UploadIntent = {
+                action: 'core/upload-extension-package',
+                approvedBinding: '',
+                digest: preflight.digest,
+                id: randomBytes( 32 ).toString( 'base64url' ),
+                kind: preflight.kind,
+                preparedBinding: binding,
+                used: false,
+            };
+            uploadIntents.set( uploadIntent.id, uploadIntent );
             send(
                 response,
                 200,
@@ -912,18 +1040,18 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
                 intent: string;
                 password: string;
             };
-            const binding = cookieValue( request, 'phase27_binding' );
+            const binding = cookieValue( request, '__Host-phase27_binding' );
             const authenticated =
                 cookieValue( request, 'wp_auth' ) === 'copied-login-session';
+            const uploadIntent = uploadIntents.get( approval.intent );
 
             if (
                 ! authenticated ||
                 binding === '' ||
+                uploadIntent === undefined ||
                 ( process.env
                     .PHASE27_DISABLE_UPLOAD_APPROVAL_BINDING !== '1' &&
                     binding !== uploadIntent.preparedBinding ) ||
-                ( process.env.PHASE27_DISABLE_UPLOAD_APPROVAL_INTENT !== '1' &&
-                    approval.intent !== uploadIntent.id ) ||
                 ( process.env.PHASE27_DISABLE_UPLOAD_PASSWORD_CHECK !== '1' &&
                     approval.password !== 'victim-secret' )
             ) {
@@ -945,16 +1073,33 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
             request.method === 'POST' &&
             request.url === '/candidate-upload-effect'
         ) {
-            const body = await readBodyBuffer( request );
-            const binding = cookieValue( request, 'phase27_binding' );
+            const envelope = await readBodyBuffer( request );
+            const parsedBody = multipartFileBytes( request, envelope, 'package' );
+            const body =
+                parsedBody === null && mutationEnabled( 'UPLOAD_MULTIPART' )
+                    ? envelope
+                    : parsedBody;
+            const binding = cookieValue( request, '__Host-phase27_binding' );
             const authenticated =
                 cookieValue( request, 'wp_auth' ) === 'copied-login-session';
             const submittedIntent =
                 request.headers[ 'x-phase27-intent' ] ?? '';
+            const uploadIntent = uploadIntents.get( String( submittedIntent ) );
+
+            if ( body === null ) {
+                send(
+                    response,
+                    400,
+                    'text/plain; charset=utf-8',
+                    'One package file is required'
+                );
+                return;
+            }
 
             if (
                 ! authenticated ||
                 binding === '' ||
+                uploadIntent === undefined ||
                 ( process.env.PHASE27_DISABLE_UPLOAD_BINDING !== '1' &&
                     binding !== uploadIntent.approvedBinding )
             ) {
@@ -981,11 +1126,19 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
             const submittedDigest = createHash( 'sha256' )
                 .update( body )
                 .digest( 'hex' );
+            observations.push( {
+                operation: 'upload-envelope-digest',
+                value: createHash( 'sha256' ).update( envelope ).digest( 'hex' ),
+            } );
+            observations.push( {
+                operation: 'upload-part-digest',
+                value: submittedDigest,
+            } );
 
             if (
+                ! mutationEnabled( 'UPLOAD_CONTENT_HASH' ) &&
                 process.env.PHASE27_DISABLE_UPLOAD_DIGEST_CHECK !== '1' &&
-                ( submittedIntent !== uploadIntent.id ||
-                    submittedDigest !== uploadIntent.digest )
+                submittedDigest !== uploadIntent.digest
             ) {
                 observations.push( {
                     operation: 'upload-mutation-blocked',
@@ -1017,7 +1170,7 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
                 digest: string;
                 target: string;
             };
-            const binding = cookieValue( request, 'phase27_binding' );
+            const binding = cookieValue( request, '__Host-phase27_binding' );
 
             if (
                 preflight.action !== 'core/write-extension-file' ||
@@ -1028,25 +1181,22 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
                 return;
             }
 
-            if (
-                process.env
-                    .PHASE27_DISABLE_CANDIDATE_PREFLIGHT_IMMUTABILITY !== '1' &&
-                candidateIntent.preparedBinding !== '' &&
-                ( binding !== candidateIntent.preparedBinding ||
-                    preflight.target !== candidateIntent.target ||
-                    preflight.digest !== candidateIntent.digest )
-            ) {
-                observations.push( {
-                    operation: 'candidate-preflight-clone-blocked',
-                    value: candidateIntent.id,
-                } );
-                send( response, 409, 'text/plain; charset=utf-8', 'Immutable' );
-                return;
+            const candidateIntent: CandidateIntent = {
+                action: 'core/write-extension-file',
+                approvedBinding: '',
+                digest: preflight.digest,
+                id: mutationEnabled( 'PREFLIGHT_RANDOM_ID' )
+                    ? 'mutated-shared-intent'
+                    : randomBytes( 32 ).toString( 'base64url' ),
+                label: 'Write sample-plugin/sample.php',
+                preparedBinding: binding,
+                target: preflight.target,
+                used: false,
+            };
+            if ( mutationEnabled( 'PREFLIGHT_NEW_RECORD' ) ) {
+                candidateIntents.clear();
             }
-
-            candidateIntent.digest = preflight.digest;
-            candidateIntent.preparedBinding = binding;
-            candidateIntent.target = preflight.target;
+            candidateIntents.set( candidateIntent.id, candidateIntent );
             send(
                 response,
                 200,
@@ -1066,22 +1216,20 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
                 intent: string;
                 password: string;
             };
-            const binding = cookieValue( request, 'phase27_binding' );
-            const authenticated =
-                cookieValue( request, 'wp_auth' ) === 'copied-login-session';
+            const binding = cookieValue( request, '__Host-phase27_binding' );
+            const auth = cookieValue( request, 'wp_auth' );
+            const authenticated = auth === 'copied-login-session';
+            const candidateIntent = mutationEnabled( 'APPROVE_LOOKUP' )
+                ? candidateIntents.values().next().value
+                : candidateIntents.get( approval.intent );
 
             if (
                 ! authenticated ||
                 binding === '' ||
+                candidateIntent === undefined ||
                 ( process.env
                     .PHASE27_DISABLE_CANDIDATE_APPROVAL_BINDING !== '1' &&
-                    binding !== candidateIntent.preparedBinding ) ||
-                ( process.env
-                    .PHASE27_DISABLE_CANDIDATE_APPROVAL_INTENT !== '1' &&
-                    approval.intent !== candidateIntent.id ) ||
-                ( process.env
-                    .PHASE27_DISABLE_CANDIDATE_PASSWORD_CHECK !== '1' &&
-                    approval.password !== 'victim-secret' )
+                    binding !== candidateIntent.preparedBinding )
             ) {
                 observations.push( {
                     operation: 'clone-reauth-blocked',
@@ -1093,6 +1241,13 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
                     'application/json; charset=utf-8',
                     JSON.stringify( { status: 'rejected' } )
                 );
+                return;
+            }
+
+            if (
+                process.env.PHASE27_DISABLE_CANDIDATE_PASSWORD_CHECK !== '1' &&
+                ! authorizeApprovalFactor( auth, approval.password, response )
+            ) {
                 return;
             }
 
@@ -1112,13 +1267,17 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
                 intent: string;
                 target: string;
             };
-            const binding = cookieValue( request, 'phase27_binding' );
+            const binding = cookieValue( request, '__Host-phase27_binding' );
             const authenticated =
                 cookieValue( request, 'wp_auth' ) === 'copied-login-session';
+            const candidateIntent = mutationEnabled( 'EFFECT_LOOKUP' )
+                ? candidateIntents.values().next().value
+                : candidateIntents.get( submission.intent );
 
             if (
                 ! authenticated ||
                 binding === '' ||
+                candidateIntent === undefined ||
                 ( process.env.PHASE27_DISABLE_CANDIDATE_BINDING !== '1' &&
                     binding !== candidateIntent.approvedBinding )
             ) {
@@ -1145,8 +1304,7 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
             if (
                 process.env.PHASE27_DISABLE_CANDIDATE_DESCRIPTOR_CHECK !==
                     '1' &&
-                ( submission.intent !== candidateIntent.id ||
-                    submission.target !== candidateIntent.target ||
+                ( submission.target !== candidateIntent.target ||
                     submission.digest !== candidateIntent.digest )
             ) {
                 observations.push( {
