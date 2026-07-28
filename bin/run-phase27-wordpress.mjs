@@ -7,25 +7,39 @@ import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath( new URL( '../', import.meta.url ) );
 const adapter = fileURLToPath(
-    new URL( '../tests/e2e/fixtures/phase27-wordpress-adapter.php', import.meta.url )
+  new URL(
+    "../tests/e2e/fixtures/phase27-wordpress-adapter.php",
+    import.meta.url,
+  ),
+);
+const upgraderHelper = fileURLToPath(
+  new URL("../tests/e2e/fixtures/phase27-real-upgrader.php", import.meta.url),
 );
 const mutationManifest = JSON.parse(
     readFileSync(
         new URL(
             '../tests/e2e/research/phase27-wordpress-guard-manifest.json',
-            import.meta.url
+      import.meta.url,
         ),
-        'utf8'
-    )
+    "utf8",
+  ),
 );
 const expectedPhpVersion = '8.2';
 const expectedWordPressVersion = '7.0.2';
-const expectedWordPressPort = process.env.PHASE27_WP_PORT ?? '8892';
+const isMultisiteLane = process.env.PHASE27_MULTISITE === "1";
+const expectedWordPressPort =
+  process.env.PHASE27_WP_PORT ?? (isMultisiteLane ? "8893" : "8892");
+const expectedProxyPort = isMultisiteLane ? "9444" : "9443";
 const wpEnvConfig = fileURLToPath(
-    new URL( '../tests/e2e/phase27.wp-env.json', import.meta.url )
+  new URL(
+    isMultisiteLane
+      ? "../tests/e2e/phase27.multisite.wp-env.json"
+      : "../tests/e2e/phase27.wp-env.json",
+    import.meta.url,
+  ),
 );
 const wpEnvBin = fileURLToPath(
-    new URL( '../node_modules/@wordpress/env/bin/wp-env', import.meta.url )
+  new URL("../node_modules/@wordpress/env/bin/wp-env", import.meta.url),
 );
 
 function run( command, args, options = {} ) {
@@ -43,7 +57,7 @@ function run( command, args, options = {} ) {
                 result.stderr ?? '',
             ]
                 .filter( Boolean )
-                .join( '\n' )
+        .join("\n"),
         );
     }
 
@@ -78,8 +92,10 @@ function cleanupContainer(
     adapterTouched,
     hadAdapter,
     adapterBackup,
+  hadUpgraderHelper,
+  upgraderHelperBackup,
     hadMutationMarker,
-    mutationBackup
+  mutationBackup,
 ) {
     const errors = [];
     if ( container === '' || ! adapterTouched ) {
@@ -90,7 +106,7 @@ function cleanupContainer(
         const restoreMutation = spawnSync(
             'docker',
             [ 'cp', mutationBackup, `${ container }:/tmp/phase27-mutation` ],
-            { cwd: root, stdio: 'ignore' }
+      { cwd: root, stdio: "ignore" },
         );
         if ( restoreMutation.status !== 0 ) {
             errors.push( 'Could not restore the pre-existing mutation marker.' );
@@ -99,7 +115,7 @@ function cleanupContainer(
         const removeMutation = spawnSync(
             'docker',
             [ 'exec', container, 'rm', '-f', '/tmp/phase27-mutation' ],
-            { cwd: root, stdio: 'ignore' }
+      { cwd: root, stdio: "ignore" },
         );
         if ( removeMutation.status !== 0 ) {
             errors.push( 'Could not remove the Phase 27 mutation marker.' );
@@ -113,7 +129,7 @@ function cleanupContainer(
                 adapterBackup,
                 `${ container }:/var/www/html/wp-content/mu-plugins/phase27-wordpress-adapter.php`,
             ],
-            { cwd: root, stdio: 'ignore' }
+      { cwd: root, stdio: "ignore" },
         );
         if ( restoreAdapter.status !== 0 ) {
             errors.push( 'Could not restore the pre-existing research adapter.' );
@@ -128,10 +144,39 @@ function cleanupContainer(
                 '-f',
                 '/var/www/html/wp-content/mu-plugins/phase27-wordpress-adapter.php',
             ],
-            { cwd: root, stdio: 'ignore' }
+      { cwd: root, stdio: "ignore" },
         );
         if ( removeAdapter.status !== 0 ) {
             errors.push( 'Could not remove the Phase 27 research adapter.' );
+        }
+    }
+  if (hadUpgraderHelper) {
+    const restoreHelper = spawnSync(
+      "docker",
+      [
+        "cp",
+        upgraderHelperBackup,
+        `${container}:/var/www/html/wp-content/mu-plugins/phase27-real-upgrader.php`,
+      ],
+      { cwd: root, stdio: "ignore" },
+    );
+    if (restoreHelper.status !== 0) {
+      errors.push("Could not restore the pre-existing upgrader helper.");
+    }
+  } else {
+    const removeHelper = spawnSync(
+      "docker",
+      [
+        "exec",
+        container,
+        "rm",
+        "-f",
+        "/var/www/html/wp-content/mu-plugins/phase27-real-upgrader.php",
+      ],
+      { cwd: root, stdio: "ignore" },
+    );
+    if (removeHelper.status !== 0) {
+      errors.push("Could not remove the Phase 27 upgrader helper.");
         }
     }
 
@@ -142,11 +187,13 @@ async function main() {
     let container = process.env.PHASE27_WP_CONTAINER?.trim() ?? '';
     let adapterTouched = false;
     let hadAdapter = false;
+  let hadUpgraderHelper = false;
     let hadMutationMarker = false;
     let proxy;
     let stackStarted = false;
     let runDirectory = '';
     let adapterBackup = '';
+  let upgraderHelperBackup = "";
     let mutationBackup = '';
 
     try {
@@ -154,34 +201,23 @@ async function main() {
             const initialStatus = spawnSync(
                 process.execPath,
                 [ wpEnvBin, '--config', wpEnvConfig, 'status' ],
-                { cwd: root, encoding: 'utf8' }
+        { cwd: root, encoding: "utf8" },
             );
             let status =
-                String( initialStatus.stdout ?? '' ) +
-                String( initialStatus.stderr ?? '' );
-            let installPath =
-                status.match( /install path:\s*(.+)/ )?.[ 1 ]?.trim() ?? '';
-            container =
-                installPath === '' ? '' : findContainer( installPath );
+        String(initialStatus.stdout ?? "") + String(initialStatus.stderr ?? "");
+      let installPath = status.match(/install path:\s*(.+)/)?.[1]?.trim() ?? "";
+      container = installPath === "" ? "" : findContainer(installPath);
             if ( container === '' ) {
                 stackStarted = true;
-                run( process.execPath, [
-                    wpEnvBin,
-                    '--config',
-                    wpEnvConfig,
-                    'start',
-                ] );
+        run(process.execPath, [wpEnvBin, "--config", wpEnvConfig, "start"]);
                 status = run( process.execPath, [
                     wpEnvBin,
                     '--config',
                     wpEnvConfig,
                     'status',
                 ] );
-                installPath =
-                    status.match( /install path:\s*(.+)/ )?.[ 1 ]?.trim() ??
-                    '';
-                container =
-                    installPath === '' ? '' : findContainer( installPath );
+        installPath = status.match(/install path:\s*(.+)/)?.[1]?.trim() ?? "";
+        container = installPath === "" ? "" : findContainer(installPath);
             }
             if ( installPath === '' ) {
                 throw new Error( 'wp-env did not report its install path.' );
@@ -189,12 +225,13 @@ async function main() {
         }
         if ( container === '' ) {
             throw new Error(
-                `No Phase 27 WordPress container exposes localhost:${ expectedWordPressPort }.`
+        `No Phase 27 WordPress container exposes localhost:${expectedWordPressPort}.`,
             );
         }
 
         runDirectory = mkdtempSync( join( tmpdir(), 'phase27-run-' ) );
         adapterBackup = join( runDirectory, 'prior-adapter.php' );
+    upgraderHelperBackup = join(runDirectory, "prior-upgrader-helper.php");
         mutationBackup = join( runDirectory, 'prior-mutation' );
         hadAdapter =
             spawnSync(
@@ -206,7 +243,7 @@ async function main() {
                     '-f',
                     '/var/www/html/wp-content/mu-plugins/phase27-wordpress-adapter.php',
                 ],
-                { cwd: root, stdio: 'ignore' }
+        { cwd: root, stdio: "ignore" },
             ).status === 0;
         if ( hadAdapter ) {
             run( 'docker', [
@@ -215,11 +252,30 @@ async function main() {
                 adapterBackup,
             ] );
         }
+    hadUpgraderHelper =
+      spawnSync(
+        "docker",
+        [
+          "exec",
+          container,
+          "test",
+          "-f",
+          "/var/www/html/wp-content/mu-plugins/phase27-real-upgrader.php",
+        ],
+        { cwd: root, stdio: "ignore" },
+      ).status === 0;
+    if (hadUpgraderHelper) {
+      run("docker", [
+        "cp",
+        `${container}:/var/www/html/wp-content/mu-plugins/phase27-real-upgrader.php`,
+        upgraderHelperBackup,
+      ]);
+    }
         hadMutationMarker =
             spawnSync(
                 'docker',
                 [ 'exec', container, 'test', '-f', '/tmp/phase27-mutation' ],
-                { cwd: root, stdio: 'ignore' }
+        { cwd: root, stdio: "ignore" },
             ).status === 0;
         if ( hadMutationMarker ) {
             run( 'docker', [
@@ -235,18 +291,17 @@ async function main() {
             '-p',
             '/var/www/html/wp-content/mu-plugins',
         ] );
-        run( 'docker', [
-            'exec',
-            container,
-            'rm',
-            '-f',
-            '/tmp/phase27-mutation',
-        ] );
+    run("docker", ["exec", container, "rm", "-f", "/tmp/phase27-mutation"]);
         adapterTouched = true;
         run( 'docker', [
             'cp',
             adapter,
             `${ container }:/var/www/html/wp-content/mu-plugins/phase27-wordpress-adapter.php`,
+        ] );
+    run("docker", [
+      "cp",
+      upgraderHelper,
+      `${container}:/var/www/html/wp-content/mu-plugins/phase27-real-upgrader.php`,
         ] );
 
         const hostAdapterDigest = createHash( 'sha256' )
@@ -260,7 +315,21 @@ async function main() {
         ] ).split( /\s+/ )[ 0 ];
         if ( containerAdapterDigest !== hostAdapterDigest ) {
             throw new Error(
-                'The adapter installed in WordPress differs from this checkout.'
+        "The adapter installed in WordPress differs from this checkout.",
+            );
+        }
+    const hostUpgraderHelperDigest = createHash("sha256")
+      .update(readFileSync(upgraderHelper))
+      .digest("hex");
+    const containerUpgraderHelperDigest = run("docker", [
+      "exec",
+      container,
+      "sha256sum",
+      "/var/www/html/wp-content/mu-plugins/phase27-real-upgrader.php",
+    ]).split(/\s+/)[0];
+    if (containerUpgraderHelperDigest !== hostUpgraderHelperDigest) {
+      throw new Error(
+        "The upgrader helper installed in WordPress differs from this checkout.",
             );
         }
 
@@ -273,7 +342,7 @@ async function main() {
         ] );
         if ( wordpressVersion !== expectedWordPressVersion ) {
             throw new Error(
-                `Expected WordPress ${ expectedWordPressVersion }, found ${ wordpressVersion }.`
+        `Expected WordPress ${expectedWordPressVersion}, found ${wordpressVersion}.`,
             );
         }
 
@@ -286,7 +355,19 @@ async function main() {
         ] );
         if ( phpVersion !== expectedPhpVersion ) {
             throw new Error(
-                `Expected PHP ${ expectedPhpVersion }, found ${ phpVersion }.`
+        `Expected PHP ${expectedPhpVersion}, found ${phpVersion}.`,
+            );
+        }
+    const isMultisite = run("docker", [
+      "exec",
+      container,
+      "php",
+      "-r",
+      'require "/var/www/html/wp-load.php"; echo is_multisite() ? "1" : "0";',
+    ]);
+    if ((isMultisite === "1") !== isMultisiteLane) {
+      throw new Error(
+        `Expected ${isMultisiteLane ? "a multisite" : "a single-site"} WordPress install.`,
             );
         }
 
@@ -316,15 +397,15 @@ async function main() {
                 'bin/phase27-https-proxy.mjs',
                 keyPath,
                 certPath,
-                '9443',
+        expectedProxyPort,
                 expectedWordPressPort,
             ],
-            { cwd: root, stdio: [ 'ignore', 'pipe', 'inherit' ] }
+      { cwd: root, stdio: ["ignore", "pipe", "inherit"] },
         );
         await new Promise( ( resolve, reject ) => {
             const timeout = setTimeout(
                 () => reject( new Error( 'Timed out starting the HTTPS proxy.' ) ),
-                5_000
+        5_000,
             );
             proxy.once( 'error', reject );
             proxy.once( 'exit', ( code ) => {
@@ -341,7 +422,7 @@ async function main() {
         const playwrightEnvironment = {
             ...process.env,
             WP_BASE_URL:
-                process.env.WP_BASE_URL ?? 'https://localhost:9443',
+        process.env.WP_BASE_URL ?? `https://localhost:${expectedProxyPort}`,
             WP_SUDO_SKIP_WP_ENV_CAP_SETUP: '1',
         };
         const playwrightArgs = [
@@ -365,10 +446,7 @@ async function main() {
         const mutationResults = [];
         for ( const guard of mutationManifest.guards ) {
             const mutationSource = fileURLToPath(
-                new URL(
-                    `../tests/e2e/research/mutations/${ guard.id }`,
-                    import.meta.url
-                )
+        new URL(`../tests/e2e/research/mutations/${guard.id}`, import.meta.url),
             );
             run( 'docker', [
                 'cp',
@@ -382,10 +460,9 @@ async function main() {
                     cwd: root,
                     encoding: 'utf8',
                     env: playwrightEnvironment,
-                }
+        },
             );
-            const output =
-                String( result.stdout ?? '' ) + String( result.stderr ?? '' );
+      const output = String(result.stdout ?? "") + String(result.stderr ?? "");
             const firstFailure =
                 output.match( /Error: (P27-WP-[A-Z0-9-]+)/ )?.[ 1 ] ?? '';
             mutationResults.push( {
@@ -403,13 +480,15 @@ async function main() {
             JSON.stringify(
                 {
                     adapterSha256: hostAdapterDigest,
+          upgraderHelperSha256: hostUpgraderHelperDigest,
                     mutations: mutationResults,
+          multisite: isMultisiteLane,
                     phpVersion,
                     wordpressVersion,
                 },
                 null,
-                2
-            )
+        2,
+      ),
         );
 
         return mutationResults.some( ( result ) => ! result.killed ) ? 1 : 0;
@@ -420,14 +499,16 @@ async function main() {
             adapterTouched,
             hadAdapter,
             adapterBackup,
+      hadUpgraderHelper,
+      upgraderHelperBackup,
             hadMutationMarker,
-            mutationBackup
+      mutationBackup,
         );
         if ( stackStarted ) {
             const stop = spawnSync(
                 process.execPath,
                 [ wpEnvBin, '--config', wpEnvConfig, 'stop' ],
-                { cwd: root, stdio: 'inherit' }
+        { cwd: root, stdio: "inherit" },
             );
             if ( stop.status !== 0 ) {
                 cleanupErrors.push( 'Could not stop the runner-owned wp-env stack.' );
@@ -445,7 +526,7 @@ async function main() {
                         : `Recovery files retained at ${ runDirectory }.`,
                 ]
                     .filter( Boolean )
-                    .join( '\n' )
+          .join("\n"),
             );
         }
     }

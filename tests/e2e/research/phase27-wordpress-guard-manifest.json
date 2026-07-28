@@ -14,6 +14,21 @@
       "id": "EFFECT_INPUT",
       "focusedTest": "real PHP multipart bytes are bound and concurrent consumption has one winner",
       "assertionId": "P27-WP-EFFECT-CONSUMED-APPROVED-BYTES-2"
+    },
+    {
+      "id": "INTENT_EXPIRY",
+      "focusedTest": "expiry cancellation and account lifecycle revoke pending authority",
+      "assertionId": "P27-WP-APPROVE-EXPIRY-STATUS"
+    },
+    {
+      "id": "LIFECYCLE_REVOCATION",
+      "focusedTest": "expiry cancellation and account lifecycle revoke pending authority",
+      "assertionId": "P27-WP-LIFECYCLE-LOGOUT-REVOKES"
+    },
+    {
+      "id": "STORAGE_FAIL_CLOSED",
+      "focusedTest": "authoritative storage failure refuses before creating authority",
+      "assertionId": "P27-WP-STORAGE-FAIL-CLOSED-STATUS"
     }
   ]
 }

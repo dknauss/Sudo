@@ -6,10 +6,16 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/phase27-real-upgrader.php';
+
 const PHASE27_BINDING_COOKIE = '__Host-wp_sudo_action_binding';
 const PHASE27_BINDING_OPTION = 'phase27_research_bindings';
 const PHASE27_SINK_OPTION = 'phase27_research_sink_count';
 const PHASE27_SINK_DIGESTS_OPTION = 'phase27_research_sink_digests';
+const PHASE27_CLOCK_OPTION = 'phase27_research_clock_offset';
+const PHASE27_STORAGE_FAILURE_OPTION = 'phase27_research_storage_failure';
+const PHASE27_INTENT_TTL = 120;
+const PHASE27_BINDING_TTL = 600;
 
 /**
  * Whether the runner intentionally disabled a named guard.
@@ -54,6 +60,7 @@ function phase27_create_table(): void {
 		digest char(64) NOT NULL,
 		state varchar(16) NOT NULL,
 		created_at bigint(20) unsigned NOT NULL,
+		expires_at bigint(20) unsigned NOT NULL,
 		PRIMARY KEY  (id),
 		KEY owner_state (user_id, state)
 	) {$charset};";
@@ -70,6 +77,29 @@ function phase27_create_table(): void {
 	dbDelta($rate_sql);
 }
 add_action('init', 'phase27_create_table');
+
+/**
+ * Return the injected research clock.
+ */
+function phase27_now(): int {
+	return time() + (int) get_option(PHASE27_CLOCK_OPTION, 0);
+}
+
+/**
+ * Refuse when the authoritative research store is unavailable.
+ *
+ * @return true|WP_Error
+ */
+function phase27_require_storage() {
+	if (
+		! phase27_mutation_enabled('STORAGE_FAIL_CLOSED') &&
+		(bool) get_option(PHASE27_STORAGE_FAILURE_OPTION, false)
+	) {
+		return new WP_Error('phase27_storage', 'Authoritative approval storage is unavailable.', array('status' => 503));
+	}
+
+	return true;
+}
 
 /**
  * Parse all exact-name cookie values from the raw request header.
@@ -126,6 +156,7 @@ function phase27_binding() {
 		'' !== $binding &&
 		is_array($owner) &&
 		(int) ($owner['user_id'] ?? 0) === $user_id &&
+		(int) ($owner['expires_at'] ?? 0) >= phase27_now() &&
 		hash_equals((string) ($owner['session_hash'] ?? ''), hash('sha256', $session))
 	) {
 		$resolved = $binding;
@@ -137,13 +168,14 @@ function phase27_binding() {
 	$registry[$hash]  = array(
 		'user_id'     => $user_id,
 		'session_hash' => hash('sha256', $session),
+		'expires_at'   => phase27_now() + PHASE27_BINDING_TTL,
 	);
 	update_option(PHASE27_BINDING_OPTION, $registry, false);
 	setcookie(
 		PHASE27_BINDING_COOKIE,
 		$binding,
 		array(
-			'expires'  => time() + 600,
+			'expires'  => time() + PHASE27_BINDING_TTL,
 			'path'     => '/',
 			'secure'   => true,
 			'httponly' => true,
@@ -194,6 +226,13 @@ function phase27_render_page(): void {
 		$wpdb->query('DELETE FROM ' . phase27_rate_table());
 		delete_option(PHASE27_SINK_OPTION);
 		delete_option(PHASE27_SINK_DIGESTS_OPTION);
+		delete_option(PHASE27_STORAGE_FAILURE_OPTION);
+		// The injected clock has to be cleared here or the lane stops being
+		// idempotent: an expiry assertion that fails leaves the offset set, the
+		// next run creates its intents at the already-advanced time, and
+		// advance-clock then moves the clock nowhere. The lane passes once
+		// against a virgin database and fails on every later run.
+		delete_option(PHASE27_CLOCK_OPTION);
 	}
 
 	printf(
@@ -240,6 +279,11 @@ function phase27_permission(): bool {
 function phase27_intent_for_request(string $id) {
 	global $wpdb;
 
+	$storage = phase27_require_storage();
+	if (is_wp_error($storage)) {
+		return $storage;
+	}
+
 	$binding = phase27_require_binding();
 	if (is_wp_error($binding)) {
 		return $binding;
@@ -255,9 +299,55 @@ function phase27_intent_for_request(string $id) {
 	) {
 		return new WP_Error('phase27_intent', 'Intent unavailable.', array('status' => 403));
 	}
+	if (
+		! phase27_mutation_enabled('INTENT_EXPIRY') &&
+		(int) $row->expires_at < phase27_now()
+	) {
+		$wpdb->update(
+			$table,
+			array('state' => 'expired'),
+			array('id' => $id),
+			array('%s'),
+			array('%s')
+		);
+		return new WP_Error('phase27_expired', 'Intent expired.', array('status' => 410));
+	}
 
 	return $row;
 }
+
+/**
+ * Revoke every binding and pending intent associated with a user.
+ */
+function phase27_revoke_user_state(int $user_id): void {
+	global $wpdb;
+
+	if (phase27_mutation_enabled('LIFECYCLE_REVOCATION')) {
+		return;
+	}
+
+	$registry = (array) get_option(PHASE27_BINDING_OPTION, array());
+	foreach ($registry as $hash => $owner) {
+		if (is_array($owner) && (int) ($owner['user_id'] ?? 0) === $user_id) {
+			unset($registry[$hash]);
+		}
+	}
+	update_option(PHASE27_BINDING_OPTION, $registry, false);
+	$wpdb->query(
+		$wpdb->prepare(
+			'UPDATE ' . phase27_table() . " SET state = 'cancelled' WHERE user_id = %d AND state IN ('prepared', 'approved')",
+			$user_id
+		)
+	);
+}
+
+add_action('wp_logout', 'phase27_revoke_user_state');
+add_action(
+	'after_password_reset',
+	static function (WP_User $user): void {
+		phase27_revoke_user_state((int) $user->ID);
+	}
+);
 
 /**
  * Apply the account-scoped approval budget and verify the password.
@@ -293,39 +383,67 @@ function phase27_verify_factor(string $password) {
 }
 
 /**
- * Consume the selected temporary file in a minimal capturing file-write sink.
+ * Consume the selected temporary file through WordPress's real upgrader.
  *
  * @return string|WP_Error Digest of the bytes written by the effect.
  */
 function phase27_capture_upload_effect(string $uploaded_tmp_name) {
-	$source = $uploaded_tmp_name;
-
-	if (phase27_mutation_enabled('EFFECT_INPUT')) {
-		$source = tempnam(sys_get_temp_dir(), 'p27-substitute-');
-		if (! is_string($source) || false === file_put_contents($source, 'substituted effect bytes')) {
-			return new WP_Error('phase27_effect_setup', 'Could not prepare the mutated effect input.', array('status' => 500));
-		}
-	}
-
-	$destination = tempnam(sys_get_temp_dir(), 'p27-effect-');
-	if (! is_string($destination) || ! copy($source, $destination)) {
-		return new WP_Error('phase27_effect', 'The capturing file effect failed.', array('status' => 500));
-	}
-
-	$digest = hash_file('sha256', $destination);
-	unlink($destination);
-	if ($source !== $uploaded_tmp_name) {
-		unlink($source);
-	}
-
-	return is_string($digest)
-		? $digest
-		: new WP_Error('phase27_effect_digest', 'The effect output could not be fingerprinted.', array('status' => 500));
+	return phase27_real_upgrader_effect($uploaded_tmp_name);
 }
 
 add_action(
 	'rest_api_init',
 	static function (): void {
+		register_rest_route(
+			'phase27/v1',
+			'/control',
+			array(
+				'methods'             => 'POST',
+				'permission_callback' => 'phase27_permission',
+				'callback'            => static function (WP_REST_Request $request) {
+					global $wpdb;
+
+					$operation = (string) $request->get_param('operation');
+					$user_id   = get_current_user_id();
+					if ('advance-clock' === $operation) {
+						update_option(PHASE27_CLOCK_OPTION, PHASE27_INTENT_TTL + 1, false);
+					} elseif ('reset-clock' === $operation) {
+						delete_option(PHASE27_CLOCK_OPTION);
+					} elseif ('cancel' === $operation) {
+						$wpdb->update(
+							phase27_table(),
+							array('state' => 'cancelled'),
+							array(
+								'id'      => (string) $request->get_param('intent'),
+								'user_id' => $user_id,
+							),
+							array('%s'),
+							array('%s', '%d')
+						);
+					} elseif ('logout' === $operation) {
+						do_action('wp_logout', $user_id);
+					} elseif ('password-reset' === $operation) {
+						do_action('after_password_reset', wp_get_current_user(), 'not-used-by-research-adapter');
+					} elseif ('session-destroy' === $operation) {
+						phase27_revoke_user_state($user_id);
+					} elseif ('storage-fail' === $operation) {
+						update_option(PHASE27_STORAGE_FAILURE_OPTION, true, false);
+					} elseif ('storage-restore' === $operation) {
+						delete_option(PHASE27_STORAGE_FAILURE_OPTION);
+					} elseif ('restore-binding' === $operation) {
+						$binding = phase27_binding();
+						if (is_wp_error($binding)) {
+							return $binding;
+						}
+					} else {
+						return new WP_Error('phase27_control', 'Unknown research operation.', array('status' => 400));
+					}
+
+					return new WP_REST_Response(array('status' => 'ok'), 200);
+				},
+			)
+		);
+
 		register_rest_route(
 			'phase27/v1',
 			'/preflight-upload',
@@ -339,6 +457,10 @@ add_action(
 					$digest  = (string) $request->get_param('digest');
 					if (is_wp_error($binding)) {
 						return $binding;
+					}
+					$storage = phase27_require_storage();
+					if (is_wp_error($storage)) {
+						return $storage;
 					}
 					if (1 !== preg_match('/^[a-f0-9]{64}$/', $digest)) {
 						return new WP_Error('phase27_digest', 'Invalid digest.', array('status' => 400));
@@ -354,9 +476,10 @@ add_action(
 							'binding_hash' => hash('sha256', $binding),
 							'digest'       => $digest,
 							'state'        => 'prepared',
-							'created_at'   => time(),
+							'created_at'   => phase27_now(),
+							'expires_at'   => phase27_now() + PHASE27_INTENT_TTL,
 						),
-						array('%s', '%d', '%s', '%s', '%s', '%s', '%d')
+						array('%s', '%d', '%s', '%s', '%s', '%s', '%d', '%d')
 					);
 
 					return new WP_REST_Response(array('id' => $id, 'digest' => $digest), 201);

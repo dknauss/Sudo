@@ -2,7 +2,10 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig( {
     testDir: './research',
-    testMatch: 'phase27-wordpress.spec.ts',
+    testMatch: [
+        'phase27-wordpress.spec.ts',
+        'phase27-wordpress-failures.spec.ts',
+    ],
     outputDir: './artifacts/phase27-wordpress-results',
     fullyParallel: false,
     workers: 1,
