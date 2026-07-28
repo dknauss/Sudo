@@ -92,11 +92,15 @@ if [ -e "$REPO_ROOT/vendor" ]; then
   ROOT_REAL=$(cd "$REPO_ROOT" && pwd -P)
   VENDOR_REAL=$(cd "$REPO_ROOT/vendor" 2>/dev/null && pwd -P || echo "")
 
-  case "$VENDOR_REAL" in
-    "$ROOT_REAL"/*)
-      : # vendor/ is inside this worktree — results are about this code.
-      ;;
-    *)
+  # Exact match, not a prefix. A prefix test passes for a checkout NESTED under
+  # this one — and this repo nests them: `git worktree list` shows checkouts under
+  # .claude/worktrees/. A vendor symlink pointing at one of those resolves to
+  # $ROOT_REAL/.claude/worktrees/<x>/vendor, which satisfies "$ROOT_REAL"/* while
+  # loading every class from that other checkout. The prefix form would therefore
+  # have passed in precisely the layout this check exists to protect.
+  if [ "$VENDOR_REAL" = "$ROOT_REAL/vendor" ]; then
+    : # vendor/ is this worktree's own — results are about this code.
+  else
       echo -e "${RED}❌ BLOCKED: vendor/ does not belong to this worktree${NC}"
       echo "   worktree: $ROOT_REAL"
       echo "   vendor:   ${VENDOR_REAL:-<unresolvable>}"
@@ -107,9 +111,8 @@ if [ -e "$REPO_ROOT/vendor" ]; then
       echo "   Run 'composer install' in this worktree (a copy is fine, a symlink"
       echo "   is not)."
       exit 1
-      ;;
-  esac
-  echo -e "${GREEN}✅ vendor/ resolves inside this worktree${NC}"
+  fi
+  echo -e "${GREEN}✅ vendor/ is this worktree's own${NC}"
   echo ""
 fi
 
