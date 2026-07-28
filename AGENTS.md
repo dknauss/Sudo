@@ -108,12 +108,31 @@ No build step. No production dependencies — only dev dependencies (PHPUnit 9.6
 
 ### Worktree dependency isolation
 
-Every Git worktree must run its own `composer install`. **Never symlink or share
-`vendor/` between worktrees.** Composer generates absolute paths in
-`vendor/composer/autoload_classmap.php`; a shared directory can therefore load
-`WP_Sudo\*` production classes from another checkout while tests appear to run
-normally. This has produced a real false-green guard verification in this
-project.
+Every Git worktree must run its own `composer install`. **Never symlink
+`vendor/` between worktrees.**
+
+The mechanism is PHP, not Composer. Composer generates **no** absolute paths —
+`vendor/composer/autoload_classmap.php` and `autoload_psr4.php` both open with
+`$vendorDir = dirname(__DIR__); $baseDir = dirname($vendorDir);` and emit entries
+as `$baseDir . '/includes/…'`. Verify at any time:
+
+```bash
+grep -c '/Users/' vendor/composer/autoload_classmap.php   # 0
+```
+
+What breaks isolation is that PHP resolves symlinks in `__DIR__`. Loading the
+autoloader *through* a symlinked `vendor/` therefore computes `$baseDir` in the
+checkout the symlink points at, and every `WP_Sudo\*` production class loads
+from there while tests appear to run normally. This has produced a real
+false-green guard verification in this project — twice in one day, the second
+time to a reviewer reproducing the first.
+
+The distinction is operative, not pedantic: because the paths are derived at
+runtime, a **`cp -r` of another worktree's `vendor/` is harmless**, and only a
+symlink breaks it. The earlier wording here ("Composer generates absolute paths")
+would lead a maintainer to ban copying too, or to distrust the narrow check in
+`.githooks/pre-commit` that blocks exactly the symlink case. Recorded as
+[`llm-lies-log.md`](docs/llm-lies-log.md) #71.
 
 Before trusting tests in a worktree, verify both the directory and the resolved
 production class:
