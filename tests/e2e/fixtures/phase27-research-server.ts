@@ -16,6 +16,7 @@ type Operation =
     | 'parent-unloaded'
     | 'top-level-credential-read'
     | 'counterfeit-credential-read'
+    | 'candidate-preflight-clone-blocked'
     | 'clone-reauth-blocked'
     | 'clone-redemption-blocked'
     | 'candidate-mutation-blocked'
@@ -432,6 +433,7 @@ const copiedCookieCandidateFixture = `<!doctype html>
 <body>
     <p data-testid="action"></p>
     <p data-testid="digest"></p>
+    <button id="prepare-candidate" type="button">Prepare exact write</button>
     <label for="candidate-password">Password</label>
     <input
         id="candidate-password"
@@ -443,15 +445,32 @@ const copiedCookieCandidateFixture = `<!doctype html>
     <p role="status"></p>
     <div data-testid="approval-response-contract"></div>
     <script>
-        const descriptorPromise = fetch( '/candidate-descriptor' )
-            .then( ( response ) => response.json() )
-            .then( ( descriptor ) => {
-                document.querySelector( '[data-testid="action"]' ).textContent =
-                    descriptor.label;
-                document.querySelector( '[data-testid="digest"]' ).textContent =
-                    descriptor.digest;
-                return descriptor;
-            } );
+        let descriptorPromise;
+
+        document.querySelector( '#prepare-candidate' ).addEventListener(
+            'click',
+            () => {
+                descriptorPromise = fetch( '/candidate-preflight', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify( {
+                        action: 'core/write-extension-file',
+                        digest: 'sha256:server-held-proposed-bytes',
+                        target: 'sample-plugin/sample.php',
+                    } ),
+                } )
+                    .then( ( response ) => response.json() )
+                    .then( ( descriptor ) => {
+                        document.querySelector(
+                            '[data-testid="action"]'
+                        ).textContent = descriptor.label;
+                        document.querySelector(
+                            '[data-testid="digest"]'
+                        ).textContent = descriptor.digest;
+                        return descriptor;
+                    } );
+            }
+        );
 
         document.querySelector( '#approve-candidate' ).addEventListener(
             'click',
@@ -656,10 +675,11 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
     };
     const candidateIntent = {
         approvedBinding: '',
-        digest: 'sha256:server-held-proposed-bytes',
+        digest: '',
         id: 'candidate-file-write-1',
         label: 'Write sample-plugin/sample.php',
-        target: 'sample-plugin/sample.php',
+        preparedBinding: '',
+        target: '',
         used: false,
     };
     const uploadIntent = {
@@ -847,9 +867,13 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
             if (
                 ! authenticated ||
                 binding === '' ||
-                binding !== uploadIntent.preparedBinding ||
-                approval.intent !== uploadIntent.id ||
-                approval.password !== 'victim-secret'
+                ( process.env
+                    .PHASE27_DISABLE_UPLOAD_APPROVAL_BINDING !== '1' &&
+                    binding !== uploadIntent.preparedBinding ) ||
+                ( process.env.PHASE27_DISABLE_UPLOAD_APPROVAL_INTENT !== '1' &&
+                    approval.intent !== uploadIntent.id ) ||
+                ( process.env.PHASE27_DISABLE_UPLOAD_PASSWORD_CHECK !== '1' &&
+                    approval.password !== 'victim-secret' )
             ) {
                 send( response, 403, 'text/plain; charset=utf-8', 'Forbidden' );
                 return;
@@ -929,18 +953,48 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
         }
 
         if (
-            request.method === 'GET' &&
-            request.url === '/candidate-descriptor'
+            request.method === 'POST' &&
+            request.url === '/candidate-preflight'
         ) {
+            const preflight = JSON.parse( await readBody( request ) ) as {
+                action: string;
+                digest: string;
+                target: string;
+            };
             const binding = cookieValue( request, 'phase27_binding' );
             const authenticated =
                 cookieValue( request, 'wp_auth' ) === 'copied-login-session';
 
-            if ( ! authenticated || binding === '' ) {
+            if (
+                ! authenticated ||
+                binding === '' ||
+                preflight.action !== 'core/write-extension-file' ||
+                preflight.target !== 'sample-plugin/sample.php' ||
+                preflight.digest !== 'sha256:server-held-proposed-bytes'
+            ) {
                 send( response, 403, 'text/plain; charset=utf-8', 'Forbidden' );
                 return;
             }
 
+            if (
+                process.env
+                    .PHASE27_DISABLE_CANDIDATE_PREFLIGHT_IMMUTABILITY !== '1' &&
+                candidateIntent.preparedBinding !== '' &&
+                ( binding !== candidateIntent.preparedBinding ||
+                    preflight.target !== candidateIntent.target ||
+                    preflight.digest !== candidateIntent.digest )
+            ) {
+                observations.push( {
+                    operation: 'candidate-preflight-clone-blocked',
+                    value: candidateIntent.id,
+                } );
+                send( response, 409, 'text/plain; charset=utf-8', 'Immutable' );
+                return;
+            }
+
+            candidateIntent.digest = preflight.digest;
+            candidateIntent.preparedBinding = binding;
+            candidateIntent.target = preflight.target;
             send(
                 response,
                 200,
@@ -967,7 +1021,12 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
             if (
                 ! authenticated ||
                 binding === '' ||
-                approval.intent !== candidateIntent.id ||
+                ( process.env
+                    .PHASE27_DISABLE_CANDIDATE_APPROVAL_BINDING !== '1' &&
+                    binding !== candidateIntent.preparedBinding ) ||
+                ( process.env
+                    .PHASE27_DISABLE_CANDIDATE_APPROVAL_INTENT !== '1' &&
+                    approval.intent !== candidateIntent.id ) ||
                 ( process.env
                     .PHASE27_DISABLE_CANDIDATE_PASSWORD_CHECK !== '1' &&
                     approval.password !== 'victim-secret' )

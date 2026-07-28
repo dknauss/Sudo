@@ -339,6 +339,9 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
             await pageA.goto( server.url + '/copied-cookie-candidate' );
             await pageB.goto( server.url + '/copied-cookie-candidate' );
 
+            await pageA
+                .getByRole( 'button', { name: 'Prepare exact write' } )
+                .click();
             await expect( pageA.getByTestId( 'action' ) ).toHaveText(
                 'Write sample-plugin/sample.php'
             );
@@ -346,7 +349,21 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                 'sha256:server-held-proposed-bytes'
             );
 
-            const browserBReauth = await pageB.evaluate( async () => {
+            const browserBPreflight = await pageB.evaluate( async () => {
+                const response = await fetch( '/candidate-preflight', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify( {
+                        action: 'core/write-extension-file',
+                        digest: 'sha256:server-held-proposed-bytes',
+                        target: 'sample-plugin/sample.php',
+                    } ),
+                } );
+                return response.status;
+            } );
+            expect( browserBPreflight ).toBe( 409 );
+
+            const wrongPasswordApproval = await pageA.evaluate( async () => {
                 const response = await fetch( '/candidate-approve', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -357,7 +374,33 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                 } );
                 return response.status;
             } );
-            expect( browserBReauth ).toBe( 403 );
+            expect( wrongPasswordApproval ).toBe( 403 );
+
+            const browserBApproval = await pageB.evaluate( async () => {
+                const response = await fetch( '/candidate-approve', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify( {
+                        intent: 'candidate-file-write-1',
+                        password: 'victim-secret',
+                    } ),
+                } );
+                return response.status;
+            } );
+            expect( browserBApproval ).toBe( 403 );
+
+            const wrongIntentApproval = await pageA.evaluate( async () => {
+                const response = await fetch( '/candidate-approve', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify( {
+                        intent: 'attacker-file-write',
+                        password: 'victim-secret',
+                    } ),
+                } );
+                return response.status;
+            } );
+            expect( wrongIntentApproval ).toBe( 403 );
 
             await pageA.getByLabel( 'Password' ).fill( 'victim-secret' );
             await pageA
@@ -420,8 +463,12 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                 .toEqual(
                     expect.arrayContaining( [
                         {
-                            operation: 'clone-reauth-blocked',
+                            operation: 'candidate-preflight-clone-blocked',
                             value: 'candidate-file-write-1',
+                        },
+                        {
+                            operation: 'clone-reauth-blocked',
+                            value: 'attacker-file-write',
                         },
                         {
                             operation: 'clone-redemption-blocked',
@@ -475,6 +522,12 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
 
             const pageA = await browserA.newPage();
             await pageA.goto( server.url + '/copied-cookie-candidate' );
+            await pageA
+                .getByRole( 'button', { name: 'Prepare exact write' } )
+                .click();
+            await expect( pageA.getByTestId( 'action' ) ).toHaveText(
+                'Write sample-plugin/sample.php'
+            );
 
             const binding = ( await browserA.cookies() ).find(
                 ( cookie ) => cookie.name === 'phase27_binding'
@@ -585,13 +638,51 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify( {
                         digest: '0'.repeat( 64 ),
-                        filename: 'attacker.zip',
                         kind: 'plugin',
                     } ),
                 } );
                 return response.status;
             } );
             expect( browserBPreflight ).toBe( 409 );
+
+            const wrongPasswordApproval = await pageA.evaluate( async () => {
+                const response = await fetch( '/candidate-upload-approve', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify( {
+                        intent: 'candidate-upload-1',
+                        password: '',
+                    } ),
+                } );
+                return response.status;
+            } );
+            expect( wrongPasswordApproval ).toBe( 403 );
+
+            const browserBApproval = await pageB.evaluate( async () => {
+                const response = await fetch( '/candidate-upload-approve', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify( {
+                        intent: 'candidate-upload-1',
+                        password: 'victim-secret',
+                    } ),
+                } );
+                return response.status;
+            } );
+            expect( browserBApproval ).toBe( 403 );
+
+            const wrongIntentApproval = await pageA.evaluate( async () => {
+                const response = await fetch( '/candidate-upload-approve', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify( {
+                        intent: 'attacker-upload',
+                        password: 'victim-secret',
+                    } ),
+                } );
+                return response.status;
+            } );
+            expect( wrongIntentApproval ).toBe( 403 );
 
             await pageA.getByLabel( 'Password' ).fill( 'victim-secret' );
             await pageA

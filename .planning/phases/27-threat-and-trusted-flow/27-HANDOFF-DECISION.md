@@ -371,7 +371,11 @@ and confirms that the clone can redeem Browser A's ambient approval.
 
 For `core/write-extension-file`:
 
-- Browser B cannot reauthenticate without the password;
+- Browser A preflights the exact action, target, and proposed-content digest
+  before sending the write;
+- Browser B cannot overwrite Browser A's immutable prepared intent;
+- a wrong password, Browser B even with the right password, and a wrong intent
+  ID all fail approval independently;
 - after Browser A approves the exact server-held target and digest, Browser B
   cannot redeem it;
 - Browser A cannot substitute another path;
@@ -383,6 +387,8 @@ For `core/upload-extension-package`:
 - Browser A hashes a locally selected package before sending its bytes;
 - preflight sends the digest and generic package kind, not the package body;
 - Browser B cannot overwrite Browser A's immutable prepared intent;
+- a wrong password, Browser B even with the right password, and a wrong intent
+  ID all fail approval independently;
 - Browser B cannot submit the package with the copied auth cookie;
 - changed package bytes fail the server's recomputed digest check;
 - the approved binary bytes, including `0x00`, `0xff`, and `0x80`, upload once;
@@ -401,7 +407,10 @@ npx playwright test --config tests/e2e/research.playwright.config.ts --project=c
 The file-write guard mutations are:
 
 ```sh
+PHASE27_DISABLE_CANDIDATE_PREFLIGHT_IMMUTABILITY=1 npx playwright test --config tests/e2e/research.playwright.config.ts --project=chromium tests/e2e/research/phase27-handoff.spec.ts --grep "browser-bound exact-action"
 PHASE27_DISABLE_CANDIDATE_PASSWORD_CHECK=1 npx playwright test --config tests/e2e/research.playwright.config.ts --project=chromium tests/e2e/research/phase27-handoff.spec.ts --grep "browser-bound exact-action"
+PHASE27_DISABLE_CANDIDATE_APPROVAL_BINDING=1 npx playwright test --config tests/e2e/research.playwright.config.ts --project=chromium tests/e2e/research/phase27-handoff.spec.ts --grep "browser-bound exact-action"
+PHASE27_DISABLE_CANDIDATE_APPROVAL_INTENT=1 npx playwright test --config tests/e2e/research.playwright.config.ts --project=chromium tests/e2e/research/phase27-handoff.spec.ts --grep "browser-bound exact-action"
 PHASE27_DISABLE_CANDIDATE_BINDING=1 npx playwright test --config tests/e2e/research.playwright.config.ts --project=chromium tests/e2e/research/phase27-handoff.spec.ts --grep "browser-bound exact-action"
 PHASE27_DISABLE_CANDIDATE_DESCRIPTOR_CHECK=1 npx playwright test --config tests/e2e/research.playwright.config.ts --project=chromium tests/e2e/research/phase27-handoff.spec.ts --grep "browser-bound exact-action"
 PHASE27_DISABLE_CANDIDATE_ONE_USE=1 npx playwright test --config tests/e2e/research.playwright.config.ts --project=chromium tests/e2e/research/phase27-handoff.spec.ts --grep "browser-bound exact-action"
@@ -411,14 +420,32 @@ The package-upload guard mutations are:
 
 ```sh
 PHASE27_DISABLE_UPLOAD_PREFLIGHT_IMMUTABILITY=1 npx playwright test --config tests/e2e/research.playwright.config.ts --project=chromium tests/e2e/research/phase27-handoff.spec.ts --grep "package approval"
+PHASE27_DISABLE_UPLOAD_PASSWORD_CHECK=1 npx playwright test --config tests/e2e/research.playwright.config.ts --project=chromium tests/e2e/research/phase27-handoff.spec.ts --grep "package approval"
+PHASE27_DISABLE_UPLOAD_APPROVAL_BINDING=1 npx playwright test --config tests/e2e/research.playwright.config.ts --project=chromium tests/e2e/research/phase27-handoff.spec.ts --grep "package approval"
+PHASE27_DISABLE_UPLOAD_APPROVAL_INTENT=1 npx playwright test --config tests/e2e/research.playwright.config.ts --project=chromium tests/e2e/research/phase27-handoff.spec.ts --grep "package approval"
 PHASE27_DISABLE_UPLOAD_BINDING=1 npx playwright test --config tests/e2e/research.playwright.config.ts --project=chromium tests/e2e/research/phase27-handoff.spec.ts --grep "package approval"
 PHASE27_DISABLE_UPLOAD_DIGEST_CHECK=1 npx playwright test --config tests/e2e/research.playwright.config.ts --project=chromium tests/e2e/research/phase27-handoff.spec.ts --grep "package approval"
 PHASE27_DISABLE_UPLOAD_ONE_USE=1 npx playwright test --config tests/e2e/research.playwright.config.ts --project=chromium tests/e2e/research/phase27-handoff.spec.ts --grep "package approval"
 ```
 
-Each mutation fails in the named guard assertion: Browser B mints approval
-without the password, Browser B reaches the effect, an altered target or archive
-reaches the effect, or a second effect succeeds.
+The observed kill point for each selected-candidate mutation is:
+
+| Mutant | Named assertion without the guard |
+|---|---|
+| File preflight immutability | Browser B's overwrite preflight returns 200, not 409 |
+| File approval password | Browser A's wrong-password approval returns 200, not 403 |
+| File approval binding | Browser B's correct-password approval returns 200, not 403 |
+| File approval intent | Browser A's wrong-intent approval returns 200, not 403 |
+| File effect binding | Browser B's effect returns 204, not 403 |
+| File descriptor | Browser A's changed target returns 204, not 409 |
+| File one-use | the second file effect returns 204, not 409 |
+| Upload preflight immutability | Browser B's overwrite preflight returns 200, not 409 |
+| Upload approval password | Browser A's wrong-password approval returns 200, not 403 |
+| Upload approval binding | Browser B's correct-password approval returns 200, not 403 |
+| Upload approval intent | Browser A's wrong-intent approval returns 200, not 403 |
+| Upload effect binding | Browser B's upload returns 204, not 403 |
+| Upload digest | the changed package reports Uploaded, not Rejected |
+| Upload one-use | the second upload returns 204, not 409 |
 
 ### Selected protocol contract
 
