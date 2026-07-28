@@ -254,9 +254,11 @@ all read-only.
 
 - Prefer the **REST seam** (`intercept_rest()`), which already gates ability
   `/run` routes: `block_rest()` returns a `WP_Error` carrying a `challenge_url`.
-  Note the client must re-dispatch its own request after reauth. Nothing is
-  replayed on any surface since 4.9.0; the browser/admin path stashes the request
-  only so the challenge can name it, then discards it. This
+  Note the client must re-dispatch its own request after reauth. No server-stashed
+  request is automatically executed on any surface since 4.9.0. The stash is still
+  read for other purposes — its URL chooses the post-challenge landing, its
+  redaction flag selects which notice is shown, and its rule ID is carried on
+  `wp_sudo_replay_refused` — so it is not dead data. This
   still covers the REST-exposed and MCP-mediated calls that are the realistic
   attack surface.
 - The PHP path (`WP_Ability::execute()` called directly in-process) has no
