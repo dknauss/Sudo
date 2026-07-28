@@ -2429,10 +2429,12 @@ class ChallengeTest extends TestCase
 	 * the notice arg with it (GB-NETWORK-EDIT-REDIRECT).
 	 *
 	 * This test deliberately does not touch is_network_admin(): tests/TestCase.php
-	 * stubs it false for the whole unit suite, and the live path runs under
-	 * admin-ajax.php where it is false anyway. An earlier cut of this fix gated the
-	 * clause on it, which made the guard unreachable in production AND unfalsifiable
-	 * in test — the classification must therefore come from the path itself.
+	 * stubs it false for the whole unit suite. An earlier cut of this fix gated the
+	 * clause on it — an ambient value the classified URL does not carry, read from
+	 * global state that earlier-running code can set (GB-IS-NETWORK-ADMIN) — which
+	 * left the guard unfalsifiable in test and its production behaviour dependent
+	 * on request context rather than on the URL. The classification must therefore
+	 * come from the path itself.
 	 */
 	public function test_network_edit_php_is_a_handler_without_consulting_context(): void
 	{

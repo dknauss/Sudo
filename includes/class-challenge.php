@@ -1243,28 +1243,30 @@ class Challenge {
 		 * edit.php is the Posts list in site admin — a real screen — but a bare handler
 		 * under network admin, so it is only a handler in that context.
 		 *
-		 * Decided from the URL's own path, NOT is_network_admin(). This method has two
-		 * live entry contexts, and the ambient answer differs between them for the same
-		 * stashed URL:
+		 * Decided from the URL's own path, NOT is_network_admin(), because that answer
+		 * is ambient to the request rather than a property of the URL being classified.
+		 * It is read from two pieces of global state — a current screen and a constant
+		 * (GB-IS-NETWORK-ADMIN) — either of which an earlier-running plugin or hook can
+		 * set. Deliberately no claim here about which value it takes in either context:
+		 * that it CAN differ is the whole objection, and pinning it to a specific
+		 * mechanism would be a claim about code this plugin does not control.
+		 *
+		 * Two live entry contexts reach this method with the same stashed URL:
 		 *
 		 *   - admin-ajax.php. handle_ajax_auth() and handle_ajax_2fa() are wp_ajax_
 		 *     handlers; complete_active_session_request(), the third replay_stash()
-		 *     caller, is registered to no hook and runs only from inside whichever
-		 *     of those two the request dispatched — never both. So every
-		 *     replay_stash() call site runs under admin-ajax.php, which calls no
-		 *     set_current_screen() and does not define WP_NETWORK_ADMIN, leaving
-		 *     is_network_admin() to fall through to false (GB-IS-NETWORK-ADMIN)
-		 *     even for a genuine network action.
+		 *     caller, is registered to no hook and runs only from inside whichever of
+		 *     those two the request dispatched — never both. So every replay_stash()
+		 *     call site runs under admin-ajax.php.
 		 *   - the challenge page render: render_page() -> render_resume_page() ->
 		 *     build_replay_response_data(). register() hangs that page off
-		 *     network_admin_menu as well as admin_menu on multisite, and the network
-		 *     admin bootstrap defines WP_NETWORK_ADMIN (GB-NETWORK-ADMIN-CONST), so
-		 *     here is_network_admin() can legitimately be true.
+		 *     network_admin_menu as well as admin_menu on multisite.
 		 *
 		 * Classifying one stashed URL two ways depending on which entry the user came
-		 * through is not a guard. The path travels with the URL and reads the same on
-		 * both. The unit suite stubs is_network_admin() false globally
-		 * (tests/TestCase.php), so no test would have surfaced the divergence either.
+		 * through — or on what else ran first — is not a guard. The path travels with
+		 * the URL and reads the same either way. The unit suite stubs is_network_admin()
+		 * false globally (tests/TestCase.php), so no test would have shown the
+		 * divergence either.
 		 */
 		return 'edit.php' === $file && 'network' === (string) array_pop( $segments );
 	}

@@ -441,8 +441,8 @@ is_unanchored_legacy() {
 # put a false statement in the gate's own output.
 #
 # The criterion is strict and checkable by hand: the cited line must sit at file top
-# level in a procedural script — an admin or bootstrap file of requires and bare
-# statements, where the citation is about that top-level code itself:
+# level in a procedural script. Both current entries are `require_once`-and-statements
+# admin scripts where the citation is ABOUT the top-level control flow:
 #   - GB-NETWORK-EDIT-REDIRECT — network/edit.php:15 is `if ( empty( $action ) ) {`, the
 #     guard the row's claim is about, with only comments, one require and the $action
 #     assignment above it. (It cited the L13 assignment until #443 moved it; the reason
@@ -452,11 +452,6 @@ is_unanchored_legacy() {
 #     enclose it by definition. Not the file's only top-level conditional — the
 #     IFRAME_REQUEST guard at L9 is another; the qualifier is what makes this true, and
 #     an earlier draft of this comment dropped it and asserted "sole".
-#   - GB-NETWORK-ADMIN-CONST — network/admin.php:10 is `define( 'WP_NETWORK_ADMIN', true );`
-#     near the top of a bootstrap script, above everything but the file docblock. Nothing
-#     encloses it and nothing can: the row's whole claim is that the constant is defined
-#     BEFORE the require of the shared admin bootstrap on L13, so any symbol that could
-#     enclose it has not been loaded yet.
 #
 # What is lost is nothing real: there is no enclosing symbol to rename or delete, so the
 # anchor check has no drift to detect here. Snippet presence and line drift still run, and
@@ -465,7 +460,6 @@ is_unanchored_legacy() {
 TOP_LEVEL_STATEMENT_IDS="$(cat <<'EOF'
 GB-NETWORK-EDIT-REDIRECT
 GB-UPDATE-NEEDS-ACTION
-GB-NETWORK-ADMIN-CONST
 EOF
 )"
 
