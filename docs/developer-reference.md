@@ -44,10 +44,16 @@ filter returns a non-array payload, WP Sudo falls back to built-in rules.
 
 Custom rules protect only the surfaces they define: admin, AJAX, and/or REST. Application Password requests are covered when a custom rule defines REST criteria, because Application Passwords enter through the REST API. WP-CLI, Cron, and XML-RPC Limited mode use a built-in function-hook map for WP Sudo's core rules; they do not automatically discover arbitrary custom rules. If a third-party workflow needs non-interactive protection, either add an explicit integration with `wp_sudo_check()` / `wp_sudo_require()`, expose it through a REST rule that WP Sudo can match, or use the surface policy to disable the entry point. WPGraphQL is gated by its own surface-level policy rather than per-rule matching — in Limited mode, all mutations require a sudo session regardless of which action they perform. See [WPGraphQL Surface](#wpgraphql-surface) below.
 
-Custom admin rules may still declare a `stash` policy, which controls what is
-retained for the challenge to describe — **not** what is replayed, since nothing
-is replayed. WP Sudo stores only top-level POST fields named in
-`stash.post_fields`. Use `post_mode => 'none'` for uploads, file-editor saves, or
+Custom admin rules may still declare a `stash` policy, which controls what the
+transient retains — **not** what is replayed, since nothing is replayed. WP Sudo
+stores only top-level POST fields named in `stash.post_fields`.
+
+**It does not feed the challenge.** The displayed target is built separately by
+`Request_Stash::capture_target()` from `TARGET_PARAMS`, and
+`Challenge::describe_stash_target()` never reads the stored body. Since nothing
+is replayed either, a `post_fields` allowlist now retains request data in a
+transient without improving the confirmation — prefer `post_mode => 'none'`
+unless you have a demonstrated consumer. Use `post_mode => 'none'` for uploads, file-editor saves, or
 other requests whose **body** should not be stored.
 
 That is narrower than "nothing is retained". `Request_Stash::save()` calls
@@ -133,7 +139,8 @@ add_filter( 'wp_sudo_gated_actions', function ( array $rules ): array {
             // user re-issues the action. It DID auto-replay at 4.8.0. Nothing here
             // restores that: automatic replay was removed outright, so no choice of
             // field or target parameter brings it back. `post_fields` controls only
-            // what the challenge can retain and describe.
+            // what the transient retains; it has no effect on the challenge display,
+            // which is built from TARGET_PARAMS by capture_target().
             'post_fields' => array( '_wpnonce', '_wp_http_referer', 'action', 'item_id' ),
         ),
     );
@@ -697,7 +704,11 @@ do_action( 'wp_sudo_action_replayed', int $user_id, string $rule_id ); // dorman
 // just as a lure landing on a session-holder does, and the server cannot tell them
 // apart. Correlate it; do not alert on it alone. Nothing executes on any path —
 // replay is removed — so this hook records a discard, never an action. Fires at
-// most once per stash (the stash is consumed before the hook runs).
+// most once per stash under normal use — the stash is consumed before the hook
+// runs — but the transient read and delete are not atomic, so two concurrent
+// completions using the same stash_key can both pass Request_Stash::get()
+// before either reaches delete() and both fire. Deduplicate if your audit
+// trail needs exactly-once.
 do_action( 'wp_sudo_replay_refused', int $user_id, string $rule_id, string $reason );
 
 // Admin-escalation guard (v4.1.0, opt-in via the wp_sudo_guard_escalation filter,

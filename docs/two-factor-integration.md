@@ -68,7 +68,7 @@ When the user submits their password, the JavaScript sends an AJAX request to `w
 2. Validates the password with `wp_check_password()`.
 3. Calls `Sudo_Session::needs_two_factor( $user_id )`.
 
-If 2FA is **not** required, the session activates immediately, the stashed request is discarded, and the user is returned to where they were (handler URLs such as `options.php` land on the dashboard instead — a bare GET of them renders nothing usable) to re-issue the action under the session they just earned — nothing is replayed (see [FAQ](FAQ.md#how-does-sudo-gating-work)). Where the original request carried password, token, API-key or secret fields, those were never stashed in the first place, so the user re-enters them with the sudo session active.
+If 2FA is **not** required, the session activates immediately, the stashed request is discarded, and the user is returned to where they were (handler URLs such as `options.php` land on the dashboard instead — a bare GET of them renders nothing usable) to re-issue the action under the session they just earned — nothing is replayed (see [FAQ](FAQ.md#how-does-sudo-gating-work)). Where the original request carried password, token, API-key or secret fields **in its POST body**, those were never stashed, so the user re-enters them with the sudo session active. That redaction is POST-only: `Request_Stash::build_original_url()` stores the whole `REQUEST_URI` including its query string, so a custom GET-gated rule carrying a secret in the URL retains it in the transient. Do not put secrets in a gated GET.
 
 If 2FA **is** required, the server:
 

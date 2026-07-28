@@ -593,8 +593,12 @@ and its 120 s grace have closed resolves nothing.
 Do **not** read that as "a copy taken before any challenge is harmless". The
 trigger is a live sudo session, not a completed challenge, and every browser form
 login auto-grants one by default (`wp_sudo_grant_session_on_login` — see *Login
-Auto-Grant* below). A jar copied moments after an ordinary login therefore
+Auto-Grant* below). A jar copied moments after a **password-only** login therefore
 carries a fully matching proof; that is the most dangerous copy, not a safe one.
+It does not generalise to every login: where Two Factor is enrolled,
+`Two_Factor_Core::wp_login()` destroys the session to challenge the factor, so
+the pre-2FA grant no longer matches the session minted after validation — see
+*Second factor enforced by session binding* under *Login Auto-Grant*.
 What the clone defeats is the **binding**, not the expiry.
 
 The defended case is therefore **partial** exfiltration: a value pulled from a
