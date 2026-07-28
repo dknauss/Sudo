@@ -1239,16 +1239,30 @@ class Challenge {
 			return true;
 		}
 
-		// edit.php is the Posts list in site admin — a real screen — but a bare handler
-		// under network admin, so it is only a handler in that context.
-		//
-		// Decided from the URL's own path, NOT is_network_admin(). This method runs
-		// under admin-ajax.php (both replay_stash() callers are wp_ajax_ handlers),
-		// which never calls set_current_screen() and does not define WP_NETWORK_ADMIN,
-		// so is_network_admin() returns false here even for a genuine network action —
-		// a condition that cannot be true on the live path is not a guard. The unit
-		// suite stubs it false globally (tests/TestCase.php), so no test could have
-		// shown that either.
+		/*
+		 * edit.php is the Posts list in site admin — a real screen — but a bare handler
+		 * under network admin, so it is only a handler in that context.
+		 *
+		 * Decided from the URL's own path, NOT is_network_admin(). This method has two
+		 * live entry contexts, and the ambient answer differs between them for the same
+		 * stashed URL:
+		 *
+		 *   - admin-ajax.php. handle_ajax_auth() and handle_ajax_2fa() are wp_ajax_
+		 *     handlers; complete_active_session_request(), the third replay_stash()
+		 *     caller, is registered to no hook and runs only from inside those two,
+		 *     so all three execute in the same request. admin-ajax.php never
+		 *     calls set_current_screen() and does not define WP_NETWORK_ADMIN, so
+		 *     is_network_admin() is false there even for a genuine network action.
+		 *   - the challenge page render: render_page() -> render_resume_page() ->
+		 *     build_replay_response_data(). register() hangs that page off
+		 *     network_admin_menu as well as admin_menu on multisite, so here
+		 *     is_network_admin() can legitimately be true.
+		 *
+		 * Classifying one stashed URL two ways depending on which entry the user came
+		 * through is not a guard. The path travels with the URL and reads the same on
+		 * both. The unit suite stubs is_network_admin() false globally
+		 * (tests/TestCase.php), so no test would have surfaced the divergence either.
+		 */
 		return 'edit.php' === $file && 'network' === (string) array_pop( $segments );
 	}
 
