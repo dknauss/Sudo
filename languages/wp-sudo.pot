@@ -1294,133 +1294,133 @@ msgstr ""
 msgid "this action"
 msgstr ""
 
-#: includes/class-challenge.php:388
+#: includes/class-challenge.php:390
 msgid "Confirm Your Identity"
 msgstr ""
 
 #. translators: %s: action label (e.g. "Activate plugin")
-#: includes/class-challenge.php:394
+#: includes/class-challenge.php:396
 #, php-format
 msgid "To continue: %s — please enter your password."
 msgstr ""
 
 #. translators: %s: the concrete target of the action (e.g. a plugin file or user login)
-#: includes/class-challenge.php:404
+#: includes/class-challenge.php:406
 #, php-format
 msgid "Target: %s"
 msgstr ""
 
-#: includes/class-challenge.php:412
+#: includes/class-challenge.php:414
 msgid "Respect the privacy of others."
 msgstr ""
 
-#: includes/class-challenge.php:413
+#: includes/class-challenge.php:415
 msgid "Think before you type."
 msgstr ""
 
-#: includes/class-challenge.php:414
+#: includes/class-challenge.php:416
 msgid "With great power comes great responsibility."
 msgstr ""
 
-#: includes/class-challenge.php:421
+#: includes/class-challenge.php:423
 msgid "Too many failed attempts. The form is temporarily disabled. Please wait and try again."
 msgstr ""
 
 #. translators: %d: seconds remaining
-#: includes/class-challenge.php:430
+#: includes/class-challenge.php:432
 #, php-format
 msgid "Please wait %d seconds before trying again."
 msgstr ""
 
-#: includes/class-challenge.php:445
+#: includes/class-challenge.php:447
 #: admin/js/wp-sudo-editor-reauth.js:608
 msgid "Password"
 msgstr ""
 
-#: includes/class-challenge.php:452
-#: includes/class-challenge.php:481
+#: includes/class-challenge.php:454
+#: includes/class-challenge.php:483
 msgid "Confirm & Continue"
 msgstr ""
 
-#: includes/class-challenge.php:455
-#: includes/class-challenge.php:484
-#: includes/class-challenge.php:1056
+#: includes/class-challenge.php:457
+#: includes/class-challenge.php:486
+#: includes/class-challenge.php:1060
 #: admin/js/wp-sudo-editor-reauth.js:557
 msgid "Cancel"
 msgstr ""
 
-#: includes/class-challenge.php:464
+#: includes/class-challenge.php:466
 msgid "Two-Factor Authentication"
 msgstr ""
 
-#: includes/class-challenge.php:494
+#: includes/class-challenge.php:496
 msgid "Authenticating…"
 msgstr ""
 
-#: includes/class-challenge.php:617
-#: includes/class-challenge.php:715
-#: includes/class-challenge.php:815
+#: includes/class-challenge.php:619
+#: includes/class-challenge.php:717
+#: includes/class-challenge.php:817
 msgid "Invalid request."
 msgstr ""
 
-#: includes/class-challenge.php:623
-#: includes/class-challenge.php:830
+#: includes/class-challenge.php:625
+#: includes/class-challenge.php:832
 msgid "Your authentication session has expired. Please start over."
 msgstr ""
 
-#: includes/class-challenge.php:653
+#: includes/class-challenge.php:655
 msgid "Too many code requests. Please use your current code or wait."
 msgstr ""
 
-#: includes/class-challenge.php:693
+#: includes/class-challenge.php:695
 msgid "Not logged in."
 msgstr ""
 
-#: includes/class-challenge.php:730
+#: includes/class-challenge.php:732
 msgid "Your challenge session has expired. Please try again."
 msgstr ""
 
 #. translators: %d: seconds remaining
-#: includes/class-challenge.php:770
-#: includes/class-challenge.php:857
-#: includes/class-challenge.php:877
-#: includes/class-challenge.php:933
+#: includes/class-challenge.php:772
+#: includes/class-challenge.php:859
+#: includes/class-challenge.php:879
+#: includes/class-challenge.php:935
 #, php-format
 msgid "Too many failed attempts. Please wait %d seconds."
 msgstr ""
 
-#: includes/class-challenge.php:782
+#: includes/class-challenge.php:784
 msgid "You are not allowed to perform this action."
 msgstr ""
 
-#: includes/class-challenge.php:788
-#: includes/class-challenge.php:797
+#: includes/class-challenge.php:790
+#: includes/class-challenge.php:799
 msgid "Incorrect password. Please try again."
 msgstr ""
 
 #. translators: %d: seconds remaining
-#: includes/class-challenge.php:841
+#: includes/class-challenge.php:843
 #, php-format
 msgid "Too many attempts. Please wait %d seconds."
 msgstr ""
 
-#: includes/class-challenge.php:899
+#: includes/class-challenge.php:901
 msgid "Too many resend attempts. Please try your current code or wait."
 msgstr ""
 
-#: includes/class-challenge.php:944
+#: includes/class-challenge.php:946
 msgid "Invalid authentication code. Please try again."
 msgstr ""
 
-#: includes/class-challenge.php:1046
+#: includes/class-challenge.php:1050
 msgid "Session already confirmed"
 msgstr ""
 
-#: includes/class-challenge.php:1049
+#: includes/class-challenge.php:1053
 msgid "Your sudo session is already active. Continuing…"
 msgstr ""
 
-#: includes/class-challenge.php:1053
+#: includes/class-challenge.php:1057
 msgid "Continue"
 msgstr ""
 
@@ -1689,92 +1689,92 @@ msgstr ""
 msgid "Grant super admin"
 msgstr ""
 
-#: includes/class-gate.php:1545
+#: includes/class-gate.php:1548
 msgid "Only admin, AJAX, and REST request simulation is available in the current tester MVP."
 msgstr ""
 
-#: includes/class-gate.php:1564
+#: includes/class-gate.php:1567
 msgid "Sudo only gates authenticated users; anonymous requests fall through to WordPress authentication and capability checks first."
 msgstr ""
 
-#: includes/class-gate.php:1569
+#: includes/class-gate.php:1572
 msgid "No gated rule matched this request shape."
 msgstr ""
 
-#: includes/class-gate.php:1574
+#: includes/class-gate.php:1577
 msgid "An active sudo session would allow this matched request to proceed."
 msgstr ""
 
-#: includes/class-gate.php:1580
+#: includes/class-gate.php:1583
 msgid "Interactive admin request: gated."
 msgstr ""
 
-#: includes/class-gate.php:1586
+#: includes/class-gate.php:1589
 msgid "AJAX requests are blocked in-place and must be retried after activating sudo."
 msgstr ""
 
-#: includes/class-gate.php:1592
+#: includes/class-gate.php:1595
 msgid "Cookie-authenticated REST requests receive sudo_required and can be retried after activating sudo."
 msgstr ""
 
-#: includes/class-gate.php:1599
+#: includes/class-gate.php:1602
 msgid "REST Application Password policy is Unrestricted, so Sudo would allow the matched request."
 msgstr ""
 
-#: includes/class-gate.php:1606
+#: includes/class-gate.php:1609
 msgid "REST Application Password policy is Disabled, so Sudo would reject the request at the surface level."
 msgstr ""
 
-#: includes/class-gate.php:1610
+#: includes/class-gate.php:1613
 msgid "REST Application Password policy is Limited, so gated requests are blocked until policy changes."
 msgstr ""
 
-#: includes/class-gate.php:1898
+#: includes/class-gate.php:1901
 msgid "This REST API operation is disabled by Sudo policy."
 msgstr ""
 
-#: includes/class-gate.php:1908
+#: includes/class-gate.php:1911
 msgid "This operation requires sudo and cannot be performed via Application Passwords."
 msgstr ""
 
-#: includes/class-gate.php:1963
+#: includes/class-gate.php:1966
 msgid "WPGraphQL is disabled by Sudo policy."
 msgstr ""
 
-#: includes/class-gate.php:2025
+#: includes/class-gate.php:2028
 msgid "This GraphQL mutation requires sudo. Activate a sudo session and try again."
 msgstr ""
 
 #. translators: 1: action label (e.g. "Delete plugin"), 2: keyboard shortcut
-#: includes/class-gate.php:2648
-#: includes/class-gate.php:2757
+#: includes/class-gate.php:2651
+#: includes/class-gate.php:2760
 #, php-format
 msgid "This action (%1$s) requires reauthentication. Press %2$s to start a sudo session, then try again."
 msgstr ""
 
-#: includes/class-gate.php:2729
+#: includes/class-gate.php:2732
 #: includes/class-public-api.php:143
 msgid "Unable to redirect to the sudo challenge page."
 msgstr ""
 
-#: includes/class-gate.php:2859
+#: includes/class-gate.php:2862
 msgid "a protected action"
 msgstr ""
 
 #. translators: 1: action label, 2: challenge page link, 3: keyboard shortcut
-#: includes/class-gate.php:2879
+#: includes/class-gate.php:2882
 #, php-format
 msgid "Your recent action (%1$s) was blocked because it requires reauthentication. %2$s to activate a sudo session, then try again. You can also press %3$s."
 msgstr ""
 
-#: includes/class-gate.php:2881
-#: includes/class-gate.php:2941
+#: includes/class-gate.php:2884
+#: includes/class-gate.php:2944
 #: admin/js/wp-sudo-editor-reauth.js:633
 msgid "Confirm your identity"
 msgstr ""
 
 #. translators: 1: challenge page link, 2: keyboard shortcut
-#: includes/class-gate.php:2940
+#: includes/class-gate.php:2943
 #, php-format
 msgid "Installing, activating, updating, and deleting themes and plugins requires an active sudo session. %1$s or press %2$s to start one."
 msgstr ""

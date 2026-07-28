@@ -1511,8 +1511,11 @@ class Gate {
 		 * Deliberately reports NO replay verdict, and must not regain one.
 		 *
 		 * Since 4.9.0 there is no verdict to report: automatic replay was removed
-		 * outright (#322), so nothing is resumed on any path and every gated action
-		 * is re-issued by the user. `Challenge::build_replay_response_data()` has no
+		 * outright (#322), so no SERVER-STASHED request is resumed and the user
+		 * re-issues it. That is scoped deliberately: the block editor's in-tab retry
+		 * does re-dispatch, via handleSudoRequired() in wp-sudo-editor-reauth.js, for
+		 * the caller that opened the modal — nothing was stored server-side there, so
+		 * it is not the confused deputy the removal closed. `Challenge::build_replay_response_data()` has no
 		 * branch that can return a replay instruction.
 		 *
 		 * The reason this method must not regain a verdict outlives the removal.

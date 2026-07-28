@@ -1,6 +1,8 @@
 # #478 — in-code replay-language inventory
 
-Inventory **before** editing. Nothing in this commit changes a comment; it
+Inventory **captured before any editing**, and preserved unchanged as the audit
+record of what the sweep started from. Later commits on this branch do change
+comments — this document describes the tree as it was, not as it ships. It
 establishes what has to change and, just as importantly, what must not.
 
 Taken at `origin/main` = `5e0cd4e`.

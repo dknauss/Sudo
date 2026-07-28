@@ -373,8 +373,10 @@ class Challenge {
 		// #322 v2: name the concrete target. A coarse label ("Activate plugin") is a
 		// blank cheque — an attacker who lures the user into a gated request gets the
 		// same prompt as a legitimate action. Showing WHAT is about to happen makes
-		// the password submit an informed decision, which is the control that holds
-		// even if the browser binding is bypassed.
+		// the password submit an informed one. It is not itself a control, though:
+		// nothing is replayed (#322), so a planted action is not executed whether or
+		// not the user reads the target. The naming tells them why they were
+		// interrupted; the removal of replay is what makes the lure inert.
 		$action_target  = $this->describe_stash_target( $stash );
 		$throttle_delay = Sudo_Session::throttle_remaining( $user_id );
 		$is_locked      = Sudo_Session::is_locked_out( $user_id );
@@ -1018,7 +1020,9 @@ class Challenge {
 	 * Render the landing screen for users who already hold a sudo session.
 	 *
 	 * Named "resume" historically; it resumes nothing (#322). It discards the
-	 * stash and points the user back at where the action started.
+	 * stash and sends the user to a safe landing — the originating screen where
+	 * one is usable, or the neutral page for handler endpoints and queryless GETs,
+	 * which render nothing useful on a bare request.
 	 *
 	 * @param int    $user_id   Current user ID.
 	 * @param string $stash_key Challenge stash key.

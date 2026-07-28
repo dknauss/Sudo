@@ -17,9 +17,15 @@ if ( ! defined( 'ABSPATH' ) ) {
  *
  * When a gated admin action is intercepted, its URL, method and allowlisted POST
  * parameters are serialized into a short-lived transient. That record exists so
- * the challenge can NAME the concrete target — informed consent to a known
- * action rather than a category — and so the user can be landed back on the
- * screen the action started from.
+ * the challenge can NAME the concrete target, so the user is told WHY they are
+ * being challenged rather than facing a bare password prompt, and so they can be
+ * landed back near where the action started.
+ *
+ * That naming is explanatory context, NOT consent to a specific action. After
+ * reauthentication the stash is discarded and the user holds a general sudo
+ * session; whatever they submit next is chosen and sent separately and may
+ * differ from the captured target. Nothing binds the two. Do not build a control
+ * on the assumption that it does.
  *
  * It is never used to re-issue the request. Automatic replay was removed
  * outright in 4.9.0 (#322): after reauthenticating, the stash is discarded and
@@ -67,9 +73,13 @@ class Request_Stash {
 	 * Request params that identify the concrete target of a gated action.
 	 *
 	 * Recorded so the challenge can name what is about to happen ("Activate plugin:
-	 * evil/evil.php") instead of only the coarse rule label. Informed confirmation is
-	 * the control that survives a binding bypass — the user is consenting to a NAMED
-	 * action, not signing a blank cheque.
+	 * evil/evil.php") instead of only the coarse rule label, so the user is told what
+	 * prompted the challenge rather than facing a bare password box.
+	 *
+	 * It is not a control. Naming the target authorises nothing: the stash is
+	 * discarded at reauthentication and the sudo session granted is general, so
+	 * whatever the user submits next is unbound by what was named. See the class
+	 * docblock above.
 	 *
 	 * @var string[]
 	 */
