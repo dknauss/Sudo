@@ -1,11 +1,31 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
+import { createHash, randomBytes } from 'node:crypto';
 
 type Operation =
     | 'read'
     | 'invoke'
     | 'popup-opener'
     | 'authority-read'
-    | 'redeem';
+    | 'redeem'
+    | 'parent-handle'
+    | 'unauthorized-redemption-blocked'
+    | 'mutation-blocked'
+    | 'effect'
+    | 'replay-blocked'
+    | 'isolated-credential-read'
+    | 'parent-unloaded'
+    | 'top-level-credential-read'
+    | 'counterfeit-credential-read'
+    | 'clone-reauth-blocked'
+    | 'clone-redemption-blocked'
+    | 'candidate-mutation-blocked'
+    | 'candidate-effect'
+    | 'candidate-replay-blocked'
+    | 'upload-preflight-clone-blocked'
+    | 'upload-clone-blocked'
+    | 'upload-mutation-blocked'
+    | 'upload-effect'
+    | 'upload-replay-blocked';
 
 type Observation = {
     operation: Operation;
@@ -148,6 +168,430 @@ const popupConfirmationFixture = `<!doctype html>
 </body>
 </html>`;
 
+const isolatedParentFixture = `<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Phase 27 isolated self-redemption parent</title>
+</head>
+<body>
+    <button id="review-file-write" type="button">Review exact file write</button>
+    <script>
+        // Model attempts available to script confined to this parent document.
+        fetch( '/confirm-and-redeem', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify( {
+                intent: 'file-write-1',
+                password: '',
+            } ),
+        } );
+        fetch( '/mutate-intent', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify( {
+                intent: 'file-write-1',
+                target: 'attacker-plugin/attacker.php',
+            } ),
+        } );
+
+        document.querySelector( '#review-file-write' ).addEventListener( 'click', () => {
+            const handle = window.open(
+                '/isolated-confirm?intent=file-write-1',
+                'phase27-isolated-confirm',
+                'noopener'
+            );
+            fetch( '/observe', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify( {
+                    operation: 'parent-handle',
+                    value: handle === null ? 'null' : 'present',
+                } ),
+            } );
+        } );
+    </script>
+</body>
+</html>`;
+
+const isolatedConfirmationFixture = `<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Phase 27 isolated confirmation and redemption</title>
+</head>
+<body>
+    <p data-testid="action"></p>
+    <p data-testid="digest"></p>
+    <label for="password">Password</label>
+    <input id="password" type="password" autocomplete="current-password">
+    <button id="confirm" type="button">Confirm and write file</button>
+    <p role="status"></p>
+    <div data-testid="response-contract"></div>
+    <script>
+        const params = new URLSearchParams( window.location.search );
+        const intent = params.get( 'intent' );
+
+        fetch( '/intent?id=' + encodeURIComponent( intent ) )
+            .then( ( response ) => response.json() )
+            .then( ( descriptor ) => {
+                document.querySelector( '[data-testid="action"]' ).textContent =
+                    descriptor.label;
+                document.querySelector( '[data-testid="digest"]' ).textContent =
+                    descriptor.digest;
+            } );
+
+        document.querySelector( '#confirm' ).addEventListener( 'click', async () => {
+            const response = await fetch( '/confirm-and-redeem', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify( {
+                    intent,
+                    password: document.querySelector( '#password' ).value,
+                } ),
+            } );
+            const result = await response.json();
+
+            document.querySelector( '[role="status"]' ).textContent =
+                response.ok ? 'Written' : 'Rejected';
+            document.querySelector( '[data-testid="response-contract"]' ).textContent =
+                JSON.stringify( result );
+        } );
+    </script>
+</body>
+</html>`;
+
+const tamperedPopupParentFixture = `<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Phase 27 tampered popup parent</title>
+</head>
+<body>
+    <button id="review-file-write" type="button">Review exact file write</button>
+    <script>
+        // Model script that ran before the application's click handler.
+        const nativeOpen = window.open.bind( window );
+        window.open = ( url, target ) => {
+            const handle = nativeOpen( url, target );
+
+            fetch( '/observe', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify( {
+                    operation: 'parent-handle',
+                    value: handle === null ? 'null' : 'present',
+                } ),
+            } );
+
+            if ( handle !== null ) {
+                handle.addEventListener( 'load', () => {
+                    const password = handle.document.querySelector( '#password' );
+                    const confirm = handle.document.querySelector( '#confirm' );
+
+                    password.addEventListener( 'input', () => {
+                        fetch( '/observe', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify( {
+                                operation: 'isolated-credential-read',
+                                value: password.value,
+                            } ),
+                        } );
+                        confirm.click();
+                    } );
+                } );
+            }
+
+            return handle;
+        };
+
+        // The application still requests noopener; the compromised wrapper drops it.
+        document.querySelector( '#review-file-write' ).addEventListener( 'click', () => {
+            window.open(
+                '/isolated-confirm?intent=file-write-1',
+                'phase27-isolated-confirm',
+                'noopener'
+            );
+        } );
+    </script>
+</body>
+</html>`;
+
+const topLevelParentFixture = `<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Phase 27 top-level replacement parent</title>
+</head>
+<body>
+    <button id="review-file-write" type="button">Review exact file write</button>
+    <script>
+        // Model script confined to this document polling for the credential UI.
+        setInterval( () => {
+            const password = document.querySelector( '#password' );
+
+            if ( password !== null ) {
+                fetch( '/observe', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify( {
+                        operation: 'top-level-credential-read',
+                        value: password.value,
+                    } ),
+                } );
+            }
+        }, 10 );
+
+        window.addEventListener( 'pagehide', () => {
+            navigator.sendBeacon(
+                '/observe',
+                JSON.stringify( {
+                    operation: 'parent-unloaded',
+                    value: 'top-level-parent',
+                } )
+            );
+        } );
+
+        document.querySelector( '#review-file-write' ).addEventListener( 'click', () => {
+            window.location.assign(
+                '/top-level-confirm?intent=file-write-1'
+            );
+        } );
+    </script>
+</body>
+</html>`;
+
+const counterfeitTopLevelParentFixture = `<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Phase 27 counterfeited top-level confirmation</title>
+</head>
+<body>
+    <button id="review-file-write" type="button">Review exact file write</button>
+    <script>
+        // Model active script intercepting the user's launch gesture first.
+        document.addEventListener( 'click', ( event ) => {
+            if ( event.target.id !== 'review-file-write' ) {
+                return;
+            }
+
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            history.pushState(
+                {},
+                '',
+                '/top-level-confirm?intent=file-write-1'
+            );
+            document.body.innerHTML = \`
+                <p data-testid="action">Write sample-plugin/sample.php</p>
+                <p data-testid="digest">sha256:server-held-proposed-bytes</p>
+                <label for="password">Password</label>
+                <input id="password" type="password" autocomplete="current-password">
+                <button id="confirm" type="button">Confirm and write file</button>
+            \`;
+
+            const password = document.querySelector( '#password' );
+            password.addEventListener( 'input', () => {
+                fetch( '/observe', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify( {
+                        operation: 'counterfeit-credential-read',
+                        value: password.value,
+                    } ),
+                } );
+                fetch( '/confirm-and-redeem', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify( {
+                        intent: 'file-write-1',
+                        password: password.value,
+                    } ),
+                } );
+            } );
+        }, true );
+
+        // The application attempts a real top-level replacement.
+        document.querySelector( '#review-file-write' ).addEventListener( 'click', () => {
+            window.location.assign(
+                '/top-level-confirm?intent=file-write-1'
+            );
+        } );
+    </script>
+</body>
+</html>`;
+
+const copiedCookieCandidateFixture = `<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Phase 27 copied-cookie candidate</title>
+</head>
+<body>
+    <p data-testid="action"></p>
+    <p data-testid="digest"></p>
+    <label for="candidate-password">Password</label>
+    <input
+        id="candidate-password"
+        type="password"
+        autocomplete="current-password"
+    >
+    <button id="approve-candidate" type="button">Approve exact write</button>
+    <button id="submit-candidate" type="button">Submit exact write once</button>
+    <p role="status"></p>
+    <div data-testid="approval-response-contract"></div>
+    <script>
+        const descriptorPromise = fetch( '/candidate-descriptor' )
+            .then( ( response ) => response.json() )
+            .then( ( descriptor ) => {
+                document.querySelector( '[data-testid="action"]' ).textContent =
+                    descriptor.label;
+                document.querySelector( '[data-testid="digest"]' ).textContent =
+                    descriptor.digest;
+                return descriptor;
+            } );
+
+        document.querySelector( '#approve-candidate' ).addEventListener(
+            'click',
+            async () => {
+                const response = await fetch( '/candidate-approve', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify( {
+                        intent: 'candidate-file-write-1',
+                        password: document.querySelector(
+                            '#candidate-password'
+                        ).value,
+                    } ),
+                } );
+                const result = await response.json();
+                document.querySelector(
+                    '[data-testid="approval-response-contract"]'
+                ).textContent = JSON.stringify( result );
+                document.querySelector( '[role="status"]' ).textContent =
+                    response.ok ? 'Approved' : 'Rejected';
+            }
+        );
+
+        document.querySelector( '#submit-candidate' ).addEventListener(
+            'click',
+            async () => {
+                const descriptor = await descriptorPromise;
+                const response = await fetch( '/candidate-effect', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify( {
+                        intent: descriptor.id,
+                        target: descriptor.target,
+                        digest: descriptor.digest,
+                    } ),
+                } );
+                document.querySelector( '[role="status"]' ).textContent =
+                    response.ok ? 'Written' : 'Rejected';
+            }
+        );
+    </script>
+</body>
+</html>`;
+
+const copiedCookieUploadCandidateFixture = `<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <title>Phase 27 copied-cookie upload candidate</title>
+</head>
+<body>
+    <p data-testid="action"></p>
+    <p data-testid="digest"></p>
+    <label for="package">Plugin package</label>
+    <input id="package" type="file" accept=".zip,application/zip">
+    <button id="prepare-upload" type="button">Prepare exact upload</button>
+    <label for="upload-password">Password</label>
+    <input
+        id="upload-password"
+        type="password"
+        autocomplete="current-password"
+    >
+    <button id="approve-upload-candidate" type="button">
+        Approve exact upload
+    </button>
+    <button id="submit-upload-candidate" type="button">
+        Upload approved package once
+    </button>
+    <p role="status"></p>
+    <script>
+        const packageInput = document.querySelector( '#package' );
+
+        async function selectedFileDigest() {
+            const file = packageInput.files[ 0 ];
+            const digest = await crypto.subtle.digest(
+                'SHA-256',
+                await file.arrayBuffer()
+            );
+            return Array.from( new Uint8Array( digest ) )
+                .map( ( byte ) => byte.toString( 16 ).padStart( 2, '0' ) )
+                .join( '' );
+        }
+
+        document.querySelector( '#prepare-upload' ).addEventListener(
+            'click',
+            async () => {
+                const digest = await selectedFileDigest();
+                const response = await fetch( '/candidate-upload-preflight', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify( {
+                        digest,
+                        kind: 'plugin',
+                    } ),
+                } );
+                const descriptor = await response.json();
+                document.querySelector( '[data-testid="action"]' ).textContent =
+                    descriptor.label;
+                document.querySelector( '[data-testid="digest"]' ).textContent =
+                    'sha256:' + descriptor.digest;
+            }
+        );
+
+        document.querySelector( '#approve-upload-candidate' ).addEventListener(
+            'click',
+            async () => {
+                const response = await fetch( '/candidate-upload-approve', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify( {
+                        intent: 'candidate-upload-1',
+                        password: document.querySelector(
+                            '#upload-password'
+                        ).value,
+                    } ),
+                } );
+                document.querySelector( '[role="status"]' ).textContent =
+                    response.ok ? 'Approved' : 'Rejected';
+            }
+        );
+
+        document.querySelector( '#submit-upload-candidate' ).addEventListener(
+            'click',
+            async () => {
+                const response = await fetch( '/candidate-upload-effect', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/octet-stream',
+                        'X-Phase27-Intent': 'candidate-upload-1',
+                    },
+                    body: packageInput.files[ 0 ],
+                } );
+                document.querySelector( '[role="status"]' ).textContent =
+                    response.ok ? 'Uploaded' : 'Rejected';
+            }
+        );
+    </script>
+</body>
+</html>`;
+
 function readBody( request: IncomingMessage ): Promise<string> {
     return new Promise( ( resolve, reject ) => {
         let body = '';
@@ -157,6 +601,18 @@ function readBody( request: IncomingMessage ): Promise<string> {
             body += chunk;
         } );
         request.on( 'end', () => resolve( body ) );
+        request.on( 'error', reject );
+    } );
+}
+
+function readBodyBuffer( request: IncomingMessage ): Promise<Buffer> {
+    return new Promise( ( resolve, reject ) => {
+        const chunks: Buffer[] = [];
+
+        request.on( 'data', ( chunk: Buffer ) => {
+            chunks.push( chunk );
+        } );
+        request.on( 'end', () => resolve( Buffer.concat( chunks ) ) );
         request.on( 'error', reject );
     } );
 }
@@ -174,8 +630,45 @@ function send(
     response.end( body );
 }
 
+function cookieValue( request: IncomingMessage, name: string ): string {
+    const cookies = request.headers.cookie?.split( ';' ) ?? [];
+
+    for ( const cookie of cookies ) {
+        const [ key, ...value ] = cookie.trim().split( '=' );
+
+        if ( key === name ) {
+            return value.join( '=' );
+        }
+    }
+
+    return '';
+}
+
 export async function startPhase27ResearchServer(): Promise<ResearchServer> {
     const observations: Observation[] = [];
+    const intent = {
+        action: 'core/write-extension-file',
+        digest: 'sha256:server-held-proposed-bytes',
+        id: 'file-write-1',
+        label: 'Write sample-plugin/sample.php',
+        target: 'sample-plugin/sample.php',
+        used: false,
+    };
+    const candidateIntent = {
+        approvedBinding: '',
+        digest: 'sha256:server-held-proposed-bytes',
+        id: 'candidate-file-write-1',
+        label: 'Write sample-plugin/sample.php',
+        target: 'sample-plugin/sample.php',
+        used: false,
+    };
+    const uploadIntent = {
+        approvedBinding: '',
+        digest: '',
+        id: 'candidate-upload-1',
+        preparedBinding: '',
+        used: false,
+    };
     const server = createServer( async ( request, response ) => {
         if ( request.method === 'GET' && request.url === '/same-document' ) {
             send( response, 200, 'text/html; charset=utf-8', sameDocumentFixture );
@@ -193,6 +686,477 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
                 200,
                 'text/html; charset=utf-8',
                 popupConfirmationFixture
+            );
+            return;
+        }
+
+        if ( request.method === 'GET' && request.url === '/isolated-parent' ) {
+            send(
+                response,
+                200,
+                'text/html; charset=utf-8',
+                isolatedParentFixture
+            );
+            return;
+        }
+
+        if (
+            request.method === 'GET' &&
+            request.url === '/tampered-popup-parent'
+        ) {
+            send(
+                response,
+                200,
+                'text/html; charset=utf-8',
+                tamperedPopupParentFixture
+            );
+            return;
+        }
+
+        if ( request.method === 'GET' && request.url === '/top-level-parent' ) {
+            send(
+                response,
+                200,
+                'text/html; charset=utf-8',
+                topLevelParentFixture
+            );
+            return;
+        }
+
+        if (
+            request.method === 'GET' &&
+            request.url === '/counterfeit-top-level-parent'
+        ) {
+            send(
+                response,
+                200,
+                'text/html; charset=utf-8',
+                counterfeitTopLevelParentFixture
+            );
+            return;
+        }
+
+        if (
+            request.method === 'GET' &&
+            request.url === '/copied-cookie-candidate'
+        ) {
+            let binding = cookieValue( request, 'phase27_binding' );
+
+            if ( binding === '' ) {
+                binding = randomBytes( 32 ).toString( 'base64url' );
+            }
+
+            response.writeHead( 200, {
+                'Cache-Control': 'no-store',
+                'Content-Type': 'text/html; charset=utf-8',
+                'Set-Cookie':
+                    'phase27_binding=' +
+                    binding +
+                    '; HttpOnly; SameSite=Strict; Path=/',
+            } );
+            response.end( copiedCookieCandidateFixture );
+            return;
+        }
+
+        if (
+            request.method === 'GET' &&
+            request.url === '/copied-cookie-upload-candidate'
+        ) {
+            let binding = cookieValue( request, 'phase27_binding' );
+
+            if ( binding === '' ) {
+                binding = randomBytes( 32 ).toString( 'base64url' );
+            }
+
+            response.writeHead( 200, {
+                'Cache-Control': 'no-store',
+                'Content-Type': 'text/html; charset=utf-8',
+                'Set-Cookie':
+                    'phase27_binding=' +
+                    binding +
+                    '; HttpOnly; SameSite=Strict; Path=/',
+            } );
+            response.end( copiedCookieUploadCandidateFixture );
+            return;
+        }
+
+        if (
+            request.method === 'POST' &&
+            request.url === '/candidate-upload-preflight'
+        ) {
+            const preflight = JSON.parse( await readBody( request ) ) as {
+                digest: string;
+                kind: string;
+            };
+            const binding = cookieValue( request, 'phase27_binding' );
+            const authenticated =
+                cookieValue( request, 'wp_auth' ) === 'copied-login-session';
+
+            if (
+                ! authenticated ||
+                binding === '' ||
+                preflight.kind !== 'plugin' ||
+                ! /^[a-f0-9]{64}$/.test( preflight.digest )
+            ) {
+                send( response, 403, 'text/plain; charset=utf-8', 'Forbidden' );
+                return;
+            }
+
+            if (
+                process.env
+                    .PHASE27_DISABLE_UPLOAD_PREFLIGHT_IMMUTABILITY !== '1' &&
+                uploadIntent.digest !== '' &&
+                ( binding !== uploadIntent.preparedBinding ||
+                    preflight.digest !== uploadIntent.digest )
+            ) {
+                observations.push( {
+                    operation: 'upload-preflight-clone-blocked',
+                    value: uploadIntent.id,
+                } );
+                send( response, 409, 'text/plain; charset=utf-8', 'Immutable' );
+                return;
+            }
+
+            uploadIntent.digest = preflight.digest;
+            uploadIntent.preparedBinding = binding;
+            send(
+                response,
+                200,
+                'application/json; charset=utf-8',
+                JSON.stringify( {
+                    digest: uploadIntent.digest,
+                    id: uploadIntent.id,
+                    label: 'Upload one plugin package',
+                } )
+            );
+            return;
+        }
+
+        if (
+            request.method === 'POST' &&
+            request.url === '/candidate-upload-approve'
+        ) {
+            const approval = JSON.parse( await readBody( request ) ) as {
+                intent: string;
+                password: string;
+            };
+            const binding = cookieValue( request, 'phase27_binding' );
+            const authenticated =
+                cookieValue( request, 'wp_auth' ) === 'copied-login-session';
+
+            if (
+                ! authenticated ||
+                binding === '' ||
+                binding !== uploadIntent.preparedBinding ||
+                approval.intent !== uploadIntent.id ||
+                approval.password !== 'victim-secret'
+            ) {
+                send( response, 403, 'text/plain; charset=utf-8', 'Forbidden' );
+                return;
+            }
+
+            uploadIntent.approvedBinding = binding;
+            send(
+                response,
+                200,
+                'application/json; charset=utf-8',
+                JSON.stringify( { status: 'approved' } )
+            );
+            return;
+        }
+
+        if (
+            request.method === 'POST' &&
+            request.url === '/candidate-upload-effect'
+        ) {
+            const body = await readBodyBuffer( request );
+            const binding = cookieValue( request, 'phase27_binding' );
+            const authenticated =
+                cookieValue( request, 'wp_auth' ) === 'copied-login-session';
+            const submittedIntent =
+                request.headers[ 'x-phase27-intent' ] ?? '';
+
+            if (
+                ! authenticated ||
+                binding === '' ||
+                ( process.env.PHASE27_DISABLE_UPLOAD_BINDING !== '1' &&
+                    binding !== uploadIntent.approvedBinding )
+            ) {
+                observations.push( {
+                    operation: 'upload-clone-blocked',
+                    value: String( submittedIntent ),
+                } );
+                send( response, 403, 'text/plain; charset=utf-8', 'Forbidden' );
+                return;
+            }
+
+            if (
+                process.env.PHASE27_DISABLE_UPLOAD_ONE_USE !== '1' &&
+                uploadIntent.used
+            ) {
+                observations.push( {
+                    operation: 'upload-replay-blocked',
+                    value: String( submittedIntent ),
+                } );
+                send( response, 409, 'text/plain; charset=utf-8', 'Already used' );
+                return;
+            }
+
+            const submittedDigest = createHash( 'sha256' )
+                .update( body )
+                .digest( 'hex' );
+
+            if (
+                process.env.PHASE27_DISABLE_UPLOAD_DIGEST_CHECK !== '1' &&
+                ( submittedIntent !== uploadIntent.id ||
+                    submittedDigest !== uploadIntent.digest )
+            ) {
+                observations.push( {
+                    operation: 'upload-mutation-blocked',
+                    value: String( submittedIntent ),
+                } );
+                send( response, 409, 'text/plain; charset=utf-8', 'Mismatch' );
+                return;
+            }
+
+            uploadIntent.used = true;
+            observations.push( {
+                operation: 'upload-effect',
+                value: submittedDigest,
+            } );
+            send( response, 204, 'text/plain; charset=utf-8', '' );
+            return;
+        }
+
+        if (
+            request.method === 'GET' &&
+            request.url === '/candidate-descriptor'
+        ) {
+            const binding = cookieValue( request, 'phase27_binding' );
+            const authenticated =
+                cookieValue( request, 'wp_auth' ) === 'copied-login-session';
+
+            if ( ! authenticated || binding === '' ) {
+                send( response, 403, 'text/plain; charset=utf-8', 'Forbidden' );
+                return;
+            }
+
+            send(
+                response,
+                200,
+                'application/json; charset=utf-8',
+                JSON.stringify( {
+                    digest: candidateIntent.digest,
+                    id: candidateIntent.id,
+                    label: candidateIntent.label,
+                    target: candidateIntent.target,
+                } )
+            );
+            return;
+        }
+
+        if ( request.method === 'POST' && request.url === '/candidate-approve' ) {
+            const approval = JSON.parse( await readBody( request ) ) as {
+                intent: string;
+                password: string;
+            };
+            const binding = cookieValue( request, 'phase27_binding' );
+            const authenticated =
+                cookieValue( request, 'wp_auth' ) === 'copied-login-session';
+
+            if (
+                ! authenticated ||
+                binding === '' ||
+                approval.intent !== candidateIntent.id ||
+                ( process.env
+                    .PHASE27_DISABLE_CANDIDATE_PASSWORD_CHECK !== '1' &&
+                    approval.password !== 'victim-secret' )
+            ) {
+                observations.push( {
+                    operation: 'clone-reauth-blocked',
+                    value: approval.intent,
+                } );
+                send(
+                    response,
+                    403,
+                    'application/json; charset=utf-8',
+                    JSON.stringify( { status: 'rejected' } )
+                );
+                return;
+            }
+
+            candidateIntent.approvedBinding = binding;
+            send(
+                response,
+                200,
+                'application/json; charset=utf-8',
+                JSON.stringify( { status: 'approved' } )
+            );
+            return;
+        }
+
+        if ( request.method === 'POST' && request.url === '/candidate-effect' ) {
+            const submission = JSON.parse( await readBody( request ) ) as {
+                digest: string;
+                intent: string;
+                target: string;
+            };
+            const binding = cookieValue( request, 'phase27_binding' );
+            const authenticated =
+                cookieValue( request, 'wp_auth' ) === 'copied-login-session';
+
+            if (
+                ! authenticated ||
+                binding === '' ||
+                ( process.env.PHASE27_DISABLE_CANDIDATE_BINDING !== '1' &&
+                    binding !== candidateIntent.approvedBinding )
+            ) {
+                observations.push( {
+                    operation: 'clone-redemption-blocked',
+                    value: submission.intent,
+                } );
+                send( response, 403, 'text/plain; charset=utf-8', 'Forbidden' );
+                return;
+            }
+
+            if (
+                process.env.PHASE27_DISABLE_CANDIDATE_ONE_USE !== '1' &&
+                candidateIntent.used
+            ) {
+                observations.push( {
+                    operation: 'candidate-replay-blocked',
+                    value: submission.intent,
+                } );
+                send( response, 409, 'text/plain; charset=utf-8', 'Already used' );
+                return;
+            }
+
+            if (
+                process.env.PHASE27_DISABLE_CANDIDATE_DESCRIPTOR_CHECK !==
+                    '1' &&
+                ( submission.intent !== candidateIntent.id ||
+                    submission.target !== candidateIntent.target ||
+                    submission.digest !== candidateIntent.digest )
+            ) {
+                observations.push( {
+                    operation: 'candidate-mutation-blocked',
+                    value: submission.target,
+                } );
+                send( response, 409, 'text/plain; charset=utf-8', 'Mismatch' );
+                return;
+            }
+
+            // This synchronous state transition models atomic compare-and-consume.
+            candidateIntent.used = true;
+            observations.push( {
+                operation: 'candidate-effect',
+                value: candidateIntent.target,
+            } );
+            send( response, 204, 'text/plain; charset=utf-8', '' );
+            return;
+        }
+
+        if (
+            request.method === 'GET' &&
+            request.url?.startsWith( '/isolated-confirm?' )
+        ) {
+            send(
+                response,
+                200,
+                'text/html; charset=utf-8',
+                isolatedConfirmationFixture
+            );
+            return;
+        }
+
+        if (
+            request.method === 'GET' &&
+            request.url?.startsWith( '/top-level-confirm?' )
+        ) {
+            send(
+                response,
+                200,
+                'text/html; charset=utf-8',
+                isolatedConfirmationFixture
+            );
+            return;
+        }
+
+        if (
+            request.method === 'GET' &&
+            request.url === '/intent?id=file-write-1'
+        ) {
+            send(
+                response,
+                200,
+                'application/json; charset=utf-8',
+                JSON.stringify( {
+                    action: intent.action,
+                    digest: intent.digest,
+                    id: intent.id,
+                    label: intent.label,
+                    target: intent.target,
+                } )
+            );
+            return;
+        }
+
+        if ( request.method === 'POST' && request.url === '/mutate-intent' ) {
+            const mutation = JSON.parse( await readBody( request ) ) as {
+                intent: string;
+                target: string;
+            };
+            observations.push( {
+                operation: 'mutation-blocked',
+                value: mutation.target,
+            } );
+            send( response, 409, 'text/plain; charset=utf-8', 'Immutable' );
+            return;
+        }
+
+        if (
+            request.method === 'POST' &&
+            request.url === '/confirm-and-redeem'
+        ) {
+            const confirmation = JSON.parse( await readBody( request ) ) as {
+                intent: string;
+                password: string;
+            };
+
+            if ( confirmation.intent !== intent.id ) {
+                send( response, 404, 'text/plain; charset=utf-8', 'Not found' );
+                return;
+            }
+
+            if ( intent.used ) {
+                observations.push( {
+                    operation: 'replay-blocked',
+                    value: intent.id,
+                } );
+                send( response, 409, 'text/plain; charset=utf-8', 'Already used' );
+                return;
+            }
+
+            if ( confirmation.password !== 'victim-secret' ) {
+                observations.push( {
+                    operation: 'unauthorized-redemption-blocked',
+                    value: intent.id,
+                } );
+                send( response, 403, 'text/plain; charset=utf-8', 'Forbidden' );
+                return;
+            }
+
+            // This synchronous state transition models atomic compare-and-consume.
+            intent.used = true;
+            observations.push( {
+                operation: 'effect',
+                value: intent.target,
+            } );
+            send(
+                response,
+                200,
+                'application/json; charset=utf-8',
+                JSON.stringify( { status: 'executed' } )
             );
             return;
         }
@@ -263,6 +1227,7 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
                     }
                     resolve();
                 } );
+                server.closeAllConnections();
             } ),
         observations: () => [ ...observations ],
         url: 'http://127.0.0.1:' + address.port,
