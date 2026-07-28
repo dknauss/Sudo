@@ -467,10 +467,12 @@ class Admin {
 		$target = add_query_arg( array( 'page' => self::PAGE_SLUG ), network_admin_url( 'settings.php' ) );
 
 		// wp_get_referer() prefers the `_wp_http_referer` POST field over the
-		// Referer header, and that field carries the tabbed settings URL on
-		// submission. Kept in Action_Registry's options.wp_sudo stash allowlist
-		// so the challenge can land the user back on the right tab — nothing is
-		// replayed. A future edit must not drop it or tab-preservation breaks.
+		// Referer header, and that field carries the tabbed settings URL. It comes
+		// from the user's OWN live POST — including the resubmission they make
+		// after reauthenticating — not from any stash: nothing is replayed (#322),
+		// and the fail-closed landing is computed from the stashed URL alone. Its
+		// presence in the options.wp_sudo stash allowlist is vestigial from the
+		// replay design and does not preserve this tab.
 		//
 		// The referer is never redirected to directly — only a validated
 		// `tab` value is lifted onto our own trusted settings URL, so an
