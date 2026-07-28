@@ -420,7 +420,7 @@ msgid "What Sudo is strong at"
 msgstr ""
 
 #: includes/class-admin.php:590
-msgid "<strong>Compromised sessions</strong> — stolen cookies cannot perform gated actions."
+msgid "<strong>Compromised sessions</strong> — a stolen WordPress authentication cookie cannot perform gated actions on its own. A copy of the browser's complete cookie state carries the sudo binding too, and is not covered."
 msgstr ""
 
 #: includes/class-admin.php:591

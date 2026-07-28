@@ -234,7 +234,7 @@ WP Sudo does **not** reuse the upstream Two-Factor login flow. Instead, it borro
 - password verification first
 - second factor before granting a higher-trust session
 - provider-rendered fields plus provider-owned validation
-- explicit replay or continuation only after the second factor succeeds
+- explicit continuation only after the second factor succeeds
 
 That is why this reference belongs alongside:
 

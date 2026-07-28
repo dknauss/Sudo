@@ -44,17 +44,18 @@ filter returns a non-array payload, WP Sudo falls back to built-in rules.
 
 Custom rules protect only the surfaces they define: admin, AJAX, and/or REST. Application Password requests are covered when a custom rule defines REST criteria, because Application Passwords enter through the REST API. WP-CLI, Cron, and XML-RPC Limited mode use a built-in function-hook map for WP Sudo's core rules; they do not automatically discover arbitrary custom rules. If a third-party workflow needs non-interactive protection, either add an explicit integration with `wp_sudo_check()` / `wp_sudo_require()`, expose it through a REST rule that WP Sudo can match, or use the surface policy to disable the entry point. WPGraphQL is gated by its own surface-level policy rather than per-rule matching — in Limited mode, all mutations require a sudo session regardless of which action they perform. See [WPGraphQL Surface](#wpgraphql-surface) below.
 
-For POST replay, custom admin rules should declare a `stash` policy. WP Sudo
-stores only top-level POST fields named in `stash.post_fields`; if no allowlist
-is present, the user can still reauthenticate but the POST body is not replayed
-automatically. Use `post_mode => 'none'` for uploads, file-editor saves, or
-other requests that cannot be safely reconstructed from POST fields alone.
+Custom admin rules may still declare a `stash` policy, which controls what is
+retained for the challenge to describe — **not** what is replayed, since nothing
+is replayed. WP Sudo stores only top-level POST fields named in
+`stash.post_fields`. Use `post_mode => 'none'` for uploads, file-editor saves, or
+other requests you do not want retained at all.
 
 **A server-stashed request is never replayed after reauthentication (#322, 4.9.0).**
 Automatic replay was removed outright for every method, every rule and every admin
 surface that stashes. This is scoped to requests the *server* stashed: the block
-editor's in-tab retry re-dispatches the request the user actioned in that tab moments
-earlier, which never left the browser and which nobody else can plant. A gated request is
+editor's in-tab retry re-dispatches only for the caller that opened the modal, from
+options held in that caller's own closure with nothing stored server-side, so nobody
+else can plant it. A gated request is
 stashed so the challenge can name what is being authorised, and the stash is then
 **consumed, never executed**: the user is returned to the screen the request came
 from, holding the sudo session they just earned, to re-issue the action themselves.
@@ -79,12 +80,13 @@ about replay:
   name, not `admin_email`, so an administration-email takeover rendered no `Target:`
   line at all. See `GB-ADMIN-EMAIL-FIELD`.) A rule whose effect rides an unrecognised
   parameter still gates correctly and
-  still reauthenticates — it simply falls back to the manual landing, where the user
-  re-issues the action against the session they now hold. This is deliberate: replaying
-  against a coarse label alone is consent to a category, not to an action.
+  still reauthenticates — what it loses is the `Target:` line, so the user sees only
+  the coarse label before re-issuing the action against the session they now hold.
+  This is why naming matters: consenting to a coarse label alone is consent to a
+  category, not to an action.
 - A `stash.post_fields` allowlist naming a field outside that set has the same effect on
-  POST: the payload carries an effect the confirmation did not describe, so the rule
-  falls back to the manual path.
+  POST: the payload carries an effect the confirmation did not describe, so the
+  challenge names less than the request actually does.
 
 Neither case is an error, and neither weakens gating — nothing is replayed either way.
 Express your rule's target through a recognised parameter so the challenge page can
@@ -117,12 +119,11 @@ add_filter( 'wp_sudo_gated_actions', function ( array $rules ): array {
         ),
         'stash'    => array(
             'post_mode'   => 'allowlist',
-            // NOTE (4.9.0): `item_id` is not a recognised target param, so this rule
-            // gates and reauthenticates normally but is NOT auto-replayed — the user
-            // re-issues the action. It DID auto-replay at 4.8.0. Deliberately left as
-            // written: this is the shape people copy, and every copy already in the
-            // wild behaves this way. To get replay back, carry the effect in a key
-            // from `Request_Stash::TARGET_PARAMS`. See "Replay eligibility" above.
+            // NOTE (4.9.0): this rule gates and reauthenticates normally, then the
+            // user re-issues the action. It DID auto-replay at 4.8.0. Nothing here
+            // restores that: automatic replay was removed outright, so no choice of
+            // field or target parameter brings it back. `post_fields` controls only
+            // what the challenge can retain and describe.
             'post_fields' => array( '_wpnonce', '_wp_http_referer', 'action', 'item_id' ),
         ),
     );
@@ -130,7 +131,7 @@ add_filter( 'wp_sudo_gated_actions', function ( array $rules ): array {
 } );
 ```
 
-For non-replayable POST actions:
+For POST actions whose body should not be retained at all:
 
 ```php
 'stash' => array(
@@ -672,22 +673,21 @@ do_action( 'wp_sudo_action_replayed', int $user_id, string $rule_id ); // dorman
 // counterpart to the above: without it the fail-closed path is silent, so a
 // reauthentication completed in a browser that did not start the action leaves no
 // audit trail and looks identical to nothing happening. $reason is one of
-// replay_disabled (the ordinary case) or no_credential_this_request (a stash
-// released by a session-holder rather than the browser that created it),
-// unnamed_target, no_binding_minted, no_proof_presented, proof_mismatch,
-// url_altered, insecure_replay_url.
+// replay_disabled (the ordinary case) or no_credential_this_request (the stash
+// was released on a request that presented no credential — an already-active
+// session, for instance). Those are the ONLY two: 4.9.0 removed automatic replay,
+// so the six eligibility reasons that used to appear here — unnamed_target,
+// no_binding_minted, no_proof_presented, proof_mismatch, url_altered,
+// insecure_replay_url — can no longer fire and are gone.
 //
 // This is NOT limited to the post-reauthentication path: it also fires from the
 // already-active-session resume paths, where no credential is presented and the
 // reason is no_credential_this_request. That reason means only that no credential
 // was verified on the releasing request — an ordinary multi-tab resume produces it
 // just as a lure landing on a session-holder does, and the server cannot tell them
-// apart. Correlate it; do not alert on it alone.
-// on a session-holder — but ALSO by an ordinary resume when the session was
-// activated in another tab. The server cannot tell those apart, so correlate
-// rather than alert. Nothing executes on any path: replay is removed.
-// live hole — but the attempt is visible nowhere else. Fires at most once per
-// stash (the stash is consumed before the hook runs).
+// apart. Correlate it; do not alert on it alone. Nothing executes on any path —
+// replay is removed — so this hook records a discard, never an action. Fires at
+// most once per stash (the stash is consumed before the hook runs).
 do_action( 'wp_sudo_replay_refused', int $user_id, string $rule_id, string $reason );
 
 // Admin-escalation guard (v4.1.0, opt-in via the wp_sudo_guard_escalation filter,
@@ -1026,7 +1026,7 @@ for the full design. Not scheduled; optional Phase 5 of the v3.1–v3.3 plan.
 | `wp_sudo_validate_two_factor` | Validate a 2FA code (for third-party 2FA plugins). |
 | `wp_sudo_log_passed_events_enabled` | Toggle recording of `action_passed` dashboard events. Default `true`; intended for explicit code-level overrides only. |
 | `wp_sudo_critical_options` | The option names gated by the built-in `options.critical` rule (default: `siteurl`, `home`, `admin_email`, `new_admin_email`, `default_role`, `users_can_register`). Removing an entry silently un-gates that option — narrow the built-in protection set with care. |
-| `wp_sudo_sensitive_stash_keys` | Lowercase field-name keys omitted from a stashed request before replay (default includes `password`, `user_pass`, `pass1`/`pass2`, `token`, `secret`, …). Matched case-insensitively, including nested keys. Over-matching is safe (the field is dropped and the user resubmits); under-matching risks replaying a secret. |
+| `wp_sudo_sensitive_stash_keys` | Lowercase field-name keys omitted when a request is stashed (default includes `password`, `user_pass`, `pass1`/`pass2`, `token`, `secret`, …). Matched case-insensitively, including nested keys. The stash is never replayed, so the risk under-matching creates is a secret **retained** in the transient — readable by anything that can read the stash — not a secret replayed. Over-matching is safe: the field is simply absent and the user re-enters it. |
 | `wp_sudo_cookie_secure` | Whether session/2FA cookies set the `Secure` flag (default `is_ssl() \|\| force_ssl_admin()`). Returning `false` on production HTTPS exposes the cookie over plain HTTP — change only for known reverse-proxy/TLS-termination setups. |
 | `wp_sudo_wpgraphql_classification` | Classify WPGraphQL body as `mutation` or `query` (persisted-query support). |
 | `wp_sudo_wpgraphql_bypass` | Bypass WPGraphQL Limited-mode gating for specific requests. |
@@ -1098,7 +1098,7 @@ Returns `true` if the user has an unexpired sudo session with a valid token. Thi
 
 Returns `true` when the session has expired **within the last `GRACE_SECONDS` (120 s)** and the session token still matches the cookie. Used by the Gate at interactive decision points (admin UI, REST, WPGraphQL) to allow in-flight form submissions to complete after the session timer expires.
 
-Session binding is enforced during the grace window — the self-authenticating proof (HMAC + cookie match, read cache-bypassed) is verified before returning `true`. A stolen cookie on a different browser, or a forged proof, does not gain grace access.
+Session binding is enforced during the grace window — the self-authenticating proof (HMAC + cookie match, read cache-bypassed) is verified before returning `true`. A stolen WordPress authentication cookie on a different browser, or a forged proof, does not gain grace access. A copy of the browser's complete cookie state carries `wp_sudo_token` too and is **not** covered — the same boundary as the sudo window itself (see [Security Model → Boundary: session binding vs. a cloned cookie jar](security-model.md#boundary-session-binding-vs-a-cloned-cookie-jar)).
 
 The admin bar UI uses `is_active()` only; it always reflects the true session state.
 

@@ -14,13 +14,21 @@ WP Sudo uses the term **reauthentication** to describe its core pattern, followi
 
 ## What It Protects Against
 
-> **Read "stolen cookie" precisely.** Throughout this document and the readme, the
-> threat that session binding defeats is theft of the **WordPress authentication
-> cookie alone** — exfiltrated by XSS, read from a log, lifted off a proxy. It does
-> **not** cover a copy of the browser's whole cookie jar, because the binding is
-> itself a cookie. See *Boundary: session binding vs. a cloned cookie jar* below.
+> **Read "stolen cookie" precisely.** Throughout this document and `readme.txt`,
+> the threat that session binding defeats is theft of the **WordPress
+> authentication cookie alone** — read from a log, lifted off a proxy, disclosed
+> by a bug that exposes cookie values, or taken from a compromised device.
+> WordPress core sets its authentication cookies `HttpOnly` by default
+> (`GB-AUTH-COOKIE-HTTPONLY`), so injected script does not read them *through
+> `document.cookie`*. Do **not** read that as "XSS cannot obtain the cookie":
+> `wp_set_auth_cookie()` is a pluggable function a plugin may replace, the
+> `send_auth_cookies` filter can suppress that path entirely, and script that
+> cannot read the cookie can still **ride** the authenticated session — a case
+> this design does not defend against at all. Session binding likewise does
+> **not** cover a copy of the complete cookie state. See *Boundary: session
+> binding vs. a cloned cookie jar*.
 
-- **Compromised admin sessions** — a stolen session cookie cannot perform covered gated actions without reauthenticating unless that same browser session already has an active sudo window. The sudo session is cryptographically bound to the browser **by a second cookie**, so this holds against theft of the auth cookie alone and not against a cloned cookie jar (see the boundary note above).
+- **Compromised admin sessions** — a stolen session cookie cannot perform covered gated actions without reauthenticating unless that same browser session already has an active sudo window. The sudo session is cryptographically bound to the browser **by a second cookie, `wp_sudo_token`**, so this holds against theft of the WordPress authentication cookie alone and not against a copy of complete cookie state, which carries `wp_sudo_token` too (see the boundary note above).
 - **Connector credential replacement** — a stolen `manage_options` browser session cannot silently replace database-backed Connectors API keys over `POST`/`PUT`/`PATCH /wp/v2/settings` without reauthenticating first. The rule matches only that REST route (the WP 7.0 Connectors panel saves through it); options writes that reach the database through other admin-side paths are not covered by this rule. REST readback already masks the stored secret — WordPress 7.0 core registers `_wp_connectors_rest_settings_dispatch()` on `rest_post_dispatch`, which replaces each registered connector API-key setting in the `/wp/v2/settings` response with a masked value via `_wp_connectors_mask_api_key()` (`wp-includes/connectors.php`).
 - **Session theft → password change → lockout** — password changes on the profile/user-edit pages and via the REST API are a gated action (`user.change_password`). An attacker who steals a session cookie cannot silently change the victim's password without triggering the challenge.
 - **Insider threats** — even legitimate administrators must prove their identity before destructive operations.
@@ -312,13 +320,15 @@ For headless deployments that need to gate mutations by authentication — requi
 - **Object cache** — user meta reads go through `get_user_meta()`, which may be served from an object cache (Redis, Memcached). Standard WordPress cache invalidation handles this correctly, but custom or misconfigured cache setups can cause issues. See [Caching Considerations](#caching-considerations) for a full risk analysis.
 - **Surface detection** — the gate relies on WordPress constants (`REST_REQUEST`, `DOING_CRON`, `WP_CLI`, `XMLRPC_REQUEST`) set by WordPress core before plugin code runs. These constants are stable across all standard WordPress hosting environments.
 - **MU loader path resolution** — the loader resolves multiple basename/path candidates (configured basename, loader-derived basename, canonical fallback). If none resolve, it fails safely and emits `wp_sudo_mu_loader_unresolved_plugin_path` for diagnostics.
-- **HTTPS and reauthentication replay (#322)** — after reauthenticating, WP Sudo can resume the action the user was performing. That resume is bound to the browser that started it, so a cloned session (stolen auth cookie, no password) cannot plant an action for someone else's reauthentication to carry out. A cloned cookie jar carries the binding cookie too and is not covered — see *Boundary: session binding vs. a cloned cookie jar*. The binding rides a `__Host-` prefixed cookie. The prefix forces the `Secure` attribute ([RFC 6265bis §4.1.3.2](https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis#section-4.1.3.2)), and the spec leaves "secure channel" to the user agent — "typically HTTP over Transport Layer Security" (§4.1.2.5) — so browsers also honour it on origins they treat as trustworthy without TLS, `http://localhost` being the one that matters in practice. WP Sudo does not rely on the browser to draw that line: `Request_Stash::mint_binding_proof()` refuses to mint unless `Sudo_Session::cookie_secure()` is true, which is `is_ssl() || force_ssl_admin()` (filterable through `wp_sudo_cookie_secure`). On a site not served over HTTPS the binding is therefore never issued, and reauthentication always takes the fail-closed path: nothing is resumed, the user is returned to the page they came from with a "review and submit again" notice, and they repeat the action themselves. This is the secure fallback rather than a fault — the degradation is only to convenience. It is surfaced in Site Health ("Sudo Reauthentication Replay"). The same fail-closed path is taken when the browser omits `Sec-Fetch-Site: same-origin` (e.g. the action was reached from a bookmark or typed URL, or on browsers without Fetch Metadata), and when a proxy or CDN strips `Set-Cookie` from redirects.
+- **HTTPS and reauthentication replay (#322)** — **nothing is resumed after reauthentication.** `Challenge::build_replay_response_data()` has no branch that can return a replay instruction — that is the whole guarantee, and it is verifiable by reading one method. Automatic replay was removed rather than conditioned. WP Sudo still mints the `__Host-` prefixed binding cookie belonging to the superseded design, in which a resume was bound to the browser that started it; the cookie is retained but **inert**, so the cloned-jar boundary below concerns the **sudo session**, not replay. The mechanics that follow are documented because the cookie is still set, not because they still gate anything. The prefix forces the `Secure` attribute ([RFC 6265bis §4.1.3.2](https://datatracker.ietf.org/doc/html/draft-ietf-httpbis-rfc6265bis#section-4.1.3.2)), and the spec leaves "secure channel" to the user agent — "typically HTTP over Transport Layer Security" (§4.1.2.5) — so browsers also honour it on origins they treat as trustworthy without TLS, `http://localhost` being the one that matters in practice. WP Sudo does not rely on the browser to draw that line: `Request_Stash::mint_binding_proof()` refuses to mint unless `Sudo_Session::cookie_secure()` is true, which is `is_ssl() || force_ssl_admin()` (filterable through `wp_sudo_cookie_secure`). On a site not served over HTTPS the binding is therefore never issued, and reauthentication always takes the fail-closed path: nothing is resumed, the user is returned to the page they came from with a "review and submit again" notice, and they repeat the action themselves. Since 4.9.0 that is simply what every site does, HTTPS or not, because nothing is resumed anywhere. The same landing is taken when the browser omits `Sec-Fetch-Site: same-origin` (e.g. the action was reached from a bookmark or typed URL, or on browsers without Fetch Metadata), and when a proxy or CDN strips `Set-Cookie` from redirects.
 
   **What actually qualifies as same-origin — and the residual that follows.** `Sec-Fetch-Site` is decided by **origin alone**, and specifically by the origin that *initiated* the request: the browser starts at `same-origin` and downgrades if any URL in the request's chain is not same-origin with the **request's own origin** ([Fetch Metadata Request Headers](https://www.w3.org/TR/fetch-metadata/), `set-site` step 5). It is the initiator that is compared, not the target — so nothing about the destination being `wp-admin` enters into it. It has nothing to do with being inside `wp-admin`. **An ordinary link on the site's own front end therefore qualifies**, as does a form or redirect anywhere on the same origin.
 
-  That matters for what the binding does and does not defend. It defeats the **remote** form of #322: an attacker who can replay the cookie but cannot place content on the site has no way to mint a proof in the victim's browser, so they cannot plant an action for the victim's reauthentication to carry out. A lure from *another* site fails the same way — a cross-site link or form sends `cross-site`, mints nothing, and fails closed.
+  **The two paragraphs that follow describe the superseded design, in which the binding gated a resume. They are retained because the cookie is still minted and its `Sec-Fetch-Site` behaviour is still observable — not because either paragraph names a control that operates today.** Under the shipped behaviour no stashed action is carried out at all, so neither the binding nor the named-target confirmation is load-bearing against a planted stash; what closes that risk is that nothing is resumed.
 
-  It does **not** defeat an attacker whose stolen cookie is privileged enough to publish. A stolen Administrator session can create or edit a post containing the crafted link — WP Sudo does not gate publishing — and then steer the victim to it. The link is same-origin, so the victim's own click mints the binding. **Against a stolen Administrator cookie specifically, the binding is not the control**; the named-target confirmation is.
+  In that design, the binding defeated the **remote** form of #322: an attacker who could replay the cookie but not place content on the site had no way to mint a proof in the victim's browser, so could not plant an action for the victim's reauthentication to carry out. A lure from *another* site failed the same way — a cross-site link or form sends `cross-site`, mints nothing, and fails closed.
+
+  It did **not** defeat an attacker whose stolen cookie was privileged enough to publish. A stolen Administrator session can create or edit a post containing the crafted link — WP Sudo does not gate publishing — and then steer the victim to it. The link is same-origin, so the victim's own click mints the binding. Against a stolen Administrator cookie specifically the binding was therefore never the control, which was among the reasons replay was removed outright rather than conditioned.
 
   What it does **not** stop is a lure from same-origin content the attacker can influence. A link in a published post or an approved comment is same-origin, so a victim who clicks it issues the gated request from their own browser and the binding is minted there. So the failure position is narrow and specific — not "the binding is weak", but "the binding assumes the attacker cannot place a link in your own front-end content" — and the exposure is wider than "XSS inside `wp-admin`", since ordinary stored content reaches it.
 
@@ -472,13 +482,13 @@ authenticated requests.
 
 **What WP Sudo stores via transients:**
 
-- `Request_Stash` saves the replay target (method and URL) plus only the
-  matched rule's allowlisted POST fields. It does not store `$_GET`
-  separately; GET replay uses the original URL. Passwords, tokens, API keys,
-  and other configured or suffix-matched secret fields are omitted from the
-  stash; when those fields were present, WP Sudo redirects the user back after
-  reauthentication and asks them to re-enter the secret while the sudo session
-  is active.
+- `Request_Stash` saves the intercepted request's method and URL plus only the
+  matched rule's allowlisted POST fields — enough for the challenge to name what
+  is being authorised, and for the user to be returned to the right screen. It is
+  never used to re-issue the request. It does not store `$_GET` separately.
+  Passwords, tokens, API keys, and other configured or suffix-matched secret
+  fields are omitted from the stash, so the user re-enters them while the sudo
+  session is active.
 - `Sudo_Session` stores per-IP failed-attempt event buckets
   (`wp_sudo_ip_failure_event_{hash}`) and per-IP lockout timestamps
   (`wp_sudo_ip_lockout_until_{hash}`) for multidimensional rate limiting.
@@ -493,10 +503,12 @@ If the object cache evicts the stash entry (due to memory pressure, TTL
 expiration, or cache flush) before the user completes the challenge, the original
 request data is lost.
 
-**Impact:** The user reauthenticates successfully but is redirected to the admin
-dashboard instead of replaying their original action. They must repeat the
-action manually. This is **annoying but not a security issue** — it fails safe
-(no action is taken without authentication).
+**Impact:** narrower than it once was, because nothing is resumed either way. The
+user repeats the action manually in both cases; what eviction costs is the
+landing — with the stash present they are returned to the screen the request came
+from, and without it they land on the fallback URL, typically the dashboard. This
+is **annoying but not a security issue** — it fails safe (no action is taken
+without authentication).
 
 **Mitigations:**
 
@@ -504,9 +516,8 @@ action manually. This is **annoying but not a security issue** — it fails safe
 - Without a persistent object cache, transients fall back to the `wp_options`
   database table, which is not subject to memory-pressure eviction.
 - The stash stores only the request metadata and rule-allowlisted POST fields
-  needed for replay. Unsafe or unallowlisted POST bodies are not replayed
-  automatically. Stashes are small (typically under 1 KB) and unlikely to be
-  evicted by LRU policies.
+  the challenge needs in order to describe the action. Stashes are small
+  (typically under 1 KB) and unlikely to be evicted by LRU policies.
 
 **Risk: IP-rate-limit transient eviction or stale reads.** If per-IP failure
 event/lockout transients are evicted early, the combined lockout policy can
@@ -556,10 +567,17 @@ the other, and nothing more. Any route that exports complete cookie state
 exports both.
 
 A gated request is admitted when two things line up — the proof entry keyed by
-`hash( 'sha256', wp_get_session_token() )`, which is derived from the auth
-cookie, and the `wp_sudo_token` cookie whose hash that entry stores. An attacker
-holding only the auth cookie has the first and not the second, which is exactly
-what the binding is for. An attacker holding complete cookie state has **both**, and every
+`hash( 'sha256', wp_get_session_token() )`, and the `wp_sudo_token` cookie whose
+hash that entry stores. The verifier comes specifically from `LOGGED_IN_COOKIE`
+(`GB-SESSION-TOKEN-SRC`), not from the admin auth cookie — but do not read that
+as a first line of defence, because it is not one. `wp_set_auth_cookie()` mints a
+single session token and puts it in **both** cookies, and the token is a
+plaintext pipe-delimited field of each, which `wp_parse_auth_cookie()` splits
+without verifying an HMAC or an expiry (`GB-AUTH-COOKIE-PARSE`). So an attacker
+holding only the admin auth cookie already has the token and can fabricate a
+`LOGGED_IN_COOKIE` that keys the lookup exactly. What stops them is the second
+conjunct — they do not have `wp_sudo_token`, which is exactly what the binding
+is for. An attacker holding complete cookie state has **both**, and every
 check passes: same verifier, matching token hash, valid HMAC. Nothing in the
 design distinguishes that browser from the original.
 
