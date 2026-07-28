@@ -156,13 +156,13 @@ with at least one `api_key` connector configured (core ships Akismet, whose key 
 4. **Expected:** A second step appears requesting your verification
    code (TOTP, email, backup code, etc.).
 5. Enter the correct code.
-6. **Expected:** Session activates, original action is replayed.
+6. **Expected:** Session activates; the action is **not** applied — you are returned to re-submit it yourself under the now-active sudo session (automatic replay removed in 4.9.0, #322).
 
 ---
 
-## 2. Admin UI Gating (Stash-Challenge-Replay)
+## 2. Admin UI Gating (Stash-Challenge-Return)
 
-These tests verify the stash-challenge-replay flow. For each test,
+These tests verify the stash-challenge-return flow. For each test,
 log in with an Administrator account and ensure **no sudo session is
 active** when you start.
 
@@ -173,7 +173,8 @@ actions proceed without further challenges until the session expires.
 
 For form-based actions (user operations, settings changes, exports),
 submitting the form triggers a redirect to the challenge page. After
-authentication, the original POST request is replayed automatically.
+authentication the stash is discarded and you are returned to re-submit the
+form yourself — automatic replay was removed outright in 4.9.0 (#322).
 
 ### 2.1 Activate Plugin
 
@@ -231,7 +232,7 @@ authentication, the original POST request is replayed automatically.
 2. **Expected:** Redirected to the challenge page. Action label shows
    "Change user role."
 3. Authenticate.
-4. **Expected:** Role change is replayed. Redirected back to Users.
+4. **Expected:** the action is **not** applied — you are returned to re-submit it yourself under the now-active sudo session (automatic replay removed in 4.9.0, #322). Re-apply the role change to complete it.
 
 ### 2.7 Change User Role (Profile Page)
 
@@ -240,7 +241,7 @@ authentication, the original POST request is replayed automatically.
 3. **Expected:** Redirected to challenge page. Action label shows
    "Change user role."
 4. Authenticate.
-5. **Expected:** Profile update is replayed.
+5. **Expected:** the action is **not** applied — you are returned to re-submit it yourself under the now-active sudo session (automatic replay removed in 4.9.0, #322).
 
 ### 2.8 Create User
 
@@ -259,7 +260,7 @@ authentication, the original POST request is replayed automatically.
 3. **Expected:** Redirected to challenge page. Action label shows
    "Change critical site settings."
 4. Authenticate.
-5. **Expected:** Settings save is replayed.
+5. **Expected:** the action is **not** applied — you are returned to re-submit it yourself under the now-active sudo session (automatic replay removed in 4.9.0, #322).
 
 ### 2.10 Change WP Sudo Settings (Self-Protection)
 
@@ -268,7 +269,7 @@ authentication, the original POST request is replayed automatically.
 2. **Expected:** Redirected to challenge page. Action label shows
    "Change WP Sudo settings."
 3. Authenticate.
-4. **Expected:** Settings save is replayed.
+4. **Expected:** the action is **not** applied — you are returned to re-submit it yourself under the now-active sudo session (automatic replay removed in 4.9.0, #322).
 
 ### 2.11 Export Site Data
 
@@ -295,7 +296,7 @@ authentication, the original POST request is replayed automatically.
 2. Edit a file and click **Update File**.
 3. **Expected:** Redirected to challenge page.
 4. Authenticate.
-5. **Expected:** File edit is replayed.
+5. **Expected:** the action is **not** applied — you are returned to re-submit it yourself under the now-active sudo session (automatic replay removed in 4.9.0, #322).
 
 ### 2.13 Bypass Challenges with Active Session
 
@@ -303,12 +304,16 @@ authentication, the original POST request is replayed automatically.
 2. Repeat any test above.
 3. **Expected:** Actions proceed immediately with no challenge.
 
-### 2.14 Cancel Returns to Originating Page
+### 2.14 Cancel Returns to a Server-Chosen Page
 
-1. Trigger any stash-challenge-replay flow.
+1. Trigger any stash-challenge-return flow.
 2. On the challenge page, click **Cancel**.
-3. **Expected:** Returned to the page you started from, not the
-   dashboard.
+3. **Expected (corrected):** you land on the **dashboard** (network dashboard on
+   multisite), not the page you started from. `Challenge::enqueue_assets()` sets
+   `cancelUrl = $default_url` — `is_network_admin() ? network_admin_url() :
+   admin_url()` — so no requester-supplied destination is ever honoured, which is
+   the #322 guarantee. Landing back on the originating screen was traded away
+   deliberately.
 
 ### 2.15 Change Password (Profile Page)
 
@@ -908,7 +913,7 @@ curl -sk "YOUR_SITE_URL/wp-cron.php" -w "HTTP: %{http_code}, body: %{size_downlo
 
 ### 14.1 Expired Stash
 
-1. Trigger a stash-challenge-replay flow.
+1. Trigger a stash-challenge-return flow.
 2. Wait more than 5 minutes on the challenge page (stash TTL expires).
 3. Enter your password.
 4. **Expected:** Error message: "Your challenge session has expired.
@@ -1051,13 +1056,15 @@ no stash transients are written, and no audit hooks fire.
 5. **Expected:**
    - Matched rule: `plugin.activate`
    - Decision: `gate`
-   - **No replay row and no replay claim anywhere in the result.** Since #322 the
-     tester does not predict whether the action resumes: that is decided at
-     request time, chiefly by the binding cookie and a same-origin
-     `Sec-Fetch-Site`, which no simulated shape carries. If you see the pre-4.9.0 **Stash/replay
-     eligible** row, or any of "Replay permitted", "replay eligible", "will
-     replay", or "never replayed", the prediction has been reintroduced and the
-     result is not trustworthy.
+   - **No replay row and no replay claim anywhere in the result.** There is
+     nothing to predict: 4.9.0 removed automatic replay **unconditionally**
+     (#322/#459), and `Challenge::build_replay_response_data()` has no branch
+     that can return a replay instruction. An interim design made resumption
+     conditional on a binding cookie and a same-origin `Sec-Fetch-Site`; that
+     design was removed before release, so no runtime signal decides it. If you
+     see the pre-4.9.0 **Stash/replay eligible** row, or any of "Replay
+     permitted", "replay eligible", "will replay", or "never replayed", the
+     prediction has been reintroduced and the result is not trustworthy.
 
 #### Test B — AJAX surface: install plugin
 
@@ -1665,7 +1672,7 @@ curl -sk -X POST "YOUR_SITE_URL/graphql" \
 5. Activate sudo and repeat on a gated action that is allowed in policy flow.
 6. **Expected:** Corresponding WSAL event IDs fire based on hook type (for
    example `1900005` gated, `1900007` allowed, `1900008` passed,
-   `1900009` replayed).
+   `1900009` replayed — dormant since 4.9.0, so it will not fire).
 7. Temporarily deactivate/uninstall WSAL while leaving the bridge file in place.
 8. **Expected:** No fatal errors; bridge remains inert when WSAL APIs are absent.
 
@@ -1688,13 +1695,14 @@ curl -sk -X POST "YOUR_SITE_URL/graphql" \
 7. **Expected:** Record args/meta include `source=wp-sudo`,
    the corresponding `hook` (for example `wp_sudo_action_gated` or
    `wp_sudo_action_blocked`), plus `rule_id` and `surface`.
-8. Trigger other lifecycle events (activate/deactivate sudo, lockout,
-   replay) and confirm corresponding actions (`activated`,
-   `deactivated`, `lockout`, `replayed`) appear in Stream.
-9. Trigger a real replay flow (for example, activate an inactive plugin through
-   the challenge screen) and confirm a `replayed` record appears.
-10. **Expected:** The replay record includes
-    `hook=wp_sudo_action_replayed` and the expected `rule_id`
+8. Trigger other lifecycle events (activate/deactivate sudo, lockout) and
+   confirm corresponding actions (`activated`, `deactivated`, `lockout`) appear
+   in Stream. Do NOT expect a `replayed` action — see step 10.
+9. Trigger a gated action through the challenge screen (for example, activating
+   an inactive plugin) and confirm a `replay_refused` record appears.
+10. **Expected:** The record includes `hook=wp_sudo_replay_refused` and the
+    expected `rule_id`. `wp_sudo_action_replayed` is dormant since 4.9.0 removed
+    automatic replay, so no `replayed` record can appear
     (for example `plugin.activate`).
 11. Temporarily deactivate/uninstall Stream while leaving the bridge file in place.
 12. **Expected:** No fatal errors; bridge remains inert when Stream APIs are

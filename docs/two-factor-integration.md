@@ -53,7 +53,7 @@ flowchart TD
     V -- Yes --> ACT
 
     ACT --> DONE["Sudo session active"]
-    DONE --> R["Interactive / full-page: discard the stash,<br/>return the user to re-issue it themselves<br/>Editor modal: re-dispatch the apiFetch the user<br/>actioned in that tab (never left the browser)"]
+    DONE --> R["Interactive / full-page: discard the stash,<br/>return the user to re-issue it themselves<br/>Editor modal: re-dispatch only for the caller<br/>that opened it (nothing stored server-side)"]
 ```
 
 ---
@@ -68,7 +68,7 @@ When the user submits their password, the JavaScript sends an AJAX request to `w
 2. Validates the password with `wp_check_password()`.
 3. Calls `Sudo_Session::needs_two_factor( $user_id )`.
 
-If 2FA is **not** required, the session activates immediately and the original request is replayed — subject to the eligibility conditions in the [FAQ](FAQ.md#how-does-sudo-gating-work): a request the challenge could not fully name is never replayed. If the stashed request contained redacted password, token, API-key, or secret fields, WP Sudo redirects the user back instead and asks them to re-enter the secret while the sudo session is active.
+If 2FA is **not** required, the session activates immediately, the stashed request is discarded, and the user is returned to where they were (handler URLs such as `options.php` land on the dashboard instead — a bare GET of them renders nothing usable) to re-issue the action under the session they just earned — nothing is replayed (see [FAQ](FAQ.md#how-does-sudo-gating-work)). Where the original request carried password, token, API-key or secret fields **in its POST body**, those were never stashed, so the user re-enters them with the sudo session active. That redaction is POST-only: `Request_Stash::build_original_url()` stores the whole `REQUEST_URI` including its query string, so a custom GET-gated rule carrying a secret in the URL retains it in the transient. Do not put secrets in a gated GET.
 
 If 2FA **is** required, the server:
 
@@ -96,7 +96,7 @@ The server (`Challenge::handle_ajax_2fa()`) then:
 3. Validates the transient belongs to the current user and has not expired.
 4. Calls the 2FA provider's validation method.
 5. Applies the `wp_sudo_validate_two_factor` filter.
-6. On success: clears the pending state, activates the session, replays the stash.
+6. On success: clears the pending state, activates the session, discards the stash, and returns the user to re-issue the action.
 
 ---
 
@@ -371,10 +371,11 @@ Not gated:
 - normalized no-op provider resubmissions (same set, different order, dummy empty
   values, unsupported provider keys, or duplicates).
 
-Profile replay for a mixed profile plus Two Factor save preserves source-verified
-core profile fields (`email`, `nickname`, `role`, etc.) in the stash allowlist so
-the replayed request completes as a full core profile update after the WP Sudo
-challenge.
+A mixed profile plus Two Factor save keeps source-verified core profile fields
+(`email`, `nickname`, `role`, etc.) in the stash allowlist so the challenge can
+name what is being authorised. The request itself is not resumed: after
+reauthenticating the user is returned to the profile screen and saves again under
+the active sudo session.
 
 Threat model note: Two Factor's own revalidation window can still allow factor
 management when WP Sudo's shorter sudo session is inactive. If a session is

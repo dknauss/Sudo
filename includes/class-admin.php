@@ -466,11 +466,13 @@ class Admin {
 
 		$target = add_query_arg( array( 'page' => self::PAGE_SLUG ), network_admin_url( 'settings.php' ) );
 
-		// wp_get_referer() prefers the replayed `_wp_http_referer` POST field
-		// over the Referer header, which is what carries the tabbed settings
-		// URL through a sudo reauth replay (see Action_Registry's
-		// options.wp_sudo stash allowlist). A future edit to that allowlist
-		// must not drop `_wp_http_referer` or this tab-preservation breaks.
+		// wp_get_referer() prefers the `_wp_http_referer` POST field over the
+		// Referer header, and that field carries the tabbed settings URL. It comes
+		// from the user's OWN live POST — including the resubmission they make
+		// after reauthenticating — not from any stash: nothing is replayed (#322),
+		// and the fail-closed landing is computed from the stashed URL alone. Its
+		// presence in the options.wp_sudo stash allowlist is vestigial from the
+		// replay design and does not preserve this tab.
 		//
 		// The referer is never redirected to directly — only a validated
 		// `tab` value is lifted onto our own trusted settings URL, so an
@@ -587,7 +589,7 @@ class Admin {
 				'content' =>
 					'<h3>' . __( 'What Sudo is strong at', 'wp-sudo' ) . '</h3>'
 					. '<ul>'
-					. '<li>' . __( '<strong>Compromised sessions</strong> — stolen cookies cannot perform gated actions.', 'wp-sudo' ) . '</li>'
+					. '<li>' . __( '<strong>Compromised sessions</strong> — a stolen WordPress authentication cookie cannot perform gated actions on its own. A copy of the browser\'s complete cookie state carries the sudo binding too, and is not covered.', 'wp-sudo' ) . '</li>'
 					. '<li>' . __( '<strong>Destructive admin operations</strong> — reauthentication required before high-risk actions.', 'wp-sudo' ) . '</li>'
 					. '<li>' . __( '<strong>Headless surface control</strong> — each non-interactive entry point has an explicit mode.', 'wp-sudo' ) . '</li>'
 					. '</ul>'

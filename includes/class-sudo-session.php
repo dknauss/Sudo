@@ -241,9 +241,12 @@ class Sudo_Session {
 	 * lose their work. This two-minute window allows in-flight form
 	 * submissions to complete without requiring re-authentication.
 	 *
-	 * The grace period does NOT relax session binding — the browser cookie
-	 * must still match, so a stolen cookie cannot exploit the grace window
-	 * from a different browser.
+	 * The grace period does NOT relax session binding — the browser cookie must
+	 * still match, so a stolen WordPress AUTHENTICATION cookie cannot exploit the
+	 * grace window from a different browser. A copy of the complete cookie state
+	 * carries wp_sudo_token too and does gain it; the binding narrows the attack
+	 * path, not the attacker's capability (docs/security-model.md, "Boundary:
+	 * session binding vs. a cloned cookie jar").
 	 *
 	 * @since 2.6.0
 	 * @var int
@@ -351,8 +354,9 @@ class Sudo_Session {
 	 * even when the sudo session expired while the user was filling out the
 	 * form. The grace window is GRACE_SECONDS (120 s / 2 min) from expiry.
 	 *
-	 * Token binding is still enforced — a stolen cookie does not gain
-	 * grace-period access from a different browser. Returns false for any
+	 * Token binding is still enforced — a stolen WordPress AUTHENTICATION cookie
+	 * does not gain grace-period access from a different browser. A copy of the
+	 * complete cookie state does, since it carries wp_sudo_token. Returns false for any
 	 * fully active session (expiry in the future) to keep the semantics
 	 * distinct from is_active().
 	 *
