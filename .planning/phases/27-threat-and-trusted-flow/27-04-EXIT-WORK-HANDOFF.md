@@ -66,14 +66,25 @@ not yet been run successfully on the final combined tree.
 
 ### CI and multisite scaffolding
 
+**Superseded — the multisite half of this section no longer describes the tree.**
+See "Carried forward to Phase 29" below for what was removed and why (#490).
+
 - `.github/workflows/phase27-research.yml` adds Node baseline/mutation,
-  WordPress integration/browser/concurrency, and evidence-audit jobs.
-- `tests/e2e/phase27.multisite.wp-env.json` defines WordPress 7.0.2, PHP 8.2,
-  multisite, and port 8893.
-- `npm run test:research:phase27:wordpress:multisite` selects that lane.
-- The runner asserts whether WordPress actually is multisite.
-- YAML/JSON/JavaScript syntax checks passed. Neither the pushed CI run nor a
-  captured full local multisite result exists yet.
+  WordPress, and evidence-audit jobs. It is committed. Note that the three
+  WordPress jobs share one YAML anchor and run an identical command, so they are
+  repetitions rather than the separate integration/browser/concurrency lanes an
+  earlier draft of this bullet claimed.
+- `tests/e2e/phase27.multisite.wp-env.json` **was deleted** before it was ever
+  tracked; it had defined WordPress 7.0.2, PHP 8.2, multisite, and port 8893.
+- `npm run test:research:phase27:wordpress:multisite` **was reverted** and no
+  longer exists in `package.json`.
+- The runner still asserts whether WordPress actually is multisite, but that
+  *lane* is now unreachable through any committed entry point. The assertion
+  itself is not gated on `isMultisiteLane` — it runs on every invocation and
+  would fire if a single-site lane were pointed at a multisite install.
+- The workflow has not run at the time of writing: `git rev-list --all --count`
+  for its path is 0, so GitHub has never held the file. Its first run will be on
+  PR #470, whose path filters this commit itself matches.
 
 ### Storage failure baseline
 
@@ -325,6 +336,62 @@ approve-endpoint fetch in the spec reads `response.status` only, so reverting th
 hunk to `text/plain 'Forbidden'` leaves the suite green. A guard is not verified
 until a test has been seen to fail for the intended mutation, so this is a code
 comment stating intent, not a checked property.
+
+## Carried forward to Phase 29
+
+Recorded here because no `.planning/phases/29-*` directory exists yet. Move this
+section verbatim into the Phase 29 plan when one is created.
+
+### Cross-site approval isolation (Phase 29 acceptance criterion)
+
+Alongside the existing "two simultaneous redemptions produce exactly one winner"
+test, Phase 29 must require:
+
+> **An approval minted on site A must not be redeemable on site B.** The storage
+> substrate must be named and justified in writing. On multisite, user meta is
+> network-global while options and transients are per-site, so the choice decides
+> whether an approval is replayable across a network or silently broken across
+> it.
+
+The multisite research lane was **deferred rather than built** by decision: it
+was incomplete and known broken, and half-built infrastructure that never
+executes is worse than none, because it reads as coverage in a file listing
+while asserting nothing. The criterion above is recorded so the deferral stays a
+decision and does not decay into an omission.
+
+No claim is made here that the failure mode was unreachable. An earlier draft of
+this paragraph argued that it was, on the grounds that Phase 27's ledger is
+in-memory — true of the **Node** lane (`candidateIntents` / `uploadIntents` are
+per-instance `Map`s in `startPhase27ResearchServer()`), but not of the lane that
+was actually deleted. The multisite config drove the **WordPress** lane, whose
+adapter (`tests/e2e/fixtures/phase27-wordpress-adapter.php`) persists to real
+`$wpdb->prefix` tables and to `get_option`/`update_option` — per-site storage on
+multisite, which is precisely the substrate the criterion is about. The
+retracted argument is recorded rather than deleted because it would otherwise be
+re-derived.
+
+`phase27-research-server.ts` is never loaded by the WordPress lane, whose
+Playwright config `testMatch`es only `phase27-wordpress.spec.ts` and
+`phase27-wordpress-failures.spec.ts`. The one module that imports it is the Node
+spec `tests/e2e/research/phase27-handoff.spec.ts`; two other places read it as
+*text* rather than loading it — `bin/run-phase27-mutations.mjs` and the
+`phase27-evidence-audit` job in `.github/workflows/phase27-research.yml`, both
+of which regex-scan it for `mutationEnabled(...)` ids to cross-check the guard
+manifest.
+
+Context: issue #490.
+
+### Debt this deferral leaves behind
+
+`bin/run-phase27-wordpress.mjs` is tracked and already carries a multisite
+branch (`isMultisiteLane`, port `8893`, expected proxy `9444`, and a reference
+to `tests/e2e/phase27.multisite.wp-env.json`). That config file has been
+removed, so the branch is now dead code with a dangling reference, reachable
+only by setting `PHASE27_MULTISITE=1` by hand. It fails loudly rather than
+silently — `wp-env` exits non-zero with `Config file not found` and does not
+fall back to the single-site config — which is the acceptable failure
+direction, but it should be stripped in a separate reviewed tranche or
+completed in Phase 29, not left indefinitely.
 
 ## Release boundary
 
