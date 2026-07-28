@@ -948,7 +948,11 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
                     } );
                     return response.status;
                 }, intentA.id ),
-                'P27-APPROVE-VICTIM-LOCKOUT-BOUNDARY',
+                // Not a window boundary: approvalFailures has no window, so
+                // there is nothing to cross. What this asserts is that the
+                // victim's own correct password is refused once an attacker
+                // sharing the auth cookie has spent the account-scoped budget.
+                'P27-APPROVE-VICTIM-LOCKED-OUT',
             ).toBe( 429 );
         } finally {
             await Promise.allSettled([browserA.close(), browserB.close()]);

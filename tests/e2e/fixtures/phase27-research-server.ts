@@ -1125,7 +1125,18 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
                 (process.env.PHASE27_DISABLE_UPLOAD_APPROVAL_BINDING !== '1' &&
                     binding !== uploadIntent.preparedBinding )
             ) {
-                send( response, 403, 'text/plain; charset=utf-8', 'Forbidden' );
+                // Same body and content type as the wrong-factor 403 below, so
+                // the two are not distinguishable by response shape. The ledger
+                // carries PREFLIGHT_ORACLE to hold preflight to an equivalent
+                // response contract; an approval endpoint that answered
+                // text/plain for a bad binding and JSON for a bad factor would
+                // undercut that on the endpoint where the factor is guessed.
+                send(
+                    response,
+                    403,
+                    'application/json; charset=utf-8',
+                    JSON.stringify({ status: 'rejected' }),
+                );
                 return;
             }
 

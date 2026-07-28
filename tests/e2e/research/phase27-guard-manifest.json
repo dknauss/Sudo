@@ -53,14 +53,14 @@
     },
     {
       "id": "UPLOAD_MULTIPART",
-      "clause": "The upload effect accepts a real multipart request rather than treating the envelope as package bytes.",
+      "clause": "The upload effect accepts a real multipart request rather than treating the envelope as package bytes. WEAK KILL: the probe runs before approval, so the mutant falls past the body parse into the binding disjunct and dies at 403 rather than the 400 the clause describes. It discriminates two rejection codes and never an accepted effect. Moving the probe after approval would consume the one-use intent, so strengthening it needs the test restructured.",
       "focusedTest": "browser-bound package approval sends bytes once and rejects clone, mutation, and replay",
       "assertionId": "P27-UPLOAD-REQUIRES-MULTIPART",
       "implementationStatus": "mutation-verified"
     },
     {
       "id": "UPLOAD_SINGLE_PART",
-      "clause": "The upload effect accepts exactly one package part.",
+      "clause": "The upload effect accepts exactly one package part. WEAK KILL: same mediation as UPLOAD_MULTIPART — the duplicate-part probe also runs before approval, so the mutant dies at 403 from the binding disjunct rather than at the 400 the clause describes.",
       "focusedTest": "browser-bound package approval sends bytes once and rejects clone, mutation, and replay",
       "assertionId": "P27-UPLOAD-REJECTS-DUPLICATE-PART",
       "implementationStatus": "mutation-verified"
