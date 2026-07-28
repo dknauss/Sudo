@@ -1361,7 +1361,14 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
             };
             const binding = cookieValue( request, '__Host-phase27_binding' );
             const auth = cookieValue( request, 'wp_auth' );
-            const authenticated = auth === 'copied-login-session';
+            // Kept in place rather than hoisted into an earlier block. The 403
+            // this block emits is shape-identical to the wrong-factor 403 that
+            // authorizeApprovalFactor() sends below, and /candidate-upload-approve
+            // carries a comment requiring the same of its pair. An earlier block
+            // answering with a different shape would undercut that.
+            const authenticated =
+                mutationEnabled( 'APPROVE_AUTH' ) ||
+                auth === 'copied-login-session';
             const candidateIntent = mutationEnabled( 'APPROVE_LOOKUP' )
                 ? candidateIntents.values().next().value
                 : candidateIntents.get( approval.intent );
@@ -1412,6 +1419,7 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
             };
             const binding = cookieValue( request, '__Host-phase27_binding' );
             const authenticated =
+                mutationEnabled( 'EFFECT_AUTH' ) ||
                 cookieValue( request, 'wp_auth' ) === 'copied-login-session';
             const candidateIntent = mutationEnabled( 'EFFECT_LOOKUP' )
                 ? candidateIntents.values().next().value

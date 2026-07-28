@@ -1413,4 +1413,153 @@ test.describe( 'Phase 27 copied-cookie candidate', () => {
             await server.close();
         }
     } );
+
+    test( 'a downgraded login session cannot approve or redeem its own correctly bound intent', async ( {
+        browser,
+    } ) => {
+        const server = await startPhase27ResearchServer();
+        const context = await browser.newContext();
+
+        try {
+            const loginSession = {
+                name: 'wp_auth',
+                value: 'copied-login-session',
+                url: server.url,
+            };
+            // A wrong value rather than an absent cookie. Deleting the cookie
+            // would also satisfy a server that merely checked wp_auth was
+            // PRESENT, so a presence-check defect would survive the mutation.
+            // Equality with the live session is the clause the reconstruction
+            // ledger names for APPROVE_AUTH and EFFECT_AUTH.
+            const downgraded = {
+                ...loginSession,
+                value: 'stale-login-session',
+            };
+
+            await context.addCookies( [ loginSession ] );
+
+            const page = await context.newPage();
+            // The GET handler mints __Host-phase27_binding, so this context
+            // holds the binding the server itself issued to it.
+            await page.goto( server.url + '/copied-cookie-candidate' );
+
+            const preflight: {
+                body: Record< string, string >;
+                status: number;
+            } = await page.evaluate( async () => {
+                const response = await fetch( '/candidate-preflight', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify( {
+                        action: 'core/write-extension-file',
+                        digest: 'sha256:server-held-proposed-bytes',
+                        target: 'sample-plugin/sample.php',
+                    } ),
+                } );
+
+                return {
+                    body: response.ok ? await response.json() : {},
+                    status: response.status,
+                };
+            } );
+
+            expect(
+                preflight.status,
+                'P27-AUTH-PREFLIGHT-CREATES-INTENT',
+            ).toBe( 200 );
+
+            // Exactly one preflight, and it happens before any cookie edit.
+            // authorizePreflight() keys its budget on scope + ':' + auth, so a
+            // second preflight under the downgraded value would mint a fresh
+            // budget rather than share this one — do not add one here.
+            //
+            // Every probe below sends the CORRECT password on purpose.
+            // authorizeApprovalFactor() runs immediately after the disjunct
+            // block, so a wrong password would return 403 under the mutation
+            // too and the mutant would survive behind the right status code.
+            const approve = async (): Promise< number > =>
+                page.evaluate( async ( intentId ) => {
+                    const response = await fetch( '/candidate-approve', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify( {
+                            intent: intentId,
+                            password: 'victim-secret',
+                        } ),
+                    } );
+                    return response.status;
+                }, preflight.body.id );
+
+            // Exact target and digest, and the intent is unused at each call,
+            // so neither the one-use 409 nor the descriptor-mismatch 409 can
+            // stand in for the 403 this test is about.
+            const redeem = async (): Promise< number > =>
+                page.evaluate(
+                    async ( { digest, intentId, target } ) => {
+                        const response = await fetch( '/candidate-effect', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify( {
+                                digest,
+                                intent: intentId,
+                                target,
+                            } ),
+                        } );
+                        return response.status;
+                    },
+                    {
+                        digest: preflight.body.digest,
+                        intentId: preflight.body.id,
+                        target: preflight.body.target,
+                    },
+                );
+
+            await context.addCookies( [ downgraded ] );
+
+            // Without these two the test could pass for the wrong reason.
+            // `! authenticated` shares one `if` with `binding === ''`,
+            // `intent === undefined` and the binding comparison, so if the
+            // downgrade ever also disturbed the binding cookie the 403 would
+            // come from a different disjunct and the mutation would still look
+            // killed while proving nothing about the login-session axis.
+            const afterDowngrade = await context.cookies();
+            expect(
+                afterDowngrade.find(
+                    ( cookie ) => cookie.name === '__Host-phase27_binding',
+                )?.value,
+                'P27-AUTH-ISOLATES-BINDING',
+            ).toBeTruthy();
+            expect(
+                afterDowngrade.find( ( cookie ) => cookie.name === 'wp_auth' )
+                    ?.value,
+                'P27-AUTH-ISOLATES-LOGIN-SESSION',
+            ).toBe( 'stale-login-session' );
+
+            expect(
+                await approve(),
+                'P27-APPROVE-REQUIRES-LOGIN-SESSION',
+            ).toBe( 403 );
+
+            await context.addCookies( [ loginSession ] );
+            expect( await approve(), 'P27-APPROVE-RESTORED-SESSION' ).toBe(
+                200,
+            );
+
+            await context.addCookies( [ downgraded ] );
+            expect(
+                await redeem(),
+                'P27-EFFECT-REQUIRES-LOGIN-SESSION',
+            ).toBe( 403 );
+
+            // The control. With the session restored and nothing else changed
+            // the same submission succeeds, so the two 403s above are
+            // attributable to the login session and not to a malformed
+            // request that would have been refused either way.
+            await context.addCookies( [ loginSession ] );
+            expect( await redeem(), 'P27-EFFECT-RESTORED-SESSION' ).toBe( 204 );
+        } finally {
+            await context.close();
+            await server.close();
+        }
+    } );
 } );

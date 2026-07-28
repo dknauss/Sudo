@@ -92,6 +92,20 @@
       "focusedTest": "upload body limits reject declared length before reading and stop chunked input at cap plus one byte",
       "assertionId": "P27-UPLOAD-CHUNKED-CAP-PLUS-ONE",
       "implementationStatus": "mutation-verified"
+    },
+    {
+      "id": "APPROVE_AUTH",
+      "clause": "Approving a file-write intent requires a live login session, independently of the browser binding and of the intent record. The probe holds the binding and the intent the server itself issued to it and downgrades only wp_auth, so the three disjuncts sharing that `if` cannot stand in for the kill; it sends the CORRECT factor, because authorizeApprovalFactor runs immediately afterwards and a wrong password would return the same 403 under mutation. Ledger clause APPROVE_AUTH in 27-02-RECONSTRUCTION-PLAN.md.",
+      "focusedTest": "a downgraded login session cannot approve or redeem its own correctly bound intent",
+      "assertionId": "P27-APPROVE-REQUIRES-LOGIN-SESSION",
+      "implementationStatus": "mutation-verified"
+    },
+    {
+      "id": "EFFECT_AUTH",
+      "clause": "Redeeming an approved file-write intent requires a live login session. The submission carries the exact target and digest and an unused intent, so neither the one-use 409 nor the descriptor-mismatch 409 can stand in for the 403. Ledger clause EFFECT_AUTH in 27-02-RECONSTRUCTION-PLAN.md. SCOPE: the same login-session disjunct on the two UPLOAD-lane endpoints (/candidate-upload-approve, /candidate-upload-effect) is still unguarded and unmutated — closing it needs UPLOAD_APPROVE_AUTH / UPLOAD_EFFECT_AUTH and a multipart fixture, and is recorded as open in 27-04-EXIT-WORK-HANDOFF.md.",
+      "focusedTest": "a downgraded login session cannot approve or redeem its own correctly bound intent",
+      "assertionId": "P27-EFFECT-REQUIRES-LOGIN-SESSION",
+      "implementationStatus": "mutation-verified"
     }
   ]
 }

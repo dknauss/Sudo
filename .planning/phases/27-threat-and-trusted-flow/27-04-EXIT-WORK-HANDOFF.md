@@ -225,7 +225,54 @@ clause does not claim a window, so this narrows scope rather than misstating it.
 The assertion formerly called `P27-APPROVE-VICTIM-LOCKOUT-BOUNDARY` was renamed
 to `P27-APPROVE-VICTIM-LOCKED-OUT` because there is no boundary to cross.
 
-### U-3 — the login-session axis has no mutation on the four approve/effect endpoints
+### U-3 — the login-session axis: CLOSED on the file-write lane, OPEN on the upload lane
+
+**Update.** `APPROVE_AUTH` and `EFFECT_AUTH` now guard `/candidate-approve` and
+`/candidate-effect`, and both are killed at their own assertions
+(`P27-APPROVE-REQUIRES-LOGIN-SESSION`, `P27-EFFECT-REQUIRES-LOGIN-SESSION`) by
+the new focused test *a downgraded login session cannot approve or redeem its
+own correctly bound intent*. Neither kill is by construction; each was observed
+separately.
+
+Two things recorded below turned out to be wrong, and are corrected here rather
+than deleted:
+
+- **"A guard wrapping the shared check" was not required.** The runner's
+  uniqueness rule constrains guard *IDs*, not tests: several IDs may name the
+  same `focusedTest`, and the existing manifest already does this — `BIND_SECURE`,
+  `PREFLIGHT_RANDOM_ID`, `PREFLIGHT_NEW_RECORD`, `APPROVE_LOOKUP` and
+  `EFFECT_LOOKUP` all name *independent browsers sharing one login session
+  create separate immutable file intents*. Because `PHASE27_MUTATION` selects
+  exactly one ID per run, per-endpoint IDs each break their own assertion. A
+  shared helper would have collapsed two distinct ledger clauses into one ID —
+  which the reconstruction plan's own CI condition forbids.
+- **The IDs are ledger names, not invented ones.** `27-02-RECONSTRUCTION-PLAN.md`
+  already names `APPROVE_AUTH` ("valid login session") and `EFFECT_AUTH` ("valid
+  login session"); `APPROVE_SESSION` / `EFFECT_SESSION` are a *different* clause
+  (login-session hash matches). An earlier draft of this tranche used a single
+  `LOGIN_SESSION` ID, which both collapsed the two clauses and borrowed the name
+  of the one it was not.
+
+The probe downgrades `wp_auth` to a wrong value rather than deleting it.
+Deleting it would also satisfy a server that merely checked the cookie was
+*present*, so a presence-check defect would have survived; equality is the
+clause. It also sends the **correct** password, because
+`authorizeApprovalFactor()` runs immediately after the disjunct block and a
+wrong password returns the same 403 under mutation — the mutant would have
+survived behind the right status code. Two assertions
+(`P27-AUTH-ISOLATES-BINDING`, `P27-AUTH-ISOLATES-LOGIN-SESSION`) pin that the
+binding cookie survived the downgrade, so a 403 arriving from the
+`binding === ''` disjunct cannot masquerade as this kill.
+
+**Still open:** the same disjunct on the two **upload-lane** endpoints,
+`/candidate-upload-approve` and `/candidate-upload-effect`, is unguarded and
+unmutated. Closing it needs `UPLOAD_APPROVE_AUTH` / `UPLOAD_EFFECT_AUTH` plus a
+multipart fixture that reaches approval, and it is a separate tranche. Do not
+read the manifest's two new rows as covering four endpoints.
+
+The original analysis follows, unedited.
+
+### U-3 (original) — the login-session axis has no mutation on the four approve/effect endpoints
 
 `! authenticated` can be replaced with `false` on both approve endpoints or both
 effect endpoints and no test fails. No `mutationEnabled` wrapper and no
