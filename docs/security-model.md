@@ -506,7 +506,11 @@ request data is lost.
 **Impact:** narrower than it once was, because nothing is resumed either way. The
 user repeats the action manually in both cases; what eviction costs is the
 landing — with the stash present they are returned to the screen the request came
-from, and without it they land on the fallback URL, typically the dashboard. This
+from, and without it they land on the fallback URL, typically the dashboard.
+(Not every intact stash returns you to the originating screen: the URLs in
+`Challenge::HANDLER_ENDPOINTS` — `options.php`, `admin-post.php`, `update.php`
+and the rest — are diverted to the neutral page regardless, because a bare GET of
+them renders nothing usable.) This
 is **annoying but not a security issue** — it fails safe (no action is taken
 without authentication).
 
@@ -581,8 +585,15 @@ is for. An attacker holding complete cookie state has **both**, and every
 check passes: same verifier, matching token hash, valid HMAC. Nothing in the
 design distinguishes that browser from the original.
 
+One bound on that: the clone only wins while the copied proof is still live. The
+cookies alone are not enough — `Sudo_Session::is_active()` (or `is_within_grace()`)
+must still resolve for the captured login session. A jar copied before the victim
+ever ran a challenge carries no proof to match, and one used after the window and
+its 120 s grace have closed resolves nothing. What the clone defeats is the
+**binding**, not the expiry.
+
 The defended case is therefore **partial** exfiltration: a value pulled from a
-log, a proxy, a referrer leak, or any channel that yields one cookie rather than
+log, a proxy, a memory or backup disclosure, or any channel that yields one cookie rather than
 the browser's state. The undefended case is anything that yields complete cookie
 state — malware on the machine, a copied browser profile directory, physical
 access to an unlocked device, or a debugging bridge. Those already imply a

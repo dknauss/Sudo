@@ -48,7 +48,14 @@ Custom admin rules may still declare a `stash` policy, which controls what is
 retained for the challenge to describe — **not** what is replayed, since nothing
 is replayed. WP Sudo stores only top-level POST fields named in
 `stash.post_fields`. Use `post_mode => 'none'` for uploads, file-editor saves, or
-other requests you do not want retained at all.
+other requests whose **body** should not be stored.
+
+That is narrower than "nothing is retained". `Request_Stash::save()` calls
+`capture_target()` independently of the body policy, and `capture_target()` reads
+`TARGET_PARAMS` straight from `$_GET`/`$_POST` — so a rule with
+`post_mode => 'none'` whose request carries a recognised target field such as
+`plugin`, `user_id` or `file` still stores that value, by design, because the
+challenge has to name what it is asking the user to authorise.
 
 **A server-stashed request is never replayed after reauthentication (#322, 4.9.0).**
 Automatic replay was removed outright for every method, every rule and every admin
