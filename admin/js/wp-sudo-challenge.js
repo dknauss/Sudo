@@ -2,13 +2,18 @@
  * WP Sudo – Challenge page controller.
  *
  * Handles the password + optional 2FA flow on the challenge interstitial,
- * then either replays the stashed request (redirect for GET, self-submitting
- * form for POST) or redirects to the cancel URL in session-only mode.
+ * then redirects to a landing page. It never re-issues the intercepted request:
+ * automatic replay was removed outright in 4.9.0 (#322): the server sends a
+ * redirect, plus informational flags when a stash was consumed, and never a
+ * request to re-issue — no replay/url/post_data keys — and the user performs
+ * the action again themselves.
  *
  * Session-only mode (no stash key): the user is activating a sudo session
- * proactively, e.g. via an admin notice link or the keyboard shortcut.
- * After successful authentication, the page redirects back to the
- * referring admin page instead of replaying a stashed request.
+ * proactively, e.g. via an admin notice link or the keyboard shortcut. After
+ * successful authentication the page goes to the server-supplied neutral
+ * destination (see neutralDestination()) — NOT back to the referring screen.
+ * #322 traded that convenience for the guarantee that no success branch
+ * navigates to a requester-supplied URL.
  *
  * @package WP_Sudo
  */
@@ -17,7 +22,7 @@
 
 	// Break out of iframes (e.g. wp_iframe() used by plugin/theme updates).
 	// The challenge page must render at the top level so the full admin
-	// chrome is visible and the redirect/replay targets the correct frame.
+	// chrome is visible and the redirect targets the correct frame.
 	if (window.top !== window.self) {
 		var canNavigateTop = true;
 		try {
@@ -143,13 +148,14 @@
 							return;
 						}
 
-						// An already-active session may escape a stale challenge without replay data.
+						// An already-active session may escape a stale challenge with no landing data.
 						if (response.data && response.data.code === 'authenticated') {
 							window.location.href = neutralDestination();
 							return;
 						}
 
-						// Stash mode: replay the stashed request.
+						// Stash mode: the server has already discarded the stash; go to the
+						// landing page it chose.
 						handleReplay(response.data);
 						return;
 					}
@@ -245,13 +251,14 @@
 							return; // Code resent — stay on 2FA step.
 						}
 
-						// An already-active session may escape a stale challenge without replay data.
+						// An already-active session may escape a stale challenge with no landing data.
 						if (response.data && response.data.code === 'authenticated') {
 							window.location.href = neutralDestination();
 							return;
 						}
 
-						// Session-only mode: redirect back instead of replaying.
+						// Session-only mode: go to the server-supplied neutral destination —
+						// never a requester-supplied URL (see neutralDestination()).
 						if (config.sessionOnly) {
 							window.location.href = neutralDestination();
 							return;
@@ -292,17 +299,8 @@
 		});
 	}
 
-	// ── Request replay ────────────────────────────────────────────────
+	// ── Post-challenge landing ────────────────────────────────────────
 
-	/**
-	 * Replay the stashed request.
-	 *
-	 * For GET: redirect to the original URL.
-	 * For POST: build a self-submitting hidden form.
-	 *
-	 * Shows a visible "Replaying your action…" status message and announces
-	 * it to screen readers before performing the redirect or form submit.
-	 */
 	/**
 	 * The destination for ANY successful challenge.
 	 *
@@ -320,6 +318,14 @@
 		return config.neutralUrl || (window.location.origin + '/wp-admin/');
 	}
 
+	/**
+	 * Go to the post-challenge landing page.
+	 *
+	 * Nothing is replayed (#322): the response carries a server-computed redirect,
+	 * plus informational flags when a stash was consumed, and never a request to
+	 * re-issue. Shows the "Returning you to your page…" status message and
+	 * announces it to screen readers first.
+	 */
 	function handleReplay(data) {
 		// #322: nothing is ever replayed, so the message is always the honest one.
 		// A "replaying" announcement would tell screen-reader users the opposite of

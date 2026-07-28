@@ -61,7 +61,7 @@ A bridge between your 2FA plugin and WP Sudo needs three things:
 | **Form rendering** | `wp_sudo_render_two_factor_fields` | HTML form fields (typically a 6-digit code input) |
 | **Validation** | `wp_sudo_validate_two_factor` | A boolean: is the submitted code correct? |
 
-That's it. WP Sudo handles everything else: the challenge page layout, the AJAX transport, browser binding, session timing, countdown UI, and returning the user to re-issue the action (nothing is replayed — see [FAQ](FAQ.md#how-does-sudo-gating-work)).
+That's it. WP Sudo handles everything else: the challenge page layout, the AJAX transport, browser binding, session timing, countdown UI, and returning the user to re-issue the action (no server-stashed request is replayed — see [FAQ](FAQ.md#how-does-sudo-gating-work)).
 
 ---
 
