@@ -69,7 +69,7 @@ Developers can add custom rules via the `wp_sudo_gated_actions` filter.
 * **Zero-trust-aligned reauthentication** — a valid login session is never sufficient on its own. Dangerous operations require explicit identity confirmation whenever no active sudo session is already in place. This is a focused proof-of-intent layer for known operations and surfaces, not a comprehensive zero-trust framework.
 * **Role-agnostic** — any user attempting a gated action without an active sudo session is challenged, including administrators.
 * **Full attack surface** — admin UI, AJAX, REST API, WP-CLI, Cron, XML-RPC, Application Passwords, and WPGraphQL.
-* **Session binding** — sudo sessions are cryptographically bound to the browser via a secure httponly cookie token.
+* **Session binding** — sudo sessions are cryptographically bound to the browser via a secure httponly cookie token. This defeats theft of the WordPress authentication cookie alone, not a copy of complete cookie state — both are bearer secrets a browser exports the same way, so the binding narrows the attack path rather than the attacker's capability.
 * **2FA browser binding** — the two-factor challenge is bound to the originating browser with a one-time challenge cookie.
 * **Rate limiting** — 5 failed password attempts trigger a 5-minute lockout.
 * **Self-protection** — changes to WP Sudo settings require reauthentication.
@@ -164,7 +164,7 @@ Password changes on profile.php, user-edit.php, or via the REST API are a gated 
 
 = What is the grace period? =
 
-A 2-minute grace window (since v2.6.0) allows in-flight form submissions to complete even if the sudo session expired while the user was filling in the form. Session binding is enforced throughout — a stolen cookie on a different browser does not gain grace-period access.
+A 2-minute grace window (since v2.6.0) allows in-flight form submissions to complete even if the sudo session expired while the user was filling in the form. Session binding is enforced throughout — a stolen auth cookie on a different browser does not gain grace-period access.
 
 = Can I change the 2FA authentication window? =
 

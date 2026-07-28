@@ -246,7 +246,7 @@ This describes how WP Sudo treats the Abilities API *at runtime today*. For the 
 
 ## How does session binding work?
 
-When sudo is activated, a cryptographic token is stored in a secure httponly cookie, and its hash is saved in user meta. On every gated request, both must match. A stolen session cookie on a different browser will not have a valid sudo session. See [Security Model](security-model.md) for full details.
+When sudo is activated, a cryptographic token is stored in a secure httponly cookie, and its hash is saved in user meta. On every gated request, both must match. A stolen **authentication** cookie on a different browser will not have a valid sudo session — the attacker lacks the second cookie. A copy of the whole cookie jar carries both and is **not** covered; see [Security Model](security-model.md#boundary-session-binding-vs-a-cloned-cookie-jar).
 
 ## How does 2FA browser binding work?
 
@@ -328,4 +328,4 @@ A 2-minute wind-down window (since v2.6.0) allows gated actions to pass for 120 
 
 **How it works:** When the gate checks the session, it first calls `Sudo_Session::is_active()`. If the session has expired, it also calls `is_within_grace()`. If the expiry happened within the last 120 seconds *and* the session token still matches (session binding is enforced throughout), the request passes. The gate does not distinguish between actions that were "in progress" before expiry and new ones — any gated action within the window is permitted if the token is valid.
 
-**What it does not relax:** session binding. A stolen cookie on a different browser does not gain grace-period access. The self-authenticating proof (HMAC + cookie match) must still verify — `is_within_grace()` resolves and validates it before returning true. The admin bar timer always reflects the true session state (`is_active()`), not the grace state — the user sees accurately when their session has expired.
+**What it does not relax:** session binding. A stolen auth cookie on a different browser does not gain grace-period access (a cloned cookie jar would — same boundary as the sudo window itself). The self-authenticating proof (HMAC + cookie match) must still verify — `is_within_grace()` resolves and validates it before returning true. The admin bar timer always reflects the true session state (`is_active()`), not the grace state — the user sees accurately when their session has expired.
