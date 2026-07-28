@@ -2,7 +2,7 @@
 
 Structured checklists for evaluating the three UI surfaces of WP Sudo:
 
-1. **Challenge Page**: Interstitial reauthentication (password step, optional 2FA step, lockout countdown, request replay, Escape key navigation)
+1. **Challenge Page**: Interstitial reauthentication (password step, optional 2FA step, lockout countdown, return-to-page landing, Escape key navigation)
 2. **Settings Page**: Settings › Sudo (tabbed: Settings, Gated Actions, Rule Tester, Access; session duration, policy dropdown presets, 5 entry point policy dropdowns, MU-plugin status section, gated actions table, 6 help tabs)
 3. **Admin Bar Timer**: Live M:SS countdown during active sessions, turns red at 60s, click to deactivate, keyboard shortcut Cmd/Ctrl+Shift+S
 
@@ -17,7 +17,7 @@ Each section uses `- [ ]` checkboxes so the document works as a runnable checkli
 - [ ] **Challenge page:** Loading spinner and "Authenticating…" screen-reader text appear immediately on form submission and disappear when the server responds.
 - [ ] **Challenge page:** Lockout countdown updates visually every second and displays the remaining time prominently in the error notice.
 - [ ] **Challenge page:** 2FA timer shows remaining seconds for the authentication window and turns into a warning state at 60 s.
-- [ ] **Challenge page:** "Replaying your action..." overlay and `wp.a11y.speak()` announcement appear between authentication success and the replayed request.
+- [ ] **Challenge page:** the "Returning you to your page…" overlay and its `wp.a11y.speak()` announcement appear between authentication success and the redirect. Nothing is replayed (#322), so a "replaying" announcement would be wrong — screen-reader users are the one cohort who cannot see the notice on the next page.
 - [ ] **Settings page:** "Settings saved." success notice appears after saving (single-site via `options.php`, multisite via `edit.php` redirect with `?updated=true`).
 - [ ] **Settings page:** MU-plugin install/uninstall shows spinner during AJAX, then updates the status text and displays a result message.
 - [ ] **Admin bar timer:** Countdown ticks every second with M:SS format so the user always knows the session state.
@@ -109,14 +109,14 @@ Each section uses `- [ ]` checkboxes so the document works as a runnable checkli
 
 ## 2. Navigation Flow Tests
 
-### 2a. Admin UI form submission (POST replay)
+### 2a. Admin UI form submission (return to the form)
 
 - [ ] Navigate to Plugins > Installed Plugins. Click "Activate" on an inactive plugin.
 - [ ] Verify the Gate intercepts and redirects to the challenge page with a `stash_key` parameter.
 - [ ] Verify the challenge page shows the correct action label (e.g., "Activate Plugin: Hello Dolly").
 - [ ] Enter the correct password and submit. If 2FA is configured, complete the second step.
-- [ ] Verify the "Replaying your action..." overlay appears.
-- [ ] Verify the browser lands on the Plugins page with the plugin now active and a standard WordPress "Plugin activated" notice.
+- [ ] Verify the "Returning you to your page…" overlay appears, and that the action is **not** re-applied — you are returned to the form to submit it again.
+- [ ] Verify the browser lands back on the Plugins page with the plugin **still inactive**, and a WP Sudo notice explaining that the action was not carried out. Activate it again — now covered by the sudo session — and confirm it succeeds without a second challenge.
 - [ ] Verify the stash transient is consumed (a second attempt to load the same `stash_key` produces an "Invalid or expired challenge" error).
 
 ### 2b. AJAX request (plugin activate from plugin-install.php)
@@ -243,7 +243,7 @@ These are quick checks beyond a full WCAG audit. For the resolved accessibility 
 - [ ] Submit the correct password when 2FA is configured. Verify "Password verified. Two-factor authentication required." is announced via `wp.a11y.speak()`.
 - [ ] On the 2FA step, verify focus moves to the first 2FA input field.
 - [ ] Submit an invalid 2FA code. Verify the 2FA error notice (`role="alert"`) is announced.
-- [ ] Submit a valid 2FA code. Verify "Replaying your action..." is announced before the redirect/replay.
+- [ ] Submit a valid 2FA code. Verify "Returning you to your page…" is announced before the redirect.
 - [ ] During lockout, verify announcements occur at 30-second intervals and at 10 seconds remaining, not every second.
 - [ ] When the lockout expires, verify "Lockout expired. You may try again." is announced and focus moves to the password input.
 - [ ] Press Escape. Verify "Leaving challenge page." is announced before navigation.
@@ -260,7 +260,7 @@ These are quick checks beyond a full WCAG audit. For the resolved accessibility 
 - [ ] Tab to the challenge page password field (should be autofocused; verify focus indicator is visible via `:focus-visible`).
 - [ ] Type a password and press Enter to submit the form.
 - [ ] If 2FA is required, verify focus moves to the first 2FA input. Tab through any additional fields and submit with Enter.
-- [ ] Verify the replay/redirect happens without needing mouse interaction.
+- [ ] Verify the redirect happens without needing mouse interaction.
 - [ ] On the challenge page, verify Tab order: password field, "Confirm & Continue" button, "Cancel" link. No focus traps.
 - [ ] On the 2FA step, verify Tab order: 2FA input(s), "Confirm & Continue" button, "Cancel" link. No focus traps.
 - [ ] Verify Escape key works as documented (announces and navigates).

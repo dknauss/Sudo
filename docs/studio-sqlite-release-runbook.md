@@ -59,9 +59,9 @@ npm run test:e2e
 4. Spot-check the highest-risk manual flows in the browser:
 
 - acquire a sudo session from the challenge page
-- replay a gated settings POST after auth
+- submit a gated settings POST, pass the challenge, and confirm the save is **not** applied. Expect to land on the **dashboard**, not Settings: the intercepted URL is `options.php`, which `Challenge::HANDLER_ENDPOINTS` treats as a handler because a bare GET of it renders the raw All Settings dump. Navigate back and re-submit under the sudo session
 - verify admin-bar deactivation clears the session visibly
-- verify a direct challenge URL with `return_url` lands back on the intended admin page
+- verify a successful challenge lands on a server-chosen destination — the originating screen for ordinary admin URLs, the dashboard for the handler endpoints above. `return_url` is **inert** since 4.9.0 (see `docs/release-status.md`) — a challenge URL carrying one must not be honoured, so treat any navigation to a supplied `return_url` as a regression rather than a pass
 
 5. Record the Studio stack details used for the release check:
 

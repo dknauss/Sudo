@@ -85,9 +85,11 @@ password reset to that address — a full takeover — without reauthenticating.
 - ☐ **[REST]** Send a `POST` to `/wp/v2/users/<id>` with the **same** email the
   user already has → **expect it to pass** (no real change → no gate).
 - ☐ **Non-replayable stash:** after passing a challenge for a profile email
-  change, confirm the original save applied **once**; then attempt to re-submit
-  the captured request (browser back + re-POST, or replay the stash key) →
-  **expect it NOT to re-apply** (`stash_no_replay()`).
+  change, confirm the change was **not** applied by the challenge itself (nothing
+  is replayed since 4.9.0); re-issue the save under the now-active sudo session and
+  confirm it applies **once**; then attempt to re-submit the captured request
+  (browser back + re-POST, or replay the stash key) → **expect it NOT to re-apply**
+  (`stash_no_replay()`).
 
 ## 2. REST `POST` to `/wp/v2/users` — password & role (#213)
 
