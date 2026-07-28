@@ -33,6 +33,20 @@ WP Sudo plugin a complete security boundary.
 
 ## The architecture to prove
 
+> **Approve the bytes or values the effect will consume—not merely the button,
+> route, filename, or request that leads to the effect.**
+
+For an upload, the honest preflight client fingerprints the locally selected
+file and the server records that proposed fingerprint. At the effect boundary,
+the server independently fingerprints PHP's received temporary file. A match
+means the effect is consuming the bytes described by the approved intent. This
+does not protect against active script lying during preflight; that attacker is
+outside the candidate claim. The fingerprint is not authorization by itself;
+fresh confirmation, browser/session binding, expiry, and atomic one-use
+consumption supply the authorization. The current demonstrator carries the
+checked PHP temporary file into a capturing file-write sink; applying that
+handoff to the real upgrader remains a later demonstrator step.
+
 The target has three cooperating layers:
 
 1. **Early server veto.** WordPress core exposes a structured, veto-capable check
@@ -41,9 +55,10 @@ The target has three cooperating layers:
 2. **Preflight client.** An integrated wp-admin surface pauses the user's action
    before sending the original request, asks the server what approval is required,
    and preserves the unsent form, file, and validation state in the page.
-3. **Action-bound, single-use proof.** Reauthentication authorizes one precisely
-   described effect. The proof binds the actor, login session, action, target, and
-   security-relevant parameters; it expires quickly and is consumed atomically.
+3. **Action-bound, single-use approval.** Reauthentication authorizes one
+   precisely described effect. The server-held approval binds the actor, login
+   session, browser binding, action, target, and security-relevant parameters;
+   it expires quickly and is consumed atomically.
 
 Only layer 1 is the non-bypassable boundary. Layer 2 is progressive enhancement.
 Layer 3 connects the human approval to the server veto.
@@ -54,11 +69,18 @@ The intended integrated flow is:
 user initiates action
   → client keeps the request local
   → server preflight describes the required approval
-  → trusted reauthentication and confirmation
-  → server issues one action-bound proof
-  → client sends the original request once with that proof
-  → early server veto redeems the proof or refuses the effect
+  → reauthentication and exact-intent confirmation
+  → server marks that exact intent approved
+  → client sends the original request once
+  → early server veto atomically consumes the matching approval or refuses
 ```
+
+No reusable bearer is returned to JavaScript. For an upload, the approving
+surface cannot execute the effect by itself because the unsent file remains in
+the original page. The original page therefore sends the bytes once, and the
+server accepts them only when their digest and every other bound field match
+the approved intent. This is evidence for the copied-auth-cookie-only threat,
+not for active script in that original page.
 
 ## Surface boundary
 
@@ -88,9 +110,9 @@ The research must not use “stolen session” as one undifferentiated attacker.
 
 | Attacker | Candidate protection | Honest limit |
 |---|---|---|
-| Copied WordPress authentication cookie, but not the independent browser-binding cookie, in a different browser | Separate, action-bound proof unavailable to the clone | A clone of both possession cookies can race to use an ambient approval; a later theft of complete approved browser state may also include usable material until it expires |
-| Session-riding request from an XSS | Trusted confirmation must name the effect and require a deliberate approval | A same-origin script can manipulate the compromised admin document; an ordinary modal in that document is not a trusted boundary |
-| Active same-origin XSS throughout the flow | Browser-mediated credential or isolated top-level/popup confirmation may raise the bar | This is not considered closed until the handoff, persistence reach, and browser-isolation assumptions are tested explicitly |
+| Copied WordPress authentication cookie, but not the independent browser-binding cookie, in a different browser | Server-held approval is bound to the first browser's independently minted binding | A clone of both possession cookies can race to use an ambient approval; a later theft of complete approved browser state may also include usable material until it expires |
+| Session-riding request from an XSS | No accepted protection in the reconstructed candidate | A same-origin script can manipulate the compromised admin document and exercise its ambient authority; an ordinary modal in that document is not a trusted boundary |
+| Active same-origin XSS throughout the flow | No accepted protection in the reconstructed candidate | Browser-mediated authentication may protect a credential, but it does not contain the browser's ambient authority to invoke an approved effect |
 | Malicious installed plugin or arbitrary server-side PHP | None | Server-side in-process code can bypass WordPress policy; plugin sandboxing is a different project |
 
 No proposal may claim to close “XSS → RCE” generally unless its evidence covers
@@ -124,17 +146,19 @@ means a complete cookie-jar or browser-state clone.
 - Treat the current WP Sudo plugin, its in-editor UX, and existing PoCs as
   evidence sources—not as code that must be evolved or shipped.
 
-### Decisions Phase 27 must settle
+### Decisions still required after the reconstructed candidate
 
 - The exact core veto-filter contract and error propagation for both effects.
 - Whether Cut 1 exposes only two private core descriptors or a deliberately tiny
   invocation contract without a general registry.
 - Which fields form each action digest and how upload bytes are represented.
-- Where trusted reauthentication and final confirmation render.
-- **One coupled handoff-and-claim decision:** determine what active same-origin
-  script can read, invoke, redirect, or redeem in the selected proof handoff;
-  then scope the XSS claim to exactly what that mechanism survives. The wording
-  cannot be settled independently of the transport.
+- Where reauthentication and final confirmation render, and which attacker
+  classes that surface can honestly resist.
+- Whether any later candidate can extend the demonstrated
+  copied-auth-cookie-only claim. The reconstructed upload candidate keeps
+  approval server-side, but active same-origin script can still invoke the
+  browser's ambient authority and a complete cookie-state clone carries the
+  binding. Both remain outside the current claim.
 - Atomic proof issuance/redemption and behavior when a persistent object cache is
   unavailable or hostile.
 - Preflight authorization, response minimization, rate limiting, and diagnostics

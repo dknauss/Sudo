@@ -10,8 +10,9 @@ history, and comparative analysis in
 > ⚠️ **Design status — read before implementing (July 2026).** This document
 > states the direction and rationale, not a ready-to-land patch. The normative
 > interaction is now **pre-submit preflight**, not server-side request replay:
-> an integrated admin client pauses the operation before sending it, obtains a
-> one-use proof bound to that operation, and sends the request once. A legacy
+> an integrated admin client pauses the operation before sending it, confirms
+> one exact intent, and sends the request once for the server to verify and
+> consume the approval. A legacy
 > surface that cannot preflight safely falls back to reauthenticate, return,
 > and ask the user to submit again. The tracked findings live in
 > [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md)
@@ -52,11 +53,12 @@ two early vetoes plus an action-bound approval can cut that route. It does not
 yet claim to de-escalate the entire XSS class; Phase 27 must establish which
 active-XSS persistence and confirmation-surface assumptions the flow survives.
 
-The candidate gate requires **fresh, action-bound proof** before either in-scope
-effect proceeds, evaluated at the effect. The first evidence target is narrower:
-a copied authentication cookie must not inherit another browser's approval, and
-an integrated screen must preserve unsent work without weakening the server
-veto. Active same-origin XSS remains a separate Phase-27 trust decision.
+The candidate gate requires a **fresh, server-held, action-bound approval**
+before either in-scope effect proceeds, evaluated at the effect. The first
+evidence target is narrower: a copied authentication cookie must not inherit
+another browser's approval, and an integrated screen must preserve unsent work
+without weakening the server veto. Active same-origin XSS and a complete
+cookie-state clone remain outside the reconstructed candidate's claim.
 
 **Scope of the first evidence claim.** No closure claim exists until the vertical
 slice passes its cloned-cookie, atomic-redemption, changed-digest, direct-request,
@@ -81,9 +83,9 @@ Two properties of a compromised session decide the defense:
 The threat cases must remain separate. A copied cookie in another browser, a
 script session-riding from one compromised admin document, a stored script that
 also reaches the confirmation route, and arbitrary server-side PHP do not have
-the same powers. The first slice must demonstrate the copied-cookie property.
-Phase 27 decides which browser-XSS cases the trusted approval flow can honestly
-claim. The worked route inventory lives in
+the same powers. The first slice demonstrates only the copied-auth-cookie
+property. Phase 27 also demonstrates that active XSS and a complete cookie-jar
+clone remain outside the candidate's claim. The worked route inventory lives in
 [`stolen-cookie-rce-attack-tree.md`](stolen-cookie-rce-attack-tree.md).
 
 ---
@@ -148,6 +150,17 @@ The exact chokepoints, per-function return contracts, and the full catalog are i
 
 ## 4. How it lands in core
 
+> **Approve the bytes or values the effect will consume—not merely the button,
+> route, filename, or request that reaches it.**
+
+For plugin upload, the honest preflight client fingerprints the locally
+selected package and the server records that proposed fingerprint. At the
+effect boundary the server independently fingerprints PHP's received temporary
+file and accepts it only when it matches the approved intent. This does not
+protect against active script lying during preflight; that attacker is outside
+the candidate claim. The fingerprint connects confirmation to the actual
+input; it is not a credential or authorization mechanism on its own.
+
 **Enforce at the shared effect sinks, not at `map_meta_cap()`.** *(verified)* `upload_plugins`→`install_plugins` and `upload_themes`→`install_themes`, so a capability-layer gate cannot distinguish an attacker ZIP from a repository install and would disrupt CLI, automation, and introspection. Gate the effects in §3. This is the load-bearing design choice — **gate the effect, not the form field**. A hijacked session skips the form and calls the mutation directly, so the guard must sit at the data-layer chokepoint every surface funnels through; browser, REST, and programmatic callers are then covered by one insertion.
 
 **Branch the decision on actor class, not transport.** This is how non-interactive surfaces are eventually handled without an exemption and without inventing a headless challenge UX. **Cut 1 scopes enforcement to the interactive class only** ([#320](https://github.com/dknauss/Sudo/issues/320)); the remaining rows are the design intent for a separately-scoped provenance/automation project ([milestone 4](https://github.com/dknauss/Sudo/milestone/4)), recorded so the seam is built to accommodate them:
@@ -171,31 +184,33 @@ The decision object never encodes transport: business functions return a decisio
 - *Stamp `reauth_at` on the shared session record* — the stolen cookie **is** that record; it elevates the thief too.
 - *Trust a fresh `login` timestamp* — `wp_signon('','')` mints a fresh stamp from a held cookie with no credential entered.
 
-The surviving properties are narrower than an implementation: approval is
+The required properties are narrower than a core implementation: approval is
 bound to one server-canonical action digest, unavailable to a browser holding
-only a pre-challenge cookie copy, short-lived, and atomically consumed. Phase 27
-must choose the proof transport, storage, and handoff. Earlier drafts proposed
-an HttpOnly proof cookie plus a per-verifier HMAC record; those are retained in
-the superseded implementation inventory as hypotheses, not decisions. Whether
-same-origin JavaScript can read or exercise the selected proof is the same
-question that determines the permitted XSS claim.
+only a copy of the WordPress authentication cookie, short-lived, and atomically
+consumed. The reconstructed upload candidate keeps approval server-side and
+uses a separately minted browser-binding cookie to correlate the original
+browser; it returns no reusable bearer to JavaScript. Earlier drafts proposed
+an HttpOnly proof cookie plus a per-verifier HMAC record; those remain only in
+the superseded implementation inventory. Active same-origin script and a
+complete cookie-state clone can exercise the browser's ambient authority and
+remain outside the candidate claim.
 
-The interaction direction is settled even though proof issuance and final
-confirmation ordering are not:
+The interaction direction and server-held approval shape are supported by the
+current upload candidate, pending the remaining Phase 27 exit gates:
 
 1. **Pre-submit interaction, with an honest fallback.** An integrated admin
    client pauses before sending the mutation, asks the server for the canonical
-   action and target digest, completes trusted reauthentication and
-   action-specific confirmation, obtains authority to submit that exact digest,
-   and submits once. A
+   action and target digest, completes reauthentication and action-specific
+   confirmation, and causes the server to approve that exact intent. The
+   original client then submits once. A
    legacy surface that cannot do this safely reauthenticates and then asks the
    user to submit again. Core never stores and later executes an already-submitted
    consequential request.
 2. **The challenge chrome is not the security boundary.** A modal is excellent
    UX but an ordinary same-origin modal or iframe can be inspected or imitated by
-   active XSS. The server-side veto and digest-bound proof remain authoritative;
-   WebAuthn/passkeys or an isolated provider surface provide stronger credential
-   protection than password entry inside a potentially compromised document.
+   active XSS. The server-side veto and digest-bound approval remain
+   authoritative, but the upload candidate does not claim to protect a
+   compromised original document.
 
 In plain terms, the practical architecture has three layers:
 
@@ -204,17 +219,19 @@ In plain terms, the practical architecture has three layers:
 2. **Standard wp-admin preflight:** integrated screens pause before submission,
    preserve the user's local state, and start reauthentication. This is the
    smooth experience.
-3. **Action-bound, single-use proof:** reauthentication approves the exact
+3. **Action-bound, single-use approval:** reauthentication approves the exact
    displayed operation and target, not a general period of elevated authority.
+   The server records and atomically consumes that approval; it does not hand
+   JavaScript a reusable bearer.
 
 The intended interaction is:
 
-`click → pause locally → server preflight → trusted reauthentication and action-specific confirmation → submit once with action-bound authority`
+`click → pause locally → server preflight → reauthenticate and confirm the exact intent → server marks it approved → submit once → server atomically consumes the approval`
 
-Phase 27 decides whether confirmation precedes proof issuance, is the act that
-causes issuance, or is combined with redemption inside an isolated flow. The
-document deliberately does not promise a JavaScript-readable token or an
-ambient proof cookie before that decision.
+Phase 27's upload candidate keeps the approval server-side. The browser-binding
+cookie correlates the original browser with the intent, but it is ambient
+authority and therefore does not protect against a complete cookie-jar clone or
+active script in that browser. The candidate claim is limited accordingly.
 
 If core wants the thief's existing session *gone*, offer rotation as an explicit
 "sign out other sessions" affordance after step-up—not an implicit side effect

@@ -54,16 +54,18 @@ before implementation.
 **Standard wp-admin preflight and action confirmation**
 This is the preferred forward UX, not merely an optional modal. An opted-in
 screen intercepts the user's action before submission, asks the server to
-canonicalize its action and target, reauthenticates, receives a one-use proof for
-that digest, shows the final confirmation, and sends the mutation once. Form
-state and file selections stay in the browser; nothing executable is placed in a
-server replay stash. Unintegrated screens fall back to
+canonicalize its action and target, reauthenticates and confirms that exact
+intent, then sends the mutation once. The server keeps a short-lived,
+single-use approval record; it does not return a reusable bearer to JavaScript.
+Form state and file selections stay in the browser; nothing executable is
+placed in a server replay stash. Unintegrated screens fall back to
 reauthenticate-then-resubmit.
 
 The server-side effect veto remains authoritative. A same-origin modal or iframe
-is not a security boundary against active XSS, so password entry inside wp-admin
-cannot be described as isolated; WebAuthn/passkeys or an isolated provider
-surface provide a stronger path. See the core spec §5.1 and §7.1.
+is not a security boundary against active XSS, and the browser binding does not
+survive a complete cookie-jar clone. The demonstrated claim is consequently
+narrower: another browser holding the WordPress authentication cookie alone
+cannot use the first browser's approval. See the core spec §5.1 and §7.1.
 
 **Per-session sudo isolation**
 Current model: one sudo token per user in user meta. The ideal is

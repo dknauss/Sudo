@@ -9,8 +9,8 @@ account takeover through a copied administrator session.
 ## Architecture truth
 
 - [ ] **ARCH-01:** One canonical architecture document distinguishes early veto,
-  preflight UX, and action-bound proof, and identifies only early veto as the
-  non-bypassable server boundary.
+  preflight UX, and server-held action-bound approval, and identifies only early
+  veto as the non-bypassable server boundary.
 - [x] **ARCH-02:** The proposal separates copied-cookie, session-riding XSS, active
   same-origin XSS, and malicious-server-code attackers; each closure claim names
   the attacker it actually covers.
@@ -44,8 +44,8 @@ account takeover through a copied administrator session.
   redeem approval issued to another browser merely because it can mint valid WP
   nonces. A full cookie-state clone is tested and documented as outside this
   property.
-- [ ] **PROOF-04:** Failure of proof storage or verification fails closed for the
-  experimental gated effect.
+- [ ] **PROOF-04:** Failure of intent/approval storage or verification fails
+  closed for the experimental gated effect.
 - [ ] **PROOF-05:** No general recent-auth window authorizes a different action.
 
 ## Trust and confirmation
@@ -55,12 +55,14 @@ account takeover through a copied administrator session.
   same-origin XSS.
 - [x] **TRUST-02:** Trusted UI names the concrete action and target from
   server-defined data; attacker-controlled values render only as escaped data.
-- [x] **TRUST-03:** The approval handoff is tested against active same-origin
-  script for every operation it exposes: read, invoke, redirect, replay, and
-  redeem. The result determines—not merely accompanies—the permitted XSS claim.
-- [x] **TRUST-04:** Every proposal and demo states only the XSS property the
-  selected handoff actually survives. If it does not close active same-origin
-  XSS, it makes no general “XSS → RCE closed” claim.
+- [ ] **TRUST-03:** The complete reconstructed approval flow is tested against
+  active same-origin script for every operation it exposes: read, invoke,
+  redirect, replay, and consume. The current browser model establishes a
+  no-protection boundary; the full WordPress guard ledger remains pending.
+- [ ] **TRUST-04:** Every proposal and demo states only the XSS property the
+  candidate handoff actually survives. The current candidate does not close
+  active same-origin XSS and makes no general “XSS → RCE closed” claim; the
+  final cross-document sweep remains part of Phase 27 exit.
 
 ## wp-admin experience
 

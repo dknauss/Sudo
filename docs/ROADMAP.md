@@ -27,8 +27,8 @@ contradicting it.
 ## Now
 
 - **Action Gate Research Program, Phases 26–27** — establish one current
-  architecture, inventory and label superseded work, then settle the threat
-  claim and trusted confirmation/proof handoff before implementation. The
+  architecture, inventory and label superseded work, then test the narrow
+  threat claim and candidate server-held approval flow before implementation. The
   [architecture charter](../.planning/action-gate-architecture-charter.md),
   [requirements](../.planning/REQUIREMENTS.md), and
   [GSD roadmap](../.planning/ROADMAP.md) are authoritative. The program begins
@@ -47,10 +47,10 @@ contradicting it.
 ## Next
 
 - **Phases 28–31, only after the Phase-27 gate** — prove the two early veto
-  seams, then the atomic action-bound proof, then the pause-before-send client,
-  and finally the reproducible attack demonstrator. Each phase has an explicit
-  stopping rule; a failed cloned-cookie or trust-boundary test blocks the next
-  phase rather than expanding the design.
+  seams, then adapt the reconstructed server-held approval protocol, then the
+  pause-before-send client, and finally the reproducible attack demonstrator.
+  Each phase has an explicit stopping rule; a failed copied-auth-cookie or
+  trust-boundary test blocks the next phase rather than expanding the design.
 - **Preserve and adapt the existing evidence** — keep Slice A
   (`poc/install-package-gate/`) runnable as the record of the pre-unpack finding
   and differential filesystem test. Preserve the tagged `consequential-actions`
@@ -155,8 +155,10 @@ shown to them. Only a deliberate final click on a named action supplies intent.
 ### The flow
 
 ```
-click → pause locally → server preflight → trusted reauth UI
-      → action-bound proof → user confirms → original request sent once
+click → pause locally → server preflight
+      → reauthenticate and confirm the exact intent
+      → server records approval → original request sent once
+      → server verifies and atomically consumes approval
 ```
 
 Properties that matter:
@@ -169,11 +171,12 @@ Properties that matter:
 - Ask the server whether fresh authentication is required, rather than inferring it.
 - Reauthenticate through a **standard component**, so plugins integrate without
   implementing authentication themselves.
-- Issue a **short-lived, single-use proof** bound to user, session, action, target and
-  the parameters that matter.
+- Record a **short-lived, single-use server-held approval** bound to user,
+  session, browser binding, action, target, and the parameters that matter.
 - Show a final confirmation naming the concrete operation — "Upload plugin `acme.zip`".
-- Send the original request **once**, carrying that proof.
-- Re-enforce the proof at an **early server-side veto point**.
+- Send the original request **once**.
+- Recompute its intent and atomically consume the matching approval at an
+  **early server-side veto point**.
 
 Form contents never leave the page: passwords, uploads, selections and validation state
 stay in the document, so nothing sensitive is stored server-side awaiting replay.
@@ -203,8 +206,8 @@ whereas the framing survives fine once the exception is part of it.
    what ships today; this is what covers direct URLs, REST clients, legacy forms,
    third-party admin pages and compromised scripts.
 2. **Preflight client** — the editor-like experience, as progressive enhancement.
-3. **Action-bound single-use proof** — what actually connects the reauthentication to
-   the operation the user approved.
+3. **Action-bound single-use approval** — server-held state that connects the
+   reauthentication to the operation the user approved.
 
 Layer 2 is UX and must never be mistaken for the boundary. Screens without integration
 fall back to **reauthenticate-then-resubmit**. Automatic replay is never the fallback.
@@ -232,23 +235,19 @@ This bears directly on a standing decline below: passkeys were declined in 2026-
 answer an XSS-resistance argument, which is a security claim. The decline is not
 reversed here, but it must be re-decided on the new grounds rather than inherited.
 
-**Unresolved, and it is the Phase-27 stopping gate.** Active browser script and
-arbitrary server-side PHP are not one attacker class. Server-side PHP can bypass
-WordPress policy directly; browser script still encounters the server veto but
-may manipulate the compromised document, approval surface, or proof handoff.
-The first slice must separately test script confined to the original page,
-script reaching ordinary admin pages, script reaching the selected confirmation
-route, and a copied cookie in another browser.
-
-If the isolated flow cannot withstand one of those cases, the proposal must
-narrow its claim to the exact persistence/reach assumption demonstrated. It
-must not obtain a simpler Cut 1 merely by declaring the motivating XSS attacker
-equivalent to already-running PHP.
+**Current boundary, with full Phase-27 exit still pending.** Active browser
+script and arbitrary server-side PHP are not one attacker class. The
+reconstructed candidate demonstrates no protection against active script in
+the original page: it can choose the proposed bytes and exercise that browser's
+ambient authority. The accepted claim is therefore limited to a different
+browser holding only a copied WordPress authentication cookie. Extending that
+claim requires new evidence; completing the WordPress guard ledger and the
+repo-wide claim sweep remains a Phase-27 stopping gate.
 
 ### Proposed demonstrator
 
 Implement it for **two** high-value operations only — plugin/theme upload, and
-file-editor save. Enough to establish the UX and the proof protocol; far short of
+file-editor save. Enough to establish the UX and the approval protocol; far short of
 modernising every `wp-admin` form. Scope creep here would repeat the mistake this
 release made in the small.
 
