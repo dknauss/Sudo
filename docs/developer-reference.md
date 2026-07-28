@@ -65,7 +65,10 @@ options held in that caller's own closure with nothing stored server-side, so no
 else can plant it. A gated request is
 stashed so the challenge can name what is being authorised, and the stash is then
 **consumed, never executed**: the user is returned to the screen the request came
-from, holding the sudo session they just earned, to re-issue the action themselves.
+from — or to the neutral page for the handler URLs in
+`Challenge::HANDLER_ENDPOINTS`, such as `options.php`, since a bare GET of them
+renders nothing usable — holding the sudo session they just earned, to re-issue
+the action themselves.
 
 An earlier design replayed the request when the confirmation had named the whole
 effect and a per-browser binding cookie was presented. That is gone; there is no
