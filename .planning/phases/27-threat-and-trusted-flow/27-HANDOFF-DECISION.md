@@ -395,6 +395,20 @@ For `core/upload-extension-package`:
   and
 - a replay is rejected.
 
+For both preflight endpoints:
+
+- anonymous and authenticated low-privilege callers receive the same minimal
+  `403 Forbidden` response before the request body is interpreted or any
+  descriptor is returned;
+- the fixture models the action's capability as a distinct authorized
+  principal, rather than treating possession of a nonce or knowledge of an
+  action identifier as authorization; production must substitute each action's
+  real capability decision;
+- an authorized copied-login-session caller receives a bounded probe budget
+  shared across browser bindings for that action class. Rotating the
+  attacker-controlled browser-binding cookie therefore does not reset the
+  budget; excess probes receive `429`.
+
 The approval response contains only `{"status":"approved"}`. Approval authority
 remains server-side and is keyed to the browser binding plus exact intent.
 
@@ -428,6 +442,13 @@ PHASE27_DISABLE_UPLOAD_DIGEST_CHECK=1 npx playwright test --config tests/e2e/res
 PHASE27_DISABLE_UPLOAD_ONE_USE=1 npx playwright test --config tests/e2e/research.playwright.config.ts --project=chromium tests/e2e/research/phase27-handoff.spec.ts --grep "package approval"
 ```
 
+The shared preflight-read guard mutations are:
+
+```sh
+PHASE27_DISABLE_PREFLIGHT_CAPABILITY=1 npx playwright test --config tests/e2e/research.playwright.config.ts --project=chromium tests/e2e/research/phase27-handoff.spec.ts --grep "preflight withholds descriptors"
+PHASE27_DISABLE_PREFLIGHT_RATE_LIMIT=1 npx playwright test --config tests/e2e/research.playwright.config.ts --project=chromium tests/e2e/research/phase27-handoff.spec.ts --grep "preflight withholds descriptors"
+```
+
 The observed kill point for each selected-candidate mutation is:
 
 | Mutant | Named assertion without the guard |
@@ -446,6 +467,8 @@ The observed kill point for each selected-candidate mutation is:
 | Upload effect binding | Browser B's upload returns 204, not 403 |
 | Upload digest | the changed package reports Uploaded, not Rejected |
 | Upload one-use | the second upload returns 204, not 409 |
+| Preflight capability | an anonymous caller receives the complete file-write descriptor with 200, not the minimal 403 response |
+| Preflight rate limit | an authorized clone's fourth session-scoped file-write probe returns 409, not 429 |
 
 ### Selected protocol contract
 
@@ -506,9 +529,11 @@ test does not satisfy this decision.
   not prove a WordPress storage implementation is atomic. Phase 29 must select
   an authoritative per-intent store and demonstrate a real concurrent
   redemption loser.
-- The fixture does not establish expiry, revocation enumeration, preflight
-  capability checks, rate limiting, or multisite isolation. Those remain
-  required by the architecture charter and later phases.
+- The fixture establishes capability-before-description and a login-session-
+  scoped probe budget for both selected preflight endpoints. It does not select
+  production thresholds, distributed rate-limit storage, expiry, revocation
+  enumeration, or multisite isolation. Those implementation properties remain
+  for later phases.
 - Active script in Browser A can exercise its ambient server-side approval
   without reading a bearer. That is why active same-origin XSS is an explicit
   non-goal rather than a caveat hidden beneath HttpOnly.

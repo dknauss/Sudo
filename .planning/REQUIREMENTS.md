@@ -68,7 +68,7 @@ account takeover through a copied administrator session.
   form state, upload selection, and validation state locally.
 - [ ] **UX-02:** A server preflight identifies the required action descriptor; the
   client does not infer security decisions from URLs or rule-tester rows.
-- [ ] **UX-02A:** Preflight enforces the same action capability before describing
+- [x] **UX-02A:** Preflight enforces the same action capability before describing
   a target, rate-limits callers, and returns no target/state information that the
   caller is not already authorized to read.
 - [ ] **UX-03:** After approval, the original operation is sent once. No server-side

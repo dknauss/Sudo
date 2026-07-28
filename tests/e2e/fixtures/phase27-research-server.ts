@@ -665,6 +665,10 @@ function cookieValue( request: IncomingMessage, name: string ): string {
 
 export async function startPhase27ResearchServer(): Promise<ResearchServer> {
     const observations: Observation[] = [];
+    const preflightAttempts = new Map<
+        string,
+        { attempts: number; windowStartedAt: number }
+    >();
     const intent = {
         action: 'core/write-extension-file',
         digest: 'sha256:server-held-proposed-bytes',
@@ -689,6 +693,54 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
         preparedBinding: '',
         used: false,
     };
+
+    function authorizePreflight(
+        request: IncomingMessage,
+        response: ServerResponse,
+        scope: string
+    ): boolean {
+        const auth = cookieValue( request, 'wp_auth' );
+        const binding = cookieValue( request, 'phase27_binding' );
+
+        if (
+            process.env.PHASE27_DISABLE_PREFLIGHT_CAPABILITY !== '1' &&
+            auth !== 'copied-login-session'
+        ) {
+            send( response, 403, 'text/plain; charset=utf-8', 'Forbidden' );
+            return false;
+        }
+
+        if ( binding === '' ) {
+            send( response, 403, 'text/plain; charset=utf-8', 'Forbidden' );
+            return false;
+        }
+
+        // Bind the budget to the authenticated login session, not the
+        // attacker-rotatable browser cookie used to bind an approval.
+        const rateKey = scope + ':' + auth;
+        const now = Date.now();
+        const existingBudget = preflightAttempts.get( rateKey );
+        const budget =
+            existingBudget === undefined ||
+            now - existingBudget.windowStartedAt >= 60_000
+                ? { attempts: 1, windowStartedAt: now }
+                : {
+                      attempts: existingBudget.attempts + 1,
+                      windowStartedAt: existingBudget.windowStartedAt,
+                  };
+        preflightAttempts.set( rateKey, budget );
+
+        if (
+            process.env.PHASE27_DISABLE_PREFLIGHT_RATE_LIMIT !== '1' &&
+            budget.attempts > 3
+        ) {
+            send( response, 429, 'text/plain; charset=utf-8', 'Too many requests' );
+            return false;
+        }
+
+        return true;
+    }
+
     const server = createServer( async ( request, response ) => {
         if ( request.method === 'GET' && request.url === '/same-document' ) {
             send( response, 200, 'text/html; charset=utf-8', sameDocumentFixture );
@@ -804,17 +856,17 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
             request.method === 'POST' &&
             request.url === '/candidate-upload-preflight'
         ) {
+            if ( ! authorizePreflight( request, response, 'upload' ) ) {
+                return;
+            }
+
             const preflight = JSON.parse( await readBody( request ) ) as {
                 digest: string;
                 kind: string;
             };
             const binding = cookieValue( request, 'phase27_binding' );
-            const authenticated =
-                cookieValue( request, 'wp_auth' ) === 'copied-login-session';
 
             if (
-                ! authenticated ||
-                binding === '' ||
                 preflight.kind !== 'plugin' ||
                 ! /^[a-f0-9]{64}$/.test( preflight.digest )
             ) {
@@ -956,18 +1008,18 @@ export async function startPhase27ResearchServer(): Promise<ResearchServer> {
             request.method === 'POST' &&
             request.url === '/candidate-preflight'
         ) {
+            if ( ! authorizePreflight( request, response, 'file-write' ) ) {
+                return;
+            }
+
             const preflight = JSON.parse( await readBody( request ) ) as {
                 action: string;
                 digest: string;
                 target: string;
             };
             const binding = cookieValue( request, 'phase27_binding' );
-            const authenticated =
-                cookieValue( request, 'wp_auth' ) === 'copied-login-session';
 
             if (
-                ! authenticated ||
-                binding === '' ||
                 preflight.action !== 'core/write-extension-file' ||
                 preflight.target !== 'sample-plugin/sample.php' ||
                 preflight.digest !== 'sha256:server-held-proposed-bytes'

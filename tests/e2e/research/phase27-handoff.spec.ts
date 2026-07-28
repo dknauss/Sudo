@@ -316,6 +316,153 @@ test.describe( 'Phase 27 top-level replacement and self-redemption', () => {
 } );
 
 test.describe( 'Phase 27 copied-cookie candidate', () => {
+    test( 'preflight withholds descriptors by capability and rate-limits authorized probing', async ( {
+        browser,
+    } ) => {
+        const fileServer = await startPhase27ResearchServer();
+        const uploadServer = await startPhase27ResearchServer();
+
+        async function exercisePreflight(
+            serverUrl: string,
+            pagePath: string,
+            endpoint: string,
+            body: Record<string, string>
+        ) {
+            const anonymous = await browser.newContext();
+            const lowPrivilege = await browser.newContext();
+            const authorizedA = await browser.newContext();
+            const authorizedB = await browser.newContext();
+
+            try {
+                await lowPrivilege.addCookies( [
+                    {
+                        name: 'wp_auth',
+                        value: 'low-privilege-session',
+                        url: serverUrl,
+                    },
+                ] );
+                for ( const context of [ authorizedA, authorizedB ] ) {
+                    await context.addCookies( [
+                        {
+                            name: 'wp_auth',
+                            value: 'copied-login-session',
+                            url: serverUrl,
+                        },
+                    ] );
+                }
+
+                const anonymousPage = await anonymous.newPage();
+                const lowPrivilegePage = await lowPrivilege.newPage();
+                const pageA = await authorizedA.newPage();
+                const pageB = await authorizedB.newPage();
+                for ( const page of [
+                    anonymousPage,
+                    lowPrivilegePage,
+                    pageA,
+                    pageB,
+                ] ) {
+                    await page.goto( serverUrl + pagePath );
+                }
+
+                for ( const page of [ anonymousPage, lowPrivilegePage ] ) {
+                    const result = await page.evaluate(
+                        async ( request ) => {
+                            const response = await fetch( request.endpoint, {
+                                method: 'POST',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                },
+                                body: JSON.stringify( request.body ),
+                            } );
+                            return {
+                                body: await response.text(),
+                                status: response.status,
+                            };
+                        },
+                        { body, endpoint }
+                    );
+                    expect( result ).toEqual( {
+                        body: 'Forbidden',
+                        status: 403,
+                    } );
+                }
+
+                const initial = await pageA.evaluate(
+                    async ( request ) => {
+                        const response = await fetch( request.endpoint, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify( request.body ),
+                        } );
+                        return response.status;
+                    },
+                    { body, endpoint }
+                );
+                expect( initial ).toBe( 200 );
+
+                const probeStatuses: number[] = [];
+                for ( let probe = 0; probe < 3; probe++ ) {
+                    probeStatuses.push(
+                        await pageB.evaluate(
+                            async ( request ) => {
+                                const response = await fetch(
+                                    request.endpoint,
+                                    {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                        },
+                                        body: JSON.stringify( request.body ),
+                                    }
+                                );
+                                return response.status;
+                            },
+                            { body, endpoint }
+                        )
+                    );
+                }
+                expect( probeStatuses ).toEqual( [ 409, 409, 429 ] );
+            } finally {
+                await Promise.allSettled( [
+                    anonymous.close(),
+                    lowPrivilege.close(),
+                    authorizedA.close(),
+                    authorizedB.close(),
+                ] );
+            }
+        }
+
+        try {
+            await exercisePreflight(
+                fileServer.url,
+                '/copied-cookie-candidate',
+                '/candidate-preflight',
+                {
+                    action: 'core/write-extension-file',
+                    digest: 'sha256:server-held-proposed-bytes',
+                    target: 'sample-plugin/sample.php',
+                }
+            );
+            await exercisePreflight(
+                uploadServer.url,
+                '/copied-cookie-upload-candidate',
+                '/candidate-upload-preflight',
+                {
+                    digest:
+                        '17f75876c4a7e94e98d23d54290a11c43d386ea46977a387b6aa249a2e930b01',
+                    kind: 'plugin',
+                }
+            );
+        } finally {
+            await Promise.allSettled( [
+                fileServer.close(),
+                uploadServer.close(),
+            ] );
+        }
+    } );
+
     test( 'browser-bound exact-action approval cannot be redeemed from a cloned auth-cookie context', async ( {
         browser,
     } ) => {
