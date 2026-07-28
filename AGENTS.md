@@ -28,13 +28,22 @@ When reviewing for commit approval:
 
 4. **If all checks PASS** — write the approval flag and respond APPROVED:
    ```
-   Bash({ command: "date +%s" })           ← get Unix timestamp
-   Write({
-     file_path: "<PROJECT_ROOT>/reviewer-approved",
-     content: "<timestamp>"
-   })
+   Bash({ command: "bash bin/reviewer-approve.sh" })
    ```
    Then respond: **"✅ APPROVED. Approval flag written."**
+
+   Do **not** write the file with the Write tool. The flag binds to the id of the
+   **staged tree**, so the script has to read the index; a hand-written timestamp
+   is rejected by the hook rather than silently honoured (#427). The script also
+   refuses when nothing is staged, which catches reviewing the working tree
+   instead of what will actually be committed — the two differ, and the hook
+   compares against the index.
+
+   **Review the staged tree, not the working tree.** `git show :<path>` reads the
+   staged blob; `git diff --cached` is the change being approved. A report that
+   describes edits which were never staged has approved nothing, and the tree
+   binding will not catch that — it pins *which* bytes were approved, not whether
+   you read them.
 
 5. **If any check FAILS** — respond REJECTED:
    **"❌ BLOCKED: [list specific issues with actionable fixes]"**

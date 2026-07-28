@@ -70,6 +70,49 @@ echo "🔍 Pre-Commit Validation"
 echo "=============================="
 echo ""
 
+# ── Step 0: Dependency root ──────────────────────────────────────────────────
+# Confirm vendor/ belongs to THIS worktree before trusting any test result.
+#
+# The mechanism is PHP's __DIR__, not baked paths. vendor/composer/autoload_psr4.php
+# computes `$vendorDir = dirname(__DIR__); $baseDir = dirname($vendorDir);` — no
+# absolute path is written into it (`grep -c '/Users/'` returns 0). But __DIR__
+# resolves symlinks, so including the autoloader through a symlinked vendor/ makes
+# $baseDir land in the *other* checkout, and PSR-4 then loads every class from
+# there. The suite runs green against source you did not change, and edits to this
+# worktree's includes/ are invisible to it.
+#
+# Observed twice on 2026-07-27: a guard test written to fail against an injected
+# defect passed, because the defect was injected here and the class was loaded
+# from there — and again when a reviewer reproducing that result hit the same trap.
+#
+# Because the paths are runtime-relative, `cp -r vendor` from another checkout is
+# harmless; only a symlink breaks it. That is exactly what this check catches, so
+# it is deliberately narrow rather than a blanket ban on sharing dependencies.
+if [ -e "$REPO_ROOT/vendor" ]; then
+  ROOT_REAL=$(cd "$REPO_ROOT" && pwd -P)
+  VENDOR_REAL=$(cd "$REPO_ROOT/vendor" 2>/dev/null && pwd -P || echo "")
+
+  case "$VENDOR_REAL" in
+    "$ROOT_REAL"/*)
+      : # vendor/ is inside this worktree — results are about this code.
+      ;;
+    *)
+      echo -e "${RED}❌ BLOCKED: vendor/ does not belong to this worktree${NC}"
+      echo "   worktree: $ROOT_REAL"
+      echo "   vendor:   ${VENDOR_REAL:-<unresolvable>}"
+      echo ""
+      echo "   PHP resolves symlinks in __DIR__, so Composer's autoloader would"
+      echo "   compute its base directory in that other tree and load every class"
+      echo "   from there — tests pass without exercising your changes."
+      echo "   Run 'composer install' in this worktree (a copy is fine, a symlink"
+      echo "   is not)."
+      exit 1
+      ;;
+  esac
+  echo -e "${GREEN}✅ vendor/ resolves inside this worktree${NC}"
+  echo ""
+fi
+
 # ── Step 1: Reviewer approval ────────────────────────────────────────────────
 echo "1️⃣  Checking reviewer agent approval..."
 
@@ -82,16 +125,57 @@ elif [ "$NON_TEXT_FILES" -eq 0 ]; then
   # Consume any leftover approval flag so it cannot be reused by a later code commit.
   rm -f "$APPROVAL_FILE"
 elif [ -f "$APPROVAL_FILE" ]; then
-  APPROVAL_TIME=$(cat "$APPROVAL_FILE")
+  APPROVAL_TIME=$(sed -n '1p' "$APPROVAL_FILE")
+  APPROVAL_TREE=$(sed -n '2p' "$APPROVAL_FILE")
   CURRENT_TIME=$(date +%s)
   TIME_DIFF=$((CURRENT_TIME - APPROVAL_TIME))
 
-  if [ "$TIME_DIFF" -lt "$REVIEWER_APPROVAL_TIMEOUT" ]; then
-    echo -e "${GREEN}✅ Reviewer agent approved (${TIME_DIFF}s ago)${NC}"
+  # Content binding. A timestamp alone answers "was something approved
+  # recently", never "was THIS approved" — so any edit between approval and
+  # commit rode in unreviewed, and the flag looked perfectly valid. Bind to the
+  # index instead: `git write-tree` is the id of the exact staged content, so
+  # touching any staged file invalidates the approval. It is stricter than
+  # hashing `git diff --cached`, which is sensitive to diff config and says
+  # nothing about files staged after review.
+  #
+  # write-tree does not move HEAD or touch the worktree. It does rewrite
+  # .git/index — git persists the cache-tree extension — but alters no staged
+  # content, and `git status` is unchanged. It fails on unmerged entries, which
+  # is why the merge path above never reaches here.
+  #
+  # The binding also survives the staging shortcuts, because git hands the hook a
+  # temporary index via GIT_INDEX_FILE: under `git commit -a` and under
+  # `git commit <pathspec>`, write-tree here sees the tree that will ACTUALLY be
+  # committed, not the pre-existing index. Both fail closed against a stale
+  # approval. Verified 2026-07-27.
+  STAGED_TREE=$(git write-tree 2>/dev/null || echo "")
+
+  if [ -z "$APPROVAL_TREE" ]; then
+    echo -e "${RED}❌ BLOCKED: Approval flag has no content binding${NC}"
+    echo "   This flag records only a timestamp, so it cannot prove it approved"
+    echo "   the code you are committing. Re-approve with:"
+    echo "       bash bin/reviewer-approve.sh"
+    rm -f "$APPROVAL_FILE"
+    exit 1
+  elif [ -z "$STAGED_TREE" ]; then
+    echo -e "${RED}❌ BLOCKED: Could not read the staged tree${NC}"
+    echo "   git write-tree failed — unmerged index entries?"
+    exit 1
+  elif [ "$APPROVAL_TREE" != "$STAGED_TREE" ]; then
+    echo -e "${RED}❌ BLOCKED: Staged content changed since approval${NC}"
+    echo "   approved tree: $APPROVAL_TREE"
+    echo "   staged tree:   $STAGED_TREE"
+    echo "   The reviewer approved different bytes than you are committing."
+    echo "   Re-run the reviewer against the current staged tree."
+    rm -f "$APPROVAL_FILE"
+    exit 1
+  elif [ "$TIME_DIFF" -lt "$REVIEWER_APPROVAL_TIMEOUT" ]; then
+    echo -e "${GREEN}✅ Reviewer agent approved (${TIME_DIFF}s ago, tree ${STAGED_TREE})${NC}"
     rm "$APPROVAL_FILE"
   else
     echo -e "${RED}❌ BLOCKED: Reviewer approval expired (${TIME_DIFF}s old, max ${REVIEWER_APPROVAL_TIMEOUT}s)${NC}"
     echo "   Spawn reviewer agent again and get a fresh approval."
+    rm -f "$APPROVAL_FILE"
     exit 1
   fi
 else
