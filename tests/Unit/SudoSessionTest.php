@@ -527,6 +527,109 @@ class SudoSessionTest extends TestCase
 	}
 
 	/**
+	 * #354: the liveness scalar must be derived from the proof map, not from a
+	 * cached read of itself.
+	 *
+	 * The scalar is documented as ">= every proof's expiry", and three consumers
+	 * rely on it: Site_Health's stale sweep, is_session_live() (the Users-list
+	 * revoke row action), and revoke_all_active_sessions(), which selects
+	 * `META_KEY > time()` in SQL. activate() used to maintain that relationship
+	 * by reading the scalar back through the object cache — twelve lines above a
+	 * cache-BYPASSED read of the proof map. A stale-low cached read therefore
+	 * wrote a scalar beneath a live proof's expiry, into the database, where the
+	 * SQL bulk revoke reads it.
+	 *
+	 * That is fail-OPEN: browser A's sudo is still live and enforcing, but the
+	 * operator's "revoke all sessions" no longer selects that user and
+	 * is_session_live() hides the per-user revoke. A session that cannot be
+	 * revoked is worse than one swept too eagerly. The same too-low scalar is
+	 * also what lets Site_Health's sweep delete a live proof once the scalar
+	 * ages past its cutoff.
+	 *
+	 * Modelled by writing the scalar low directly, which is what a stale cached
+	 * read yields, then activating a much shorter session in a second browser.
+	 *
+	 * RED before the fix: the scalar becomes B's short expiry, 840 s below A's
+	 * live proof.
+	 */
+	public function test_scalar_marker_is_not_lowered_beneath_a_live_proof(): void
+	{
+		$user  = 7;
+		$store = array();
+		$this->stub_stateful_user_meta($store);
+		Functions\when('get_current_user_id')->justReturn($user);
+
+		Functions\when('get_option')->justReturn(array('session_duration' => 15));
+		Functions\when('wp_generate_password')->justReturn('cookie-A');
+		Functions\when('wp_get_session_token')->justReturn('verifier-A');
+		Sudo_Session::activate($user);
+
+		$a_expires = (int) $store[Sudo_Session::META_KEY];
+		$this->assertGreaterThan(time(), $a_expires, 'Precondition: A holds a live session.');
+
+        // Simulate the failed cache invalidation: the scalar reads stale-low
+        // while the proof map (read cache-bypassed) still holds A's live entry.
+		$store[Sudo_Session::META_KEY] = time() - 1;
+
+		// Admin::get() memoizes the settings array, so the stub alone would not
+		// change the duration.
+		\WP_Sudo\Admin::reset_cache();
+		Functions\when('get_option')->justReturn(array('session_duration' => 1));
+		Functions\when('wp_generate_password')->justReturn('cookie-B');
+		Functions\when('wp_get_session_token')->justReturn('verifier-B');
+		Sudo_Session::activate($user);
+
+		$map = $store[Sudo_Session::PROOF_META_KEY];
+		$this->assertArrayHasKey(
+			hash('sha256', 'verifier-A'),
+			$map,
+			"Precondition: A's proof is still in the map and still live."
+		);
+
+		$this->assertGreaterThanOrEqual(
+			$a_expires,
+			(int) $store[Sudo_Session::META_KEY],
+			'The scalar was written beneath a live proof expiry. '
+				. 'revoke_all_active_sessions() selects META_KEY > time() in SQL, so once '
+				. "this lapses the operator's bulk revoke silently skips a user whose sudo "
+				. 'session is still enforcing.'
+		);
+	}
+
+	/**
+	 * #279, now structural: activating a shorter session in one browser must not
+	 * shrink the marker for another. Previously an intended property maintained
+	 * by a max() over a cached read; now a consequence of deriving the scalar
+	 * from the merged map, exercised with no cache failure involved.
+	 */
+	public function test_scalar_marker_tracks_the_furthest_live_proof(): void
+	{
+		$user  = 7;
+		$store = array();
+		$this->stub_stateful_user_meta($store);
+		Functions\when('get_current_user_id')->justReturn($user);
+
+		Functions\when('get_option')->justReturn(array('session_duration' => 15));
+		Functions\when('wp_generate_password')->justReturn('cookie-A');
+		Functions\when('wp_get_session_token')->justReturn('verifier-A');
+		Sudo_Session::activate($user);
+
+		$a_expires = (int) $store[Sudo_Session::META_KEY];
+
+		\WP_Sudo\Admin::reset_cache();
+		Functions\when('get_option')->justReturn(array('session_duration' => 1));
+		Functions\when('wp_generate_password')->justReturn('cookie-B');
+		Functions\when('wp_get_session_token')->justReturn('verifier-B');
+		Sudo_Session::activate($user);
+
+		$this->assertSame(
+			$a_expires,
+			(int) $store[Sudo_Session::META_KEY],
+			"B's shorter session shrank the shared liveness marker below A's expiry."
+		);
+	}
+
+	/**
 	 * #279 grace regression: a second browser's activation runs set_token()
 	 * housekeeping over the shared proof map. That sweep must NOT evict another
 	 * login session's entry that expired only moments ago and is still inside its

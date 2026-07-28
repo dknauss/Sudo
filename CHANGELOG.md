@@ -2,6 +2,53 @@
 
 ## Unreleased
 
+- **Site Health's stale-session sweep no longer deletes live or grace-eligible
+  sudo sessions (fix, #354).** The sweep selected users on the expiry marker
+  being set, then re-read that marker with `get_user_meta()` — a **cached**
+  read — while the enforcement path reads the signed proof record
+  **cache-bypassed**, precisely because a persistent `user_meta` entry can be
+  stale. The two could disagree, and a failed cache invalidation let the sweep
+  classify a live session as stale and delete every valid browser proof for
+  that user. Selection and classification now happen in one SQL query, so the
+  database is authoritative for both paths.
+
+  The same pass fixes a second defect that needed **no** cache failure at all:
+  the sweep used a bare "expired" test while `Sudo_Session::set_token()`'s own
+  housekeeping excludes the 120-second grace window, which exists so a
+  just-expired session can still finish an in-flight gated form rather than
+  losing the user's work. The sweep therefore deleted grace-eligible proofs up
+  to two minutes early on ordinary timing. Both sweeps now derive the boundary
+  from `Sudo_Session::GRACE_SECONDS` so they cannot drift apart again.
+
+  **Operator-visible:** cleanup of an expired session is now deferred by up to
+  120 seconds. That is the intended trade — the session is not enforcing during
+  that window, only its record is retained.
+
+- **Security — "revoke all sessions" could silently skip a live sudo session
+  (fix, #354).** The per-user expiry marker has one contract: it is at least as
+  late as every proof in the user's map, so nothing that enumerates on it can
+  miss a user whose sudo is still enforcing. `Sudo_Session::activate()`
+  maintained that contract by reading the marker back through the object cache
+  — twelve lines above a deliberately **cache-bypassed** read of the proof map.
+  A stale-low cached read wrote the new browser's expiry alone, which can sit
+  beneath another browser's live proof, and that value lands in the database.
+
+  `revoke_all_active_sessions()` selects on the marker in **SQL**, so an
+  operator's bulk revoke silently skipped a user whose sudo session was still
+  live and enforcing, and `is_session_live()` hid the per-user revoke on the
+  Users list for the same reason. A session that cannot be revoked is a worse
+  failure than one cleaned up too eagerly. The same too-low marker is also what
+  let the stale-session sweep above delete a live proof once the marker aged
+  past its cutoff, so this is what closes that path rather than narrowing it.
+
+  The marker is now derived in `set_token()` from the merged proof map it
+  already holds cache-bypassed, which always contains the activation being
+  written. The contract is therefore structural rather than maintained by
+  convention: the value cannot be lowered by a stale read, and the documented
+  #279 behaviour — a shorter session in one browser must not shrink the marker
+  for another — follows from the derivation instead of from a `max()` over a
+  cached value. No stored format changes and no migration is required.
+
 - **Project status clarified:** WP Sudo is explicitly classified as a research
   prototype and security-design demonstrator, not a supported production
   plugin or security boundary. Public documentation now limits evaluation to
