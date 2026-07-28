@@ -1384,8 +1384,13 @@ class Challenge {
 		 * attempt, never of a partial success. But the attempt
 		 * is visible nowhere else.
 		 *
-		 * Fires at most once per stash — the stash is consumed (deleted) above
-		 * before this point, and a subsequent request finds nothing to refuse.
+		 * Fires at most once per stash under normal use — the stash is consumed
+		 * (deleted) above before this point, so a later request finds nothing to
+		 * refuse. That is not a guarantee: Request_Stash::get() and delete() are
+		 * lock-free transient wrappers called in sequence, so two concurrent
+		 * completions using the same stash_key can both pass get() before either
+		 * reaches delete(), and both fire. Deduplicate if your audit trail needs
+		 * exactly-once.
 		 *
 		 * @since 4.9.0
 		 *
