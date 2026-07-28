@@ -74,6 +74,28 @@
   but it is a trade and not a free one. Tracked in
   [#475](https://github.com/dknauss/Sudo/issues/475).
 
+- **Known limitation — browser-admin reauthentication is materially worse since
+  4.9.0, and fixing it is a priority.** Removing automatic replay closed a real
+  vulnerability; the convenience cost is larger than the 4.9.0 notes conveyed, and
+  is stated here rather than left to be discovered. Four faces, all tracked, none
+  fixed in this release:
+
+  - a gated form returns to the correct screen with **every field blank**, so the
+    whole entry is retyped rather than just the secrets ([#436](https://github.com/dknauss/Sudo/issues/436));
+  - the notice reads "password and secret fields were not replayed — re-enter
+    them", implying only the secrets were lost when in fact everything was
+    ([#436](https://github.com/dknauss/Sudo/issues/436), [#469](https://github.com/dknauss/Sudo/issues/469));
+  - a gated **GET** action is told to "review the form" when there is no form
+    ([#463](https://github.com/dknauss/Sudo/issues/463));
+  - `options.critical` gates on the **presence** of a critical field rather than a
+    **change** to it, so every Settings -> General save raises a challenge even when
+    nothing changed ([#445](https://github.com/dknauss/Sudo/issues/445)).
+
+  Combined, a routine settings save can mean: challenge, reauthenticate, lose the
+  work, and read a notice that misdescribes what happened. The 4.9.0 entry below
+  has been corrected in `readme.txt` where it said re-doing the action was "a
+  re-click or a re-submit" — for a form it is a full retype.
+
 - **Project status clarified:** WP Sudo is explicitly classified as a research
   prototype and security-design demonstrator, not a supported production
   plugin or security boundary. Public documentation now limits evaluation to
