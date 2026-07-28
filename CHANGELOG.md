@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 4.9.1 - 2026-07-28
 
 - **Site Health's stale-session sweep no longer deletes live or grace-eligible
   sudo sessions (fix, #354).** The sweep selected users on the expiry marker
@@ -80,6 +80,38 @@
   WordPress Playground and disposable local environments with synthetic data.
   Plugin metadata and release presentation carry the same boundary without
   adding runtime behavior to the demonstrator.
+
+- **Documentation accuracy — the removed replay engine was still described as
+  live (#476, #481, #479).** 4.9.0 removed automatic replay outright, but the
+  sweep that followed it was partial: claims describing the old behaviour
+  survived in `docs/security-model.md`, `docs/FAQ.md`,
+  `docs/developer-reference.md`, `docs/release-status.md`,
+  `tests/MANUAL-TESTING.md`, and roughly eighty code comments. Corrected across
+  all of them.
+
+  Two were wrong rather than merely stale. `Challenge::clear_binding_cookie()`
+  shipped documented as clearing on both the replay and fail-closed paths so a
+  proof never outlives the stash it belonged to — a guarantee the method does not
+  provide, because it returns early when `headers_sent()`. A completion reached
+  after premature output therefore consumes the stash and leaves the cookie to
+  expire on its own. Now documented as best effort, with the reason that is
+  tolerable: nothing reads the proof to authorize anything.
+
+  `Request_Stash::mint_binding_proof()` shipped with a rationale for its
+  headers-sent guard written in the present tense — an unsatisfiable hash "would
+  strand the stash" — followed by a paragraph calling the binding
+  defence-in-depth that is never sufficient on its own to authorize a replay.
+  Both described the retired design as though it were live. The guard is now
+  framed as historical and the binding documented as inert.
+
+  Scope words were narrowed where they claimed more than the code does: several
+  unqualified statements that nothing is replayed now read "no server-stashed
+  request is replayed", because the block editor re-dispatches its own in-tab
+  request after reauthentication and the unqualified form denied it. This is a
+  narrowing of the claims that overreached, not a global substitution — the
+  unqualified phrasing remains where the surrounding sentence already scopes it
+  to the stash. That distinction was stated precisely in the 4.9.0 entry below;
+  the rest of the documentation has been brought into line with it.
 
 ## 4.9.0 - 2026-07-27
 

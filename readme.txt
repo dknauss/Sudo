@@ -5,7 +5,7 @@ Tags:              reauthentication, access control, admin protection, multisite
 Requires at least: 6.4
 Tested up to:      7.0
 Requires PHP:      8.2
-Stable tag:        4.9.0
+Stable tag:        4.9.1
 License:           GPL-2.0-or-later
 License URI:       https://spdx.org/licenses/GPL-2.0-or-later.html
 
@@ -206,6 +206,14 @@ Sudo's core design owes a debt to three people:
 12. In-editor session indicator — the unlocked padlock in the editor header while sudo is active, with the reauthentication confirmation snackbar.
 
 == Changelog ==
+
+= 4.9.1 - 2026-07-28 =
+A maintenance release built on 4.9.0. It fixes two ways the sudo session record and the cleanup that reads it could disagree, and corrects documentation that still described the automatic replay 4.9.0 removed. No migration; no stored format change.
+* **Security — "revoke all sessions" could silently skip a live sudo session** — each user carries an expiry marker that must be at least as late as every sudo proof they hold, so anything enumerating on it cannot miss a user whose sudo is still enforcing. The marker was maintained by reading it back through the object cache, a few lines above a deliberately cache-bypassed read of the proofs themselves. A stale-low cached read could write a marker sitting beneath another browser's live proof, and that value reached the database. Because the bulk revoke selects on the marker in SQL, an operator's "revoke all" could skip a user whose sudo session was still live, and the per-user revoke was hidden on the Users list for the same reason. A session that cannot be revoked is a worse failure than one cleaned up too eagerly. The marker is now derived from the proof map the code already holds cache-bypassed, so a stale read can no longer lower it.
+* **Fix — Site Health's cleanup no longer deletes sessions that are still working** — the stale-session sweep selected users one way and re-checked them another (a cached read against a cache-bypassed one), so a cache that fell out of step let it classify a live session as stale and delete every valid browser proof for that user. Selection and classification now happen in one database query. The same pass fixes a second case that needed no cache failure at all: the sweep ignored the 120-second grace window that exists so a just-expired session can finish a form already in progress, and so deleted those proofs up to two minutes early on ordinary timing. **Operator-visible:** cleanup of an expired session is now deferred by up to 120 seconds. During that window the sudo timer has expired but a cookie-bound proof is still accepted by gated paths — that is what the window is for, and the sweep was deleting proofs inside it.
+* **Documentation accuracy** — 4.9.0 removed automatic replay outright, but claims describing the old behaviour survived in the security model, the FAQ, the developer reference, the manual test checklist and roughly eighty code comments. Corrected, including two that were wrong rather than merely stale: a cleanup described as guaranteed that is in fact best effort, and a rationale written in the present tense for a mechanism that no longer runs. Several unqualified statements that nothing is replayed now read "no server-stashed request is replayed" — the block editor re-dispatches its own in-tab request after reauthentication, which the unqualified wording denied. That is a narrowing of the claims that overreached, not a blanket rewording.
+* **Project status** — WP Sudo is explicitly classified as a research prototype. Tags are reproducible research snapshots for disposable local environments and WordPress Playground, not production-readiness declarations.
+* **Known limitation** — the marker fix removes the object cache as a cause, not concurrency. The marker and the proof map are still two separate writes, so two browsers activating at the same instant can still interleave to produce a too-low marker. Tracked in issue #475.
 
 = 4.9.0 - 2026-07-27 =
 A security release. It closes a route by which a stolen session could have your own reauthentication carry out someone else's action, makes the sudo session proof unforgeable by a poisoned object cache, and gives operators a way out of a reauth lockout. **Everyone reauthenticates to sudo once after upgrading** — existing sessions carry no proof entry and no migration runs.
@@ -458,6 +466,9 @@ This release hardens the reauthentication gate against a hijacked admin session 
 See the plugin's `CHANGELOG.md` for all versions.
 
 == Upgrade Notice ==
+
+= 4.9.1 =
+Maintenance release. Fixes a case where "revoke all sessions" could silently skip a user whose sudo session was still live, and stops Site Health's cleanup deleting sessions that are still working. No migration; existing sudo sessions are unaffected.
 
 = 4.9.0 =
 Security release. Everyone must reauthenticate to sudo once after upgrading: existing sessions carry no proof entry and no migration runs. Gated actions are no longer auto-replayed at all, so custom rules that relied on replay now need the action re-issued.
