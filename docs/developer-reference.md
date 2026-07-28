@@ -702,7 +702,7 @@ do_action( 'wp_sudo_action_replayed', int $user_id, string $rule_id ); // dorman
 // reason is no_credential_this_request. That reason means only that no credential
 // was verified on the releasing request — an ordinary multi-tab resume produces it
 // just as a lure landing on a session-holder does, and the server cannot tell them
-// apart. Correlate it; do not alert on it alone. Nothing executes on any path —
+// apart. Correlate it; do not alert on it alone. The stash is never executed —
 // replay is removed — so this hook records a discard, never an action. Fires at
 // most once per stash under normal use — the stash is consumed before the hook
 // runs — but the transient read and delete are not atomic, so two concurrent

@@ -349,8 +349,8 @@ class Action_Registry {
 				),
 				'ajax'     => null,
 				'rest'     => null,
-				// Gated profile saves store NO POST body. Since 4.9.0 nothing is
-				// resumed anywhere, so the user re-submits regardless — retaining the
+				// Gated profile saves store NO POST body. Since 4.9.0 no server-stashed
+				// request is resumed, so the user re-submits regardless — retaining the
 				// body would add exposure without adding capability. It was never
 				// losslessly retainable either: the profile form always submits empty
 				// pass1/pass2, which the stash redacts.

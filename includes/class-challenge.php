@@ -79,8 +79,8 @@ class Challenge {
 	/**
 	 * Query arg used to show a notice on the landing page when the POST that was
 	 * intercepted contained redacted secret fields, so the user knows to re-enter
-	 * them. Nothing is replayed on any path (#322); this distinguishes WHY the
-	 * user must redo the action, not WHETHER.
+	 * them. No server-stashed request is replayed (#322); this distinguishes WHY
+	 * the user must redo the action, not WHETHER.
 	 *
 	 * @var string
 	 */
@@ -91,8 +91,8 @@ class Challenge {
 	 * NOT redacted — the default of the two notice flags, chosen in
 	 * build_replay_response_data() whenever `redacted_fields_omitted` is falsy.
 	 * Applies to GET stashes too, not only POSTs. It tells the user the action
-	 * was not carried out and must be re-issued; nothing is replayed on any
-	 * path (#322).
+	 * was not carried out and must be re-issued; no server-stashed request is
+	 * replayed (#322).
 	 *
 	 * @var string
 	 */
@@ -1201,10 +1201,10 @@ class Challenge {
 	 *                    profile role/password/email rules, whose stash is marked
 	 *                    `stash_no_replay()`, and by `network.super_admin`, which
 	 *                    carries no stash policy at all and so stores no body via
-	 *                    the missing-allowlist branch instead. Since
-	 *                    nothing is resumed anywhere (#322), this landing is the
-	 *                    every-time path for the rules that reach it, not an
-	 *                    attack-only one.
+	 *                    the missing-allowlist branch instead. Since no
+	 *                    server-stashed request is resumed (#322), this landing
+	 *                    is the every-time path for the rules that reach it, not
+	 *                    an attack-only one.
 	 * - update.php     — its whole body is inside `isset( $_GET['action'] )`, so a bare
 	 *                    GET renders nothing at all (GB-UPDATE-NEEDS-ACTION). Reached by
 	 *                    the plugin/theme install, upload and update rules.
@@ -1255,8 +1255,12 @@ class Challenge {
 	/**
 	 * Clear the one-time stash binding cookie.
 	 *
-	 * Cleared on every path that consumes a stash, so a proof never outlives the
-	 * stash it belonged to. (There is no replay path to distinguish — #322.)
+	 * Called on every path that consumes a stash, but the clearing itself is best
+	 * effort: it returns without clearing when headers are already sent, so a
+	 * completion reached after premature output consumes the stash and leaves the
+	 * binding cookie to expire on its own. A proof can therefore outlive its
+	 * stash. Nothing reads the proof to authorize anything (#322), so what
+	 * survives is an inert cookie, not a usable one.
 	 *
 	 * @return void
 	 */
@@ -1383,9 +1387,9 @@ class Challenge {
 		 *
 		 * That reason is the highest-value one to alert on, and the easiest to
 		 * mistake for noise: it is the footprint of a lure that landed on a
-		 * session-holder and was refused. Since 4.9.0 nothing executes on ANY
-		 * path — replay is removed, not conditioned — so this is a record of an
-		 * attempt, never of a partial success. But the attempt
+		 * session-holder and was refused. Since 4.9.0 the stash is never
+		 * executed — replay is removed, not conditioned — so this is a record
+		 * of an attempt, never of a partial success. But the attempt
 		 * is visible nowhere else.
 		 *
 		 * Fires at most once per stash under normal use — the stash is consumed

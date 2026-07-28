@@ -410,14 +410,14 @@ class Request_Stash {
 	 * from the target. target_describes_payload() then reports the target as incomplete
 	 * via `target_complete` — which nothing currently reads.
 	 *
-	 * Nothing executes unnamed, but that is because automatic replay was removed
-	 * outright (#322), NOT because this mechanism refuses anything. What the
-	 * limitation now costs is display honesty: the user sees a Target: line silently
-	 * missing a field the request carries, with no compensating refusal. That is a
-	 * weaker position than when this block was written, so read #452 as still open on
-	 * its merits rather than downgraded. The fix — threading the matched rule through
-	 * target capture — was deferred during a release freeze. Remove this block in the
-	 * same commit that fixes it.
+	 * No server-stashed request executes unnamed, but that is because automatic replay
+	 * was removed outright (#322), NOT because this mechanism refuses anything. What
+	 * the limitation now costs is display honesty: the user sees a Target: line
+	 * silently missing a field the request carries, with no compensating refusal. That
+	 * is a weaker position than when this block was written, so read #452 as still
+	 * open on its merits rather than downgraded. The fix — threading the matched rule
+	 * through target capture — was deferred during a release freeze. Remove this block
+	 * in the same commit that fixes it.
 	 *
 	 * @param string $param Request parameter name.
 	 * @param mixed  $raw   Value from the source that carries the effect.
@@ -557,12 +557,17 @@ class Request_Stash {
 	 *  - cookies are Secure (`__Host-` requires it; without TLS there is no binding
 	 *    worth trusting anyway).
 	 *  - headers are not already sent, so the cookie can actually reach the browser.
-	 *    Storing a hash the browser can never satisfy would strand the stash.
+	 *    Under the retired replay design, storing a hash the browser could never
+	 *    satisfy would have stranded the stash; that consequence no longer applies,
+	 *    and the guard is kept because minting a proof nobody can present is
+	 *    pointless, not because it protects anything.
 	 *
 	 * The binding is INERT since 4.9.0 removed automatic replay outright (#322). It is
-	 * still minted here, but nothing reads it to authorize anything — no intercepted
-	 * request is resumed on any path. Retained so the cookie's lifecycle stays intact
-	 * and a future design has the seam available.
+	 * still minted here, but nothing reads it to authorize anything — no server-stashed
+	 * request is resumed. (The block editor re-dispatches its OWN request client-side
+	 * after reauthenticating; that is the client re-issuing, not the server resuming a
+	 * stash.) Retained so the cookie's lifecycle stays intact and a future design has
+	 * the seam available.
 	 *
 	 * @return string sha256 hex digest, or '' when no binding is minted.
 	 */
