@@ -55,3 +55,8 @@ test-results/
 
 # claude-code-reviewer approval flag
 reviewer-approved
+
+# Scratch output from bin/suite-determinism.sh and the WP test-suite installer.
+# Previously ignored only via .git/info/exclude, which is machine-local — committed
+# tooling writes here, so the rule belongs in the tracked file.
+.tmp/
