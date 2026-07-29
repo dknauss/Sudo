@@ -433,6 +433,94 @@ class UpgraderTest extends TestCase {
 	}
 
 	/**
+	 * Fresh browser activation grants governance only to the activating admin.
+	 *
+	 * This asserts the security property behind the ordering in
+	 * Plugin::activate(), not merely that the direct grant happens first. The
+	 * 3.3.0 migration broadly grants every administrator when it sees no
+	 * manage_wp_sudo holder; the activator must already be such a holder before
+	 * that query runs.
+	 */
+	public function test_fresh_activation_does_not_grant_governance_to_a_second_administrator(): void {
+		if ( is_multisite() ) {
+			$this->markTestSkipped( 'The 3.3.0 governance backfill is single-site only.' );
+		}
+
+		$this->update_wp_sudo_option( Upgrader::VERSION_OPTION, '0.0.0' );
+		$activator = $this->make_admin();
+		$other     = $this->make_admin();
+
+		foreach ( Admin::GOVERNANCE_CAPS as $cap ) {
+			$activator->remove_cap( $cap );
+			$other->remove_cap( $cap );
+		}
+
+		wp_set_current_user( $activator->ID );
+		$this->activate_plugin();
+
+		$granted   = get_userdata( $activator->ID );
+		$untouched = get_userdata( $other->ID );
+		$this->assertInstanceOf( \WP_User::class, $granted );
+		$this->assertInstanceOf( \WP_User::class, $untouched );
+
+		foreach ( Admin::GOVERNANCE_CAPS as $cap ) {
+			$this->assertSame(
+				true,
+				$granted->caps[ $cap ] ?? null,
+				"Fresh activation must grant {$cap} directly to the activating administrator."
+			);
+			$this->assertArrayNotHasKey(
+				$cap,
+				$untouched->caps,
+				"Fresh activation must not grant {$cap} to another administrator."
+			);
+		}
+	}
+
+	/**
+	 * A userless activation retains the broad governance bootstrap fallback.
+	 *
+	 * WP-CLI activation without --user has no activating administrator to grant
+	 * directly. In that branch upgrade_3_3_0() must still prevent first-run
+	 * lockout by granting every existing administrator.
+	 */
+	public function test_fresh_userless_activation_grants_governance_to_existing_administrators(): void {
+		if ( is_multisite() ) {
+			$this->markTestSkipped( 'The 3.3.0 governance backfill is single-site only.' );
+		}
+
+		$this->update_wp_sudo_option( Upgrader::VERSION_OPTION, '0.0.0' );
+		$first  = $this->make_admin();
+		$second = $this->make_admin();
+
+		foreach ( Admin::GOVERNANCE_CAPS as $cap ) {
+			$first->remove_cap( $cap );
+			$second->remove_cap( $cap );
+		}
+
+		wp_set_current_user( 0 );
+		$this->activate_plugin();
+
+		$first  = get_userdata( $first->ID );
+		$second = get_userdata( $second->ID );
+		$this->assertInstanceOf( \WP_User::class, $first );
+		$this->assertInstanceOf( \WP_User::class, $second );
+
+		foreach ( Admin::GOVERNANCE_CAPS as $cap ) {
+			$this->assertSame(
+				true,
+				$first->caps[ $cap ] ?? null,
+				"Userless activation must grant {$cap} to the first existing administrator."
+			);
+			$this->assertSame(
+				true,
+				$second->caps[ $cap ] ?? null,
+				"Userless activation must grant {$cap} to the second existing administrator."
+			);
+		}
+	}
+
+	/**
 	 * SURF-01: 2.2.0 preserves already-valid three-tier policy values.
 	 *
 	 * Verifies that 'disabled', 'limited', 'unrestricted' values survive
