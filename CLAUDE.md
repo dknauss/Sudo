@@ -94,6 +94,16 @@ directly. A commit is docs-only when no code files are staged — only `.md`,
 approval check automatically. Any commit touching `.php`, scripts, or other
 code still requires a fresh reviewer approval.
 
+### Review-thread resolution with auto-merge
+
+Push review fixes before resolving their threads. Resolving the last thread can
+trigger auto-merge immediately, so resolving first can merge without the fix and
+leave a later push on an orphaned branch. State explicitly when a finding is
+being deferred rather than fixed. After merge, fetch and inspect the merged
+commit for every file named by a finding; a resolved thread does not prove its
+requested change landed. The canonical rule is in `AGENTS.md` under Branch
+Hygiene.
+
 ### User bypass (your own commits only)
 
 For commits you write yourself (not AI-generated):

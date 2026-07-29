@@ -465,6 +465,13 @@ behavior that the model cannot hold in working memory.
   `release/...`.
 - Keep each branch tied to one logical PR or task. Prefer follow-up branches over
   continually reusing a stale branch for unrelated work.
+- When auto-merge is armed, push every review fix before resolving its thread.
+  Resolving the last thread can merge the PR immediately; a later push may only
+  recreate a deleted, orphaned branch. If a finding is deferred instead of
+  fixed, say so in the thread before resolving it.
+- After a PR merges, verify each file named by a review finding from the merged
+  commit (`git show origin/main:<path>` after fetching), not from the local
+  branch or the thread's resolved state.
 - After a PR is merged, delete the remote branch and prune local tracking refs.
 - Before creating a branch, check whether an existing open PR already covers the
   same scope.
