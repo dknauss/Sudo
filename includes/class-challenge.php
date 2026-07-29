@@ -77,22 +77,42 @@ class Challenge {
 	public const AJAX_REFRESH_NONCE_ACTION = 'wp_sudo_refresh_grant_nonce';
 
 	/**
-	 * Query arg used to show a notice on the landing page when the POST that was
-	 * intercepted contained redacted secret fields, so the user knows to re-enter
-	 * them. No server-stashed request is replayed (#322); this distinguishes WHY
-	 * the user must redo the action, not WHETHER.
+	 * INERT since #469 — no longer emitted, still honoured on arrival.
+	 *
+	 * It once selected a "secrets were redacted" variant of the landing notice.
+	 * That distinction was never sound. `redacted_fields_omitted` is set only
+	 * inside Request_Stash::sanitize_params(), which build_stashed_post_params()
+	 * returns before whenever `post_mode` is `none` or the allowlist is empty, so
+	 * the flag requires a rule using stash_allowlist() whose OWN allowlisted field
+	 * names hit sensitive_field_keys(). Among builtin rules exactly one qualifies:
+	 * `user.create`. The three rules whose whole PURPOSE is changing a credential —
+	 * `user.change_password`, `user.change_email`, `user.promote_profile` — use
+	 * stash_no_replay(), which discards the body without ever reaching
+	 * sanitize_params(), leaving the flag false. So the POST that definitely
+	 * carried a password got the notice that did not mention passwords.
+	 *
+	 * The flag is a ONE-WAY signal: raised means a secret was present and dropped,
+	 * but not-raised means nothing at all. That is what made it useless as the
+	 * selector for wording about secrets.
+	 *
+	 * Kept rather than deleted per VERSIONING.md's security-forced-inertness
+	 * clause: it is public API, and a URL already in flight when a site upgrades
+	 * must still explain itself. render_redacted_replay_notice() now renders the
+	 * same single string as the blocked arg.
 	 *
 	 * @var string
 	 */
 	public const REDACTED_REPLAY_QUERY_ARG = 'wp_sudo_redacted_replay';
 
 	/**
-	 * Query arg added to the landing URL for a consumed stash whose secrets were
-	 * NOT redacted — the default of the two notice flags, chosen in
-	 * build_replay_response_data() whenever `redacted_fields_omitted` is falsy.
-	 * Applies to GET stashes too, not only POSTs. It tells the user the action
-	 * was not carried out and must be re-issued; no server-stashed request is
-	 * replayed (#322).
+	 * Query arg added to the landing URL for every consumed stash, GET or POST.
+	 * It tells the user the action was not carried out and must be re-issued; no
+	 * server-stashed request is replayed (#322).
+	 *
+	 * The only notice arg emitted since #469. build_replay_response_data() used to
+	 * pick between this and REDACTED_REPLAY_QUERY_ARG on `redacted_fields_omitted`;
+	 * that flag does not mean what the choice assumed it meant — see the other
+	 * constant.
 	 *
 	 * @var string
 	 */
@@ -161,40 +181,104 @@ class Challenge {
 	}
 
 	/**
-	 * Render a notice telling the user to re-enter secret fields that were
-	 * redacted from the stash. (Nothing is replayed regardless — #322.)
+	 * Render the refusal notice for a landing URL carrying the legacy redacted arg.
+	 *
+	 * Named for the arg it answers, not for what it says: since #469 it renders the
+	 * same string as render_blocked_replay_notice(), because there was only ever one
+	 * outcome to describe. Nothing here is specific to secrets — see
+	 * REDACTED_REPLAY_QUERY_ARG for why that distinction was never sound.
+	 *
+	 * Kept only so a URL already in flight when a site upgrades still explains
+	 * itself; nothing emits the arg any more.
 	 *
 	 * @return void
 	 */
 	public function render_redacted_replay_notice(): void {
-		$notice = isset( $_GET[ self::REDACTED_REPLAY_QUERY_ARG ] ) && is_string( $_GET[ self::REDACTED_REPLAY_QUERY_ARG ] ) ? sanitize_text_field( wp_unslash( $_GET[ self::REDACTED_REPLAY_QUERY_ARG ] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Notice flag only; sanitized in helper.
-
-		if ( '1' !== $notice ) {
+		// The blocked renderer already covers a URL carrying both args; without
+		// this, an in-flight upgrade URL stacks two identical warnings.
+		if ( '1' === $this->notice_flag( self::BLOCKED_REPLAY_QUERY_ARG ) ) {
 			return;
 		}
 
-		echo '<div class="notice notice-warning is-dismissible"><p>'
-			. esc_html__( 'Reauthentication complete. For your security, password and secret fields were not replayed. Re-enter them to finish the change.', 'wp-sudo' )
+		if ( '1' !== $this->notice_flag( self::REDACTED_REPLAY_QUERY_ARG ) ) {
+			return;
+		}
+
+		$this->render_refusal_notice();
+	}
+
+	/**
+	 * Read a notice query arg as a flag.
+	 *
+	 * @param string $arg Query arg name.
+	 * @return string Sanitized value, or '' when absent.
+	 */
+	private function notice_flag( string $arg ): string {
+		// phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Notice flag only; sanitized on the next line.
+		return isset( $_GET[ $arg ] ) && is_string( $_GET[ $arg ] ) ? sanitize_text_field( wp_unslash( $_GET[ $arg ] ) ) : '';
+	}
+
+	/**
+	 * Render the one post-challenge refusal notice.
+	 *
+	 * ONE string, because the two it replaced described a distinction that does
+	 * not exist. Since #322 nothing is replayed on any path, so what the user
+	 * needs to know is identical every time: the action did not happen, and doing
+	 * it again will now go straight through.
+	 *
+	 * What each clause is doing, so a later edit does not quietly reintroduce a
+	 * defect this fixes:
+	 *
+	 * - No "Reauthentication complete" opener. It is true only on the
+	 *   replay_stash() path where a credential was verified;
+	 *   complete_active_session_request() and render_resume_page() reach the same
+	 *   notice with `$credential_verified` false (#436 face 2).
+	 * - "Do it again", not "review the form". Every stash now takes the refusal
+	 *   path, so the most common arrival is a link-driven GET — plugin or theme
+	 *   activation — which never had a form (#463).
+	 * - "nothing was changed — including anything you had already typed in",
+	 *   rather than naming which fields were dropped. Naming them implied the
+	 *   rest were saved, and the flag that selected that wording does not track
+	 *   secrets at all (#469; see REDACTED_REPLAY_QUERY_ARG).
+	 * - The session clause is CONDITIONAL — "while your sudo session lasts" —
+	 *   deliberately, and must stay that way. A session is genuinely active at
+	 *   redirect time on all three paths (both non-credential callers are guarded
+	 *   by `Sudo_Session::is_active()` at their call sites, and the credential
+	 *   path has just granted one), but this renderer fires on `admin_notices`
+	 *   from a `$_GET` flag alone and checks nothing. A reload of the landing URL
+	 *   after the 1-15 minute session expires would re-render it, so any
+	 *   present-tense claim about session state ("your session is active now")
+	 *   would be false there. Asserting it would also mean re-opening a
+	 *   translated string to fix.
+	 *
+	 * `role="alert"` matches the in-page notices at render_page(). Without it the
+	 * dashboard landing announces nothing, and the announcement IS the message.
+	 *
+	 * @return void
+	 */
+	private function render_refusal_notice(): void {
+		echo '<div class="notice notice-warning is-dismissible" role="alert"><p>'
+			. esc_html__( 'For your security, WP Sudo never repeats your previous action, so it was not carried out and nothing was changed — including anything you had already typed in. Do it again to finish the change; while your sudo session lasts you will not be asked to reauthenticate.', 'wp-sudo' )
 			. '</p></div>';
 	}
 
 	/**
-	 * Render the default post-challenge notice: the action was not carried out
-	 * and must be re-issued. Shown for any consumed stash whose secrets were not
-	 * redacted (the redacted case has its own notice above).
+	 * Render the post-challenge notice: the action was not carried out and must be
+	 * re-issued.
+	 *
+	 * Shown for EVERY consumed stash since #469 — build_replay_response_data() adds
+	 * BLOCKED_REPLAY_QUERY_ARG unconditionally. There is no longer a redacted case
+	 * with a notice of its own; the other renderer answers the legacy arg with this
+	 * same string.
 	 *
 	 * @return void
 	 */
 	public function render_blocked_replay_notice(): void {
-		$notice = isset( $_GET[ self::BLOCKED_REPLAY_QUERY_ARG ] ) && is_string( $_GET[ self::BLOCKED_REPLAY_QUERY_ARG ] ) ? sanitize_text_field( wp_unslash( $_GET[ self::BLOCKED_REPLAY_QUERY_ARG ] ) ) : ''; // phpcs:ignore WordPress.Security.NonceVerification.Recommended, WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Notice flag only; sanitized in helper.
-
-		if ( '1' !== $notice ) {
+		if ( '1' !== $this->notice_flag( self::BLOCKED_REPLAY_QUERY_ARG ) ) {
 			return;
 		}
 
-		echo '<div class="notice notice-warning is-dismissible"><p>'
-			. esc_html__( 'Reauthentication complete. For your security, this request was not replayed automatically. Review the form and submit it again to finish the change.', 'wp-sudo' )
-			. '</p></div>';
+		$this->render_refusal_notice();
 	}
 
 	/**
@@ -1454,18 +1538,20 @@ class Challenge {
 		 * screen* — the admin page the request was aimed at, with its query (the
 		 * action + nonce, i.e. the effect) stripped and re-validated same-origin — so
 		 * re-performing it is a re-click or a re-submit that the now-active sudo
-		 * session passes straight through. Both carry the "review and submit again"
-		 * notice (the redacted variant when secret fields were dropped at stash time).
-		 * No per-rule taxonomy is involved. An interim #322 v2 design would have
+		 * session passes straight through. Both carry the same refusal notice — one
+		 * string on every path since #469, because there was never more than one
+		 * outcome to describe. No per-rule taxonomy is involved. An interim #322 v2 design would have
 		 * restored seamless auto-replay for the same-browser case behind an
 		 * origin-bound proof; 4.9.0 removed automatic replay outright instead, so
 		 * nothing here resumes an intercepted request.
 		 *
 		 * #429: POSTs previously landed on the dashboard, on the reasoning that their
 		 * re-submit needs the form re-filled regardless. That was wrong in the case it
-		 * matters most — the notice tells the user to re-enter redacted fields, and the
-		 * dashboard has no form to re-enter them into, so the instruction is
-		 * unactionable and the typed input is simply lost. v4.8.0 got the landing right
+		 * matters most — the notice tells the user to do the action again, and the
+		 * dashboard has no form to do it on, so the instruction is unactionable and
+		 * the typed input is simply lost. (The notice said "re-enter redacted fields"
+		 * when this was written; #469 replaced that wording, but the landing
+		 * requirement is about where the user ends up, not what the copy says.) v4.8.0 got the landing right
 		 * by using the stashed return_url; what was unsafe there was the SOURCE, not
 		 * the intent. return_url is derived from wp_get_referer(), so the request that
 		 * planted the stash chooses it, and honouring it re-opens the confused deputy
@@ -1526,10 +1612,12 @@ class Challenge {
 			$target = wp_validate_redirect( $screen, $neutral_url );
 		}
 
-		$notice_arg = ! empty( $stash['redacted_fields_omitted'] )
-			? self::REDACTED_REPLAY_QUERY_ARG
-			: self::BLOCKED_REPLAY_QUERY_ARG;
-		$target     = add_query_arg( $notice_arg, '1', $target );
+		// One arg, unconditionally. Both arms of the ternary this replaces returned
+		// `post_replay_blocked => true`, so the two notices described one outcome —
+		// and the flag that chose between them does not track secrets (#469). The
+		// response still reports `redacted_fields_omitted` below: it is accurate
+		// about what sanitize_params() did, and only the notice WORDING was wrong.
+		$target = add_query_arg( self::BLOCKED_REPLAY_QUERY_ARG, '1', $target );
 
 		return array(
 			'code'                    => 'success',

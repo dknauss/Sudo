@@ -1876,7 +1876,13 @@ class ChallengeTest extends TestCase
 		// #322: redirect is a neutral admin URL, NOT the attacker-controllable return_url.
 		$this->assertStringNotContainsString('profile.php', $data['redirect']);
 		$this->assertStringContainsString('/wp-admin/', $data['redirect']);
-		$this->assertStringContainsString('wp_sudo_redacted_replay=1', $data['redirect']);
+		// #469: one notice arg now, whatever the stash recorded. The redacted variant
+		// claimed secrets were the reason and implied the rest of the request landed;
+		// both were false, and the flag it keyed on does not track secrets anyway.
+		$this->assertStringContainsString('wp_sudo_blocked_replay=1', $data['redirect']);
+		$this->assertStringNotContainsString('wp_sudo_redacted_replay=1', $data['redirect']);
+		// The response field is retained and still true: it accurately reports what
+		// sanitize_params() did. Only the notice wording drawn from it was wrong.
 		$this->assertTrue($data['redacted_fields_omitted']);
 		$this->assertArrayNotHasKey('replay', $data);
 		$this->assertArrayNotHasKey('post_data', $data);
@@ -2033,11 +2039,11 @@ class ChallengeTest extends TestCase
 	 * #429: a refused POST must land on its ORIGINATING SCREEN, not the dashboard.
 	 *
 	 * This is a regression guard, not a preference. v4.8.0 redirected a refused POST
-	 * to the stashed return_url — the form — so the "re-enter them" notice named
-	 * something the user could actually act on. #322 v1 removed that (return_url is
-	 * referer-derived and therefore requester-chosen, so redirecting to it re-opened
-	 * the confused deputy) and landed POSTs on the dashboard instead, where the
-	 * notice instructs the user to re-enter fields that are nowhere on screen.
+	 * to the stashed return_url — the form — so the notice named something the user
+	 * could actually act on. #322 v1 removed that (return_url is referer-derived and
+	 * therefore requester-chosen, so redirecting to it re-opened the confused deputy)
+	 * and landed POSTs on the dashboard instead, where the notice tells the user to
+	 * do again an action whose form is nowhere on screen.
 	 *
 	 * The fix is the treatment the GET path already had: derive the screen from
 	 * $stash['url'], which is the URL the gate intercepted rather than a value the
@@ -2078,12 +2084,15 @@ class ChallengeTest extends TestCase
 			$data['redirect'],
 			'A refused POST must return the user to the screen the request came from.'
 		);
-		// The notice tells the user to re-enter redacted fields; the dashboard has no
-		// form to re-enter them into, which is the whole defect.
+		// The landing must be the originating screen, not the dashboard. #469 removed
+		// the "re-enter them" wording this once guarded against, but the landing
+		// requirement is independent of the copy and outlives it: user-new.php is the
+		// one screen where the redaction flag can actually be raised by a builtin
+		// rule, so it is exactly where a dashboard landing would strand the user.
 		$this->assertNotSame(
-			'https://example.com/wp-admin/?' . \WP_Sudo\Challenge::REDACTED_REPLAY_QUERY_ARG . '=1',
+			'https://example.com/wp-admin/?' . \WP_Sudo\Challenge::BLOCKED_REPLAY_QUERY_ARG . '=1',
 			$data['redirect'],
-			'Landing on the dashboard leaves the "re-enter them" notice unactionable.'
+			'A refused user.create POST must not land on the dashboard.'
 		);
 	}
 
@@ -3153,7 +3162,9 @@ class ChallengeTest extends TestCase
 		$data = $this->invokeReplay('redacted-key', true);
 
 		$this->assertArrayNotHasKey('replay', $data, 'Redacted stash must never replay (secrets are missing).');
-		$this->assertStringContainsString('wp_sudo_redacted_replay=1', $data['redirect']);
+		// #469: the arg no longer varies with the redaction flag — see
+		// test_redacted_secret_stash_redirects_instead_of_post_replay.
+		$this->assertStringContainsString('wp_sudo_blocked_replay=1', $data['redirect']);
 
 		unset($_COOKIE[\WP_Sudo\Request_Stash::BINDING_COOKIE]);
 	}
@@ -3560,5 +3571,194 @@ class ChallengeTest extends TestCase
 		$this->assertStringNotContainsString('wp-sudo-challenge-password-form', $output);
 
 		unset($_GET['return_url'], $_COOKIE[\WP_Sudo\Sudo_Session::TOKEN_COOKIE]);
+	}
+
+	// -----------------------------------------------------------------
+	// Post-challenge notice bodies (#463, #469, #436 face 2)
+	//
+	// Before this group, ZERO tests asserted either notice's text — only the
+	// query arg in the redirect URL. That gap is why three separate wording
+	// defects survived review: the copy is the one part of the refusal the user
+	// actually reads, and nothing held it to the truth.
+	// -----------------------------------------------------------------
+
+	/**
+	 * Stub the translation and sanitization helpers the notice renderers use.
+	 */
+	private function stub_notice_helpers(): void
+	{
+		Functions\when('esc_html__')->returnArg();
+		Functions\when('sanitize_text_field')->returnArg();
+		Functions\when('wp_unslash')->returnArg();
+	}
+
+	/**
+	 * Capture a notice renderer's output.
+	 */
+	private function capture_notice(string $method): string
+	{
+		ob_start();
+		$this->challenge->{$method}();
+
+		return (string) ob_get_clean();
+	}
+
+	/**
+	 * Test the notice does not tell a link-driven GET action to review a form.
+	 *
+	 * #463: since #322 every stash takes the refusal path, so plugin and theme
+	 * activation — reached by clicking a link, carrying no form at all — lands on
+	 * its list screen and is told to "review the form and submit it again". That
+	 * is now the most common path, not an edge case.
+	 */
+	public function test_blocked_replay_notice_does_not_reference_a_form(): void
+	{
+		$this->stub_notice_helpers();
+		$_GET[\WP_Sudo\Challenge::BLOCKED_REPLAY_QUERY_ARG] = '1';
+
+		$output = $this->capture_notice('render_blocked_replay_notice');
+
+		$this->assertNotSame('', $output, 'The blocked-replay arg must render a notice.');
+		$this->assertStringNotContainsString(
+			'Review the form',
+			$output,
+			'A link-driven GET action has no form to review (#463).'
+		);
+
+		unset($_GET[\WP_Sudo\Challenge::BLOCKED_REPLAY_QUERY_ARG]);
+	}
+
+	/**
+	 * Test the notice does not open by claiming a reauthentication just happened.
+	 *
+	 * "Reauthentication complete" is true only on the replay_stash() path where a
+	 * credential was verified. complete_active_session_request() and
+	 * render_resume_page() both reach the same notice with $credential_verified
+	 * false — the user already held a session and presented nothing on that
+	 * request. The opener is false on two of the three paths.
+	 */
+	public function test_blocked_replay_notice_does_not_claim_reauthentication_occurred(): void
+	{
+		$this->stub_notice_helpers();
+		$_GET[\WP_Sudo\Challenge::BLOCKED_REPLAY_QUERY_ARG] = '1';
+
+		$output = $this->capture_notice('render_blocked_replay_notice');
+
+		$this->assertStringNotContainsString(
+			'Reauthentication complete',
+			$output,
+			'False on complete_active_session_request() and render_resume_page().'
+		);
+
+		unset($_GET[\WP_Sudo\Challenge::BLOCKED_REPLAY_QUERY_ARG]);
+	}
+
+	/**
+	 * Test the notice states that nothing was carried out.
+	 *
+	 * The load-bearing fact for both #463 and #469: the whole request was
+	 * discarded. Any wording that leaves the user believing part of it landed is
+	 * the defect, whichever arg brought them here.
+	 */
+	public function test_blocked_replay_notice_states_nothing_was_changed(): void
+	{
+		$this->stub_notice_helpers();
+		$_GET[\WP_Sudo\Challenge::BLOCKED_REPLAY_QUERY_ARG] = '1';
+
+		$output = $this->capture_notice('render_blocked_replay_notice');
+
+		$this->assertStringContainsString('nothing was changed', $output);
+		$this->assertStringContainsString('do it again', strtolower($output));
+
+		unset($_GET[\WP_Sudo\Challenge::BLOCKED_REPLAY_QUERY_ARG]);
+	}
+
+	/**
+	 * Test the redacted arg renders the same body as the blocked arg.
+	 *
+	 * #469 / #436 face 2: the redacted/blocked axis is unsound as a description
+	 * of secrets. `redacted_fields_omitted` is set only inside
+	 * Request_Stash::sanitize_params(), which build_stashed_post_params() returns
+	 * before whenever post_mode is `none` — so among builtin rules only
+	 * user.create can raise it, while every credential-carrying rule
+	 * (user.change_password, user.change_email, user.promote_profile) uses
+	 * stash_no_replay() and gets the OTHER notice. A POST that definitely carried
+	 * a password produced the message that did not mention passwords, and naming
+	 * which fields "were not replayed" implied the rest were.
+	 *
+	 * One string, true on every path, is the fix. The arg is kept only so a URL
+	 * already in flight across an upgrade still explains itself.
+	 */
+	public function test_redacted_replay_arg_renders_the_same_body_as_blocked(): void
+	{
+		$this->stub_notice_helpers();
+
+		$_GET[\WP_Sudo\Challenge::BLOCKED_REPLAY_QUERY_ARG] = '1';
+		$blocked = $this->capture_notice('render_blocked_replay_notice');
+		unset($_GET[\WP_Sudo\Challenge::BLOCKED_REPLAY_QUERY_ARG]);
+
+		$_GET[\WP_Sudo\Challenge::REDACTED_REPLAY_QUERY_ARG] = '1';
+		$redacted = $this->capture_notice('render_redacted_replay_notice');
+		unset($_GET[\WP_Sudo\Challenge::REDACTED_REPLAY_QUERY_ARG]);
+
+		$this->assertNotSame('', $redacted, 'The legacy arg must still explain itself.');
+		$this->assertSame(
+			$blocked,
+			$redacted,
+			'One honest string on every path — the axis described secrets wrongly.'
+		);
+		$this->assertStringNotContainsString(
+			'were not replayed',
+			$redacted,
+			'Naming which fields were not replayed implies the others were (#469).'
+		);
+	}
+
+	/**
+	 * Test only one notice renders when both args are present.
+	 *
+	 * Both renderers are hooked to admin_notices, and a URL surviving an upgrade
+	 * can carry both args. Two identical warnings stacked on one screen is its
+	 * own defect.
+	 */
+	public function test_only_one_notice_renders_when_both_args_are_present(): void
+	{
+		$this->stub_notice_helpers();
+		$_GET[\WP_Sudo\Challenge::BLOCKED_REPLAY_QUERY_ARG]  = '1';
+		$_GET[\WP_Sudo\Challenge::REDACTED_REPLAY_QUERY_ARG] = '1';
+
+		$output = $this->capture_notice('render_blocked_replay_notice')
+			. $this->capture_notice('render_redacted_replay_notice');
+
+		$this->assertSame(
+			1,
+			substr_count($output, 'notice-warning'),
+			'Exactly one notice must render when a URL carries both args.'
+		);
+
+		unset(
+			$_GET[\WP_Sudo\Challenge::BLOCKED_REPLAY_QUERY_ARG],
+			$_GET[\WP_Sudo\Challenge::REDACTED_REPLAY_QUERY_ARG]
+		);
+	}
+
+	/**
+	 * Test the notice is announced to assistive technology.
+	 *
+	 * The in-page challenge notices at render_page() carry role="alert"; these do
+	 * not. On the dashboard landing a screen-reader user gets no announcement
+	 * that the action they just took was discarded — which is the entire content
+	 * of the message.
+	 */
+	public function test_blocked_replay_notice_is_announced_to_assistive_technology(): void
+	{
+		$this->stub_notice_helpers();
+		$_GET[\WP_Sudo\Challenge::BLOCKED_REPLAY_QUERY_ARG] = '1';
+
+		$output = $this->capture_notice('render_blocked_replay_notice');
+
+		$this->assertStringContainsString('role="alert"', $output);
+
+		unset($_GET[\WP_Sudo\Challenge::BLOCKED_REPLAY_QUERY_ARG]);
 	}
 }
