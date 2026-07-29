@@ -91,7 +91,7 @@ Each section uses `- [ ]` checkboxes so the document works as a runnable checkli
 
 - [ ] **Challenge page:** "Incorrect password" error is specific (not generic "authentication failed").
 - [ ] **Challenge page:** Lockout error includes a live countdown ("Too many failed attempts. Try again in M:SS.") so the user knows exactly when they can retry.
-- [ ] **Challenge page:** "Your challenge session has expired" message appears when the stash is consumed or timed out, with a clear path to retry.
+- [ ] **Challenge page:** "Your challenge session has expired" message appears when the stash is consumed or timed out **and no sudo session is active**, with a clear path to retry. With a session still active, `render_page()` enters `render_resume_page()` before it checks whether the stash exists, so the same URL shows the "Session already confirmed" resume page instead — see the stash-consumption check under §2a.
 - [ ] **Challenge page:** "Your authentication session has expired. Please start over." appears if the 2FA pending state is missing, with the "Start over" button.
 - [ ] **Challenge page:** Non-JSON server responses log to the browser console and show "The server returned an unexpected response" with a console hint.
 - [ ] **Challenge page:** Network errors show "A network error occurred. Please try again."
