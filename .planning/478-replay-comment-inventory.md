@@ -53,24 +53,27 @@ accurate descriptions of what the code does (compute a replay *refusal*).
 are **replay attack** resistance, not request replay: a *cookie* replayed under a
 different login session, cross-browser 2FA replay, an HMAC that recomputes
 differently on a replayed token. Two of those ten match only via `eligib`
-(`no eligibility check` L536, `grace-eligible` L1022) and concern role-agnosticism
-and the grace window.
+(`no eligibility check` L536 in the `attempt_activation()` docblock,
+`grace-eligible` L1022 inside `set_token()`) and concern role-agnosticism and the
+grace window.
 
-The tenth, **L1015**, is leave-alone for a *different* reason and the distinction
-matters: *"another concurrent browser's proof may … still be replaying an
-in-flight gated form under `is_within_grace()`"* is neither replay-attack
-semantics nor request replay — it is loose vocabulary for the user's own
-in-flight submit. Correct to leave; do **not** justify it with the replay-attack
-rationale.
+The tenth, **L1015** inside `set_token()`, is leave-alone for a *different*
+reason and the distinction matters: *"another concurrent browser's proof may …
+still be replaying an in-flight gated form under `is_within_grace()`"* is
+neither replay-attack semantics nor request replay — it is loose vocabulary for
+the user's own in-flight submit. Correct to leave; do **not** justify it with the
+replay-attack rationale.
 
-Same shape: `includes/class-site-health.php:533` (`grace-eligible proofs`).
+Same shape: `Site_Health::find_stale_sessions()` in
+`includes/class-site-health.php` L533 (`grace-eligible proofs`).
 
-**`bridges/wp-sudo-wsal-sensor.php` L227–228 is NOT a false friend** — corrected
-after review. *"Distinct ID so alerting can subscribe to a refused replay
-separately from **a successful one**"* uses the request-replay sense and
-presupposes a successful-replay event that has no producer. In scope,
-**current-but-ambiguous**: sharpen rather than skip.
+**The hook-registration loop in `bridges/wp-sudo-wsal-sensor.php` L227–228 is
+NOT a false friend** — corrected after review. *"Distinct ID so alerting can
+subscribe to a refused replay separately from **a successful one**"* uses the
+request-replay sense and presupposes a successful-replay event that has no
+producer. In scope, **current-but-ambiguous**: sharpen rather than skip.
 
+`Dashboard_Widget::render_inline_styles()` in
 `includes/class-dashboard-widget.php` L1207–1208 is likewise ambiguous rather
 than clean — the CSS comment presupposes both outcomes occur. Low severity.
 
@@ -83,43 +86,43 @@ mechanism.**
 
 | Lines | Class | Note |
 |---|---|---|
-| **11** | current | File header — *"Automatic replay was removed in 4.9.0 (#322). Nothing here reconstructs or…"*. Listed explicitly because `class-request-stash.php`'s header **is** stale; do not sweep headers by analogy |
-| 1045–1051, 1285–1291, 1296–1299, 1339–1372, 1389–1395, 1113, 1327 | current | Already correct, several emphatically so: *"Do NOT read its presence as evidence that replay still happens."* |
-| 1303–1318, 1369–1370 | historical | The v2 eligibility design, explicitly past-tense |
-| **314–315** | **stale** | *"most responses do not replay"* — implies some do |
-| **730, 946** | **stale** | *"bound replay is eligible"* ×2, three lines above the call whose own docblock says nothing is replayed |
-| **961–965, 980, 1003** | **stale** | `replay_stash()` docblock still documents the GET-redirect / POST-form engine — the block runs to **L965** (*"Builds and submits a hidden form for POST requests"*); *"Replay a still-valid stash when possible"* |
-| **1232** | **stale** | *"Cleared on BOTH the replay and fail-closed paths"* — there is no replay path |
-| **1401–1402** | **stale** | *"#322 v2 … **restores** seamless auto-replay"* — asserts restoration inside the method documented as the guarantee |
-| 80, 88–89, 158, 175, 1180 | stale (minor) | *"not stored for replay"*, *"prevented automatic POST replay"* — per-rule taxonomy implying others replay |
-| 272, 717, 1169, 1220, 1259 | current | Identifier references |
+| **11** — file header | current | File header — *"Automatic replay was removed in 4.9.0 (#322). Nothing here reconstructs or…"*. Listed explicitly because `class-request-stash.php`'s header **is** stale; do not sweep headers by analogy |
+| 1045–1051 (`render_resume_page()`), 1285–1291, 1296–1299, 1339–1372, 1389–1395, 1327 (`build_replay_response_data()`), 1113 (`render_hidden_fields()`) | current | Already correct, several emphatically so: *"Do NOT read its presence as evidence that replay still happens."* |
+| 1303–1318, 1369–1370 — `build_replay_response_data()` | historical | The v2 eligibility design, explicitly past-tense |
+| **314–315** — `render_page()` | **stale** | *"most responses do not replay"* — implies some do |
+| **730** — `handle_ajax_auth()`; **946** — `handle_ajax_2fa()` | **stale** | *"bound replay is eligible"* ×2, three lines above the call whose own docblock says nothing is replayed |
+| **961–965, 980** — `replay_stash()`; **1003** — `complete_active_session_request()` | **stale** | `replay_stash()` docblock still documents the GET-redirect / POST-form engine — the block runs to **L965** (*"Builds and submits a hidden form for POST requests"*); *"Replay a still-valid stash when possible"* |
+| **1232** — `clear_binding_cookie()` docblock | **stale** | *"Cleared on BOTH the replay and fail-closed paths"* — there is no replay path |
+| **1401–1402** — `build_replay_response_data()` | **stale** | *"#322 v2 … **restores** seamless auto-replay"* — asserts restoration inside the method documented as the guarantee |
+| 80, 88–89 — class properties; 158 — `render_redacted_replay_notice()` docblock; 175 — `render_blocked_replay_notice()` docblock; 1180 — `describe_stash_target()` | stale (minor) | *"not stored for replay"*, *"prevented automatic POST replay"* — per-rule taxonomy implying others replay |
+| 272 — `enqueue_assets()`; 717 — `handle_ajax_auth()`; 1169 — `describe_stash_target()`; 1220 — `is_handler_endpoint()`; 1259 — `clear_binding_cookie()` | current | Identifier references |
 
 ### `includes/class-request-stash.php` — 32 claims
 
 | Lines | Class | Note |
 |---|---|---|
-| **3, 18–21** | **stale** | File header: *"serialize and **replay** intercepted requests"* … *"retrieved and replayed — via redirect for GET, or a self-submitting form"*. The file's stated purpose is the removed behaviour |
-| **250** | **stale** | *"A replay may only run when the confirmation described the WHOLE effect"* — conditional claim |
-| **468–469** | **stale** | *"not eligible for bound replay"* — conditional; documents `target_complete`, which has **no reader** |
-| **534** | **stale** | *"never sufficient on its own to authorize a replay"* — implies replay authorisation exists |
-| **901–902** | **stale** | *"The JS replay mechanism submits all … `post_data` fields verbatim as hidden form inputs"* — that mechanism is deleted; the sentence runs into L902 |
-| **389, 578, 802, 845, 880, 958, 1001** | **stale (minor)** | *"the replay is refused"*, *"safe to store and replay"*, *"Resolve replay policy"*, *"not replayed"* |
-| **103** | **stale** | `TARGET_PARAMS` docblock: *"the confirmation is blank while the **full payload replays**"* |
-| **271** | **stale** | `capture_target()` `@param $complete`: *"so the caller can refuse to replay more than the confirmation described"* — conditional refusal stated as live |
-| **281–283** | **stale** | `capture_target()`: *"Read the source that will actually be **REPLAYED** first. A POST replay submits the stashed body…"* |
-| **349** | **stale** | `capture_target()`: *"must not name one value while another **is replayed**"* |
-| **424–426** | **stale** | `target_value_echoes_stored_option()`: *"the unsanitized value is **what actually replays**"* |
-| **360, 927** | **stale (minor)** | *"replaying the FULL value"*; *"not sent to JS replay"* — 927 is the same claim as 901, which is already marked stale |
-| 111, 135, 267, 289, 396 | historical / current | Genuinely read as the *reason* replay was abandoned, or as storage/redaction rationale that still applies |
+| **3, 18–21** — file header | **stale** | File header: *"serialize and **replay** intercepted requests"* … *"retrieved and replayed — via redirect for GET, or a self-submitting form"*. The file's stated purpose is the removed behaviour |
+| **250** — `save()` | **stale** | *"A replay may only run when the confirmation described the WHOLE effect"* — conditional claim |
+| **468–469** — `target_describes_payload()` docblock | **stale** | *"not eligible for bound replay"* — conditional; documents `target_complete`, which has **no reader** |
+| **534** — `mint_binding_proof()` docblock | **stale** | *"never sufficient on its own to authorize a replay"* — implies replay authorisation exists |
+| **901–902** — `filter_top_level_params()` | **stale** | *"The JS replay mechanism submits all … `post_data` fields verbatim as hidden form inputs"* — that mechanism is deleted; the sentence runs into L902 |
+| **389** — `capture_target()`; **578** — `mint_binding_proof()`; **802** — `set_stash_index()`; **845** — `build_stashed_post_params()`; **880** — `get_stash_policy()`; **958** — `is_sensitive_key()`; **1001** — `build_sensitive_field_keys()` | **stale (minor)** | *"the replay is refused"*, *"safe to store and replay"*, *"Resolve replay policy"*, *"not replayed"* |
+| **103** — `TARGET_PARAMS` constant docblock | **stale** | `TARGET_PARAMS` docblock: *"the confirmation is blank while the **full payload replays**"* |
+| **271** — `capture_target()` docblock | **stale** | `capture_target()` `@param $complete`: *"so the caller can refuse to replay more than the confirmation described"* — conditional refusal stated as live |
+| **281–283** — `capture_target()` | **stale** | `capture_target()`: *"Read the source that will actually be **REPLAYED** first. A POST replay submits the stashed body…"* |
+| **349** — `capture_target()` | **stale** | `capture_target()`: *"must not name one value while another **is replayed**"* |
+| **424–426** — `target_value_echoes_stored_option()` | **stale** | `target_value_echoes_stored_option()`: *"the unsanitized value is **what actually replays**"* |
+| **360** — `capture_target()`; **927** — `sanitize_params()` | **stale (minor)** | *"replaying the FULL value"*; *"not sent to JS replay"* — 927 is the same claim as 901, which is already marked stale |
+| 111, 135 — class constants/properties; 267 — `save()`; 289 — `capture_target()`; 396 — `capture_target()` | historical / current | Genuinely read as the *reason* replay was abandoned, or as storage/redaction rationale that still applies |
 
 ### `admin/js/wp-sudo-challenge.js` — 16 claims
 
 | Lines | Class | Note |
 |---|---|---|
-| **5, 11** | **stale** | File header documents the replay engine the body says was deleted |
-| **20, 146, 152, 248, 254** | **stale** | *"Stash mode: replay the stashed request"*, *"without replay data"* — implies replay data exists |
-| **295, 298, 303** | **stale** | Section banner + orphaned docblock for *"Replaying your action…"*, a string that no longer exists (`handleReplay()` assigns `returningToPage`) |
-| 324–325, 347, 354–366 | current | Emphatically correct; 354–366 explains the gadget's deliberate removal |
+| **5, 11** — file header | **stale** | File header documents the replay engine the body says was deleted |
+| **20** — top-level iframe guard; **146, 152** — password-submit handler; **248, 254** — 2FA-submit handler | **stale** | *"Stash mode: replay the stashed request"*, *"without replay data"* — implies replay data exists |
+| **295, 298, 303** — section banner and orphaned docblock immediately before `neutralDestination()` / `handleReplay()` | **stale** | Section banner + orphaned docblock for *"Replaying your action…"*, a string that no longer exists (`handleReplay()` assigns `returningToPage`) |
+| 324–325, 347, 354–366 — `handleReplay()` | current | Emphatically correct; 354–366 explains the gadget's deliberate removal |
 
 ### `admin/js/wp-sudo-editor-reauth.js` — 17 claims
 
@@ -132,22 +135,22 @@ rejections left rejected). **Do not "correct" this file.**
 
 | Lines | Class | Note |
 |---|---|---|
-| **1508–1519** | **stale — highest severity** | `Gate::evaluate_diagnostic_request()`: *"Since #322 replay **is** authorised by a conjunction this method cannot evaluate"*, naming the binding cookie and `Sec-Fetch-Site` as live conjuncts. Directly contradicts the corrected `docs/FAQ.md` |
-| **147, 291, 1431, 2657–2659** | **stale** | *"challenge + stash/replay"*, *"cannot stash and replay the request the way `intercept_rest()` does"* — asserts `intercept_rest()` replays |
+| **1508–1519** — `Gate::evaluate_diagnostic_request()` | **stale — highest severity** | `Gate::evaluate_diagnostic_request()`: *"Since #322 replay **is** authorised by a conjunction this method cannot evaluate"*, naming the binding cookie and `Sec-Fetch-Site` as live conjuncts. Directly contradicts the corrected `docs/FAQ.md` |
+| **147** — `Gate::register()`; **291** — `Gate::register_rest_backstop()`; **1431** — `Gate::intercept()`; **2657–2659** — `Gate::block_rest()` | **stale** | *"challenge + stash/replay"*, *"cannot stash and replay the request the way `intercept_rest()` does"* — asserts `intercept_rest()` replays |
 
 ### `includes/class-event-recorder.php` — 9 claims
 
 | Lines | Class | Note |
 |---|---|---|
-| **24, 338, 340** | **stale** | *"Fired when a stashed request is replayed after successful reauthentication."* `wp_sudo_action_replayed` has **no producer** in `includes/`, `bridges/`, `mu-plugin/` or `wp-sudo.php` — repo-wide the only `do_action` sites are `bin/demo-events.php` and three test files. **`CHANGELOG.md` L94** calls it retained but dormant. (Do **not** cite `readme.txt` for this: at baseline `5e0cd4e` its L218 says the opposite — *"unchanged and still fires"* — because the correction is in #476, which is unmerged.) |
-| 25, 358–390 | current | The `replay_refused` counterpart is described correctly |
+| **24** — hook list in `Event_Recorder` class header; **338, 340** — `on_action_replayed()` docblock | **stale** | *"Fired when a stashed request is replayed after successful reauthentication."* `wp_sudo_action_replayed` has **no producer** in `includes/`, `bridges/`, `mu-plugin/` or `wp-sudo.php` — repo-wide the only `do_action` sites are `bin/demo-events.php` and three test files. **`CHANGELOG.md` L94** calls it retained but dormant. (Do **not** cite `readme.txt` for this: at baseline `5e0cd4e` its L218 says the opposite — *"unchanged and still fires"* — because the correction is in #476, which is unmerged.) |
+| 25 — hook list in `Event_Recorder` class header; 358–390 — `on_action_replayed()` / `on_replay_refused()` boundary | current | The `replay_refused` counterpart is described correctly |
 
 ### `includes/class-action-registry.php` — 14 claims
 
 | Lines | Class | Note |
 |---|---|---|
-| **352–355, 392, 444, 484–488, 568–590** | **stale (per-rule taxonomy)** | *"Gated profile saves are non-replayable"*, *"NOT replayable"*, *"before this rule became non-replayable"* — each true of the retired selective design, each now implying unmarked rules replay |
-| 69, 849, 862, 944 | stale (minor) | *"replay-safe"*, *"replay allowlist"* in allowlist metadata docs |
+| **352–355, 392, 444, 484–488, 568–590** — built-in rule definitions inside `Action_Registry::rules()` | **stale (per-rule taxonomy)** | *"Gated profile saves are non-replayable"*, *"NOT replayable"*, *"before this rule became non-replayable"* — each true of the retired selective design, each now implying unmarked rules replay |
+| 69 — class constant docblock; 849 — `stash_allowlist()` docblock; 862 — `stash_no_replay()` docblock; 944 — `get_rules()` | stale (minor) | *"replay-safe"*, *"replay allowlist"* in allowlist metadata docs |
 
 ### `includes/class-sudo-session.php` — 10 claims
 
@@ -157,11 +160,11 @@ rejections left rejected). **Do not "correct" this file.**
 
 | File | Claims | Class |
 |---|---:|---|
-| `includes/class-admin.php` | 2 | **stale** — *"the replayed `_wp_http_referer` POST field"* (fixed in #476, which stages this file) |
-| `bridges/wp-sudo-two-factor-lifecycle-bridge.php` | 1 | **stale** — *"submission replays as a complete core profile save"* |
-| `bridges/wp-sudo-wsal-sensor.php` | 2 | **in scope**, current-but-ambiguous — presupposes a successful-replay event with no producer |
-| `includes/class-dashboard-widget.php` | 1 | ambiguous — CSS comment presupposes both outcomes occur |
-| `includes/class-site-health.php` | 1 | false friend — `grace-eligible` |
+| `includes/class-admin.php` | 2 | **stale**, inside `Admin::sanitize_settings()` — *"the replayed `_wp_http_referer` POST field"* (fixed in #476, which stages this file) |
+| `bridges/wp-sudo-two-factor-lifecycle-bridge.php` | 1 | **stale**, inside the `wp_sudo_gated_actions` filter closure — *"submission replays as a complete core profile save"* |
+| `bridges/wp-sudo-wsal-sensor.php` | 2 | **in scope**, in the hook-registration loop's callback metadata — current-but-ambiguous and presupposes a successful-replay event with no producer |
+| `includes/class-dashboard-widget.php` | 1 | ambiguous, inside `render_inline_styles()` — CSS comment presupposes both outcomes occur |
+| `includes/class-site-health.php` | 1 | false friend, inside `find_stale_sessions()` — `grace-eligible` |
 | `bridges/wp-sudo-stream-bridge.php` | 8 (0 comment) | **no claims** — all 8 are code: `wp_sudo_action_replayed` / `wp_sudo_replay_refused` case labels, message strings, arg-count map. Nothing to edit, but listed because a file with matches must not be silently absent — and because it *consumes* the hook the Event_Recorder row calls producerless |
 
 ## Totals
