@@ -6,14 +6,12 @@ on:
     paths:
       - 'docs/**'
       - '*.md'
-      - 'readme.txt'
       - '.github/workflows/docs-links.yml'
       - '.lycheeignore'
   pull_request:
     paths:
       - 'docs/**'
       - '*.md'
-      - 'readme.txt'
       - '.github/workflows/docs-links.yml'
       - '.lycheeignore'
 
@@ -40,7 +38,6 @@ jobs:
             --cache
             'docs/**/*.md'
             '*.md'
-            'readme.txt'
           fail: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
