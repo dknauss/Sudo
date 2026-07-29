@@ -116,8 +116,8 @@ vertical slice establishes a viable boundary:
   sinks before the Phase-27 trust decision and the Phase-28/29 slice pass.
 - **Dedicated session/proof store** — storage is a Phase-29 decision driven by
   atomic redemption and the active WordPress session-store contract. The
-  existing [`session-store-evaluation.md`](session-store-evaluation.md) and
-  Fortress comparison are background evidence, not an implementation mandate.
+  existing [`session-store-evaluation.md`](session-store-evaluation.md) is
+  background evidence, not an implementation mandate.
 - **Multisite terminology and broad coverage expansion** — revisit after the
   single-site two-effect mechanism is falsifiable and reproducible.
 
@@ -272,11 +272,8 @@ confirm-then-redeem shape is the same idea at the core layer.
 - **Per-rule / per-action sudo TTL** ([#269](https://github.com/dknauss/Sudo/issues/269), `priority: low`) —
   a shorter sudo window for the highest-risk
   rules (e.g. `user.delete`, `options.critical`) than for routine ones (e.g.
-  `plugin.activate`), instead of one global `session_duration`. Borrowed (adapted to
-  WP Sudo's per-rule, role-agnostic model) from Fortress's per-capability timeout
-  tiering; see the design-borrowing assessment in
-  [`sudo-architecture-comparison-matrix.md`](sudo-architecture-comparison-matrix.md#design-borrowing-assessment-fortress-session--sudo-patterns).
-  Small, unscheduled; needs a design pass on how a per-rule TTL interacts with an
+  `plugin.activate`), instead of one global `session_duration`. Small,
+  unscheduled; needs a design pass on how a per-rule TTL interacts with an
   already-active broader window before any implementation.
 - **SSO / SAML / OIDC provider framework** — a provider interface parallel to the 2FA hooks.
 - **Third-party bridge discovery mode** — a report-only scanner for plugin

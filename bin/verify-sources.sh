@@ -423,10 +423,7 @@ symbol_needles() {
 # non-code sources by kind, or those rows be restructured to carry an anchor, is an open
 # design question; this list is what lets the requirement apply to NEW rows meanwhile.
 UNANCHORED_LEGACY_IDS="$(cat <<'EOF'
-FT-SESSION-DROPIN
-FT-MU-LOADER
 FT-PROTECTED-CAPS
-FT-EULA
 EOF
 )"
 

@@ -781,7 +781,7 @@ expect_rc 0
 start "unanchored row listed as legacy warns, does not fail"
 new_sandbox unanchored_legacy
 registry "$HDR
-| FT-EULA | $URL | 2 | needle here | clause 3.1 of some document | a claim |"
+| FT-PROTECTED-CAPS | $URL | 2 | needle here | a configuration heading | a claim |"
 fixture "$URL" 200 0 $'x\nneedle here'
 run
 expect_rc 0
@@ -805,7 +805,7 @@ expect_out "anchor token"
 start "legacy-exempt row still fails when its snippet is gone"
 new_sandbox legacy_snippet_gone
 registry "$HDR
-| FT-EULA | $URL | 2 | needle here | clause 3.1 of some document | a claim |"
+| FT-PROTECTED-CAPS | $URL | 2 | needle here | a configuration heading | a claim |"
 fixture "$URL" 200 0 $'x\nsomething else entirely'
 run
 expect_rc 1
@@ -816,7 +816,7 @@ expect_out "snippet no longer present upstream"
 start "legacy-exempt row passes when its snippet is present"
 new_sandbox legacy_snippet_ok
 registry "$HDR
-| FT-EULA | $URL | 2 | needle here | clause 3.1 of some document | a claim |"
+| FT-PROTECTED-CAPS | $URL | 2 | needle here | a configuration heading | a claim |"
 fixture "$URL" 200 0 $'x\nneedle here'
 run
 expect_rc 0
