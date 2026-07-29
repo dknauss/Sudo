@@ -679,7 +679,8 @@ Repos:   wp-sudo, wordpress-2fa-ecosystem
 37. PROPAGATED A NONEXISTENT COMMAND — the `claude-playwright` launcher path
    Files:  (chat + committed) told the user four+ times to launch
            `/Users/danknauss/bin/claude-playwright`; wrote it into the #288 issue
-           handoff comment and `.planning/SESSION-HANDOFF.md`.
+           handoff comment and the then-current session handoff (preserved in
+           Git history).
    Claim:  "Launch `/Users/danknauss/bin/claude-playwright` to start the browser-capable
            session for #288."
    Reality: The path does not exist and never could as written: the home dir is
@@ -696,7 +697,7 @@ Repos:   wp-sudo, wordpress-2fa-ecosystem
            (a runnable command) asserted from a doc without checking the referent exists.
            A cited path is a verification claim; `ls`/`which` it before telling a user to
            run it. Fixed: rewrote `CLAUDE.md` to the MCP mechanism (no launcher), corrected
-           the #288 comment and `SESSION-HANDOFF.md`.
+           the #288 comment and the historical session handoff.
 
 38. FABRICATED RELEASE ATTRIBUTION — indicator "shipped in 4.7.0"
    Files:  CHANGELOG.md (the #284 `## Unreleased` entry, PR #298 — caught pre-merge).
