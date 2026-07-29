@@ -351,15 +351,17 @@ form yourself — automatic replay was removed outright in 4.9.0 (#322).
 4. **Expected:** Redirected to the challenge page. Action label shows
    "Change password."
 5. Authenticate.
-6. **Expected:** Redirected to the **dashboard** — not back to the edit-user
-   page — with a warning that the action was not carried out and nothing was
-   changed.
+6. **Expected:** Redirected to the **Users list** (`users.php`) — not back to the
+   edit-user page, and no longer the dashboard — with a warning that the action was
+   not carried out and nothing was changed.
 
    `user-edit.php` is in `Challenge::HANDLER_ENDPOINTS`, because on a bare GET it
    dies rather than rendering the form (`GB-USER-EDIT-DIES` in
    `docs/upstream-sources.md`): returning there would cost the user the
-   explanation as well as their input. So the
-   fail-closed landing is the neutral page. An earlier revision of this step
+   explanation as well as their input. Since #533 a handler with an unambiguous
+   usable sibling lands there instead of on the neutral page, and `user-edit.php`
+   has one. On multisite the network form lands on network `users.php`; a user
+   without the destination's capability still falls back to the dashboard. An earlier revision of this step
    expected a return to the edit-user screen, which the endpoint list has
    forbidden since #429.
 7. Navigate back to **Users > Edit** for that user, set the new password again

@@ -48,6 +48,51 @@
   *replayed* migration after the version stamp is lost. Nothing asserted this
   before: the existing test checked only that the activating admin received the
   capabilities, which was true either way.
+- **A refused profile or role change returns you to the Users list, not the
+  dashboard (#533).** Reported from live use: changing another user's information
+  or role without a sudo session cost you your typed input *and* your place.
+
+  `user-edit.php` is a handler endpoint — a bare GET of it calls
+  `wp_die( 'Invalid user ID.' )` — and until now every handler was diverted to the
+  neutral page, because the dashboard was the only alternative to stranding
+  someone on a dead end. Where a handler has an **unambiguous usable sibling**, the
+  landing now goes there instead. `user-edit.php` has one: the Users list.
+
+  The destination comes from a **static map keyed on the handler's filename** —
+  nothing in the request body, and no requester-supplied `return_url`, can name it.
+  (The request's own path does select between the site and network forms of that
+  target, and the capability checked with it, so it is fixed per handler *per admin
+  context* rather than fixed outright.) That bound is the property distinguishing
+  this from honouring a `return_url`. Network admin stays in network admin, derived from the URL's own
+  path rather than from `is_network_admin()` — that answer is ambient request
+  state any earlier plugin can set. The capability is chosen from the same path:
+  `wp-admin/users.php` gates on `list_users`, but `wp-admin/network/users.php`
+  gates on `manage_network_users` (`GB-USERS-LIST-CAP`), and a multisite
+  administrator who is not a super admin holds the first and not the second. A user
+  without the destination's capability falls back to the neutral page, because
+  landing them on "Sorry, you are not allowed to access this page" is worse than
+  the dashboard, not better.
+
+  The map is deliberately **partial**. `options.php` gets no entry:
+  `options-general.php` is one of several Settings screens and guessing which one
+  the operator wanted is a worse answer than the dashboard. An entry earns its
+  place only when the sibling is unambiguous, and a guard test now requires every
+  mapped target to be in the suite's verified-screen set — in both site and network
+  form — so adding one forces someone to establish what that screen does on a bare
+  GET. The capability each target requires is declared in the map and recorded
+  against `GB-USERS-LIST-CAP`; nothing checks the declared value against core, so
+  that part remains a reviewed claim rather than a tested one.
+
+  **This does not restore the typed input** (#436 face 1), and it is not the
+  structural fix: pre-gating protected controls so the work is never lost is #537.
+  It is the part that was a plain bug rather than a tradeoff.
+
+  The first proposed fix — preserving `user_id` from the stashed URL — was rejected
+  in design review as a no-op: core's profile form posts to a queryless
+  `self_admin_url()` with `action` and `user_id` as hidden POST fields, so there is
+  no query to preserve. A fixture in the test suite carried a fabricated
+  `user-edit.php?user_id=42` stash URL that no live request produces, which would
+  have made that fix look correct; it is now the shape a real request makes.
 
 ## 4.9.2 - 2026-07-29
 

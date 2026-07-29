@@ -509,8 +509,13 @@ landing — with the stash present they are returned to the screen the request c
 from, and without it they land on the fallback URL, typically the dashboard.
 (Not every intact stash returns you to the originating screen: the URLs in
 `Challenge::HANDLER_ENDPOINTS` — `options.php`, `admin-post.php`, `update.php`
-and the rest — are diverted to the neutral page regardless, because a bare GET of
-them renders nothing usable.) This
+and the rest — are diverted away from the originating screen, because a bare GET
+of them renders nothing usable. Most go to the neutral page; a handler with an
+unambiguous usable sibling goes there instead, which since #533 means
+`user-edit.php` lands on the Users list. The destination comes from a static map
+keyed on the handler's filename, so nothing in the request body and no
+requester-supplied `return_url` can name it; the request path selects only between
+the site and network forms of that same target, each capability-gated.) This
 is **annoying but not a security issue** — it fails safe (no action is taken
 without authentication).
 

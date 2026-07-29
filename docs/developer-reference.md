@@ -71,9 +71,10 @@ options held in that caller's own closure with nothing stored server-side, so no
 else can plant it. A gated request is
 stashed so the challenge can name what is being authorised, and the stash is then
 **consumed, never executed**: the user is returned to the screen the request came
-from — or to the neutral page for the handler URLs in
-`Challenge::HANDLER_ENDPOINTS`, such as `options.php`, since a bare GET of them
-renders nothing usable — holding the sudo session they just earned, to re-issue
+from — or, for the handler URLs in `Challenge::HANDLER_ENDPOINTS` such as
+`options.php`, to that handler's mapped sibling screen (`Challenge::HANDLER_LANDINGS`) when one
+exists and the user can use it, and to the neutral page when neither holds, since
+a bare GET of a handler renders nothing usable — holding the sudo session they just earned, to re-issue
 the action themselves.
 
 An earlier design replayed the request when the confirmation had named the whole
