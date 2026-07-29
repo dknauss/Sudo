@@ -17,6 +17,26 @@ fi
 
 php -r '
 	$data = json_decode( file_get_contents( $argv[1] ), true, 512, JSON_THROW_ON_ERROR );
+	$data["metadata"]["tools"][0]["version"] = "different-composer-version";
+	foreach ( $data["metadata"]["component"]["properties"] as &$property ) {
+		if ( in_array( $property["name"], array( "cdx:composer:package:distReference", "cdx:composer:package:sourceReference" ), true ) ) {
+			$property["value"] = "different-checkout-reference";
+		}
+	}
+	unset( $property );
+	file_put_contents( $argv[1], json_encode( $data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR ) . PHP_EOL );
+' "${SBOM_FILE}"
+
+if ! "${ROOT_DIR}/bin/verify-sbom.sh" >"${OUTPUT_FILE}" 2>&1; then
+	printf 'FAIL: environment-only SBOM differences should be normalized.\n' >&2
+	cat "${OUTPUT_FILE}" >&2
+	exit 1
+fi
+
+cp "${BACKUP_FILE}" "${SBOM_FILE}"
+
+php -r '
+	$data = json_decode( file_get_contents( $argv[1] ), true, 512, JSON_THROW_ON_ERROR );
 	$data["components"][0]["version"] = "stale-test-version";
 	file_put_contents( $argv[1], json_encode( $data, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR ) . PHP_EOL );
 ' "${SBOM_FILE}"

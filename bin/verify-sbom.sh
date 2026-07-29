@@ -24,16 +24,26 @@ fi
 		--output-format=JSON \
 		--spec-version=1.6 \
 		--output-reproducible \
+		--mc-version=dev-main \
 	>/dev/null
 )
 
-# The generator records the checkout's current Git commit on the root component.
-# A committed SBOM necessarily contains the parent commit, so that pair can never
-# match after the SBOM commit itself. Normalize only those two root-component
-# properties; dependency references remain byte-for-byte verified.
-normalize_root_reference() {
+# The generator records the checkout's Git commit on the root component and the
+# Composer executable version in its tool metadata. Neither describes a locked
+# dependency: the commit necessarily changes when the SBOM is committed, PR CI
+# checks out a synthetic merge commit, and the runner's Composer patch can move.
+# Normalize only those environmental fields. Dependency components and references
+# remain byte-for-byte verified.
+normalize_environment_metadata() {
 	php -r '
 		$data = json_decode( file_get_contents( $argv[1] ), true, 512, JSON_THROW_ON_ERROR );
+		foreach ( array_keys( $data["metadata"]["tools"] ?? array() ) as $index ) {
+			$tool = &$data["metadata"]["tools"][ $index ];
+			if ( ( $tool["name"] ?? "" ) === "composer" && ! isset( $tool["vendor"] ) ) {
+				$tool["version"] = "<normalized-composer-version>";
+			}
+			unset( $tool );
+		}
 		foreach ( array_keys( $data["metadata"]["component"]["properties"] ?? array() ) as $index ) {
 			$property = &$data["metadata"]["component"]["properties"][ $index ];
 			if ( in_array( $property["name"] ?? "", array( "cdx:composer:package:distReference", "cdx:composer:package:sourceReference" ), true ) ) {
@@ -45,15 +55,15 @@ normalize_root_reference() {
 	' "${1}" "${2}"
 }
 
-normalize_root_reference "${SBOM_FILE}" "${NORMALIZED_COMMITTED}"
-normalize_root_reference "${TMP_SBOM}" "${NORMALIZED_GENERATED}"
+normalize_environment_metadata "${SBOM_FILE}" "${NORMALIZED_COMMITTED}"
+normalize_environment_metadata "${TMP_SBOM}" "${NORMALIZED_GENERATED}"
 
 if ! diff -u "${NORMALIZED_COMMITTED}" "${NORMALIZED_GENERATED}" >/dev/null; then
 	cat >&2 <<'MSG'
 Error: .sbom/bom.json is stale.
 Run `composer sbom`, review the diff, and commit the updated SBOM.
 
-Diff (root Git references normalized):
+Diff (environment-derived metadata normalized):
 MSG
 	diff -u "${NORMALIZED_COMMITTED}" "${NORMALIZED_GENERATED}" >&2 || true
 	exit 1
