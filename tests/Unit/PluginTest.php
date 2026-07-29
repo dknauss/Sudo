@@ -1027,6 +1027,98 @@ class PluginTest extends TestCase {
 	}
 
 	/**
+	 * The activating admin is granted BEFORE the upgrader runs (#524).
+	 *
+	 * On a fresh single-site activation the stored version is `0.0.0`, so
+	 * maybe_upgrade() runs every routine including upgrade_3_3_0(). That routine
+	 * queries for one holder of `manage_wp_sudo` and, finding none, adds all four
+	 * GOVERNANCE_CAPS to EVERY user in the administrator role — not just the one
+	 * activating. Its own docblock describes granting to the activating admin,
+	 * which the ordering defeated.
+	 *
+	 * The fix is ordering, so the assertion is ordering: the activating admin must
+	 * already hold `manage_wp_sudo` by the time the zero-holder check runs, which
+	 * makes that check skip the broad bootstrap on a fresh install.
+	 *
+	 * Asserted through call sequence rather than through resulting capabilities
+	 * because add_cap() on a mocked WP_User cannot change what a stubbed
+	 * get_users() returns — the ordering IS the observable behaviour here.
+	 */
+	public function test_activate_grants_activating_admin_before_running_the_upgrader(): void {
+		$sequence = array();
+
+		// A `0.0.0` stamp runs the WHOLE chain, including upgrade_2_15_0()'s events
+		// table creation, which dereferences $wpdb. Supply one rather than relying
+		// on whatever a previously-run test left in the global: this test passed in
+		// isolation and errored in the full suite before this was added.
+		// Permissive on purpose: this test asserts CALL ORDER, not schema work, so
+		// every $wpdb method the migration chain happens to reach should answer
+		// harmlessly rather than be enumerated here. Enumerating them would couple
+		// an ordering test to the events-table DDL.
+		$original_wpdb     = $GLOBALS['wpdb'] ?? null;
+		$fake_wpdb         = \Mockery::mock()->shouldIgnoreMissing();
+		$fake_wpdb->prefix = 'wp_';
+		$fake_wpdb->shouldReceive( 'get_charset_collate' )->andReturn( '' );
+		$GLOBALS['wpdb']   = $fake_wpdb;
+
+		// Fresh install: no stored version, so every migration routine runs.
+		Functions\when( 'get_option' )->justReturn( '0.0.0' );
+		Functions\when( 'update_option' )->justReturn( true );
+		Functions\when( 'get_role' )->justReturn( null );
+		Functions\when( 'remove_role' )->justReturn( null );
+		Functions\when( 'delete_option' )->justReturn( true );
+		Functions\when( 'wp_next_scheduled' )->justReturn( false );
+		Functions\when( 'wp_schedule_event' )->justReturn( true );
+		Functions\when( 'wp_roles' )->justReturn( null );
+		Functions\when( 'dbDelta' )->justReturn( array() );
+		Functions\when( 'get_current_user_id' )->justReturn( 42 );
+
+		Functions\when( 'get_users' )->alias(
+			static function ( $args ) use ( &$sequence ) {
+				if ( isset( $args['capability'] ) && 'manage_wp_sudo' === $args['capability'] ) {
+					$sequence[] = 'zero_holder_check';
+				}
+
+				return array();
+			}
+		);
+
+		$user     = \Mockery::mock( \WP_User::class );
+		$user->ID = 42;
+		$user->shouldReceive( 'add_cap' )->andReturnUsing(
+			static function ( $cap ) use ( &$sequence ) {
+				if ( 'manage_wp_sudo' === $cap ) {
+					$sequence[] = 'activating_admin_granted';
+				}
+			}
+		);
+
+		Functions\when( 'get_userdata' )->justReturn( $user );
+
+		$plugin = new Plugin();
+		$plugin->activate();
+
+		$GLOBALS['wpdb'] = $original_wpdb;
+
+		$this->assertContains(
+			'activating_admin_granted',
+			$sequence,
+			'The activating admin must be granted manage_wp_sudo during activation.'
+		);
+		$this->assertContains(
+			'zero_holder_check',
+			$sequence,
+			'upgrade_3_3_0() must still run its zero-holder check on a fresh install.'
+		);
+		$this->assertLessThan(
+			array_search( 'zero_holder_check', $sequence, true ),
+			array_search( 'activating_admin_granted', $sequence, true ),
+			'The activating admin must hold manage_wp_sudo BEFORE upgrade_3_3_0() '
+				. 'counts holders, or the zero-holder branch grants governance to every administrator (#524).'
+		);
+	}
+
+	/**
 	 * No cap grant when there is no current user (CLI/cron activation, user ID 0).
 	 */
 	public function test_activate_skips_cap_grant_when_no_current_user(): void {

@@ -1,5 +1,41 @@
 # Changelog
 
+## Unreleased
+
+- **Fresh activation no longer grants governance capabilities to every
+  administrator (#524).** `Plugin::activate()` ran the upgrader *before* granting
+  the four `GOVERNANCE_CAPS` to the activating admin. On a fresh install the
+  stored version is `0.0.0`, so every migration ran — including
+  `Upgrader::upgrade_3_3_0()`, which grants all four capabilities to **every user
+  in the administrator role** when it finds no holder of `manage_wp_sudo`. At that
+  point none existed, because the grant that would have created one came four
+  statements later.
+
+  So on any fresh single-site install with more than one administrator, activating
+  WP Sudo handed governance to all of them at once — silently, and in a plugin
+  whose stated model is that governance is deliberately separate from
+  `manage_options`. `docs/security-model.md` has always said "the activating admin
+  receives all four capabilities. Other admins receive none until explicitly
+  granted"; that sentence was false before this fix and is true after it.
+
+  The fix is ordering: the activating admin is granted first, so
+  `upgrade_3_3_0()`'s zero-holder check finds a holder and skips the broad
+  bootstrap — which is what its own docblock always described. The backfill
+  remains the fallback for an activation with no current user (`wp plugin
+  activate` without `--user`), where the direct grant cannot happen and a site
+  with no governance holder at all would be worse.
+
+  **Operator-visible on existing installs: nothing changes.** This commit only
+  reorders `activate()`, and an already-active install does not fire the activation
+  callback during a code update at all. This affects fresh activations only. Capabilities already granted are not
+  revoked — review them under Settings → Sudo → Access if this install was set up
+  with multiple administrators present.
+
+  Found during the design review for #404, which covers the related case of a
+  *replayed* migration after the version stamp is lost. Nothing asserted this
+  before: the existing test checked only that the activating admin received the
+  capabilities, which was true either way.
+
 ## 4.9.2 - 2026-07-29
 
 The reauthentication-usability release. 4.9.0 removed automatic replay to close a

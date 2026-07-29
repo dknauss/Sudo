@@ -620,6 +620,31 @@ class Plugin {
 	 * @return void
 	 */
 	public function activate(): void {
+		// Grant governance capabilities to the activating admin on the site being
+		// activated (a single-site install, or one site of a network — this is the
+		// per-site activation hook, not network activation). On multisite, super
+		// admins are additionally covered by the wp_sudo_can() short-circuit.
+		//
+		// This MUST run before maybe_upgrade() (#524). A fresh install has no
+		// stored version, so the upgrader runs every routine including
+		// upgrade_3_3_0(), which grants all four GOVERNANCE_CAPS to EVERY
+		// administrator when it finds no holder of manage_wp_sudo. Granting here
+		// first means that check finds a holder and correctly skips the broad
+		// bootstrap — which is what its own docblock always claimed happened.
+		//
+		// Under WP-CLI WITHOUT --user, get_current_user_id() is 0 and get_userdata()
+		// returns false, so no grant happens and upgrade_3_3_0()'s bootstrap still
+		// runs. That is deliberate: such a site would otherwise have no governance
+		// holder at all, and the broad grant is the intended fallback there. With
+		// --user the narrow grant happens exactly as in a browser activation.
+		$admin = get_userdata( get_current_user_id() );
+		if ( $admin instanceof \WP_User ) {
+			$admin->add_cap( 'manage_wp_sudo' );
+			$admin->add_cap( 'view_wp_sudo_activity' );
+			$admin->add_cap( 'export_wp_sudo_activity' );
+			$admin->add_cap( 'revoke_wp_sudo_sessions' );
+		}
+
 		// Run the upgrader to stamp the version on fresh installs.
 		$upgrader = new Upgrader();
 		$upgrader->maybe_upgrade();
@@ -629,18 +654,6 @@ class Plugin {
 
 		// Schedule the daily prune cron event.
 		self::schedule_prune_cron();
-
-		// Grant governance capabilities to the activating admin on the site being
-		// activated (a single-site install, or one site of a network — this is the
-		// per-site activation hook, not network activation). On multisite, super
-		// admins are additionally covered by the wp_sudo_can() short-circuit.
-		$admin = get_userdata( get_current_user_id() );
-		if ( $admin instanceof \WP_User ) {
-			$admin->add_cap( 'manage_wp_sudo' );
-			$admin->add_cap( 'view_wp_sudo_activity' );
-			$admin->add_cap( 'export_wp_sudo_activity' );
-			$admin->add_cap( 'revoke_wp_sudo_sessions' );
-		}
 
 		// Set a flag so we know the plugin has been activated.
 		update_option( 'wp_sudo_activated', true );
