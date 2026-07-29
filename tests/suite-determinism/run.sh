@@ -29,8 +29,7 @@ PHP
 	cat > "$REPO/vendor/bin/phpunit" <<'FAKE'
 #!/usr/bin/env bash
 set -u
-counter=".tmp/fake-count.${FAKE_COUNTER_ID:-shared}"
-mkdir -p .tmp
+counter=".git/fake-count.${FAKE_COUNTER_ID:-shared}"
 n=0
 [ ! -f "$counter" ] || n="$(cat "$counter")"
 n=$((n + 1))
@@ -76,6 +75,12 @@ case "${FAKE_SCENARIO:-pass}" in
 		printf 'OK (2 tests, 3 assertions)\n'
 		exit 0
 		;;
+	dirty-existing)
+		printf '\n// changed again\n' >> includes/class-gate.php
+		printf 'changed again\n' >> tests/ExistingUntracked.php
+		printf 'OK (2 tests, 3 assertions)\n'
+		exit 0
+		;;
 esac
 FAKE
 	chmod +x "$REPO/vendor/bin/phpunit"
@@ -116,12 +121,12 @@ json_assert() {
 	php -r '$rows=file($argv[1], FILE_IGNORE_NEW_LINES); foreach($rows as $row){json_decode($row,true,512,JSON_THROW_ON_ERROR);} if(count($rows)!==(int)$argv[2]) exit(1);' "$JSONL" "$1"
 }
 
-CURRENT="invalid run counts fail before invoking PHPUnit"
-for bad in '' 0 -1 nope ' 2' 1.5; do
+CURRENT="invalid and impractical run counts fail before invoking PHPUnit"
+for bad in '' 0 -1 nope ' 2' 1.5 10001 18446744073709551616; do
 	new_repo "invalid-${bad//[^a-zA-Z0-9]/x}"
 	run_harness pass "$bad"
 	expect_rc 2
-	expect test ! -f "$REPO/.tmp/fake-count.shared"
+	expect test ! -f "$REPO/.git/fake-count.shared"
 done
 
 CURRENT="output initialization failure stops before PHPUnit"
@@ -130,13 +135,13 @@ rm -rf "$REPO/.tmp"
 printf 'not a directory\n' > "$REPO/.tmp"
 run_harness pass 1
 expect_rc 2
-expect test ! -f "$REPO/.tmp/fake-count.shared"
+expect test ! -f "$REPO/.git/fake-count.shared"
 
 CURRENT="all requested runs execute and failures make the command fail"
 new_repo failures
 run_harness fail-first 3
 expect_rc 1
-expect test "$(cat "$REPO/.tmp/fake-count.shared")" = 3
+expect test "$(cat "$REPO/.git/fake-count.shared")" = 3
 expect json_assert 3
 expect grep -q '"status":"fail"' "$JSONL"
 expect grep -q 'OddTest' "$JSONL"
@@ -161,6 +166,12 @@ cp "$REPO/includes/class-gate.php" "$foreign_root/includes/class-gate.php"
 printf "<?php\nrequire '%s/includes/class-gate.php';\n" "$foreign_root" > "$REPO/tests/bootstrap.php"
 run_harness pass 1
 expect_rc 1
+new_repo local-wrong
+mkdir -p "$REPO/alternate"
+cp "$REPO/includes/class-gate.php" "$REPO/alternate/class-gate.php"
+printf '%s\n' "<?php require dirname( __DIR__ ) . '/alternate/class-gate.php';" > "$REPO/tests/bootstrap.php"
+run_harness pass 1
+expect_rc 1
 new_repo unresolved
 printf '%s\n' '<?php exit(2);' > "$REPO/tests/bootstrap.php"
 run_harness pass 1
@@ -182,7 +193,7 @@ expect json_assert 2
 expect grep -q '"status":"fail"' "$JSONL"
 expect php -r '$r=json_decode(file($argv[1])[0],true,512,JSON_THROW_ON_ERROR); exit(str_contains($r["diagnostic"], "\u{FFFD}")?0:1);' "$JSONL"
 
-CURRENT="revision changes and post-run dirty state are recorded"
+CURRENT="revision changes and post-run dirty state fail the sample"
 new_repo changed
 run_harness change-head 2
 expect_rc 1
@@ -190,8 +201,37 @@ expect json_assert 2
 expect php -r '$r=json_decode(file($argv[1])[0],true); exit($r["head_before"]!==$r["head_after"]?0:1);' "$JSONL"
 new_repo dirty
 run_harness dirty-after 1
-expect_rc 0
-expect php -r '$r=json_decode(file($argv[1])[0],true); exit($r["tracked_dirty_after"]&&$r["untracked_dirty_after"]?0:1);' "$JSONL"
+expect_rc 1
+expect php -r '$r=json_decode(file($argv[1])[0],true); exit($r["tracked_dirty_after"]&&$r["untracked_dirty_after"]&&$r["worktree_changed"]?0:1);' "$JSONL"
+new_repo dirty-existing
+printf '\n// already dirty\n' >> "$REPO/includes/class-gate.php"
+printf 'already untracked\n' > "$REPO/tests/ExistingUntracked.php"
+run_harness dirty-existing 1
+expect_rc 1
+expect php -r '$r=json_decode(file($argv[1])[0],true); exit($r["worktree_changed"]?0:1);' "$JSONL"
+
+CURRENT="unreadable repository state fails before PHPUnit"
+new_repo unreadable-status
+real_git="$(command -v git)"
+mkdir -p "$REPO/fake-bin"
+cat > "$REPO/fake-bin/git" <<'FAKE_GIT'
+#!/usr/bin/env bash
+if [ "$1" = "status" ]; then
+	exit 1
+fi
+exec "$REAL_GIT" "$@"
+FAKE_GIT
+chmod +x "$REPO/fake-bin/git"
+set +e
+OUT="$(
+	cd "$REPO" &&
+		REAL_GIT="$real_git" PATH="$REPO/fake-bin:$PATH" \
+		FAKE_SCENARIO=pass bash bin/suite-determinism.sh 1 2>&1
+)"
+RC=$?
+set -e
+expect_rc 2
+expect test ! -f "$REPO/.git/fake-count.shared"
 
 CURRENT="all iterations are pinned to one baseline revision"
 new_repo between-runs

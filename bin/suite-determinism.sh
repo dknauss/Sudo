@@ -13,8 +13,11 @@
 set -uo pipefail
 
 RUNS="${1-50}"
-if ! [[ "$RUNS" =~ ^[1-9][0-9]*$ ]]; then
-	echo "usage: bash bin/suite-determinism.sh [positive integer]" >&2
+MAX_RUNS=10000
+if ! [[ "$RUNS" =~ ^[1-9][0-9]*$ ]] \
+	|| [ "${#RUNS}" -gt "${#MAX_RUNS}" ] \
+	|| { [ "${#RUNS}" -eq "${#MAX_RUNS}" ] && [[ "$RUNS" > "$MAX_RUNS" ]]; }; then
+	echo "usage: bash bin/suite-determinism.sh [integer from 1 to $MAX_RUNS]" >&2
 	exit 2
 fi
 
@@ -49,23 +52,80 @@ SAMPLE_HEAD="$(git rev-parse HEAD 2>/dev/null)" || {
 	exit 2
 }
 
-autoload_root() {
+autoload_path() {
 	php -d display_errors=stderr -r \
-		'require "tests/bootstrap.php"; $r = new ReflectionClass("WP_Sudo\Gate"); echo dirname(dirname((string) $r->getFileName()));' \
+		'require "tests/bootstrap.php"; $r = new ReflectionClass("WP_Sudo\Gate"); echo realpath((string) $r->getFileName());' \
 		2>/dev/null
 }
 
-# Prints two shell words: tracked-dirty untracked-dirty.
+# Prints three shell words: tracked-dirty untracked-dirty state-hash.
 tree_state() {
-	local entry tracked=0 untracked=0
-	while IFS= read -r -d '' entry; do
-		if [ "${entry:0:2}" = "??" ]; then
-			untracked=1
-		else
-			tracked=1
-		fi
-	done < <(git status --porcelain=v1 -z --untracked-files=all)
-	printf '%d %d\n' "$tracked" "$untracked"
+	local state_file index_file worktree_file
+	state_file="$(mktemp "${TMPDIR:-/tmp}/wp-sudo-tree-state.XXXXXX")" || return 1
+	index_file="$(mktemp "${TMPDIR:-/tmp}/wp-sudo-index-state.XXXXXX")" || {
+		rm -f "$state_file"
+		return 1
+	}
+	worktree_file="$(mktemp "${TMPDIR:-/tmp}/wp-sudo-worktree-state.XXXXXX")" || {
+		rm -f "$state_file" "$index_file"
+		return 1
+	}
+	if ! git status --porcelain=v1 -z --untracked-files=all > "$state_file"; then
+		rm -f "$state_file" "$index_file" "$worktree_file"
+		return 1
+	fi
+	if ! git diff --cached --binary --no-ext-diff --no-renames > "$index_file"; then
+		rm -f "$state_file" "$index_file" "$worktree_file"
+		return 1
+	fi
+	if ! git diff --binary --no-ext-diff --no-renames > "$worktree_file"; then
+		rm -f "$state_file" "$index_file" "$worktree_file"
+		return 1
+	fi
+	php -r '
+		$status = file_get_contents( $argv[1] );
+		$index = file_get_contents( $argv[2] );
+		$worktree = file_get_contents( $argv[3] );
+		if ( false === $status || false === $index || false === $worktree ) {
+			exit( 2 );
+		}
+		$entries = explode( "\0", $status );
+		$tracked = false;
+		$untracked = false;
+		$hash = hash_init( "sha256" );
+		hash_update( $hash, "index\0" . $index . "\0worktree\0" . $worktree );
+		foreach ( $entries as $entry ) {
+			if ( "" === $entry ) {
+				continue;
+			}
+			if ( preg_match( "#^\?\? \.tmp/suite-determinism\.(?:jsonl|raw)\.#", $entry ) ) {
+				continue;
+			}
+			hash_update( $hash, "\0status\0" . $entry );
+			if ( str_starts_with( $entry, "??" ) ) {
+				$untracked = true;
+				$path = $argv[4] . "/" . substr( $entry, 3 );
+				if ( is_link( $path ) ) {
+					$contents = readlink( $path );
+				} elseif ( is_file( $path ) ) {
+					$contents = file_get_contents( $path );
+				} else {
+					$stat = @lstat( $path );
+					$contents = false === $stat ? false : serialize( $stat );
+				}
+				if ( false === $contents ) {
+					exit( 2 );
+				}
+				hash_update( $hash, "\0untracked\0" . $contents );
+			} else {
+				$tracked = true;
+			}
+		}
+		printf( "%d %d %s\n", $tracked, $untracked, hash_final( $hash ) );
+	' "$state_file" "$index_file" "$worktree_file" "$ROOT"
+	local rc=$?
+	rm -f "$state_file" "$index_file" "$worktree_file"
+	return "$rc"
 }
 
 echo "runs=$RUNS  php=$PHP_VERSION  root=$ROOT"
@@ -76,15 +136,22 @@ fails=0
 errors=0
 contaminated=0
 revision_changes=0
+worktree_changes=0
 
 for ((i = 1; i <= RUNS; i++)); do
 	head_before="$(git rev-parse HEAD 2>/dev/null || printf '<unresolvable>')"
-	read -r tracked_before untracked_before <<< "$(tree_state)"
+	state_before="$(tree_state)" || {
+		echo "cannot read the repository state before run $i" >&2
+		exit 2
+	}
+	read -r tracked_before untracked_before state_hash_before <<< "$state_before"
 
-	root_now="$(autoload_root)"
+	path_now="$(autoload_path)"
 	root_rc=$?
 	autoload_ok=0
-	if [ "$root_rc" -eq 0 ] && [ -n "$root_now" ] && [ "$root_now" = "$ROOT" ]; then
+	if [ "$root_rc" -eq 0 ] \
+		&& [ -n "$path_now" ] \
+		&& [ "$path_now" = "$ROOT/includes/class-gate.php" ]; then
 		autoload_ok=1
 	else
 		contaminated=$((contaminated + 1))
@@ -98,7 +165,17 @@ for ((i = 1; i <= RUNS; i++)); do
 	rc=$?
 
 	head_after="$(git rev-parse HEAD 2>/dev/null || printf '<unresolvable>')"
-	read -r tracked_after untracked_after <<< "$(tree_state)"
+	state_after="$(tree_state)" || {
+		echo "cannot read the repository state after run $i" >&2
+		rm -f "$raw_file"
+		exit 2
+	}
+	read -r tracked_after untracked_after state_hash_after <<< "$state_after"
+	worktree_changed=0
+	if [ "$state_hash_before" != "$state_hash_after" ]; then
+		worktree_changed=1
+		worktree_changes=$((worktree_changes + 1))
+	fi
 	revision_changed=0
 	if [ "$head_before" != "$SAMPLE_HEAD" ] || [ "$head_after" != "$SAMPLE_HEAD" ]; then
 		revision_changed=1
@@ -128,12 +205,13 @@ for ((i = 1; i <= RUNS; i++)); do
 	RECORD_RC="$rc" \
 	RECORD_TESTS="$tests" \
 	RECORD_ASSERTIONS="$assertions" \
-	RECORD_AUTOLOAD_ROOT="$root_now" \
+	RECORD_AUTOLOAD_PATH="$path_now" \
 	RECORD_AUTOLOAD_OK="$autoload_ok" \
 	RECORD_TRACKED_BEFORE="$tracked_before" \
 	RECORD_UNTRACKED_BEFORE="$untracked_before" \
 	RECORD_TRACKED_AFTER="$tracked_after" \
 	RECORD_UNTRACKED_AFTER="$untracked_after" \
+	RECORD_WORKTREE_CHANGED="$worktree_changed" \
 	RECORD_HEAD_BEFORE="$head_before" \
 	RECORD_HEAD_AFTER="$head_after" \
 	RECORD_REVISION_CHANGED="$revision_changed" \
@@ -157,12 +235,13 @@ for ((i = 1; i <= RUNS; i++)); do
 			"rc"                     => (int) getenv( "RECORD_RC" ),
 			"tests"                  => $nullable_int( "RECORD_TESTS" ),
 			"assertions"             => $nullable_int( "RECORD_ASSERTIONS" ),
-			"autoload_root"          => getenv( "RECORD_AUTOLOAD_ROOT" ) ?: null,
+			"autoload_path"          => getenv( "RECORD_AUTOLOAD_PATH" ) ?: null,
 			"autoload_ok"            => $bool( "RECORD_AUTOLOAD_OK" ),
 			"tracked_dirty_before"   => $bool( "RECORD_TRACKED_BEFORE" ),
 			"untracked_dirty_before" => $bool( "RECORD_UNTRACKED_BEFORE" ),
 			"tracked_dirty_after"    => $bool( "RECORD_TRACKED_AFTER" ),
 			"untracked_dirty_after"  => $bool( "RECORD_UNTRACKED_AFTER" ),
+			"worktree_changed"       => $bool( "RECORD_WORKTREE_CHANGED" ),
 			"head_before"            => getenv( "RECORD_HEAD_BEFORE" ),
 			"head_after"             => getenv( "RECORD_HEAD_AFTER" ),
 			"revision_changed"       => $bool( "RECORD_REVISION_CHANGED" ),
@@ -180,8 +259,9 @@ for ((i = 1; i <= RUNS; i++)); do
 
 	printf 'run %-3d %-5s tests=%s assertions=%s' \
 		"$i" "$status" "${tests:-?}" "${assertions:-?}"
-	[ "$autoload_ok" -eq 1 ] || printf ' AUTOLOAD=%s' "${root_now:-<unresolvable>}"
+	[ "$autoload_ok" -eq 1 ] || printf ' AUTOLOAD=%s' "${path_now:-<unresolvable>}"
 	[ "$revision_changed" -eq 0 ] || printf ' HEAD-CHANGED'
+	[ "$worktree_changed" -eq 0 ] || printf ' WORKTREE-CHANGED'
 	printf '\n'
 done
 
@@ -192,11 +272,13 @@ echo "failing runs:     $fails"
 echo "errored runs:     $errors"
 echo "foreign roots:    $contaminated"
 echo "revision changes: $revision_changes"
+echo "worktree changes: $worktree_changes"
 
 if [ "$fails" -eq 0 ] \
 	&& [ "$errors" -eq 0 ] \
 	&& [ "$contaminated" -eq 0 ] \
-	&& [ "$revision_changes" -eq 0 ]; then
+	&& [ "$revision_changes" -eq 0 ] \
+	&& [ "$worktree_changes" -eq 0 ]; then
 	echo "The observed $RUNS-run sample passed under the environment recorded in $OUT."
 	exit 0
 fi
