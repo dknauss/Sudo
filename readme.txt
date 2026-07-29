@@ -306,7 +306,7 @@ This release hardens the reauthentication gate against a hijacked admin session 
 * **App Password policy validation** — per-App-Password policy overrides require UUID format + existence checks, with automatic cleanup when the App Password is deleted.
 
 = 3.1.3 =
-* **Fix: release Playground link** — the stable release Blueprint installs the tag ZIP through `pluginData` instead of using Playground's currently brittle `git:directory` tag fetch path.
+* **Fix: release Playground link** — at 3.1.3, the stable release Blueprint switched from Playground's brittle `git:directory` tag fetch to a tag source ZIP supplied through `pluginData`. This was later superseded by the packaged `wp-sudo.zip` GitHub Release asset.
 * **Playground link posture** — README Playground links now distinguish the immutable latest-release demo from the current `main` demo.
 * **Blueprint password seeding** — the demo Blueprint now uses WordPress core's `wp_set_password()` API instead of writing the password hash directly through `$wpdb`.
 

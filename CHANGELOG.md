@@ -632,7 +632,7 @@ rewritten from asserting the old contract.
 
 ## 3.1.3 - 2026-05-11
 
-- **Release Playground link:** the stable release Blueprint installs the tag ZIP through `pluginData` instead of using Playground's currently brittle `git:directory` tag fetch path.
+- **Release Playground link:** at 3.1.3, the stable release Blueprint switched from Playground's brittle `git:directory` tag fetch to a tag source ZIP supplied through `pluginData`. This was later superseded by the packaged `wp-sudo.zip` GitHub Release asset.
 - **Playground link posture:** README Playground links now distinguish the immutable latest-release demo from the current `main` demo.
 - **Blueprint password seeding:** the demo Blueprint now uses WordPress core's `wp_set_password()` API instead of writing the password hash directly through `$wpdb`.
 
