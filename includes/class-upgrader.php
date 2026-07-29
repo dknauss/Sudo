@@ -289,6 +289,39 @@ class Upgrader {
 			return;
 		}
 
+		// #404: refuse to re-grant on a REPLAY. This routine cannot tell "predates
+		// governance caps" from "stamp went missing" — both present as zero holders —
+		// so a stamp lost to a restore, a staging copy, or an operator clearing the
+		// row replays every routine from 0.0.0 and hands governance back to every
+		// administrator, silently.
+		//
+		// wp_sudo_activated separates the two. Plugin::activate() has written it since
+		// v1.2.1 and writes it AFTER maybe_upgrade(), and uninstall.php deletes it
+		// alongside the version stamp. So:
+		//
+		// Stamp with flag: a legacy upgrade by code update — the cohort this routine
+		// exists for, where no activation hook fires. Backfill.
+		// No stamp and no flag: genuinely fresh, or mid-activation. Backfill.
+		// No stamp but a flag: the stamp is gone from an install that had one.
+		// That is a replay, and it is what this refuses.
+		//
+		// What this does NOT cover: whole-namespace loss. A migration that drops every
+		// wp_sudo_* option leaves an install indistinguishable from a fresh one by any
+		// option-based signal, and it will be re-granted.
+		// Both halves are existence tests on purpose. An earlier cut compared the stamp
+		// to the '0.0.0' sentinel, which a real row can impersonate: get_option()
+		// returns its default only when the row is ABSENT, so a stamp emptied rather
+		// than deleted reads '' — not equal to '0.0.0', guard skipped, and
+		// version_compare( '', WP_SUDO_VERSION, '>=' ) is false so every routine
+		// replays anyway. Emptying a row is exactly what a migration tool or an
+		// operator "clearing" the option does.
+		$stamp = get_option( self::VERSION_OPTION, false );
+
+		if ( ( false === $stamp || '' === $stamp || '0.0.0' === $stamp )
+			&& false !== get_option( 'wp_sudo_activated', false ) ) {
+			return;
+		}
+
 		// Governance is already configured if anyone holds the settings-access
 		// cap (individually or via a role; an explicit deny entry also matches,
 		// but the plugin's own revoke path uses remove_cap() and never writes

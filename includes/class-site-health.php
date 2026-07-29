@@ -70,6 +70,11 @@ class Site_Health {
 			'test'  => array( $this, 'test_recovery_mode' ),
 		);
 
+		$tests['direct']['wp_sudo_governance_holders'] = array(
+			'label' => __( 'Sudo Governance Holders', 'wp-sudo' ),
+			'test'  => array( $this, 'test_governance_holders' ),
+		);
+
 		// Role/capability lockdown audit — only when the operator has opted in by
 		// configuring a manifest (WP_SUDO_ROLE_MANIFEST). Inert otherwise (#179).
 		if ( Role_Manifest::is_enabled() ) {
@@ -411,6 +416,77 @@ class Site_Health {
 				$count
 			) . '</p>',
 			'test'        => 'wp_sudo_stale_sessions',
+		);
+	}
+
+	/**
+	 * Report when nobody can administer WP Sudo on this site.
+	 *
+	 * Zero holders of `manage_wp_sudo` means Settings → Sudo is unreachable: the
+	 * capability is deliberately separate from `manage_options`, so administrators
+	 * do not inherit it. The only way back in is the `WP_SUDO_RECOVERY_MODE`
+	 * constant, which needs filesystem access.
+	 *
+	 * Reachable several ways, none of them exotic: the last holder deleted as a
+	 * user, a role change, a direct `$wpdb` write, or an install that never
+	 * bootstrapped. It is also the state left behind when `upgrade_3_3_0()`'s replay
+	 * guard refuses to re-grant (#404) — refusing is correct, but refusing SILENTLY
+	 * would leave an operator locked out with nothing to read.
+	 *
+	 * Computed live rather than recorded at the moment of refusal. A stored flag
+	 * would need a fourth persistent option, would cost the persistent-option
+	 * scanner test and both `uninstall.php` cleanup blocks, and would answer a
+	 * narrower question — "did we once decline to grant" rather than "can anyone
+	 * administer Sudo right now". The live form also catches the deleted-last-holder
+	 * case, which no upgrade path touches.
+	 *
+	 * Multisite is exempt: `wp_sudo_can()` short-circuits for super admins, so a
+	 * network always has holders and the query would be misleading.
+	 *
+	 * @return array<string, mixed>
+	 */
+	public function test_governance_holders(): array {
+		$badge = array(
+			'label' => __( 'Security', 'wp-sudo' ),
+			'color' => 'red',
+		);
+
+		if ( is_multisite() ) {
+			return array(
+				'label'       => __( 'Sudo governance is held by network administrators', 'wp-sudo' ),
+				'status'      => 'good',
+				'badge'       => $badge,
+				'description' => '<p>' . __( 'On multisite, super admins always retain Sudo governance access, so this site cannot be locked out of Settings → Sudo.', 'wp-sudo' ) . '</p>',
+				'test'        => 'wp_sudo_governance_holders',
+			);
+		}
+
+		$holders = get_users(
+			array(
+				'capability' => 'manage_wp_sudo',
+				'number'     => 1,
+				'fields'     => 'ids',
+			)
+		);
+
+		if ( ! empty( $holders ) ) {
+			return array(
+				'label'       => __( 'Sudo governance has at least one holder', 'wp-sudo' ),
+				'status'      => 'good',
+				'badge'       => $badge,
+				'description' => '<p>' . __( 'At least one user holds manage_wp_sudo, so Settings → Sudo is reachable.', 'wp-sudo' ) . '</p>',
+				'test'        => 'wp_sudo_governance_holders',
+			);
+		}
+
+		return array(
+			'label'       => __( 'No user holds the Sudo governance capability', 'wp-sudo' ),
+			'status'      => 'critical',
+			'badge'       => $badge,
+			'description' => '<p>' . __( 'No user holds the manage_wp_sudo capability. Administrators do not inherit it: Sudo governance is deliberately separate from manage_options, so Settings → Sudo is unreachable unless WP_SUDO_RECOVERY_MODE is granting access.', 'wp-sudo' ) . '</p>'
+				. '<p>' . __( 'This happens when the last holder is deleted or has the capability removed, when a site is restored or copied without it, or when an install has never granted it. WP Sudo will not re-grant governance automatically to every administrator, because doing so silently would widen authority no one asked for.', 'wp-sudo' ) . '</p>',
+			'actions'     => '<p>' . __( 'If WP_SUDO_RECOVERY_MODE is not already defined, define it in wp-config.php to regain access. Then grant manage_wp_sudo to a specific user under Settings → Sudo → Access and remove the constant.', 'wp-sudo' ) . '</p>',
+			'test'        => 'wp_sudo_governance_holders',
 		);
 	}
 

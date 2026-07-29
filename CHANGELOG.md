@@ -48,6 +48,42 @@
   *replayed* migration after the version stamp is lost. Nothing asserted this
   before: the existing test checked only that the activating admin received the
   capabilities, which was true either way.
+- **A replayed migration no longer re-grants governance to every administrator
+  (#404).** `Upgrader::upgrade_3_3_0()` bootstraps the four `GOVERNANCE_CAPS` when it
+  finds no holder of `manage_wp_sudo`. It could not tell *"this install predates
+  governance caps"* from *"this install's version stamp went missing"* — both look
+  like zero holders — so a stamp lost to a restore, a staging-to-production copy, a
+  migration tool, or an operator clearing the row replayed every routine from
+  `0.0.0` and handed governance back to every administrator, with no audit trail.
+
+  The routine now refuses that case. `wp_sudo_activated` separates the two:
+  `Plugin::activate()` has written it since v1.2.1 and writes it *after* the
+  upgrader, and `uninstall.php` deletes it alongside the stamp. So a missing stamp
+  on an install that has the flag is stamp **loss**, never a legacy install and
+  never a fresh one. A legacy upgrade by code update — the cohort the routine exists
+  for, where no activation hook fires — keeps its backfill, as does a genuinely
+  fresh activation and a CLI activation without `--user`.
+
+  Both halves of the test are **existence checks**, not sentinel comparisons.
+  `get_option()` returns its default only when the row is absent, so a stamp
+  *emptied* rather than deleted reads `''` — an earlier cut compared against
+  `'0.0.0'` and that request walked past the guard into the re-grant. Emptying a row
+  is exactly what a migration tool does.
+
+  **What it does not cover:** whole-namespace loss. An install that loses every
+  `wp_sudo_*` option is indistinguishable from a fresh one by any option-based
+  signal, and will be re-granted.
+
+  **New Site Health status — "No user holds the Sudo governance capability"
+  (critical).** Refusing to re-grant is correct; refusing *silently* would leave an
+  operator locked out of Settings → Sudo with nothing to read. The status is
+  computed live rather than recorded at the moment of refusal, so it also catches
+  the commonest real path — the last holder being deleted as a user — which no
+  upgrade touches. It names `WP_SUDO_RECOVERY_MODE` as the way back, and says
+  plainly that administrators do not inherit the capability. Site Health is gated on
+  `view_site_health_checks` rather than `manage_wp_sudo`, so a locked-out
+  administrator can actually read it. Multisite is exempt: `wp_sudo_can()`
+  short-circuits for super admins.
 
 ## 4.9.2 - 2026-07-29
 

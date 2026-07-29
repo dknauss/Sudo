@@ -43,7 +43,7 @@ class SiteHealthTest extends TestCase {
 
 	// ── register_tests() ─────────────────────────────────────────────
 
-	public function test_register_tests_adds_five_tests(): void {
+	public function test_register_tests_adds_the_wp_sudo_tests(): void {
 		Functions\when( '__' )->returnArg();
 
 		$tests = array( 'direct' => array(), 'async' => array() );
@@ -54,6 +54,7 @@ class SiteHealthTest extends TestCase {
 		$this->assertArrayHasKey( 'wp_sudo_stale_sessions', $result['direct'] );
 		$this->assertArrayHasKey( 'wp_sudo_gated_action_integrity', $result['direct'] );
 		$this->assertArrayHasKey( 'wp_sudo_recovery_mode', $result['direct'] );
+		$this->assertArrayHasKey( 'wp_sudo_governance_holders', $result['direct'] );
 	}
 
 	public function test_register_tests_preserves_existing(): void {
@@ -66,10 +67,10 @@ class SiteHealthTest extends TestCase {
 		$result = $this->health->register_tests( $tests );
 
 		$this->assertArrayHasKey( 'existing_test', $result['direct'] );
-		// 1 pre-existing + 5 WP Sudo tests (wp_sudo_replay_binding removed in #322:
+		// 1 pre-existing + 6 WP Sudo tests (wp_sudo_replay_binding removed in #322:
 		// nothing is replayed, so a test reporting whether replay is available was
 		// false in both branches).
-		$this->assertCount( 6, $result['direct'] );
+		$this->assertCount( 7, $result['direct'] );
 	}
 
 	// ── test_role_manifest() (#179) ──────────────────────────────────
@@ -525,5 +526,67 @@ class SiteHealthTest extends TestCase {
 		// An unresolvable target grants nobody — the operator is told to check
 		// for a typo rather than left with a silent no-op.
 		$this->assertStringContainsString( 'no one', strtolower( $result['description'] ) );
+	}
+
+	// ── Governance holders (#404) ────────────────────────────────────
+
+	/**
+	 * Zero holders is a critical status, not a silent state.
+	 *
+	 * upgrade_3_3_0()'s replay guard refuses to re-grant governance to every
+	 * administrator when the version stamp has gone missing. Refusing is correct;
+	 * refusing silently would leave an operator locked out of Settings → Sudo with
+	 * nothing to read. This is what makes the refusal legible.
+	 */
+	public function test_governance_holders_reports_critical_when_nobody_holds_the_cap(): void {
+		Functions\when( 'is_multisite' )->justReturn( false );
+		Functions\when( 'get_users' )->justReturn( array() );
+
+		$health = new Site_Health();
+		$result = $health->test_governance_holders();
+
+		$this->assertSame( 'critical', $result['status'] );
+		$this->assertStringContainsString( 'WP_SUDO_RECOVERY_MODE', $result['actions'] );
+		// The operator must be told administrators do NOT inherit it, or the status
+		// reads as a puzzle rather than an instruction.
+		$this->assertStringContainsString( 'manage_options', $result['description'] );
+	}
+
+	/**
+	 * One holder is enough for the screen to be reachable.
+	 */
+	public function test_governance_holders_reports_good_when_a_holder_exists(): void {
+		Functions\when( 'is_multisite' )->justReturn( false );
+		Functions\when( 'get_users' )->justReturn( array( 42 ) );
+
+		$health = new Site_Health();
+		$result = $health->test_governance_holders();
+
+		$this->assertSame( 'good', $result['status'] );
+	}
+
+	/**
+	 * Multisite is exempt and must not run the query.
+	 *
+	 * wp_sudo_can() short-circuits for super admins, so a network always has
+	 * holders. Reporting critical there would be false, and the query itself is
+	 * misleading because it cannot see the short-circuit.
+	 */
+	public function test_governance_holders_exempts_multisite_without_querying(): void {
+		Functions\when( 'is_multisite' )->justReturn( true );
+
+		$queried = false;
+		Functions\when( 'get_users' )->alias(
+			function () use ( &$queried ) {
+				$queried = true;
+				return array();
+			}
+		);
+
+		$health = new Site_Health();
+		$result = $health->test_governance_holders();
+
+		$this->assertSame( 'good', $result['status'] );
+		$this->assertFalse( $queried, 'Multisite must short-circuit before the user query.' );
 	}
 }

@@ -1062,7 +1062,19 @@ class PluginTest extends TestCase {
 		$GLOBALS['wpdb']   = $fake_wpdb;
 
 		// Fresh install: no stored version, so every migration routine runs.
-		Functions\when( 'get_option' )->justReturn( '0.0.0' );
+		//
+		// Option-aware rather than a blanket stub because #404's replay guard in
+		// upgrade_3_3_0() reads a SECOND option, and a blanket return answers that one
+		// too. `wp_sudo_activated` is written by activate() AFTER maybe_upgrade()
+		// (class-plugin.php), so during a fresh activation it does not yet exist —
+		// a blanket '0.0.0' makes it look present, the guard reads that as a replayed
+		// migration, and it returns before the zero-holder check this test asserts.
+		// That would have failed the test for a condition no fresh install can be in.
+		Functions\when( 'get_option' )->alias(
+			static function ( $option ) {
+				return 'wp_sudo_activated' === $option ? false : '0.0.0';
+			}
+		);
 		Functions\when( 'update_option' )->justReturn( true );
 		Functions\when( 'get_role' )->justReturn( null );
 		Functions\when( 'remove_role' )->justReturn( null );

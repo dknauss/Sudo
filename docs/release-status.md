@@ -262,10 +262,14 @@ on a network, and per-site only on single-site.
 **Do not clear the stamp by deleting the option.** Deleting it replays every routine from
 `0.0.0`, and two of those are destructive: `upgrade_2_0_0()` calls `remove_role(
 'site_manager' )` unconditionally, destroying any role holding that slug whatever its
-origin; and `upgrade_3_3_0()`, on a single site with no `manage_wp_sudo` holder, grants
-the four governance capabilities to **every administrator** — silent privilege escalation
-on an install that deliberately revoked governance and relies on scoped
-`WP_SUDO_RECOVERY_MODE`, which this plugin documents as a supported configuration.
+origin; and `upgrade_3_3_0()` **used to** grant the four governance capabilities to every
+administrator on a single site with no `manage_wp_sudo` holder — a silent privilege
+escalation. That half is fixed (#404): the routine now refuses to re-grant when the
+stamp is missing or empty while `wp_sudo_activated` is present, which is stamp loss
+rather than a legacy install, and a Site Health critical reports the resulting
+zero-holder state instead of papering over it. `upgrade_2_0_0()`'s unconditional
+`remove_role( 'site_manager' )` is unchanged and still destructive, so clearing the
+stamp remains a bad idea.
 
 **Disposition is tracked in [#393](https://github.com/dknauss/Sudo/issues/393), not
 here.** The approach under consideration needs no operator action at all: because the

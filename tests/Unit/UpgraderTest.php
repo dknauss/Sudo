@@ -377,6 +377,11 @@ class UpgraderTest extends TestCase {
 	}
 
 	public function test_330_grants_governance_caps_to_existing_single_site_administrators(): void {
+		// #404: the routine now reads the version stamp to tell a legacy upgrade from
+		// a replay. Defaults here mean no stamp AND no activation flag — a genuinely
+		// fresh install, where the backfill must still run.
+		Functions\when( 'get_option' )->alias( fn( $key, $default = false ) => $default );
+
 		$admin = \Mockery::mock( \WP_User::class );
 		$admin->ID = 42;
 		$admin->shouldReceive( 'add_cap' )->once()->with( 'manage_wp_sudo' );
@@ -402,6 +407,11 @@ class UpgraderTest extends TestCase {
 	}
 
 	public function test_330_skips_backfill_when_a_governance_cap_holder_exists(): void {
+		// #404: the routine now reads the version stamp to tell a legacy upgrade from
+		// a replay. Defaults here mean no stamp AND no activation flag — a genuinely
+		// fresh install, where the backfill must still run.
+		Functions\when( 'get_option' )->alias( fn( $key, $default = false ) => $default );
+
 		Functions\when( 'is_multisite' )->justReturn( false );
 
 		// Guard query finds an existing manage_wp_sudo holder; the routine
@@ -534,6 +544,158 @@ class UpgraderTest extends TestCase {
 
 		$upgrader = new Upgrader();
 		$upgrader->maybe_upgrade();
+	}
+
+	// ── #404: replay of the 3.3.0 backfill from a lost version stamp ──
+	//
+	// The routine cannot tell "this install predates governance caps" from "this
+	// install's stamp went missing"; both present as zero holders. A restore, a
+	// staging copy, or an operator clearing the option row replays every routine
+	// from 0.0.0, and upgrade_3_3_0() then hands governance to every administrator.
+	//
+	// wp_sudo_activated distinguishes them: Plugin::activate() has written it since
+	// v1.2.1, and uninstall.php deletes it alongside the version stamp, so state
+	// WITHOUT a stamp is stamp loss, never a legacy install and never a fresh one.
+
+	/**
+	 * A replay from a lost stamp does not re-grant governance.
+	 */
+	public function test_330_backfill_skips_replay_when_plugin_state_exists_without_a_stamp(): void {
+		Functions\when( 'is_multisite' )->justReturn( false );
+
+		// Stamp absent (defaults to 0.0.0), but the plugin has been activated before.
+		Functions\when( 'get_option' )->alias( function ( $key, $default = false ) {
+			if ( Upgrader::VERSION_OPTION === $key ) {
+				return $default;
+			}
+			if ( 'wp_sudo_activated' === $key ) {
+				return true;
+			}
+			return $default;
+		} );
+
+		// Nothing may be granted, so no user query may run at all.
+		$called = false;
+		Functions\when( 'get_users' )->alias( function () use ( &$called ) { $called = true; return array(); } );
+		Functions\when( 'update_option' )->justReturn( true );
+		Functions\when( 'remove_role' )->justReturn( null );
+		Functions\when( 'delete_option' )->justReturn( true );
+		Functions\when( 'wp_roles' )->justReturn( null );
+		Functions\when( 'dbDelta' )->justReturn( array() );
+
+		$upgrader = new Upgrader();
+		$method   = new \ReflectionMethod( $upgrader, 'upgrade_3_3_0' );
+		if ( PHP_VERSION_ID < 80100 ) {
+			$method->setAccessible( true );
+		}
+		$method->invoke( $upgrader );
+
+		$this->assertFalse( $called, 'No grant and no user query when the stamp is missing but state exists.' );
+	}
+
+	/**
+	 * An EMPTIED stamp is stamp loss too, and must not replay the grant.
+	 *
+	 * get_option() returns its default only when the row is ABSENT. A migration tool
+	 * or an operator "clearing" the option leaves a row holding '', which is not the
+	 * '0.0.0' sentinel — an earlier cut of the guard compared against that sentinel
+	 * and this request walked straight past it into the re-grant, while
+	 * version_compare( '', WP_SUDO_VERSION, '>=' ) still replayed every routine.
+	 */
+	public function test_330_backfill_skips_replay_when_the_stamp_row_is_empty(): void {
+		Functions\when( 'is_multisite' )->justReturn( false );
+
+		Functions\when( 'get_option' )->alias( function ( $key, $default = false ) {
+			if ( Upgrader::VERSION_OPTION === $key ) {
+				return '';
+			}
+			if ( 'wp_sudo_activated' === $key ) {
+				return '1';
+			}
+			return $default;
+		} );
+
+		$called = false;
+		Functions\when( 'get_users' )->alias( function () use ( &$called ) {
+			$called = true;
+			return array();
+		} );
+
+		$upgrader = new Upgrader();
+		$method   = new \ReflectionMethod( $upgrader, 'upgrade_3_3_0' );
+		if ( PHP_VERSION_ID < 80100 ) {
+			$method->setAccessible( true );
+		}
+		$method->invoke( $upgrader );
+
+		$this->assertFalse( $called, 'An emptied stamp row is stamp loss and must not re-grant.' );
+	}
+
+	/**
+	 * A genuinely fresh install still bootstraps.
+	 *
+	 * Plugin::activate() writes wp_sudo_activated as its LAST statement, after
+	 * maybe_upgrade(), so during a fresh activation the flag is absent when this
+	 * routine runs. The guard must not fire there or a CLI-activated site is left
+	 * with no governance holder at all.
+	 */
+	public function test_330_backfill_still_runs_for_a_genuinely_fresh_install(): void {
+		$admin     = \Mockery::mock( \WP_User::class );
+		$admin->ID = 42;
+		$admin->shouldReceive( 'add_cap' )->times( 4 );
+
+		Functions\when( 'is_multisite' )->justReturn( false );
+
+		// No stamp AND no activation flag — nothing has ever run here.
+		Functions\when( 'get_option' )->alias( fn( $key, $default = false ) => $default );
+
+		Functions\when( 'get_users' )->alias( function ( array $args ) use ( $admin ) {
+			return isset( $args['capability'] ) ? array() : array( $admin );
+		} );
+
+		$upgrader = new Upgrader();
+		$method   = new \ReflectionMethod( $upgrader, 'upgrade_3_3_0' );
+		if ( PHP_VERSION_ID < 80100 ) {
+			$method->setAccessible( true );
+		}
+		$method->invoke( $upgrader );
+	}
+
+	/**
+	 * A legitimate legacy upgrade still backfills.
+	 *
+	 * The cohort the routine exists for: an install stamped below 3.3.0 upgrading by
+	 * code update, where no activation hook fires. It HAS the activation flag, so the
+	 * guard must key on the stamp being absent — not merely on state existing — or it
+	 * would strip the backfill from exactly the sites it was written to rescue.
+	 */
+	public function test_330_backfill_still_runs_for_a_legacy_upgrade_with_a_stamp(): void {
+		$admin     = \Mockery::mock( \WP_User::class );
+		$admin->ID = 42;
+		$admin->shouldReceive( 'add_cap' )->times( 4 );
+
+		Functions\when( 'is_multisite' )->justReturn( false );
+
+		Functions\when( 'get_option' )->alias( function ( $key, $default = false ) {
+			if ( Upgrader::VERSION_OPTION === $key ) {
+				return '3.1.3';
+			}
+			if ( 'wp_sudo_activated' === $key ) {
+				return true;
+			}
+			return $default;
+		} );
+
+		Functions\when( 'get_users' )->alias( function ( array $args ) use ( $admin ) {
+			return isset( $args['capability'] ) ? array() : array( $admin );
+		} );
+
+		$upgrader = new Upgrader();
+		$method   = new \ReflectionMethod( $upgrader, 'upgrade_3_3_0' );
+		if ( PHP_VERSION_ID < 80100 ) {
+			$method->setAccessible( true );
+		}
+		$method->invoke( $upgrader );
 	}
 
 	// ── Multisite: site options ──────────────────────────────────────
