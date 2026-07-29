@@ -84,7 +84,9 @@ class Public_API {
 	 *   current request's authenticated user to be treated as authorized.
 	 * - rule_id (string): audit rule ID, defaults to public_api.require.
 	 * - redirect (bool): when false, fail with `false` instead of redirecting.
-	 * - return_url (string): optional challenge cancel/return URL.
+	 * - return_url (string): inert since 4.9.0 (#322). Still accepted and emitted
+	 *   into the challenge URL, but nothing consumes it. Passing it non-empty
+	 *   raises `_deprecated_argument( 'wp_sudo_require', ... )` (#461).
 	 *
 	 * @since 2.12.0
 	 *
@@ -101,6 +103,10 @@ class Public_API {
 
 		$args = array_merge( $defaults, $args );
 
+		// Key this on what the caller passed, not on the emitted value:
+		// sanitize_return_url() may derive a non-empty value from HTTP_REFERER.
+		$inert_return_url = is_string( $args['return_url'] ) && '' !== $args['return_url'];
+
 		$user_id = (int) $args['user_id'];
 
 		if ( $user_id <= 0 ) {
@@ -108,10 +114,12 @@ class Public_API {
 		}
 
 		if ( $user_id <= 0 ) {
+			self::flag_inert_return_url( $inert_return_url );
 			return false;
 		}
 
 		if ( self::check( $user_id ) ) {
+			self::flag_inert_return_url( $inert_return_url );
 			return true;
 		}
 
@@ -130,14 +138,19 @@ class Public_API {
 		do_action( 'wp_sudo_action_gated', $user_id, $rule_id, 'public_api' );
 
 		if ( empty( $args['redirect'] ) || ! self::can_redirect_to_challenge() ) {
+			self::flag_inert_return_url( $inert_return_url );
 			return false;
 		}
 
 		$challenge_url = self::build_challenge_url( self::sanitize_return_url( $args['return_url'] ?? '' ) );
 
 		if ( wp_safe_redirect( $challenge_url ) ) {
+			// Deliberately after the Location header; see flag_inert_return_url().
+			self::flag_inert_return_url( $inert_return_url );
 			exit;
 		}
+
+		self::flag_inert_return_url( $inert_return_url );
 
 		wp_die(
 			esc_html__( 'Unable to redirect to the sudo challenge page.', 'wp-sudo' ),
@@ -171,6 +184,28 @@ class Public_API {
 		}
 
 		return ! headers_sent();
+	}
+
+	/**
+	 * Report a non-empty inert return_url at an exit path.
+	 *
+	 * This must not run before a redirect. `_deprecated_argument()` can print when
+	 * debugging is enabled; that would make headers_sent() true and prevent the
+	 * challenge redirect this helper exists to perform.
+	 *
+	 * @param bool $inert Whether the caller passed a non-empty return_url.
+	 * @return void
+	 */
+	private static function flag_inert_return_url( bool $inert ): void {
+		if ( ! $inert ) {
+			return;
+		}
+
+		_deprecated_argument(
+			'wp_sudo_require',
+			'4.9.0',
+			esc_html__( 'The return_url argument has no effect. Automatic navigation to a caller-supplied destination after reauthentication was removed in 4.9.0 because it would run under the sudo authority just granted. If you redirect after wp_sudo_require() returns true, use a destination fixed or allowlisted by your own code, never one taken from the request.', 'wp-sudo' )
+		);
 	}
 
 	/**

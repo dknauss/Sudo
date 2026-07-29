@@ -102,6 +102,11 @@ function wp_sudo_check( ?int $user_id = null ): bool {
  *
  * See `WP_Sudo\Public_API::require()` for accepted args.
  *
+ * The `return_url` argument has been inert since 4.9.0. Passing it non-empty
+ * raises `_deprecated_argument( 'wp_sudo_require', ... )`. If redirecting after
+ * this helper returns true, use a destination fixed or allowlisted by your own
+ * code, never one taken from the request.
+ *
  * @since 2.12.0
  *
  * @param array<string, mixed> $args Optional API args.
