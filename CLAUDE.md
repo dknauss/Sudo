@@ -100,9 +100,9 @@ Push review fixes before resolving their threads. Resolving the last thread can
 trigger auto-merge immediately, so resolving first can merge without the fix and
 leave a later push on an orphaned branch. State explicitly when a finding is
 being deferred rather than fixed. After merge, fetch and inspect the merged
-commit for every file named by a finding; a resolved thread does not prove its
-requested change landed. The canonical rule is in `AGENTS.md` under Branch
-Hygiene.
+commit by its exact merge SHA for every file named by a finding; a moving
+`origin/main` tip and a resolved thread do not prove the requested change
+landed. The canonical rule is in `AGENTS.md` under Branch Hygiene.
 
 ### User bypass (your own commits only)
 

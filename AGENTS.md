@@ -469,9 +469,10 @@ behavior that the model cannot hold in working memory.
   Resolving the last thread can merge the PR immediately; a later push may only
   recreate a deleted, orphaned branch. If a finding is deferred instead of
   fixed, say so in the thread before resolving it.
-- After a PR merges, verify each file named by a review finding from the merged
-  commit (`git show origin/main:<path>` after fetching), not from the local
-  branch or the thread's resolved state.
+- After a PR merges, obtain its exact merge commit SHA and verify each file
+  named by a review finding from that commit (`git show <merge-sha>:<path>`),
+  not from a moving branch tip, the local branch, or the thread's resolved
+  state.
 - After a PR is merged, delete the remote branch and prune local tracking refs.
 - Before creating a branch, check whether an existing open PR already covers the
   same scope.
