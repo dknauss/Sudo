@@ -212,9 +212,12 @@ implementation.
 - Rule out **iframe** (SameSite/partitioned-cookie breaks sudo-cookie readback) → use
   same-document AJAX against the existing challenge handlers.
 - Re-mint the REST nonce on retry (apiFetch's nonce middleware already does this).
-- `challenge_url` has **no reliable network-admin context** under REST
-  (`is_network_admin()` is false) — client builds it from a localized base, or the
-  server emits a context-correct URL; don't naively reuse admin-path logic.
+- `challenge_url` has **no reliable network-admin context** under REST because
+  `is_network_admin()` reads mutable ambient state (`GB-IS-NETWORK-ADMIN`) — it
+  tests `$GLOBALS['current_screen']`, then the `WP_NETWORK_ADMIN` constant, then
+  falls through to `false`, and both pieces of state can be set by any
+  earlier-running plugin or hook. Client builds the URL from a localized base, or
+  the server emits a context-correct one; don't naively reuse admin-path logic.
 - The grace window (120 s) already covers "don't re-challenge"; retry should re-fire
   and let the gate re-evaluate, not gate the UI on a stale flag.
 - **`@wordpress/scripts` build step — DECISION: not needed for Phase 2 (build-free).**
