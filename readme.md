@@ -109,7 +109,7 @@ against WordPress core or any third-party plugin.
 
 ## Acknowledgements
 
-Sudo's core design owes a debt to four people:
+Sudo's core design, development, and inexorable fate owes a debt to four people:
 
 - **John Blackbourn**, for the action-gating concept — that consequential operations should require a fresh proof of intent, regardless of role. It was the single biggest conceptual contribution to the project.
 - **Tim Nash**, for pragmatic security ideas, including the lockdown for roles and permissions, which shaped Sudo's opt-in admin-escalation guard and its opt-in role/capability lockdown audit, which have always been a viable mechanism for user account oversight.
