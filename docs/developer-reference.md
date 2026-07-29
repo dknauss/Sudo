@@ -579,7 +579,7 @@ and were locked out — so do not gate or remove it on the assumption it only co
 activation.
 
 It *additionally* covers an activation with no current user, such as `wp plugin
-activate` without `--user`: there the direct grant cannot happen, and the broad
+activate` without `--user` (`GB-CLI-NO-USER`): there the direct grant cannot happen, and the broad
 grant is preferable to a site with no governance holder at all.
 
 A first-run lockout (no one holds `manage_wp_sudo` after activation) can only

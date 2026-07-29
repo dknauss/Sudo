@@ -390,10 +390,17 @@ class UpgraderTest extends TestCase {
 	 * MIG-06: first activation grants the manage_wp_sudo governance cap to the
 	 * activating administrator.
 	 *
-	 * The Plugin::activate() callback runs the upgrader (which stamps the version)
-	 * and then grants all four governance capabilities to get_current_user_id().
+	 * The Plugin::activate() callback grants all four governance capabilities to
+	 * get_current_user_id() and THEN runs the upgrader, which stamps the version.
+	 * That order is load-bearing (#524): upgrade_3_3_0() grants the same four caps
+	 * to every administrator when it finds no holder of manage_wp_sudo, so granting
+	 * the activator first means it finds one and skips the broad bootstrap.
+	 *
 	 * This test verifies the first-run grant path so the "no holder after fresh
-	 * install" lockout scenario cannot regress.
+	 * install" lockout scenario cannot regress. Note it asserts only that the
+	 * ACTIVATING admin ends up with the caps, which was true under both orderings —
+	 * that is why it did not catch #524. The assertion that a second administrator
+	 * receives none is tracked as #530.
 	 */
 	public function test_first_activation_grants_manage_wp_sudo_to_administrator(): void {
 		// Arrange: a fresh admin is the current user (simulates the activating operator).
@@ -411,7 +418,7 @@ class UpgraderTest extends TestCase {
 			'Precondition: the admin must not already hold manage_wp_sudo before activation.'
 		);
 
-		// Act: fire the activation hook (Plugin::activate() calls Upgrader then grants caps).
+		// Act: fire the activation hook (Plugin::activate() grants caps, then calls Upgrader).
 		$this->activate_plugin();
 
 		// Assert: all four governance caps granted.

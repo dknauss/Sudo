@@ -25,11 +25,24 @@
   activate` without `--user`), where the direct grant cannot happen and a site
   with no governance holder at all would be worse.
 
-  **Operator-visible on existing installs: nothing changes.** This commit only
-  reorders `activate()`, and an already-active install does not fire the activation
-  callback during a code update at all. This affects fresh activations only. Capabilities already granted are not
-  revoked — review them under Settings → Sudo → Access if this install was set up
-  with multiple administrators present.
+  **Operator-visible:** an already-active install does not fire the activation
+  callback during a code update, so a plain plugin update changes nothing.
+
+  It is **not** strictly only fresh installs, though. Any path that calls
+  `activate()` runs whatever migrations are still pending — most obviously a
+  deactivate, upgrade the files, reactivate cycle. `upgrade_3_3_0()` is keyed
+  `3.3.0`, and the loop guard is `version_compare( $stored, '3.3.0', '<' )`, so it
+  re-runs only where the stored `wp_sudo_db_version` is **below 3.3.0 or missing**.
+  3.3.0 shipped 2026-06-12; an install that has served any admin or WP-CLI request
+  under 3.3.0-or-later code is stamped at or above it and never reaches the routine.
+
+  For that narrow older cohort the old ordering did re-grant to every administrator
+  on reactivation, and the new ordering skips it — so those installs are fixed by
+  this too, not merely unaffected.
+
+  Capabilities already granted are not revoked. Review them under Settings → Sudo →
+  Access if this install was set up with multiple administrators present, or if it
+  was reactivated while stamped below 3.3.0.
 
   Found during the design review for #404, which covers the related case of a
   *replayed* migration after the version stamp is lost. Nothing asserted this

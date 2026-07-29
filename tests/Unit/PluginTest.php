@@ -1095,10 +1095,16 @@ class PluginTest extends TestCase {
 
 		Functions\when( 'get_userdata' )->justReturn( $user );
 
-		$plugin = new Plugin();
-		$plugin->activate();
-
-		$GLOBALS['wpdb'] = $original_wpdb;
+		try {
+			$plugin = new Plugin();
+			$plugin->activate();
+		} finally {
+			// Restored in finally, matching the pattern used elsewhere in this file:
+			// without it, a throw inside activate() leaves this permissive
+			// shouldIgnoreMissing() mock installed as $wpdb for every later test in
+			// the run, turning one real failure into a cascade that hides its cause.
+			$GLOBALS['wpdb'] = $original_wpdb;
+		}
 
 		$this->assertContains(
 			'activating_admin_granted',
