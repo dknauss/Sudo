@@ -1841,7 +1841,13 @@ class ChallengeTest extends TestCase
 			->with('redacted-stash-key', 42)
 			->andReturn(array(
 				'method' => 'POST',
-				'url' => 'https://example.com/wp-admin/user-edit.php?user_id=42',
+				// Bare, because that is what a real request produces: core's profile form
+				// posts to a queryless self_admin_url() with `action` and `user_id` as
+				// HIDDEN POST FIELDS. The `?user_id=42` this carried until #533 was the
+				// only query-bearing user-edit.php stash URL in the suite and no live
+				// request makes one — a fixture shaped like a bug rather than like the
+				// system, which would have made a query-preserving "fix" look correct.
+				'url' => 'https://example.com/wp-admin/user-edit.php',
 				'return_url' => 'https://example.com/wp-admin/profile.php',
 				'rule_id' => 'user.change_password',
 				'post' => array(
@@ -1856,6 +1862,7 @@ class ChallengeTest extends TestCase
 
 		Functions\when('admin_url')->justReturn('https://example.com/wp-admin/');
 		Functions\when('wp_validate_redirect')->returnArg();
+		Functions\when('current_user_can')->justReturn(true);
 		Functions\when('add_query_arg')->alias(
 			static function ( string $key, string $value, string $url ): string {
 				$separator = str_contains($url, '?') ? '&' : '?';
@@ -2202,6 +2209,245 @@ class ChallengeTest extends TestCase
 		$this->assertStringNotContainsString('user=5', $data['redirect']);
 	}
 
+	// -----------------------------------------------------------------
+	// Handler landing map (#533)
+	//
+	// A handler renders nothing usable on a bare GET, so the landing may not go
+	// there. The dashboard was the only alternative, which is why editing another
+	// user's profile dumped the operator on the dashboard with their work gone AND
+	// their place lost. Where a handler has a sibling screen that IS usable, land
+	// there instead.
+	//
+	// Deliberately NOT a query allowlist. `user_id` never appears in the stashed
+	// URL: core's form posts to a queryless self_admin_url() with `action=update`
+	// and `user_id` as hidden POST fields, so there is no query to preserve.
+	// A destination is also bounded by a static map, which a preserved parameter is not:
+	// the path selects between the map's site and network forms, but cannot name a
+	// target absent from it.
+	// -----------------------------------------------------------------
+
+	/**
+	 * A refused user-edit.php POST lands on the Users list, not the dashboard.
+	 */
+	public function test_handler_landing_sends_user_edit_to_the_users_list(): void
+	{
+		$this->stash->shouldReceive('get')
+			->once()
+			->with('gated-user-edit', 42)
+			->andReturn(array(
+				'method' => 'POST',
+				'url' => 'https://example.com/wp-admin/user-edit.php',
+				'return_url' => '',
+				'rule_id' => 'user.promote_profile',
+				'post' => array(),
+				'post_replay_blocked' => true,
+			));
+
+		$this->stash->shouldReceive('delete')->once()->with('gated-user-edit', 42);
+		$this->stubReplayEnv();
+		Functions\when('current_user_can')->justReturn(true);
+
+		$data = $this->invokeReplay('gated-user-edit', false);
+
+		$this->assertStringContainsString('/wp-admin/users.php', $data['redirect']);
+		$this->assertStringNotContainsString('user-edit.php', $data['redirect']);
+	}
+
+	/**
+	 * The sibling is derived from the URL's own path, so network admin stays network.
+	 *
+	 * is_handler_endpoint() classifies from the path rather than is_network_admin()
+	 * because that answer is ambient to the request (GB-IS-NETWORK-ADMIN). The
+	 * landing must be derived the same way or it reintroduces the dependency that
+	 * reasoning exists to avoid — sending a network operator to the site Users list.
+	 */
+	public function test_handler_landing_keeps_network_admin_in_network_admin(): void
+	{
+		$this->stash->shouldReceive('get')
+			->once()
+			->with('gated-network-user-edit', 42)
+			->andReturn(array(
+				'method' => 'POST',
+				'url' => 'https://example.com/wp-admin/network/user-edit.php',
+				'return_url' => '',
+				'rule_id' => 'network.super_admin',
+				'post' => array(),
+				'post_replay_blocked' => true,
+			));
+
+		$this->stash->shouldReceive('delete')->once()->with('gated-network-user-edit', 42);
+		$this->stubReplayEnv();
+		Functions\when('current_user_can')->justReturn(true);
+
+		$data = $this->invokeReplay('gated-network-user-edit', false);
+
+		$this->assertStringContainsString('/wp-admin/network/users.php', $data['redirect']);
+	}
+
+	/**
+	 * Without the capability for the sibling screen, fall back to the neutral page.
+	 *
+	 * user-edit.php acts as the profile page when user_id === the current user, so a
+	 * non-administrator can reach it for their own account and trip
+	 * user.change_password. Landing them on users.php would show "Sorry, you are not
+	 * allowed to access this page" — worse than the dashboard, not better.
+	 */
+	public function test_handler_landing_falls_back_when_the_user_cannot_use_the_sibling(): void
+	{
+		$this->stash->shouldReceive('get')
+			->once()
+			->with('gated-no-cap', 42)
+			->andReturn(array(
+				'method' => 'POST',
+				'url' => 'https://example.com/wp-admin/user-edit.php',
+				'return_url' => '',
+				'rule_id' => 'user.change_password',
+				'post' => array(),
+				'post_replay_blocked' => true,
+			));
+
+		$this->stash->shouldReceive('delete')->once()->with('gated-no-cap', 42);
+		$this->stubReplayEnv();
+		Functions\when('current_user_can')->justReturn(false);
+
+		$data = $this->invokeReplay('gated-no-cap', false);
+
+		$this->assertStringNotContainsString('users.php', $data['redirect']);
+		$this->assertStringNotContainsString('user-edit.php', $data['redirect']);
+		$this->assertStringStartsWith('https://example.com/wp-admin/?', $data['redirect']);
+	}
+
+	/**
+	 * Network admin falls back too, and on its OWN capability.
+	 *
+	 * wp-admin/users.php requires list_users; wp-admin/network/users.php requires
+	 * manage_network_users. A multisite administrator who is not a super admin holds
+	 * the first and not the second, so a single-capability map would send them from a
+	 * working dashboard to a 403 — the exact outcome the check exists to prevent.
+	 *
+	 * The other network test stubs current_user_can() true and so is structurally
+	 * blind here; this is the case that distinguishes the two capabilities.
+	 */
+	public function test_handler_landing_network_falls_back_without_the_network_capability(): void
+	{
+		$this->stash->shouldReceive('get')
+			->once()
+			->with('gated-network-no-cap', 42)
+			->andReturn(array(
+				'method' => 'POST',
+				'url' => 'https://example.com/wp-admin/network/user-edit.php',
+				'return_url' => '',
+				'rule_id' => 'network.super_admin',
+				'post' => array(),
+				'post_replay_blocked' => true,
+			));
+
+		$this->stash->shouldReceive('delete')->once()->with('gated-network-no-cap', 42);
+		$this->stubReplayEnv();
+
+		// Holds the site capability, lacks the network one.
+		Functions\when('current_user_can')->alias(
+			static fn( string $cap ): bool => 'list_users' === $cap
+		);
+
+		$data = $this->invokeReplay('gated-network-no-cap', false);
+
+		$this->assertStringNotContainsString('users.php', $data['redirect']);
+	}
+
+	/**
+	 * Guard: every mapped landing target must be a screen the suite has verified.
+	 *
+	 * The map's whole safety argument is that it points at screens already asserted
+	 * usable on a bare GET — unlike a query allowlist, which asserts something new
+	 * about core at every release. That argument is only true if it is enforced, so
+	 * enforce it: walk the map in BOTH site and network form and require each target
+	 * to appear in the verified-screen set.
+	 *
+	 * Written because the review that caught the missing network capability observed
+	 * that this test would have caught it unaided — network/users.php was absent from
+	 * verifiedScreens(), which is the same gap that made the wrong capability
+	 * invisible. Adding an entry to the map now fails here until someone has decided
+	 * what that screen does on a bare GET, in both contexts.
+	 *
+	 * It also asserts the entry's SHAPE, so handler_landing() cannot hit an undefined
+	 * key in the network branch. The @var docblock is not protection: it drifted
+	 * inside the very change that added network_cap, and Psalm caught that only
+	 * because the literal and the annotation disagreed — an entry omitting the key
+	 * entirely would have matched neither complaint.
+	 *
+	 * What it does NOT establish is which capability each target requires. That is
+	 * recorded in prose beside the verifiedScreens() entry and in GB-USERS-LIST-CAP,
+	 * and is not machine-checked here — verifiedScreens() holds URLs, not capabilities.
+	 *
+	 * Note the coupling: verifiedScreens() doubles as the absolution list for
+	 * test_every_builtin_post_rule_lands_somewhere_usable(), so adding a map entry
+	 * injects URLs into that guard's allowlist too. It errs safe — both guards force a
+	 * decision rather than skipping one — but the two are wired together.
+	 */
+	public function test_every_handler_landing_target_is_a_verified_screen(): void
+	{
+		$verified = $this->verifiedScreens();
+
+		foreach (\WP_Sudo\Challenge::HANDLER_LANDINGS as $handler => $landing) {
+			foreach (array('file', 'cap', 'network_cap') as $key) {
+				$this->assertArrayHasKey(
+					$key,
+					$landing,
+					sprintf('HANDLER_LANDINGS[%s] is missing "%s"; handler_landing() reads all three.', $handler, $key)
+				);
+				$this->assertNotSame('', $landing[$key], sprintf('HANDLER_LANDINGS[%s]["%s"] must not be empty.', $handler, $key));
+			}
+
+			foreach (array('', 'network/') as $prefix) {
+				$target = 'https://example.com/wp-admin/' . $prefix . $landing['file'];
+
+				$this->assertContains(
+					$target,
+					$verified,
+					sprintf(
+						'HANDLER_LANDINGS maps %s to %s, but %s is not in the verified-screen '
+							. 'set — so nothing has established it renders usably on a bare GET.',
+						$handler,
+						$landing['file'],
+						$target
+					)
+				);
+			}
+		}
+	}
+
+	/**
+	 * A handler with no mapped sibling still lands on the neutral page.
+	 *
+	 * options.php has no usable sibling — options-general.php is one of several
+	 * Settings screens and guessing which one the operator wanted would be a worse
+	 * answer than the dashboard. The map is deliberately partial.
+	 */
+	public function test_handler_landing_leaves_unmapped_handlers_on_the_neutral_page(): void
+	{
+		$this->stash->shouldReceive('get')
+			->once()
+			->with('gated-options', 42)
+			->andReturn(array(
+				'method' => 'POST',
+				'url' => 'https://example.com/wp-admin/options.php',
+				'return_url' => '',
+				'rule_id' => 'options.critical',
+				'post' => array(),
+				'post_replay_blocked' => true,
+			));
+
+		$this->stash->shouldReceive('delete')->once()->with('gated-options', 42);
+		$this->stubReplayEnv();
+		Functions\when('current_user_can')->justReturn(true);
+
+		$data = $this->invokeReplay('gated-options', false);
+
+		$this->assertStringNotContainsString('options.php', $data['redirect']);
+		$this->assertStringNotContainsString('options-general.php', $data['redirect']);
+	}
+
 	/**
 	 * #429 guard: every built-in POST-capable rule must land somewhere usable.
 	 *
@@ -2343,6 +2589,13 @@ class ChallengeTest extends TestCase
 			// Network Settings renders on a bare GET; network edit.php does not and is
 			// caught by the handler predicate, so it is deliberately absent here.
 			'https://example.com/wp-admin/network/settings.php',
+			// Network Users renders the list on a bare GET: the whole action-handling
+			// block is behind `isset( $_GET['action'] )`, so with no query it falls
+			// through to the list table. Verified in core, network/users.php. Note it
+			// gates on manage_network_users, NOT list_users like its site counterpart —
+			// which is why HANDLER_LANDINGS carries a separate network_cap, and why the
+			// landing must choose the capability from the same path as the destination.
+			'https://example.com/wp-admin/network/users.php',
 		);
 	}
 
@@ -2579,6 +2832,9 @@ class ChallengeTest extends TestCase
 		Functions\when('admin_url')->justReturn('https://example.com/wp-admin/');
 		Functions\when('wp_validate_redirect')->returnArg();
 		Functions\when('sanitize_text_field')->returnArg();
+		// handler_landing() consults this for every handler landing (#533). Tests that
+		// care about the capability branch override it after calling this helper.
+		Functions\when('current_user_can')->justReturn(true);
 		Functions\when('headers_sent')->justReturn(true); // skip setcookie in unit context
 		Functions\when('add_query_arg')->alias(
 			static function ( string $key, string $value, string $url ): string {

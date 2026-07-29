@@ -600,12 +600,12 @@ msgid "Current settings do not match any preset. Selecting a preset will overwri
 msgstr ""
 
 #: includes/class-admin.php:1128
-#: includes/class-challenge.php:392
+#: includes/class-challenge.php:419
 msgid "An error occurred."
 msgstr ""
 
 #: includes/class-admin.php:1129
-#: includes/class-challenge.php:393
+#: includes/class-challenge.php:420
 msgid "A network error occurred. Please try again."
 msgstr ""
 
@@ -1203,220 +1203,220 @@ msgstr ""
 msgid "Application password not found."
 msgstr ""
 
-#: includes/class-challenge.php:261
+#: includes/class-challenge.php:288
 msgid "For your security, WP Sudo never repeats your previous action, so it was not carried out and nothing was changed — including anything you had already typed in. Do it again to finish the change; while your sudo session lasts you will not be asked to reauthenticate."
 msgstr ""
 
-#: includes/class-challenge.php:292
-#: includes/class-challenge.php:314
+#: includes/class-challenge.php:319
+#: includes/class-challenge.php:341
 msgid "Confirm Your Identity — Sudo"
 msgstr ""
 
-#: includes/class-challenge.php:391
+#: includes/class-challenge.php:418
 msgid "The server returned an unexpected response. Check the browser console for details."
 msgstr ""
 
-#: includes/class-challenge.php:394
+#: includes/class-challenge.php:421
 #: admin/js/wp-sudo-editor-reauth.js:238
 #: admin/js/wp-sudo-editor-reauth.js:400
 msgid "Authentication failed."
 msgstr ""
 
 #. translators: %s: countdown timer like "4:30"
-#: includes/class-challenge.php:396
+#: includes/class-challenge.php:423
 #, php-format
 msgid "Too many failed attempts. Try again in %s."
 msgstr ""
 
 #. translators: %s: countdown timer like "0:05"
-#: includes/class-challenge.php:398
+#: includes/class-challenge.php:425
 #, php-format
 msgid "Please wait %s before trying again."
 msgstr ""
 
 #. translators: %s: countdown timer like "9:30"
-#: includes/class-challenge.php:400
+#: includes/class-challenge.php:427
 #, php-format
 msgid "Time remaining: %s"
 msgstr ""
 
 #. translators: %s: countdown timer like "0:45"
-#: includes/class-challenge.php:402
+#: includes/class-challenge.php:429
 #, php-format
 msgid "⚠ Time remaining: %s"
 msgstr ""
 
-#: includes/class-challenge.php:403
+#: includes/class-challenge.php:430
 msgid "Your authentication session has expired."
 msgstr ""
 
-#: includes/class-challenge.php:404
+#: includes/class-challenge.php:431
 msgid "Your session may have expired."
 msgstr ""
 
-#: includes/class-challenge.php:405
+#: includes/class-challenge.php:432
 msgid "Start over"
 msgstr ""
 
-#: includes/class-challenge.php:406
+#: includes/class-challenge.php:433
 msgid "Password confirmed. Two-factor authentication required."
 msgstr ""
 
-#: includes/class-challenge.php:410
+#: includes/class-challenge.php:437
 msgid "Returning you to your page…"
 msgstr ""
 
-#: includes/class-challenge.php:411
+#: includes/class-challenge.php:438
 msgid "Leaving challenge page."
 msgstr ""
 
-#: includes/class-challenge.php:412
+#: includes/class-challenge.php:439
 msgid "Lockout expired. You may try again."
 msgstr ""
 
-#: includes/class-challenge.php:427
+#: includes/class-challenge.php:454
 msgid "You must be logged in."
 msgstr ""
 
-#: includes/class-challenge.php:446
+#: includes/class-challenge.php:473
 msgid "Activate sudo session"
 msgstr ""
 
-#: includes/class-challenge.php:451
+#: includes/class-challenge.php:478
 msgid "Invalid or expired challenge. Please try again."
 msgstr ""
 
-#: includes/class-challenge.php:454
+#: includes/class-challenge.php:481
 msgid "this action"
 msgstr ""
 
-#: includes/class-challenge.php:474
+#: includes/class-challenge.php:501
 msgid "Confirm Your Identity"
 msgstr ""
 
 #. translators: %s: action label (e.g. "Activate plugin")
-#: includes/class-challenge.php:480
+#: includes/class-challenge.php:507
 #, php-format
 msgid "To continue: %s — please enter your password."
 msgstr ""
 
 #. translators: %s: the concrete target of the action (e.g. a plugin file or user login)
-#: includes/class-challenge.php:490
+#: includes/class-challenge.php:517
 #, php-format
 msgid "Target: %s"
 msgstr ""
 
-#: includes/class-challenge.php:498
+#: includes/class-challenge.php:525
 msgid "Respect the privacy of others."
 msgstr ""
 
-#: includes/class-challenge.php:499
+#: includes/class-challenge.php:526
 msgid "Think before you type."
 msgstr ""
 
-#: includes/class-challenge.php:500
+#: includes/class-challenge.php:527
 msgid "With great power comes great responsibility."
 msgstr ""
 
-#: includes/class-challenge.php:507
+#: includes/class-challenge.php:534
 msgid "Too many failed attempts. The form is temporarily disabled. Please wait and try again."
 msgstr ""
 
 #. translators: %d: seconds remaining
-#: includes/class-challenge.php:516
+#: includes/class-challenge.php:543
 #, php-format
 msgid "Please wait %d seconds before trying again."
 msgstr ""
 
-#: includes/class-challenge.php:531
+#: includes/class-challenge.php:558
 #: admin/js/wp-sudo-editor-reauth.js:608
 msgid "Password"
 msgstr ""
 
-#: includes/class-challenge.php:538
-#: includes/class-challenge.php:567
+#: includes/class-challenge.php:565
+#: includes/class-challenge.php:594
 msgid "Confirm & Continue"
 msgstr ""
 
-#: includes/class-challenge.php:541
-#: includes/class-challenge.php:570
-#: includes/class-challenge.php:1144
+#: includes/class-challenge.php:568
+#: includes/class-challenge.php:597
+#: includes/class-challenge.php:1171
 #: admin/js/wp-sudo-editor-reauth.js:557
 msgid "Cancel"
 msgstr ""
 
-#: includes/class-challenge.php:550
+#: includes/class-challenge.php:577
 msgid "Two-Factor Authentication"
 msgstr ""
 
-#: includes/class-challenge.php:580
+#: includes/class-challenge.php:607
 msgid "Authenticating…"
 msgstr ""
 
-#: includes/class-challenge.php:703
-#: includes/class-challenge.php:801
-#: includes/class-challenge.php:901
+#: includes/class-challenge.php:730
+#: includes/class-challenge.php:828
+#: includes/class-challenge.php:928
 msgid "Invalid request."
 msgstr ""
 
-#: includes/class-challenge.php:709
-#: includes/class-challenge.php:916
+#: includes/class-challenge.php:736
+#: includes/class-challenge.php:943
 msgid "Your authentication session has expired. Please start over."
 msgstr ""
 
-#: includes/class-challenge.php:739
+#: includes/class-challenge.php:766
 msgid "Too many code requests. Please use your current code or wait."
 msgstr ""
 
-#: includes/class-challenge.php:779
+#: includes/class-challenge.php:806
 msgid "Not logged in."
 msgstr ""
 
-#: includes/class-challenge.php:816
+#: includes/class-challenge.php:843
 msgid "Your challenge session has expired. Please try again."
 msgstr ""
 
 #. translators: %d: seconds remaining
-#: includes/class-challenge.php:856
-#: includes/class-challenge.php:943
-#: includes/class-challenge.php:963
-#: includes/class-challenge.php:1019
+#: includes/class-challenge.php:883
+#: includes/class-challenge.php:970
+#: includes/class-challenge.php:990
+#: includes/class-challenge.php:1046
 #, php-format
 msgid "Too many failed attempts. Please wait %d seconds."
 msgstr ""
 
-#: includes/class-challenge.php:868
+#: includes/class-challenge.php:895
 msgid "You are not allowed to perform this action."
 msgstr ""
 
-#: includes/class-challenge.php:874
-#: includes/class-challenge.php:883
+#: includes/class-challenge.php:901
+#: includes/class-challenge.php:910
 msgid "Incorrect password. Please try again."
 msgstr ""
 
 #. translators: %d: seconds remaining
-#: includes/class-challenge.php:927
+#: includes/class-challenge.php:954
 #, php-format
 msgid "Too many attempts. Please wait %d seconds."
 msgstr ""
 
-#: includes/class-challenge.php:985
+#: includes/class-challenge.php:1012
 msgid "Too many resend attempts. Please try your current code or wait."
 msgstr ""
 
-#: includes/class-challenge.php:1030
+#: includes/class-challenge.php:1057
 msgid "Invalid authentication code. Please try again."
 msgstr ""
 
-#: includes/class-challenge.php:1134
+#: includes/class-challenge.php:1161
 msgid "Session already confirmed"
 msgstr ""
 
-#: includes/class-challenge.php:1137
+#: includes/class-challenge.php:1164
 msgid "Your sudo session is already active. Continuing…"
 msgstr ""
 
-#: includes/class-challenge.php:1141
+#: includes/class-challenge.php:1168
 msgid "Continue"
 msgstr ""
 

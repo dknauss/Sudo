@@ -141,6 +141,33 @@ class Challenge {
 	);
 
 	/**
+	 * Handler → usable sibling screen, for landings that would otherwise go neutral.
+	 *
+	 * A handler renders nothing usable on a bare GET, so the landing may not return
+	 * there; before #533 the only alternative was the neutral page.
+	 *
+	 * Deliberately PARTIAL — an entry earns its place only when the sibling is
+	 * unambiguous. `options.php` has none: `options-general.php` is one of several
+	 * Settings screens.
+	 *
+	 * Not private, so the guard test can walk it — the same reason HANDLER_ENDPOINTS
+	 * is public. That walk is what makes the map safe to extend, and is the record of
+	 * what each entry has to earn:
+	 * ChallengeTest::test_every_handler_landing_target_is_a_verified_screen().
+	 *
+	 * The two capabilities differ and are not interchangeable — see GB-USERS-LIST-CAP.
+	 *
+	 * @var array<string, array{file: string, cap: string, network_cap: string}>
+	 */
+	public const HANDLER_LANDINGS = array(
+		'user-edit.php' => array(
+			'file'        => 'users.php',
+			'cap'         => 'list_users',
+			'network_cap' => 'manage_network_users',
+		),
+	);
+
+	/**
 	 * Request stash instance.
 	 *
 	 * @var Request_Stash
@@ -1356,6 +1383,67 @@ class Challenge {
 	}
 
 	/**
+	 * Resolve a handler URL to its usable sibling screen, or the neutral page.
+	 *
+	 * The sibling is built by swapping the final path segment of the handler's own
+	 * URL, so network admin stays in network admin. Derived from the path rather than
+	 * is_network_admin(), matching is_handler_endpoint() — GB-IS-NETWORK-ADMIN records
+	 * why that function is not a basis for classifying a URL.
+	 *
+	 * The FALLBACK is not path-derived: $neutral_url comes from the caller, which uses
+	 * is_network_admin(). Pre-existing and unchanged by #533.
+	 *
+	 * Returns the neutral URL unless every condition holds: the file is mapped, the
+	 * path parses, and the current user can use the sibling.
+	 *
+	 * Covered by ChallengeTest::test_handler_landing_* — mapped target, network form,
+	 * capability fallback, and unmapped handler.
+	 *
+	 * @param string $screen      Query-stripped handler URL.
+	 * @param string $neutral_url Fallback landing.
+	 * @return string
+	 */
+	private function handler_landing( string $screen, string $neutral_url ): string {
+		$path = wp_parse_url( $screen, PHP_URL_PATH );
+
+		if ( ! is_string( $path ) || '' === $path ) {
+			return $neutral_url;
+		}
+
+		// Normalised exactly as is_handler_endpoint() normalises: that method classifies
+		// the string this one acts on, and a divergence makes a URL classify as a
+		// handler and then silently miss the map.
+		$segments = explode( '/', trim( untrailingslashit( $path ), '/' ) );
+		$file     = (string) array_pop( $segments );
+
+		if ( ! isset( self::HANDLER_LANDINGS[ $file ] ) ) {
+			return $neutral_url;
+		}
+
+		$landing = self::HANDLER_LANDINGS[ $file ];
+
+		// Capability chosen from the SAME path as the destination: the two screens
+		// require different ones (GB-USERS-LIST-CAP).
+		$is_network = 'network' === (string) end( $segments );
+		$capability = $is_network ? $landing['network_cap'] : $landing['cap'];
+
+		if ( ! current_user_can( $capability ) ) {
+			return $neutral_url;
+		}
+
+		$segments[] = $landing['file'];
+
+		// Anchored at the path's own offset; str_replace() would also rewrite a second
+		// copy of the path elsewhere in the URL.
+		// Leading slash restored: the segments were trimmed of it above, and without it
+		// the replacement fuses into the authority.
+		$sibling = substr_replace( $screen, '/' . implode( '/', $segments ), (int) strpos( $screen, $path ), strlen( $path ) );
+
+		// Same-origin revalidation, as for every other landing this method can return.
+		return wp_validate_redirect( $sibling, $neutral_url );
+	}
+
+	/**
 	 * Clear the one-time stash binding cookie.
 	 *
 	 * Called on every path that consumes a stash, but the clearing itself is best
@@ -1589,7 +1677,12 @@ class Challenge {
 				// user there is worse than the dashboard, not better. Applied to BOTH
 				// branches — a query-carrying POST to admin-post.php?action=… strips down
 				// to exactly the blank page.
-				$screen = $neutral_url;
+				//
+				// #533: where the handler has an unambiguous usable sibling, go there
+				// rather than neutral — the dashboard cost the operator their place on
+				// top of their input. Falls back to neutral for every unmapped handler
+				// and whenever the sibling is not permitted.
+				$screen = $this->handler_landing( $screen, $neutral_url );
 			} elseif ( false === $query_pos && $is_get ) {
 				// A queryless stashed GET must NOT be used as the landing spot: with no
 				// query to strip, "the originating screen" IS the action URL, so an
