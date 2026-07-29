@@ -10,25 +10,36 @@ source of truth for its topic; this index never restates content (see
 
 | I want to… | Read |
 |---|---|
-| Understand whether and where this project may be installed | [`../PROJECT-STATUS.md`](../PROJECT-STATUS.md) |
-| Understand what WP Sudo does and why | [`FAQ.md`](FAQ.md) |
-| Know the threat model and security boundaries | [`security-model.md`](security-model.md) |
-| Use the hooks, filters, and custom-rule API | [`developer-reference.md`](developer-reference.md) |
-| See how WP Sudo compares to other reauth/sudo approaches | [`sudo-architecture-comparison-matrix.md`](sudo-architecture-comparison-matrix.md) |
+| Understand why the project concluded and must not be installed | [`finding.md`](finding.md), [`audit-verification-record.md`](audit-verification-record.md), and [`post-mortem.md`](post-mortem.md) |
+| Understand the final project status and why it must not be installed | [`../PROJECT-STATUS.md`](../PROJECT-STATUS.md) |
 
-## Canonical state — check these before writing any count, release, or upstream claim
+## Historical implementation documentation
+
+The documents below describe the prototype before the final audit. They are
+retained as evidence and implementation history, not current security or
+operational guidance. Where they conflict with the finding, audit record,
+post-mortem, or project status above, the final documents control.
+
+| Historical question | Read |
+|---|---|
+| What did WP Sudo claim to do? | [`FAQ.md`](FAQ.md) |
+| What threat model and boundaries did the prototype use? | [`security-model.md`](security-model.md) |
+| What hooks, filters, and custom-rule API did it expose? | [`developer-reference.md`](developer-reference.md) |
+| How was it compared with other reauth/sudo approaches? | [`sudo-architecture-comparison-matrix.md`](sudo-architecture-comparison-matrix.md) |
+
+## Retained project records
 
 | Question | Canonical source |
 |---|---|
 | How many surfaces / rules / hooks / fields are there right now? | [`current-metrics.md`](current-metrics.md) |
-| What's the stable tag / unreleased `main` work / forward-lane posture? | [`release-status.md`](release-status.md) |
+| What was the final release state before the project concluded? | [`release-status.md`](release-status.md) |
 | What does WordPress/Gutenberg actually do at the line we cite? | [`upstream-sources.md`](upstream-sources.md) |
 
-## The core proposal — "propose this primitive to WordPress core"
+## Retained core-proposal lineage
 
 | Question | Read |
 |---|---|
-| What architecture and phased evidence program are current now? | [Action Gate Research Program charter](../.planning/action-gate-architecture-charter.md) and [GSD roadmap](../.planning/ROADMAP.md) |
+| What architecture and phased evidence program preceded the conclusion? | [Action Gate Research Program charter](../.planning/action-gate-architecture-charter.md) and [GSD roadmap](../.planning/ROADMAP.md) |
 | *Why* close the XSS→RCE route with a recent-auth gate, and how does it land? (start here — the security pitch is now merged in) | [`core-action-gate-proposal.md`](core-action-gate-proposal.md) |
 | What did the broader implementation inventory identify? (superseded as an implementation plan; retained for seam/route evidence) | [`core-sudo-gate-implementation-spec.md`](core-sudo-gate-implementation-spec.md) |
 | What did an early sketch of the chokepoint patches look like? ⚠️ **Superseded — known-vulnerable, do not implement** | [`archive/core-sudo-gate-poc-patches.md`](archive/core-sudo-gate-poc-patches.md) (retained for shape only; see the banner at the top of that file) |
@@ -40,10 +51,8 @@ superseded registry-vs-Abilities decision memo, the `consequential-actions`
 MVP-vs-spec reconciliation, and password-change reauth research. A general
 registry is possible future work, not part of Cut 1.*
 
-> **Planning precedence:** the charter and GSD roadmap control current scope and
-> execution order. The proposal remains rationale under revision; the broad
-> implementation spec is an evidence inventory until Phase 32 rewrites it from
-> the two-effect demonstrator.
+> **Historical status:** the charter, roadmap, and phase language no longer
+> control active work. They are retained to show how the proposal evolved.
 
 ## WordPress 7.0 & AI-adjacent surfaces
 
@@ -73,7 +82,7 @@ registry is possible future work, not part of Cut 1.*
 | What's the 2FA plugin landscape (for plugin developers)? | [`two-factor-ecosystem.md`](two-factor-ecosystem.md) |
 | Do password managers / autofill work on the reauth screens? | [`password-manager-compatibility.md`](password-manager-compatibility.md) |
 
-## Testing & release
+## Historical testing & release records
 
 | Question | Read |
 |---|---|
@@ -84,7 +93,7 @@ registry is possible future work, not part of Cut 1.*
 | What were the live security-test results for 4.8.0? | [`security-test-results-4.8.0.md`](security-test-results-4.8.0.md) |
 | Which session store should WP Sudo use? | [`session-store-evaluation.md`](session-store-evaluation.md) |
 | What's the roadmap? | [`ROADMAP.md`](ROADMAP.md) |
-| What are the pre-tag release gates? (WordPress.org submission is **not planned** — §2 there is dormant reference) | [`wporg-submission-checklist.md`](wporg-submission-checklist.md) |
+| What were the former pre-tag and WordPress.org gates? | [`wporg-submission-checklist.md`](wporg-submission-checklist.md) |
 | How do I run the Studio SQLite release? | [`studio-sqlite-release-runbook.md`](studio-sqlite-release-runbook.md) |
 | What's the release environment history? | [`release-environment-log.md`](release-environment-log.md) |
 

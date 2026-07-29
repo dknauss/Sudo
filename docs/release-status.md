@@ -300,14 +300,22 @@ rather than absorbed, and all three sit in `post-4.9.0`.
 
 ## WordPress.org publication status
 
-- **WordPress.org plugin repository:** not published, and **submission is not planned** (maintainer decision, 2026-07-26). This is **not** a delay awaiting approval: the repository carries no obligation to stay "submission-ready", and no WordPress.org rule is a release gate here. Distribution is the GitHub tag and its release ZIP.
-- **Plugin Check (PCP) is not a gate.** It is used only for occasional local testing. It is **not** among `main`'s six required status checks (`PHPUnit`, `Psalm`, `CodeQL`, `E2E Tests`, `E2E Nginx Smoke`, `docs-lint`). A `plugin-check` CI lane still exists and still runs, but a finding there does not block a release.
-- **Process reference (not a gate):** [`docs/wporg-submission-checklist.md`](wporg-submission-checklist.md) retains the submission process in case the decision is ever revisited. Its **§1 pre-tag/core gates remain live** — they protect the tag and the release ZIP; its §2 WordPress.org-only gates do not.
+- **WordPress.org plugin repository:** never published. The concluded project
+  distributes no installable package. Historical GitHub tags and release ZIPs
+  remain available as research artifacts; no future package release is planned.
+- **Plugin Check (PCP) is retired.** The CI lane and its package-builder script
+  were removed when the project stopped distributing installable packages. The
+  historical results remain in the release record.
+- **Historical process reference:** [`docs/wporg-submission-checklist.md`](wporg-submission-checklist.md)
+  records the former submission and packaging process. None of its gates remain
+  active.
 - **Release environment assurance source:** `docs/release-environment-log.md` records per-version manual environment outcomes and deferrals.
 - **E2E runtime evidence source:** [`docs/e2e-runtime-review.md`](e2e-runtime-review.md) records refreshed post-`v4.2.2` GitHub Actions E2E job runtimes and the current CI tuning decision; it is release-readiness evidence, not a WordPress.org submission gate.
 - **Release confidence E2E source:** [`docs/release-e2e-confidence.md`](release-e2e-confidence.md) documents the manual release-grade E2E workflow across Apache/wp-env, nginx, nginx multisite, and Playground SQLite smoke targets.
 - **Sudo fundamentals source:** [`docs/sudo-lite/fundamentals-cross-check.md`](sudo-lite/fundamentals-cross-check.md) preserves the Psudo Lite/Sudo Lite baseline used to review WP Sudo changes for fidelity to the core reauthentication model.
-- **`readme.txt` stable tag:** package/release metadata for generated plugin zips **only**. With submission not planned it carries **no WordPress.org contract** — it selects no served SVN tag, so it may legitimately lead the latest git tag while `main` is unreleased (it does not currently: Stable tag `4.9.2` on `main`, latest tag `v4.9.2` — they agree). It does not indicate that this plugin is live in the WordPress.org repository.
+- **`readme.txt` stable tag:** retired with installable distribution. The final
+  historical package metadata was synchronized at `4.9.2`; the file is absent
+  from the concluded repository.
 
 ## Latest release contents
 
@@ -385,13 +393,16 @@ Canonical source for drift after the tag: `git log v4.5.0..main --oneline`.
 
 Phase 17 added [`docs/release-environment-log.md`](release-environment-log.md) as the record of record for release-grade manual environment matrix outcomes. The `v4.5.0` tag's environment-matrix gate was **cleared** (Apache lane completed, minimum-supported-WordPress (6.4) floor CI-covered, managed-host lane cleared by explicit maintainer waiver — see the log). For the staged **`4.6.0`** package the gate is **not auto-cleared**: because `4.6.0` adds the block-editor in-editor reauth capability, run the full release-grade E2E before tagging and record a **conscious** reuse-or-rerun decision for the host/floor matrix in the log (see the `v4.6.0` tag checklist above). The historical `v4.2.2` row remains **Deferred**.
 
-Release readiness now distinguishes **Pre-tag/core** gates from **WordPress.org-only** gates. Pre-tag/core gates cover version sync, Composer validation commands, external-claim audit, changelog/readme/release-status sanity, package metadata, and the release environment matrix/log gate. WordPress.org-only gates cover the readme validator, clean-package Plugin Check, SVN layout/upload, listing assets, screenshot/caption parity, slug-lock decision, and final publication approval. **Those WordPress.org-only gates are dormant:** submission is not planned (see *WordPress.org publication status* above), so only the pre-tag/core gates apply to a release.
+The former release process distinguished **Pre-tag/core** gates from
+**WordPress.org-only** gates. Both sets are now historical because the project
+plans no future tag or package release.
 
 ### E2E runtime evidence
 
 Phase 18 added [`docs/e2e-runtime-review.md`](e2e-runtime-review.md) as the durable GitHub Actions E2E runtime review. Refreshed post-`v4.2.2` evidence found `E2E Tests 1/4 (challenge-basic-admin)` to be the repeatable long pole and records exactly one no-coverage-loss follow-up proposal: rebalance a small test slice within the existing four baseline groups. No workflow file was edited in Phase 18, and this review remains CI evidence rather than a WordPress.org publication gate.
 
-**Pre-tag checklist reminder:** before tagging a future release, confirm the five version-sync points are still in sync, re-verify external claims added since the previous tag, ensure the CHANGELOG/`readme.txt` release entries are dated/current, and update this file's "Latest tagged release" once the tag is cut.
+**Final state:** `v4.9.2` was the last package release. No pre-tag checklist
+remains active.
 
 ## WordPress release posture
 

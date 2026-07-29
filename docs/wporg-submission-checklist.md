@@ -1,19 +1,13 @@
-# WordPress.org Submission Checklist
+# Archived WordPress.org Submission Checklist
 
-A repeatable checklist for preparing and submitting **Sudo** to the WordPress.org
-plugin directory. This document **describes the process — it does not perform the
-submission.**
+A historical checklist that recorded how **Sudo** would have been prepared for
+the WordPress.org plugin directory.
 
-> **Status: WordPress.org submission is not planned** (maintainer decision; see
-> *WordPress.org publication status* in [`release-status.md`](release-status.md) for
-> the dated record). This is **not** a delay awaiting approval, and the repository
-> carries no obligation to stay "submission-ready". Nothing in §2 is a live gate.
+> **Archived:** the project is concluded, distributes no installable package,
+> and plans no future release. No section of this checklist is an active gate or
+> executable release instruction.
 >
-> This document is retained as **reference**: if the decision is ever revisited, the
-> process is written down rather than rediscovered.
->
-> **§1 still applies.** Those gates protect the GitHub tag and the release ZIP, and
-> are required before any public release tag regardless of where it is distributed.
+> This document is retained solely as process history.
 
 > Canonical release-state source: [`docs/release-status.md`](release-status.md).
 > Canonical counts source: [`docs/current-metrics.md`](current-metrics.md).
@@ -22,9 +16,9 @@ submission.**
 
 ---
 
-## 1. Pre-tag/core release gates
+## 1. Historical pre-tag/core release gates
 
-These gates protect the GitHub/package release itself. They are required before a public tag or publication decision, whether or not WordPress.org upload/submission happens later.
+These gates protected the former GitHub/package release process.
 
 - [ ] **Version-sync gate** — `WP_SUDO_VERSION` must be identical in all four code
   locations, and the `readme.txt` Stable tag must match the plugin header `Version`
@@ -108,8 +102,8 @@ These gates protect the GitHub/package release itself. They are required before 
   `License`, `License URI`).
 - [ ] **Plugin Check (PCP) green against a clean production package** — run the
   official Plugin Check plugin against the package/SVN candidate, not a dirty dev
-  tree. The repo's `plugin-check` CI lane does this via `wp-env`, but that lane is
-  **not** among `main`'s required status checks — Plugin Check is otherwise used
+  tree. The retired `plugin-check` CI lane did this via `wp-env`; Plugin Check is
+  otherwise used
   only for occasional local testing, and a finding there does not block a release.
   Were publication ever approved: no `stable_tag_mismatch`, no
   `plugin_name_mismatch`, no errors.
@@ -149,7 +143,8 @@ WordPress.org hosts plugins in Subversion, not Git. Standard layout:
   (PHP, JS/CSS, `readme.txt`, languages). Exclude dev-only paths: `tests/`,
   `.planning/`, `.github/`, `docs/`, `.wordpress-org/`, `vendor/` dev tooling,
   `composer.*`, `phpstan*`, `psalm*`, `phpunit*`, lint configs. Mirror the
-  `.distignore` / build-dist rules used by the `plugin-check` CI lane.
+  `.distignore` / build-dist rules formerly used by the retired `plugin-check`
+  CI lane.
 
 ### 2.4 Slug-lock, brand, and header decision
 
