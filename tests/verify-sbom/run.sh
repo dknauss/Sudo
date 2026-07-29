@@ -18,6 +18,14 @@ fi
 php -r '
 	$data = json_decode( file_get_contents( $argv[1] ), true, 512, JSON_THROW_ON_ERROR );
 	$data["metadata"]["tools"][0]["version"] = "different-composer-version";
+	$root_reference = $data["metadata"]["component"]["bom-ref"];
+	$data["metadata"]["component"]["bom-ref"] = "different-root-bom-reference";
+	foreach ( $data["dependencies"] as &$dependency ) {
+		if ( $dependency["ref"] === $root_reference ) {
+			$dependency["ref"] = "different-root-bom-reference";
+		}
+	}
+	unset( $dependency );
 	foreach ( $data["metadata"]["component"]["properties"] as &$property ) {
 		if ( in_array( $property["name"], array( "cdx:composer:package:distReference", "cdx:composer:package:sourceReference" ), true ) ) {
 			$property["value"] = "different-checkout-reference";

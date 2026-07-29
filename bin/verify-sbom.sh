@@ -37,6 +37,15 @@ fi
 normalize_environment_metadata() {
 	php -r '
 		$data = json_decode( file_get_contents( $argv[1] ), true, 512, JSON_THROW_ON_ERROR );
+		$root_reference = $data["metadata"]["component"]["bom-ref"] ?? null;
+		if ( is_string( $root_reference ) ) {
+			$data["metadata"]["component"]["bom-ref"] = "<normalized-root-bom-reference>";
+			foreach ( array_keys( $data["dependencies"] ?? array() ) as $index ) {
+				if ( ( $data["dependencies"][ $index ]["ref"] ?? null ) === $root_reference ) {
+					$data["dependencies"][ $index ]["ref"] = "<normalized-root-bom-reference>";
+				}
+			}
+		}
 		foreach ( array_keys( $data["metadata"]["tools"] ?? array() ) as $index ) {
 			$tool = &$data["metadata"]["tools"][ $index ];
 			if ( ( $tool["name"] ?? "" ) === "composer" && ! isset( $tool["vendor"] ) ) {
