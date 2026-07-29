@@ -5,7 +5,7 @@ Tags:              reauthentication, access control, admin protection, multisite
 Requires at least: 6.4
 Tested up to:      7.0
 Requires PHP:      8.2
-Stable tag:        4.9.1
+Stable tag:        4.9.2
 License:           GPL-2.0-or-later
 License URI:       https://spdx.org/licenses/GPL-2.0-or-later.html
 
@@ -206,6 +206,13 @@ Sudo's core design owes a debt to three people:
 12. In-editor session indicator — the unlocked padlock in the editor header while sudo is active, with the reauthentication confirmation snackbar.
 
 == Changelog ==
+
+= 4.9.2 - 2026-07-29 =
+The reauthentication-usability release. 4.9.0 removed automatic replay to close a real vulnerability; this release pays down the two parts of the resulting cost that were defects rather than tradeoffs. No migration; no stored format change; existing sudo sessions are unaffected.
+* **Fix — Settings > General no longer challenges a save that changed nothing** — the `options.critical` rule gated on a critical field being *present* in the POST, and that screen posts the critical fields alongside ordinary ones. Editing only the site title, tagline or timezone therefore raised a challenge, and after the 4.9.0 confirmation work it showed the label "Change critical site setting" with no Target line at all. The rule now challenges only when a submitted value differs from the value already stored. **Behaviour change:** a General Settings save touching nothing critical now fires no `wp_sudo_action_gated` event, so an audit subscriber using that hook as a "someone was on the dangerous settings screen" tripwire loses that signal. The comparison fails toward challenging on every uncertainty.
+* **Fix — the post-reauthentication notice now says something true on every path** — it opened "Reauthentication complete", which holds only when a credential was actually verified on that request and is false on the two paths where the user already held a session. It told the user to "review the form and submit it again", but since 4.9.0 the commonest arrival is a link-driven action such as plugin or theme activation, which has no form. And its secrets variant named "password and secret fields", implying the other fields *were* saved; nothing is replayed, so the whole request was discarded. One notice now covers every path, states plainly that nothing was changed, and says the sudo session will carry the retry through. It also carries `role="alert"`, so a screen-reader user is told their action was discarded — previously that announcement never happened.
+* **Known limitation — reauthentication in the browser admin is still worse than before 4.9.0.** Of the four problems reported in 4.9.1, three are fixed above: the misleading notice (#469), the "review the form" instruction given to actions that have no form (#463), and the challenge on a settings save that changed nothing (#445). What remains is the largest one — a gated form still returns you to the correct screen with **your unsaved edits gone**, repopulated from what is stored rather than from what you had typed, so the whole entry is redone rather than just the secrets (#436 face 1). Two further improvements are tracked on the same issue and not attempted here: naming every rule a form's changes matched rather than only the first (#436 face 3), and gating **before** the form is offered, which would dissolve the problem rather than improve recovery (#436 face 4) and is the most valuable of the three.
+* **1,307 unit tests, 3,904 assertions.**
 
 = 4.9.1 - 2026-07-28 =
 A maintenance release built on 4.9.0. It fixes two ways the sudo session record and the cleanup that reads it could disagree, and corrects documentation that still described the automatic replay 4.9.0 removed. No migration; no stored format change.
@@ -467,6 +474,9 @@ This release hardens the reauthentication gate against a hijacked admin session 
 See the plugin's `CHANGELOG.md` for all versions.
 
 == Upgrade Notice ==
+
+= 4.9.2 =
+Usability fixes for reauthentication. A Settings > General save that changes nothing critical no longer raises a challenge — which also means it no longer fires `wp_sudo_action_gated`, so check any audit subscriber using that hook as a tripwire for the settings screen. The post-reauthentication notice is rewritten to describe what actually happens. No migration; existing sudo sessions are unaffected.
 
 = 4.9.1 =
 Maintenance release. Fixes a case where "revoke all sessions" could silently skip a user whose sudo session was still live, and stops Site Health's cleanup deleting sessions that are still working. No migration; existing sudo sessions are unaffected.

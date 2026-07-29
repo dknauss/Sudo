@@ -1,10 +1,17 @@
 # Changelog
 
-## Unreleased
+## 4.9.2 - 2026-07-29
+
+The reauthentication-usability release. 4.9.0 removed automatic replay to close a
+real vulnerability; the convenience cost landed harder than its notes conveyed, and
+this release pays down the two parts of that cost that were defects rather than
+tradeoffs — a gate that fired on saves changing nothing, and a landing notice whose
+opener and whose instruction were each false on some path.
 
 - **One honest post-reauthentication notice, replacing two that were both wrong
   (#463, #469, #436 face 2).** The landing notice is the sentence most users see
-  after a gated action, and every clause of it was inaccurate in some path.
+  after a gated action, and its opener, its instruction and its secrets variant were
+  each inaccurate on some path.
 
   - It opened "Reauthentication complete." That is true only on the
     `replay_stash()` path where a credential was verified.
