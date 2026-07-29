@@ -46,6 +46,7 @@
         "test:poc": "phpunit -c poc/install-package-gate/phpunit.xml.dist",
         "test:integration": "bash bin/run-integration-tests.sh phpunit-integration.xml.dist",
         "test:coverage": "phpunit --configuration phpunit.xml.dist --coverage-clover coverage.xml --coverage-text",
+        "test:suite-determinism": "bash tests/suite-determinism/run.sh",
         "test:sources": "bash tests/verify-sources/run.sh",
         "verify:metrics": "bash bin/verify-metrics.sh",
         "verify:i18n": "bash bin/verify-i18n.sh",

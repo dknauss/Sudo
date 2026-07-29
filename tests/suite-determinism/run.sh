@@ -57,6 +57,12 @@ case "${FAKE_SCENARIO:-pass}" in
 		printf 'bootstrap says \"broken\"\\path\nsecond diagnostic line\n'
 		exit 2
 		;;
+	invalid-utf8)
+		printf '1) WP_Sudo\\Tests\\Unit\\BinaryTest::test_invalid_'
+		printf '\377'
+		printf '\nTests: 2, Assertions: 1, Failures: 1.\n'
+		exit 1
+		;;
 	change-head)
 		printf '\n// changed\n' >> includes/class-gate.php
 		git add includes/class-gate.php
@@ -160,6 +166,22 @@ printf '%s\n' '<?php exit(2);' > "$REPO/tests/bootstrap.php"
 run_harness pass 1
 expect_rc 1
 
+CURRENT="a symlinked vendor fails before the sample even when Gate resolves locally"
+new_repo symlinked-vendor
+mv "$REPO/vendor" "$REPO/vendor-real"
+ln -s vendor-real "$REPO/vendor"
+run_harness pass 1
+expect_rc 2
+expect test ! -f "$REPO/.tmp/fake-count.shared"
+
+CURRENT="malformed UTF-8 diagnostics remain valid JSON evidence"
+new_repo invalid-utf8
+run_harness invalid-utf8 2
+expect_rc 1
+expect json_assert 2
+expect grep -q '"status":"fail"' "$JSONL"
+expect php -r '$r=json_decode(file($argv[1])[0],true,512,JSON_THROW_ON_ERROR); exit(str_contains($r["diagnostic"], "\u{FFFD}")?0:1);' "$JSONL"
+
 CURRENT="revision changes and post-run dirty state are recorded"
 new_repo changed
 run_harness change-head 2
@@ -170,6 +192,42 @@ new_repo dirty
 run_harness dirty-after 1
 expect_rc 0
 expect php -r '$r=json_decode(file($argv[1])[0],true); exit($r["tracked_dirty_after"]&&$r["untracked_dirty_after"]?0:1);' "$JSONL"
+
+CURRENT="all iterations are pinned to one baseline revision"
+new_repo between-runs
+real_git="$(command -v git)"
+baseline_head="$(git -C "$REPO" rev-parse HEAD)"
+mkdir -p "$REPO/fake-bin"
+cat > "$REPO/fake-bin/git" <<'FAKE_GIT'
+#!/usr/bin/env bash
+if [ "$#" -eq 2 ] && [ "$1" = "rev-parse" ] && [ "$2" = "HEAD" ]; then
+	count_file=".tmp/fake-git-head-count"
+	count=0
+	[ ! -f "$count_file" ] || count="$(cat "$count_file")"
+	count=$((count + 1))
+	printf '%s' "$count" > "$count_file"
+	if [ "$count" -le 2 ]; then
+		printf '%s\n' "$FAKE_BASELINE_HEAD"
+	else
+		printf '%040d\n' 0
+	fi
+	exit 0
+fi
+exec "$REAL_GIT" "$@"
+FAKE_GIT
+chmod +x "$REPO/fake-bin/git"
+set +e
+OUT="$(
+	cd "$REPO" &&
+		REAL_GIT="$real_git" FAKE_BASELINE_HEAD="$baseline_head" PATH="$REPO/fake-bin:$PATH" \
+		FAKE_SCENARIO=pass bash bin/suite-determinism.sh 2 2>&1
+)"
+RC=$?
+set -e
+JSONL="$(printf '%s\n' "$OUT" | sed -n 's/^writing //p' | tail -1)"
+expect_rc 1
+expect json_assert 2
+expect php -r '$r=json_decode(file($argv[1])[1],true); exit($r["revision_changed"]?0:1);' "$JSONL"
 
 CURRENT="concurrent invocations use distinct complete output files"
 new_repo concurrent
@@ -195,6 +253,15 @@ expect_rc 0
 expect php -r '$r=json_decode(file($argv[1])[0],true); exit(2===$r["tests"]&&3===$r["assertions"]?0:1);' "$JSONL"
 expect grep -q "observed 2-run sample passed" <(printf '%s' "$OUT")
 expect sh -c "! printf '%s' \"\$1\" | grep -qi 'suite is deterministic'" sh "$OUT"
+
+CURRENT="the harness is registered in Composer and required CI"
+output=""
+status=0
+grep -q '"test:suite-determinism": "bash tests/suite-determinism/run.sh"' "$ROOT/composer.json" || status=1
+expect test "$status" -eq 0
+status=0
+grep -q 'composer test:suite-determinism' "$ROOT/.github/workflows/phpunit.yml" || status=1
+expect test "$status" -eq 0
 
 printf 'suite-determinism regression tests: %d passed, %d failed\n' "$pass" "$fail"
 test "$fail" -eq 0

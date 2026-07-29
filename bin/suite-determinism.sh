@@ -25,6 +25,11 @@ ROOT="$(git rev-parse --show-toplevel 2>/dev/null)" || {
 cd "$ROOT" || exit 2
 ROOT="$(pwd -P)"
 
+if [ ! -d "$ROOT/vendor" ] || [ -L "$ROOT/vendor" ]; then
+	echo "vendor/ must be a real directory owned by this worktree; run composer install here" >&2
+	exit 2
+fi
+
 mkdir -p "$ROOT/.tmp" || {
 	echo "cannot create $ROOT/.tmp" >&2
 	exit 2
@@ -36,6 +41,11 @@ OUT="$(mktemp "$ROOT/.tmp/suite-determinism.jsonl.XXXXXX")" || {
 
 PHP_VERSION="$(php -r 'echo PHP_VERSION;' 2>/dev/null)" || {
 	echo "cannot resolve the PHP version" >&2
+	exit 2
+}
+
+SAMPLE_HEAD="$(git rev-parse HEAD 2>/dev/null)" || {
+	echo "cannot resolve the sample revision" >&2
 	exit 2
 }
 
@@ -90,7 +100,7 @@ for ((i = 1; i <= RUNS; i++)); do
 	head_after="$(git rev-parse HEAD 2>/dev/null || printf '<unresolvable>')"
 	read -r tracked_after untracked_after <<< "$(tree_state)"
 	revision_changed=0
-	if [ "$head_before" != "$head_after" ]; then
+	if [ "$head_before" != "$SAMPLE_HEAD" ] || [ "$head_after" != "$SAMPLE_HEAD" ]; then
 		revision_changed=1
 		revision_changes=$((revision_changes + 1))
 	fi
@@ -160,7 +170,7 @@ for ((i = 1; i <= RUNS; i++)); do
 			"failed"                 => $matches[1],
 			"diagnostic"             => $diagnostic,
 		);
-		echo json_encode( $record, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ), "\n";
+		echo json_encode( $record, JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE ), "\n";
 	' >> "$OUT" || {
 		echo "cannot append a valid record to $OUT" >&2
 		rm -f "$raw_file"
