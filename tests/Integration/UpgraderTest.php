@@ -478,13 +478,13 @@ class UpgraderTest extends TestCase {
 	}
 
 	/**
-	 * A userless activation retains the broad governance bootstrap fallback.
+	 * Activation with no current user retains the broad bootstrap fallback.
 	 *
-	 * WP-CLI activation without --user has no activating administrator to grant
-	 * directly. In that branch upgrade_3_3_0() must still prevent first-run
-	 * lockout by granting every existing administrator.
+	 * When get_current_user_id() is zero, there is no activating administrator
+	 * to grant directly. In that branch upgrade_3_3_0() must still prevent
+	 * first-run lockout by granting every existing administrator.
 	 */
-	public function test_fresh_userless_activation_grants_governance_to_existing_administrators(): void {
+	public function test_fresh_activation_without_current_user_grants_governance_to_existing_administrators(): void {
 		if ( is_multisite() ) {
 			$this->markTestSkipped( 'The 3.3.0 governance backfill is single-site only.' );
 		}
@@ -510,12 +510,12 @@ class UpgraderTest extends TestCase {
 			$this->assertSame(
 				true,
 				$first->caps[ $cap ] ?? null,
-				"Userless activation must grant {$cap} to the first existing administrator."
+				"Activation without a current user must grant {$cap} to the first existing administrator."
 			);
 			$this->assertSame(
 				true,
 				$second->caps[ $cap ] ?? null,
-				"Userless activation must grant {$cap} to the second existing administrator."
+				"Activation without a current user must grant {$cap} to the second existing administrator."
 			);
 		}
 	}
