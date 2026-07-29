@@ -98,11 +98,11 @@
             "properties": [
                 {
                     "name": "cdx:composer:package:distReference",
-                    "value": "c58ee7d5d20eb86f409b0b7f65d47f97470114e9"
+                    "value": "8c1ac274ae81fb1601a1d6098a4b08295801eb6d"
                 },
                 {
                     "name": "cdx:composer:package:sourceReference",
-                    "value": "c58ee7d5d20eb86f409b0b7f65d47f97470114e9"
+                    "value": "8c1ac274ae81fb1601a1d6098a4b08295801eb6d"
                 },
                 {
                     "name": "cdx:composer:package:type",
@@ -365,10 +365,10 @@
             ]
         },
         {
-            "bom-ref": "amphp/parallel-2.3.3.0",
+            "bom-ref": "amphp/parallel-2.4.0.0",
             "type": "library",
             "name": "parallel",
-            "version": "v2.3.3",
+            "version": "v2.4.0",
             "group": "amphp",
             "description": "Parallel processing component for Amp.",
             "author": "Aaron Piotrowski, Niklas Keller, Stephen Coakley",
@@ -380,17 +380,17 @@
                     }
                 }
             ],
-            "purl": "pkg:composer/amphp/parallel@v2.3.3",
+            "purl": "pkg:composer/amphp/parallel@v2.4.0",
             "externalReferences": [
                 {
                     "type": "distribution",
-                    "url": "https://api.github.com/repos/amphp/parallel/zipball/296b521137a54d3a02425b464e5aee4c93db2c60",
-                    "comment": "dist reference: 296b521137a54d3a02425b464e5aee4c93db2c60"
+                    "url": "https://api.github.com/repos/amphp/parallel/zipball/37f5b2754fadc229c00f9416bd68fb8d04529a81",
+                    "comment": "dist reference: 37f5b2754fadc229c00f9416bd68fb8d04529a81"
                 },
                 {
                     "type": "vcs",
                     "url": "https://github.com/amphp/parallel.git",
-                    "comment": "source reference: 296b521137a54d3a02425b464e5aee4c93db2c60"
+                    "comment": "source reference: 37f5b2754fadc229c00f9416bd68fb8d04529a81"
                 },
                 {
                     "type": "website",
@@ -404,18 +404,18 @@
                 },
                 {
                     "type": "vcs",
-                    "url": "https://github.com/amphp/parallel/tree/v2.3.3",
+                    "url": "https://github.com/amphp/parallel/tree/v2.4.0",
                     "comment": "as detected from Composer manifest 'support.source'"
                 }
             ],
             "properties": [
                 {
                     "name": "cdx:composer:package:distReference",
-                    "value": "296b521137a54d3a02425b464e5aee4c93db2c60"
+                    "value": "37f5b2754fadc229c00f9416bd68fb8d04529a81"
                 },
                 {
                     "name": "cdx:composer:package:sourceReference",
-                    "value": "296b521137a54d3a02425b464e5aee4c93db2c60"
+                    "value": "37f5b2754fadc229c00f9416bd68fb8d04529a81"
                 },
                 {
                     "name": "cdx:composer:package:type",
@@ -491,10 +491,10 @@
             ]
         },
         {
-            "bom-ref": "amphp/pipeline-1.2.3.0",
+            "bom-ref": "amphp/pipeline-1.2.4.0",
             "type": "library",
             "name": "pipeline",
-            "version": "v1.2.3",
+            "version": "v1.2.4",
             "group": "amphp",
             "description": "Asynchronous iterators and operators.",
             "author": "Aaron Piotrowski, Niklas Keller",
@@ -506,17 +506,17 @@
                     }
                 }
             ],
-            "purl": "pkg:composer/amphp/pipeline@v1.2.3",
+            "purl": "pkg:composer/amphp/pipeline@v1.2.4",
             "externalReferences": [
                 {
                     "type": "distribution",
-                    "url": "https://api.github.com/repos/amphp/pipeline/zipball/7b52598c2e9105ebcddf247fc523161581930367",
-                    "comment": "dist reference: 7b52598c2e9105ebcddf247fc523161581930367"
+                    "url": "https://api.github.com/repos/amphp/pipeline/zipball/a044733e080940d1483f56caff0c412ad6982776",
+                    "comment": "dist reference: a044733e080940d1483f56caff0c412ad6982776"
                 },
                 {
                     "type": "vcs",
                     "url": "https://github.com/amphp/pipeline.git",
-                    "comment": "source reference: 7b52598c2e9105ebcddf247fc523161581930367"
+                    "comment": "source reference: a044733e080940d1483f56caff0c412ad6982776"
                 },
                 {
                     "type": "website",
@@ -530,18 +530,18 @@
                 },
                 {
                     "type": "vcs",
-                    "url": "https://github.com/amphp/pipeline/tree/v1.2.3",
+                    "url": "https://github.com/amphp/pipeline/tree/v1.2.4",
                     "comment": "as detected from Composer manifest 'support.source'"
                 }
             ],
             "properties": [
                 {
                     "name": "cdx:composer:package:distReference",
-                    "value": "7b52598c2e9105ebcddf247fc523161581930367"
+                    "value": "a044733e080940d1483f56caff0c412ad6982776"
                 },
                 {
                     "name": "cdx:composer:package:sourceReference",
-                    "value": "7b52598c2e9105ebcddf247fc523161581930367"
+                    "value": "a044733e080940d1483f56caff0c412ad6982776"
                 },
                 {
                     "name": "cdx:composer:package:type",
@@ -554,10 +554,10 @@
             ]
         },
         {
-            "bom-ref": "amphp/process-2.0.3.0",
+            "bom-ref": "amphp/process-2.1.0.0",
             "type": "library",
             "name": "process",
-            "version": "v2.0.3",
+            "version": "v2.1.0",
             "group": "amphp",
             "description": "A fiber-aware process manager based on Amp and Revolt.",
             "author": "Bob Weinand, Aaron Piotrowski, Niklas Keller",
@@ -569,17 +569,17 @@
                     }
                 }
             ],
-            "purl": "pkg:composer/amphp/process@v2.0.3",
+            "purl": "pkg:composer/amphp/process@v2.1.0",
             "externalReferences": [
                 {
                     "type": "distribution",
-                    "url": "https://api.github.com/repos/amphp/process/zipball/52e08c09dec7511d5fbc1fb00d3e4e79fc77d58d",
-                    "comment": "dist reference: 52e08c09dec7511d5fbc1fb00d3e4e79fc77d58d"
+                    "url": "https://api.github.com/repos/amphp/process/zipball/583959df17d00304ad7b0b32285373f985935643",
+                    "comment": "dist reference: 583959df17d00304ad7b0b32285373f985935643"
                 },
                 {
                     "type": "vcs",
                     "url": "https://github.com/amphp/process.git",
-                    "comment": "source reference: 52e08c09dec7511d5fbc1fb00d3e4e79fc77d58d"
+                    "comment": "source reference: 583959df17d00304ad7b0b32285373f985935643"
                 },
                 {
                     "type": "website",
@@ -593,18 +593,18 @@
                 },
                 {
                     "type": "vcs",
-                    "url": "https://github.com/amphp/process/tree/v2.0.3",
+                    "url": "https://github.com/amphp/process/tree/v2.1.0",
                     "comment": "as detected from Composer manifest 'support.source'"
                 }
             ],
             "properties": [
                 {
                     "name": "cdx:composer:package:distReference",
-                    "value": "52e08c09dec7511d5fbc1fb00d3e4e79fc77d58d"
+                    "value": "583959df17d00304ad7b0b32285373f985935643"
                 },
                 {
                     "name": "cdx:composer:package:sourceReference",
-                    "value": "52e08c09dec7511d5fbc1fb00d3e4e79fc77d58d"
+                    "value": "583959df17d00304ad7b0b32285373f985935643"
                 },
                 {
                     "name": "cdx:composer:package:type",
@@ -617,10 +617,10 @@
             ]
         },
         {
-            "bom-ref": "amphp/serialization-1.0.0.0",
+            "bom-ref": "amphp/serialization-1.1.0.0",
             "type": "library",
             "name": "serialization",
-            "version": "v1.0.0",
+            "version": "v1.1.0",
             "group": "amphp",
             "description": "Serialization tools for IPC and data storage in PHP.",
             "author": "Aaron Piotrowski, Niklas Keller",
@@ -632,17 +632,17 @@
                     }
                 }
             ],
-            "purl": "pkg:composer/amphp/serialization@v1.0.0",
+            "purl": "pkg:composer/amphp/serialization@v1.1.0",
             "externalReferences": [
                 {
                     "type": "distribution",
-                    "url": "https://api.github.com/repos/amphp/serialization/zipball/693e77b2fb0b266c3c7d622317f881de44ae94a1",
-                    "comment": "dist reference: 693e77b2fb0b266c3c7d622317f881de44ae94a1"
+                    "url": "https://api.github.com/repos/amphp/serialization/zipball/fdf2834d78cebb0205fb2672676c1b1eb84371f0",
+                    "comment": "dist reference: fdf2834d78cebb0205fb2672676c1b1eb84371f0"
                 },
                 {
                     "type": "vcs",
                     "url": "https://github.com/amphp/serialization.git",
-                    "comment": "source reference: 693e77b2fb0b266c3c7d622317f881de44ae94a1"
+                    "comment": "source reference: fdf2834d78cebb0205fb2672676c1b1eb84371f0"
                 },
                 {
                     "type": "website",
@@ -656,18 +656,18 @@
                 },
                 {
                     "type": "vcs",
-                    "url": "https://github.com/amphp/serialization/tree/master",
+                    "url": "https://github.com/amphp/serialization/tree/v1.1.0",
                     "comment": "as detected from Composer manifest 'support.source'"
                 }
             ],
             "properties": [
                 {
                     "name": "cdx:composer:package:distReference",
-                    "value": "693e77b2fb0b266c3c7d622317f881de44ae94a1"
+                    "value": "fdf2834d78cebb0205fb2672676c1b1eb84371f0"
                 },
                 {
                     "name": "cdx:composer:package:sourceReference",
-                    "value": "693e77b2fb0b266c3c7d622317f881de44ae94a1"
+                    "value": "fdf2834d78cebb0205fb2672676c1b1eb84371f0"
                 },
                 {
                     "name": "cdx:composer:package:type",
@@ -680,10 +680,10 @@
             ]
         },
         {
-            "bom-ref": "amphp/socket-2.3.1.0",
+            "bom-ref": "amphp/socket-2.4.0.0",
             "type": "library",
             "name": "socket",
-            "version": "v2.3.1",
+            "version": "v2.4.0",
             "group": "amphp",
             "description": "Non-blocking socket connection / server implementations based on Amp and Revolt.",
             "author": "Daniel Lowrey, Aaron Piotrowski, Niklas Keller",
@@ -695,17 +695,17 @@
                     }
                 }
             ],
-            "purl": "pkg:composer/amphp/socket@v2.3.1",
+            "purl": "pkg:composer/amphp/socket@v2.4.0",
             "externalReferences": [
                 {
                     "type": "distribution",
-                    "url": "https://api.github.com/repos/amphp/socket/zipball/58e0422221825b79681b72c50c47a930be7bf1e1",
-                    "comment": "dist reference: 58e0422221825b79681b72c50c47a930be7bf1e1"
+                    "url": "https://api.github.com/repos/amphp/socket/zipball/dadb63c5d3179fd83803e29dfeac27350e619314",
+                    "comment": "dist reference: dadb63c5d3179fd83803e29dfeac27350e619314"
                 },
                 {
                     "type": "vcs",
                     "url": "https://github.com/amphp/socket.git",
-                    "comment": "source reference: 58e0422221825b79681b72c50c47a930be7bf1e1"
+                    "comment": "source reference: dadb63c5d3179fd83803e29dfeac27350e619314"
                 },
                 {
                     "type": "website",
@@ -719,18 +719,18 @@
                 },
                 {
                     "type": "vcs",
-                    "url": "https://github.com/amphp/socket/tree/v2.3.1",
+                    "url": "https://github.com/amphp/socket/tree/v2.4.0",
                     "comment": "as detected from Composer manifest 'support.source'"
                 }
             ],
             "properties": [
                 {
                     "name": "cdx:composer:package:distReference",
-                    "value": "58e0422221825b79681b72c50c47a930be7bf1e1"
+                    "value": "dadb63c5d3179fd83803e29dfeac27350e619314"
                 },
                 {
                     "name": "cdx:composer:package:sourceReference",
-                    "value": "58e0422221825b79681b72c50c47a930be7bf1e1"
+                    "value": "dadb63c5d3179fd83803e29dfeac27350e619314"
                 },
                 {
                     "name": "cdx:composer:package:type",
@@ -1483,10 +1483,10 @@
             ]
         },
         {
-            "bom-ref": "dealerdirect/phpcodesniffer-composer-installer-1.2.0.0",
+            "bom-ref": "dealerdirect/phpcodesniffer-composer-installer-1.2.1.0",
             "type": "library",
             "name": "phpcodesniffer-composer-installer",
-            "version": "v1.2.0",
+            "version": "v1.2.1",
             "group": "dealerdirect",
             "description": "PHP_CodeSniffer Standards Composer Installer Plugin",
             "author": "Franck Nijhof, Contributors",
@@ -1498,17 +1498,17 @@
                     }
                 }
             ],
-            "purl": "pkg:composer/dealerdirect/phpcodesniffer-composer-installer@v1.2.0",
+            "purl": "pkg:composer/dealerdirect/phpcodesniffer-composer-installer@v1.2.1",
             "externalReferences": [
                 {
                     "type": "distribution",
-                    "url": "https://api.github.com/repos/PHPCSStandards/composer-installer/zipball/845eb62303d2ca9b289ef216356568ccc075ffd1",
-                    "comment": "dist reference: 845eb62303d2ca9b289ef216356568ccc075ffd1"
+                    "url": "https://api.github.com/repos/PHPCSStandards/composer-installer/zipball/963f0c67bffde0eac41b56be71ac0e8ba132f0bd",
+                    "comment": "dist reference: 963f0c67bffde0eac41b56be71ac0e8ba132f0bd"
                 },
                 {
                     "type": "vcs",
                     "url": "https://github.com/PHPCSStandards/composer-installer.git",
-                    "comment": "source reference: 845eb62303d2ca9b289ef216356568ccc075ffd1"
+                    "comment": "source reference: 963f0c67bffde0eac41b56be71ac0e8ba132f0bd"
                 },
                 {
                     "type": "issue-tracker",
@@ -1529,11 +1529,11 @@
             "properties": [
                 {
                     "name": "cdx:composer:package:distReference",
-                    "value": "845eb62303d2ca9b289ef216356568ccc075ffd1"
+                    "value": "963f0c67bffde0eac41b56be71ac0e8ba132f0bd"
                 },
                 {
                     "name": "cdx:composer:package:sourceReference",
-                    "value": "845eb62303d2ca9b289ef216356568ccc075ffd1"
+                    "value": "963f0c67bffde0eac41b56be71ac0e8ba132f0bd"
                 },
                 {
                     "name": "cdx:composer:package:type",
@@ -2973,10 +2973,10 @@
             ]
         },
         {
-            "bom-ref": "phpcsstandards/phpcsextra-1.5.0.0",
+            "bom-ref": "phpcsstandards/phpcsextra-1.5.1.0",
             "type": "library",
             "name": "phpcsextra",
-            "version": "1.5.0",
+            "version": "1.5.1",
             "group": "phpcsstandards",
             "description": "A collection of sniffs and standards for use with PHP_CodeSniffer.",
             "author": "Juliette Reinders Folmer, Contributors",
@@ -2988,17 +2988,17 @@
                     }
                 }
             ],
-            "purl": "pkg:composer/phpcsstandards/phpcsextra@1.5.0",
+            "purl": "pkg:composer/phpcsstandards/phpcsextra@1.5.1",
             "externalReferences": [
                 {
                     "type": "distribution",
-                    "url": "https://api.github.com/repos/PHPCSStandards/PHPCSExtra/zipball/b598aa890815b8df16363271b659d73280129101",
-                    "comment": "dist reference: b598aa890815b8df16363271b659d73280129101"
+                    "url": "https://api.github.com/repos/PHPCSStandards/PHPCSExtra/zipball/39467533fdb742446d68c1d10ac33d625ee0311c",
+                    "comment": "dist reference: 39467533fdb742446d68c1d10ac33d625ee0311c"
                 },
                 {
                     "type": "vcs",
                     "url": "https://github.com/PHPCSStandards/PHPCSExtra.git",
-                    "comment": "source reference: b598aa890815b8df16363271b659d73280129101"
+                    "comment": "source reference: 39467533fdb742446d68c1d10ac33d625ee0311c"
                 },
                 {
                     "type": "issue-tracker",
@@ -3019,11 +3019,11 @@
             "properties": [
                 {
                     "name": "cdx:composer:package:distReference",
-                    "value": "b598aa890815b8df16363271b659d73280129101"
+                    "value": "39467533fdb742446d68c1d10ac33d625ee0311c"
                 },
                 {
                     "name": "cdx:composer:package:sourceReference",
-                    "value": "b598aa890815b8df16363271b659d73280129101"
+                    "value": "39467533fdb742446d68c1d10ac33d625ee0311c"
                 },
                 {
                     "name": "cdx:composer:package:type",
@@ -3036,10 +3036,10 @@
             ]
         },
         {
-            "bom-ref": "phpcsstandards/phpcsutils-1.2.2.0",
+            "bom-ref": "phpcsstandards/phpcsutils-1.2.3.0",
             "type": "library",
             "name": "phpcsutils",
-            "version": "1.2.2",
+            "version": "1.2.3",
             "group": "phpcsstandards",
             "description": "A suite of utility functions for use with PHP_CodeSniffer",
             "author": "Juliette Reinders Folmer, Contributors",
@@ -3051,17 +3051,17 @@
                     }
                 }
             ],
-            "purl": "pkg:composer/phpcsstandards/phpcsutils@1.2.2",
+            "purl": "pkg:composer/phpcsstandards/phpcsutils@1.2.3",
             "externalReferences": [
                 {
                     "type": "distribution",
-                    "url": "https://api.github.com/repos/PHPCSStandards/PHPCSUtils/zipball/c216317e96c8b3f5932808f9b0f1f7a14e3bbf55",
-                    "comment": "dist reference: c216317e96c8b3f5932808f9b0f1f7a14e3bbf55"
+                    "url": "https://api.github.com/repos/PHPCSStandards/PHPCSUtils/zipball/5f35d9408c54d7b529501f3c688b6eae562aea1f",
+                    "comment": "dist reference: 5f35d9408c54d7b529501f3c688b6eae562aea1f"
                 },
                 {
                     "type": "vcs",
                     "url": "https://github.com/PHPCSStandards/PHPCSUtils.git",
-                    "comment": "source reference: c216317e96c8b3f5932808f9b0f1f7a14e3bbf55"
+                    "comment": "source reference: 5f35d9408c54d7b529501f3c688b6eae562aea1f"
                 },
                 {
                     "type": "website",
@@ -3092,11 +3092,11 @@
             "properties": [
                 {
                     "name": "cdx:composer:package:distReference",
-                    "value": "c216317e96c8b3f5932808f9b0f1f7a14e3bbf55"
+                    "value": "5f35d9408c54d7b529501f3c688b6eae562aea1f"
                 },
                 {
                     "name": "cdx:composer:package:sourceReference",
-                    "value": "c216317e96c8b3f5932808f9b0f1f7a14e3bbf55"
+                    "value": "5f35d9408c54d7b529501f3c688b6eae562aea1f"
                 },
                 {
                     "name": "cdx:composer:package:type",
@@ -3172,10 +3172,10 @@
             ]
         },
         {
-            "bom-ref": "phpdocumentor/reflection-docblock-6.0.2.0",
+            "bom-ref": "phpdocumentor/reflection-docblock-6.0.3.0",
             "type": "library",
             "name": "reflection-docblock",
-            "version": "6.0.2",
+            "version": "6.0.3",
             "group": "phpdocumentor",
             "description": "With this component, a library can provide support for annotations via DocBlocks or otherwise retrieve information that is embedded in a DocBlock.",
             "author": "Mike van Riel, Jaap van Otterdijk",
@@ -3187,17 +3187,17 @@
                     }
                 }
             ],
-            "purl": "pkg:composer/phpdocumentor/reflection-docblock@6.0.2",
+            "purl": "pkg:composer/phpdocumentor/reflection-docblock@6.0.3",
             "externalReferences": [
                 {
                     "type": "distribution",
-                    "url": "https://api.github.com/repos/phpDocumentor/ReflectionDocBlock/zipball/897b5986ece6b4f9d8413fea345c7d49c757d6bf",
-                    "comment": "dist reference: 897b5986ece6b4f9d8413fea345c7d49c757d6bf"
+                    "url": "https://api.github.com/repos/phpDocumentor/ReflectionDocBlock/zipball/7bae67520aa9f5ecc506d646810bd40d9da54582",
+                    "comment": "dist reference: 7bae67520aa9f5ecc506d646810bd40d9da54582"
                 },
                 {
                     "type": "vcs",
                     "url": "https://github.com/phpDocumentor/ReflectionDocBlock.git",
-                    "comment": "source reference: 897b5986ece6b4f9d8413fea345c7d49c757d6bf"
+                    "comment": "source reference: 7bae67520aa9f5ecc506d646810bd40d9da54582"
                 },
                 {
                     "type": "issue-tracker",
@@ -3206,18 +3206,18 @@
                 },
                 {
                     "type": "vcs",
-                    "url": "https://github.com/phpDocumentor/ReflectionDocBlock/tree/6.0.2",
+                    "url": "https://github.com/phpDocumentor/ReflectionDocBlock/tree/6.0.3",
                     "comment": "as detected from Composer manifest 'support.source'"
                 }
             ],
             "properties": [
                 {
                     "name": "cdx:composer:package:distReference",
-                    "value": "897b5986ece6b4f9d8413fea345c7d49c757d6bf"
+                    "value": "7bae67520aa9f5ecc506d646810bd40d9da54582"
                 },
                 {
                     "name": "cdx:composer:package:sourceReference",
-                    "value": "897b5986ece6b4f9d8413fea345c7d49c757d6bf"
+                    "value": "7bae67520aa9f5ecc506d646810bd40d9da54582"
                 },
                 {
                     "name": "cdx:composer:package:type",
@@ -3345,12 +3345,13 @@
             ]
         },
         {
-            "bom-ref": "phpstan/phpstan-2.1.42.0",
+            "bom-ref": "phpstan/phpstan-2.2.6.0",
             "type": "library",
             "name": "phpstan",
-            "version": "2.1.42",
+            "version": "2.2.6",
             "group": "phpstan",
             "description": "PHPStan - PHP Static Analysis Tool",
+            "author": "Ond\u0159ej Mirtes, Markus Staab, Vincent Langlet",
             "licenses": [
                 {
                     "license": {
@@ -3359,12 +3360,12 @@
                     }
                 }
             ],
-            "purl": "pkg:composer/phpstan/phpstan@2.1.42",
+            "purl": "pkg:composer/phpstan/phpstan@2.2.6",
             "externalReferences": [
                 {
                     "type": "distribution",
-                    "url": "https://api.github.com/repos/phpstan/phpstan/zipball/1279e1ce86ba768f0780c9d889852b4e02ff40d0",
-                    "comment": "dist reference: 1279e1ce86ba768f0780c9d889852b4e02ff40d0"
+                    "url": "https://api.github.com/repos/phpstan/phpstan/zipball/a6e9b5a9420f6109c091e87d82683bd1a80b87ed",
+                    "comment": "dist reference: a6e9b5a9420f6109c091e87d82683bd1a80b87ed"
                 },
                 {
                     "type": "documentation",
@@ -3395,7 +3396,7 @@
             "properties": [
                 {
                     "name": "cdx:composer:package:distReference",
-                    "value": "1279e1ce86ba768f0780c9d889852b4e02ff40d0"
+                    "value": "a6e9b5a9420f6109c091e87d82683bd1a80b87ed"
                 },
                 {
                     "name": "cdx:composer:package:type",
@@ -4028,10 +4029,10 @@
             ]
         },
         {
-            "bom-ref": "revolt/event-loop-1.0.8.0",
+            "bom-ref": "revolt/event-loop-1.0.9.0",
             "type": "library",
             "name": "event-loop",
-            "version": "v1.0.8",
+            "version": "v1.0.9",
             "group": "revolt",
             "description": "Rock-solid event loop for concurrent PHP applications.",
             "author": "Aaron Piotrowski, Cees-Jan Kiewiet, Christian L\u00fcck, Niklas Keller",
@@ -4043,17 +4044,17 @@
                     }
                 }
             ],
-            "purl": "pkg:composer/revolt/event-loop@v1.0.8",
+            "purl": "pkg:composer/revolt/event-loop@v1.0.9",
             "externalReferences": [
                 {
                     "type": "distribution",
-                    "url": "https://api.github.com/repos/revoltphp/event-loop/zipball/b6fc06dce8e9b523c9946138fa5e62181934f91c",
-                    "comment": "dist reference: b6fc06dce8e9b523c9946138fa5e62181934f91c"
+                    "url": "https://api.github.com/repos/revoltphp/event-loop/zipball/44061cf513e53c6200372fc935ac42271566295d",
+                    "comment": "dist reference: 44061cf513e53c6200372fc935ac42271566295d"
                 },
                 {
                     "type": "vcs",
                     "url": "https://github.com/revoltphp/event-loop.git",
-                    "comment": "source reference: b6fc06dce8e9b523c9946138fa5e62181934f91c"
+                    "comment": "source reference: 44061cf513e53c6200372fc935ac42271566295d"
                 },
                 {
                     "type": "issue-tracker",
@@ -4062,18 +4063,18 @@
                 },
                 {
                     "type": "vcs",
-                    "url": "https://github.com/revoltphp/event-loop/tree/v1.0.8",
+                    "url": "https://github.com/revoltphp/event-loop/tree/v1.0.9",
                     "comment": "as detected from Composer manifest 'support.source'"
                 }
             ],
             "properties": [
                 {
                     "name": "cdx:composer:package:distReference",
-                    "value": "b6fc06dce8e9b523c9946138fa5e62181934f91c"
+                    "value": "44061cf513e53c6200372fc935ac42271566295d"
                 },
                 {
                     "name": "cdx:composer:package:sourceReference",
-                    "value": "b6fc06dce8e9b523c9946138fa5e62181934f91c"
+                    "value": "44061cf513e53c6200372fc935ac42271566295d"
                 },
                 {
                     "name": "cdx:composer:package:type",
@@ -5283,10 +5284,10 @@
             ]
         },
         {
-            "bom-ref": "symfony/console-6.4.35.0",
+            "bom-ref": "symfony/console-6.4.41.0",
             "type": "library",
             "name": "console",
-            "version": "v6.4.35",
+            "version": "v6.4.41",
             "group": "symfony",
             "description": "Eases the creation of beautiful and testable command line interfaces",
             "author": "Fabien Potencier, Symfony Community",
@@ -5298,17 +5299,17 @@
                     }
                 }
             ],
-            "purl": "pkg:composer/symfony/console@v6.4.35",
+            "purl": "pkg:composer/symfony/console@v6.4.41",
             "externalReferences": [
                 {
                     "type": "distribution",
-                    "url": "https://api.github.com/repos/symfony/console/zipball/49257c96304c508223815ee965c251e7c79e614e",
-                    "comment": "dist reference: 49257c96304c508223815ee965c251e7c79e614e"
+                    "url": "https://api.github.com/repos/symfony/console/zipball/d21b17ed158e79180fac3895ff751707970eeb57",
+                    "comment": "dist reference: d21b17ed158e79180fac3895ff751707970eeb57"
                 },
                 {
                     "type": "vcs",
                     "url": "https://github.com/symfony/console.git",
-                    "comment": "source reference: 49257c96304c508223815ee965c251e7c79e614e"
+                    "comment": "source reference: d21b17ed158e79180fac3895ff751707970eeb57"
                 },
                 {
                     "type": "website",
@@ -5317,18 +5318,18 @@
                 },
                 {
                     "type": "vcs",
-                    "url": "https://github.com/symfony/console/tree/v6.4.35",
+                    "url": "https://github.com/symfony/console/tree/v6.4.41",
                     "comment": "as detected from Composer manifest 'support.source'"
                 }
             ],
             "properties": [
                 {
                     "name": "cdx:composer:package:distReference",
-                    "value": "49257c96304c508223815ee965c251e7c79e614e"
+                    "value": "d21b17ed158e79180fac3895ff751707970eeb57"
                 },
                 {
                     "name": "cdx:composer:package:sourceReference",
-                    "value": "49257c96304c508223815ee965c251e7c79e614e"
+                    "value": "d21b17ed158e79180fac3895ff751707970eeb57"
                 },
                 {
                     "name": "cdx:composer:package:type",
@@ -5341,10 +5342,10 @@
             ]
         },
         {
-            "bom-ref": "symfony/deprecation-contracts-3.6.0.0",
+            "bom-ref": "symfony/deprecation-contracts-3.7.0.0",
             "type": "library",
             "name": "deprecation-contracts",
-            "version": "v3.6.0",
+            "version": "v3.7.0",
             "group": "symfony",
             "description": "A generic function and convention to trigger deprecation notices",
             "author": "Nicolas Grekas, Symfony Community",
@@ -5356,17 +5357,17 @@
                     }
                 }
             ],
-            "purl": "pkg:composer/symfony/deprecation-contracts@v3.6.0",
+            "purl": "pkg:composer/symfony/deprecation-contracts@v3.7.0",
             "externalReferences": [
                 {
                     "type": "distribution",
-                    "url": "https://api.github.com/repos/symfony/deprecation-contracts/zipball/63afe740e99a13ba87ec199bb07bbdee937a5b62",
-                    "comment": "dist reference: 63afe740e99a13ba87ec199bb07bbdee937a5b62"
+                    "url": "https://api.github.com/repos/symfony/deprecation-contracts/zipball/50f59d1f3ca46d41ac911f97a78626b6756af35b",
+                    "comment": "dist reference: 50f59d1f3ca46d41ac911f97a78626b6756af35b"
                 },
                 {
                     "type": "vcs",
                     "url": "https://github.com/symfony/deprecation-contracts.git",
-                    "comment": "source reference: 63afe740e99a13ba87ec199bb07bbdee937a5b62"
+                    "comment": "source reference: 50f59d1f3ca46d41ac911f97a78626b6756af35b"
                 },
                 {
                     "type": "website",
@@ -5375,18 +5376,18 @@
                 },
                 {
                     "type": "vcs",
-                    "url": "https://github.com/symfony/deprecation-contracts/tree/v3.6.0",
+                    "url": "https://github.com/symfony/deprecation-contracts/tree/v3.7.0",
                     "comment": "as detected from Composer manifest 'support.source'"
                 }
             ],
             "properties": [
                 {
                     "name": "cdx:composer:package:distReference",
-                    "value": "63afe740e99a13ba87ec199bb07bbdee937a5b62"
+                    "value": "50f59d1f3ca46d41ac911f97a78626b6756af35b"
                 },
                 {
                     "name": "cdx:composer:package:sourceReference",
-                    "value": "63afe740e99a13ba87ec199bb07bbdee937a5b62"
+                    "value": "50f59d1f3ca46d41ac911f97a78626b6756af35b"
                 },
                 {
                     "name": "cdx:composer:package:type",
@@ -5399,10 +5400,10 @@
             ]
         },
         {
-            "bom-ref": "symfony/filesystem-6.4.34.0",
+            "bom-ref": "symfony/filesystem-6.4.39.0",
             "type": "library",
             "name": "filesystem",
-            "version": "v6.4.34",
+            "version": "v6.4.39",
             "group": "symfony",
             "description": "Provides basic utilities for the filesystem",
             "author": "Fabien Potencier, Symfony Community",
@@ -5414,17 +5415,17 @@
                     }
                 }
             ],
-            "purl": "pkg:composer/symfony/filesystem@v6.4.34",
+            "purl": "pkg:composer/symfony/filesystem@v6.4.39",
             "externalReferences": [
                 {
                     "type": "distribution",
-                    "url": "https://api.github.com/repos/symfony/filesystem/zipball/01ffe0411b842f93c571e5c391f289c3fdd498c3",
-                    "comment": "dist reference: 01ffe0411b842f93c571e5c391f289c3fdd498c3"
+                    "url": "https://api.github.com/repos/symfony/filesystem/zipball/c507b077756b4e3e09adbbe7975fac81cd3722ca",
+                    "comment": "dist reference: c507b077756b4e3e09adbbe7975fac81cd3722ca"
                 },
                 {
                     "type": "vcs",
                     "url": "https://github.com/symfony/filesystem.git",
-                    "comment": "source reference: 01ffe0411b842f93c571e5c391f289c3fdd498c3"
+                    "comment": "source reference: c507b077756b4e3e09adbbe7975fac81cd3722ca"
                 },
                 {
                     "type": "website",
@@ -5433,18 +5434,18 @@
                 },
                 {
                     "type": "vcs",
-                    "url": "https://github.com/symfony/filesystem/tree/v6.4.34",
+                    "url": "https://github.com/symfony/filesystem/tree/v6.4.39",
                     "comment": "as detected from Composer manifest 'support.source'"
                 }
             ],
             "properties": [
                 {
                     "name": "cdx:composer:package:distReference",
-                    "value": "01ffe0411b842f93c571e5c391f289c3fdd498c3"
+                    "value": "c507b077756b4e3e09adbbe7975fac81cd3722ca"
                 },
                 {
                     "name": "cdx:composer:package:sourceReference",
-                    "value": "01ffe0411b842f93c571e5c391f289c3fdd498c3"
+                    "value": "c507b077756b4e3e09adbbe7975fac81cd3722ca"
                 },
                 {
                     "name": "cdx:composer:package:type",
@@ -5457,10 +5458,10 @@
             ]
         },
         {
-            "bom-ref": "symfony/polyfill-ctype-1.33.0.0",
+            "bom-ref": "symfony/polyfill-ctype-1.37.0.0",
             "type": "library",
             "name": "polyfill-ctype",
-            "version": "v1.33.0",
+            "version": "v1.37.0",
             "group": "symfony",
             "description": "Symfony polyfill for ctype functions",
             "author": "Gert de Pagter, Symfony Community",
@@ -5472,17 +5473,17 @@
                     }
                 }
             ],
-            "purl": "pkg:composer/symfony/polyfill-ctype@v1.33.0",
+            "purl": "pkg:composer/symfony/polyfill-ctype@v1.37.0",
             "externalReferences": [
                 {
                     "type": "distribution",
-                    "url": "https://api.github.com/repos/symfony/polyfill-ctype/zipball/a3cc8b044a6ea513310cbd48ef7333b384945638",
-                    "comment": "dist reference: a3cc8b044a6ea513310cbd48ef7333b384945638"
+                    "url": "https://api.github.com/repos/symfony/polyfill-ctype/zipball/141046a8f9477948ff284fa65be2095baafb94f2",
+                    "comment": "dist reference: 141046a8f9477948ff284fa65be2095baafb94f2"
                 },
                 {
                     "type": "vcs",
                     "url": "https://github.com/symfony/polyfill-ctype.git",
-                    "comment": "source reference: a3cc8b044a6ea513310cbd48ef7333b384945638"
+                    "comment": "source reference: 141046a8f9477948ff284fa65be2095baafb94f2"
                 },
                 {
                     "type": "website",
@@ -5491,18 +5492,18 @@
                 },
                 {
                     "type": "vcs",
-                    "url": "https://github.com/symfony/polyfill-ctype/tree/v1.33.0",
+                    "url": "https://github.com/symfony/polyfill-ctype/tree/v1.37.0",
                     "comment": "as detected from Composer manifest 'support.source'"
                 }
             ],
             "properties": [
                 {
                     "name": "cdx:composer:package:distReference",
-                    "value": "a3cc8b044a6ea513310cbd48ef7333b384945638"
+                    "value": "141046a8f9477948ff284fa65be2095baafb94f2"
                 },
                 {
                     "name": "cdx:composer:package:sourceReference",
-                    "value": "a3cc8b044a6ea513310cbd48ef7333b384945638"
+                    "value": "141046a8f9477948ff284fa65be2095baafb94f2"
                 },
                 {
                     "name": "cdx:composer:package:type",
@@ -5515,10 +5516,10 @@
             ]
         },
         {
-            "bom-ref": "symfony/polyfill-intl-grapheme-1.33.0.0",
+            "bom-ref": "symfony/polyfill-intl-grapheme-1.38.1.0",
             "type": "library",
             "name": "polyfill-intl-grapheme",
-            "version": "v1.33.0",
+            "version": "v1.38.1",
             "group": "symfony",
             "description": "Symfony polyfill for intl's grapheme_* functions",
             "author": "Nicolas Grekas, Symfony Community",
@@ -5530,17 +5531,17 @@
                     }
                 }
             ],
-            "purl": "pkg:composer/symfony/polyfill-intl-grapheme@v1.33.0",
+            "purl": "pkg:composer/symfony/polyfill-intl-grapheme@v1.38.1",
             "externalReferences": [
                 {
                     "type": "distribution",
-                    "url": "https://api.github.com/repos/symfony/polyfill-intl-grapheme/zipball/380872130d3a5dd3ace2f4010d95125fde5d5c70",
-                    "comment": "dist reference: 380872130d3a5dd3ace2f4010d95125fde5d5c70"
+                    "url": "https://api.github.com/repos/symfony/polyfill-intl-grapheme/zipball/e9247d281d694a5120554d9afaf54e070e88a603",
+                    "comment": "dist reference: e9247d281d694a5120554d9afaf54e070e88a603"
                 },
                 {
                     "type": "vcs",
                     "url": "https://github.com/symfony/polyfill-intl-grapheme.git",
-                    "comment": "source reference: 380872130d3a5dd3ace2f4010d95125fde5d5c70"
+                    "comment": "source reference: e9247d281d694a5120554d9afaf54e070e88a603"
                 },
                 {
                     "type": "website",
@@ -5549,18 +5550,18 @@
                 },
                 {
                     "type": "vcs",
-                    "url": "https://github.com/symfony/polyfill-intl-grapheme/tree/v1.33.0",
+                    "url": "https://github.com/symfony/polyfill-intl-grapheme/tree/v1.38.1",
                     "comment": "as detected from Composer manifest 'support.source'"
                 }
             ],
             "properties": [
                 {
                     "name": "cdx:composer:package:distReference",
-                    "value": "380872130d3a5dd3ace2f4010d95125fde5d5c70"
+                    "value": "e9247d281d694a5120554d9afaf54e070e88a603"
                 },
                 {
                     "name": "cdx:composer:package:sourceReference",
-                    "value": "380872130d3a5dd3ace2f4010d95125fde5d5c70"
+                    "value": "e9247d281d694a5120554d9afaf54e070e88a603"
                 },
                 {
                     "name": "cdx:composer:package:type",
@@ -5573,10 +5574,10 @@
             ]
         },
         {
-            "bom-ref": "symfony/polyfill-intl-normalizer-1.33.0.0",
+            "bom-ref": "symfony/polyfill-intl-normalizer-1.38.0.0",
             "type": "library",
             "name": "polyfill-intl-normalizer",
-            "version": "v1.33.0",
+            "version": "v1.38.0",
             "group": "symfony",
             "description": "Symfony polyfill for intl's Normalizer class and related functions",
             "author": "Nicolas Grekas, Symfony Community",
@@ -5588,17 +5589,17 @@
                     }
                 }
             ],
-            "purl": "pkg:composer/symfony/polyfill-intl-normalizer@v1.33.0",
+            "purl": "pkg:composer/symfony/polyfill-intl-normalizer@v1.38.0",
             "externalReferences": [
                 {
                     "type": "distribution",
-                    "url": "https://api.github.com/repos/symfony/polyfill-intl-normalizer/zipball/3833d7255cc303546435cb650316bff708a1c75c",
-                    "comment": "dist reference: 3833d7255cc303546435cb650316bff708a1c75c"
+                    "url": "https://api.github.com/repos/symfony/polyfill-intl-normalizer/zipball/2d446c214bdbe5b71bde5011b060a05fece3ae6b",
+                    "comment": "dist reference: 2d446c214bdbe5b71bde5011b060a05fece3ae6b"
                 },
                 {
                     "type": "vcs",
                     "url": "https://github.com/symfony/polyfill-intl-normalizer.git",
-                    "comment": "source reference: 3833d7255cc303546435cb650316bff708a1c75c"
+                    "comment": "source reference: 2d446c214bdbe5b71bde5011b060a05fece3ae6b"
                 },
                 {
                     "type": "website",
@@ -5607,18 +5608,18 @@
                 },
                 {
                     "type": "vcs",
-                    "url": "https://github.com/symfony/polyfill-intl-normalizer/tree/v1.33.0",
+                    "url": "https://github.com/symfony/polyfill-intl-normalizer/tree/v1.38.0",
                     "comment": "as detected from Composer manifest 'support.source'"
                 }
             ],
             "properties": [
                 {
                     "name": "cdx:composer:package:distReference",
-                    "value": "3833d7255cc303546435cb650316bff708a1c75c"
+                    "value": "2d446c214bdbe5b71bde5011b060a05fece3ae6b"
                 },
                 {
                     "name": "cdx:composer:package:sourceReference",
-                    "value": "3833d7255cc303546435cb650316bff708a1c75c"
+                    "value": "2d446c214bdbe5b71bde5011b060a05fece3ae6b"
                 },
                 {
                     "name": "cdx:composer:package:type",
@@ -5631,10 +5632,10 @@
             ]
         },
         {
-            "bom-ref": "symfony/polyfill-mbstring-1.33.0.0",
+            "bom-ref": "symfony/polyfill-mbstring-1.38.1.0",
             "type": "library",
             "name": "polyfill-mbstring",
-            "version": "v1.33.0",
+            "version": "v1.38.1",
             "group": "symfony",
             "description": "Symfony polyfill for the Mbstring extension",
             "author": "Nicolas Grekas, Symfony Community",
@@ -5646,17 +5647,17 @@
                     }
                 }
             ],
-            "purl": "pkg:composer/symfony/polyfill-mbstring@v1.33.0",
+            "purl": "pkg:composer/symfony/polyfill-mbstring@v1.38.1",
             "externalReferences": [
                 {
                     "type": "distribution",
-                    "url": "https://api.github.com/repos/symfony/polyfill-mbstring/zipball/6d857f4d76bd4b343eac26d6b539585d2bc56493",
-                    "comment": "dist reference: 6d857f4d76bd4b343eac26d6b539585d2bc56493"
+                    "url": "https://api.github.com/repos/symfony/polyfill-mbstring/zipball/14c5439eec4ccff081ac14eca2dc57feb2a66d92",
+                    "comment": "dist reference: 14c5439eec4ccff081ac14eca2dc57feb2a66d92"
                 },
                 {
                     "type": "vcs",
                     "url": "https://github.com/symfony/polyfill-mbstring.git",
-                    "comment": "source reference: 6d857f4d76bd4b343eac26d6b539585d2bc56493"
+                    "comment": "source reference: 14c5439eec4ccff081ac14eca2dc57feb2a66d92"
                 },
                 {
                     "type": "website",
@@ -5665,18 +5666,18 @@
                 },
                 {
                     "type": "vcs",
-                    "url": "https://github.com/symfony/polyfill-mbstring/tree/v1.33.0",
+                    "url": "https://github.com/symfony/polyfill-mbstring/tree/v1.38.1",
                     "comment": "as detected from Composer manifest 'support.source'"
                 }
             ],
             "properties": [
                 {
                     "name": "cdx:composer:package:distReference",
-                    "value": "6d857f4d76bd4b343eac26d6b539585d2bc56493"
+                    "value": "14c5439eec4ccff081ac14eca2dc57feb2a66d92"
                 },
                 {
                     "name": "cdx:composer:package:sourceReference",
-                    "value": "6d857f4d76bd4b343eac26d6b539585d2bc56493"
+                    "value": "14c5439eec4ccff081ac14eca2dc57feb2a66d92"
                 },
                 {
                     "name": "cdx:composer:package:type",
@@ -5689,10 +5690,10 @@
             ]
         },
         {
-            "bom-ref": "symfony/polyfill-php84-1.33.0.0",
+            "bom-ref": "symfony/polyfill-php84-1.38.1.0",
             "type": "library",
             "name": "polyfill-php84",
-            "version": "v1.33.0",
+            "version": "v1.38.1",
             "group": "symfony",
             "description": "Symfony polyfill backporting some PHP 8.4+ features to lower PHP versions",
             "author": "Nicolas Grekas, Symfony Community",
@@ -5704,17 +5705,17 @@
                     }
                 }
             ],
-            "purl": "pkg:composer/symfony/polyfill-php84@v1.33.0",
+            "purl": "pkg:composer/symfony/polyfill-php84@v1.38.1",
             "externalReferences": [
                 {
                     "type": "distribution",
-                    "url": "https://api.github.com/repos/symfony/polyfill-php84/zipball/d8ced4d875142b6a7426000426b8abc631d6b191",
-                    "comment": "dist reference: d8ced4d875142b6a7426000426b8abc631d6b191"
+                    "url": "https://api.github.com/repos/symfony/polyfill-php84/zipball/f4e1dfaee5b74aba5964fe1fd4dfc7ba5e3085fa",
+                    "comment": "dist reference: f4e1dfaee5b74aba5964fe1fd4dfc7ba5e3085fa"
                 },
                 {
                     "type": "vcs",
                     "url": "https://github.com/symfony/polyfill-php84.git",
-                    "comment": "source reference: d8ced4d875142b6a7426000426b8abc631d6b191"
+                    "comment": "source reference: f4e1dfaee5b74aba5964fe1fd4dfc7ba5e3085fa"
                 },
                 {
                     "type": "website",
@@ -5723,18 +5724,18 @@
                 },
                 {
                     "type": "vcs",
-                    "url": "https://github.com/symfony/polyfill-php84/tree/v1.33.0",
+                    "url": "https://github.com/symfony/polyfill-php84/tree/v1.38.1",
                     "comment": "as detected from Composer manifest 'support.source'"
                 }
             ],
             "properties": [
                 {
                     "name": "cdx:composer:package:distReference",
-                    "value": "d8ced4d875142b6a7426000426b8abc631d6b191"
+                    "value": "f4e1dfaee5b74aba5964fe1fd4dfc7ba5e3085fa"
                 },
                 {
                     "name": "cdx:composer:package:sourceReference",
-                    "value": "d8ced4d875142b6a7426000426b8abc631d6b191"
+                    "value": "f4e1dfaee5b74aba5964fe1fd4dfc7ba5e3085fa"
                 },
                 {
                     "name": "cdx:composer:package:type",
@@ -5747,10 +5748,10 @@
             ]
         },
         {
-            "bom-ref": "symfony/service-contracts-3.6.1.0",
+            "bom-ref": "symfony/service-contracts-3.7.0.0",
             "type": "library",
             "name": "service-contracts",
-            "version": "v3.6.1",
+            "version": "v3.7.0",
             "group": "symfony",
             "description": "Generic abstractions related to writing services",
             "author": "Nicolas Grekas, Symfony Community",
@@ -5762,17 +5763,17 @@
                     }
                 }
             ],
-            "purl": "pkg:composer/symfony/service-contracts@v3.6.1",
+            "purl": "pkg:composer/symfony/service-contracts@v3.7.0",
             "externalReferences": [
                 {
                     "type": "distribution",
-                    "url": "https://api.github.com/repos/symfony/service-contracts/zipball/45112560a3ba2d715666a509a0bc9521d10b6c43",
-                    "comment": "dist reference: 45112560a3ba2d715666a509a0bc9521d10b6c43"
+                    "url": "https://api.github.com/repos/symfony/service-contracts/zipball/d25d82433a80eba6aa0e6c24b61d7370d99e444a",
+                    "comment": "dist reference: d25d82433a80eba6aa0e6c24b61d7370d99e444a"
                 },
                 {
                     "type": "vcs",
                     "url": "https://github.com/symfony/service-contracts.git",
-                    "comment": "source reference: 45112560a3ba2d715666a509a0bc9521d10b6c43"
+                    "comment": "source reference: d25d82433a80eba6aa0e6c24b61d7370d99e444a"
                 },
                 {
                     "type": "website",
@@ -5781,18 +5782,18 @@
                 },
                 {
                     "type": "vcs",
-                    "url": "https://github.com/symfony/service-contracts/tree/v3.6.1",
+                    "url": "https://github.com/symfony/service-contracts/tree/v3.7.0",
                     "comment": "as detected from Composer manifest 'support.source'"
                 }
             ],
             "properties": [
                 {
                     "name": "cdx:composer:package:distReference",
-                    "value": "45112560a3ba2d715666a509a0bc9521d10b6c43"
+                    "value": "d25d82433a80eba6aa0e6c24b61d7370d99e444a"
                 },
                 {
                     "name": "cdx:composer:package:sourceReference",
-                    "value": "45112560a3ba2d715666a509a0bc9521d10b6c43"
+                    "value": "d25d82433a80eba6aa0e6c24b61d7370d99e444a"
                 },
                 {
                     "name": "cdx:composer:package:type",
@@ -5805,10 +5806,10 @@
             ]
         },
         {
-            "bom-ref": "symfony/string-6.4.34.0",
+            "bom-ref": "symfony/string-6.4.39.0",
             "type": "library",
             "name": "string",
-            "version": "v6.4.34",
+            "version": "v6.4.39",
             "group": "symfony",
             "description": "Provides an object-oriented API to strings and deals with bytes, UTF-8 code points and grapheme clusters in a unified way",
             "author": "Nicolas Grekas, Symfony Community",
@@ -5820,17 +5821,17 @@
                     }
                 }
             ],
-            "purl": "pkg:composer/symfony/string@v6.4.34",
+            "purl": "pkg:composer/symfony/string@v6.4.39",
             "externalReferences": [
                 {
                     "type": "distribution",
-                    "url": "https://api.github.com/repos/symfony/string/zipball/2adaf4106f2ef4c67271971bde6d3fe0a6936432",
-                    "comment": "dist reference: 2adaf4106f2ef4c67271971bde6d3fe0a6936432"
+                    "url": "https://api.github.com/repos/symfony/string/zipball/62e3c927de664edadb5bef260987eb047a17a113",
+                    "comment": "dist reference: 62e3c927de664edadb5bef260987eb047a17a113"
                 },
                 {
                     "type": "vcs",
                     "url": "https://github.com/symfony/string.git",
-                    "comment": "source reference: 2adaf4106f2ef4c67271971bde6d3fe0a6936432"
+                    "comment": "source reference: 62e3c927de664edadb5bef260987eb047a17a113"
                 },
                 {
                     "type": "website",
@@ -5839,18 +5840,18 @@
                 },
                 {
                     "type": "vcs",
-                    "url": "https://github.com/symfony/string/tree/v6.4.34",
+                    "url": "https://github.com/symfony/string/tree/v6.4.39",
                     "comment": "as detected from Composer manifest 'support.source'"
                 }
             ],
             "properties": [
                 {
                     "name": "cdx:composer:package:distReference",
-                    "value": "2adaf4106f2ef4c67271971bde6d3fe0a6936432"
+                    "value": "62e3c927de664edadb5bef260987eb047a17a113"
                 },
                 {
                     "name": "cdx:composer:package:sourceReference",
-                    "value": "2adaf4106f2ef4c67271971bde6d3fe0a6936432"
+                    "value": "62e3c927de664edadb5bef260987eb047a17a113"
                 },
                 {
                     "name": "cdx:composer:package:type",
@@ -5978,10 +5979,10 @@
             ]
         },
         {
-            "bom-ref": "vimeo/psalm-6.16.0.0",
+            "bom-ref": "vimeo/psalm-6.16.1.0",
             "type": "library",
             "name": "psalm",
-            "version": "6.16.0",
+            "version": "6.16.1",
             "group": "vimeo",
             "description": "A static analysis tool for finding errors in PHP applications",
             "author": "Matthew Brown, Daniil Gentili",
@@ -5993,17 +5994,17 @@
                     }
                 }
             ],
-            "purl": "pkg:composer/vimeo/psalm@6.16.0",
+            "purl": "pkg:composer/vimeo/psalm@6.16.1",
             "externalReferences": [
                 {
                     "type": "distribution",
-                    "url": "https://api.github.com/repos/vimeo/psalm/zipball/7cf3e8b988edd75e0766963b0b9e671b220f5785",
-                    "comment": "dist reference: 7cf3e8b988edd75e0766963b0b9e671b220f5785"
+                    "url": "https://api.github.com/repos/vimeo/psalm/zipball/f1f5de594dc76faf8784e02d3dc4716c91c6f6ac",
+                    "comment": "dist reference: f1f5de594dc76faf8784e02d3dc4716c91c6f6ac"
                 },
                 {
                     "type": "vcs",
                     "url": "https://github.com/vimeo/psalm.git",
-                    "comment": "source reference: 7cf3e8b988edd75e0766963b0b9e671b220f5785"
+                    "comment": "source reference: f1f5de594dc76faf8784e02d3dc4716c91c6f6ac"
                 },
                 {
                     "type": "documentation",
@@ -6024,11 +6025,11 @@
             "properties": [
                 {
                     "name": "cdx:composer:package:distReference",
-                    "value": "7cf3e8b988edd75e0766963b0b9e671b220f5785"
+                    "value": "f1f5de594dc76faf8784e02d3dc4716c91c6f6ac"
                 },
                 {
                     "name": "cdx:composer:package:sourceReference",
-                    "value": "7cf3e8b988edd75e0766963b0b9e671b220f5785"
+                    "value": "f1f5de594dc76faf8784e02d3dc4716c91c6f6ac"
                 },
                 {
                     "name": "cdx:composer:package:type",
@@ -6099,10 +6100,10 @@
             ]
         },
         {
-            "bom-ref": "wp-coding-standards/wpcs-3.3.0.0",
+            "bom-ref": "wp-coding-standards/wpcs-3.4.1.0",
             "type": "library",
             "name": "wpcs",
-            "version": "3.3.0",
+            "version": "3.4.1",
             "group": "wp-coding-standards",
             "description": "PHP_CodeSniffer rules (sniffs) to enforce WordPress coding conventions",
             "author": "Contributors",
@@ -6114,17 +6115,17 @@
                     }
                 }
             ],
-            "purl": "pkg:composer/wp-coding-standards/wpcs@3.3.0",
+            "purl": "pkg:composer/wp-coding-standards/wpcs@3.4.1",
             "externalReferences": [
                 {
                     "type": "distribution",
-                    "url": "https://api.github.com/repos/WordPress/WordPress-Coding-Standards/zipball/7795ec6fa05663d716a549d0b44e47ffc8b0d4a6",
-                    "comment": "dist reference: 7795ec6fa05663d716a549d0b44e47ffc8b0d4a6"
+                    "url": "https://api.github.com/repos/WordPress/WordPress-Coding-Standards/zipball/ec2ff942335f33683a5957a85d138753876a05cf",
+                    "comment": "dist reference: ec2ff942335f33683a5957a85d138753876a05cf"
                 },
                 {
                     "type": "vcs",
                     "url": "https://github.com/WordPress/WordPress-Coding-Standards.git",
-                    "comment": "source reference: 7795ec6fa05663d716a549d0b44e47ffc8b0d4a6"
+                    "comment": "source reference: ec2ff942335f33683a5957a85d138753876a05cf"
                 },
                 {
                     "type": "issue-tracker",
@@ -6145,11 +6146,11 @@
             "properties": [
                 {
                     "name": "cdx:composer:package:distReference",
-                    "value": "7795ec6fa05663d716a549d0b44e47ffc8b0d4a6"
+                    "value": "ec2ff942335f33683a5957a85d138753876a05cf"
                 },
                 {
                     "name": "cdx:composer:package:sourceReference",
-                    "value": "7795ec6fa05663d716a549d0b44e47ffc8b0d4a6"
+                    "value": "ec2ff942335f33683a5957a85d138753876a05cf"
                 },
                 {
                     "name": "cdx:composer:package:type",
@@ -6292,7 +6293,7 @@
         {
             "ref": "amphp/amp-3.1.1.0",
             "dependsOn": [
-                "revolt/event-loop-1.0.8.0"
+                "revolt/event-loop-1.0.9.0"
             ]
         },
         {
@@ -6300,19 +6301,19 @@
             "dependsOn": [
                 "amphp/amp-3.1.1.0",
                 "amphp/parser-1.1.1.0",
-                "amphp/pipeline-1.2.3.0",
-                "amphp/serialization-1.0.0.0",
+                "amphp/pipeline-1.2.4.0",
+                "amphp/serialization-1.1.0.0",
                 "amphp/sync-2.3.0.0",
-                "revolt/event-loop-1.0.8.0"
+                "revolt/event-loop-1.0.9.0"
             ]
         },
         {
             "ref": "amphp/cache-2.0.1.0",
             "dependsOn": [
                 "amphp/amp-3.1.1.0",
-                "amphp/serialization-1.0.0.0",
+                "amphp/serialization-1.1.0.0",
                 "amphp/sync-2.3.0.0",
-                "revolt/event-loop-1.0.8.0"
+                "revolt/event-loop-1.0.9.0"
             ]
         },
         {
@@ -6322,50 +6323,50 @@
                 "amphp/byte-stream-2.1.2.0",
                 "amphp/cache-2.0.1.0",
                 "amphp/parser-1.1.1.0",
-                "amphp/process-2.0.3.0",
+                "amphp/process-2.1.0.0",
                 "daverandom/libdns-2.1.0.0",
-                "revolt/event-loop-1.0.8.0"
+                "revolt/event-loop-1.0.9.0"
             ]
         },
         {
-            "ref": "amphp/parallel-2.3.3.0",
+            "ref": "amphp/parallel-2.4.0.0",
             "dependsOn": [
                 "amphp/amp-3.1.1.0",
                 "amphp/byte-stream-2.1.2.0",
                 "amphp/cache-2.0.1.0",
                 "amphp/parser-1.1.1.0",
-                "amphp/pipeline-1.2.3.0",
-                "amphp/process-2.0.3.0",
-                "amphp/serialization-1.0.0.0",
-                "amphp/socket-2.3.1.0",
+                "amphp/pipeline-1.2.4.0",
+                "amphp/process-2.1.0.0",
+                "amphp/serialization-1.1.0.0",
+                "amphp/socket-2.4.0.0",
                 "amphp/sync-2.3.0.0",
-                "revolt/event-loop-1.0.8.0"
+                "revolt/event-loop-1.0.9.0"
             ]
         },
         {
             "ref": "amphp/parser-1.1.1.0"
         },
         {
-            "ref": "amphp/pipeline-1.2.3.0",
+            "ref": "amphp/pipeline-1.2.4.0",
             "dependsOn": [
                 "amphp/amp-3.1.1.0",
-                "revolt/event-loop-1.0.8.0"
+                "revolt/event-loop-1.0.9.0"
             ]
         },
         {
-            "ref": "amphp/process-2.0.3.0",
+            "ref": "amphp/process-2.1.0.0",
             "dependsOn": [
                 "amphp/amp-3.1.1.0",
                 "amphp/byte-stream-2.1.2.0",
                 "amphp/sync-2.3.0.0",
-                "revolt/event-loop-1.0.8.0"
+                "revolt/event-loop-1.0.9.0"
             ]
         },
         {
-            "ref": "amphp/serialization-1.0.0.0"
+            "ref": "amphp/serialization-1.1.0.0"
         },
         {
-            "ref": "amphp/socket-2.3.1.0",
+            "ref": "amphp/socket-2.4.0.0",
             "dependsOn": [
                 "amphp/amp-3.1.1.0",
                 "amphp/byte-stream-2.1.2.0",
@@ -6373,16 +6374,16 @@
                 "kelunik/certificate-1.1.3.0",
                 "league/uri-7.8.1.0",
                 "league/uri-interfaces-7.8.1.0",
-                "revolt/event-loop-1.0.8.0"
+                "revolt/event-loop-1.0.9.0"
             ]
         },
         {
             "ref": "amphp/sync-2.3.0.0",
             "dependsOn": [
                 "amphp/amp-3.1.1.0",
-                "amphp/pipeline-1.2.3.0",
-                "amphp/serialization-1.0.0.0",
-                "revolt/event-loop-1.0.8.0"
+                "amphp/pipeline-1.2.4.0",
+                "amphp/serialization-1.1.0.0",
+                "revolt/event-loop-1.0.9.0"
             ]
         },
         {
@@ -6391,11 +6392,11 @@
         {
             "ref": "automattic/vipwpcs-3.0.1.0",
             "dependsOn": [
-                "phpcsstandards/phpcsextra-1.5.0.0",
-                "phpcsstandards/phpcsutils-1.2.2.0",
+                "phpcsstandards/phpcsextra-1.5.1.0",
+                "phpcsstandards/phpcsutils-1.2.3.0",
                 "sirbrillig/phpcs-variable-analysis-2.13.0.0",
                 "squizlabs/php_codesniffer-3.13.5.0",
-                "wp-coding-standards/wpcs-3.3.0.0"
+                "wp-coding-standards/wpcs-3.4.1.0"
             ]
         },
         {
@@ -6439,14 +6440,14 @@
             "ref": "danog/advanced-json-rpc-3.2.3.0",
             "dependsOn": [
                 "netresearch/jsonmapper-5.0.1.0",
-                "phpdocumentor/reflection-docblock-6.0.2.0"
+                "phpdocumentor/reflection-docblock-6.0.3.0"
             ]
         },
         {
             "ref": "daverandom/libdns-2.1.0.0"
         },
         {
-            "ref": "dealerdirect/phpcodesniffer-composer-installer-1.2.0.0",
+            "ref": "dealerdirect/phpcodesniffer-composer-installer-1.2.1.0",
             "dependsOn": [
                 "squizlabs/php_codesniffer-3.13.5.0"
             ]
@@ -6475,7 +6476,7 @@
                 "php-stubs/wordpress-globals-0.2.0.0",
                 "php-stubs/wordpress-stubs-6.9.1.0",
                 "php-stubs/wp-cli-stubs-2.12.0.0",
-                "vimeo/psalm-6.16.0.0",
+                "vimeo/psalm-6.16.1.0",
                 "wp-hooks/wordpress-core-1.11.0.0"
             ]
         },
@@ -6551,16 +6552,16 @@
             ]
         },
         {
-            "ref": "phpcsstandards/phpcsextra-1.5.0.0",
+            "ref": "phpcsstandards/phpcsextra-1.5.1.0",
             "dependsOn": [
-                "phpcsstandards/phpcsutils-1.2.2.0",
+                "phpcsstandards/phpcsutils-1.2.3.0",
                 "squizlabs/php_codesniffer-3.13.5.0"
             ]
         },
         {
-            "ref": "phpcsstandards/phpcsutils-1.2.2.0",
+            "ref": "phpcsstandards/phpcsutils-1.2.3.0",
             "dependsOn": [
-                "dealerdirect/phpcodesniffer-composer-installer-1.2.0.0",
+                "dealerdirect/phpcodesniffer-composer-installer-1.2.1.0",
                 "squizlabs/php_codesniffer-3.13.5.0"
             ]
         },
@@ -6568,7 +6569,7 @@
             "ref": "phpdocumentor/reflection-common-2.2.0.0"
         },
         {
-            "ref": "phpdocumentor/reflection-docblock-6.0.2.0",
+            "ref": "phpdocumentor/reflection-docblock-6.0.3.0",
             "dependsOn": [
                 "doctrine/deprecations-1.1.6.0",
                 "phpdocumentor/reflection-common-2.2.0.0",
@@ -6589,7 +6590,7 @@
             "ref": "phpstan/phpdoc-parser-2.3.2.0"
         },
         {
-            "ref": "phpstan/phpstan-2.1.42.0"
+            "ref": "phpstan/phpstan-2.2.6.0"
         },
         {
             "ref": "phpunit/php-code-coverage-9.2.32.0",
@@ -6658,7 +6659,7 @@
             "ref": "psr/log-3.0.2.0"
         },
         {
-            "ref": "revolt/event-loop-1.0.8.0"
+            "ref": "revolt/event-loop-1.0.9.0"
         },
         {
             "ref": "sebastian/cli-parser-1.0.2.0"
@@ -6742,71 +6743,71 @@
             "ref": "squizlabs/php_codesniffer-3.13.5.0"
         },
         {
-            "ref": "symfony/console-6.4.35.0",
+            "ref": "symfony/console-6.4.41.0",
             "dependsOn": [
-                "symfony/deprecation-contracts-3.6.0.0",
-                "symfony/polyfill-mbstring-1.33.0.0",
-                "symfony/service-contracts-3.6.1.0",
-                "symfony/string-6.4.34.0"
+                "symfony/deprecation-contracts-3.7.0.0",
+                "symfony/polyfill-mbstring-1.38.1.0",
+                "symfony/service-contracts-3.7.0.0",
+                "symfony/string-6.4.39.0"
             ]
         },
         {
-            "ref": "symfony/deprecation-contracts-3.6.0.0"
+            "ref": "symfony/deprecation-contracts-3.7.0.0"
         },
         {
-            "ref": "symfony/filesystem-6.4.34.0",
+            "ref": "symfony/filesystem-6.4.39.0",
             "dependsOn": [
-                "symfony/polyfill-ctype-1.33.0.0",
-                "symfony/polyfill-mbstring-1.33.0.0"
+                "symfony/polyfill-ctype-1.37.0.0",
+                "symfony/polyfill-mbstring-1.38.1.0"
             ]
         },
         {
-            "ref": "symfony/polyfill-ctype-1.33.0.0"
+            "ref": "symfony/polyfill-ctype-1.37.0.0"
         },
         {
-            "ref": "symfony/polyfill-intl-grapheme-1.33.0.0"
+            "ref": "symfony/polyfill-intl-grapheme-1.38.1.0"
         },
         {
-            "ref": "symfony/polyfill-intl-normalizer-1.33.0.0"
+            "ref": "symfony/polyfill-intl-normalizer-1.38.0.0"
         },
         {
-            "ref": "symfony/polyfill-mbstring-1.33.0.0"
+            "ref": "symfony/polyfill-mbstring-1.38.1.0"
         },
         {
-            "ref": "symfony/polyfill-php84-1.33.0.0"
+            "ref": "symfony/polyfill-php84-1.38.1.0"
         },
         {
-            "ref": "symfony/service-contracts-3.6.1.0",
+            "ref": "symfony/service-contracts-3.7.0.0",
             "dependsOn": [
                 "psr/container-2.0.2.0",
-                "symfony/deprecation-contracts-3.6.0.0"
+                "symfony/deprecation-contracts-3.7.0.0"
             ]
         },
         {
-            "ref": "symfony/string-6.4.34.0",
+            "ref": "symfony/string-6.4.39.0",
             "dependsOn": [
-                "symfony/polyfill-ctype-1.33.0.0",
-                "symfony/polyfill-intl-grapheme-1.33.0.0",
-                "symfony/polyfill-intl-normalizer-1.33.0.0",
-                "symfony/polyfill-mbstring-1.33.0.0"
+                "symfony/polyfill-ctype-1.37.0.0",
+                "symfony/polyfill-intl-grapheme-1.38.1.0",
+                "symfony/polyfill-intl-normalizer-1.38.0.0",
+                "symfony/polyfill-mbstring-1.38.1.0"
             ]
         },
         {
             "ref": "szepeviktor/phpstan-wordpress-2.0.3.0",
             "dependsOn": [
                 "php-stubs/wordpress-stubs-6.9.1.0",
-                "phpstan/phpstan-2.1.42.0"
+                "phpstan/phpstan-2.2.6.0"
             ]
         },
         {
             "ref": "theseer/tokenizer-1.3.1.0"
         },
         {
-            "ref": "vimeo/psalm-6.16.0.0",
+            "ref": "vimeo/psalm-6.16.1.0",
             "dependsOn": [
                 "amphp/amp-3.1.1.0",
                 "amphp/byte-stream-2.1.2.0",
-                "amphp/parallel-2.3.3.0",
+                "amphp/parallel-2.4.0.0",
                 "composer/semver-3.4.4.0",
                 "composer/xdebug-handler-3.0.5.0",
                 "danog/advanced-json-rpc-3.2.3.0",
@@ -6817,19 +6818,19 @@
                 "nikic/php-parser-5.7.0.0",
                 "sebastian/diff-4.0.6.0",
                 "spatie/array-to-xml-3.4.4.0",
-                "symfony/console-6.4.35.0",
-                "symfony/filesystem-6.4.34.0",
-                "symfony/polyfill-php84-1.33.0.0"
+                "symfony/console-6.4.41.0",
+                "symfony/filesystem-6.4.39.0",
+                "symfony/polyfill-php84-1.38.1.0"
             ]
         },
         {
             "ref": "webmozart/assert-1.12.1.0"
         },
         {
-            "ref": "wp-coding-standards/wpcs-3.3.0.0",
+            "ref": "wp-coding-standards/wpcs-3.4.1.0",
             "dependsOn": [
-                "phpcsstandards/phpcsextra-1.5.0.0",
-                "phpcsstandards/phpcsutils-1.2.2.0",
+                "phpcsstandards/phpcsextra-1.5.1.0",
+                "phpcsstandards/phpcsutils-1.2.3.0",
                 "squizlabs/php_codesniffer-3.13.5.0"
             ]
         },
@@ -6850,10 +6851,10 @@
                 "cyclonedx/cyclonedx-php-composer-6.2.0.0",
                 "humanmade/psalm-plugin-wordpress-3.1.2.0",
                 "mockery/mockery-1.6.12.0",
-                "phpstan/phpstan-2.1.42.0",
+                "phpstan/phpstan-2.2.6.0",
                 "phpunit/phpunit-9.6.34.0",
                 "szepeviktor/phpstan-wordpress-2.0.3.0",
-                "vimeo/psalm-6.16.0.0",
+                "vimeo/psalm-6.16.1.0",
                 "yoast/phpunit-polyfills-4.0.0.0"
             ]
         }
