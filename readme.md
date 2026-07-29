@@ -1,276 +1,111 @@
-<p align="center">
-  <img src="https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/banner-1544x500.png" alt="Sudo" width="100%">
-</p>
+# Sudo — concluded
 
-# Sudo
+![Fuwa-no-seki barrier gate](assets/fuwa-no-seki-narrow.png)
+
+> So full of cracks,
+> the barrier gatehouse of Fuwa
+> lets both rain and moonlight in —
+> quietly exposed, yet enduring.
+>
+> — [Abutsu-ni](https://en.wikipedia.org/wiki/Abutsu-ni), *Diary of the Waning Moon*
+
+The verse was chosen at the start of this project, for the gate metaphor. It
+turned out to be the finding: this barrier had cracks too — seven of them,
+verified — and what endures is not the gate but the record of where the light
+came through.
 
 > [!CAUTION]
-> **Research prototype only. Do not install WP Sudo on production, public
-> staging, or any site containing real users, credentials, or data.** Use it
-> only in WordPress Playground or a disposable local test environment. It is
-> not a supported production security plugin or a security boundary. Read the
-> canonical [Project Status](PROJECT-STATUS.md) before evaluating it.
-
-WP Sudo is a conceptual demonstrator for action-gated reauthentication in
-WordPress. It explores requiring a recent identity check before selected
-high-risk effects and records the design lessons—including approaches that
-failed—so narrower primitives can be considered for WordPress core.
-
-[![License: GPL v2+](https://img.shields.io/badge/License-GPL%20v2%2B-blue.svg)](https://spdx.org/licenses/GPL-2.0-or-later.html) [![Security Policy](https://img.shields.io/badge/security-policy-4c1)](SECURITY.md) [![Docs](https://img.shields.io/badge/docs-available-0a7ea4.svg)](docs/) [![AI Authorship](https://img.shields.io/badge/AI%20authorship-disclosed-8a63d2.svg)](docs/ai-authorship.md)
-[![WordPress: 6.4+](https://img.shields.io/badge/WordPress-6.4%2B-0073aa.svg)](https://wordpress.org/)
-[![PHP: 8.2+](https://img.shields.io/badge/PHP-8.2%2B-777bb4.svg)](https://www.php.net/)
-[![PHPUnit](https://github.com/dknauss/Sudo/actions/workflows/phpunit.yml/badge.svg)](https://github.com/dknauss/Sudo/actions/workflows/phpunit.yml)
-[![Psalm](https://github.com/dknauss/Sudo/actions/workflows/psalm.yml/badge.svg)](https://github.com/dknauss/Sudo/actions/workflows/psalm.yml)
-[![Playwright Tests](https://github.com/dknauss/Sudo/actions/workflows/e2e.yml/badge.svg)](https://github.com/dknauss/Sudo/actions/workflows/e2e.yml)
-[![CodeQL](https://github.com/dknauss/Sudo/actions/workflows/codeql.yml/badge.svg)](https://github.com/dknauss/Sudo/actions/workflows/codeql.yml)
-[![Codecov](https://codecov.io/gh/dknauss/Sudo/graph/badge.svg?branch=main)](https://codecov.io/gh/dknauss/Sudo)
-[![Type Coverage](https://shepherd.dev/github/dknauss/Sudo/coverage.svg)](https://shepherd.dev/github/dknauss/Sudo)
-
-## Instant Playground Demos
-
-There are five different demo scenarios you can try, linked to the badges below. The first two begin in the wp-admin interface: (1) the latest release, and (2) the latest pre-release development state merged into main. The next two demo scenarios begin in the block editor, where you are prompted to initiate a privileged action, like installing a block. Once you do that in (3), your account password must be entered to pass the reauth challenge that opens in a modal window. In (4), the two-factor plugin is installed and active, so the reauthorization challenge requires both your account password and a one-time passcode to pass a secondary 2FA challenge. The last scenario (5) boots a WordPress **multisite network** and lands you as a super admin on the network-wide Sudo settings, where governance policies apply across every site in the network — network-admin actions are gated on the classic admin surfaces rather than in the block editor. In all scenarios, no privileged actions will be executed until the reauth requirements are met. Incorrect passwords and passcodes will result in a progressively lengthening delay that rate limits login retries. 
-
-[![Try latest release in Playground](https://img.shields.io/badge/Try%20release-Playground-3858e9?logo=wordpress&logoColor=white)](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint.json)
-[![Try main in Playground](https://img.shields.io/badge/Try%20main-Playground-23282d?logo=wordpress&logoColor=white)](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint-main.json)
-[![Try in-editor reauth in Playground](https://img.shields.io/badge/Try%20in--editor%20reauth-Playground-8a63d2?logo=wordpress&logoColor=white)](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint-editor-reauth.json)
-[![Try in-editor 2FA in Playground](https://img.shields.io/badge/Try%20in--editor%202FA-Playground-6c4bb6?logo=wordpress&logoColor=white)](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint-editor-2fa.json)
-[![Try multisite network admin in Playground](https://img.shields.io/badge/Try%20multisite-Playground-2271b1?logo=wordpress&logoColor=white)](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint-multisite.json)
-
-Playground demo credentials are `admin` / `password`. When Sudo asks for reauthentication, enter the same password: `password`. A temporary time-based, one-time passcode for the 2FA challenge will be presented to you in a notification for demonstration purposes. 
-
-## In-editor reauthentication (Gutenberg, WordPress's site/block editor)
-
-Bringing two-factor authentication into the block editor with a convenient modal window and no refresh is a new feature for Sudo. User accounts with a modal-capable Two Factor provider (TOTP, email, or backup codes) complete the second factor inside the same modal used for their password re-entry. After the password step, the modal injects the 2FA provider's own server-rendered field and validates it through the unchanged challenge validator — there is no full-page redirect. [**Try the in-editor 2FA demo in Playground →**](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint-editor-2fa.json) The demo admin has TOTP enabled; the editor notice lists several currently-valid codes (they roll forward so the demo stays usable for a few minutes) to enter after `password` for testing purposes.
-
-This is the intended low-friction user experience: when a gated action trips Sudo *inside the block editor* — for example, installing or activating a block from the inserter's Block Directory — reauthentication happens in place: a password modal opens over the editor, grants the sudo session, and transparently resumes the original request. No full-page redirect, and the editor state is preserved.
-
-[**Try the in-editor reauth demo (no 2FA) in Playground →**](https://playground.wordpress.net/?blueprint-url=https%3A%2F%2Fraw.githubusercontent.com%2Fdknauss%2FSudo%2Fmain%2Fblueprint-editor-reauth.json) This demo opens with the block inserter already open and an on-screen prompt: search a Block-Directory block (e.g. *contact form*) and click **Install** — the modal appears; enter `password` to continue. Each editor reload starts session-less so the modal is always demonstrable. In this demo, there's no 2FA step — just the single-step password step-up reauth.
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/dknauss/Sudo/main/assets/editor-reauth-modal.png" alt="WP Sudo &quot;Confirm your identity&quot; reauthentication modal open over the WordPress block editor." width="80%">
-</p>
-
-<p align="center">
-  <img src="https://raw.githubusercontent.com/dknauss/Sudo/main/assets/editor-2fa-modal.png" alt="The two-factor step of the WP Sudo reauthentication modal — a Two Factor authentication-code field injected into the same in-editor modal, shown over the WordPress block editor after the password step." width="80%">
-</p>
-
-## Screenshots
-
-<table>
-<tr>
-<td width="50%"><img src="https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-1.png" alt="Sudo challenge page asking the current user to confirm their identity with a password."></td>
-<td width="50%"><img src="https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-2.png" alt="Gated plugin activation — the Plugins page Activate link replaced with a reauthentication prompt."></td>
-</tr>
-<tr>
-<td><strong>Challenge page</strong></td>
-<td><strong>Gated plugin activation</strong></td>
-</tr>
-<tr>
-<td><img src="https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-3.png" alt="Settings tab with policy presets, session duration, and entry-point policies."></td>
-<td><img src="https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-4.png" alt="Gated Actions tab showing protected operations and the surfaces where each rule applies."></td>
-</tr>
-<tr>
-<td><strong>Settings tab</strong></td>
-<td><strong>Gated Actions tab</strong></td>
-</tr>
-<tr>
-<td><img src="https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-5.png" alt="Rule Tester tab evaluating a representative admin request without executing it."></td>
-<td><img src="https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-6.png" alt="Access tab for managing dedicated Sudo governance capabilities."></td>
-</tr>
-<tr>
-<td><strong>Rule Tester tab</strong></td>
-<td><strong>Access tab</strong></td>
-</tr>
-<tr>
-<td><img src="https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-7.png" alt="Dashboard widget with active sudo sessions, policy summary, and recent events including session revocations."></td>
-<td width="50%"><img src="https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-8.png" alt="Admin bar showing a live countdown timer while a sudo session is active."></td>
-</tr>
-<tr>
-<td><strong>Dashboard widget</strong></td>
-<td><strong>Admin bar timer</strong></td>
-</tr>
-<tr>
-<td><img src="https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-9.png" alt="Users list showing the Sudo Active view with the Revoke sudo sessions bulk action selected."></td>
-<td><img src="https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-10.png" alt="The two-factor step of the in-editor reauthentication modal, showing a Two Factor authentication-code field over the block editor."></td>
-</tr>
-<tr>
-<td><strong>Users list revocation</strong></td>
-<td><strong>In-editor 2FA modal</strong></td>
-</tr>
-<tr>
-<td><img src="https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-11.png" alt="Block editor with the Sudo sidebar panel open, showing a live countdown of the time remaining in the sudo session."></td>
-<td><img src="https://raw.githubusercontent.com/dknauss/Sudo/main/.wordpress-org/screenshot-12.png" alt="Block editor header with an unlocked-padlock button marking the active sudo session, above a snackbar confirming reauthentication."></td>
-</tr>
-<tr>
-<td><strong>In-editor session panel</strong></td>
-<td><strong>In-editor session indicator</strong></td>
-</tr>
-</table>
-
-## Behaviors demonstrated
-
-- **Confirmation before destructive actions** — plugin installs/deletions, user management, settings changes, core updates, and more all require a fresh password before proceeding
-- **Two-factor support** — integrates with the [Two Factor plugin](https://wordpress.org/plugins/two-factor/) so the challenge includes your second factor when active
-- **Short sudo window** — one confirmation covers 1–15 minutes of related work (your choice) so admins can work without interruption following one reauthentication challenge before being challenged again
-- **Per-surface policies** — configure WP-CLI, Cron, XML-RPC, REST App Passwords, and WPGraphQL independently as Disabled, Limited, or Unrestricted
-- **Privilege-escalation guard (opt-in)** — optionally refuse to grant a *new* administrator or super-admin unless the actor has an active sudo session, blocking the most common privilege-escalation shape even through another plugin's broken endpoint (off by default; see the FAQ)
-- **Governance controls** — manage which users and roles can administer Sudo settings via a dedicated Access tab
-- **Activity visibility** — audit hooks fire on every gated event; works with WP Activity Log, Stream, and similar plugins
-- **Multisite support** — network-aware; super admins governed separately from per-site admins
-
-## Run the demonstrator
-
-Do not follow these steps on a production, public staging, or
-production-derived site.
-
-1. Start a WordPress Playground instance above or create a disposable local
-   WordPress installation with synthetic credentials and data.
-2. Install and activate Sudo in that disposable environment.
-3. Go to **Settings → Sudo**.
-4. Choose a session duration and explore the entry-point policies.
-5. Test a covered action such as plugin activation or a protected settings
-   change.
-
-### Optional demo companions
-
-- [Two Factor](https://wordpress.org/plugins/two-factor/) — demonstrates password + second-factor challenge flows.
-- [WP Activity Log](https://wordpress.org/plugins/wp-security-audit-log/) or [Stream](https://wordpress.org/plugins/stream/) — demonstrates consumption of Sudo's audit hooks.
-
-## Coverage demonstrated
-
-Sudo gates built-in operations across categories including:
-- plugin and theme installation, activation, and deletion
-- user creation, deletion, and role changes
-- file editor access
-- critical option changes
-- WordPress core updates
-- export flows
-- Sudo settings themselves
-- selected Multisite network actions
-- connector credential writes via the REST settings endpoint
-
-For the full rule list and surface counts, see [docs/current-metrics.md](docs/current-metrics.md).
-
-## Single sign-on (SSO)
-
-Sudo's challenge is a WordPress **password** check, so it assumes an account can authenticate with a WordPress-native password. It still works alongside SSO/SAML/OIDC **when your identity provider's plugin fires the standard `wp_login` action** — verify this against your provider's documentation or source, since a provider that does not fire it leaves passwordless accounts unable to pass the WordPress-password challenge. When it does fire, each fresh provider login grants the sudo window automatically — so even accounts with **no** WordPress password reach gated actions, and logging in again through the provider *is* their reauthentication. The tradeoff to know: for those passwordless accounts the window opens at login rather than at the moment of the action, a slightly weaker guarantee than the password challenge gives. Sudo is **not** something to avoid under SSO — it still gates actions, bounds the window, and fires audit hooks — but if you require a genuine at-the-moment step-up for administrators, note that giving them WordPress passwords is not enough on its own: the login auto-grant still opens a window on every login, so also suppress it for those admins via the `wp_sudo_grant_session_on_login` filter (so they meet the challenge at the first gated action), or track the roadmapped identity-provider challenge framework. See the [SSO section of the FAQ](docs/FAQ.md) for setup details and the `wp_sudo_grant_session_on_login` opt-out.
-
-## Why it helps
-
-WordPress has roles, capabilities, and authentication, but no native way to say "a logged-in session alone isn't enough for this action." Sudo adds that missing checkpoint for the parts of WordPress where a mistake, hijacked session, stale browser, or over-broad automation token can do the most damage.
-
-The demonstrator lets researchers examine how recent-auth checks could reduce
-the blast radius of selected privileged paths. It must not be treated as
-complete coverage or deployed as protection for a real site.
-
-Sudo also makes privilege use more visible. The dashboard widget shows active sudo sessions, policy posture, and recent privileged activity; audit hooks and bundled bridges let logging plugins such as WP Activity Log and Stream record sudo sessions, gated requests, policy changes, and governance events.
-
-The experiment explores defining the shape and size of an administrative
-attack surface: close a surface entirely, limit it to selected operations,
-require recent authentication for covered actions, or leave it unrestricted.
-
-Active sudo is **per browser session**, not site-wide. Sudo works alongside your existing roles and capabilities — it does not replace them.
-
-## How it works
-
-More technically, Sudo is an experimental, Multisite-aware implementation of
-action-gated reauthentication. It demonstrates attack-surface policy,
-privileged-action visibility, and delegated governance; none of those
-demonstrations is a completeness or production-security guarantee.
-
-**Browser (wp-admin):** gated actions redirect to a challenge screen that names
-the action and, where the request carries a recognised target parameter, that
-concrete target. The intercepted server-side request is never executed
-automatically after reauthentication. The user deliberately performs the
-action again under the newly active sudo session. The block editor has a
-separate, owner-scoped in-tab retry demonstrator for the request initiated in
-that tab; it does not use the server-side stash.
-
-**AJAX and REST:** blocked requests receive a `sudo_required` error until reauthentication occurs.
-
-**Non-interactive surfaces** (WP-CLI, Cron, XML-RPC, REST App Passwords, WPGraphQL): each can be set independently to Disabled, Limited, or Unrestricted under Settings → Sudo.
-
-Before a covered high-risk action continues, the current user must reauthenticate by entering their password, followed by any active and compatible two-factor challenge. Successful reauthentication starts a short, configurable window of 1–15 minutes for additional covered actions in that browser session. WordPress core and the target feature still own their normal capability and authorization checks; Sudo adds the fresh-identity checkpoint before the covered action is allowed to continue.
-
-Sudo gates specific operations on specific surfaces. It is not a firewall, exploit detector, malware scanner, or fix for authorization vulnerabilities inside third-party plugin code.
-
-## Sudo administration and governance
-
-"With great power comes great responsibility," so users with the capability to change Sudo settings, view sudo session activity, kill sudo sessions, or export sudo activity logs are limited by default:
-
-- On **single sites**, the installing administrator receives all four caps. Other admins receive none until explicitly granted.
-- On **multisite networks**, super administrators receive all four caps at network scope by default. Per-site admins receive none until explicitly delegated.
-
-(Export privileges are separated from view privileges because a portable export artifact is a distinct governance concern — SOC2/GDPR audits treat "can read" and "can take a copy offsite" differently.)
-
-Sudo integrates with the **Site Health** tool in WordPress core for rich security diagnostics and advisory notifications.
-
-### Break-glass recovery scenario
-
-In a lost, last administrator scenario where no one has access to Sudo's settings, the break-glass mechanism is to set `WP_SUDO_RECOVERY_MODE` in `wp-config.php`. This is Sudo's break-glass governance recovery path, not WordPress core's `WP_Recovery_Mode`. It requires filesystem access to activate, so it is not a remote-escalation vector. It accepts two forms. **Scoped (recommended):** `define( 'WP_SUDO_RECOVERY_MODE', '<login>' )` (or a numeric user ID) grants the master `manage_wp_sudo` capability to that one named user only; a value that matches no existing user grants nobody (fail-closed). **Unscoped (legacy):** strictly `true` grants the current user. In both forms the grant is **role-gated** — the matched user recovers only if they also hold `manage_options` (single-site) / `manage_network_options` (multisite), so a locked-out administrator recovers while non-admins gain nothing (note `define(..., 1)` means user ID 1, not "on"). A permanent non-dismissible notice appears on the Sudo settings screen while it is active — naming the scope — a Site Health status flags it, and the `wp_sudo_recovery_mode_active` audit hook fires so the usage is logged. The unscoped form still re-opens governance to every `manage_options` holder while the constant is set; prefer the scoped form, and remove the constant the moment normal access is restored.
-
-## For developers and integrators
-
-Sudo exposes a small research API that carries no compatibility guarantee — see
-[Project Status](PROJECT-STATUS.md) and the banner in
-[docs/developer-reference.md](docs/developer-reference.md). Custom gated rules are plain associative arrays registered via the `wp_sudo_gated_actions` filter, with per-surface matchers for admin, AJAX, REST, and CLI. The `wp_sudo_can()` helper centralizes all governance checks — super-admin short-circuit and recovery-mode bypass, with always-strict capability checks (the `compatibility` mode was removed in 4.0.0) — so integrations don't touch capability internals directly. Audit hooks fire on every session event, capability grant or revoke, tamper detection, and policy change; bridge classes for WP Activity Log and Stream are bundled. The `wp_sudo_grant_session_on_login` filter lets SSO and kiosk integrations suppress the automatic browser-login session grant. All of this is covered by a dual-layer test suite (unit tests + a full integration matrix) and PHPStan level 6.
-
-## Requirements
-
-- **WordPress:** 6.4+
-- **PHP:** 8.2+
-- **Multisite:** supported
-
-For current release posture, supported lanes, and forward `main` notes, see [docs/release-status.md](docs/release-status.md).
-
-## Footprint and performance
-
-Sudo is an event-gate, not a query-heavy plugin — it does no per-page database work.
-
-- **No production dependencies and no build step** — ~19k lines of PHP plus vanilla JS assets (no bundler or transpiler).
-- **Front-end page loads:** no *added* database queries for visitors in the steady state — the always-on hooks do only cached/in-memory reads (a static-hook characterization, not a runtime measurement; a one-time write occurs only if the tamper canary has to repair a drifted Editor role) — and at most one cached user-meta read for a logged-in user (the admin-bar session check). Database activity is otherwise confined to the specific gated action being confirmed, not to normal browsing.
-- **Storage:** three small options, per-user session and rate-limit meta plus transients that self-expire, and one activity-log table that self-prunes at a 14-day default retention. On uninstall the options, per-user meta, and table are removed, along with the IP-scoped rate-limit transients (swept from `wp_options` by prefix, since their keys are hashed and cannot be enumerated); the remaining transients are left to lapse. A site using an external object cache keeps its cached copies until they expire — the sweep reaches the database rows, not another backend's store.
-
-These are verified against the plugin's always-on hooks; the exact counts, retention, and re-derivation commands live in [docs/current-metrics.md](docs/current-metrics.md#footprint--performance).
-
-## Documentation
-
-### Start here
-- [docs/security-model.md](docs/security-model.md) — threat model, boundaries, and environmental assumptions
-- [docs/FAQ.md](docs/FAQ.md) — practical questions and operational caveats
-- [docs/release-status.md](docs/release-status.md) — current stable release state and forward-lane posture
-
-### For developers and integrators
-- [docs/developer-reference.md](docs/developer-reference.md) — hooks, filters, custom rule structure, and integration API details
-- [docs/two-factor-integration.md](docs/two-factor-integration.md) — Two Factor integration behavior
-- [docs/connectors-api-reference.md](docs/connectors-api-reference.md) — connector credential gating notes
-- [docs/ai-agentic-guidance.md](docs/ai-agentic-guidance.md) — AI and agent tooling guidance
-
-### Verification and project status
-- [tests/MANUAL-TESTING.md](tests/MANUAL-TESTING.md) — manual verification procedures
-- [docs/current-metrics.md](docs/current-metrics.md) — canonical current counts and architectural facts
-- [docs/ROADMAP.md](docs/ROADMAP.md) — roadmap and backlog
-- [CHANGELOG.md](CHANGELOG.md) — release history
-
-### Background and research
-- [docs/sudo-architecture-comparison-matrix.md](docs/sudo-architecture-comparison-matrix.md) — comparison with other sudo/reauth approaches
-- [docs/abilities-api-assessment.md](docs/abilities-api-assessment.md) — WordPress Abilities API assessment
-- [docs/core-action-gate-proposal.md](docs/core-action-gate-proposal.md) — longer-form core proposal and design thinking
-- [docs/llm-lies-log.md](docs/llm-lies-log.md) — verification discipline and past documentation failures
-- [docs/archive/project-introduction.md](docs/archive/project-introduction.md) — the longer conceptual introduction, graphic, poem, and gate metaphor preserved from the earlier README
-
-## Development
-
-Quick local checks:
-
-```bash
-composer install
-composer test:unit
-composer lint
-composer analyse
-```
-
-For full setup, integration tests, E2E workflows, and contributor expectations, see [CONTRIBUTING.md](CONTRIBUTING.md).
+> **Do not install this plugin.** Not on production, not on staging, not on any
+> site with real users, credentials, or data. It contains seven verified
+> high-severity bypasses of its own central claim. They are documented rather
+> than fixed, because they are the result.
+
+WP Sudo was a research prototype investigating action-gated reauthentication in
+WordPress — requiring a fresh proof of intent before consequential operations,
+regardless of role. It took its name and its symbol from the gate: 門, the
+radical that runs through East Asian writing, evoking the fortified pass where
+movement is examined rather than assumed. It is finished. This repository is
+archived and read-only.
+
+## The result
+
+**A WordPress plugin cannot provide ecosystem-wide action-gated
+reauthentication through route enumeration and post-submission interception.**
+
+Two mechanisms fail, and they fail on the same operations.
+
+**Route matching drifts from core.** An adversarial audit found seven
+high-severity bypasses across six independent axes — REST route case, HTTP
+method set, `$_POST` versus `$_REQUEST`, action-name derivation, matcher
+evaluation order, and surface coverage. Each is a total bypass. All seven were
+independently verified against WordPress 7.0 source.
+
+The defect is not an incomplete rule list. It is that the plugin's matching
+predicate and the predicate WordPress core dispatches on are two independently
+maintained things that drift, with nothing able to detect the drift.
+
+| Axis | Core dispatches on | Plugin matched on |
+|---|---|---|
+| REST route case | `preg_match( '@^…$@i' )` | patterns with no `i` flag |
+| File editor write | `'POST' === $_SERVER['REQUEST_METHOD']` | `action=update` required |
+| `option_page` source | `$_REQUEST` | `$_POST`, in the self-protection rules |
+| Bulk promote | `isset( $_REQUEST['changeit'] )` | an `action`-name allowlist |
+| REST method set | `EDITABLE = 'POST, PUT, PATCH'` | `array( 'PUT', 'PATCH' )` |
+| Edited user | `$_REQUEST['user_id']` | `$_POST['user_id']` |
+
+**Effect vetoes work, but not where it matters.** Hooking the effect rather than
+the route is sound, and does gate unambiguous destructive effects such as
+`delete_user` and `activate_plugin`. It cannot be generalised to option writes or
+capability mutation, because core and ordinary plugins fire those same hooks
+incidentally during normal admin loads — there is no intent signal to key on.
+Every one of the seven bypasses lands in that excluded set.
+
+1,308 unit tests, 243 integration tests, 112 E2E tests, PHPStan level 6, Psalm,
+and a mandatory adversarial review gate detected none of the seven. They could
+not have: every test asserts the plugin against its own model of a request, so a
+wrong predicate produces a wrong test that passes. All six axes were found by
+reading core and the matcher side by side.
+
+## What this argues for
+
+A narrow WordPress core primitive:
+
+1. **Explicit effect vetoes** — an intent signal at consequential effects, so a
+   guard can distinguish an actor's intended operation from the same hook firing
+   incidentally during a page load.
+2. **Action-bound, single-use approval** — *actor A may perform effect E, once,
+   within window W*, consumed by the effect rather than by a route, authorising a
+   specific effect and never "re-run this stored request."
+3. **A disposition contract for non-interactive surfaces** — present
+   action-bound proof, refuse, or follow an explicitly separate and auditable
+   machine policy. Not universal reauthentication: cron and the auto-updater have
+   no present human, so reauthentication is category-incoherent there.
+
+## Documents
+
+| Document | Contents |
+|---|---|
+| [`docs/finding.md`](docs/finding.md) | The technical result and what a core primitive would need |
+| [`docs/audit-verification-record.md`](docs/audit-verification-record.md) | Independent verification of all seven bypasses against WP 7.0 source |
+| [`docs/post-mortem.md`](docs/post-mortem.md) | How a heavily tested project failed to see what it had already diagnosed |
+| [`docs/security-model.md`](docs/security-model.md) | Threat model and the boundaries the prototype never claimed to cover |
+| [`docs/upstream-sources.md`](docs/upstream-sources.md) | Every third-party claim, with enclosing symbol, machine-checked |
+| [`PROJECT-STATUS.md`](PROJECT-STATUS.md) | The research-prototype classification and why it exists |
+
+The implementation and test suites are retained, read-only, as the evidence the
+findings rest on. Deleting them would leave assertions nobody could reproduce,
+which is the failure mode this project exists to document.
+
+## Honest scope
+
+Every bypass presupposes an **already-authenticated administrator session**.
+None is a privilege crossing by a low-privileged or unauthenticated actor. They
+are complete defeats of what this plugin claimed to provide — reauthentication as
+a barrier in front of a compromised admin session — and nothing more than that.
+
+The findings concern **this plugin's architecture**. They do not establish that
+no plugin can gate effects it owns, and they are not a vulnerability report
+against WordPress core or any third-party plugin.
 
 ## Acknowledgements
 
@@ -279,6 +114,9 @@ Sudo's core design owes a debt to three people:
 - **John Blackbourn**, for the action-gating concept — that consequential operations should require a fresh proof of intent, regardless of role. It is the single biggest conceptual contribution to the project.
 - **Tim Nash**, for the idea of locking down roles and permissions, which shaped Sudo's opt-in admin-escalation guard and its opt-in role/capability lockdown audit.
 - **Calvin Alkan** (Snicco / Fortress), for critical feedback on WP Sudo and for Fortress as inspiration — including the argument that a regular plugin cannot fully achieve this on its own (a motivation for proposing parts of it to WordPress core) and the "this is becoming a SIEM" critique that shaped Sudo's explicit not-a-SIEM boundary.
+
+That third argument is the one this project ended up demonstrating. The finding
+above is its evidence, arrived at independently and the long way round.
 
 ## License
 

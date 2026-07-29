@@ -1,86 +1,57 @@
-# Project Status: Research Prototype
+# Project Status: Concluded Research Prototype
 
-> **Do not install WP Sudo on production, public staging, or any site
-> containing real users, credentials, or data.**
+> **Do not install WP Sudo.** Not on production, staging, a disposable local
+> site, WordPress Playground, or any site with real or synthetic credentials.
 
-WP Sudo is a conceptual research project and security-design demonstrator. It
-exists to investigate action-gated reauthentication in WordPress, exercise
-candidate designs, expose failure modes, and provide evidence for narrower
-changes that may be appropriate for WordPress core. It is not a supported
-production security plugin.
+WP Sudo investigated whether a regular WordPress plugin could provide
+ecosystem-wide action-gated reauthentication. The program is complete. Seven
+verified high-severity bypasses showed that route enumeration and
+post-submission interception cannot sustain that claim.
 
-## Appropriate evaluation environments
+The repository is retained as a read-only research record. Its implementation
+and tests are evidence, not a supported security product or an evaluation
+package.
 
-Use WP Sudo only in:
+## Final result
 
-- WordPress Playground;
-- a disposable local WordPress installation; or
-- an isolated automated test environment containing synthetic data and
-  credentials.
+- [`docs/finding.md`](docs/finding.md) states the architectural result and the
+  narrower primitive WordPress core could provide.
+- [`docs/audit-verification-record.md`](docs/audit-verification-record.md)
+  records independent verification of all seven bypasses against WordPress 7.0.
+- [`docs/post-mortem.md`](docs/post-mortem.md) explains why extensive testing
+  and review did not detect predicate drift.
+- [`docs/security-model.md`](docs/security-model.md) preserves the prototype's
+  threat model and boundaries.
 
-Do not use it on:
+Every bypass presupposes an already-authenticated administrator session. None
+is a new unauthenticated or low-privilege path. They nevertheless defeat the
+specific barrier the prototype claimed to place in front of a compromised
+administrator session.
 
-- a production or publicly reachable site;
-- a staging or development site cloned from production;
-- a site containing real users, personal data, secrets, API credentials, or
-  reusable passwords; or
-- a site where WP Sudo is expected to provide a security boundary.
+## What remains useful
 
-## Why this boundary exists
+The constructive result is a core-facing design: declared effect identity,
+vetoable effect execution, and server-held action-bound approval consumed once
+at the effect.
 
-Action gating spans many WordPress execution surfaces, request shapes,
-extensions, and authentication paths. The project has repeatedly found that a
-design can look sound, pass broad automated test suites, and survive multiple
-reviews while still containing a reachable path outside the reviewed model.
-Version 4.9.0 removed server-side automatic stash/replay after it proved to be
-a confused deputy. That discovery is useful research evidence, but it is also
-evidence that this plugin must not be relied upon as a comprehensive or
-non-bypassable control.
+The separate
+[`dknauss/consequential-actions`](https://github.com/dknauss/consequential-actions)
+repository remains a historical demonstrator and compact attack narrative for
+the WordPress core discussion. Its registry/window/modal design is not a
+successor production architecture and must not be read as one.
 
-Known limitations include:
+The relevant upstream lineage remains
+[Core Trac #20140](https://core.trac.wordpress.org/ticket/20140), together with
+the narrower account-change history cited by the retained core-proposal
+documents. WP Sudo's result strengthens the argument for a core primitive; it
+does not supply a patch ready for WordPress core.
 
-- interception covers enumerated WordPress paths and selected effect-level
-  backstops, not every effect reachable through WordPress or third-party code;
-- an extension can perform a consequential effect through a path the plugin
-  does not observe;
-- some features are deliberately default-off or demonstrations of possible
-  policy rather than complete controls;
-- UX and behavior can differ across classic admin, REST, AJAX, multisite,
-  editors, command-line, scheduled, and third-party surfaces;
-- tests establish the cases they exercise, not universal gate completeness;
-  and
-- open security, coverage, compatibility, and UX findings are expected in an
-  active research codebase.
+## Releases and reports
 
-See [`docs/security-model.md`](docs/security-model.md) for the detailed threat
-model and [GitHub Issues](https://github.com/dknauss/Sudo/issues) for current
-findings.
+Existing tags and releases are frozen research snapshots. No further package,
+demo, compatibility, or security releases are planned. Public installation
+affordances and release workflows have been removed.
 
-## What releases mean
-
-Tags and GitHub releases are reproducible research snapshots for demos,
-comparison, and review. They are not production-readiness declarations and do
-not carry production support or compatibility guarantees. Publish a future
-snapshot only when it materially supports the conceptual project or an
-upstream WordPress core proposal—not merely because repository work has
-accumulated. Every such snapshot must be a prerelease named **Research
-Preview** while this status remains in effect. Pushing a tag does not publish
-a release; publication requires a separate, deliberate manual workflow run
-for that existing tag.
-
-The current research direction and its evidence gates are defined by the
-[Action Gate Research Program charter](.planning/action-gate-architecture-charter.md)
-and [GSD roadmap](.planning/ROADMAP.md).
-
-## Security reports
-
-Security reports are welcome because failures improve the research and its
-upstream recommendations. Follow [`SECURITY.md`](SECURITY.md). A fix, green CI,
-or closed report does not change this project status.
-
-## Graduation
-
-Production use is out of scope unless the maintainer explicitly changes this
-document after defining and satisfying separate production-readiness criteria.
-Version numbers, test counts, review volume, and the absence of a currently
-known exploit do not imply graduation.
+The issue backlog is closed because the program has concluded, not because each
+finding was remediated. Historical issues, pull requests, branches, tests, and
+source citations remain part of the record.

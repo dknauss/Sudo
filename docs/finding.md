@@ -41,14 +41,19 @@ gate for the operations it covers. All seven were independently verified against
 WordPress 7.0 source; see `audit-verification-record.md` for the read-in-context
 evidence on each.
 
-| Axis | Core dispatches on | Plugin matched on |
-|---|---|---|
-| REST route case | `preg_match( '@^…$@i' )` (`class-wp-rest-server.php:1166`) | patterns with no `i` flag |
-| File editor write | `'POST' === $_SERVER['REQUEST_METHOD']` (`plugin-editor.php:95`) | `action=update` required |
-| `option_page` source | `$_REQUEST` (`options.php:27`) | `$_POST`, in the self-protection rules |
-| Bulk promote | `isset( $_REQUEST['changeit'] )` (`class-wp-users-list-table.php`) | an `action`-name allowlist |
-| REST method set | `EDITABLE = 'POST, PUT, PATCH'` | `array( 'PUT', 'PATCH' )` |
-| Edited user | `$_REQUEST['user_id']` (`user-edit.php:16`) | `$_POST['user_id']` |
+| Bypass | Core dispatches on | Plugin matched on | Axis |
+|---|---|---|---|
+| REST route capitalisation | `preg_match( '@^…$@i' )` (`class-wp-rest-server.php:1166`) | patterns with no `i` flag | route-pattern case |
+| File editor write | `'POST' === $_SERVER['REQUEST_METHOD']` (`plugin-editor.php:95`) | `action=update` required | action derivation |
+| `options.php` self-protection | `$_REQUEST['option_page']` (`options.php:27`) | `$_POST`, in the self-protection rules | superglobal |
+| Bulk promote | `isset( $_REQUEST['changeit'] )` (`class-wp-users-list-table.php`) | an `action`-name allowlist, checked before the rule's callback | evaluation order |
+| REST plugin deactivation | `EDITABLE = 'POST, PUT, PATCH'` | `array( 'PUT', 'PATCH' )` | method set |
+| 2FA lifecycle bridge | `$_REQUEST['user_id']` (`user-edit.php:16`) | `$_POST['user_id']` | superglobal |
+| `wp_ajax_add-user` | registered AJAX action (`admin-ajax.php:79`) | `'ajax' => null` on the rule | surface coverage |
+
+Seven bypasses, six axes: the superglobal axis accounts for two of them, and the
+last row is an absent rule rather than a divergent predicate — the surface was
+never covered at all. Do not read the table as one row per axis.
 
 **The distinction that matters:** this is not incompleteness. Incompleteness
 would mean *unenumerated* paths escape — the limit anyone expects from a rule
@@ -403,6 +408,21 @@ The second clause is what makes this actionable for plugin authors rather than
 merely discouraging: a component that owns its effect can gate that effect
 correctly today, without core's help, by demanding proof at its own commit point
 instead of inferring intent from a request.
+
+### 4.8 Retained upstream and demonstrator lineage
+
+The core-facing continuation is [Core Trac
+#20140](https://core.trac.wordpress.org/ticket/20140), whose account-change
+discussion supplies the direct recent-auth lineage for this work. The retained
+core proposal and implementation inventory generalise that question to
+consequential effects; they are research inputs, not ready-to-land patches.
+
+The separate
+[`dknauss/consequential-actions`](https://github.com/dknauss/consequential-actions)
+repository remains a historical demonstrator and compact attack narrative. Its
+registry, reusable window, and inline-modal architecture predate this finding
+and are superseded as a production-security design. Preserve it for comparison;
+do not present it as the successor to WP Sudo.
 
 ## 5. Consequences for the prototype
 

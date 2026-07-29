@@ -15,7 +15,7 @@ to see what it had already found**, which is the more transferable outcome.
 WP Sudo gated 36 enumerated WordPress operations behind password
 reauthentication, across admin, AJAX, REST, CLI, cron, XML-RPC and WPGraphQL
 surfaces, with effect-level backstops for a subset of destructive core effects.
-It accumulated 1,314 unit tests, 243 integration tests, 112 E2E tests, a static
+It accumulated 1,308 unit tests, 243 integration tests, 112 E2E tests, a static
 analysis gate at PHPStan level 6 plus Psalm, an upstream-source registry checked
 against live third-party code, and a mandatory pre-commit review gate.
 
@@ -115,7 +115,7 @@ Honest accounting, because several of these were expensive.
 
 **Did not work.**
 
-- **Test count.** 1,669 tests across three suites detected none of the seven. See
+- **Test count.** 1,663 tests across three suites detected none of the seven. See
   §3. Volume was mistaken for assurance.
 - **Static analysis.** PHPStan level 6 and Psalm are type-correctness tools. Every
   bypass is type-correct.
@@ -154,7 +154,7 @@ Honest accounting, because several of these were expensive.
    the differential harness first.** Not tests of your matcher — a harness that
    reads the other system's dispatch predicate and fails when yours diverges. If
    that is impossible, that impossibility *is* the finding, and it is available on
-   day one rather than after 1,669 tests.
+   day one rather than after 1,663 tests.
 2. **Do not gate on routes.** Route enumeration cannot reach ecosystem-wide
    completeness, and worse, it silently fails on routes you did enumerate.
 3. **Gate effects you own, or ask the platform for an intent signal.** Effect
