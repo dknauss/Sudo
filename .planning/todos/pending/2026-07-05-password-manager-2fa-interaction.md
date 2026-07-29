@@ -73,6 +73,5 @@ verification with each manager installed and is left as `pending` in that doc.
 
 - This is research, not a committed feature. Do not make runtime support claims about a
   specific manager without a real repro (per the repo verification rules).
-- Related: block-editor Tier 2 modal risk-item in
-  `gutenberg-editor-reauth-phase2-plan.md` (a `createElement` modal field is the most
-  autofill-hostile surface — verify it early if that feature is built).
+- Related: issue #253 tracks the remaining manager-by-manager verification for
+  the shipped block-editor modal.
