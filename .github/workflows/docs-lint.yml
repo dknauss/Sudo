@@ -16,6 +16,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Run docs-lint regression harness
+        run: bash tests/docs-lint/run.sh
+        shell: bash
+
       - name: Check for stale fixed-date references and old count patterns
         run: bash bin/docs-lint.sh
         shell: bash
