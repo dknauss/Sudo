@@ -560,11 +560,31 @@ while `WP_SUDO_RECOVERY_MODE` is active.
 
 **First-run lockout safety.** On a fresh install, the activating administrator
 automatically receives all four Sudo governance capabilities during plugin
-activation — the `upgrade_3_3_0()` backfill routine runs and grants
-`manage_wp_sudo` to any existing administrator. A first-run lockout (no one holds
-`manage_wp_sudo` after activation) can only occur if no WordPress administrator
-existed at activation time, which is atypical. If it does occur, `WP_SUDO_RECOVERY_MODE`
-is the recovery path.
+activation — `Plugin::activate()` grants them directly, **before** running the
+upgrader. Other administrators receive none until explicitly granted.
+
+That ordering is deliberate and load-bearing (#524). On single-site, the
+`upgrade_3_3_0()` backfill grants the four capabilities to *every* administrator
+when it finds no holder of `manage_wp_sudo`; granting the activator first means it
+finds one and skips. Without a grant in front of it, activating hands governance to
+every administrator on that site at once — the opposite of the separation this
+capability set exists to provide. (The backfill returns early on multisite, so this
+concerns single-site installs only.)
+
+The backfill's own purpose is unchanged and still live: **existing installs
+upgrading across the `3.3.0` boundary by code update**, where no activation hook
+fires at all and operators would otherwise be locked out of Sudo settings by strict
+mode. Its `HISTORY` note records sites stamped at `3.1.x`/`3.2.0` that skipped it
+and were locked out — so do not gate or remove it on the assumption it only covers
+activation.
+
+It *additionally* covers an activation with no current user, such as `wp plugin
+activate` without `--user` (`GB-CLI-NO-USER`): there the direct grant cannot happen, and the broad
+grant is preferable to a site with no governance holder at all.
+
+A first-run lockout (no one holds `manage_wp_sudo` after activation) can only
+occur if no WordPress administrator existed at activation time, which is
+atypical. If it does occur, `WP_SUDO_RECOVERY_MODE` is the recovery path.
 
 ### Minimum requirements raised
 
