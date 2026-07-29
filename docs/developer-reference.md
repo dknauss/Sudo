@@ -290,7 +290,8 @@ Accepted args:
 - `rule_id` (`string`) — audit identifier; defaults to `public_api.require`.
 - `redirect` (`bool`) — default `true`; set `false` to receive `false` instead of redirect.
 - `return_url` (`string`) — **inert since 4.9.0.** Still accepted, still emitted into
-  the challenge URL, and still ignored: nothing consumes it. See the note below.
+  the challenge URL, and still ignored: nothing consumes it. Passing it non-empty
+  raises `_deprecated_argument( 'wp_sudo_require', '4.9.0', … )` (#461).
 
 **Behaviour change in 4.9.0 (#322): the user is no longer returned to your page.**
 After a successful challenge, WP Sudo lands the user on a neutral admin page instead
@@ -306,6 +307,24 @@ disguised with a leading `+`.
 
 `return_url` is retained in the signature rather than removed, so callers that pass it
 keep working. It has no effect.
+
+Passing it non-empty is no longer silent: `_deprecated_argument()` fires
+`deprecated_argument_run` unconditionally, while the visible
+`E_USER_DEPRECATED` error depends on `WP_DEBUG` and the
+`deprecated_argument_trigger_error` filter (`GB-DEPARG-ACTION`). WordPress unit
+tests can declare the expected signal with:
+
+```php
+$this->setExpectedDeprecated( 'wp_sudo_require' );
+```
+
+Otherwise, stop passing the argument. If your integration redirects after
+`wp_sudo_require()` returns `true`, do not reuse a destination taken from the
+request. The user holds sudo by then, so a crafted same-origin action URL would
+run under the authority just granted. Use a fixed destination or an allowlist
+owned by your code. `wp_validate_redirect()` is not sufficient: it constrains
+scheme and host, not whether the path performs an action
+(`GB-VALIDATE-REDIRECT-HOST`).
 
 This is **MINOR**, not MAJOR, under the *Security-forced inertness* clause in
 [`VERSIONING.md`](../VERSIONING.md): the argument is still accepted, nothing errors,

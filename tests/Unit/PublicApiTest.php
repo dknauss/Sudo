@@ -197,6 +197,130 @@ class PublicApiTest extends TestCase {
 		);
 	}
 
+	/**
+	 * #461: a non-empty return_url gets a runtime signal on a non-redirect exit.
+	 */
+	public function test_require_flags_an_explicitly_passed_return_url(): void {
+		$user_id = 88;
+
+		Functions\when( 'get_current_user_id' )->justReturn( $user_id );
+		Functions\when( 'get_user_meta' )->justReturn( '' );
+
+		Functions\expect( '_deprecated_argument' )
+			->once()
+			->with( 'wp_sudo_require', '4.9.0', \Mockery::type( 'string' ) );
+
+		Public_API::require(
+			array(
+				'rule_id'    => 'custom.action',
+				'redirect'   => false,
+				'return_url' => 'https://example.com/wp-admin/tools.php',
+			)
+		);
+	}
+
+	/**
+	 * #461: an omitted or empty return_url is not a use of the inert argument.
+	 *
+	 * @dataProvider provideEmptyReturnUrls
+	 *
+	 * @param array<string, mixed> $args API arguments.
+	 */
+	public function test_require_does_not_flag_an_empty_return_url( array $args ): void {
+		$user_id = 89;
+
+		Functions\when( 'get_current_user_id' )->justReturn( $user_id );
+		Functions\when( 'get_user_meta' )->justReturn( '' );
+
+		Functions\expect( '_deprecated_argument' )->never();
+
+		Public_API::require( $args );
+	}
+
+	/**
+	 * @return array<string, array{0: array<string, mixed>}>
+	 */
+	public function provideEmptyReturnUrls(): array {
+		return array(
+			'argument absent' => array(
+				array(
+					'rule_id'  => 'custom.action',
+					'redirect' => false,
+				),
+			),
+			'empty string'    => array(
+				array(
+					'rule_id'    => 'custom.action',
+					'redirect'   => false,
+					'return_url' => '',
+				),
+			),
+		);
+	}
+
+	/**
+	 * #461: the signal must not disappear behind the active-session short-circuit.
+	 */
+	public function test_require_flags_return_url_when_sudo_is_already_active(): void {
+		$user_id = 90;
+		$token   = 'active-session-token';
+
+		Functions\when( 'get_current_user_id' )->justReturn( $user_id );
+		$_COOKIE[ Sudo_Session::TOKEN_COOKIE ] = $token;
+
+		$record = $this->make_proof_map( $user_id, $token, time() + 300 );
+
+		Functions\when( 'get_user_meta' )->alias(
+			static function ( int $uid, string $meta_key, bool $single ) use ( $user_id, $record ) {
+				if ( $uid !== $user_id || true !== $single ) {
+					return '';
+				}
+
+				if ( Sudo_Session::META_KEY === $meta_key ) {
+					return time() + 300;
+				}
+
+				if ( Sudo_Session::PROOF_META_KEY === $meta_key ) {
+					return $record;
+				}
+
+				return '';
+			}
+		);
+
+		Functions\expect( '_deprecated_argument' )
+			->once()
+			->with( 'wp_sudo_require', '4.9.0', \Mockery::type( 'string' ) );
+
+		$this->assertTrue(
+			Public_API::require(
+				array(
+					'return_url' => 'https://example.com/wp-admin/tools.php',
+				)
+			),
+			'Precondition: the active-session short-circuit must be exercised.'
+		);
+	}
+
+	/**
+	 * #461: the signal is about the call even when no user resolves.
+	 */
+	public function test_require_flags_return_url_when_no_user_resolves(): void {
+		Functions\when( 'get_current_user_id' )->justReturn( 0 );
+
+		Functions\expect( '_deprecated_argument' )
+			->once()
+			->with( 'wp_sudo_require', '4.9.0', \Mockery::type( 'string' ) );
+
+		$this->assertFalse(
+			Public_API::require(
+				array(
+					'return_url' => 'https://example.com/wp-admin/tools.php',
+				)
+			)
+		);
+	}
+
 	public function test_require_returns_false_when_headers_are_already_sent(): void {
 		$user_id = 21;
 
@@ -215,6 +339,40 @@ class PublicApiTest extends TestCase {
 				array(
 					'rule_id' => 'plugin.activate',
 				)
+			)
+		);
+	}
+
+	/**
+	 * #461 regression: emitting before the redirect can make headers_sent() true.
+	 *
+	 * The redirect stub throws before the post-header exit path is reachable, so
+	 * this pins that no displayed deprecation can precede wp_safe_redirect().
+	 */
+	public function test_require_does_not_emit_return_url_notice_before_redirecting(): void {
+		$user_id = 91;
+
+		Functions\when( 'get_current_user_id' )->justReturn( $user_id );
+		Functions\when( 'get_user_meta' )->justReturn( '' );
+		Functions\when( 'headers_sent' )->justReturn( false );
+		Functions\when( 'is_network_admin' )->justReturn( false );
+		Functions\when( 'admin_url' )->alias(
+			static function ( string $path = '' ): string {
+				return 'https://example.com/wp-admin/' . ltrim( $path, '/' );
+			}
+		);
+		$this->stub_faithful_add_query_arg();
+
+		Functions\expect( 'wp_safe_redirect' )
+			->once()
+			->andThrow( new \RuntimeException( 'redirected' ) );
+		Functions\expect( '_deprecated_argument' )->never();
+
+		$this->expectException( \RuntimeException::class );
+
+		Public_API::require(
+			array(
+				'return_url' => 'https://example.com/wp-admin/tools.php',
 			)
 		);
 	}

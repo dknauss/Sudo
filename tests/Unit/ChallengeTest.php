@@ -2218,22 +2218,7 @@ class ChallengeTest extends TestCase
 		// earlier cut of this test listed bare filenames, so `edit.php` absolved BOTH —
 		// meaning the test stayed green even when the network edit.php clause was
 		// removed from production, re-hiding the exact defect it was written to catch.
-		$verified_screens = array(
-			'https://example.com/wp-admin/authorize-application.php',
-			'https://example.com/wp-admin/edit.php',
-			'https://example.com/wp-admin/options-general.php',
-			'https://example.com/wp-admin/plugin-editor.php',
-			'https://example.com/wp-admin/plugins.php',
-			'https://example.com/wp-admin/profile.php',
-			'https://example.com/wp-admin/theme-editor.php',
-			'https://example.com/wp-admin/themes.php',
-			'https://example.com/wp-admin/update-core.php',
-			'https://example.com/wp-admin/user-new.php',
-			'https://example.com/wp-admin/users.php',
-			// Network Settings renders on a bare GET; network edit.php does not and is
-			// caught by the handler predicate, so it is deliberately absent here.
-			'https://example.com/wp-admin/network/settings.php',
-		);
+		$verified_screens = $this->verifiedScreens();
 
 		$single = $this->postCapablePagenow();
 
@@ -2297,6 +2282,58 @@ class ChallengeTest extends TestCase
 				. 'usable screen, add it to $verified_screens; if it renders a blank page, '
 				. 'a wp_die(), a raw dump, or a redirect that drops the query, add it to '
 				. 'Challenge::HANDLER_ENDPOINTS with a registry row for the evidence.'
+		);
+	}
+
+	/**
+	 * #434: a URL cannot be both a handler and a verified usable screen.
+	 *
+	 * The existing walk checks the handler predicate first and continues, so an
+	 * overlapping verified-screen entry is never consulted. Assert the invariant
+	 * separately through the production predicate, including its network context.
+	 */
+	public function test_handler_endpoints_and_verified_screens_are_disjoint(): void {
+		$overlap = array();
+
+		foreach ( $this->verifiedScreens() as $url ) {
+			if ( $this->isHandlerEndpoint( $url ) ) {
+				$overlap[] = $url;
+			}
+		}
+
+		$this->assertSame(
+			array(),
+			$overlap,
+			'These URLs are both handlers and verified screens. Decide whether a bare '
+				. 'GET renders a usable screen, then remove the contradictory entry.'
+		);
+	}
+
+	/**
+	 * Admin URLs whose bare GET renders a usable screen.
+	 *
+	 * URLs, rather than filenames, preserve the site/network distinction for
+	 * edit.php. Shared by the landing walk and the #434 disjointness guard so the
+	 * two checks cannot silently diverge.
+	 *
+	 * @return string[]
+	 */
+	private function verifiedScreens(): array {
+		return array(
+			'https://example.com/wp-admin/authorize-application.php',
+			'https://example.com/wp-admin/edit.php',
+			'https://example.com/wp-admin/options-general.php',
+			'https://example.com/wp-admin/plugin-editor.php',
+			'https://example.com/wp-admin/plugins.php',
+			'https://example.com/wp-admin/profile.php',
+			'https://example.com/wp-admin/theme-editor.php',
+			'https://example.com/wp-admin/themes.php',
+			'https://example.com/wp-admin/update-core.php',
+			'https://example.com/wp-admin/user-new.php',
+			'https://example.com/wp-admin/users.php',
+			// Network Settings renders on a bare GET; network edit.php does not and is
+			// caught by the handler predicate, so it is deliberately absent here.
+			'https://example.com/wp-admin/network/settings.php',
 		);
 	}
 

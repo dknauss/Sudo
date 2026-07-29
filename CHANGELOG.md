@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+- **`wp_sudo_require()` now reports its inert `return_url` argument (#461).**
+  The argument has had no effect since 4.9.0 because automatically navigating
+  to a caller-supplied destination after reauthentication would run under the
+  sudo authority just granted. Passing it non-empty now raises
+  `_deprecated_argument( 'wp_sudo_require', '4.9.0', … )`; callers can remove
+  it or declare `setExpectedDeprecated( 'wp_sudo_require' )` in WordPress unit
+  tests. Integrations that navigate after the helper returns `true` must use a
+  fixed or explicitly allowlisted destination, never one taken from the request.
+  The signal is emitted after any redirect header so debug output cannot suppress
+  the challenge redirect.
+
+- **The landing-screen guard now rejects contradictory classifications (#434).**
+  A URL cannot be both a handler that renders nothing useful on a bare GET and
+  a verified usable screen. The test now asserts those sets are disjoint through
+  the production predicate, including its site/network context.
+
 ## 4.9.1 - 2026-07-28
 
 - **Site Health's stale-session sweep no longer deletes live or grace-eligible
