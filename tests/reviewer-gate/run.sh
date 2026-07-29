@@ -62,6 +62,7 @@ new_repo() {
 	git -C "$repo" init -q
 	git -C "$repo" config user.name "Reviewer Gate Test"
 	git -C "$repo" config user.email "reviewer-gate@example.invalid"
+	git -C "$repo" config commit.gpgSign false
 	printf 'reviewer-approved\n' > "$repo/.gitignore"
 	printf 'seed\n' > "$repo/README.md"
 	git -C "$repo" add .gitignore README.md .githooks/pre-commit bin/reviewer-approve.sh
@@ -128,6 +129,15 @@ run_in "$repo" bash .githooks/pre-commit
 expect_status 1 "restaging changed content invalidates approval"
 expect_output "Staged content changed since approval" "tree mismatch is reported"
 
+repo=$(new_repo unstaged-change)
+printf '<?php\n' > "$repo/change.php"
+git -C "$repo" add change.php
+(cd "$repo" && bash bin/reviewer-approve.sh >/dev/null)
+printf '<?php\n// unstaged\n' > "$repo/change.php"
+run_in "$repo" bash .githooks/pre-commit
+expect_status 1 "unstaged changes to a staged file are rejected"
+expect_output "staged files also have unstaged changes" "unstaged-change failure explains the mismatch"
+
 repo=$(new_repo legacy-flag)
 printf '<?php\n' > "$repo/change.php"
 git -C "$repo" add change.php
@@ -154,9 +164,16 @@ run_in "$repo" env USER_COMMIT=1 bash .githooks/pre-commit
 expect_status 0 "USER_COMMIT bypass remains available"
 expect_output "User commit bypass enabled" "bypass is visible in hook output"
 
+repo=$(new_repo missing-approval)
+printf '<?php\n' > "$repo/change.php"
+git -C "$repo" add change.php
+run_in "$repo" bash .githooks/pre-commit
+expect_status 1 "code without reviewer approval is rejected"
+expect_output "No reviewer agent approval found" "missing approval is reported"
+
 repo=$(new_repo vendor-symlink)
-mkdir -p "$TMP_ROOT/foreign-vendor"
-ln -s "$TMP_ROOT/foreign-vendor" "$repo/vendor"
+mkdir -p "$repo/nested-checkout/vendor"
+ln -s "$repo/nested-checkout/vendor" "$repo/vendor"
 printf '<?php\n' > "$repo/change.php"
 git -C "$repo" add change.php
 run_in "$repo" env USER_COMMIT=1 bash .githooks/pre-commit
@@ -173,6 +190,51 @@ run_in "$repo" bash .githooks/pre-commit
 expect_status 0 "merge path skips only the AI size limit"
 expect_output "Merge commit" "merge-size exemption is reported"
 expect_output "Reviewer agent approved" "merge path still requires staged-tree approval"
+
+repo=$(new_repo failed-tests)
+printf '<?php\n' > "$repo/change.php"
+git -C "$repo" add change.php
+(cd "$repo" && bash bin/reviewer-approve.sh >/dev/null)
+printf 'REVIEWER_TEST_CMD="false"\n' >> "$repo/.reviewer-config.sh"
+run_in "$repo" bash .githooks/pre-commit
+expect_status 1 "failed unit validation blocks the commit"
+expect_output "Unit tests failed" "unit failure is reported"
+
+repo=$(new_repo failed-lint)
+printf '<?php\n' > "$repo/change.php"
+git -C "$repo" add change.php
+(cd "$repo" && bash bin/reviewer-approve.sh >/dev/null)
+printf 'REVIEWER_LINT_CMD="false"\n' >> "$repo/.reviewer-config.sh"
+run_in "$repo" bash .githooks/pre-commit
+expect_status 1 "failed lint validation blocks the commit"
+expect_output "Linter failed" "lint failure is reported"
+
+repo=$(new_repo validation-mutates-index)
+printf '<?php\n' > "$repo/change.php"
+git -C "$repo" add change.php
+(cd "$repo" && bash bin/reviewer-approve.sh >/dev/null)
+printf '%s\n' 'REVIEWER_TEST_CMD="printf \"// validation mutation\\n\" >> change.php; git add change.php"' >> "$repo/.reviewer-config.sh"
+run_in "$repo" bash .githooks/pre-commit
+expect_status 1 "index mutation during validation invalidates approval"
+expect_output "staged tree changed during validation" "validation-time index mutation is reported"
+
+repo=$(new_repo future-approval)
+printf '<?php\n' > "$repo/change.php"
+git -C "$repo" add change.php
+future_timestamp=$(( $(date +%s) + 60 ))
+printf '%s\n%s\n' "$future_timestamp" "$(git -C "$repo" write-tree)" > "$repo/reviewer-approved"
+run_in "$repo" bash .githooks/pre-commit
+expect_status 1 "future-dated bound approval is rejected"
+expect_output "timestamp is in the future" "future approval failure is reported"
+
+repo=$(new_repo expired-approval)
+printf '<?php\n' > "$repo/change.php"
+git -C "$repo" add change.php
+expired_timestamp=$(( $(date +%s) - 1801 ))
+printf '%s\n%s\n' "$expired_timestamp" "$(git -C "$repo" write-tree)" > "$repo/reviewer-approved"
+run_in "$repo" bash .githooks/pre-commit
+expect_status 1 "expired bound approval is rejected"
+expect_output "Reviewer approval expired" "expired approval failure is reported"
 
 printf '\nreviewer-gate tests: %d passed, %d failed\n' "$passed" "$failed"
 [ "$failed" -eq 0 ]

@@ -312,6 +312,9 @@ jobs:
       - name: Install Composer dependencies
         run: composer install --no-interaction --prefer-dist
 
+      - name: Verify reviewer gate
+        run: composer test:reviewer-gate
+
       - name: Verify metrics file drift
         run: composer verify:metrics
 
