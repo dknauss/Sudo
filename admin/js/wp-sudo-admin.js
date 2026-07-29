@@ -9,19 +9,19 @@
  */
 
 /* global wpSudoAdmin */
-( function () {
+( function() {
 	'use strict';
 
-	var strings      = ( wpSudoAdmin && wpSudoAdmin.strings ) || {};
-	var installBtn   = document.getElementById( 'wp-sudo-mu-install' );
+	var strings = ( wpSudoAdmin && wpSudoAdmin.strings ) || {};
+	var installBtn = document.getElementById( 'wp-sudo-mu-install' );
 	var uninstallBtn = document.getElementById( 'wp-sudo-mu-uninstall' );
-	var spinner      = document.getElementById( 'wp-sudo-mu-spinner' );
-	var messageEl    = document.getElementById( 'wp-sudo-mu-message' );
+	var spinner = document.getElementById( 'wp-sudo-mu-spinner' );
+	var messageEl = document.getElementById( 'wp-sudo-mu-message' );
 
 	/**
 	 * Send an AJAX request for MU-plugin install or uninstall.
 	 *
-	 * @param {string} action  The AJAX action name.
+	 * @param {string}  action The AJAX action name.
 	 * @param {Element} button The button element that was clicked.
 	 */
 	function muPluginAction( action, button ) {
@@ -48,10 +48,10 @@
 			credentials: 'same-origin',
 			body: body,
 		} )
-			.then( function ( response ) {
+			.then( function( response ) {
 				return response.json();
 			} )
-			.then( function ( result ) {
+			.then( function( result ) {
 				if ( spinner ) {
 					spinner.classList.remove( 'is-active' );
 				}
@@ -66,7 +66,7 @@
 					}
 					// Reload the page so the status indicator updates
 					// (WP_SUDO_MU_LOADED will be defined or not on next load).
-					setTimeout( function () {
+					setTimeout( function() {
 						window.location.reload();
 					}, 1000 );
 				} else {
@@ -77,7 +77,7 @@
 					}
 				}
 			} )
-			.catch( function () {
+			.catch( function() {
 				if ( spinner ) {
 					spinner.classList.remove( 'is-active' );
 				}
@@ -91,26 +91,25 @@
 	}
 
 	if ( installBtn ) {
-		installBtn.addEventListener( 'click', function () {
+		installBtn.addEventListener( 'click', function() {
 			muPluginAction( wpSudoAdmin.installAction, installBtn );
 		} );
 	}
 
 	if ( uninstallBtn ) {
-		uninstallBtn.addEventListener( 'click', function () {
+		uninstallBtn.addEventListener( 'click', function() {
 			muPluginAction( wpSudoAdmin.uninstallAction, uninstallBtn );
 		} );
 	}
 
 	// --- Bidirectional preset ↔ surface policy sync ---
-	var presetSelect   = document.getElementById( 'policy_preset_selection' );
-	var descriptionEl  = document.getElementById( 'wp-sudo-preset-description' );
-	var descriptions   = ( wpSudoAdmin && wpSudoAdmin.presetDescriptions ) || {};
+	var presetSelect = document.getElementById( 'policy_preset_selection' );
+	var descriptionEl = document.getElementById( 'wp-sudo-preset-description' );
+	var descriptions = ( wpSudoAdmin && wpSudoAdmin.presetDescriptions ) || {};
 	var presetPolicies = ( wpSudoAdmin && wpSudoAdmin.presetPolicies ) || {};
-	var surfaceKeys    = ( wpSudoAdmin && wpSudoAdmin.surfaceKeys ) || [];
+	var surfaceKeys = ( wpSudoAdmin && wpSudoAdmin.surfaceKeys ) || [];
 
 	if ( presetSelect && descriptionEl && surfaceKeys.length ) {
-
 		/**
 		 * Ensure a disabled "Custom" option exists in the preset selector.
 		 *
@@ -120,13 +119,13 @@
 		 *
 		 * @return {HTMLOptionElement} The custom option element.
 		 */
-		var ensureCustomOption = function () {
+		var ensureCustomOption = function() {
 			var option = presetSelect.querySelector( 'option[value="custom"]' );
 			if ( ! option ) {
 				option = document.createElement( 'option' );
-				option.value       = 'custom';
+				option.value = 'custom';
 				option.textContent = 'Custom';
-				option.disabled    = true;
+				option.disabled = true;
 				presetSelect.appendChild( option );
 			}
 			return option;
@@ -140,7 +139,7 @@
 		 *
 		 * @param {string} key Preset key (or 'custom').
 		 */
-		var selectPreset = function ( key ) {
+		var selectPreset = function( key ) {
 			if ( 'custom' === key ) {
 				ensureCustomOption().selected = true;
 			} else {
@@ -159,7 +158,7 @@
 		 *
 		 * @return {Object} Map of surface key → current value.
 		 */
-		var getCurrentSurfaceValues = function () {
+		var getCurrentSurfaceValues = function() {
 			var values = {};
 			var i, el;
 			for ( i = 0; i < surfaceKeys.length; i++ ) {
@@ -180,14 +179,14 @@
 		 *
 		 * @return {string} Matching preset key, or 'custom'.
 		 */
-		var detectPreset = function () {
-			var current     = getCurrentSurfaceValues();
+		var detectPreset = function() {
+			var current = getCurrentSurfaceValues();
 			var presetNames = Object.keys( presetPolicies );
 			var i, j, name, policies, key, match;
 			for ( i = 0; i < presetNames.length; i++ ) {
-				name     = presetNames[ i ];
+				name = presetNames[ i ];
 				policies = presetPolicies[ name ];
-				match    = true;
+				match = true;
 				for ( j = 0; j < surfaceKeys.length; j++ ) {
 					key = surfaceKeys[ j ];
 					if ( ! current.hasOwnProperty( key ) ) {
@@ -206,8 +205,8 @@
 		};
 
 		// Forward sync: preset change → update surface dropdowns + description.
-		presetSelect.addEventListener( 'change', function () {
-			var key      = presetSelect.value;
+		presetSelect.addEventListener( 'change', function() {
+			var key = presetSelect.value;
 			var policies = presetPolicies[ key ];
 			var i, el;
 
@@ -229,7 +228,7 @@
 		for ( i = 0; i < surfaceKeys.length; i++ ) {
 			el = document.getElementById( surfaceKeys[ i ] );
 			if ( el ) {
-				el.addEventListener( 'change', function () {
+				el.addEventListener( 'change', function() {
 					selectPreset( detectPreset() );
 				} );
 			}
@@ -287,7 +286,7 @@
 		var body = new FormData();
 		body.append( 'action', action );
 		body.append( '_nonce', nonce || '' );
-		Object.keys( fields ).forEach( function ( key ) {
+		Object.keys( fields ).forEach( function( key ) {
 			body.append( key, fields[ key ] );
 		} );
 
@@ -296,10 +295,10 @@
 			credentials: 'same-origin',
 			body: body,
 		} )
-			.then( function ( response ) {
+			.then( function( response ) {
 				return response.json();
 			} )
-			.then( function ( result ) {
+			.then( function( result ) {
 				if ( button ) {
 					button.setAttribute( 'aria-busy', 'false' );
 				}
@@ -328,13 +327,15 @@
 					if ( resultEl ) {
 						resultEl.textContent = emsg;
 					} else {
+						// Last-resort feedback when the caller supplied no inline result
+						// node; announce() below also exposes the same error to AT.
 						// eslint-disable-next-line no-alert
 						window.alert( emsg );
 					}
 					announce( emsg );
 				}
 			} )
-			.catch( function () {
+			.catch( function() {
 				if ( button ) {
 					button.disabled = false;
 					button.setAttribute( 'aria-busy', 'false' );
@@ -343,6 +344,8 @@
 				if ( resultEl ) {
 					resultEl.textContent = nmsg;
 				} else {
+					// Last-resort feedback when the caller supplied no inline result
+					// node; announce() below also exposes the same error to AT.
 					// eslint-disable-next-line no-alert
 					window.alert( nmsg );
 				}
@@ -354,19 +357,19 @@
 	var grantUserSearch = document.getElementById( 'wp-sudo-grant-user-search' );
 	var grantUserSelect = document.getElementById( 'wp-sudo-grant-user' );
 	if ( grantUserSearch && grantUserSelect ) {
-		grantUserSearch.addEventListener( 'input', function () {
-			var query   = grantUserSearch.value.toLowerCase().trim();
+		grantUserSearch.addEventListener( 'input', function() {
+			var query = grantUserSearch.value.toLowerCase().trim();
 			var matches = [];
 
-			Array.prototype.forEach.call( grantUserSelect.options, function ( option ) {
+			Array.prototype.forEach.call( grantUserSelect.options, function( option ) {
 				if ( '0' === option.value ) {
 					option.hidden = false;
 					return;
 				}
 
 				var searchText = ( option.getAttribute( 'data-search-text' ) || option.textContent || '' ).toLowerCase();
-				var isMatch    = ! query || -1 !== searchText.indexOf( query );
-				option.hidden  = ! isMatch;
+				var isMatch = ! query || -1 !== searchText.indexOf( query );
+				option.hidden = ! isMatch;
 
 				if ( query && isMatch ) {
 					matches.push( option );
@@ -376,20 +379,19 @@
 			grantUserSelect.value = 1 === matches.length ? matches[ 0 ].value : '0';
 		} );
 
-		grantUserSelect.addEventListener( 'change', function () {
+		grantUserSelect.addEventListener( 'change', function() {
 			var selected = grantUserSelect.options[ grantUserSelect.selectedIndex ];
 			grantUserSearch.value = selected && '0' !== selected.value ? selected.textContent : '';
 		} );
 	}
 
 	// Main "Grant Capability" form.
-	var grantBtn    = document.getElementById( 'wp-sudo-grant-submit' );
+	var grantBtn = document.getElementById( 'wp-sudo-grant-submit' );
 	var grantResult = document.getElementById( 'wp-sudo-grant-result' );
 	if ( grantBtn ) {
-		grantBtn.addEventListener( 'click', function () {
+		grantBtn.addEventListener( 'click', function() {
 			var userInput = document.getElementById( 'wp-sudo-grant-user' );
-			var capSelect = document.getElementById( 'wp-sudo-grant-cap' );
-			var userId    = userInput ? parseInt( userInput.value, 10 ) : 0;
+			var userId = userInput ? parseInt( userInput.value, 10 ) : 0;
 
 			if ( ! userId || userId < 1 ) {
 				var vmsg = accessStrings.invalidUser || '';
@@ -403,19 +405,20 @@
 				return;
 			}
 
+			var capSelect = document.getElementById( 'wp-sudo-grant-cap' );
 			sendAccessAction(
 				wpSudoAdmin.grantAction,
 				grantBtn.getAttribute( 'data-nonce' ),
 				{ user_id: userId, cap: capSelect ? capSelect.value : '' },
 				grantBtn,
 				null,
-				grantResult
+				grantResult,
 			);
 		} );
 	}
 
 	// Delegated handlers for the (re-rendered) grantee/drift table rows.
-	document.addEventListener( 'click', function ( event ) {
+	document.addEventListener( 'click', function( event ) {
 		var target = event.target;
 		if ( ! target || ! target.classList ) {
 			return;
@@ -430,12 +433,12 @@
 				target.getAttribute( 'data-nonce' ),
 				{ user_id: target.getAttribute( 'data-user-id' ), cap: target.getAttribute( 'data-cap' ) },
 				target,
-				function () {
+				function() {
 					if ( driftRow && driftRow.parentNode ) {
 						driftRow.parentNode.removeChild( driftRow );
 					}
 				},
-				null
+				null,
 			);
 			return;
 		}
@@ -445,14 +448,14 @@
 		// the entire holder row.
 		if ( target.classList.contains( 'wp-sudo-revoke-cap' ) ) {
 			var capCell = target.closest( 'td' );
-			var capRow  = target.closest( 'tr' );
+			var capRow = target.closest( 'tr' );
 			var capItem = target.closest( '.wp-sudo-cap-item' );
 			sendAccessAction(
 				wpSudoAdmin.revokeCapAction,
 				target.getAttribute( 'data-nonce' ),
 				{ user_id: target.getAttribute( 'data-user-id' ), cap: target.getAttribute( 'data-cap' ) },
 				target,
-				function () {
+				function() {
 					if ( capItem && capItem.parentNode ) {
 						capItem.parentNode.removeChild( capItem );
 					} else if ( target.parentNode ) {
@@ -462,9 +465,8 @@
 						capRow.parentNode.removeChild( capRow );
 					}
 				},
-				null
+				null,
 			);
-			return;
 		}
 	} );
-} )();
+}() );

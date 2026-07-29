@@ -28,9 +28,10 @@
  * 120 s post-expiry grace window it reads "inactive" (feed values are already 0),
  * matching the todo's conservative direction; the server stays authoritative.
  *
+ * @param {Object} wp WordPress browser API namespace.
  * @package WP_Sudo
  */
-( function ( wp ) {
+( function( wp ) {
 	'use strict';
 
 	if ( ! wp || ! wp.element || ! wp.data ) {
@@ -39,9 +40,15 @@
 
 	var cfg = window.wpSudoEditorReauth || {};
 	var i18n = wp.i18n || {};
-	var __ = i18n.__ || function ( text ) { return text; };
-	var sprintf = i18n.sprintf || function ( fmt ) { return fmt; };
-	var domReady = wp.domReady || function ( fn ) { fn(); };
+	var __ = i18n.__ || function( text ) {
+		return text;
+	};
+	var sprintf = i18n.sprintf || function( fmt ) {
+		return fmt;
+	};
+	var domReady = wp.domReady || function( fn ) {
+		fn();
+	};
 
 	var GRANT_EVENT = 'wp-sudo-session-granted';
 	var SNACKBAR_ID = 'wp-sudo-session-active';
@@ -88,8 +95,10 @@
 
 	function subscribe( fn ) {
 		listeners.push( fn );
-		return function () {
-			listeners = listeners.filter( function ( l ) { return l !== fn; } );
+		return function() {
+			listeners = listeners.filter( function( l ) {
+				return l !== fn;
+			} );
 		};
 	}
 
@@ -128,7 +137,7 @@
 		if ( intervalId || currentRemaining() <= 0 ) {
 			return;
 		}
-		intervalId = setInterval( function () {
+		intervalId = setInterval( function() {
 			if ( currentRemaining() <= 0 ) {
 				stopTicker();
 			}
@@ -144,7 +153,7 @@
 	 */
 	function seed( secs ) {
 		var s = parseInt( secs, 10 ) || 0;
-		deadline = s > 0 ? Date.now() + s * 1000 : 0;
+		deadline = s > 0 ? Date.now() + ( s * 1000 ) : 0;
 		stopTicker();
 		startTicker();
 		notify();
@@ -161,7 +170,7 @@
 		}
 		notify();
 	}
-	document.addEventListener( 'visibilitychange', function () {
+	document.addEventListener( 'visibilitychange', function() {
 		if ( ! document.hidden ) {
 			resync();
 		}
@@ -203,9 +212,9 @@
 			sprintf(
 				/* translators: %d: whole minutes remaining in the sudo session */
 				__( 'Reauthenticated — sudo active for about %d min.', 'wp-sudo' ),
-				mins
+				mins,
 			),
-			{ id: SNACKBAR_ID, type: 'snackbar', isDismissible: true }
+			{ id: SNACKBAR_ID, type: 'snackbar', isDismissible: true },
 		);
 	}
 
@@ -213,7 +222,7 @@
 	// Registered BEFORE the Part B feature-detect early-return so 6.4–6.5 (snackbar
 	// only) still re-seeds and confirms a grant. The modal dispatches this after a
 	// successful `authenticated` response; the two modules never import each other.
-	window.addEventListener( GRANT_EVENT, function ( e ) {
+	window.addEventListener( GRANT_EVENT, function( e ) {
 		var secs = ( e && e.detail && parseInt( e.detail.remaining, 10 ) ) || 0;
 		if ( secs > 0 ) {
 			seed( secs );
@@ -228,7 +237,7 @@
 	// Seed synchronously so Part B's first render is correct; defer the snackbar to
 	// domReady (notices UI mounted) and gate it announce-once so reloads stay quiet.
 	seed( cfg.remaining );
-	domReady( function () {
+	domReady( function() {
 		var secs = currentRemaining();
 		if ( secs > 0 && ! alreadyAnnounced() ) {
 			snackbar( secs );
@@ -346,10 +355,13 @@
 		var st = useState( currentRemaining() );
 		var secs = st[ 0 ];
 		var setSecs = st[ 1 ];
-		useEffect( function () {
-			return subscribe( function () {
+		useEffect( function() {
+			return subscribe( function() {
 				setSecs( currentRemaining() );
 			} );
+			// `setSecs` is the stable setter returned by useState; subscribing once
+			// is intentional and cleanup is returned above.
+			// eslint-disable-next-line react-hooks/exhaustive-deps
 		}, [] );
 
 		var active = secs > 0;
@@ -434,18 +446,18 @@
 				{ className: 'wp-sudo-indicator-panel', style: { padding: '16px' } },
 				active
 					? el(
-							'p',
-							null,
-							sprintf(
-								/* translators: %s: time remaining in M:SS format */
-								__( 'Sudo active — %s remaining.', 'wp-sudo' ),
-								formatMSS( secs )
-							)
-					  )
-					: el( 'p', null, __( 'No active sudo session.', 'wp-sudo' ) )
-			)
+						'p',
+						null,
+						sprintf(
+							/* translators: %s: time remaining in M:SS format */
+							__( 'Sudo active — %s remaining.', 'wp-sudo' ),
+							formatMSS( secs ),
+						),
+					)
+					: el( 'p', null, __( 'No active sudo session.', 'wp-sudo' ) ),
+			),
 		);
 	}
 
 	registerPlugin( 'wp-sudo-session-indicator', { render: IndicatorPanel } );
-} )( window.wp );
+}( window.wp ) );

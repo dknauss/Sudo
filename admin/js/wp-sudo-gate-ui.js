@@ -11,7 +11,7 @@
  *
  * @package WP_Sudo
  */
-( function () {
+( function() {
 	'use strict';
 
 	var config = window.wpSudoGateUi || {};
@@ -29,27 +29,27 @@
 	var selectorMap = {
 		'theme-install': [
 			'.theme-install',
-			'.update-now'
+			'.update-now',
 		].join( ', ' ),
 
-		'themes': [
+		themes: [
 			'.theme-actions .activate',
 			'.theme-actions .delete-theme',
 			'.button.update-now',
-			'.submitdelete.deletion'
+			'.submitdelete.deletion',
 		].join( ', ' ),
 
 		'plugin-install': [
 			'.install-now',
 			'.update-now',
-			'.activate-now'
+			'.activate-now',
 		].join( ', ' ),
 
-		'plugins': [
+		plugins: [
 			'.activate a',
 			'.deactivate a',
-			'.delete a'
-		].join( ', ' )
+			'.delete a',
+		].join( ', ' ),
 	};
 
 	var sel = selectorMap[ config.page ];
@@ -108,7 +108,7 @@
 
 	// Watch for dynamically added cards (theme search, infinite scroll).
 	if ( typeof MutationObserver !== 'undefined' ) {
-		var observer = new MutationObserver( function ( mutations ) {
+		var observer = new MutationObserver( function( mutations ) {
 			for ( var i = 0; i < mutations.length; i++ ) {
 				var added = mutations[ i ].addedNodes;
 				for ( var j = 0; j < added.length; j++ ) {
@@ -126,4 +126,4 @@
 	var style = document.createElement( 'style' );
 	style.textContent = '.wp-sudo-disabled{pointer-events:none;opacity:.5;cursor:default}';
 	document.head.appendChild( style );
-} )();
+}() );

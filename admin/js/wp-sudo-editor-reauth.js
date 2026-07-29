@@ -42,9 +42,10 @@
  *   consumed verbatim, never rebuilt in JS.
  * - The rule label is never echoed; the message stays generic.
  *
+ * @param {Object} wp WordPress browser API namespace.
  * @package WP_Sudo
  */
-( function ( wp ) {
+( function( wp ) {
 	'use strict';
 
 	if ( ! wp || ! wp.apiFetch || ! wp.data ) {
@@ -53,7 +54,7 @@
 
 	var cfg = window.wpSudoEditorReauth || null;
 
-	var __ = ( wp.i18n && wp.i18n.__ ) || function ( text ) {
+	var __ = ( wp.i18n && wp.i18n.__ ) || function( text ) {
 		return text;
 	};
 
@@ -139,7 +140,7 @@
 		if ( challengeUrl ) {
 			actions.push( {
 				label: __( 'Reauthenticate', 'wp-sudo' ),
-				onClick: function () {
+				onClick: function() {
 					window.open( challengeUrl, '_blank', 'noopener' );
 				},
 			} );
@@ -153,7 +154,7 @@
 				type: 'snackbar',
 				isDismissible: true,
 				actions: actions,
-			}
+			},
 		);
 	}
 
@@ -222,8 +223,8 @@
 			method: 'POST',
 			body: body,
 			credentials: 'same-origin',
-		} ).then( function ( r ) {
-			return r.text().then( function ( text ) {
+		} ).then( function( r ) {
+			return r.text().then( function( text ) {
 				var json;
 				try {
 					json = JSON.parse( text );
@@ -238,7 +239,7 @@
 				var msg = ( json && json.data && json.data.message ) || __( 'Authentication failed.', 'wp-sudo' );
 				return { ok: false, code: ( json && json.data && json.data.code ) || 'error', message: msg };
 			} );
-		}, function () {
+		}, function() {
 			return { ok: false, code: 'network', message: __( 'Network error. Please try again.', 'wp-sudo' ) };
 		} );
 	}
@@ -255,13 +256,17 @@
 		var body = new FormData();
 		body.append( 'action', cfg.refreshNonceAction );
 		return fetch( cfg.ajaxUrl, { method: 'POST', body: body, credentials: 'same-origin' } )
-			.then( function ( r ) { return r.json(); } )
-			.then( function ( json ) {
+			.then( function( r ) {
+				return r.json();
+			} )
+			.then( function( json ) {
 				if ( json && json.success && json.data && json.data.nonce ) {
 					cfg.nonce = json.data.nonce;
 				}
 				return cfg.nonce;
-			}, function () { return cfg.nonce; } );
+			}, function() {
+				return cfg.nonce;
+			} );
 	}
 
 	/**
@@ -282,8 +287,8 @@
 			method: 'POST',
 			body: body,
 			credentials: 'same-origin',
-		} ).then( function ( r ) {
-			return r.text().then( function ( text ) {
+		} ).then( function( r ) {
+			return r.text().then( function( text ) {
 				var json;
 				try {
 					json = JSON.parse( text );
@@ -295,7 +300,7 @@
 				}
 				return { ok: false, code: ( json && json.data && json.data.code ) || 'error', html: '' };
 			} );
-		}, function () {
+		}, function() {
 			return { ok: false, code: 'network', html: '' };
 		} );
 	}
@@ -356,7 +361,7 @@
 			return;
 		}
 		var subs = container.querySelectorAll(
-			'input[type="submit"], input[type="button"], input[type="reset"], button'
+			'input[type="submit"], input[type="button"], input[type="reset"], button',
 		);
 		for ( var i = 0; i < subs.length; i++ ) {
 			subs[ i ].setAttribute( 'type', 'button' );
@@ -376,7 +381,7 @@
 		body.append( 'action', cfg.twoFactorAction );
 		body.append( '_wpnonce', nonce );
 		// Session-only: no stash_key — the editor re-dispatches its own request.
-		Object.keys( fields ).forEach( function ( name ) {
+		Object.keys( fields ).forEach( function( name ) {
 			body.append( name, fields[ name ] );
 		} );
 
@@ -384,9 +389,9 @@
 			method: 'POST',
 			body: body,
 			credentials: 'same-origin',
-		} ).then( function ( r ) {
+		} ).then( function( r ) {
 			var status = r.status;
-			return r.text().then( function ( text ) {
+			return r.text().then( function( text ) {
 				var json;
 				try {
 					json = JSON.parse( text );
@@ -400,7 +405,7 @@
 				var msg = ( json && json.data && json.data.message ) || __( 'Authentication failed.', 'wp-sudo' );
 				return { ok: false, code: ( json && json.data && json.data.code ) || 'error', status: status, message: msg };
 			} );
-		}, function () {
+		}, function() {
 			return { ok: false, code: 'network', status: 0, message: __( 'Network error. Please try again.', 'wp-sudo' ) };
 		} );
 	}
@@ -412,7 +417,7 @@
 	 * in-place second-factor step that injects the server-rendered provider
 	 * partial and POSTs it back to the unchanged validator.
 	 *
-	 * @param {Object} props           Component props.
+	 * @param {Object}   props         Component props.
 	 * @param {Function} props.resolve Called with true (granted) / false (link-out/cancel).
 	 * @return {Object} React element.
 	 */
@@ -440,7 +445,7 @@
 		// (so a click/Enter can't navigate away and lose editor state) and focus the
 		// code field.
 		if ( element.useEffect ) {
-			element.useEffect( function () {
+			element.useEffect( function() {
 				if ( 'twofactor' !== phase ) {
 					return;
 				}
@@ -448,7 +453,7 @@
 				neutralizeSubmits( container );
 				if ( container ) {
 					var field = container.querySelector(
-						'input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"])'
+						'input:not([type="hidden"]):not([type="submit"]):not([type="button"]):not([type="reset"])',
 					);
 					if ( field && field.focus ) {
 						field.focus();
@@ -462,7 +467,7 @@
 		// challenge (WebAuthn/unknown/hook-only, a throttled email send, or an
 		// expired pending state).
 		function beginTwoFactor( nonce ) {
-			return fetchPartial( nonce ).then( function ( res ) {
+			return fetchPartial( nonce ).then( function( res ) {
 				if ( res.ok && 'partial' === res.code && res.html ) {
 					setPartialHtml( res.html );
 					setPhase( 'twofactor' );
@@ -482,8 +487,8 @@
 			}
 			setBusy( true );
 			setError( '' );
-			refreshNonce().then( function ( nonce ) {
-				return postPassword( password, nonce ).then( function ( res ) {
+			refreshNonce().then( function( nonce ) {
+				return postPassword( password, nonce ).then( function( res ) {
 					if ( res.ok && 'authenticated' === res.code ) {
 						dispatchGranted( res.remaining ); // #262 feed #2 (before resolve).
 						props.resolve( true );
@@ -498,7 +503,7 @@
 					setError( res.message );
 					return undefined;
 				} );
-			} ).catch( function () {
+			} ).catch( function() {
 				// Terminal safety net: a rejected transport or body-read (e.g. a
 				// failed r.text()) must never leave the modal stuck busy, because
 				// onRequestClose and Cancel are disabled while busy. Restore the
@@ -517,8 +522,8 @@
 			var fields = serializePartial( partialRef.current );
 			setBusy( true );
 			setError( '' );
-			refreshNonce().then( function ( nonce ) {
-				return postTwoFactor( fields, nonce ).then( function ( res ) {
+			refreshNonce().then( function( nonce ) {
+				return postTwoFactor( fields, nonce ).then( function( res ) {
 					if ( res.ok && 'authenticated' === res.code ) {
 						dispatchGranted( res.remaining ); // #262 feed #2 (before resolve).
 						props.resolve( true );
@@ -541,7 +546,7 @@
 					setBusy( false );
 					setError( res.message );
 				} );
-			} ).catch( function () {
+			} ).catch( function() {
 				setBusy( false );
 				setError( __( 'Unexpected error. Please try again.', 'wp-sudo' ) );
 			} );
@@ -553,8 +558,10 @@
 
 		var cancelButton = el(
 			components.Button,
-			{ variant: 'tertiary', disabled: busy, onClick: function () { props.resolve( false ); } },
-			__( 'Cancel', 'wp-sudo' )
+			{ variant: 'tertiary', disabled: busy, onClick: function() {
+				props.resolve( false );
+			} },
+			__( 'Cancel', 'wp-sudo' ),
 		);
 
 		var body;
@@ -568,18 +575,22 @@
 				el(
 					'p',
 					null,
-					__( 'Enter your two-factor authentication code to continue.', 'wp-sudo' )
+					__( 'Enter your two-factor authentication code to continue.', 'wp-sudo' ),
 				),
 				el( 'div', {
 					className: 'wp-sudo-reauth-modal__partial',
 					ref: partialRef,
-					onKeyDown: function ( e ) {
+					onKeyDown: function( e ) {
 						if ( e && 'Enter' === e.key ) {
 							e.preventDefault();
 							submitTwoFactor();
 						}
 					},
-					// eslint-disable-next-line react/no-danger
+					// The server allowlists the primary provider to the bundled OTP
+					// family, then runs the same trusted-plugin extension hook used on
+					// the full challenge page. Those provider-owned fields must remain
+					// verbatim for validation; arbitrary primary providers link out.
+					// eslint-disable-next-line no-restricted-syntax
 					dangerouslySetInnerHTML: { __html: partialHtml },
 				} ),
 				errorNotice,
@@ -589,10 +600,10 @@
 					el(
 						components.Button,
 						{ variant: 'primary', type: 'button', isBusy: busy, disabled: busy, onClick: submitTwoFactor },
-						__( 'Confirm', 'wp-sudo' )
+						__( 'Confirm', 'wp-sudo' ),
 					),
-					cancelButton
-				)
+					cancelButton,
+				),
 			);
 		} else {
 			body = el(
@@ -601,7 +612,7 @@
 				el(
 					'p',
 					null,
-					__( 'This action requires reauthentication. Enter your password to continue.', 'wp-sudo' )
+					__( 'This action requires reauthentication. Enter your password to continue.', 'wp-sudo' ),
 				),
 				el( components.TextControl, {
 					type: 'password',
@@ -609,7 +620,7 @@
 					value: password,
 					disabled: busy,
 					autoComplete: 'current-password',
-					onChange: function ( value ) {
+					onChange: function( value ) {
 						setPassword( value );
 					},
 				} ),
@@ -620,10 +631,10 @@
 					el(
 						components.Button,
 						{ variant: 'primary', type: 'submit', isBusy: busy, disabled: busy || ! password },
-						__( 'Confirm', 'wp-sudo' )
+						__( 'Confirm', 'wp-sudo' ),
 					),
-					cancelButton
-				)
+					cancelButton,
+				),
 			);
 		}
 
@@ -631,24 +642,24 @@
 			components.Modal,
 			{
 				title: __( 'Confirm your identity', 'wp-sudo' ),
-				onRequestClose: function () {
+				onRequestClose: function() {
 					if ( ! busy ) {
 						props.resolve( false );
 					}
 				},
 				className: 'wp-sudo-reauth-modal',
 			},
-			body
+			body,
 		);
 	}
 
 	/**
 	 * Open the grant modal once and resolve true (granted) / false (fallback).
 	 *
-	 * @return {Promise<boolean>}
+	 * @return {Promise<boolean>} Whether the modal granted a sudo session.
 	 */
 	function openModal() {
-		return new Promise( function ( resolve ) {
+		return new Promise( function( resolve ) {
 			var container = document.createElement( 'div' );
 			document.body.appendChild( container );
 			var root = element.createRoot ? element.createRoot( container ) : null;
@@ -692,11 +703,15 @@
 		var isOwner = ! pendingGrant;
 		if ( isOwner ) {
 			pendingGrant = openModal().then(
-				function ( granted ) { pendingGrant = null; return granted; },
-				function () { pendingGrant = null; return false; }
+				function( granted ) {
+					pendingGrant = null; return granted;
+				},
+				function() {
+					pendingGrant = null; return false;
+				},
 			);
 		}
-		return pendingGrant.then( function ( granted ) {
+		return pendingGrant.then( function( granted ) {
 			return { granted: granted, isOwner: isOwner };
 		} );
 	}
@@ -712,8 +727,8 @@
 	 * (2FA pending / cancelled). challengeUrl is the validated link-out target
 	 * (string) or null.
 	 *
-	 * @param {(string|null)} challengeUrl Link-out fallback URL, or null.
-	 * @param {(Object|undefined)} options apiFetch options to re-dispatch on grant.
+	 * @param {(string|null)}      challengeUrl Link-out fallback URL, or null.
+	 * @param {(Object|undefined)} options      apiFetch options to re-dispatch on grant.
 	 * @return {(Promise|undefined)} A re-dispatch promise when granted, else undefined.
 	 */
 	function handleSudoRequired( challengeUrl, options ) {
@@ -741,7 +756,7 @@
 			surface( challengeUrl );
 			return Promise.resolve( undefined );
 		}
-		return requestGrant().then( function ( result ) {
+		return requestGrant().then( function( result ) {
 			if ( result.granted ) {
 				if ( result.isOwner && options ) {
 					// Owner (the request that opened the modal = the user's
@@ -766,9 +781,9 @@
 		} );
 	}
 
-	wp.apiFetch.use( function ( options, next ) {
+	wp.apiFetch.use( function( options, next ) {
 		return next( options ).then(
-			function ( response ) {
+			function( response ) {
 				var result = batchChallenge( response );
 				if ( undefined === result ) {
 					return response;
@@ -783,7 +798,7 @@
 				surface( result );
 				return response;
 			},
-			function ( error ) {
+			function( error ) {
 				var result = sudoChallenge( error );
 				if ( undefined === result ) {
 					throw error;
@@ -791,13 +806,13 @@
 				// On a successful in-editor grant, resolve with the re-dispatched
 				// result so the original caller transparently succeeds. Otherwise
 				// preserve the original rejection so callers are not left hanging.
-				return handleSudoRequired( result, options ).then( function ( redispatched ) {
+				return handleSudoRequired( result, options ).then( function( redispatched ) {
 					if ( undefined !== redispatched ) {
 						return redispatched;
 					}
 					throw error;
 				} );
-			}
+			},
 		);
 	} );
-} )( window.wp );
+}( window.wp ) );

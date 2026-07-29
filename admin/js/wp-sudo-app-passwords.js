@@ -10,7 +10,7 @@
  * @since 2.3.0
  * @package WP_Sudo
  */
-( function () {
+( function() {
 	'use strict';
 
 	var config = window.wpSudoAppPasswords;
@@ -44,7 +44,7 @@
 		var options = config.options || {};
 		var currentPolicy = ( config.policies && config.policies[ uuid ] ) || '';
 
-		Object.keys( options ).forEach( function ( value ) {
+		Object.keys( options ).forEach( function( value ) {
 			var option = document.createElement( 'option' );
 			option.value = value;
 			option.textContent = options[ value ];
@@ -54,7 +54,7 @@
 			select.appendChild( option );
 		} );
 
-		select.addEventListener( 'change', function () {
+		select.addEventListener( 'change', function() {
 			savePolicy( uuid, select.value, select );
 		} );
 
@@ -83,10 +83,10 @@
 			credentials: 'same-origin',
 			body: data,
 		} )
-			.then( function ( response ) {
+			.then( function( response ) {
 				return response.json();
 			} )
-			.then( function ( result ) {
+			.then( function( result ) {
 				select.disabled = false;
 				if ( result.success ) {
 					// Update local cache.
@@ -100,7 +100,7 @@
 					}
 					// Brief visual confirmation.
 					select.style.outline = '2px solid #00a32a';
-					setTimeout( function () {
+					setTimeout( function() {
 						select.style.outline = '';
 					}, 1000 );
 					announce( config.i18n.policySaved );
@@ -109,23 +109,25 @@
 					var previous = ( config.policies && config.policies[ uuid ] ) || '';
 					select.value = previous;
 					select.style.outline = '2px solid #dba617';
-					setTimeout( function () {
+					setTimeout( function() {
 						select.style.outline = '';
 					}, 3000 );
+					// The policy control has no adjacent status container; retain the
+					// blocking prompt so a required reauthentication is not missed.
 					// eslint-disable-next-line no-alert
 					window.alert( result.data.message || config.i18n.sudoRequired );
 				} else {
 					select.style.outline = '2px solid #d63638';
-					setTimeout( function () {
+					setTimeout( function() {
 						select.style.outline = '';
 					}, 2000 );
 					announce( config.i18n.policyError );
 				}
 			} )
-			.catch( function () {
+			.catch( function() {
 				select.disabled = false;
 				select.style.outline = '2px solid #d63638';
-				setTimeout( function () {
+				setTimeout( function() {
 					select.style.outline = '';
 				}, 2000 );
 				announce( config.i18n.policyError );
@@ -167,16 +169,16 @@
 
 		// Process existing rows.
 		var rows = table.querySelectorAll( 'tbody tr' );
-		rows.forEach( function ( row ) {
+		rows.forEach( function( row ) {
 			augmentRow( row );
 		} );
 
 		// Watch for new rows (Application Passwords are rendered dynamically).
 		var tbody = table.querySelector( 'tbody' );
 		if ( tbody ) {
-			var observer = new MutationObserver( function ( mutations ) {
-				mutations.forEach( function ( mutation ) {
-					mutation.addedNodes.forEach( function ( node ) {
+			var observer = new MutationObserver( function( mutations ) {
+				mutations.forEach( function( mutation ) {
+					mutation.addedNodes.forEach( function( node ) {
 						if ( node.nodeType === 1 && node.tagName === 'TR' ) {
 							augmentRow( node );
 						}
@@ -240,4 +242,4 @@
 	} else {
 		init();
 	}
-} )();
+}() );

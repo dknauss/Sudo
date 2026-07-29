@@ -10,7 +10,7 @@
  *
  * @package WP_Sudo
  */
-( function () {
+( function() {
 	'use strict';
 
 	var config = window.wpSudoShortcut || {};
@@ -19,11 +19,11 @@
 		return;
 	}
 
-	document.addEventListener( 'keydown', function ( e ) {
+	document.addEventListener( 'keydown', function( e ) {
 		// Ctrl+Shift+S (Windows/Linux) or Cmd+Shift+S (Mac).
 		if ( e.shiftKey && ( e.ctrlKey || e.metaKey ) && e.key.toLowerCase() === 's' ) {
 			e.preventDefault();
 			window.location.href = config.challengeUrl;
 		}
 	} );
-} )();
+}() );
