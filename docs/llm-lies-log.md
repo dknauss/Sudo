@@ -2256,10 +2256,14 @@ C2. REDUNDANT MEMORY DUPLICATING CLAUDE.md
            `stash_allowlist()` whose list contains `pass1`, `pass2` and `pass1-text`.
            The surrounding prose already named it as the one builtin that can raise the
            flag, so the comment contradicted its own paragraph. The framing was also
-           inverted: `sanitize_params()` sets the flag only on encountering and dropping
-           a sensitive key, so EVERY raise has a credential present by construction —
-           which is why the flag was a poor selector, not a distinguishing property of
-           this rule.
+           inverted: `sanitize_params()` sets the flag on encountering and dropping a
+           key whose NAME matches `is_sensitive_key()` — it never inspects the value, so
+           an allowlisted `pass1` submitted empty raises it with no credential present.
+           Raising it is therefore a property of the rule's allowlist, not evidence
+           about the request, which is why it was a poor selector rather than a
+           distinguishing property of this rule. (Caught by Codex on the release PR:
+           the sentence written to correct an overreach was itself an overreach, in the
+           entry recording the overreach. Third layer of the same defect.)
    Source: includes/class-action-registry.php read directly, 2026-07-29; the reviewer
            independently enumerated the five rules matching profile.php/user-edit.php.
    Notes:  Introduced in the fix for a review finding about a DIFFERENT false claim in
