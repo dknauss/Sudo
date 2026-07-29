@@ -109,11 +109,12 @@ against WordPress core or any third-party plugin.
 
 ## Acknowledgements
 
-Sudo's core design owes a debt to three people:
+Sudo's core design owes a debt to four people:
 
 - **John Blackbourn**, for the action-gating concept — that consequential operations should require a fresh proof of intent, regardless of role. It is the single biggest conceptual contribution to the project.
 - **Tim Nash**, for the idea of locking down roles and permissions, which shaped Sudo's opt-in admin-escalation guard and its opt-in role/capability lockdown audit.
 - **Calvin Alkan** (Snicco / Fortress), for critical feedback on WP Sudo and for Fortress as inspiration — including the argument that a regular plugin cannot fully achieve this on its own (a motivation for proposing parts of it to WordPress core) and the "this is becoming a SIEM" critique that shaped Sudo's explicit not-a-SIEM boundary.
+- **Austin Ginder**, for AI advice and adversarial testing — helping make the machine a better collaborator, then turning it loose as a tireless skeptic until confident claims yielded to evidence.
 
 That third argument is the one this project ended up demonstrating. The finding
 above is its evidence, arrived at independently and the long way round.
