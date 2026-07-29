@@ -324,8 +324,12 @@ class Request_Stash {
 			}
 
 			// A critical-option field that only repeats the value already stored is not
-			// part of what this request changes. options-general.php posts every one of
-			// them on every save, so a Site Title change rendered
+			// part of what this request changes. options-general.php posts critical
+			// fields alongside ordinary ones — not all of them every time: the screen
+			// posts new_admin_email and never a field named admin_email
+			// (GB-ADMIN-EMAIL-FIELD), users_can_register is a checkbox absent when
+			// unchecked, siteurl/home are disabled under WP_SITEURL/WP_HOME, and
+			// multisite shows only new_admin_email. So a Site Title change rendered
 			// "Target: default_role: subscriber" — the confirmation asserting a change
 			// that was not happening (#431). Naming the wrong thing is worse than
 			// naming nothing: it teaches users that the Target line can be skimmed.
@@ -406,7 +410,8 @@ class Request_Stash {
 	 * KNOWN LIMITATION, deliberately not fixed here: this runs for EVERY matched rule,
 	 * not only options.critical, because capture_target() has no rule context. A custom
 	 * rule whose effect field happens to be named `home`, `siteurl` or another entry
-	 * below, submitting a value equal to that stored option, has that field suppressed
+	 * in `Action_Registry::CRITICAL_OPTION_SOURCES`, submitting a value equal to that
+	 * stored option, has that field suppressed
 	 * from the target. target_describes_payload() then reports the target as incomplete
 	 * via `target_complete` — which nothing currently reads.
 	 *
@@ -425,67 +430,26 @@ class Request_Stash {
 	 * @return bool
 	 */
 	private function target_value_echoes_stored_option( string $param, $raw, $other ): bool {
-		if ( ! isset( self::CRITICAL_OPTION_SOURCES[ $param ] ) ) {
-			return false;
-		}
-
-		$stored = get_option( self::CRITICAL_OPTION_SOURCES[ $param ] );
-
-		// get_option() returns false when the option is absent. That is not evidence
-		// the submitted value is unchanged, so treat it as a change and show it.
-		if ( false === $stored || ! is_scalar( $stored ) ) {
-			return false;
-		}
-
-		$stored = (string) $stored;
+		$seen = false;
 
 		foreach ( array( $raw, $other ) as $candidate ) {
 			if ( null === $candidate ) {
 				continue;
 			}
 
-			if ( ! is_scalar( $candidate ) ) {
-				return false;
-			}
-
-			// Compare the value the REQUEST carries, before display sanitization:
+			// Compares the value the REQUEST carries, before display sanitization:
 			// sanitize_text_field() can reduce a payload to something matching the
 			// stored value while the unsanitized value is what the request actually carries.
-			if ( (string) wp_unslash( (string) $candidate ) !== $stored ) {
+			if ( ! Action_Registry::value_echoes_stored_option( $param, $candidate ) ) {
 				return false;
 			}
+
+			$seen = true;
 		}
 
-		return true;
+		// Both sources absent says nothing about the stored value, so it is not an echo.
+		return $seen;
 	}
-
-	/**
-	 * Map each option-shaped target field to the option it is compared against.
-	 *
-	 * Deliberately NOT derived from `wp_sudo_critical_options`. Whether an option is
-	 * GATED and whether a displayed value is TRUE are different questions: a site that
-	 * narrows the filter to `new_admin_email` still posts unchanged `siteurl`, `home`,
-	 * `default_role` and `users_can_register` from the same form, and those keys stay
-	 * in TARGET_PARAMS. Deriving from the filtered list would leave them uncomparable
-	 * and name them as changes again — reinstating #431 on exactly the sites that
-	 * customised their protection set.
-	 *
-	 * The administration email address is the one field that is not self-titled: core
-	 * posts `new_admin_email` but prefills it with the current `admin_email` (see
-	 * GB-ADMIN-EMAIL-FIELD in docs/upstream-sources.md), so an untouched save submits
-	 * the stored address. Comparing it against the `new_admin_email` option — empty
-	 * unless a change is already pending — would report every save as a change.
-	 *
-	 * @var array<string, string>
-	 */
-	private const CRITICAL_OPTION_SOURCES = array(
-		'siteurl'            => 'siteurl',
-		'home'               => 'home',
-		'admin_email'        => 'admin_email',
-		'new_admin_email'    => 'admin_email',
-		'default_role'       => 'default_role',
-		'users_can_register' => 'users_can_register',
-	);
 
 	/**
 	 * Whether the captured target names every effect-bearing field in the payload.

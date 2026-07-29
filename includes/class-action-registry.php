@@ -538,10 +538,85 @@ class Action_Registry {
 					'actions'  => array( 'update' ),
 					'method'   => 'POST',
 					'callback' => function (): bool {
-						$critical = self::critical_option_names();
-						foreach ( $critical as $opt ) {
-							// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Nonce verified by WordPress before this callback runs.
-							if ( isset( $_POST[ $opt ] ) ) {
+						// Gate on a CHANGE, not on presence. options-general.php posts the
+						// critical fields alongside ordinary ones, so presence-matching
+						// challenged a site-title edit and then showed no Target line, because
+						// the target names only options that actually changed (#445, #431).
+						// Not literally every field every time: users_can_register is a
+						// checkbox and is absent when unchecked, siteurl/home are disabled
+						// when WP_SITEURL/WP_HOME are defined, and multisite shows only
+						// new_admin_email (GB-OPTIONS-GENERAL-MULTISITE).
+						//
+						// Fails toward challenging: an absent or non-scalar stored value, a
+						// non-scalar submission, and any option outside CRITICAL_OPTION_SOURCES
+						// all count as changed.
+						//
+						// On the interactive surface this matcher is the ONLY layer. Verified by
+						// enclosing symbol, not by grep: the pre_update_option_{$opt} guards for
+						// critical options live in Gate::register_function_hooks(), whose only
+						// callers are gate_cli(), gate_cron() and gate_xmlrpc().
+						// Gate::arm_effect_guards() — what register_interactive_backstop() actually
+						// arms — registers no option-level filter at all, exactly as its docblock
+						// says. So a browser admin POST has no effect-level backstop here, which is
+						// why every uncertainty above resolves toward challenging.
+						// An OMITTED critical field can still be a write. options.php
+						// initialises $value = null for every allowlisted option and calls
+						// update_option() regardless (GB-OPTIONS-NULL-WRITE), so a crafted POST
+						// can omit one while carrying another unchanged. Presence-matching
+						// gated that incidentally — any present sibling fired the rule — so
+						// change-detection would otherwise REGRESS it.
+						//
+						// default_role's omission is the only one that writes a LESS
+						// RESTRICTIVE value: sanitize_option() turns null into 'subscriber'
+						// when get_role( null ) is falsy (GB-DEFAULT-ROLE-NULL). siteurl/home fail the URL match and
+						// admin_email/new_admin_email fail is_email(), so all four set $error and
+						// are restored from the stored value — a no-op (GB-SANITIZE-OPTION-RESTORE). users_can_register DOES change state
+						// (absint( null ) = 0 flips 1 -> 0 on a site with registration on), but
+						// only toward OFF, and its absence is indistinguishable from the
+						// legitimate unchecked checkbox — gating on it would challenge every
+						// save on a site with registration off, reinstating #445.
+						//
+						// Scoped to a single-site General Settings save. default_role joins
+						// $allowed_options['general'] only inside options.php's ! is_multisite()
+						// block (GB-OPTIONS-GENERAL-MULTISITE), so on multisite the field is not
+						// on that screen and gating there would fire on every save.
+						//
+						// That scoping covers the General Settings SCREEN, not every route to
+						// the same write, and the difference is deliberate. options.php also
+						// serves the unregistered-settings page, where $options comes from a
+						// caller-supplied page_options list that never consults $allowed_options
+						// (GB-OPTIONS-PAGE-OPTIONS) — so option_page=options naming default_role
+						// while omitting the field reaches the same
+						// update_option( 'default_role', null ). That request carries no critical
+						// option name in $_POST at all, so presence-matching missed it too: it is
+						// a pre-existing gap rather than a regression this change introduces, and
+						// it is filed as #506 instead of widened into here.
+						//
+						// $option_page is derived exactly as core derives it, from $_REQUEST and
+						// through sanitize_text_field() (GB-OPTIONS-PAGE-REQUEST). Keying on
+						// $_POST instead would be bypassable two ways, both verified:
+						// option_page travels in the QUERY STRING (wp_magic_quotes() rebuilds
+						// $_REQUEST from $_GET + $_POST, GB-MAGIC-QUOTES-REQUEST), and
+						// sanitize_text_field() collapses whitespace and strips tags, so
+						// " general " and <b>general</b> are 'general' to core. Either would
+						// leave the omission hole open at zero cost to an attacker, since the
+						// nonce and session are unchanged.
+						// phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.NonceVerification.Recommended -- Compared to a literal to decide WHETHER to challenge; never stored, echoed or trusted. See the note above on nonce timing.
+						$option_page = ! empty( $_REQUEST['option_page'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['option_page'] ) ) : '';
+
+						// phpcs:ignore WordPress.Security.NonceVerification.Missing -- As above.
+						if ( 'general' === $option_page && ! is_multisite() && ! isset( $_POST['default_role'] ) ) {
+							return true;
+						}
+
+						foreach ( self::critical_option_names() as $opt ) {
+							// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Reads $_POST only to decide WHETHER to challenge; the value is never trusted or stored. The gate runs at admin_init priority 1, BEFORE options.php calls check_admin_referer(), so no nonce has been verified at this point.
+							if ( ! isset( $_POST[ $opt ] ) ) {
+								continue;
+							}
+
+							// phpcs:ignore WordPress.Security.NonceVerification.Missing,WordPress.Security.ValidatedSanitizedInput.InputNotSanitized -- Compared raw and unslashed inside the comparator; sanitizing first could reduce a differing payload to one matching the stored value.
+							if ( ! self::value_echoes_stored_option( $opt, $_POST[ $opt ] ) ) {
 								return true;
 							}
 						}
@@ -1327,5 +1402,106 @@ class Action_Registry {
 			}
 		}
 		return $keys;
+	}
+
+	/**
+	 * Map each critical option's REQUEST FIELD name to the option it is compared against.
+	 *
+	 * Almost always identity. The exception is the one that matters: the General
+	 * Settings screen's field is named `new_admin_email` but is PREFILLED with
+	 * `admin_email` (GB-ADMIN-EMAIL-FIELD), so an untouched save submits the address
+	 * already in force. Comparing it against the `new_admin_email` option — absent
+	 * unless a change is already pending — would report every save as a change and
+	 * reinstate #445. On multisite it is the only gated field on that screen, so the
+	 * mapping is the whole fix there. Core reasons the same way:
+	 * update_option_new_admin_email() short-circuits when the submitted value already
+	 * equals get_option( 'admin_email' ).
+	 *
+	 * Deliberately NOT derived from `wp_sudo_critical_options`. Whether an option is
+	 * GATED and which option a submitted field is compared against are different
+	 * questions; a site narrowing the filter must not change what a value means.
+	 * A field absent from this map has no known comparison source, so
+	 * value_echoes_stored_option() refuses to call it unchanged.
+	 *
+	 * @var array<string, string>
+	 */
+	public const CRITICAL_OPTION_SOURCES = array(
+		'siteurl'            => 'siteurl',
+		'home'               => 'home',
+		'admin_email'        => 'admin_email',
+		'new_admin_email'    => 'admin_email',
+		'default_role'       => 'default_role',
+		'users_can_register' => 'users_can_register',
+	);
+
+	/**
+	 * Whether a submitted value is DEFINITELY the value already stored.
+	 *
+	 * The single comparator for "did this actually change". Both callers depend on it
+	 * agreeing with itself: the options.critical gate decides whether to challenge,
+	 * and Request_Stash decides whether to show the field on the challenge page. Two
+	 * copies could disagree — a challenge would fire with a label and no Target line,
+	 * which is #445's own symptom in narrower form.
+	 *
+	 * Answers only in the safe direction. `false` means "not established as unchanged",
+	 * which covers a genuine change, an absent option row, a non-scalar on either side,
+	 * and any field with no entry in CRITICAL_OPTION_SOURCES.
+	 *
+	 * Comparison is strict on string casts, never `==`. On PHP 8.2+ both operands here
+	 * are strings, so the numeric-string coercion is what bites: `'1' == '01'`,
+	 * `'1e2' == '100'` and `'1' == ' 1'` are all true. `'0' == ''` is NOT — verified
+	 * false on both 7.4 and 8.x, so it is useless as a strictness witness, and an
+	 * earlier draft of this docblock claimed the opposite. (What PHP 8.0 changed
+	 * between two strings is TRAILING whitespace: `'1 ' == '1'` is false on 7.4 and
+	 * true on 8.x.) That class of reasoning does not survive a third party adding an
+	 * option through `wp_sudo_critical_options`.
+	 *
+	 * Not trimming leaves one narrow gap, ACCEPTED rather than closed. Core trims
+	 * before writing, so a STORED value carrying leading or trailing whitespace,
+	 * replayed verbatim, reads unchanged here while options.php writes the trimmed
+	 * form — and no interactive effect-level guard exists to catch it. Accepted
+	 * because the written value is sanitize_option( trim( $stored ) ), a
+	 * deterministic renormalisation of the value already in force: an attacker
+	 * cannot steer it, only trigger it. Trimming here instead would move the failure
+	 * to the unsafe side, since a padded SUBMISSION would then read as unchanged.
+	 *
+	 * `wp_unslash()` is load-bearing rather than cosmetic. $_POST is addslashed by
+	 * wp_magic_quotes(), and options.php writes the unslashed value — so comparing the
+	 * slashed form against a stored value containing a quote or backslash could read
+	 * as unchanged while core writes something different.
+	 *
+	 * Deliberately does not trim or normalise. Core trims on save, so a padded
+	 * submission core would collapse to the stored value reads here as changed: an
+	 * extra challenge, which is the safe direction. Replicating sanitize_option()
+	 * would put a drifting copy of core normalization in the plugin and move the
+	 * failure to the unsafe side, because a sanitize_option_{$option} filter can make
+	 * a value that "normalises to stored" write something else.
+	 *
+	 * Compares against get_option() on purpose: update_option() derives its own
+	 * $old_value the same way, so both read through the same pre_option_/option_
+	 * filter stack and cannot disagree. Do not "harden" this into a direct $wpdb read.
+	 *
+	 * @param string $param Request field name.
+	 * @param mixed  $value Submitted value, raw and still slashed.
+	 * @return bool True only when the value is established as unchanged.
+	 */
+	public static function value_echoes_stored_option( string $param, $value ): bool {
+		if ( ! isset( self::CRITICAL_OPTION_SOURCES[ $param ] ) ) {
+			return false;
+		}
+
+		$stored = get_option( self::CRITICAL_OPTION_SOURCES[ $param ] );
+
+		// get_option() returns false when the option is absent. That is absence, not
+		// evidence the submitted value is unchanged.
+		if ( false === $stored || ! is_scalar( $stored ) ) {
+			return false;
+		}
+
+		if ( ! is_scalar( $value ) ) {
+			return false;
+		}
+
+		return (string) wp_unslash( (string) $value ) === (string) $stored;
 	}
 }

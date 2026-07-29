@@ -173,60 +173,60 @@ msgstr ""
 msgid "Change critical site setting"
 msgstr ""
 
-#: includes/class-action-registry.php:599
+#: includes/class-action-registry.php:674
 msgid "Update connector credentials"
 msgstr ""
 
-#: includes/class-action-registry.php:616
-#: includes/class-action-registry.php:837
+#: includes/class-action-registry.php:691
+#: includes/class-action-registry.php:912
 #: includes/class-gate.php:876
 #: includes/class-gate.php:888
 msgid "Change Sudo settings"
 msgstr ""
 
-#: includes/class-action-registry.php:635
+#: includes/class-action-registry.php:710
 msgid "Change Sudo access controls"
 msgstr ""
 
-#: includes/class-action-registry.php:656
+#: includes/class-action-registry.php:731
 msgid "Update WordPress core"
 msgstr ""
 
-#: includes/class-action-registry.php:672
+#: includes/class-action-registry.php:747
 #: includes/class-gate.php:376
 #: includes/class-gate.php:901
 msgid "Export site data"
 msgstr ""
 
-#: includes/class-action-registry.php:710
+#: includes/class-action-registry.php:785
 msgid "Network enable theme"
 msgstr ""
 
-#: includes/class-action-registry.php:727
+#: includes/class-action-registry.php:802
 msgid "Network disable theme"
 msgstr ""
 
-#: includes/class-action-registry.php:744
+#: includes/class-action-registry.php:819
 msgid "Delete site"
 msgstr ""
 
-#: includes/class-action-registry.php:757
+#: includes/class-action-registry.php:832
 msgid "Deactivate site"
 msgstr ""
 
-#: includes/class-action-registry.php:770
+#: includes/class-action-registry.php:845
 msgid "Mark site as spam"
 msgstr ""
 
-#: includes/class-action-registry.php:783
+#: includes/class-action-registry.php:858
 msgid "Archive site"
 msgstr ""
 
-#: includes/class-action-registry.php:796
+#: includes/class-action-registry.php:871
 msgid "Grant or revoke super admin"
 msgstr ""
 
-#: includes/class-action-registry.php:816
+#: includes/class-action-registry.php:891
 msgid "Change network settings"
 msgstr ""
 

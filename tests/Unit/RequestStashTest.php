@@ -597,7 +597,8 @@ class RequestStashTest extends TestCase {
 	/**
 	 * #431: a settings save that changes nothing critical must not claim one did.
 	 *
-	 * options-general.php posts every critical option on every save, so capturing by
+	 * options-general.php posts critical fields alongside ordinary ones (not all of
+	 * them, and never a field named admin_email — GB-ADMIN-EMAIL-FIELD), so capturing by
 	 * presence rendered "Target: default_role: subscriber" when only the Site Title
 	 * changed — a confirmation asserting a change that was not happening.
 	 */
