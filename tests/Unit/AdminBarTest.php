@@ -28,6 +28,7 @@ class AdminBarTest extends TestCase {
 	protected function setUp(): void {
 		parent::setUp();
 		Functions\when( 'force_ssl_admin' )->justReturn( false );
+		Functions\when( 'get_current_screen' )->justReturn( null );
 		$this->admin_bar = new Admin_Bar();
 	}
 
@@ -352,6 +353,50 @@ class AdminBarTest extends TestCase {
 		Functions\when( 'wp_enqueue_style' )->justReturn( true );
 		Functions\when( 'wp_enqueue_script' )->justReturn( true );
 		Functions\when( 'wp_localize_script' )->justReturn( true );
+
+		$this->admin_bar->enqueue_assets();
+		$this->assertTrue( true );
+	}
+
+	public function test_enqueue_assets_disables_expiry_reload_in_block_editor(): void {
+		Functions\when( 'get_current_user_id' )->justReturn( 5 );
+
+		$future = time() + 300;
+		$token  = 'block-editor-token';
+
+		Functions\when( 'get_user_meta' )->alias( function ( $uid, $key, $single ) use ( $future, $token ) {
+			if ( Sudo_Session::META_KEY === $key ) {
+				return $future;
+			}
+			if ( Sudo_Session::PROOF_META_KEY === $key ) {
+				return $this->make_proof_map( (int) $uid, $token, $future );
+			}
+			return '';
+		} );
+		Functions\when( 'get_current_screen' )->justReturn(
+			new class() {
+				public function is_block_editor(): bool {
+					return true;
+				}
+			}
+		);
+
+		$_COOKIE[ Sudo_Session::TOKEN_COOKIE ] = $token;
+
+		Functions\expect( 'wp_enqueue_style' )->once();
+		Functions\expect( 'wp_enqueue_script' )->once();
+		Functions\expect( 'wp_localize_script' )
+			->once()
+			->with(
+				'wp-sudo-admin-bar',
+				'wpSudoAdminBar',
+				\Mockery::on(
+					static function ( array $config ): bool {
+						return is_int( $config['remaining'] ?? null )
+							&& 0 === ( $config['reload_on_expiry'] ?? null );
+					}
+				)
+			);
 
 		$this->admin_bar->enqueue_assets();
 		$this->assertTrue( true );

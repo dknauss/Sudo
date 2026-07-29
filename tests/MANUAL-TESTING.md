@@ -116,9 +116,13 @@ with at least one `api_key` connector configured (core ships Akismet, whose key 
 
 1. Set session duration to 1 minute in Settings > Sudo.
 2. Activate sudo.
-3. Wait for the timer to count down to zero.
-4. **Expected:** Timer disappears from admin bar. Page auto-reloads.
+3. On a classic admin screen, wait for the timer to count down to zero.
+4. **Expected:** The page auto-reloads and the timer node is absent.
    The next gated action triggers a challenge.
+5. Repeat from a block-editor screen with unsaved content.
+6. **Expected:** The timer node is withdrawn without navigating or
+   discarding the editor state. Complete an in-editor reauthentication.
+7. **Expected:** The timer node returns with the newly granted duration.
 
 ### 1.5 Rate Limiting (Non-Blocking)
 
@@ -833,10 +837,13 @@ curl -sk "YOUR_SITE_URL/wp-cron.php" -w "HTTP: %{http_code}, body: %{size_downlo
    - **Expected:** Timer turns red.
    - **Accessibility:** Milestone announcements at 1 minute, 30 seconds,
      and 10 seconds are read by screen readers.
-8. Let the session expire.
-9. **Expected:** Timer disappears, page auto-reloads.
-10. Click the deactivation link during an active session.
-11. **Expected:** Session ends, you stay on the current page (not
+8. Let the session expire on a classic admin screen.
+9. **Expected:** The page auto-reloads and the timer disappears.
+10. Let the session expire in the block editor.
+11. **Expected:** The timer disappears without navigation. An in-editor
+    reauthentication restores it with the new session duration.
+12. Click the deactivation link during an active session.
+13. **Expected:** Session ends, you stay on the current page (not
     redirected to the dashboard).
 
 ---

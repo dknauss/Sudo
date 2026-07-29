@@ -1,5 +1,5 @@
 /**
- * Admin bar timer tests — TIMR-01, TIMR-02, TIMR-03, TIMR-04
+ * Admin bar timer tests — TIMR-01, TIMR-02, TIMR-03, TIMR-04, TIMR-05
  *
  * Verify the admin bar countdown timer behaviour during an active sudo session.
  * Uses page.clock to control JavaScript time deterministically — no real waiting.
@@ -12,7 +12,7 @@
  *   - Label span:           #wp-admin-bar-wp-sudo-active .ab-label
  *   - Timer text format:    'Sudo: M:SS'  (e.g. 'Sudo: 14:59')
  *   - Expiring CSS class:   wp-sudo-expiring  (added to li when remaining <= 60)
- *   - Reload trigger:       window.location.reload() when remaining <= 0
+ *   - Classic-screen reload: window.location.reload() when remaining <= 0
  *
  * CRITICAL PITFALL (Pitfall 4 / TIMR-specific):
  *   page.clock.install() MUST be called BEFORE page.goto() and BEFORE
@@ -30,7 +30,8 @@
  *
  * PHP/JS clock separation (TIMR-04 specific):
  *   page.clock only affects browser-side JavaScript. PHP uses the real wall clock (time()).
- *   The JS countdown timer can reach zero and call window.location.reload() via fake clock,
+ *   On classic screens, the JS countdown timer can reach zero and call
+ *   window.location.reload() via fake clock,
  *   but the PHP session will still be active on the reloaded page unless we expire it
  *   server-side. TIMR-04 uses WP-CLI to clear the server-side proof record before
  *   ticking to zero, ensuring PHP also considers the session expired on reload.
@@ -287,5 +288,85 @@ test.describe( 'Admin bar timer', () => {
             page.locator( '#wp-admin-bar-wp-sudo-active' ),
             'Timer node must be absent after session-expiry reload'
         ).not.toBeVisible();
+    } );
+
+    /**
+     * TIMR-05: Block-editor expiry does not reload the page.
+     *
+     * The timer may still update a visible admin bar when fullscreen mode is off,
+     * while the editor indicator owns the in-editor state. Only the destructive
+     * expiry navigation is disabled; TIMR-04 preserves it on classic screens.
+     */
+    test( 'TIMR-05: block-editor timer disables expiry reload', async ( {
+        page,
+    } ) => {
+        await activateSudoSession( page );
+        await page.clock.install();
+        await page.goto( '/wp-admin/post-new.php' );
+        await page.waitForFunction(
+            () => !! ( window as any ).wp?.data?.select?.( 'core/editor' ),
+            undefined,
+            { timeout: 30_000 }
+        );
+
+        await expect(
+            page.locator( 'script[src*="/admin/js/wp-sudo-admin-bar.js"]' ),
+            'The timer remains available when the editor admin bar is visible'
+        ).toHaveCount( 1 );
+        await expect(
+            page.locator( 'script[src*="/admin/js/wp-sudo-session-indicator.js"]' ),
+            'The editor-specific session indicator must remain available'
+        ).toHaveCount( 1 );
+
+        await expect
+            .poll( () =>
+                page.evaluate(
+                    () =>
+                        Number(
+                            ( window as any ).wpSudoAdminBar?.reload_on_expiry
+                        )
+                )
+            )
+            .toBe( 0 );
+
+        let mainFrameNavigations = 0;
+        page.on( 'framenavigated', ( frame ) => {
+            if ( frame === page.mainFrame() ) {
+                mainFrameNavigations++;
+            }
+        } );
+
+        await page.clock.runFor( 910_000 );
+        await page.waitForTimeout( 500 );
+        expect(
+            mainFrameNavigations,
+            'Sudo expiry must not navigate away from editor work'
+        ).toBe( 0 );
+        await expect( page.locator( 'body' ) ).toHaveClass( /block-editor-page/ );
+
+        const timerNode = page.locator( '#wp-admin-bar-wp-sudo-active' );
+        await expect(
+            timerNode.locator( '.ab-item' ),
+            'An expired timer must not remain presented as an active session'
+        ).toHaveAttribute( 'hidden', '' );
+        await expect( timerNode.locator( '[role="status"]' ) ).toHaveText(
+            'Sudo session expired.'
+        );
+
+        await page.evaluate( () => {
+            window.dispatchEvent(
+                new CustomEvent( 'wp-sudo-session-granted', {
+                    detail: { remaining: 300 },
+                } )
+            );
+        } );
+
+        await expect(
+            timerNode.locator( '.ab-item' ),
+            'An in-editor grant must restore the persistent admin-bar status'
+        ).not.toHaveAttribute( 'hidden', '' );
+        await expect( timerNode.locator( '.ab-label' ) ).toHaveText(
+            /^Sudo: 4:5\d$/
+        );
     } );
 } );

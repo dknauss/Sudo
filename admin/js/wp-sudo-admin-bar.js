@@ -42,24 +42,49 @@
 
 	// Track which milestones have been announced.
 	var milestones = { 60: false, 30: false, 10: false, 0: false };
+	var intervalId = null;
 
-	var intervalId = setInterval( function() {
-		r--;
-		if ( r <= 0 ) {
-			clearInterval( intervalId );
-			l.textContent = 'Sudo: 0:00';
-			sr.textContent = 'Sudo session expired.';
-			window.location.reload();
-			return;
-		}
-
+	/**
+	 * Render the current remaining time.
+	 *
+	 * @return {void}
+	 */
+	function renderTime() {
 		var m = Math.floor( r / 60 );
 		var s = r % 60;
 		l.textContent = 'Sudo: ' + m + ':' + ( s < 10 ? '0' : '' ) + s;
 
 		if ( r <= 60 ) {
 			n.classList.add( 'wp-sudo-expiring' );
+		} else {
+			n.classList.remove( 'wp-sudo-expiring' );
 		}
+	}
+
+	/**
+	 * Advance the timer by one second.
+	 *
+	 * @return {void}
+	 */
+	function tick() {
+		r--;
+		if ( r <= 0 ) {
+			clearInterval( intervalId );
+			intervalId = null;
+			l.textContent = 'Sudo: 0:00';
+			sr.textContent = 'Sudo session expired.';
+			if ( 0 !== Number( config.reload_on_expiry ) ) {
+				window.location.reload();
+			} else {
+				if ( a ) {
+					a.hidden = true;
+				}
+				n.classList.remove( 'wp-sudo-active', 'wp-sudo-expiring' );
+			}
+			return;
+		}
+
+		renderTime();
 
 		// Announce at milestone intervals only.
 		if ( r === 60 && ! milestones[ 60 ] ) {
@@ -72,7 +97,41 @@
 			milestones[ 10 ] = true;
 			sr.textContent = 'Sudo session: 10 seconds remaining.';
 		}
-	}, 1000 );
+	}
+
+	/**
+	 * Start or restart the countdown.
+	 *
+	 * @return {void}
+	 */
+	function startTimer() {
+		if ( null !== intervalId ) {
+			clearInterval( intervalId );
+		}
+		intervalId = setInterval( tick, 1000 );
+	}
+
+	startTimer();
+
+	// The block editor can grant a new session without navigating. Keep the
+	// persistent admin-bar status synchronized with the editor indicator's
+	// established session event.
+	window.addEventListener( 'wp-sudo-session-granted', function( event ) {
+		var remaining = parseInt( event.detail && event.detail.remaining, 10 ) || 0;
+		if ( remaining <= 0 ) {
+			return;
+		}
+
+		r = remaining;
+		milestones = { 60: false, 30: false, 10: false, 0: false };
+		if ( a ) {
+			a.hidden = false;
+		}
+		n.classList.add( 'wp-sudo-active' );
+		sr.textContent = '';
+		renderTime();
+		startTimer();
+	} );
 
 	// Clean up interval on page unload to prevent bfcache issues.
 	window.addEventListener( 'pagehide', function() {

@@ -22,7 +22,7 @@ Each section uses `- [ ]` checkboxes so the document works as a runnable checkli
 - [ ] **Settings page:** MU-plugin install/uninstall shows spinner during AJAX, then updates the status text and displays a result message.
 - [ ] **Admin bar timer:** Countdown ticks every second with M:SS format so the user always knows the session state.
 - [ ] **Admin bar timer:** Node turns red (`wp-sudo-expiring` class) at 60 s remaining.
-- [ ] **Admin bar timer:** Page reloads automatically when the timer reaches 0, removing the countdown node.
+- [ ] **Admin bar timer:** At 0, classic admin screens reload and remove the countdown node; block-editor screens withdraw the node without navigation, then restore it after an in-editor grant.
 
 ### H2 -- Match Between System and the Real World
 
@@ -96,7 +96,7 @@ Each section uses `- [ ]` checkboxes so the document works as a runnable checkli
 - [ ] **Challenge page:** Non-JSON server responses log to the browser console and show "The server returned an unexpected response" with a console hint.
 - [ ] **Challenge page:** Network errors show "A network error occurred. Please try again."
 - [ ] **Settings page:** MU-plugin install/uninstall error messages specify the cause (e.g., "Check file permissions.").
-- [ ] **Admin bar timer:** On expiry, announces "Sudo session expired." and auto-reloads to reset state.
+- [ ] **Admin bar timer:** On expiry, announces "Sudo session expired." Classic screens reload to reset state; block-editor screens preserve work, withdraw the stale node, and restore it when an in-editor grant reports the new duration.
 
 ### H10 – Help and Documentation
 

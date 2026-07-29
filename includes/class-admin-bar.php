@@ -211,6 +211,9 @@ class Admin_Bar {
 			return;
 		}
 
+		$screen           = get_current_screen();
+		$reload_on_expiry = ! ( $screen && $screen->is_block_editor() );
+
 		$remaining = Sudo_Session::time_remaining( $user_id );
 
 		if ( $remaining <= 0 ) {
@@ -235,7 +238,10 @@ class Admin_Bar {
 		wp_localize_script(
 			'wp-sudo-admin-bar',
 			'wpSudoAdminBar',
-			array( 'remaining' => $remaining )
+			array(
+				'remaining'        => $remaining,
+				'reload_on_expiry' => $reload_on_expiry ? 1 : 0,
+			)
 		);
 	}
 }
