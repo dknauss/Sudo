@@ -10,9 +10,9 @@ handling before a tag.
 Run this checklist before release when the touched code could plausibly affect:
 
 - cookies or session persistence
-- redirect and replay behavior
+- redirect and post-challenge landing behavior
 - challenge rendering or browser-visible auth transitions
-- request stash/replay
+- request stash/landing behavior
 - bootstrap timing or alternate persistence behavior under SQLite
 
 ## Preconditions
@@ -58,10 +58,19 @@ npm run test:e2e
 
 4. Spot-check the highest-risk manual flows in the browser:
 
-- acquire a sudo session from the challenge page
-- replay a gated settings POST after auth
-- verify admin-bar deactivation clears the session visibly
-- verify a direct challenge URL with `return_url` lands back on the intended admin page
+- acquire a sudo session from the challenge page, then verify admin-bar
+  deactivation clears it visibly before continuing
+- with no active sudo session, submit a gated settings POST, pass the challenge,
+  and confirm the save is **not** applied. Expect to land on the **dashboard**, not
+  Settings: the intercepted URL is `options.php`, which
+  `Challenge::HANDLER_ENDPOINTS` treats as a handler
+  (`GB-OPTIONS-ALLSETTINGS`). Then navigate **explicitly** to Settings and
+  re-submit — browser Back returns to the challenge page, not the form
+- open a direct challenge URL carrying a `return_url` but no `stash_key`, complete
+  the challenge, and expect the **dashboard**. With no server-recorded stash there
+  is no originating-screen destination. `return_url` is **inert** since 4.9.0 (see
+  `docs/release-status.md`), so treat navigation to its supplied destination as a
+  regression rather than a pass
 
 5. Record the Studio stack details used for the release check:
 

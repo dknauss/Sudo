@@ -84,10 +84,19 @@ password reset to that address — a full takeover — without reauthenticating.
   not just numeric IDs).
 - ☐ **[REST]** Send a `POST` to `/wp/v2/users/<id>` with the **same** email the
   user already has → **expect it to pass** (no real change → no gate).
-- ☐ **Non-replayable stash:** after passing a challenge for a profile email
-  change, confirm the original save applied **once**; then attempt to re-submit
-  the captured request (browser back + re-POST, or replay the stash key) →
-  **expect it NOT to re-apply** (`stash_no_replay()`).
+- ☐ **Challenge applies nothing:** after passing a challenge for a profile email
+  change, confirm the change was **not** applied by the challenge itself (nothing
+  is replayed since 4.9.0); re-issue the save under the now-active sudo session
+  and confirm it applies **once**.
+- ☐ **Consumed stash key is dead:** while the newly activated sudo session remains
+  active, re-request the challenge URL with the same `stash_key` → **expect the
+  "Session already confirmed" resume page**, with no execution or recovery of the
+  consumed request. The active-session branch renders before the stash lookup.
+- ☐ **A user's own re-POST still works, and that is correct:** browser Back and
+  re-submit the form. The sudo session is still active, so `Gate::intercept()`
+  lets it through and WordPress processes it again. This is **not** a regression —
+  `stash_no_replay()` governs automatic replay of a server-held stash, not
+  duplicate requests the user makes deliberately.
 
 ## 2. REST `POST` to `/wp/v2/users` — password & role (#213)
 
