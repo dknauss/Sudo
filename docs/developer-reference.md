@@ -1138,7 +1138,7 @@ Two test environments are used deliberately — choose based on what you are tes
 
 **Unit tests** (`tests/Unit/`) use Brain\Monkey to mock all WordPress functions. Fast (~0.3s total). Run with `composer test:unit`. Use for: request matching logic, session state machine, policy enforcement, hook registration, settings sanitization.
 
-**Integration tests** (`tests/Integration/`) load real WordPress against a MySQL database via `WP_UnitTestCase`. Run with `composer test:integration` (requires one-time setup — see [CONTRIBUTING.md](../CONTRIBUTING.md)). Use for: full reauth flows, real bcrypt verification, transient TTL and cookie behavior, REST and AJAX gating, Two Factor interaction, multisite session isolation, upgrader migrations.
+**Integration tests** (`tests/Integration/`) load real WordPress against a MySQL database via `WP_UnitTestCase`. Run with `composer test:integration`; the environment requires MySQL and the WordPress test suite. Use for: full reauth flows, real bcrypt verification, transient TTL and cookie behavior, REST and AJAX gating, Two Factor interaction, multisite session isolation, upgrader migrations.
 
 When in doubt: if the test needs a real database, real crypto, or calls that cross class boundaries in production, write an integration test.
 
