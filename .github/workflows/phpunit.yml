@@ -312,6 +312,12 @@ jobs:
       - name: Install Composer dependencies
         run: composer install --no-interaction --prefer-dist
 
+      - name: Verify committed SBOM drift
+        run: composer verify:sbom
+
+      - name: Verify SBOM checker regression tests
+        run: composer test:sbom
+
       - name: Verify metrics file drift
         run: composer verify:metrics
 

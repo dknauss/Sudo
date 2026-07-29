@@ -46,9 +46,11 @@
         "test:poc": "phpunit -c poc/install-package-gate/phpunit.xml.dist",
         "test:integration": "bash bin/run-integration-tests.sh phpunit-integration.xml.dist",
         "test:coverage": "phpunit --configuration phpunit.xml.dist --coverage-clover coverage.xml --coverage-text",
+        "test:sbom": "bash tests/verify-sbom/run.sh",
         "test:sources": "bash tests/verify-sources/run.sh",
         "verify:metrics": "bash bin/verify-metrics.sh",
         "verify:i18n": "bash bin/verify-i18n.sh",
+        "verify:sbom": "bash bin/verify-sbom.sh",
         "verify:sources": "bash bin/verify-sources.sh",
         "i18n:make-pot": "bash bin/make-pot.sh",
         "analyse": [
