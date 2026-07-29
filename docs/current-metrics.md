@@ -9,8 +9,8 @@ Verification environment: local workspace, PHP 8.x
 
 | Metric | Value | Verification |
 |---|---:|---|
-| Unit tests | 1,301 tests | `composer test:unit` |
-| Unit assertions | 3,893 assertions | `composer test:unit` |
+| Unit tests | 1,307 tests | `composer test:unit` |
+| Unit assertions | 3,904 assertions | `composer test:unit` |
 | Integration tests in suite | 243 test methods | `rg -c "function test" tests/Integration/*.php | awk -F: '{sum+=$2} END{print sum}'` |
 | Unit test files | 38 | `ls tests/Unit/*.php | wc -l` |
 | Integration test files | 31 | `ls tests/Integration/*.php | wc -l` |
@@ -19,11 +19,11 @@ Verification environment: local workspace, PHP 8.x
 
 | Metric | Value | Verification |
 |---|---:|---|
-| Production PHP lines (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 21,463 | `find ./includes ./wp-sudo.php ./uninstall.php ./mu-plugin ./bridges -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
-| Tests PHP lines (`tests/`) | 45,558 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
-| Production + tests PHP lines | 67,021 | sum of the two rows above |
-| Test-to-production ratio | 2.12:1 | `45558 / 21463` |
-| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`, `.claude/`) | 69,296 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" ! -path "*/.claude/*" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Production PHP lines (`includes/`, `wp-sudo.php`, `uninstall.php`, `mu-plugin/`, `bridges/`) | 21,568 | `find ./includes ./wp-sudo.php ./uninstall.php ./mu-plugin ./bridges -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Tests PHP lines (`tests/`) | 45,758 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Production + tests PHP lines | 67,326 | sum of the two rows above |
+| Test-to-production ratio | 2.12:1 | `45758 / 21568` |
+| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`, `.claude/`) | 69,601 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" ! -path "*/.claude/*" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
 
 ## Footprint & Performance
 

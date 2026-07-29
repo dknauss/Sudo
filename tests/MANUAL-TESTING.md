@@ -325,10 +325,19 @@ form yourself — automatic replay was removed outright in 4.9.0 (#322).
 4. **Expected:** Redirected to the challenge page. Action label shows
    "Change password."
 5. Authenticate.
-6. **Expected:** Redirected back to the profile page with a warning that
-   password and secret fields were not replayed. Re-enter the new password
+6. **Expected:** Redirected back to the profile page with a warning that the
+   action was not carried out and nothing was changed. Re-enter the new password
    while the sudo session is active and click **Update Profile**.
-7. **Expected:** Profile is updated (password changed).
+
+   The notice must **not** say that "password and secret fields were not
+   replayed". `user.change_password` uses `stash_no_replay()`, so
+   `redacted_fields_omitted` is false and the redacted variant never fired here
+   even before #469 collapsed the two into one string. An earlier revision of
+   this step asserted the opposite and would have passed only by the tester
+   reading what they expected to see.
+7. **Expected:** Profile is updated (password changed). Nothing entered on the
+   first attempt was saved — confirm any other field you changed alongside the
+   password (display name, biography) also reverted.
 8. Verify: changing **only bio, email address, or display name** (with
    no password field filled in) does **not** trigger a challenge.
 
@@ -342,10 +351,20 @@ form yourself — automatic replay was removed outright in 4.9.0 (#322).
 4. **Expected:** Redirected to the challenge page. Action label shows
    "Change password."
 5. Authenticate.
-6. **Expected:** Redirected back to the edit-user page with a warning that
-   password and secret fields were not replayed. Re-enter the new password
-   while the sudo session is active and click **Update User**.
-7. **Expected:** User's password is updated.
+6. **Expected:** Redirected to the **dashboard** — not back to the edit-user
+   page — with a warning that the action was not carried out and nothing was
+   changed.
+
+   `user-edit.php` is in `Challenge::HANDLER_ENDPOINTS`, because on a bare GET it
+   dies rather than rendering the form (`GB-USER-EDIT-DIES` in
+   `docs/upstream-sources.md`): returning there would cost the user the
+   explanation as well as their input. So the
+   fail-closed landing is the neutral page. An earlier revision of this step
+   expected a return to the edit-user screen, which the endpoint list has
+   forbidden since #429.
+7. Navigate back to **Users > Edit** for that user, set the new password again
+   while the sudo session is active, and click **Update User**.
+8. **Expected:** User's password is updated.
 
 ---
 
@@ -1449,8 +1468,11 @@ curl -sk -u "YOUR_USERNAME:YOUR_APP_PASS" \
 4. **Expected:** Redirected to the challenge page. Action label shows
    "Change password."
 5. Authenticate.
-6. **Expected:** Password is changed. No challenge fires for a plain
-   profile update (bio, email) in the same session.
+6. **Expected:** The password is **not** changed by authenticating — nothing is
+   replayed (#322). You land with the refusal notice, set the password again in
+   the now-active session, and *that* attempt succeeds.
+7. **Expected:** No challenge fires for a plain profile update (bio, email) in
+   the same session.
 
 ### 17.3 Change Password Gated (REST API)
 

@@ -225,11 +225,28 @@ add_filter(
 				'post_mode'   => 'allowlist',
 				// Preserve the source-verified core profile fields used by
 				// user-edit.php/edit_user(). Nothing is replayed (#322), so this does
-				// not reconstruct the save. Its live effect is the notice: pass1,
-				// pass2 and pass1-text are in BOTH this allowlist and Request_Stash's
+				// not reconstruct the save.
+				//
+				// It has NO live effect on what the user sees. pass1, pass2 and
+				// pass1-text are in both this allowlist and Request_Stash's
 				// sensitive-key list, so build_stashed_post_params() drops them and
-				// sets redacted_fields_omitted — which selects the "re-enter the
-				// secret fields" landing notice instead of the generic one.
+				// sets redacted_fields_omitted — which used to select a "re-enter the
+				// secret fields" landing notice. Since #469 there is one notice on
+				// every path and that flag selects nothing; it survives on the response
+				// array only as an accurate report of what sanitize_params() did.
+				//
+				// The flag is a ONE-WAY signal, which is why wording keyed on it was
+				// wrong. sanitize_params() sets it only when it actually encounters and
+				// drops a sensitive key, so raised => a secret was present. The converse
+				// does not hold: stash_no_replay() rules discard the whole body without
+				// ever reaching sanitize_params(), so not-raised says nothing about
+				// whether a secret was there. Every builtin rule on these screens
+				// (user.promote_profile, user.change_password, user.change_email) takes
+				// that path, and network.super_admin carries no stash key at all — so on
+				// profile.php/user-edit.php this rule is the only one that can raise the
+				// flag. It is emphatically NOT the only rule anywhere that can:
+				// user.create is a builtin using stash_allowlist() with pass1/pass2/
+				// pass1-text in its list.
 				// Third-party profile fields are deliberately outside this verified
 				// bridge allowlist.
 				'post_fields' => array(

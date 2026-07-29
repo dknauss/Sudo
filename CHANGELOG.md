@@ -2,6 +2,65 @@
 
 ## Unreleased
 
+- **One honest post-reauthentication notice, replacing two that were both wrong
+  (#463, #469, #436 face 2).** The landing notice is the sentence most users see
+  after a gated action, and every clause of it was inaccurate in some path.
+
+  - It opened "Reauthentication complete." That is true only on the
+    `replay_stash()` path where a credential was verified.
+    `complete_active_session_request()` and `render_resume_page()` reach the same
+    notice with `$credential_verified` false — the user already held a session and
+    presented nothing on that request. False on two paths of three.
+  - It told the user to "review the form and submit it again". Since 4.9.0 every
+    stash takes the refusal path, so the most common arrival is a link-driven GET
+    — plugin or theme activation — which never had a form (#463).
+  - The "secrets" variant said "password and secret fields were not replayed",
+    which implies the other fields **were**. Nothing is replayed. A user who
+    submitted a profile form could reasonably conclude their email and display
+    name had been saved. They had not (#469).
+
+  The redacted/blocked distinction is also **unsound as a description of
+  secrets**, which is why the two notices collapse into one rather than both being
+  reworded. `redacted_fields_omitted` is set only inside
+  `Request_Stash::sanitize_params()`, which `build_stashed_post_params()` returns
+  before whenever `post_mode` is `none` — so it requires a rule using
+  `stash_allowlist()` whose own allowlisted field names hit
+  `sensitive_field_keys()`. Among builtin rules exactly one qualifies:
+  `user.create`. The three rules whose whole *purpose* is changing a credential —
+  `user.change_password`, `user.change_email`, `user.promote_profile` — use
+  `stash_no_replay()`, which discards the body without ever reaching
+  `sanitize_params()`, so they got the *other* notice. The POST that definitely
+  carried a password produced the message that did not mention passwords.
+
+  The flag is a **one-way signal**: raised means a secret was present and dropped;
+  not-raised means nothing at all. That is what made it useless as the selector for
+  wording about secrets, and why the two notices collapse rather than both being
+  reworded.
+
+  `Challenge::REDACTED_REPLAY_QUERY_ARG` is **kept and documented inert** per
+  `VERSIONING.md`'s security-forced-inertness clause: it is public API, and a URL
+  already in flight when a site upgrades must still explain itself. It is no longer
+  emitted; arriving with it renders the same single string, and a URL carrying both
+  args renders one notice rather than two.
+
+  The notice now also carries `role="alert"`, matching the in-page challenge
+  notices — without it a screen-reader user got no announcement that the action
+  they just took had been discarded, which is the entire content of the message.
+
+  **Zero tests asserted either notice body before this change** — only the query
+  arg in the redirect URL — which is why three separate defects survived review.
+  Six now assert the text directly. `tests/MANUAL-TESTING.md` §2.15, §2.16 and
+  §17.2 encoded the same false model (expecting the redacted notice after a
+  `user.change_password`, which never fired; expecting a return to
+  `user-edit.php`, which `HANDLER_ENDPOINTS` has forbidden since #429; and
+  expecting the password to change on authentication, which no longer happens) and
+  are corrected.
+
+  This **partially addresses** #436. Faces 1 (preserving typed input), 3 (naming
+  every matched rule) and 4 (gating before the form) are separate work with their
+  own reviews — face 3 changes `Gate::match_request()`'s first-match-wins
+  semantics, which is a security property, not a display detail.
+
 - **`wp_sudo_require()` now reports its inert `return_url` argument (#461).**
   The argument has had no effect since 4.9.0 because automatically navigating
   to a caller-supplied destination after reauthentication would run under the
