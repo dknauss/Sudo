@@ -17,7 +17,7 @@ Each section uses `- [ ]` checkboxes so the document works as a runnable checkli
 - [ ] **Challenge page:** Loading spinner and "Authenticating…" screen-reader text appear immediately on form submission and disappear when the server responds.
 - [ ] **Challenge page:** Lockout countdown updates visually every second and displays the remaining time prominently in the error notice.
 - [ ] **Challenge page:** 2FA timer shows remaining seconds for the authentication window and turns into a warning state at 60 s.
-- [ ] **Challenge page:** the "Returning you to your page…" overlay and its `wp.a11y.speak()` announcement appear between authentication success and the redirect. Nothing is replayed (#322), so a "replaying" announcement would be wrong — screen-reader users are the one cohort who cannot see the notice on the next page.
+- [ ] **Challenge page (stashed challenge):** the "Returning you to your page…" overlay and its `wp.a11y.speak()` announcement appear between authentication success and the redirect. Session-only challenges redirect directly to the neutral destination without this intermediate announcement. Nothing is replayed (#322), so a "replaying" announcement would be wrong — screen-reader users are the one cohort who cannot see the notice on the next page.
 - [ ] **Settings page:** "Settings saved." success notice appears after saving (single-site via `options.php`, multisite via `edit.php` redirect with `?updated=true`).
 - [ ] **Settings page:** MU-plugin install/uninstall shows spinner during AJAX, then updates the status text and displays a result message.
 - [ ] **Admin bar timer:** Countdown ticks every second with M:SS format so the user always knows the session state.
@@ -35,7 +35,8 @@ Each section uses `- [ ]` checkboxes so the document works as a runnable checkli
 
 ### H3 — User Control and Freedom
 
-- [ ] **Challenge page:** Cancel button returns to the originating page (validates `return_url` parameter, falls back to Dashboard).
+- [ ] **Challenge page:** Cancel returns to the server-chosen neutral destination;
+  requester-supplied `return_url` is inert.
 - [ ] **Challenge page:** Escape key announces "Leaving challenge page." and navigates to the cancel URL after a 600 ms delay for screen reader announcement.
 - [ ] **Challenge page:** "Start over" button appears when the 2FA authentication window expires, allowing the user to reload and restart the flow.
 - [ ] **Challenge page:** Password field clears after a failed attempt so the user can retype without manually selecting all.
@@ -117,7 +118,9 @@ Each section uses `- [ ]` checkboxes so the document works as a runnable checkli
 - [ ] Enter the correct password and submit. If 2FA is configured, complete the second step.
 - [ ] Verify the "Returning you to your page…" overlay appears, and that the action is **not** re-applied — you are returned to the form to submit it again.
 - [ ] Verify the browser lands back on the Plugins page with the plugin **still inactive**, and a WP Sudo notice explaining that the action was not carried out. Activate it again — now covered by the sudo session — and confirm it succeeds without a second challenge.
-- [ ] Verify the stash transient is consumed (a second attempt to load the same `stash_key` produces an "Invalid or expired challenge" error).
+- [ ] Verify the stash transient is consumed. While the newly activated sudo session
+  remains active, loading the same `stash_key` shows the "Session already confirmed"
+  resume page rather than executing or recovering the consumed request.
 
 ### 2b. AJAX request (plugin activate from plugin-install.php)
 
@@ -132,14 +135,16 @@ Each section uses `- [ ]` checkboxes so the document works as a runnable checkli
 - [ ] Trigger a REST API request that is gated (e.g., a Gutenberg editor action that uses cookie authentication).
 - [ ] Verify the REST response returns an appropriate error (the gate blocks the REST request without a sudo session).
 - [ ] Press Cmd/Ctrl+Shift+S to open the challenge page in session-only mode.
-- [ ] Complete the challenge. Verify the redirect returns to the originating admin page.
+- [ ] Complete the challenge. Verify the session-only flow redirects to the
+  server-chosen neutral destination.
 - [ ] Retry the REST request. Verify it succeeds now that a sudo session is active.
 
 ### 2d. Cancel button
 
 - [ ] From the Plugins page, trigger a gated action to land on the challenge page.
 - [ ] Click the "Cancel" button.
-- [ ] Verify the browser returns to the Plugins page (the `return_url` parameter determines this).
+- [ ] Verify the browser returns to the server-chosen neutral destination; a
+  supplied `return_url` must not determine it.
 - [ ] Verify no sudo session was activated and no action was performed.
 
 ### 2e. Escape key
@@ -155,7 +160,9 @@ Each section uses `- [ ]` checkboxes so the document works as a runnable checkli
 - [ ] From any admin page (no gated action pending), press Cmd/Ctrl+Shift+S.
 - [ ] Verify the challenge page loads in session-only mode (no `stash_key` parameter; action label reads "Activate sudo session").
 - [ ] Enter the correct password (and 2FA if applicable).
-- [ ] Verify the page redirects back to the `return_url` (the page where the shortcut was pressed) or the Dashboard.
+- [ ] Verify the page redirects to the server-chosen neutral destination;
+  session-only authentication does not preserve the page where the shortcut was
+  pressed.
 - [ ] Verify the admin bar timer is now visible and counting down.
 - [ ] Trigger a gated action. Verify it proceeds without a second challenge (the session is already active).
 
@@ -243,7 +250,9 @@ These are quick checks beyond a full WCAG audit. For the resolved accessibility 
 - [ ] Submit the correct password when 2FA is configured. Verify "Password verified. Two-factor authentication required." is announced via `wp.a11y.speak()`.
 - [ ] On the 2FA step, verify focus moves to the first 2FA input field.
 - [ ] Submit an invalid 2FA code. Verify the 2FA error notice (`role="alert"`) is announced.
-- [ ] Submit a valid 2FA code. Verify "Returning you to your page…" is announced before the redirect.
+- [ ] On a stashed challenge, submit a valid 2FA code and verify "Returning you
+  to your page…" is announced before the redirect. In session-only mode, verify
+  the browser redirects directly without that intermediate announcement.
 - [ ] During lockout, verify announcements occur at 30-second intervals and at 10 seconds remaining, not every second.
 - [ ] When the lockout expires, verify "Lockout expired. You may try again." is announced and focus moves to the password input.
 - [ ] Press Escape. Verify "Leaving challenge page." is announced before navigation.

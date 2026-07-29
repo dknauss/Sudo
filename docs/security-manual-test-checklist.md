@@ -88,9 +88,10 @@ password reset to that address — a full takeover — without reauthenticating.
   change, confirm the change was **not** applied by the challenge itself (nothing
   is replayed since 4.9.0); re-issue the save under the now-active sudo session
   and confirm it applies **once**.
-- ☐ **Consumed stash key is dead:** re-request the challenge URL with the same
-  `stash_key` → **expect "Invalid or expired challenge"**; the stash is consumed
-  before the response is sent.
+- ☐ **Consumed stash key is dead:** while the newly activated sudo session remains
+  active, re-request the challenge URL with the same `stash_key` → **expect the
+  "Session already confirmed" resume page**, with no execution or recovery of the
+  consumed request. The active-session branch renders before the stash lookup.
 - ☐ **A user's own re-POST still works, and that is correct:** browser Back and
   re-submit the form. The sudo session is still active, so `Gate::intercept()`
   lets it through and WordPress processes it again. This is **not** a regression —
