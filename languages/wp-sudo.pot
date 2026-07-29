@@ -1217,8 +1217,8 @@ msgid "The server returned an unexpected response. Check the browser console for
 msgstr ""
 
 #: includes/class-challenge.php:394
-#: admin/js/wp-sudo-editor-reauth.js:238
-#: admin/js/wp-sudo-editor-reauth.js:400
+#: admin/js/wp-sudo-editor-reauth.js:239
+#: admin/js/wp-sudo-editor-reauth.js:405
 msgid "Authentication failed."
 msgstr ""
 
@@ -1329,7 +1329,7 @@ msgid "Please wait %d seconds before trying again."
 msgstr ""
 
 #: includes/class-challenge.php:531
-#: admin/js/wp-sudo-editor-reauth.js:608
+#: admin/js/wp-sudo-editor-reauth.js:619
 msgid "Password"
 msgstr ""
 
@@ -1341,7 +1341,7 @@ msgstr ""
 #: includes/class-challenge.php:541
 #: includes/class-challenge.php:570
 #: includes/class-challenge.php:1144
-#: admin/js/wp-sudo-editor-reauth.js:557
+#: admin/js/wp-sudo-editor-reauth.js:564
 msgid "Cancel"
 msgstr ""
 
@@ -1765,7 +1765,7 @@ msgstr ""
 
 #: includes/class-gate.php:2884
 #: includes/class-gate.php:2944
-#: admin/js/wp-sudo-editor-reauth.js:633
+#: admin/js/wp-sudo-editor-reauth.js:644
 msgid "Confirm your identity"
 msgstr ""
 
@@ -1954,70 +1954,70 @@ msgstr ""
 msgid "Remove WP_SUDO_RECOVERY_MODE from wp-config.php as soon as normal access is restored — leaving it enabled weakens the governance model."
 msgstr ""
 
-#: admin/js/wp-sudo-editor-reauth.js:141
+#: admin/js/wp-sudo-editor-reauth.js:142
 msgid "Reauthenticate"
 msgstr ""
 
-#: admin/js/wp-sudo-editor-reauth.js:150
+#: admin/js/wp-sudo-editor-reauth.js:151
 msgid "This action requires reauthentication."
 msgstr ""
 
-#: admin/js/wp-sudo-editor-reauth.js:231
-#: admin/js/wp-sudo-editor-reauth.js:394
+#: admin/js/wp-sudo-editor-reauth.js:232
+#: admin/js/wp-sudo-editor-reauth.js:399
 msgid "Unexpected server response."
 msgstr ""
 
-#: admin/js/wp-sudo-editor-reauth.js:242
-#: admin/js/wp-sudo-editor-reauth.js:404
+#: admin/js/wp-sudo-editor-reauth.js:243
+#: admin/js/wp-sudo-editor-reauth.js:409
 msgid "Network error. Please try again."
 msgstr ""
 
-#: admin/js/wp-sudo-editor-reauth.js:507
-#: admin/js/wp-sudo-editor-reauth.js:546
+#: admin/js/wp-sudo-editor-reauth.js:512
+#: admin/js/wp-sudo-editor-reauth.js:551
 msgid "Unexpected error. Please try again."
 msgstr ""
 
-#: admin/js/wp-sudo-editor-reauth.js:532
+#: admin/js/wp-sudo-editor-reauth.js:537
 msgid "A new code was sent to your email."
 msgstr ""
 
-#: admin/js/wp-sudo-editor-reauth.js:571
+#: admin/js/wp-sudo-editor-reauth.js:578
 msgid "Enter your two-factor authentication code to continue."
 msgstr ""
 
-#: admin/js/wp-sudo-editor-reauth.js:592
-#: admin/js/wp-sudo-editor-reauth.js:623
+#: admin/js/wp-sudo-editor-reauth.js:603
+#: admin/js/wp-sudo-editor-reauth.js:634
 msgid "Confirm"
 msgstr ""
 
-#: admin/js/wp-sudo-editor-reauth.js:604
+#: admin/js/wp-sudo-editor-reauth.js:615
 msgid "This action requires reauthentication. Enter your password to continue."
 msgstr ""
 
 #. translators: %d: whole minutes remaining in the sudo session
-#: admin/js/wp-sudo-session-indicator.js:205
+#: admin/js/wp-sudo-session-indicator.js:214
 #, js-format
 msgid "Reauthenticated — sudo active for about %d min."
 msgstr ""
 
-#: admin/js/wp-sudo-session-indicator.js:373
+#: admin/js/wp-sudo-session-indicator.js:385
 msgid "Sudo · expiring"
 msgstr ""
 
-#: admin/js/wp-sudo-session-indicator.js:375
+#: admin/js/wp-sudo-session-indicator.js:387
 msgid "Sudo · active"
 msgstr ""
 
-#: admin/js/wp-sudo-session-indicator.js:377
+#: admin/js/wp-sudo-session-indicator.js:389
 msgid "Sudo · inactive"
 msgstr ""
 
 #. translators: %s: time remaining in M:SS format
-#: admin/js/wp-sudo-session-indicator.js:441
+#: admin/js/wp-sudo-session-indicator.js:453
 #, js-format
 msgid "Sudo active — %s remaining."
 msgstr ""
 
-#: admin/js/wp-sudo-session-indicator.js:445
+#: admin/js/wp-sudo-session-indicator.js:457
 msgid "No active sudo session."
 msgstr ""

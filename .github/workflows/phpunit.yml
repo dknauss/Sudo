@@ -356,6 +356,27 @@ jobs:
       - name: Run PHPStan
         run: composer analyse:phpstan
 
+  javascript-lint:
+    name: "JavaScript lint"
+    needs: changes
+    if: ${{ needs.changes.outputs.code == 'true' }}
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: '.nvmrc'
+          cache: 'npm'
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint:js
+
   # Required status check. Always runs (even when the heavy jobs are skipped) so
   # the "PHPUnit" context is always reported. Passes when the heavy jobs
   # succeeded, or when they were skipped because the PR was documentation-only;
@@ -363,7 +384,7 @@ jobs:
   phpunit-summary:
     name: "PHPUnit"
     runs-on: ubuntu-24.04
-    needs: [changes, unit-tests, unit-tests-coverage, integration-tests, code-quality]
+    needs: [changes, unit-tests, unit-tests-coverage, integration-tests, code-quality, javascript-lint]
     if: ${{ always() }}
     steps:
       - name: Enforce successful PHPUnit workflow jobs
@@ -380,7 +401,8 @@ jobs:
             "${{ needs.unit-tests.result }}" \
             "${{ needs.unit-tests-coverage.result }}" \
             "${{ needs.integration-tests.result }}" \
-            "${{ needs.code-quality.result }}"; do
+            "${{ needs.code-quality.result }}" \
+            "${{ needs.javascript-lint.result }}"; do
             if [ "$result" != "success" ]; then
               echo "PHPUnit workflow dependency did not succeed: $result"
               exit 1
@@ -391,7 +413,7 @@ jobs:
   notify-on-failure:
     name: "Notify on failure"
     runs-on: ubuntu-24.04
-    needs: [unit-tests, unit-tests-coverage, integration-tests, code-quality]
+    needs: [unit-tests, unit-tests-coverage, integration-tests, code-quality, javascript-lint]
     if: failure() && github.event_name == 'schedule'
     permissions:
       issues: write

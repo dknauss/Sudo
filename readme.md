@@ -268,6 +268,7 @@ composer install
 composer test:unit
 composer lint
 composer analyse
+npm run lint:js
 ```
 
 For full setup, integration tests, E2E workflows, and contributor expectations, see [CONTRIBUTING.md](CONTRIBUTING.md).

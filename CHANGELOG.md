@@ -48,6 +48,21 @@
   *replayed* migration after the version stamp is lost. Nothing asserted this
   before: the existing test checked only that the activating admin received the
   capabilities, which was true either way.
+- **JavaScript linting is now enforced locally and in CI (#482).** The eight
+  build-free scripts under `admin/js/` now run through ESLint with
+  `@wordpress/eslint-plugin`; the required PHPUnit workflow includes a dedicated
+  Node job, and `npm run lint:js` is part of the contributor checks. The initial
+  backlog was fixed rather than hidden behind a blanket ignore. Existing
+  `no-console` and `no-alert` exceptions now state why the fallback is retained.
+  The in-editor 2FA modal's old `react/no-danger` pragma was itself ineffective:
+  that rule does not inspect a `dangerouslySetInnerHTML` property passed through
+  `createElement()`. A targeted AST restriction now catches that exact form, with
+  one audited exception: the server admits only bundled OTP-family primary
+  providers, runs the same trusted-plugin field hook as the full challenge page,
+  and must preserve provider-owned field markup verbatim for provider validation;
+  other primary providers link out. A React effect exception likewise records why
+  the stable `useState` setter is intentionally omitted from the subscribe-once
+  dependency list. Warnings and unused disable directives fail the lint command.
 
 ## 4.9.2 - 2026-07-29
 

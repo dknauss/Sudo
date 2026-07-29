@@ -394,6 +394,7 @@ composer analyse:psalm    # Psalm + WordPress plugin/stubs
 composer analyse          # Runs both
 composer lint      # PHPCS (WordPress-Extra + WordPress-Docs + VIP rulesets)
 composer lint:fix  # Auto-fix PHPCS violations
+npm run lint:js    # ESLint (@wordpress/eslint-plugin) for admin/js/
 ```
 
 ### Metrics refresh (when counts change)
@@ -446,7 +447,7 @@ Do not optimize for a single global coverage percentage. WP Sudo is a security p
 - **Bridge files:** target `100%` unit coverage for first-party integration bridges. These adapters are thin and should be fully covered directly.
 - **Lifecycle code:** target `100%` integration coverage for activation, deactivation, uninstall, and upgrade routines.
 
-Static analysis is part of the assurance target, not optional polish. `composer analyse:phpstan`, `composer analyse:psalm`, `composer lint`, and the required GitHub workflows should remain green at all times.
+Static analysis is part of the assurance target, not optional polish. `composer analyse:phpstan`, `composer analyse:psalm`, `composer lint`, `npm run lint:js`, and the required GitHub workflows should remain green at all times.
 
 ## Current Coverage Snapshot
 
