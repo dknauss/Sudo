@@ -197,4 +197,4 @@ is harder with 1Password plus Two Factor:
 
 - Research todo: password-manager 2FA interaction item under `.planning/todos/pending/`
 - Two Factor rendering surfaces: `docs/two-factor-integration.md`
-- Modal risk-item: `gutenberg-editor-reauth-phase2-plan.md` (Task 3 autofill verification)
+- Tracking: GitHub issue #253
