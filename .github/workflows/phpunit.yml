@@ -315,6 +315,9 @@ jobs:
       - name: Verify metrics file drift
         run: composer verify:metrics
 
+      - name: Verify metrics-checker regression tests
+        run: composer test:metrics
+
       # Regression tests for bin/verify-sources.sh. Offline by design (a fake curl on
       # PATH, driven by per-case fixtures), so they exercise the checker's parsing,
       # HTTP-status classification, offline behavior, and repo-wide scans on every

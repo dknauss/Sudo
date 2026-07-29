@@ -23,7 +23,7 @@ Verification environment: local workspace, PHP 8.x
 | Tests PHP lines (`tests/`) | 45,863 | `find ./tests -type f -name "*.php" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
 | Production + tests PHP lines | 67,444 | sum of the two rows above |
 | Test-to-production ratio | 2.13:1 | `45863 / 21581` |
-| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `.tmp/`, `.git/`, `.claude/`) | 69,719 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/.tmp/*" ! -path "*/.git/*" ! -path "*/.claude/*" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
+| Total repo PHP lines (excluding `vendor/`, `vendor_test/`, `node_modules/`, `.tmp/`, `.git/`, `.claude/`) | 69,719 | `find . -type f -name "*.php" ! -path "*/vendor/*" ! -path "*/vendor_test/*" ! -path "*/node_modules/*" ! -path "*/.tmp/*" ! -path "*/.git/*" ! -path "*/.claude/*" -print0 | xargs -0 wc -l | tail -1 | awk '{print $1}'` |
 
 ## Footprint & Performance
 

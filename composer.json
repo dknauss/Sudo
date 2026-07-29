@@ -45,6 +45,7 @@
         "test:unit": "phpunit --configuration phpunit.xml.dist",
         "test:poc": "phpunit -c poc/install-package-gate/phpunit.xml.dist",
         "test:integration": "bash bin/run-integration-tests.sh phpunit-integration.xml.dist",
+        "test:metrics": "bash tests/verify-metrics/run.sh",
         "test:coverage": "phpunit --configuration phpunit.xml.dist --coverage-clover coverage.xml --coverage-text",
         "test:sources": "bash tests/verify-sources/run.sh",
         "verify:metrics": "bash bin/verify-metrics.sh",
