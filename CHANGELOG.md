@@ -18,6 +18,59 @@
   a verified usable screen. The test now asserts those sets are disjoint through
   the production predicate, including its site/network context.
 
+- **`options.critical` gates on a change, not on the presence of a critical field
+  (fix, #445).** `wp-admin/options-general.php` posts the critical fields
+  alongside ordinary ones, so editing only the site title, tagline or timezone
+  raised a sudo challenge. Worse
+  after #444 made the confirmation name only options that actually changed: such a
+  save showed the label "Change critical site setting" with **no Target line at
+  all**. The rule now challenges only when a submitted value differs from the value
+  already stored.
+
+  **This is a behaviour change, not only a fixed prompt.** A General Settings save
+  that touches nothing critical now fires no `wp_sudo_action_gated` event, so an
+  audit subscriber using that hook as a "someone was on the dangerous settings
+  screen" tripwire loses that signal. One case does touch something critical and is
+  also no longer gated: unchecking "Anyone can register" with nothing else altered.
+  The checkbox is simply absent from the POST, so there is no submitted value to
+  compare, and `options.php` writes `null` over it — which `absint()` resolves to 0,
+  i.e. registration off. Presence-matching caught it only incidentally, because its
+  siblings were present; a POST omitting every critical field went ungated then too.
+
+  The comparison **fails toward challenging** on every uncertainty: an option with
+  no stored row, a non-scalar on either side, and any field outside the built-in
+  source map all count as changed. Note that field: an option added through
+  `wp_sudo_critical_options` has no comparison source, so it is never change-checked
+  and continues to gate on presence exactly as before.
+
+  That direction is load-bearing rather than merely prudent. On the interactive
+  surface this matcher is the **only** layer: the `pre_update_option_{$opt}` guards
+  for critical options live in `Gate::register_function_hooks()`, whose only callers
+  are the CLI, cron and XML-RPC paths. `Gate::arm_effect_guards()` — what
+  `register_interactive_backstop()` arms — registers no option-level filter at all.
+  A browser admin POST therefore has no effect-level backstop behind this rule.
+
+  One narrowing is **accepted rather than closed**: the comparator does not trim, so
+  a stored value carrying stray whitespace, replayed verbatim, reads as unchanged
+  and the trimmed form is written ungated. Accepted because the written value is
+  `sanitize_option( trim( $stored ) )` — a deterministic renormalisation of the
+  value already in force, which an attacker can trigger but not steer. Trimming here
+  instead would move the failure to the unsafe side.
+
+  Two details worth naming. `new_admin_email` is compared against the
+  **`admin_email`** option, not its own: the field is named `new_admin_email` but
+  prefilled with the current address, so comparing it to `new_admin_email` — absent
+  unless a change is already pending — would report every save as a change and
+  reinstate the bug. On multisite that is the only gated field on the screen, so
+  the mapping is the whole fix there. And the comparison now lives in one place,
+  `Action_Registry::value_echoes_stored_option()`, shared with the target capture
+  added in #444; two copies could disagree and produce a challenge with a label and
+  no Target line, which is this bug's own symptom in narrower form.
+
+  The REST rule for `/wp/v2/settings` deliberately still matches on presence. It
+  was a 4.8.0 security fix (#215), no REST client is obliged to post every field,
+  and REST inserts schema sanitization between request and write.
+
 ## 4.9.1 - 2026-07-28
 
 - **Site Health's stale-session sweep no longer deletes live or grace-eligible

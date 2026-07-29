@@ -259,7 +259,11 @@ critical. In those cases:
 - add a callback that checks for the exact field names or payload shape that
   identify the dangerous write
 - prefer **over-matching inside the sensitive class** to under-matching and
-  missing a destructive credential or policy change
+  missing a destructive credential or policy change — noting that the built-in
+  `options.critical` rule narrowed to change-detection (#445). That is not licence
+  to narrow generally: it was possible only because the comparison **fails toward
+  challenging** on every uncertainty, and because the alternative was challenging a
+  site-title edit. Narrow only where you can state which way each unknown resolves
 
 ## Public API Helpers
 
@@ -1065,7 +1069,7 @@ for the full design. Not scheduled; optional Phase 5 of the v3.1–v3.3 plan.
 | `wp_sudo_requires_two_factor` | Whether a user needs 2FA for sudo (for third-party 2FA plugins). |
 | `wp_sudo_validate_two_factor` | Validate a 2FA code (for third-party 2FA plugins). |
 | `wp_sudo_log_passed_events_enabled` | Toggle recording of `action_passed` dashboard events. Default `true`; intended for explicit code-level overrides only. |
-| `wp_sudo_critical_options` | The option names gated by the built-in `options.critical` rule (default: `siteurl`, `home`, `admin_email`, `new_admin_email`, `default_role`, `users_can_register`). Removing an entry silently un-gates that option — narrow the built-in protection set with care. |
+| `wp_sudo_critical_options` | The option names the built-in `options.critical` rule examines (default: `siteurl`, `home`, `admin_email`, `new_admin_email`, `default_role`, `users_can_register`). The rule gates on a **change**, not on the field's presence: a submitted value equal to the stored one does not challenge, because `options-general.php` posts the critical fields alongside ordinary ones (#445). Removing an entry silently un-gates that option — narrow the built-in protection set with care. An option **added** here is **not** change-checked: change-detection applies only to the six built-ins, which have a known comparison source, so an added option still gates on presence exactly as every option did before. |
 | `wp_sudo_sensitive_stash_keys` | Lowercase field-name keys omitted when a request is stashed (default includes `password`, `user_pass`, `pass1`/`pass2`, `token`, `secret`, …). Matched case-insensitively, including nested keys. The stash is never replayed, so the risk under-matching creates is a secret **retained** in the transient — readable by anything that can read the stash — not a secret replayed. Over-matching is safe: the field is simply absent and the user re-enters it. |
 | `wp_sudo_cookie_secure` | Whether session/2FA cookies set the `Secure` flag (default `is_ssl() \|\| force_ssl_admin()`). Returning `false` on production HTTPS exposes the cookie over plain HTTP — change only for known reverse-proxy/TLS-termination setups. |
 | `wp_sudo_wpgraphql_classification` | Classify WPGraphQL body as `mutation` or `query` (persisted-query support). |

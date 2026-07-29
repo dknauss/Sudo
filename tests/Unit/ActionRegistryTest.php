@@ -485,22 +485,274 @@ class ActionRegistryTest extends TestCase {
 	}
 
 	/**
-	 * Test options.critical gates the pending admin email field used by General Settings.
+	 * Invoke the options.critical admin callback with a stubbed option store.
+	 *
+	 * @param array<string, mixed> $post    Simulated $_POST.
+	 * @param array<string, mixed> $options Stored option values, keyed by option name.
+	 * @return bool
 	 */
-	public function test_options_critical_callback_matches_pending_admin_email_change(): void {
+	private function invoke_options_critical( array $post, array $options ): bool {
 		Functions\when( '__' )->returnArg();
 		Functions\when( 'apply_filters' )->returnArg( 2 );
+		Functions\when( 'wp_unslash' )->returnArg();
+		Functions\when( 'get_option' )->alias(
+			static function ( $name ) use ( $options ) {
+				return array_key_exists( $name, $options ) ? $options[ $name ] : false;
+			}
+		);
 
 		$rule = Action_Registry::find( 'options.critical' );
-
 		$this->assertNotNull( $rule );
 		$this->assertNotNull( $rule['admin']['callback'] );
 
-		$_POST['new_admin_email'] = 'new-owner@example.test';
+		foreach ( $post as $key => $value ) {
+			$_POST[ $key ] = $value;
+		}
 
-		$this->assertTrue( call_user_func( $rule['admin']['callback'] ) );
+		$result = (bool) call_user_func( $rule['admin']['callback'] );
 
-		unset( $_POST['new_admin_email'] );
+		foreach ( array_keys( $post ) as $key ) {
+			unset( $_POST[ $key ] );
+		}
+
+		return $result;
+	}
+
+	/**
+	 * Test options.critical gates a real change to a critical option.
+	 */
+	public function test_options_critical_callback_matches_changed_option(): void {
+		$this->assertTrue(
+			$this->invoke_options_critical(
+				array( 'siteurl' => 'https://evil.test' ),
+				array( 'siteurl' => 'https://example.test' )
+			)
+		);
+	}
+
+	/**
+	 * Test options.critical does NOT gate a save that echoes every stored value.
+	 *
+	 * #445: options-general.php posts critical fields alongside ordinary ones, so
+	 * presence-matching challenged a site-title edit. Only a difference from the
+	 * stored value is a critical change. Note the screen posts `new_admin_email`,
+	 * never a field named `admin_email` (GB-ADMIN-EMAIL-FIELD).
+	 */
+	public function test_options_critical_callback_ignores_unchanged_values(): void {
+		$this->assertFalse(
+			$this->invoke_options_critical(
+				array(
+					'siteurl'            => 'https://example.test',
+					'home'               => 'https://example.test',
+					'new_admin_email'    => 'owner@example.test',
+					'default_role'       => 'subscriber',
+					'users_can_register' => '0',
+					'blogname'           => 'A new site title',
+				),
+				array(
+					'siteurl'            => 'https://example.test',
+					'home'               => 'https://example.test',
+					'admin_email'        => 'owner@example.test',
+					'default_role'       => 'subscriber',
+					'users_can_register' => '0',
+				)
+			)
+		);
+	}
+
+	/**
+	 * Test new_admin_email is compared against the admin_email option, not its own.
+	 *
+	 * The General Settings field is NAMED new_admin_email but PREFILLED with
+	 * admin_email (GB-ADMIN-EMAIL-FIELD), so an untouched save submits the current
+	 * address. Comparing it against the new_admin_email option — absent unless a
+	 * change is already pending — would report every save as a change and reinstate
+	 * #445. On multisite this is the only gated field on the screen.
+	 */
+	public function test_options_critical_callback_maps_new_admin_email_to_admin_email(): void {
+		$this->assertFalse(
+			$this->invoke_options_critical(
+				array( 'new_admin_email' => 'owner@example.test' ),
+				array( 'admin_email' => 'owner@example.test' )
+			)
+		);
+
+		$this->assertTrue(
+			$this->invoke_options_critical(
+				array( 'new_admin_email' => 'attacker@evil.test' ),
+				array( 'admin_email' => 'owner@example.test' )
+			)
+		);
+	}
+
+	/**
+	 * Test an absent stored option fails toward challenging.
+	 *
+	 * get_option() returns false when the option has no row. That is absence, not
+	 * evidence the submitted value is unchanged, so it must gate.
+	 */
+	public function test_options_critical_callback_gates_when_option_absent(): void {
+		$this->assertTrue(
+			$this->invoke_options_critical(
+				array( 'siteurl' => 'https://example.test' ),
+				array()
+			)
+		);
+	}
+
+	/**
+	 * Test a non-scalar stored value fails toward challenging.
+	 */
+	public function test_options_critical_callback_gates_when_stored_value_not_scalar(): void {
+		$this->assertTrue(
+			$this->invoke_options_critical(
+				array( 'default_role' => 'subscriber' ),
+				array( 'default_role' => array( 'subscriber' ) )
+			)
+		);
+	}
+
+	/**
+	 * Test a non-scalar submitted value fails toward challenging.
+	 */
+	public function test_options_critical_callback_gates_when_submitted_value_not_scalar(): void {
+		$this->assertTrue(
+			$this->invoke_options_critical(
+				array( 'siteurl' => array( 'https://example.test' ) ),
+				array( 'siteurl' => 'https://example.test' )
+			)
+		);
+	}
+
+	/**
+	 * Test the comparison is strict, using pairs that ONLY differ under `===`.
+	 *
+	 * On PHP 8.2+ both operands are strings, so numeric-string coercion is the risk:
+	 * `'1' == '01'`, `'1e2' == '100'` and `'1' == ' 1'` are all true while `===`
+	 * separates them. Each case below must gate. A previous version of this test
+	 * submitted '1' against a stored '0' — unequal under `==` as well, so relaxing
+	 * value_echoes_stored_option()'s `===` to `==` left it green, and a test named
+	 * for strictness enforced none.
+	 *
+	 * @dataProvider provide_loosely_equal_pairs
+	 *
+	 * @param string $submitted Submitted value.
+	 * @param string $stored    Stored option value.
+	 */
+	public function test_options_critical_callback_compares_strictly( string $submitted, string $stored ): void {
+		$this->assertTrue(
+			$this->invoke_options_critical(
+				array( 'users_can_register' => $submitted ),
+				array( 'users_can_register' => $stored )
+			),
+			sprintf( '%s vs stored %s must gate under strict comparison', var_export( $submitted, true ), var_export( $stored, true ) )
+		);
+	}
+
+	/**
+	 * Pairs that are `==` equal but `===` different.
+	 *
+	 * @return array<string, array{0: string, 1: string}>
+	 */
+	public static function provide_loosely_equal_pairs(): array {
+		return array(
+			'leading zero'    => array( '01', '1' ),
+			'exponent form'   => array( '1e2', '100' ),
+			'leading space'   => array( ' 1', '1' ),
+		);
+	}
+
+	/**
+	 * Test an option added through the filter gates on PRESENCE, not on change.
+	 *
+	 * Change-detection applies only to fields with a known comparison source in
+	 * CRITICAL_OPTION_SOURCES. A filter-added option has none, so
+	 * value_echoes_stored_option() refuses to call it unchanged and it gates exactly
+	 * as every option did before #445 — even when the submitted value equals the
+	 * stored one. Without this test the filter table could (and briefly did) claim
+	 * added options participate in the comparison.
+	 */
+	public function test_options_critical_callback_gates_filter_added_option_even_when_unchanged(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'wp_unslash' )->returnArg();
+		Functions\when( 'apply_filters' )->alias(
+			static function ( $hook, $value ) {
+				if ( 'wp_sudo_critical_options' === $hook ) {
+					$value[] = 'blog_public';
+				}
+				return $value;
+			}
+		);
+		Functions\when( 'get_option' )->alias(
+			static function ( $name ) {
+				return 'blog_public' === $name ? '1' : false;
+			}
+		);
+
+		$rule = Action_Registry::find( 'options.critical' );
+		$this->assertNotNull( $rule );
+
+		$_POST['blog_public'] = '1';
+
+		try {
+			$this->assertTrue(
+				(bool) call_user_func( $rule['admin']['callback'] ),
+				'A filter-added option has no comparison source, so an unchanged value must still gate.'
+			);
+		} finally {
+			unset( $_POST['blog_public'] );
+		}
+	}
+
+	/**
+	 * Test the submitted value is unslashed before comparison.
+	 *
+	 * $_POST is addslashed by wp_magic_quotes(), and options.php writes the UNSLASHED
+	 * value. Comparing the slashed form against a stored value containing a quote or
+	 * backslash would read as unchanged while core writes something different. The
+	 * rest of the suite stubs wp_unslash() as identity, so removing the call survives
+	 * every other test; this one stubs it faithfully.
+	 */
+	public function test_options_critical_callback_unslashes_before_comparing(): void {
+		Functions\when( '__' )->returnArg();
+		Functions\when( 'apply_filters' )->returnArg( 2 );
+		Functions\when( 'wp_unslash' )->alias(
+			static function ( $value ) {
+				return is_string( $value ) ? stripslashes( $value ) : $value;
+			}
+		);
+		Functions\when( 'get_option' )->alias(
+			static function ( $name ) {
+				return 'admin_email' === $name ? "o'brien@example.test" : false;
+			}
+		);
+
+		$rule = Action_Registry::find( 'options.critical' );
+		$this->assertNotNull( $rule );
+
+		// What wp_magic_quotes() puts in $_POST for the stored address.
+		$_POST['new_admin_email'] = "o\\'brien@example.test";
+
+		try {
+			$this->assertFalse(
+				(bool) call_user_func( $rule['admin']['callback'] ),
+				'The slashed submission unslashes to the stored address, so it is unchanged and must not gate.'
+			);
+		} finally {
+			unset( $_POST['new_admin_email'] );
+		}
+	}
+
+	/**
+	 * Test a save carrying no critical field at all does not gate.
+	 */
+	public function test_options_critical_callback_ignores_noncritical_only_save(): void {
+		$this->assertFalse(
+			$this->invoke_options_critical(
+				array( 'blogname' => 'A new site title' ),
+				array( 'siteurl' => 'https://example.test' )
+			)
+		);
 	}
 
 	// -----------------------------------------------------------------
