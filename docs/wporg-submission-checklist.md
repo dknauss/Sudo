@@ -34,13 +34,6 @@ These gates protect the GitHub/package release itself. They are required before 
   3. `phpstan-bootstrap.php` — `define( 'WP_SUDO_VERSION', … )` constant
   4. `tests/bootstrap.php` — `define( 'WP_SUDO_VERSION', … )` constant
   5. `readme.txt` — `Stable tag:` (must equal the header `Version`)
-- [ ] **Playground blueprint pinned tag bumped** — `blueprint.json` installs the
-  release via a tag-pinned zip (`…/archive/refs/tags/vX.Y.Z.zip`). Bump that URL to
-  the new release tag so the "latest release" demo link stays reproducible.
-  (`blueprint-main.json` tracks `main` and is left as-is. Per
-  [`docs/ROADMAP.md`](ROADMAP.md), also create tag-pinned copies of
-  `blueprint-recovery-mode.json` / `blueprint-user-switching.json` if those
-  scenarios should demo against the fixed release rather than a moving branch.)
 - [ ] **Unit tests green** — `composer test` passes.
 - [ ] **Static analysis green** — `composer analyse` (PHPStan level 6) passes.
 - [ ] **Coding standards green** — `composer lint` passes.
@@ -94,6 +87,17 @@ These gates protect the GitHub/package release itself. They are required before 
   [`tests/MANUAL-TESTING.md`](../tests/MANUAL-TESTING.md) has current completed
   evidence in [`docs/release-environment-log.md`](release-environment-log.md), or
   every deferred lane has owner, timing, follow-up/waiver, and blocker posture.
+
+## 1a. Post-publication GitHub release follow-up
+
+- [ ] **Playground release asset bumped** — after the GitHub Release is
+  published, fetch and verify its `wp-sudo.zip`, then update `blueprint.json` to
+  `…/releases/download/vX.Y.Z/wp-sudo.zip` through the Playground CORS proxy.
+  Run `composer verify:blueprint`. A tag alone is insufficient because it does
+  not publish the asset. (`blueprint-main.json` tracks `main` and is left as-is.
+  Per [`docs/ROADMAP.md`](ROADMAP.md), create release-pinned copies of
+  `blueprint-recovery-mode.json` / `blueprint-user-switching.json` if those
+  scenarios should demo against the fixed release rather than a moving branch.)
 
 ## 2. WordPress.org-only submission/upload gates
 

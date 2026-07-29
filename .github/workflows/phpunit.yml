@@ -315,6 +315,11 @@ jobs:
       - name: Verify metrics file drift
         run: composer verify:metrics
 
+      - name: Verify stable Playground release asset
+        run: |
+          composer test:blueprint
+          composer verify:blueprint
+
       # Regression tests for bin/verify-sources.sh. Offline by design (a fake curl on
       # PATH, driven by per-case fixtures), so they exercise the checker's parsing,
       # HTTP-status classification, offline behavior, and repo-wide scans on every

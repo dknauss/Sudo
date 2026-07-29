@@ -495,7 +495,7 @@ and are excluded from the distributed plugin ZIP (see [`.pressshipignore`](.pres
 
 | File | Tier | Purpose | Install source | Documented in |
 |------|------|---------|----------------|---------------|
-| [`blueprint.json`](blueprint.json) | Public demo | "Try latest release" — stable-tag demo with the standard seed | `archive/refs/tags/vX.Y.Z.zip` (bumped at tag time) | readme.md / readme.txt badges |
+| [`blueprint.json`](blueprint.json) | Public demo | "Try latest release" — published-release demo with the standard seed | `releases/download/vX.Y.Z/wp-sudo.zip` through the Playground CORS proxy (bumped after the GitHub Release asset is published and verified) | readme.md / readme.txt badges |
 | [`blueprint-main.json`](blueprint-main.json) | Public demo | "Try main" — tracks the `main` branch | `archive/refs/heads/main.zip` | readme.md / readme.txt badges |
 | [`blueprint-editor-reauth.json`](blueprint-editor-reauth.json) | Public/reviewer scenario | In-editor reauthentication demo — opens the block editor without an active sudo session so Block Directory plugin install/activate can trigger the modal | release branch or `main` while the feature is unreleased; tag-pinned copy after release if kept as a public demo | readme.md while featured; [`docs/ui-ux-testing-prompts.md`](docs/ui-ux-testing-prompts.md) §6c |
 | [`blueprint-editor-2fa.json`](blueprint-editor-2fa.json) | Public/reviewer scenario | In-editor two-factor demo (Milestone B) — installs Two Factor, enrolls the admin in TOTP (public sandbox secret), and shows the current code in an editor notice so the in-modal 2FA step can be completed after the password | `main` while unreleased; tag-pinned copy after release if kept as a public demo | readme.md while featured |

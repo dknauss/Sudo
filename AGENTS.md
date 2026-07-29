@@ -269,12 +269,15 @@ changed since the last release. Use the project size commands above.
 
 And update `Stable tag` in `readme.txt`.
 
-**After the tag is cut, never before**, bump the Playground stable-demo install
-target in `blueprint.json` — the `archive/refs/tags/vX.Y.Z.zip` URL in its
-`installPlugin` step — to the new tag. A pre-tag bump points the public demo at a
-ZIP that does not exist yet (`VERSIONING.md` → "Try latest release" badge).
-The release badges point at `main/blueprint.json` (not a frozen tag), so this one
-edit keeps "Try the latest release in Playground" installing the current release.
+**After the GitHub Release is published and its `wp-sudo.zip` asset is verified,
+never before**, bump the Playground stable-demo install target in
+`blueprint.json` to the new
+`releases/download/vX.Y.Z/wp-sudo.zip` URL through the existing Playground CORS
+proxy. A tag alone does not create the release asset, so a pre-publication bump
+points the public demo at a ZIP that does not exist (`VERSIONING.md` → "Try
+latest release" badge). The release badges point at `main/blueprint.json` (not a
+frozen tag), so this edit keeps "Try the latest release in Playground"
+installing the same allowlisted package published for users.
 (`blueprint-main.json` tracks `archive/refs/heads/main.zip` and needs no bump.)
 
 ## Prose Discipline

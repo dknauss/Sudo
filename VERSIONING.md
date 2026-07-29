@@ -195,8 +195,10 @@ Rule of thumb: if you cannot point to a new entry this change adds to
   the version-sync points, so version-sync drift is caught by the checklist, not by an
   automated CI gate.
 - The public "Try latest release" Playground badge loads `blueprint.json` from
-  `main`, so its tag-ZIP target is bumped **after** the tag is cut, never before
-  (a pre-tag bump would make the public demo fetch a missing ZIP).
+  `main`, so its `wp-sudo.zip` target is bumped **after** the GitHub Release is
+  published and the asset is fetched and checked as an installable ZIP, never
+  merely after the tag is cut. Tag creation does not publish the release asset;
+  a pre-publication bump would make the public demo fetch a missing ZIP.
 
 ## Pre-1.0
 

@@ -178,9 +178,11 @@ record, and these rules exist to prevent recurrence.
 - **Internal architectural counts** MUST be checked against `docs/current-metrics.md`,
   and **release-state claims** against `docs/release-status.md`. Update those files
   FIRST when a change moves them.
-- **Every release** bumps `WP_SUDO_VERSION` in four places, `Stable tag` in
-  `readme.txt`, and the `blueprint.json` Playground install target — the badges point
-  at `main/blueprint.json`, so skipping it silently serves a stale demo.
+- **Every release** bumps `WP_SUDO_VERSION` in four places and `Stable tag` in
+  `readme.txt`; after the GitHub Release asset is published and verified, bump
+  the `blueprint.json` Playground install target too. The badges point at
+  `main/blueprint.json`, so skipping the post-publication step silently serves a
+  stale demo. Exact mechanics are canonical in `AGENTS.md` and `VERSIONING.md`.
 - **Before tagging**, re-verify every external claim added *or modified* since the
   last tag and
   append new findings to `docs/llm-lies-log.md`.
