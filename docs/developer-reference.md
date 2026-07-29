@@ -11,7 +11,12 @@
 Sudo intentionally uses a few different names in different contexts:
 
 - **Product and UI name:** Sudo. User-facing admin labels, notices, and diagnostics should use this name.
-- **Plugin file header / package name:** Sudo – Research Prototype. The plugin header, the readme `=== … ===` title, and `bin/make-pot.sh`'s `--package-name` all use this name so the installed plugin list states the project's status where an evaluator sees it first. It also satisfies the ≥5-latin-letter and trademark rules Plugin Check applies to headers. The short brand **Sudo** is used in UI copy. Do not shorten the header to bare "Sudo" (only 4 latin letters — fails Plugin Check's `plugin_header_unsupported_plugin_name` rule). The earlier name "Sudo – Admin Action Gating" is historical; it survives in historical material — changelog entries, release-status history, the planning archive, and the dormant WordPress.org checklist.
+- **Plugin file header / package name:** Sudo – Research Prototype. The plugin
+  header and `bin/make-pot.sh`'s `--package-name` retain this name as part of the
+  preserved implementation. The short brand **Sudo** remains in historical UI
+  copy. The earlier name "Sudo – Admin Action Gating" is historical; it survives
+  in changelog entries, release-status history, the planning archive, and the
+  dormant WordPress.org checklist.
 - **Slug, text domain, option/meta prefixes, and hook prefixes:** `wp-sudo` / `wp_sudo`. These are stable identifiers and must not be renamed to match the shorter UI label because doing so would break translations, stored settings, integrations, and existing extension code.
 - **GitHub repository:** `dknauss/Sudo`. Repository URLs should use the renamed GitHub repo, while package/folder identifiers may still intentionally use `wp-sudo`.
 
