@@ -342,7 +342,7 @@ See the `CHANGELOG.md` `4.5.0` section for the full itemized list.
 
 `4.1.0` (tagged 2026-06-24) remains the security-hardening release that closed the coordinated-disclosure gate-completeness findings and introduced the opt-in admin-escalation guard.
 
-Canonical source for post-tag drift after the latest tag (`v4.9.2`): `git log v4.9.2..main --oneline` (**payload drift has begun** — the fix for the fresh-activation governance grant (#524), alongside the `v4.9.2` post-tag housekeeping commit, which is not itself payload. The canonical list is the command, not this sentence. The note that follows described the `v4.8.0` era and is retained as history: it was **not empty** — `main` carries the unreleased alert-bridge role-drift push (#226), scoped break-glass recovery (#240), the in-editor session-status indicator (#262), plus docs; see "HISTORICAL — what was unreleased on `main` past `v4.8.0`" above).
+Canonical source for post-tag drift after the latest tag (`v4.9.2`): `git log v4.9.2..main --oneline` (**payload drift has begun** — the fix for the fresh-activation governance grant (#524) and the handler landing map that returns a refused profile or role change to the Users list (#533), alongside the `v4.9.2` post-tag housekeeping commit, which is not itself payload. The canonical list is the command, not this sentence. The note that follows described the `v4.8.0` era and is retained as history: it was **not empty** — `main` carries the unreleased alert-bridge role-drift push (#226), scoped break-glass recovery (#240), the in-editor session-status indicator (#262), plus docs; see "HISTORICAL — what was unreleased on `main` past `v4.8.0`" above).
 
 ## `4.5.0` release contents (shipped)
 

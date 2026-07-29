@@ -391,8 +391,10 @@ class Challenge {
 		 * The ONLY requester-influenced landing that survives is the consumed-stash
 		 * soft landing computed in build_replay_response_data(), where the URL is the
 		 * one the gate itself intercepted (not one the requester handed us), the
-		 * effect-bearing query is stripped, handler endpoints divert to neutral, and a
-		 * queryless GET diverts to neutral precisely because there is nothing to strip.
+		 * effect-bearing query is stripped, a handler endpoint diverts to its mapped
+		 * sibling screen (HANDLER_LANDINGS) when it has one and the user holds that
+		 * screen's capability and to neutral otherwise, and a queryless GET diverts to
+		 * neutral precisely because there is nothing to strip.
 		 */
 		$cancel_url = $default_url;
 
@@ -1132,8 +1134,10 @@ class Challenge {
 	 *
 	 * Named "resume" historically; it resumes nothing (#322). It discards the
 	 * stash and sends the user to a safe landing — the originating screen where
-	 * one is usable, or the neutral page for handler endpoints and queryless GETs,
-	 * which render nothing useful on a bare request.
+	 * one is usable; for a handler endpoint, its mapped sibling screen
+	 * (HANDLER_LANDINGS) when it has one and the user holds that screen's
+	 * capability; and the neutral page otherwise, including for unmapped handlers
+	 * and queryless GETs, which render nothing useful on a bare request.
 	 *
 	 * @param int    $user_id   Current user ID.
 	 * @param string $stash_key Challenge stash key.

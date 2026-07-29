@@ -88,11 +88,21 @@
   It is the part that was a plain bug rather than a tradeoff.
 
   The first proposed fix — preserving `user_id` from the stashed URL — was rejected
-  in design review as a no-op: core's profile form posts to a queryless
-  `self_admin_url()` with `action` and `user_id` as hidden POST fields, so there is
-  no query to preserve. A fixture in the test suite carried a fabricated
-  `user-edit.php?user_id=42` stash URL that no live request produces, which would
-  have made that fix look correct; it is now the shape a real request makes.
+  in design review as a no-op **for the path that reported it**: core's stock profile
+  form posts to a queryless `self_admin_url()` target (`GB-USER-EDIT-FORM-ACTION`) and
+  carries `user_id` as a hidden POST field instead (`GB-USER-EDIT-USER-ID-FIELD`), so
+  on that path there is no query to preserve. A fixture in the test
+  suite carried a `user-edit.php?user_id=42` stash URL, which the stock form does not
+  produce and which would have made that fix look correct; it is now the shape that
+  form actually makes.
+
+  That is a claim about core's own form, not about every request. `Request_Stash`'s
+  `build_original_url()` builds the stash URL from `REQUEST_URI` verbatim, so a
+  client or third-party form posting directly to `user-edit.php?user_id=42` does
+  produce a query-bearing stash URL. Those cases were already safe, and not because
+  of this change: the query is stripped before the destination is chosen, and the
+  choice is made server-side from the path alone — both of which predate the map.
+  What the map adds there is a *useful* landing rather than the neutral page.
 
 ## 4.9.2 - 2026-07-29
 

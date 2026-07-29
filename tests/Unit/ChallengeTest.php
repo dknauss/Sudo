@@ -1841,12 +1841,15 @@ class ChallengeTest extends TestCase
 			->with('redacted-stash-key', 42)
 			->andReturn(array(
 				'method' => 'POST',
-				// Bare, because that is what a real request produces: core's profile form
+				// Bare, because that is the shape core's stock profile form produces: it
 				// posts to a queryless self_admin_url() with `action` and `user_id` as
-				// HIDDEN POST FIELDS. The `?user_id=42` this carried until #533 was the
-				// only query-bearing user-edit.php stash URL in the suite and no live
-				// request makes one — a fixture shaped like a bug rather than like the
-				// system, which would have made a query-preserving "fix" look correct.
+				// HIDDEN POST FIELDS (GB-USER-EDIT-FORM-ACTION, GB-USER-EDIT-USER-ID-FIELD).
+				// The `?user_id=42` this carried until #533 was the only query-bearing
+				// user-edit.php stash URL in the suite, and it did not match the form the
+				// rule under test is reached from — a fixture shaped like a bug rather
+				// than like the system, which would have made a query-preserving "fix"
+				// look correct. Not a claim that no request can be query-bearing: one
+				// posted directly to user-edit.php?user_id=42 is, and lands by path.
 				'url' => 'https://example.com/wp-admin/user-edit.php',
 				'return_url' => 'https://example.com/wp-admin/profile.php',
 				'rule_id' => 'user.change_password',
@@ -2218,9 +2221,13 @@ class ChallengeTest extends TestCase
 	// their place lost. Where a handler has a sibling screen that IS usable, land
 	// there instead.
 	//
-	// Deliberately NOT a query allowlist. `user_id` never appears in the stashed
-	// URL: core's form posts to a queryless self_admin_url() with `action=update`
-	// and `user_id` as hidden POST fields, so there is no query to preserve.
+	// Deliberately NOT a query allowlist. On core's stock profile form there is no
+	// query to preserve: it posts to a queryless self_admin_url() with `action=update`
+	// and `user_id` as hidden POST fields (GB-USER-EDIT-FORM-ACTION,
+	// GB-USER-EDIT-USER-ID-FIELD). That is a claim about core's form, not about every
+	// request — Request_Stash::build_original_url() builds from REQUEST_URI verbatim,
+	// so a third-party form posting to user-edit.php?user_id=42 does put `user_id` in
+	// the stashed URL. A query allowlist would still be the wrong instrument there.
 	// A destination is also bounded by a static map, which a preserved parameter is not:
 	// the path selects between the map's site and network forms, but cannot name a
 	// target absent from it.
