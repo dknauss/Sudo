@@ -30,8 +30,7 @@ including what was *not* established.
 
 ## 1. REST route case-sensitivity — VERIFIED
 
-**Core.** `WP_REST_Server::dispatch()`,
-`wp-includes/rest-api/class-wp-rest-server.php:1166`:
+**Core (GB-CORE70-REST-CASE).** `WP_REST_Server::match_request_to_handler()`:
 
 ```php
 $match = preg_match( '@^' . $route . '$@i', $path, $matches );
@@ -50,8 +49,8 @@ application-password minting, and the settings route in one character.
 
 ## 2. File editors → arbitrary PHP write — VERIFIED
 
-**Core.** `wp-admin/plugin-editor.php:95` and `wp-admin/theme-editor.php:123`
-are identical:
+**Core (GB-CORE70-PLUGIN-EDITOR-POST,
+GB-CORE70-THEME-EDITOR-POST).** The two submission branches are identical:
 
 ```php
 if ( 'POST' === $_SERVER['REQUEST_METHOD'] ) {
@@ -79,7 +78,7 @@ browser form is the ungated one.
 
 ## 3. `options.php` self-protection bypass — VERIFIED
 
-**Core.** `wp-admin/options.php:27`:
+**Core (GB-OPTIONS-PAGE-REQUEST).**
 
 ```php
 $option_page = ! empty( $_REQUEST['option_page'] ) ? sanitize_text_field( $_REQUEST['option_page'] ) : '';
@@ -118,8 +117,8 @@ produce a sweep of its other instances.
 
 ## 4. `users.php` promote short-circuit — VERIFIED
 
-**Core.** `WP_Users_List_Table::current_action()`,
-`wp-admin/includes/class-wp-users-list-table.php`:
+**Core (GB-CORE70-USERS-CHANGEIT).**
+`WP_Users_List_Table::current_action()`:
 
 ```php
 public function current_action() {
@@ -156,8 +155,8 @@ rule's own logic is not wrong; it is unreachable.
 
 ## 5. REST `POST` plugin deactivation — VERIFIED
 
-**Core.** `WP_REST_Server`, line 40: `const EDITABLE = 'POST, PUT, PATCH';` —
-the plugins endpoint accepts `POST` for updates.
+**Core (GB-CORE70-REST-EDITABLE).** The editable method set includes POST, PUT,
+and PATCH.
 
 **Plugin.** `plugin.activate` and `plugin.deactivate` both declare:
 
@@ -174,9 +173,9 @@ the same request also survives a capitalised route.
 
 ## 6. `wp_ajax_add-user` ungated — VERIFIED AS A GAP
 
-**Core.** `wp_ajax_add_user()` is defined at
-`wp-admin/includes/ajax-actions.php:1750` and `'add-user'` is registered in the
-authenticated AJAX action list at `wp-admin/admin-ajax.php:79`.
+**Core (GB-CORE70-AJAX-ADD-USER,
+GB-CORE70-AJAX-ADD-USER-HANDLER).** The authenticated AJAX action list registers
+`add-user`, whose handler reaches `edit_user()`.
 
 **Plugin.** The `user.create` rule declares `'ajax' => null`. Its admin arm
 covers `user-new.php`, and its REST arm covers `POST /wp/v2/users`. The AJAX
@@ -213,7 +212,7 @@ An earlier pass recorded this as partial on the assumption that the diverging
 counterpart was the Two Factor plugin. It is not. The branch in question guards
 the **classic profile form on `user-edit.php`**, so the counterpart is core.
 
-**Core.** `wp-admin/user-edit.php:16`:
+**Core (GB-CORE70-USER-EDIT-REQUEST).**
 
 ```php
 $user_id = ! empty( $_REQUEST['user_id'] ) ? absint( $_REQUEST['user_id'] ) : 0;

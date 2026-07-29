@@ -43,24 +43,26 @@ These are **enumerated** paths escaping, because two independently maintained
 predicates over the same request drifted, and nothing in the architecture could
 detect the drift.
 
-## 3. Why the test suite could not find any of it
+## 3. Why the test suite did not find any of it
 
-The suite is large and it is green. It also could not, in principle, have caught
-these.
+The suite is large and it is green. As designed, it did not catch these.
 
 Every test asserts the plugin against **its own model of a request**. A test
 constructs a request shaped the way the rule expects, then asserts the rule
 fires. When the rule's predicate is wrong, the test is wrong in exactly the same
-way, and passes. Congruence with core is not a property the plugin can test
-against itself.
+way, and passes. Those fixtures measured the plugin's internal consistency,
+not congruence with core.
 
-All six axes were found by reading core and the matcher **side by side**. That is
-a different activity from testing, it was never part of the process, and no
-amount of coverage substitutes for it.
+All six axes were found by reading core and the matcher **side by side**. That
+comparison was never part of the process. Real-WordPress integration and E2E
+tests could have caught the bypasses if they had included adversarial variants
+derived independently from core's dispatch predicates; the retained suite did
+not.
 
-**Transferable rule:** when correctness is agreement with an external system, a
-test that does not read the external system is measuring self-consistency and
-reporting it as correctness.
+**Transferable rule:** when correctness is agreement with an external system,
+derive adversarial cases independently from that system. Tests copied from the
+implementation's model measure self-consistency and can misreport it as
+correctness.
 
 ## 4. The failure that matters most
 

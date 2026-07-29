@@ -452,6 +452,10 @@ is_unanchored_legacy() {
 #     enclose it by definition. Not the file's only top-level conditional — the
 #     IFRAME_REQUEST guard at L9 is another; the qualifier is what makes this true, and
 #     an earlier draft of this comment dropped it and asserted "sole".
+#   - GB-CORE70-PLUGIN-EDITOR-POST / GB-CORE70-THEME-EDITOR-POST — the cited POST
+#     condition is top-level procedural dispatch in each editor script.
+#   - GB-CORE70-USER-EDIT-REQUEST — the cited target-user assignment is top-level
+#     request setup in user-edit.php.
 #
 # What is lost is nothing real: there is no enclosing symbol to rename or delete, so the
 # anchor check has no drift to detect here. Snippet presence and line drift still run, and
@@ -460,6 +464,9 @@ is_unanchored_legacy() {
 TOP_LEVEL_STATEMENT_IDS="$(cat <<'EOF'
 GB-NETWORK-EDIT-REDIRECT
 GB-UPDATE-NEEDS-ACTION
+GB-CORE70-PLUGIN-EDITOR-POST
+GB-CORE70-THEME-EDITOR-POST
+GB-CORE70-USER-EDIT-REQUEST
 EOF
 )"
 

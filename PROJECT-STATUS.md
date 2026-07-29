@@ -1,7 +1,9 @@
 # Project Status: Concluded Research Prototype
 
-> **Do not install WP Sudo.** Not on production, staging, a disposable local
-> site, WordPress Playground, or any site with real or synthetic credentials.
+> **Do not deploy or evaluate WP Sudo as a security control.** Do not install it
+> on production, staging, WordPress Playground, or any interactive site.
+> Running the retained automated tests in an isolated, disposable environment
+> with synthetic fixtures is permitted solely to reproduce the research record.
 
 WP Sudo investigated whether a regular WordPress plugin could provide
 ecosystem-wide action-gated reauthentication. The program is complete. Seven
@@ -10,7 +12,8 @@ post-submission interception cannot sustain that claim.
 
 The repository is retained as a read-only research record. Its implementation
 and tests are evidence, not a supported security product or an evaluation
-package.
+package. The test-only exception above does not restore an installation or
+usage path.
 
 ## Final result
 

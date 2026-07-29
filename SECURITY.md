@@ -1,34 +1,16 @@
 # Security Policy
 
-> **Project boundary:** WP Sudo is a research prototype for disposable local
-> tests and WordPress Playground. It is not supported for production use.
-> Security reports improve the research; a supported version below means a
-> version that receives research fixes, not a production security guarantee.
-> See [`PROJECT-STATUS.md`](PROJECT-STATUS.md).
-
-## Supported Versions
-
-The default branch (`main`) is the only supported version. Security fixes are
-applied to `main` and may be included in a new research preview. Older branches
-and released tags do not receive backported security patches. Publication to
-the WordPress.org plugin directory is not planned while the project remains a
-research prototype.
-
-| Version | Supported |
-|---|---|
-| `main` / latest published release | Yes |
-| Older branches and tags | No |
+> **No supported versions.** WP Sudo is a concluded research prototype. Do not
+> deploy or evaluate it as a security control. No branch, tag, or release
+> receives fixes, backports, previews, or response-time commitments. See
+> [`PROJECT-STATUS.md`](PROJECT-STATUS.md).
 
 ## Reporting a Vulnerability
 
-**Do not open a public GitHub Issue for security problems.** GitHub Issues are
-not an acceptable channel for initial security contact — reports there are
-public and may expose details before a fix is available.
-
-Use GitHub's private vulnerability reporting flow from the repository Security
-tab when it is available. If that option is not visible, contact the maintainer
-privately through the contact methods listed on [Dan Knauss's profile](https://github.com/dknauss)
-or [dan.knauss.ca](https://dan.knauss.ca).
+The repository is retained as a public historical record. New reports may be
+sent through GitHub's private vulnerability-reporting flow while it remains
+available, but receipt, response, remediation, disclosure coordination, and a
+new release are not promised.
 
 Include:
 
@@ -37,28 +19,8 @@ Include:
 - Impact assessment
 - Suggested mitigation if you have one
 
-## Response Targets
-
-- Initial triage response: within 5 business days
-- Status update after validation: within 10 business days
-- Public disclosure: only after a fix or mitigation is available
-
-## Security Fix Changelog Convention
-
-Security fixes are described in `CHANGELOG.md` and `readme.txt` using a
-`**Security:**` prefix in the release notes. The description states what
-was hardened or corrected without disclosing the specific attack vector,
-proof-of-concept details, or reproduction steps. Example format:
-
-```
-**Security:** Hardened challenge session binding to prevent token reuse
-across user context switches.
-```
-
-CVEs are not proactively requested. Third-party researchers may request or
-receive CVE assignment independently.
-
 ## Scope
 
-Reports may cover privileged action gating, challenge flows, integration
-points, or build and release automation.
+The final known architectural failures and independently verified bypasses are
+documented in [`docs/finding.md`](docs/finding.md) and
+[`docs/audit-verification-record.md`](docs/audit-verification-record.md).

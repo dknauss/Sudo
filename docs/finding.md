@@ -1,7 +1,7 @@
 # Finding: route enumeration and post-submission interception cannot provide ecosystem-wide action-gated reauthentication
 
-**Status:** draft finding, not yet a core proposal
-**Date:** 2026-07-29 (rev. 2)
+**Status:** final finding; constructive direction, not a Core patch proposal
+**Date:** 2026-07-29 (rev. 3)
 **Source project:** WP Sudo (research prototype — see `PROJECT-STATUS.md`)
 
 ---
@@ -43,13 +43,13 @@ evidence on each.
 
 | Bypass | Core dispatches on | Plugin matched on | Axis |
 |---|---|---|---|
-| REST route capitalisation | `preg_match( '@^…$@i' )` (`class-wp-rest-server.php:1166`) | patterns with no `i` flag | route-pattern case |
-| File editor write | `'POST' === $_SERVER['REQUEST_METHOD']` (`plugin-editor.php:95`) | `action=update` required | action derivation |
-| `options.php` self-protection | `$_REQUEST['option_page']` (`options.php:27`) | `$_POST`, in the self-protection rules | superglobal |
-| Bulk promote | `isset( $_REQUEST['changeit'] )` (`class-wp-users-list-table.php`) | an `action`-name allowlist, checked before the rule's callback | evaluation order |
-| REST plugin deactivation | `EDITABLE = 'POST, PUT, PATCH'` | `array( 'PUT', 'PATCH' )` | method set |
-| 2FA lifecycle bridge | `$_REQUEST['user_id']` (`user-edit.php:16`) | `$_POST['user_id']` | superglobal |
-| `wp_ajax_add-user` | registered AJAX action (`admin-ajax.php:79`) | `'ajax' => null` on the rule | surface coverage |
+| REST route capitalisation | case-insensitive route regex (GB-CORE70-REST-CASE) | patterns with no `i` flag | route-pattern case |
+| File editor write | POST method alone (GB-CORE70-PLUGIN-EDITOR-POST, GB-CORE70-THEME-EDITOR-POST) | `action=update` required | action derivation |
+| `options.php` self-protection | `option_page` from `$_REQUEST` (GB-OPTIONS-PAGE-REQUEST) | `$_POST`, in the self-protection rules | superglobal |
+| Bulk promote | `changeit` presence (GB-CORE70-USERS-CHANGEIT) | an `action`-name allowlist, checked before the rule's callback | evaluation order |
+| REST plugin deactivation | POST, PUT, and PATCH (GB-CORE70-REST-EDITABLE) | `array( 'PUT', 'PATCH' )` | method set |
+| 2FA lifecycle bridge | edited user from `$_REQUEST` (GB-CORE70-USER-EDIT-REQUEST) | `$_POST['user_id']` | superglobal |
+| `wp_ajax_add-user` | registered AJAX creation path (GB-CORE70-AJAX-ADD-USER, GB-CORE70-AJAX-ADD-USER-HANDLER) | `'ajax' => null` on the rule | surface coverage |
 
 Seven bypasses, six axes: the superglobal axis accounts for two of them, and the
 last row is an absent rule rather than a divergent predicate — the surface was
@@ -64,9 +64,10 @@ nothing in the architecture can detect the drift.
 Congruence is not a property either side can enforce. Core has no obligation to
 hold its dispatch predicate stable, and the plugin has no mechanism to observe
 it. Each of the six was found by reading core and the matcher side by side —
-which is precisely what a test suite cannot do, because every test asserts the
-plugin against its own model of a request and is therefore wrong in exactly the
-same way as the rule it exercises (§3 of the post-mortem develops this).
+which the retained suite did not do: its fixtures asserted the plugin against
+the plugin's own request model. Adversarial integration or E2E cases derived
+independently from core's dispatch predicates could have exposed the drift
+(§3 of the post-mortem develops this).
 
 The remaining, weaker limit still holds and is documented in
 `docs/security-model.md` §"What It Does Not Protect Against": third-party AJAX
@@ -100,12 +101,12 @@ covering the largest attack surface — option writes and capability mutation �
 do not. A plugin can gate the former set and cannot gate the latter without
 false positives.
 
-**The audit quantifies how much this costs.** Every one of the seven bypasses in
-§2.1 lands inside the excluded set — option writes, or user create/promote. So
-the effects that are gateable at the effect layer are **not the effects that
-matter**, and the backstop cannot serve as the safety net for a route matcher
-that has drifted. Two mechanisms, and the same class of operation falls through
-both.
+**The audit quantifies how much this costs.** The bypasses reach effect classes
+without a complete usable backstop: option writes; user creation, promotion,
+and profile-meta mutation; file-editor writes; REST credential mutation and
+application-password issuance; and plugin deactivation. The shipping backstop
+covers only a narrower set of unambiguous destructive hooks, so it cannot serve
+as the safety net for a route matcher that has drifted.
 
 That is the transferable result, and it is exactly what §4.1 asks core for: the
 hooks that need an intent signal are identified by which ones core fires
