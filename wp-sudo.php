@@ -3,7 +3,7 @@
  * Plugin Name:       Sudo – Research Prototype
  * Plugin URI:        https://github.com/dknauss/Sudo
  * Description:       Research prototype for action-gated reauthentication. For disposable local tests and WordPress Playground only; not for production.
- * Version:           4.9.1
+ * Version:           4.9.2
  * Requires at least: 6.4
  * Requires PHP:      8.2
  * Author:            Dan Knauss
@@ -28,7 +28,7 @@ require_once __DIR__ . '/includes/functions-challenge-url.php';
 add_filter( 'map_meta_cap', 'wp_sudo_map_governance_meta_cap', 10, 4 );
 
 // Plugin version.
-define( 'WP_SUDO_VERSION', '4.9.1' );
+define( 'WP_SUDO_VERSION', '4.9.2' );
 
 // Plugin directory path.
 define( 'WP_SUDO_PLUGIN_DIR', plugin_dir_path( __FILE__ ) );
