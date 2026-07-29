@@ -176,64 +176,233 @@ interleaving was found. It is not evidence and does not belong in this finding.)
   and that is the weakest link in the argument.
 - It does not establish that the successor architecture works. See §6.
 
-## 4. What a core primitive would need to provide
+## 4. A proposal to WordPress core
 
-### 4.1 An intent signal at consequential effects
+The negative result above is only half a finding. This section is the
+constructive half.
 
-The blocker in §2.2. Core would need effects to carry a distinction between
-*invoked as this actor's intended operation* and *fired incidentally during a
-page load*. Without it, gating the high-surface hooks either over-blocks
-legitimate workflows or under-blocks the attack.
+Core has one decisive advantage a plugin can never have: **it owns both the
+user-facing action and the consequential effect.** It can therefore establish an
+explicit contract between them, instead of asking a third party to
+reverse-engineer request shapes and hope its predicate stays congruent. Every
+bypass in §2.1 exists because that reverse-engineering is the only option
+available from outside.
 
-This is unlikely to be solvable by adding more hooks; it probably requires
-effects to declare intent at the call site.
+This section owes its structure to the Codex architecture review of 2026-07-29,
+whose specification of the approval primitive is sharper than the draft it
+replaced.
 
-### 4.2 A scoped, action-bound approval token
+### 4.1 Purpose-specific veto points carrying a normalized action descriptor
 
-*Actor A may perform effect E, once, within window W.* Issued after a successful
-credential check; consumed by the **effect**, not by a route.
+Core would identify consequential operations **at the point where their meaning
+is unambiguous**: activate this plugin, promote this user, change this critical
+option, write these bytes to this file.
 
-**This is no longer hypothetical.** PR #470 (Phase 27) reconstructed and
-exercised a server-held action-approval candidate across Node and real WordPress
-transports, with adversarial fixtures and mutation guards. Its accepted boundary
-is deliberately narrower than an XSS-proof claim: authorization remains
-server-held and effect-bound, while **active same-origin script and full
-cookie-state cloning remain explicit non-goals or concessions** — consistent
-with §2.4. Multisite evidence is deferred under #490 and is not represented as
-complete.
+Two requirements, and today's hooks satisfy neither.
 
-Design constraint, learned the hard way: the token must authorize a **specific
-effect**, not "re-run this stored request." The latter is §2.3 option 1.
+**It cannot be a re-use of generic hooks.** `pre_update_option_{$option}`
+describes a *database event*, not whether a human deliberately initiated a
+dangerous action. That is exactly why the prototype's effect backstop had to
+exclude option writes and role mutation (§2.2), and why every one of the seven
+bypasses lands in that exclusion. A veto point needs to carry a **normalized
+action descriptor** — `plugin.activate`, `user.promote`,
+`option.critical.update`, `file.write` — issued by the dispatcher that already
+knows.
 
-### 4.3 A disposition contract for non-interactive surfaces
+**It must be able to refuse.** An observational `do_action` cannot. A guard
+hooked on one can only `wp_die()`, which is the wrong answer for a REST or CLI
+caller expecting a `WP_Error`, and it is a failure mode this project has already
+hit (#316: a gate placed on an observational hook that could not veto).
 
-**Not** a universal non-browser reauthentication mechanism. Reauthentication
-presupposes a present human who can produce a credential. Cron, the auto-updater,
-and scheduled or queued work have no such actor, so "reauthenticate" is
-category-incoherent there rather than merely unimplemented.
+### 4.2 Action-bound, single-use approval
 
-What core would need instead is a single contract every surface answers, with
-exactly three permitted dispositions:
+After reauthentication, core creates a server-held authorization of the form:
 
-1. **Present action-bound proof.** Available to any surface with a present actor
-   able to produce a credential — interactive browser, and potentially an
-   interactive CLI or API client.
-2. **Refuse.** Fail closed. The correct answer wherever no proof can be produced
-   and no explicit machine policy authorizes the effect.
-3. **Follow an explicitly separate machine policy.** A declared, auditable
-   authorization for unattended execution, evaluated on provenance rather than
-   recency of human authentication.
+> User 42 may perform `plugin.activate` on `akismet/akismet.php` once, before
+> time T, under login session S.
 
-The value is that disposition 3 is *named and separate* rather than smuggled in
-as a permissive default. Today's prototype collapses this into a coarse
-disabled / limited / unrestricted switch per entry point, which is why two
-different guarantees ship under one name.
+The effect **consumes** that approval atomically at its commit point. It does
+not authorize a browser generally, does not replay a stored request, and does
+not depend on the request arriving through the same screen or the same parameter
+spelling.
+
+Required properties:
+
+- server-issued identifier, with the authoritative state held server-side;
+- bound to the actor **and** the login session;
+- names the exact effect and the exact target;
+- **a digest of the proposed content where bytes matter.** This is the property
+  that would have prevented audit #2: the file editors write arbitrary PHP, and
+  an approval bound to a screen rather than to the bytes cannot stop it;
+- short expiry;
+- atomic single consumption;
+- lifecycle revocation on logout, password reset, role change, or session
+  destruction;
+- **fail-closed when the backing store is unavailable.** Empirically earned
+  rather than defensive: this project has already shipped a swallowed transient
+  read that made lockout checks fail open.
+
+One refinement beyond revocation-on-event. Capabilities conferred at runtime
+through `user_has_cap` / `map_meta_cap`, or written directly with `$wpdb`, never
+fire the meta hooks a revocation list would watch — the documented blind spot of
+the prototype's own escalation guard. So the stronger requirement is that **an
+approval must not outlive the authorization decision under which it was issued**,
+which means re-evaluating authorization at consumption rather than only revoking
+on observed events.
+
+The Phase 27 work in #470 reconstructed and exercised a candidate for this
+primitive across Node and real WordPress transports, with adversarial fixtures
+and mutation guards. It is useful evidence that the shape is implementable. It is
+not a production implementation, and its accepted boundary is deliberately
+narrower than an XSS-proof claim: active same-origin script and full cookie-state
+cloning are explicit non-goals (§2.4).
+
+### 4.3 An explicit non-interactive disposition
+
+Every protected effect chooses exactly one of three outcomes:
+
+1. **Present a valid action-bound approval.**
+2. **Refuse the operation.**
+3. **Follow a separately configured machine policy** based on authenticated
+   provenance.
+
+Cron and automatic updates cannot reauthenticate, because no human is present.
+Treating them as weaker forms of browser requests was one of this project's
+conceptual errors — it produced a coarse disabled/limited/unrestricted switch per
+entry point, and shipped two different guarantees under one name. Unattended
+execution needs its own auditable authorization model, named as such.
 
 ### 4.4 Recency as an axis distinct from capability
 
-WordPress capabilities answer *may this actor do this*; they cannot express *and
-did they prove it recently*. Every implementation today must simulate that
-second axis outside the capability system.
+WordPress capabilities answer *may this actor do this*. They cannot express *and
+did they prove it recently*. Every implementation today must simulate that second
+axis outside the capability system. A core primitive should make it first-class,
+attached at the veto point of §4.1 rather than reconstructed per plugin.
+
+### 4.5 What core should not copy from this prototype
+
+Each of these is a verified failure mode above, not a stylistic preference:
+
+- **matching `$pagenow`, `$_REQUEST['action']`, HTTP methods, or REST route
+  regexes** — the direct cause of all six divergence axes in §2.1;
+- **reconstructing intent from arbitrary request parameters** — the same defect
+  seen from the other side;
+- **storing and replaying POST requests** — removed in 4.9.0 after proving a
+  confused deputy (§2.3);
+- **a reusable "sudo session" that broadly unlocks unrelated operations** —
+  approval should be action-bound, not ambient;
+- **client-side disabled controls as an authorization boundary** — presentation
+  is not enforcement, and the drift toward relying on it is the same class as the
+  replay defect;
+- **expecting third-party plugins to inherit protection automatically** — §4.7.
+
+### 4.6 The nearest existing mechanism, and the smallest possible ask
+
+Core has already shipped part of §4.1 — the chokepoint and the descriptor,
+though not the intent signal and not the veto.
+
+`WP_Ability::execute()` (`wp-includes/abilities-api/class-wp-ability.php:612` in
+WP 7.0) normalizes and validates input, runs `check_permissions()`, then fires
+`do_action( 'wp_before_execute_ability', $this->name, $input )` at line 645
+before dispatching to the execution callback.
+
+That point supplies two of the three things §4.1 asks for:
+
+- **a declared ability supplies an operation identity and validated input at the
+  execution chokepoint** — `$this->name` is a stable, normalized operation name,
+  and the input has already passed the ability's own schema validation. Note what
+  this is *not*: it is **not** proof of human intent. Code may invoke an ability
+  for incidental reasons exactly as it may call `update_option()`, so the
+  Abilities API does not by itself solve §4.1's intent problem — it solves the
+  *identity* half;
+- **it is surface-independent** — PHP, REST, and WP-CLI callers all funnel
+  through `execute()`, so one guard covers every entry point, which dissolves the
+  browser-contract problem (§2.3) for anything invoked this way.
+
+What it lacks is the veto. Line 645 is a `do_action`; it describes, it cannot
+refuse. The minimal core revision is therefore additive and small:
+
+```php
+$gate = apply_filters( 'wp_pre_execute_ability', null, $this->name, $input );
+if ( is_wp_error( $gate ) ) {
+	return $gate;
+}
+```
+
+placed immediately after the permission check. Defaulting to `null` means no
+existing behaviour changes.
+
+**What this removes, stated exactly:** a guard attached here keys on the
+identifier *core itself declares*, so **request-shape divergence is eliminated
+for operations executed through the ability**. There is no second predicate over
+the request to drift from core's.
+
+It is not a general guarantee. All of these remain possible: an **incorrect
+ability declaration**; an **incomplete input descriptor** (below); code that
+**bypasses the ability** and performs the effect directly; and **undeclared
+legacy operations** that were never expressed as abilities at all.
+
+**A hard implementation requirement.** The normalized ability input must
+*completely describe the protected effect and its target*. If it does not, route
+ambiguity has merely been traded for an under-specified operation descriptor —
+an approval bound to `file.write` without the target path and content digest is
+no better than one bound to a screen. This is the same failure as §2.1 relocated
+one layer inward, and it is the thing to watch for when declaring abilities.
+
+**Honest limit on coverage.** The core abilities reviewed for WP 7.0 are
+read-only, so the immediate protective value is near zero. This is an argument
+about shape, and a bet on consequential operations being expressed as abilities
+over time. It does not retrofit `options.php`, `users.php`, or the file editors,
+which would need §4.1 veto points of their own.
+
+**The claim in one paragraph, with nothing rounded up:**
+
+> For declared abilities, core already owns a surface-independent execution
+> chokepoint carrying a stable operation name and validated input. Making that
+> chokepoint vetoable would eliminate the request-shape divergence responsible
+> for WP Sudo's seven bypasses, within that declared coverage. It would not
+> establish human intent, complete ecosystem coverage, or action recency by
+> itself.
+
+### 4.7 Adoption path, and the limit that remains
+
+Three tiers, smallest first, each independently useful and each shippable
+without the next:
+
+1. **Add a vetoable pre-execution filter returning `WP_Error`** at the ability
+   chokepoint (§4.6). Additive, no behaviour change by default.
+2. **Migrate core consequential operations to explicit operation declarations**,
+   or adapt the legacy dispatchers (`options.php`, `users.php`, the file editors)
+   to carry §4.1 veto points of their own. This is where real coverage arrives.
+3. **Attach the approval primitive at that chokepoint** — #470's server-held,
+   actor- and session-bound, effect-bound, expiring, atomically consumed
+   authorization (§4.2). This is what adds *recency*, which tiers 1 and 2 do not
+   provide.
+
+
+Core can secure **core-owned effects** and provide a framework that cooperating
+plugins adopt. It cannot infer the semantics of arbitrary plugin code. A
+third-party plugin would have to declare an effect descriptor and consume core's
+approval at its own commit point — deliberately, in its own source.
+
+So protection is never automatically inherited, and ecosystem-wide completeness
+is not reachable by this route either. What changes is that incompleteness
+becomes **honest and declarable** — an operation is either covered by a declared
+veto point or it is not — instead of being an unknowable function of whether two
+independently maintained request predicates happen to agree today.
+
+Stated constructively, the result of this project is therefore narrower than
+"reauthentication cannot work in WordPress":
+
+> **Ecosystem-wide action-gated reauthentication cannot be reliably bolted onto
+> WordPress by independently pattern-matching web requests. It needs effect
+> semantics and approval consumption inside core — or inside each component that
+> owns the effect.**
+
+The second clause is what makes this actionable for plugin authors rather than
+merely discouraging: a component that owns its effect can gate that effect
+correctly today, without core's help, by demanding proof at its own commit point
+instead of inferring intent from a request.
 
 ## 5. Consequences for the prototype
 
