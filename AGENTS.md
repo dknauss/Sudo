@@ -95,6 +95,7 @@ composer test                 # Alias for composer test:unit
 composer test:unit            # Run unit tests only (fast, no database, ~0.3s)
 composer test:integration     # Run integration tests (requires MySQL + WP test suite setup)
 composer test:coverage        # Run unit tests with PCOV coverage (generates coverage.xml + text summary)
+composer verify:docs          # Reject volatile dates/counts outside canonical/history docs
 composer verify:metrics       # Verify docs/current-metrics.md against live repo counts
 composer lint                 # Run PHPCS (WordPress-Extra + WordPress-Docs + WordPressVIPMinimum)
 composer lint:fix             # Auto-fix PHPCS violations
@@ -430,6 +431,9 @@ was actually checked.**
 
 ### Run the mechanical checks after *every* edit, including comment-only ones
 
+- `composer verify:docs` after editing Markdown outside canonical or historical
+  exclusions; it scans tracked working-tree content for volatile dates and
+  test/assertion counts.
 - `composer verify:metrics` after any change that adds or removes lines in tracked
   paths. A four-line PHP comment moved three coupled rows in `docs/current-metrics.md`
   and broke CI in #317; it did not feel like a change that needed the metrics check.

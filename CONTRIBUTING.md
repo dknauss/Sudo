@@ -396,6 +396,12 @@ composer lint      # PHPCS (WordPress-Extra + WordPress-Docs + VIP rulesets)
 composer lint:fix  # Auto-fix PHPCS violations
 ```
 
+### Documentation volatility lint
+
+`composer verify:docs` checks tracked working-tree Markdown for volatile dates
+and test/assertion counts. Canonical and historical documents are excluded by
+policy; the command does not claim to lint every documentation file.
+
 ### Metrics refresh (when counts change)
 
 Current live counts are centralized in `docs/current-metrics.md`.
@@ -408,6 +414,7 @@ If it reports drift, update `docs/current-metrics.md` first, then re-run `compos
 
 ### Documentation drift checklist
 
+- Run `composer verify:docs` after editing non-canonical Markdown.
 - Update `docs/current-metrics.md` first whenever counts change.
 - Update `docs/release-status.md` first whenever release state changes (stable tag, unreleased `main` work, latest supported WordPress release, forward-lane pin, or delayed release date assumptions).
 - Prefer linking to `docs/current-metrics.md` and `docs/release-status.md` instead of copying volatile counts or dates into prose.
