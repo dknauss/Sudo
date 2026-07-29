@@ -559,6 +559,56 @@ class Action_Registry {
 						// arms — registers no option-level filter at all, exactly as its docblock
 						// says. So a browser admin POST has no effect-level backstop here, which is
 						// why every uncertainty above resolves toward challenging.
+						// An OMITTED critical field can still be a write. options.php
+						// initialises $value = null for every allowlisted option and calls
+						// update_option() regardless (GB-OPTIONS-NULL-WRITE), so a crafted POST
+						// can omit one while carrying another unchanged. Presence-matching
+						// gated that incidentally — any present sibling fired the rule — so
+						// change-detection would otherwise REGRESS it.
+						//
+						// default_role's omission is the only one that writes a LESS
+						// RESTRICTIVE value: sanitize_option() turns null into 'subscriber'
+						// when get_role( null ) is falsy (GB-DEFAULT-ROLE-NULL). siteurl/home fail the URL match and
+						// admin_email/new_admin_email fail is_email(), so all four set $error and
+						// are restored from the stored value — a no-op (GB-SANITIZE-OPTION-RESTORE). users_can_register DOES change state
+						// (absint( null ) = 0 flips 1 -> 0 on a site with registration on), but
+						// only toward OFF, and its absence is indistinguishable from the
+						// legitimate unchecked checkbox — gating on it would challenge every
+						// save on a site with registration off, reinstating #445.
+						//
+						// Scoped to a single-site General Settings save. default_role joins
+						// $allowed_options['general'] only inside options.php's ! is_multisite()
+						// block (GB-OPTIONS-GENERAL-MULTISITE), so on multisite the field is not
+						// on that screen and gating there would fire on every save.
+						//
+						// That scoping covers the General Settings SCREEN, not every route to
+						// the same write, and the difference is deliberate. options.php also
+						// serves the unregistered-settings page, where $options comes from a
+						// caller-supplied page_options list that never consults $allowed_options
+						// (GB-OPTIONS-PAGE-OPTIONS) — so option_page=options naming default_role
+						// while omitting the field reaches the same
+						// update_option( 'default_role', null ). That request carries no critical
+						// option name in $_POST at all, so presence-matching missed it too: it is
+						// a pre-existing gap rather than a regression this change introduces, and
+						// it is filed as #506 instead of widened into here.
+						//
+						// $option_page is derived exactly as core derives it, from $_REQUEST and
+						// through sanitize_text_field() (GB-OPTIONS-PAGE-REQUEST). Keying on
+						// $_POST instead would be bypassable two ways, both verified:
+						// option_page travels in the QUERY STRING (wp_magic_quotes() rebuilds
+						// $_REQUEST from $_GET + $_POST, GB-MAGIC-QUOTES-REQUEST), and
+						// sanitize_text_field() collapses whitespace and strips tags, so
+						// " general " and <b>general</b> are 'general' to core. Either would
+						// leave the omission hole open at zero cost to an attacker, since the
+						// nonce and session are unchanged.
+						// phpcs:ignore WordPress.Security.NonceVerification.Missing, WordPress.Security.NonceVerification.Recommended -- Compared to a literal to decide WHETHER to challenge; never stored, echoed or trusted. See the note above on nonce timing.
+						$option_page = ! empty( $_REQUEST['option_page'] ) ? sanitize_text_field( wp_unslash( $_REQUEST['option_page'] ) ) : '';
+
+						// phpcs:ignore WordPress.Security.NonceVerification.Missing -- As above.
+						if ( 'general' === $option_page && ! is_multisite() && ! isset( $_POST['default_role'] ) ) {
+							return true;
+						}
+
 						foreach ( self::critical_option_names() as $opt ) {
 							// phpcs:ignore WordPress.Security.NonceVerification.Missing -- Reads $_POST only to decide WHETHER to challenge; the value is never trusted or stored. The gate runs at admin_init priority 1, BEFORE options.php calls check_admin_referer(), so no nonce has been verified at this point.
 							if ( ! isset( $_POST[ $opt ] ) ) {

@@ -50,6 +50,41 @@
   `register_interactive_backstop()` arms — registers no option-level filter at all.
   A browser admin POST therefore has no effect-level backstop behind this rule.
 
+  An **omitted** critical field can still be a write, and that needed its own
+  guard. `options.php` initialises `$value = null` for every allowlisted option and
+  calls `update_option()` regardless, so a crafted POST can omit one while carrying
+  another unchanged — and presence-matching gated that only incidentally, because
+  the present sibling fired the rule. `default_role`'s omission is the only one that
+  writes a **less restrictive** value: `sanitize_option()` turns `null` into
+  `subscriber`. `siteurl`/`home` and the email fields fail validation, set
+  `$error`, and are restored from the stored value — a no-op, and that restore is
+  now a registered upstream citation rather than an asserted one. `users_can_register` does change state
+  (`absint( null )` flips `1` to `0` where registration was on) but only toward
+  **off**, and its absence is indistinguishable from the legitimate unchecked
+  checkbox — gating on it would challenge every save on a site with registration
+  off, reinstating the bug this release fixes. So a single-site General Settings
+  save omitting `default_role` gates. Scoped to that screen because core adds
+  `default_role` to `$allowed_options['general']` only inside `! is_multisite()`,
+  so on multisite the field is absent and gating there would fire on every save.
+
+  That scope is the **screen**, not every route to the same write, and the
+  distinction is deliberate. `options.php` also serves the unregistered-settings
+  page, where the list of options to write comes from a caller-supplied
+  `page_options` field that never consults `$allowed_options` — so
+  `option_page=options` naming `default_role` while omitting it reaches the same
+  `update_option( 'default_role', null )`. This guard does not cover that route and
+  does not open it: such a request carries no critical option name in `$_POST` at
+  all, so the rule's previous presence-matching missed it identically. Filed as
+  #506 rather than widened into this fix.
+
+  The guard keys on `option_page` **exactly as core derives it** — from `$_REQUEST`
+  and through `sanitize_text_field()`. Keying on `$_POST` would have been bypassable
+  twice over at zero cost to an attacker: `wp_magic_quotes()` forces
+  `$_REQUEST = $_GET + $_POST`, so the parameter can travel in the query string and
+  never appear in the body; and `sanitize_text_field()` collapses whitespace and
+  strips tags, so `" general "` and `<b>general</b>` are `general` to core. Both are
+  covered by tests.
+
   One narrowing is **accepted rather than closed**: the comparator does not trim, so
   a stored value carrying stray whitespace, replayed verbatim, reads as unchanged
   and the trimmed form is written ungated. Accepted because the written value is

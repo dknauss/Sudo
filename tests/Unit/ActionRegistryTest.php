@@ -489,12 +489,24 @@ class ActionRegistryTest extends TestCase {
 	 *
 	 * @param array<string, mixed> $post    Simulated $_POST.
 	 * @param array<string, mixed> $options Stored option values, keyed by option name.
+	 * @param array<string, mixed> $get     Simulated $_GET (also merged into $_REQUEST).
 	 * @return bool
 	 */
-	private function invoke_options_critical( array $post, array $options ): bool {
+	private function invoke_options_critical( array $post, array $options, array $get = array() ): bool {
 		Functions\when( '__' )->returnArg();
 		Functions\when( 'apply_filters' )->returnArg( 2 );
 		Functions\when( 'wp_unslash' )->returnArg();
+		Functions\when( 'sanitize_text_field' )->alias(
+			static function ( $value ) {
+				// Mirrors _sanitize_text_fields(): strip tags, collapse whitespace, trim.
+				return trim( preg_replace( '/[\r\n\t ]+/', ' ', wp_strip_all_tags( (string) $value ) ) );
+			}
+		);
+		Functions\when( 'wp_strip_all_tags' )->alias(
+			static function ( $value ) {
+				return strip_tags( (string) $value );
+			}
+		);
 		Functions\when( 'get_option' )->alias(
 			static function ( $name ) use ( $options ) {
 				return array_key_exists( $name, $options ) ? $options[ $name ] : false;
@@ -506,13 +518,26 @@ class ActionRegistryTest extends TestCase {
 		$this->assertNotNull( $rule['admin']['callback'] );
 
 		foreach ( $post as $key => $value ) {
-			$_POST[ $key ] = $value;
+			$_POST[ $key ]    = $value;
+			$_REQUEST[ $key ] = $value;
+		}
+		foreach ( $get as $key => $value ) {
+			// wp_magic_quotes() forces $_REQUEST = array_merge( $_GET, $_POST ), so a
+			// query-string parameter reaches core through $_REQUEST without ever
+			// appearing in $_POST. That is the shape of the bypass this covers.
+			$_GET[ $key ]     = $value;
+			$_REQUEST[ $key ] = $value;
 		}
 
-		$result = (bool) call_user_func( $rule['admin']['callback'] );
-
-		foreach ( array_keys( $post ) as $key ) {
-			unset( $_POST[ $key ] );
+		try {
+			$result = (bool) call_user_func( $rule['admin']['callback'] );
+		} finally {
+			foreach ( array_keys( $post ) as $key ) {
+				unset( $_POST[ $key ], $_REQUEST[ $key ] );
+			}
+			foreach ( array_keys( $get ) as $key ) {
+				unset( $_GET[ $key ], $_REQUEST[ $key ] );
+			}
 		}
 
 		return $result;
@@ -741,6 +766,141 @@ class ActionRegistryTest extends TestCase {
 		} finally {
 			unset( $_POST['new_admin_email'] );
 		}
+	}
+
+	/**
+	 * Test an omitted default_role on a General Settings save gates.
+	 *
+	 * options.php initialises $value = null for every allowlisted option and calls
+	 * update_option() regardless (GB-OPTIONS-NULL-WRITE). sanitize_option() turns a
+	 * null default_role into 'subscriber', so omitting the field is a real write —
+	 * and a crafted POST can omit it while carrying another critical field unchanged.
+	 * Presence-matching gated that incidentally because the sibling was present;
+	 * without this guard change-detection would regress it.
+	 */
+	public function test_options_critical_callback_gates_omitted_default_role_on_general_save(): void {
+		Functions\when( 'is_multisite' )->justReturn( false );
+
+		$this->assertTrue(
+			$this->invoke_options_critical(
+				array(
+					'option_page' => 'general',
+					'siteurl'     => 'https://example.test',
+					'blogname'    => 'A new site title',
+				),
+				array( 'siteurl' => 'https://example.test' )
+			),
+			'A General Settings save omitting default_role writes subscriber over it, so it must gate.'
+		);
+	}
+
+	/**
+	 * Test the omission guard does not fire on multisite.
+	 *
+	 * default_role is not on the multisite General screen and options.php adds it to
+	 * $allowed_options['general'] only inside `! is_multisite()`, so a save from that
+	 * screen does not write it. Gating on its absence would challenge every multisite
+	 * save and reinstate #445.
+	 *
+	 * This bounds the SCREEN, not the option: the unregistered-settings page reaches
+	 * update_option( 'default_role', null ) through a caller-supplied page_options
+	 * list on multisite and single site alike (GB-OPTIONS-PAGE-OPTIONS). That route
+	 * is out of this guard's scope and was equally out of presence-matching's, since
+	 * it carries no critical option name in $_POST — filed as #506.
+	 */
+	public function test_options_critical_callback_omission_guard_is_single_site_only(): void {
+		Functions\when( 'is_multisite' )->justReturn( true );
+
+		$this->assertFalse(
+			$this->invoke_options_critical(
+				array(
+					'option_page'     => 'general',
+					'new_admin_email' => 'owner@example.test',
+				),
+				array( 'admin_email' => 'owner@example.test' )
+			),
+			'On multisite default_role is not allowlisted, so its absence must not gate.'
+		);
+	}
+
+	/**
+	 * Test the omission guard is not bypassed by moving option_page to the query string.
+	 *
+	 * Core reads `$_REQUEST['option_page']` (GB-OPTIONS-PAGE-REQUEST), and
+	 * wp_magic_quotes() rebuilds `$_REQUEST` as GET + POST
+	 * (GB-MAGIC-QUOTES-REQUEST). So `POST /options.php?
+	 * option_page=general` with no option_page in the BODY still selects the general
+	 * allowlist and writes `subscriber` over an omitted default_role — while a guard
+	 * keyed on $_POST sees nothing. Same nonce, same session: zero extra cost.
+	 */
+	public function test_options_critical_callback_omission_guard_reads_request_not_post(): void {
+		Functions\when( 'is_multisite' )->justReturn( false );
+
+		$this->assertTrue(
+			$this->invoke_options_critical(
+				array( 'siteurl' => 'https://example.test' ),
+				array( 'siteurl' => 'https://example.test' ),
+				array( 'option_page' => 'general' )
+			),
+			'option_page in the query string still selects the general allowlist, so the guard must fire.'
+		);
+	}
+
+	/**
+	 * Test the omission guard survives core's normalisation of option_page.
+	 *
+	 * `sanitize_text_field()` strips tags and collapses whitespace, so " general "
+	 * and <b>general</b> are both `general` to core. A strict comparison against the
+	 * raw value would miss them while core used the general allowlist.
+	 *
+	 * @dataProvider provide_normalising_option_page_values
+	 *
+	 * @param string $raw Raw option_page value as submitted.
+	 */
+	public function test_options_critical_callback_omission_guard_normalises_option_page( string $raw ): void {
+		Functions\when( 'is_multisite' )->justReturn( false );
+
+		$this->assertTrue(
+			$this->invoke_options_critical(
+				array(
+					'option_page' => $raw,
+					'siteurl'     => 'https://example.test',
+				),
+				array( 'siteurl' => 'https://example.test' )
+			),
+			sprintf( '%s normalises to general, so the guard must fire.', var_export( $raw, true ) )
+		);
+	}
+
+	/**
+	 * option_page values that core normalises to `general`.
+	 *
+	 * @return array<string, array{0: string}>
+	 */
+	public static function provide_normalising_option_page_values(): array {
+		return array(
+			'padded'  => array( '  general  ' ),
+			'tagged'  => array( '<b>general</b>' ),
+			'newline' => array( "general\n" ),
+		);
+	}
+
+	/**
+	 * Test the omission guard is scoped to the General Settings page.
+	 */
+	public function test_options_critical_callback_omission_guard_is_scoped_to_general(): void {
+		Functions\when( 'is_multisite' )->justReturn( false );
+
+		$this->assertFalse(
+			$this->invoke_options_critical(
+				array(
+					'option_page' => 'reading',
+					'siteurl'     => 'https://example.test',
+				),
+				array( 'siteurl' => 'https://example.test' )
+			),
+			'default_role is not allowlisted outside the general page, so its absence must not gate there.'
+		);
 	}
 
 	/**
