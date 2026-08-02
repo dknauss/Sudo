@@ -53,6 +53,59 @@ happens -- because neither was told to and neither happened to think of
 it unprompted. An agent finding nothing in its assigned area is evidence
 about that area, not about the whole surface.
 
+**A third fresh-context agent, explicitly told to attack `create-user` and
+hunt for the same meta-cap bug class elsewhere, found two more real
+defects and confirmed several things safe.** Told the same day's history
+(what the two prior agents found, and the `edit_users` finding above, for
+calibration), given the same live instances and raw source, and still
+excluded from this file and the regression suite.
+
+- **`remove_users` was simply absent from `CAP_FLOOR_DENIED_CAPS` (High).**
+  Not the meta-cap indirection bug -- a distinct primitive, checked bare,
+  that gates `wp-admin/users.php`'s multisite-only "Remove" bulk/row action
+  (unassign a user from one site without deleting their network account).
+  Administrator has it natively; with it missing from the list the floor
+  never engaged at all. The agent reproduced this live: removed a real
+  user from a real multisite site with zero password prompt, then ran a
+  positive control confirming Network Admin's "Delete" (`delete_users`)
+  correctly stayed absent from the same bulk-actions menu -- isolating the
+  gap to this one specific, distinct capability, not a general failure.
+  Fixed by adding it to the list; verified via
+  `current_user_can( 'remove_users' )` returning false under wp-cli's
+  `--user=admin` context. **This is the same underlying lesson as the
+  `edit_users` finding, in a different shape**: a denied-capabilities list
+  is only as complete as the person who wrote it knew to include, and nobody
+  had specifically gone looking for a capability that should be on the list
+  but wasn't, until this agent's brief said to hunt for exactly that.
+- **`/create-user` consumed the approval before calling
+  `wp_insert_user()` (Medium).** Requesting an approval for an
+  already-registered username or email burned a real password check and
+  one of only 3 rate-limited attempts on an insert that was always going
+  to fail with `existing_user_login`. Fixed with a
+  `username_exists()`/`email_exists()` check before the approval is
+  touched at all -- the same "reject what's knowable in advance" principle
+  already applied to `target_hash` length validation. Regression test 17
+  checks the fix's actual mechanism (the approval survives, still
+  `approved`, not just that the request is refused).
+- **Confirmed safe, not merely untested**: cross-account approval reuse
+  (an approval requested under one session cannot be consumed under
+  another, even with the exact ID and matching fields); 10-way concurrent
+  redemption of one `create-user` approval (exactly 1 of 10 succeeds); an
+  approval requesting `role=subscriber` cannot be redeemed with
+  `role=administrator` -- and, importantly, that mismatch does **not**
+  burn the approval, so a corrected retry with the right role still works.
+- **A fragility worth naming even though it isn't a live defect on these
+  instances**: the `Secure`-flagged binding cookie only survives because
+  browsers treat `http://localhost` as a "potentially trustworthy origin,"
+  exempting it from the Secure-requires-HTTPS rule. Any deployment on a
+  real hostname over plain HTTP, or behind a proxy that doesn't correctly
+  signal HTTPS to PHP, would silently and completely disable the entire
+  approval mechanism -- the cookie would simply never be set, and every
+  binding check would fail closed for a reason nobody watching the app
+  would see (no error, just a cookie that never appears). This prototype
+  has only ever been run over plain HTTP on localhost; nobody has verified
+  it against a real TLS-terminating deployment.
+
 **The independent-review method worked, once, concretely.** The agent was
 told nothing about what had already been tested and explicitly instructed
 to treat this file's own predecessor's claims as unverified. It found that
@@ -126,20 +179,25 @@ flagged anywhere in the archived Sudo repo's `docs/finding.md`.
 ## Defends against — verified, not asserted
 
 - **No account holds a dangerous capability at rest — for the specific
-  native screens actually exercised, not for all sixteen denied
-  capabilities uniformly.** Denial happens in `map_meta_cap()`, confirmed
-  to reach a multisite Super Admin, where an earlier, discarded
-  `user_has_cap`-based version did not. Confirmed against real native
-  wp-admin screens for `install_plugins`, `create_users`, `edit_users`, and
-  `delete_users` (the last two only after the meta-cap indirection fix
-  below). `edit_files`, `edit_plugins`, `edit_themes`, `upload_plugins`,
+  native screens actually exercised, not for all seventeen denied
+  capabilities uniformly.** (Seventeen, not sixteen, as of the
+  `remove_users` addition below — a capability that was simply missing
+  from the list entirely until a fresh-context agent went looking for
+  exactly that.) Denial happens in `map_meta_cap()`, confirmed to reach a
+  multisite Super Admin, where an earlier, discarded `user_has_cap`-based
+  version did not. Confirmed against real native wp-admin screens or
+  direct capability checks for `install_plugins`, `create_users`,
+  `edit_users`, `delete_users` (the last two only after the meta-cap
+  indirection fix), and `remove_users` (only after being added to the list
+  at all). `edit_files`, `edit_plugins`, `edit_themes`, `upload_plugins`,
   `upload_themes`, `update_plugins`, `update_themes`, `delete_plugins`,
   `update_core`, and `unfiltered_html` are on the same list and use the
   same `$cap`-and-`$caps` check, but **none of them has been individually
-  tried against a real native screen the way `edit_users` was** — and
-  `edit_users` looked correctly denied too, right up until someone actually
-  opened a second user's edit screen. Absence of a known bypass for these
-  ten is not the same claim as a verified one.
+  tried against a real native screen the way `edit_users` was** — and both
+  `edit_users` and `remove_users` looked fine too, right up until someone
+  either opened a second user's edit screen or specifically checked whether
+  a real capability was missing from the list. Absence of a known bypass
+  for these ten is not the same claim as a verified one.
 - **Each dangerous action requires its own fresh, single-use approval**,
   scoped to the actor's own identity (no switch), their login session, a
   second independent `__Host`-bound cookie, and — where bytes matter — a
