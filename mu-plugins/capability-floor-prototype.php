@@ -67,6 +67,35 @@ const CAP_FLOOR_DENIED_CAPS = array(
  * Hooked on `map_meta_cap`, not `user_has_cap` — see the file docblock for
  * why that distinction is load-bearing rather than stylistic.
  *
+ * Checks $caps (the already-resolved primitives), not only $cap (the
+ * originally requested capability name), because they are not the same
+ * string for most of the account-takeover surface this floor exists to
+ * cover. wp-admin/user-edit.php gates access to another user's profile with
+ * current_user_can( 'edit_user', $user_id ) -- the singular meta capability
+ * -- which core's own map_meta_cap() (wp-includes/capabilities.php) resolves
+ * to the primitive 'edit_users' by appending it to $caps directly, without
+ * ever re-invoking map_meta_cap() with $cap = 'edit_users'. The 'map_meta_cap'
+ * filter this function hooks always receives the *original* $cap, so an
+ * earlier version of this function -- checking only $cap against
+ * CAP_FLOOR_DENIED_CAPS, which lists the primitive plural form -- silently
+ * let 'edit_user' and 'delete_user' (and their plural forms' own meta-cap
+ * wrapper, 'promote_user') straight through: the user's real role already
+ * had 'edit_users', 'delete_users', and 'promote_users' as an administrator,
+ * so once our filter declined to add 'do_not_allow', WP_User::has_cap()'s
+ * final check against the role's own capabilities simply passed.
+ *
+ * This was found by hand, live in the browser, changing another real
+ * user's account email with zero reauthentication -- not by either of the
+ * two fresh-context agents that reviewed this prototype earlier the same
+ * day. Neither agent exercised wp-admin/user-edit.php against a *second*
+ * user; both focused on the approval/binding/rate-limit mechanics this file
+ * doesn't touch. See BOUNDARY.md.
+ *
+ * create_users has no such wrapper (wp-admin/user-new.php calls
+ * current_user_can( 'create_users' ) directly, and core's own map_meta_cap()
+ * case for it re-appends the same string) -- which is why that one native
+ * screen was already correctly denied and no other floored capability was.
+ *
  * @param string[] $caps    Primitive capabilities required, as already
  *                          resolved by core and any earlier map_meta_cap
  *                          filter.
@@ -76,7 +105,7 @@ const CAP_FLOOR_DENIED_CAPS = array(
  * @return string[]
  */
 function cap_floor_deny( array $caps, string $cap, int $user_id, array $args ): array {
-	if ( in_array( $cap, CAP_FLOOR_DENIED_CAPS, true ) ) {
+	if ( in_array( $cap, CAP_FLOOR_DENIED_CAPS, true ) || array_intersect( $caps, CAP_FLOOR_DENIED_CAPS ) ) {
 		$caps[] = 'do_not_allow';
 	}
 

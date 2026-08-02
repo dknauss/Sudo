@@ -307,9 +307,30 @@ assert_true "native screen still refuses a real administrator" "$(grep -qi 'not 
 
 echo
 echo "=== cleanup ==="
-wp user delete regressiontestb --yes --reassign=1 >/dev/null 2>&1
-wp user delete "$USERNAME12" --yes --reassign=1 >/dev/null 2>&1
-wp user delete "$USERNAME14" --yes --reassign=1 >/dev/null 2>&1
+# regressiontestb is deliberately left in place (see the idempotent
+# create-or-ignore fixture setup above) -- it is reconciled, not recreated,
+# each run. USERNAME12/14 are not: they must be gone before the next run,
+# or test 12's wp_insert_user() collides on a still-existing global login.
+#
+# `wp user delete <user> --yes --reassign=1` alone does not do that on
+# multisite: without --network it only unassigns the site role, leaving
+# the account intact network-wide (wp_users is network-wide) -- exactly
+# what happened here once already, silently turning test 12 into a false
+# failure two runs later ("500", not "201", because the account it tried
+# to insert already existed). Deleting the row directly, the same "manipulate
+# test state via direct DB queries" discipline this suite already uses
+# for the rate-limit table, sidesteps the ambiguity entirely rather than
+# chasing the right combination of wp-cli flags for both site types.
+delete_user_completely() {
+	local login="$1"
+	local id
+	id=$(wp user get "$login" --field=ID 2>/dev/null | tail -1)
+	if [ -n "$id" ] && [ "$id" -gt 0 ] 2>/dev/null; then
+		wp db query "DELETE FROM wp_users WHERE ID = $id; DELETE FROM wp_usermeta WHERE user_id = $id;" >/dev/null 2>&1
+	fi
+}
+delete_user_completely "$USERNAME12"
+delete_user_completely "$USERNAME14"
 wp db query "DELETE FROM wp_cap_floor_approvals; DELETE FROM wp_cap_floor_rates;" >/dev/null 2>&1
 wp option delete cap_floor_bindings >/dev/null 2>&1
 

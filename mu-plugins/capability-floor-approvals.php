@@ -389,9 +389,20 @@ function cap_floor_valid_approval_id( string $capability, ?string $target_hash =
  * Lift the increment-1 denial when a valid approval exists for this exact
  * capability and target. Runs after cap_floor_deny() (see
  * capability-floor-prototype.php) via filter priority.
+ *
+ * The "is this even a floored capability" guard checks $caps as well as
+ * $cap, mirroring the fix in cap_floor_deny() -- see that function's
+ * docblock for why: $cap is the original request (e.g. 'edit_user'), which
+ * for most of the account-takeover surface this floor covers is not the
+ * same string as the primitive capability core resolves it to and puts in
+ * $caps (e.g. 'edit_users'). No wired effect currently requests an
+ * approval for anything but install_plugins/create_users, so this had no
+ * observable effect on either of those; it matters only if a future effect
+ * (e.g. editing another user) is wired the same way and needs this side to
+ * recognise the capability it was denied under.
  */
 function cap_floor_allow_with_approval( array $caps, string $cap, int $user_id, array $args ): array {
-	if ( ! in_array( $cap, CAP_FLOOR_DENIED_CAPS, true ) ) {
+	if ( ! in_array( $cap, CAP_FLOOR_DENIED_CAPS, true ) && ! array_intersect( $caps, CAP_FLOOR_DENIED_CAPS ) ) {
 		return $caps;
 	}
 	if ( ! in_array( 'do_not_allow', $caps, true ) ) {
