@@ -514,9 +514,12 @@ restates the next experiment in exactly these terms.
 
 ## 6. Next experiment
 
-The approval protocol candidate is already tested (#470). The next experiment is
-**integration**: the #470 candidate joined to **one real wp-admin preflight
-adapter** and **one genuine effect veto**.
+The approval protocol candidate is already tested (#470) — against its own
+fixtures and mutation-testing harness, not yet against the independent,
+read-the-source discipline that found the seven bypasses in §2.1. Those are
+different claims. The next experiment is **integration**: the #470 candidate
+joined to **one real wp-admin preflight adapter** and **one genuine effect
+veto**.
 
 **The concrete instance recommended is §4.9's elevate step**, not an
 unspecified adapter chosen separately. Declare "switch this session into the
@@ -528,8 +531,19 @@ the abstract "one adapter, one veto" experiment a concrete, minimal, and
 independently motivated shape, instead of requiring a second, unrelated choice
 of what to prototype.
 
-It must preserve the documented copied-cookie-only claim of §2.4 — not widen it
-— and must test at least:
+**Before any of the checks below are trusted, apply the audit that found §2.1
+to the new integration point, not only to the old one.** That means reading
+`wp-includes/abilities-api/class-wp-ability.php` and whatever session or token
+code #470 actually integrates with — independently, not through #470's own
+fixtures — and checking #470's assumptions about WordPress's real session,
+request, and effect behaviour against what the source does. #470 has been
+extensively tested against itself; it has not yet had this done to it. Skipping
+this and going straight to the checks below would repeat, on the successor
+design, the exact failure this document describes: a mechanism whose own tests
+cannot see past the model it was tested against.
+
+It must also preserve the documented copied-cookie-only claim of §2.4 — not
+widen it — and must test at least:
 
 - **bypass** — the effect veto still refuses when the adapter is skipped entirely;
 - **parameter mutation** — an approved token cannot be redirected to different
@@ -546,7 +560,8 @@ It must preserve the documented copied-cookie-only claim of §2.4 — not widen 
   §4.9 claims the combination closes, and the claim is untested until this
   runs.
 
-Success is not "it feels smooth." Until this runs, §4 is a design sketch.
+Success is not "it feels smooth," and it is not "#470's own tests still pass."
+Until the audit above and the checks below both run, §4 is a design sketch.
 
 ---
 
