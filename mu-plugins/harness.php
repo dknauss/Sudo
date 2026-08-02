@@ -91,6 +91,77 @@ add_action(
 
 		register_rest_route(
 			'cap-floor/v1',
+			'/create-user',
+			array(
+				'methods'             => 'POST',
+				// Same split as /install-plugin: the digest-bound approval
+				// can't be evaluated until the exact fields it covers are
+				// known, so the real decision happens in the callback body,
+				// not here.
+				'permission_callback' => static function (): bool {
+					return is_user_logged_in();
+				},
+				'callback'            => static function ( WP_REST_Request $request ) {
+					$approval_id_param = $request->get_param( 'approval_id' );
+					$username_param    = $request->get_param( 'username' );
+					$email_param       = $request->get_param( 'email' );
+					$role_param        = $request->get_param( 'role' );
+
+					if (
+						! is_string( $approval_id_param ) ||
+						! is_string( $username_param ) ||
+						! is_string( $email_param ) ||
+						! is_string( $role_param )
+					) {
+						return new WP_Error( 'cap_floor_invalid_param', 'Invalid parameter type.', array( 'status' => 400 ) );
+					}
+
+					$username = sanitize_user( $username_param, true );
+					$email    = sanitize_email( $email_param );
+					$role     = $role_param;
+
+					if ( '' === $username || ! is_email( $email ) || ! array_key_exists( $role, wp_roles()->roles ) ) {
+						return new WP_Error( 'cap_floor_user_params', 'Invalid username, email, or role.', array( 'status' => 400 ) );
+					}
+
+					// Deterministic digest over exactly the fields this approval
+					// authorizes -- the second-effect analogue of hashing the
+					// uploaded zip's bytes below. Order and delimiter are fixed
+					// so the requester (who computes this same value to ask for
+					// an approval) and this route always agree on it.
+					$target_hash = hash( 'sha256', $username . "\n" . $email . "\n" . $role );
+
+					if ( ! current_user_can( 'create_users', $target_hash ) ) {
+						return new WP_Error( 'cap_floor_digest_mismatch', 'No approval matches these exact user details.', array( 'status' => 403 ) );
+					}
+
+					if ( ! cap_floor_consume_approval( $approval_id_param, 'create_users', $target_hash ) ) {
+						return new WP_Error( 'cap_floor_consumed', 'Approval already used or expired.', array( 'status' => 409 ) );
+					}
+
+					$user_id = wp_insert_user(
+						array(
+							'user_login' => $username,
+							'user_email' => $email,
+							'role'       => $role,
+							'user_pass'  => wp_generate_password( 24 ),
+						)
+					);
+
+					if ( is_wp_error( $user_id ) ) {
+						return $user_id;
+					}
+
+					return new WP_REST_Response(
+						array( 'status' => 'created', 'user_id' => $user_id, 'target_hash' => $target_hash ),
+						201
+					);
+				},
+			)
+		);
+
+		register_rest_route(
+			'cap-floor/v1',
 			'/install-plugin',
 			array(
 				'methods'             => 'POST',

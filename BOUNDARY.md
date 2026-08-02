@@ -137,9 +137,24 @@ flagged anywhere in the archived Sudo repo's `docs/finding.md`.
   reaches a vulnerability that skips WordPress's permission system.
 - **Filesystem-level compromise.** Anyone with write access to `mu-plugins`
   edits the rule enforcing all of this.
-- **Generality across effects.** Exactly one real effect has been wired
-  and tested — plugin install via the real `WP_Upgrader`. This is a single
-  proof of concept, not a demonstrated framework.
+- **Generality across effects — narrowed, not closed.** A second effect,
+  real `wp_insert_user()` user creation gated on `create_users`
+  (`/wp-json/cap-floor/v1/create-user`), was wired the same day using the
+  same pattern as `/install-plugin`: digest the exact fields the approval
+  covers (here, `username`+`email`+`role`, newline-joined) before the
+  matching `current_user_can( 'create_users', $target_hash )` re-check, and
+  consume at the real commit point. It worked on the first attempt — no
+  fix was needed to make it behave like the plugin-install effect — and the
+  same negative checks held: the native "Add New User" screen still denies
+  outright (no target argument to match), and replaying the consumed
+  approval against the same user details returns `cap_floor_digest_mismatch`
+  rather than creating a second account. That is **two** proofs of concept
+  now, not a demonstrated framework — no regression-suite coverage exists
+  for this second route yet (unlike plugin-install's tests 1–11), and every
+  effect wired so far has been a single, simple, string- or byte-digestible
+  target. A structurally different one — an effect with no natural single
+  digest, or one requiring several related approvals at once — has not been
+  attempted and may not fit this pattern as easily.
 - **Ordinary (non-Super-Admin) site administrators on multisite.** Core
   already denies them these capabilities independently
   (`is_multisite() && ! is_super_admin()` in core's own `map_meta_cap()`);
