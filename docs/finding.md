@@ -1,7 +1,7 @@
 # Finding: route enumeration and post-submission interception cannot provide ecosystem-wide action-gated reauthentication
 
 **Status:** final finding; constructive direction, not a Core patch proposal
-**Date:** 2026-07-29 (rev. 3)
+**Date:** 2026-07-29, revised 2026-08-02 (rev. 4)
 **Source project:** WP Sudo (research prototype — see `PROJECT-STATUS.md`)
 
 ---
@@ -429,6 +429,67 @@ registry, reusable window, and inline-modal architecture predate this finding
 and are superseded as a production-security design. Preserve it for comparison;
 do not present it as the successor to WP Sudo.
 
+### 4.9 A second, orthogonal track: raising the capability floor
+
+Everything in §4.1–§4.7 answers one question: *did this actor prove it
+recently, for this specific action?* WordPress's own capability system already
+answers a different question — *may this actor do this at all* — and §4.4
+already treats these as separate axes. A second track, sketched in discussion
+after this finding's initial drafting (2026-08-02) but **not built or tested**,
+works entirely on the second axis instead.
+
+The idea: no account — not even the site owner's ordinary login — holds
+capabilities such as `install_plugins` or `edit_plugins` at rest. Those are
+stripped from every account, unconditionally, via a `user_has_cap` filter
+living outside the database (a must-use plugin, so a database-level tamper
+cannot restore them). Exactly one distinguished account is exempted, checked
+by identity rather than role. That account has no usable password or email —
+the credential fields hold values that cannot authenticate through any of
+core's own login paths — so it cannot be reached directly. Reaching it
+requires a separate, deliberate step: authenticate again, then have the
+session switched into that identity, in the shape of `sudo -i` opening a shell
+rather than `sudo` wrapping one command.
+
+This closes a class of failure the seven bypasses in §2.1 exemplify without
+being defeated by any of them, because `user_has_cap` is the one universal
+point every `current_user_can()` call passes through regardless of which
+route, method, or superglobal a request arrived by — there is no second
+predicate over the request for it to drift against. Three points were checked,
+not assumed, before crediting it with that: the "disable dangerous controls
+until reauth" pattern is secure only because the disabling is a rendering
+*consequence* of the real `user_has_cap` denial, not a substitute for it —
+otherwise it is exactly the client-side-authorization trap named in §4.5 and
+§5; the same protection extends to REST calls authenticated by the same
+session cookie, and to XML-RPC, for free, through the identical chokepoint;
+and Application Passwords issued to the distinguished account would bypass the
+whole mechanism, since that credential never touches the elevate step —
+closing it requires explicitly forcing
+`wp_is_application_passwords_available_for_user` false for that one identity.
+WP-CLI and cron are correctly outside its scope rather than insecurely
+covered: CLI access already implies filesystem trust the filter cannot add to,
+and cron has no logged-in human for a capability check to resolve against.
+
+**This is not a substitute for §4.1–§4.7 — it is the other axis, and the two
+compose rather than compete.** A capability floor with no veto layer has a
+residual: once switched into the distinguished identity, every dangerous
+action is available for the rest of that session with no further check, so a
+stolen session cookie during the elevated window regains everything the floor
+was built to deny elsewhere. An approval-token veto with no capability floor
+has the mirror residual: it demands fresh proof before an action executes, but
+has no opinion on which account was allowed to hold that capability in the
+first place, so a role-flip bug that hands the raw capability to the wrong
+account still only has to clear the veto once to use it. Put together, each
+closes exactly the gap the other leaves open.
+
+**The concrete synthesis:** the elevate step does not need a purpose-built
+mechanism of its own. "Switch this session into the distinguished identity" is
+itself a consequential action. Declared as an Abilities API ability and gated
+by the vetoable `wp_before_execute_ability` filter proposed in §4.6, with the
+#470 approval-token candidate attached at that gate, it becomes one prototype
+that proves both pieces at once — a refusable core chokepoint, and a working
+proof mechanism — rather than two separate, unconnected experiments. §6
+restates the next experiment in exactly these terms.
+
 ## 5. Consequences for the prototype
 
 - **`HANDLER_LANDINGS` was built, reviewed, and never merged.** It implements
@@ -457,6 +518,16 @@ The approval protocol candidate is already tested (#470). The next experiment is
 **integration**: the #470 candidate joined to **one real wp-admin preflight
 adapter** and **one genuine effect veto**.
 
+**The concrete instance recommended is §4.9's elevate step**, not an
+unspecified adapter chosen separately. Declare "switch this session into the
+distinguished identity" as an Abilities API ability, attach the #470 candidate
+to a vetoable `wp_before_execute_ability` filter as that ability's gate, and
+pair it with the capability floor described in §4.9 so there is a real
+elevated identity on the other side of the gate worth protecting. This gives
+the abstract "one adapter, one veto" experiment a concrete, minimal, and
+independently motivated shape, instead of requiring a second, unrelated choice
+of what to prototype.
+
 It must preserve the documented copied-cookie-only claim of §2.4 — not widen it
 — and must test at least:
 
@@ -467,7 +538,13 @@ It must preserve the documented copied-cookie-only claim of §2.4 — not widen 
   effect;
 - **expiry** — behaviour at and past the window boundary, including any grace;
 - **active-XSS boundary** — confirming the documented concession holds exactly
-  where §2.4 and #470 say it does, and no further.
+  where §2.4 and #470 say it does, and no further;
+- **session-window independence** — a stolen cookie from an already-elevated
+  session must not be sufficient for a second dangerous action once its
+  single-use approval is consumed; each action re-checks its own approval, not
+  merely which identity the session belongs to. This is the specific residual
+  §4.9 claims the combination closes, and the claim is untested until this
+  runs.
 
 Success is not "it feels smooth." Until this runs, §4 is a design sketch.
 
@@ -482,3 +559,13 @@ date. §2.2's correction, the §1 scope narrowing, the §4.3 disposition contrac
 and the §6 revision follow review feedback of the same date. Third-party claims
 about WordPress core are registered in `docs/upstream-sources.md` and checked by
 `composer verify:sources`; this document adds no unregistered core claim.
+
+§4.9 and the corresponding §6 revision were added 2026-08-02, after this
+project's conclusion and archival, from a design conversation — not from new
+implementation or testing. Its three security claims (server-enforced versus
+client-side disabling; automatic coverage of REST-by-cookie and XML-RPC; the
+Application Passwords residual and its close) were reasoned through in that
+conversation against the mechanisms named, not verified by running code. The
+capability-floor idea itself remains unbuilt; see
+`docs/sudo-architecture-history.md` for the fuller, plain-language account of
+where it fits among every approach this project tried.
