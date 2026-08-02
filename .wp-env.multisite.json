@@ -1,0 +1,12 @@
+{
+	"core": "https://downloads.wordpress.org/release/wordpress-7.0.2.zip",
+	"phpVersion": "8.2",
+	"port": 8897,
+	"testsPort": 8898,
+	"config": {
+		"WP_ALLOW_MULTISITE": true
+	},
+	"mappings": {
+		"wp-content/mu-plugins": "./mu-plugins"
+	}
+}
