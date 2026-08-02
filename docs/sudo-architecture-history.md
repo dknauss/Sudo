@@ -90,7 +90,17 @@ different action.
 The current design (item 5) was tested, not just theorized, in a testing
 effort called Phase 27 — a mechanism that holds up under deliberate attack
 attempts, including a genuine WordPress concurrency bug it found and fixed
-along the way. A separate demo project, `consequential-actions`, is not a
+along the way. It isn't flawless: firing genuinely concurrent password
+attempts against it, rather than one at a time, found a real gap in its own
+account lockout — more attempts got through in a burst than the stated limit,
+because the check for "have they failed too many times" can read a stale
+count before an earlier attempt's failure has finished being recorded. That
+doesn't let anyone in without the real password; it just means the throttle
+meant to slow down guessing is weaker than advertised under a concurrent
+attack, and it's a narrow, fixable bug in this design's own rate limiter, not
+in the approval mechanism itself. Found the same way as the two things it
+already got right in this paragraph — by actually trying it, not by reading
+the code and assuming. A separate demo project, `consequential-actions`, is not a
 second, independent test of the same thing — it demonstrates item 3, the
 earlier reusable-window design that item 4 replaced, and is preserved for
 comparison rather than as supporting evidence for item 5. What's unsettled for
