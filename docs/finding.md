@@ -1,7 +1,7 @@
 # Finding: route enumeration and post-submission interception cannot provide ecosystem-wide action-gated reauthentication
 
 **Status:** final finding; constructive direction, not a Core patch proposal
-**Date:** 2026-07-29, revised 2026-08-02 (rev. 5)
+**Date:** 2026-07-29, revised 2026-08-02 (rev. 6)
 **Source project:** WP Sudo (research prototype — see `PROJECT-STATUS.md`)
 
 ---
@@ -560,10 +560,30 @@ atomically against a dedicated table (with a genuine concurrency race in
 loosened, per that file's own comments), password re-verification with a real
 account-scoped lockout, and revocation wired to `wp_logout` and
 `after_password_reset`. This is real, substantial evidence for the recency
-mechanism in §4.1–§4.7 and the corrected §4.9. It remains evidence
-tested against its own fixtures, not yet against an adversarial audit
-constructed by someone who did not write it — the same gap that let the seven
-bypasses in §2.1 stand for as long as they did.
+mechanism in §4.1–§4.7 and the corrected §4.9.
+
+**That reading was extended into a full independent reproduction the same
+day.** Every lane in `#470`'s own validation record was rerun, not read — from
+a fresh clone, a fresh dependency install, and a real Docker-based WordPress
+7.0.2 + PHP 8.2 instance, none of it inherited from `#470`'s own CI. All 1,308
+PHP unit tests, PHPCS, PHPStan level 6, and Psalm passed. All 15 Node-side
+mutation guards were killed. All 15 Node/Playwright handoff tests passed,
+including explicit confirmation of both halves of the §2.4 boundary in the
+same run — a cloned auth-cookie alone cannot redeem an approval, a full
+cookie-jar clone can. Against real WordPress, all 6 adapter tests and all 6
+WordPress-side mutation guards passed, including `ATOMIC_CONSUME` killed under
+genuine concurrent load — the specific fix flagged as unverified above.
+`multisite: false` was reported plainly in the output, matching the stated
+deferral under `#490`.
+
+This is **independent reproduction, not independent extension**, and the
+distinction is worth holding onto precisely rather than letting it blur the
+way "already tested" blurred into "already trustworthy" earlier in this
+document. Every test that ran was one `#470` had already written. Nobody has
+yet tried to break it with an attack it did not anticipate, the way the seven
+bypasses in §2.1 were found by comparing the plugin against core rather than
+against the plugin's own test suite. That gap is smaller than it was an hour
+earlier. It is not zero.
 
 The next experiment is **integration**: `#470`'s pattern — a session-bound,
 digest-bound, single-use intent, consumed atomically at the actual effect —
@@ -593,9 +613,11 @@ it — and must test at least:
   session to protect, only individual approvals, and each one must stand
   alone.
 
-Success is not "it feels smooth," and it is not "#470's own tests still pass."
-Until this runs as a live feature rather than a research fixture, §4 is a
-design sketch with unusually strong supporting evidence.
+Success is not "it feels smooth," and it is not "#470's own tests still pass"
+— though, as of 2026-08-02, independently confirmed rather than merely
+claimed, they do. Until this runs as a live, production-wired feature rather
+than a research fixture, and until someone tries to break it who did not
+write it, §4 is a design sketch with unusually strong supporting evidence.
 
 ---
 
@@ -631,3 +653,17 @@ does not appear anywhere in that code. The capability-floor idea, corrected,
 remains unbuilt; see `docs/sudo-architecture-history.md` for the fuller,
 plain-language account of where it fits among every approach this project
 tried, itself corrected for the same errors.
+
+`#470`'s test suite was independently reproduced the same day: `research/action-gate-phase-27`
+checked out into a fresh worktree, dependencies installed from scratch
+(`npm install`, `composer install`), every lane run rather than read —
+`composer test` (1,308 tests, 3,907 assertions), `composer lint`, `composer
+analyse` (PHPStan, Psalm), `npm run test:research:phase27:mutations` (15/15
+guards killed), `npm run test:research:phase27:node` (15/15 Playwright tests),
+and `npm run test:research:phase27:wordpress` against a real, freshly
+provisioned WordPress 7.0.2 / PHP 8.2 instance (6/6 adapter tests, 6/6
+mutation guards, `multisite: false` reported by the run itself). All passed.
+This is reproduction of `#470`'s own claims by an independent run, not
+independent adversarial extension — no attack was attempted that `#470`'s own
+fixtures had not already encoded. §6 states this distinction and why it still
+matters.
