@@ -27,6 +27,15 @@ radical that runs through East Asian writing, evoking the fortified pass where
 movement is examined rather than assumed. It is finished. This repository is
 archived and read-only.
 
+> [!TIP]
+> **New here? Start with
+> [`docs/sudo-architecture-history.md`](docs/sudo-architecture-history.md).**
+> It's a short, plain-language walk through every major approach this project
+> tried — what the shipped plugin attempted, what a separate WordPress-core
+> research track tried instead, a newer idea sketched after conclusion but
+> never built, and concrete next steps for both. Read it before the technical
+> documents below; they assume the context it provides.
+
 ## The result
 
 **A WordPress plugin cannot provide ecosystem-wide action-gated
