@@ -2,10 +2,12 @@
 #
 # Regression suite for the capability-floor prototype.
 #
-# Covers the five things adversarially tested by hand on 2026-08-02, plus
-# three more this same session found worth locking down. Everything here was
-# a `curl` command run once and thrown away before this file existed --
-# nothing stopped any of these from silently regressing. This does.
+# Covers the five things adversarially tested by hand on 2026-08-02, six more
+# the same session's independent-review agents found worth locking down, and
+# four covering the second gated effect (create_users) wired the same day.
+# Everything here was a `curl` command run once and thrown away before this
+# file existed -- nothing stopped any of these from silently regressing.
+# This does.
 #
 # Usage:
 #   tests/regression.sh <base_url> <wp_env_config> <admin_pass>
@@ -70,6 +72,14 @@ wp user create regressiontestb regtest-b@example.com --role=administrator --user
 wp user set-role regressiontestb administrator >/dev/null 2>&1
 wp user update regressiontestb --user_pass=regtestbpass123 --skip-email >/dev/null 2>&1
 
+# Looked up, never hardcoded as 1: this suite briefly assumed "admin" is
+# always user ID 1, which held by coincidence on a freshly installed
+# instance until an unrelated `wp user delete ... --network` command run by
+# hand against this same instance deleted and recreated the account with a
+# new ID. Every DB assertion below that targets "admin's own row" uses this
+# variable instead.
+ADMIN_ID=$(wp user get admin --field=ID 2>/dev/null | tail -1)
+
 login() {
 	local user="$1" pass="$2" jar="$3"
 	curl -sS -c "$jar" -c "$jar" "$BASE_URL/wp-login.php" \
@@ -129,7 +139,7 @@ wp user application-password delete admin --all >/dev/null 2>&1
 
 echo
 echo "=== 5. binding cookie is required, independent of a valid login and nonce ==="
-wp db query "DELETE FROM wp_cap_floor_rates WHERE user_id = 1;" >/dev/null 2>&1
+wp db query "DELETE FROM wp_cap_floor_rates WHERE user_id = $ADMIN_ID;" >/dev/null 2>&1
 LOGIN_ONLY=$(login_only_of "$TMP/A.jar")
 STATUS=$(curl -sS -o /dev/null -w "%{http_code}" -H "Cookie: $LOGIN_ONLY" -H "X-WP-Nonce: $NONCE_A" \
 	-X POST "$BASE_URL/wp-json/cap-floor/v1/request-approval" \
@@ -142,7 +152,7 @@ assert_status "succeeds with the same nonce plus the real binding cookie" "201" 
 
 echo
 echo "=== 6. concurrent consumption of one approval: exactly one winner ==="
-wp db query "DELETE FROM wp_cap_floor_rates WHERE user_id = 1;" >/dev/null 2>&1
+wp db query "DELETE FROM wp_cap_floor_rates WHERE user_id = $ADMIN_ID;" >/dev/null 2>&1
 curl -sS "$BASE_URL/../phase27-fixture-not-used" >/dev/null 2>&1 || true
 REAL_ZIP="$TMP/valid.zip"
 node -e "
@@ -166,13 +176,13 @@ assert_true "exactly one of five concurrent redemptions wins" "$([ "$WINS" = "1"
 
 echo
 echo "=== 7. rate limiter self-releases after its window (the #470 permanent-lockout defect, checked here) ==="
-wp db query "DELETE FROM wp_cap_floor_rates WHERE user_id = 1;" >/dev/null 2>&1
+wp db query "DELETE FROM wp_cap_floor_rates WHERE user_id = $ADMIN_ID;" >/dev/null 2>&1
 for _ in 1 2 3; do
 	curl -sS -o /dev/null -H "Cookie: $COOKIES_A" -H "X-WP-Nonce: $NONCE_A" -X POST "$BASE_URL/wp-json/cap-floor/v1/request-approval" \
 		--data "capability=install_plugins&password=wrong&target_hash=$(printf 'f%.0s' {1..64})"
 done
 # Directly backdate the window, the same "manipulate via DB, never an endpoint" discipline as everywhere else in this suite.
-wp db query "UPDATE wp_cap_floor_rates SET window_started_at = window_started_at - 400 WHERE user_id = 1;" >/dev/null 2>&1
+wp db query "UPDATE wp_cap_floor_rates SET window_started_at = window_started_at - 400 WHERE user_id = $ADMIN_ID;" >/dev/null 2>&1
 STATUS=$(curl -sS -o /dev/null -w "%{http_code}" -H "Cookie: $COOKIES_A" -H "X-WP-Nonce: $NONCE_A" \
 	-X POST "$BASE_URL/wp-json/cap-floor/v1/request-approval" \
 	--data "capability=install_plugins&password=$ADMIN_PASS&target_hash=$(printf 'g%.0s' {1..64})")
@@ -205,7 +215,7 @@ echo "-- confirm no approval was created, and the native admin screen stays deni
 STATUS=$(curl -sS -o /dev/null -w "%{http_code}" -b "$TMP/A.jar" "$BASE_URL/wp-admin/plugin-install.php")
 # 200 is fine here (the page still renders); what matters is the capability
 # check inside it. Assert directly against the DB instead of scraping HTML.
-ROWS=$(wp db query --skip-column-names "SELECT COUNT(*) FROM wp_cap_floor_approvals WHERE user_id = 1 AND target_hash IS NULL;" 2>&1 | grep -E '^[0-9]+$' | tail -1)
+ROWS=$(wp db query --skip-column-names "SELECT COUNT(*) FROM wp_cap_floor_approvals WHERE user_id = $ADMIN_ID AND target_hash IS NULL;" 2>&1 | grep -E '^[0-9]+$' | tail -1)
 assert_true "no null-target approval row exists in the database" "$([ "$ROWS" = "0" ] && echo 1 || echo 0)"
 
 echo
@@ -230,8 +240,76 @@ STATUS=$(curl -sS -o /dev/null -w "%{http_code}" -H "Cookie: $COOKIES_A" -H "X-W
 assert_status "an over-length target hash is refused, not silently accepted" "400" "$STATUS"
 
 echo
+echo "=== 12. create-user: the second effect works end-to-end, not just install-plugin ==="
+# Same pattern as /install-plugin (digest the exact fields, re-check
+# current_user_can() against that digest, consume at the real commit
+# point) wired against a structurally different effect: wp_insert_user()
+# instead of WP_Upgrader. Verified live in the browser on 2026-08-02 before
+# this test existed; this locks that result down.
+USERNAME12="regression-create-user"
+EMAIL12="regression-create-user@example.com"
+ROLE12="editor"
+DIGEST12=$(printf '%s\n%s\n%s' "$USERNAME12" "$EMAIL12" "$ROLE12" | shasum -a 256 | awk '{print $1}')
+RESP=$(curl -sS -H "Cookie: $COOKIES_A" -H "X-WP-Nonce: $NONCE_A" -X POST "$BASE_URL/wp-json/cap-floor/v1/request-approval" \
+	--data "capability=create_users&password=$ADMIN_PASS&target_hash=$DIGEST12")
+APPROVAL12=$(echo "$RESP" | grep -o '"approval_id":"[^"]*"' | sed 's/"approval_id":"//;s/"//')
+STATUS=$(curl -sS -o /dev/null -w "%{http_code}" -H "Cookie: $COOKIES_A" -H "X-WP-Nonce: $NONCE_A" \
+	-X POST "$BASE_URL/wp-json/cap-floor/v1/create-user" \
+	--data-urlencode "approval_id=$APPROVAL12" --data-urlencode "username=$USERNAME12" \
+	--data-urlencode "email=$EMAIL12" --data-urlencode "role=$ROLE12")
+assert_status "create-user succeeds with a matching approval" "201" "$STATUS"
+CREATED_LOGIN=$(wp user get "$USERNAME12" --field=user_login 2>/dev/null | tail -1)
+assert_true "the created user actually exists" "$([ "$CREATED_LOGIN" = "$USERNAME12" ] && echo 1 || echo 0)"
+
+echo
+echo "=== 13. create-user: a consumed approval cannot mint a second account ==="
+STATUS=$(curl -sS -o /dev/null -w "%{http_code}" -H "Cookie: $COOKIES_A" -H "X-WP-Nonce: $NONCE_A" \
+	-X POST "$BASE_URL/wp-json/cap-floor/v1/create-user" \
+	--data-urlencode "approval_id=$APPROVAL12" --data-urlencode "username=$USERNAME12" \
+	--data-urlencode "email=$EMAIL12" --data-urlencode "role=$ROLE12")
+assert_status "replaying the consumed approval is refused" "403" "$STATUS"
+STILL_ONE=$(wp user list --search="$USERNAME12" --field=user_login 2>/dev/null | grep -c "^$USERNAME12$" | tail -1)
+assert_true "exactly one account exists, not two" "$([ "$STILL_ONE" = "1" ] && echo 1 || echo 0)"
+
+echo
+echo "=== 14. create-user: an approval cannot be retargeted to different user details ==="
+USERNAME14="regression-retarget-user"
+EMAIL14A="regression-retarget-a@example.com"
+EMAIL14B="regression-retarget-b@example.com"
+ROLE14="editor"
+DIGEST14=$(printf '%s\n%s\n%s' "$USERNAME14" "$EMAIL14A" "$ROLE14" | shasum -a 256 | awk '{print $1}')
+RESP=$(curl -sS -H "Cookie: $COOKIES_A" -H "X-WP-Nonce: $NONCE_A" -X POST "$BASE_URL/wp-json/cap-floor/v1/request-approval" \
+	--data "capability=create_users&password=$ADMIN_PASS&target_hash=$DIGEST14")
+APPROVAL14=$(echo "$RESP" | grep -o '"approval_id":"[^"]*"' | sed 's/"approval_id":"//;s/"//')
+STATUS=$(curl -sS -o /dev/null -w "%{http_code}" -H "Cookie: $COOKIES_A" -H "X-WP-Nonce: $NONCE_A" \
+	-X POST "$BASE_URL/wp-json/cap-floor/v1/create-user" \
+	--data-urlencode "approval_id=$APPROVAL14" --data-urlencode "username=$USERNAME14" \
+	--data-urlencode "email=$EMAIL14B" --data-urlencode "role=$ROLE14")
+assert_status "an approval scoped to one email refuses a different one" "403" "$STATUS"
+NOT_CREATED=$(wp user get "$USERNAME14" --field=user_login 2>/dev/null | tail -1)
+assert_true "no account was created from the mismatched request" "$([ -z "$NOT_CREATED" ] && echo 1 || echo 0)"
+
+echo
+echo "=== 15. create-user: the native Add New User screen still denies outright ==="
+# The floor, not the approval mechanism, is what should be doing the work
+# here -- current_user_can( 'create_users' ) with no target argument, which
+# is how user-new.php actually checks it, can never match an approval.
+#
+# Single-site's own message ("you are not allowed to create users") differs
+# from multisite's generic screen-access denial ("not allowed to access
+# this page") -- multisite's user-new.php checks a network-scoped
+# capability first and never reaches the create_users-specific message.
+# Both are the same underlying denial (HTTP 403, "not allowed"); assert on
+# what's common to both rather than one site type's exact wording.
+STATUS=$(curl -sS -o "$TMP/user-new.html" -w "%{http_code}" -b "$TMP/A.jar" "$BASE_URL/wp-admin/user-new.php")
+assert_status "native screen returns 403" "403" "$STATUS"
+assert_true "native screen still refuses a real administrator" "$(grep -qi 'not allowed' "$TMP/user-new.html" && echo 1 || echo 0)"
+
+echo
 echo "=== cleanup ==="
 wp user delete regressiontestb --yes --reassign=1 >/dev/null 2>&1
+wp user delete "$USERNAME12" --yes --reassign=1 >/dev/null 2>&1
+wp user delete "$USERNAME14" --yes --reassign=1 >/dev/null 2>&1
 wp db query "DELETE FROM wp_cap_floor_approvals; DELETE FROM wp_cap_floor_rates;" >/dev/null 2>&1
 wp option delete cap_floor_bindings >/dev/null 2>&1
 
