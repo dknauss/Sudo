@@ -263,11 +263,21 @@ assert_true "the created user actually exists" "$([ "$CREATED_LOGIN" = "$USERNAM
 
 echo
 echo "=== 13. create-user: a consumed approval cannot mint a second account ==="
+# 409, not 403: a fresh-context agent found that this route checked
+# current_user_can() (and consumed the approval) before checking whether
+# the username/email were already taken -- so requesting an approval for
+# an already-registered identity burned a real password check and a
+# rate-limited attempt on a wp_insert_user() call that was always going to
+# fail. Fixed by checking username_exists()/email_exists() first, before
+# touching the approval at all. That existence check is what this exact
+# replay hits now (test 12 already created this account), which is still
+# a correct refusal -- just a different, more accurate one than the old
+# "no approval matches" -- not a regression in what's actually enforced.
 STATUS=$(curl -sS -o /dev/null -w "%{http_code}" -H "Cookie: $COOKIES_A" -H "X-WP-Nonce: $NONCE_A" \
 	-X POST "$BASE_URL/wp-json/cap-floor/v1/create-user" \
 	--data-urlencode "approval_id=$APPROVAL12" --data-urlencode "username=$USERNAME12" \
 	--data-urlencode "email=$EMAIL12" --data-urlencode "role=$ROLE12")
-assert_status "replaying the consumed approval is refused" "403" "$STATUS"
+assert_status "replaying the consumed approval is refused" "409" "$STATUS"
 STILL_ONE=$(wp user list --search="$USERNAME12" --field=user_login 2>/dev/null | grep -c "^$USERNAME12$" | tail -1)
 assert_true "exactly one account exists, not two" "$([ "$STILL_ONE" = "1" ] && echo 1 || echo 0)"
 
@@ -304,6 +314,45 @@ echo "=== 15. create-user: the native Add New User screen still denies outright 
 STATUS=$(curl -sS -o "$TMP/user-new.html" -w "%{http_code}" -b "$TMP/A.jar" "$BASE_URL/wp-admin/user-new.php")
 assert_status "native screen returns 403" "403" "$STATUS"
 assert_true "native screen still refuses a real administrator" "$(grep -qi 'not allowed' "$TMP/user-new.html" && echo 1 || echo 0)"
+
+echo
+echo "=== 16. remove_users is denied (found omitted entirely by a fresh-context agent) ==="
+# A distinct primitive from delete_users -- core's map_meta_cap() case
+# 'remove_user' resolves to this, not to delete_users. It gates
+# wp-admin/users.php's multisite-only "Remove" bulk/row action (unassign a
+# user from one site without deleting the network account) and
+# network/site-users.php. It was simply missing from CAP_FLOOR_DENIED_CAPS
+# -- not the edit_users meta-cap indirection bug (this is checked as a
+# bare primitive, like delete_users already was), just absent from the
+# list. An agent found this live: removed a real user from a real
+# multisite site with zero password prompt. Checked directly via
+# current_user_can(), not through a specific admin screen's nonce
+# plumbing -- what matters here is whether the floor itself denies the
+# capability, not any one screen's route to it.
+CAN_REMOVE=$(wp eval 'echo current_user_can( "remove_users" ) ? "1" : "0";' --user=admin 2>/dev/null | tail -1)
+assert_true "administrator does not have remove_users" "$([ "$CAN_REMOVE" = "0" ] && echo 1 || echo 0)"
+
+echo
+echo "=== 17. create-user: an existing username/email is rejected before the approval is touched ==="
+# Found by the same agent: request an approval for an already-registered
+# identity, redeem it, get a guaranteed-to-fail wp_insert_user() -- but by
+# then a real password check and one of only 3 rate-limited attempts is
+# already spent on a user that was never going to be created. Fixed with
+# a username_exists()/email_exists() check before the approval is even
+# looked up. This test checks the fix's actual mechanism (the approval
+# survives untouched), not just that the request is refused -- a refusal
+# alone wouldn't distinguish "checked early" from "checked late".
+DIGEST17=$(printf '%s\n%s\n%s' "regressiontestb" "regtest-b@example.com" "editor" | shasum -a 256 | awk '{print $1}')
+RESP=$(curl -sS -H "Cookie: $COOKIES_A" -H "X-WP-Nonce: $NONCE_A" -X POST "$BASE_URL/wp-json/cap-floor/v1/request-approval" \
+	--data "capability=create_users&password=$ADMIN_PASS&target_hash=$DIGEST17")
+APPROVAL17=$(echo "$RESP" | grep -o '"approval_id":"[^"]*"' | sed 's/"approval_id":"//;s/"//')
+STATUS=$(curl -sS -o /dev/null -w "%{http_code}" -H "Cookie: $COOKIES_A" -H "X-WP-Nonce: $NONCE_A" \
+	-X POST "$BASE_URL/wp-json/cap-floor/v1/create-user" \
+	--data-urlencode "approval_id=$APPROVAL17" --data-urlencode "username=regressiontestb" \
+	--data-urlencode "email=regtest-b@example.com" --data-urlencode "role=editor")
+assert_status "an already-registered identity is refused before the insert is attempted" "409" "$STATUS"
+STILL_APPROVED=$(wp db query --skip-column-names "SELECT state FROM wp_cap_floor_approvals WHERE id = '$APPROVAL17';" 2>&1 | grep -E '^(approved|consumed|cancelled)$' | tail -1)
+assert_true "the approval was not burned on a doomed request" "$([ "$STILL_APPROVED" = "approved" ] && echo 1 || echo 0)"
 
 echo
 echo "=== cleanup ==="

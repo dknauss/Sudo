@@ -57,6 +57,18 @@ const CAP_FLOOR_DENIED_CAPS = array(
 	'create_users',
 	'edit_users',
 	'delete_users',
+	// A distinct primitive from delete_users -- core's map_meta_cap() case
+	// 'remove_user' (wp-includes/capabilities.php) resolves to this, not to
+	// delete_users. It gates wp-admin/users.php's multisite-only "Remove"
+	// bulk/row action (unassign a user from one site, network account
+	// intact) and network/site-users.php. A fresh-context agent found this
+	// omitted entirely: administrator has remove_users natively, so with it
+	// missing from this list the floor never engaged for that action at
+	// all -- confirmed live, removing a real user from a real multisite
+	// site with zero password prompt. Not the edit_users meta-cap
+	// indirection bug (this is checked as a bare primitive, same as
+	// delete_users already was) -- just missing from the list.
+	'remove_users',
 	'unfiltered_html',
 );
 

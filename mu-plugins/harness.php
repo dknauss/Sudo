@@ -124,6 +124,23 @@ add_action(
 						return new WP_Error( 'cap_floor_user_params', 'Invalid username, email, or role.', array( 'status' => 400 ) );
 					}
 
+					// Checked here, before the approval is touched at all --
+					// not because wp_insert_user() wouldn't also catch this
+					// (it would, via WP_Error 'existing_user_login'), but
+					// because by then the approval is already consumed. A
+					// fresh-context agent found exactly this: request an
+					// approval for a username that already exists, redeem
+					// it, get a 500 for the doomed insert, and the approval
+					// -- and one of only 3 rate-limited password attempts --
+					// is gone anyway, with no user ever created. This is a
+					// knowable-in-advance failure, unlike whatever
+					// WP_Upgrader might do with a well-formed-looking zip
+					// below; check what can cheaply be checked before
+					// spending the one-time grant on it.
+					if ( username_exists( $username ) || email_exists( $email ) ) {
+						return new WP_Error( 'cap_floor_user_exists', 'That username or email is already registered.', array( 'status' => 409 ) );
+					}
+
 					// Deterministic digest over exactly the fields this approval
 					// authorizes -- the second-effect analogue of hashing the
 					// uploaded zip's bytes below. Order and delimiter are fixed
