@@ -1,7 +1,7 @@
 # Finding: route enumeration and post-submission interception cannot provide ecosystem-wide action-gated reauthentication
 
 **Status:** final finding; constructive direction, not a Core patch proposal
-**Date:** 2026-07-29, revised 2026-08-02 (rev. 6)
+**Date:** 2026-07-29, revised 2026-08-02 (rev. 7)
 **Source project:** WP Sudo (research prototype — see `PROJECT-STATUS.md`)
 
 ---
@@ -576,14 +576,48 @@ genuine concurrent load — the specific fix flagged as unverified above.
 `multisite: false` was reported plainly in the output, matching the stated
 deferral under `#490`.
 
-This is **independent reproduction, not independent extension**, and the
-distinction is worth holding onto precisely rather than letting it blur the
-way "already tested" blurred into "already trustworthy" earlier in this
-document. Every test that ran was one `#470` had already written. Nobody has
-yet tried to break it with an attack it did not anticipate, the way the seven
-bypasses in §2.1 were found by comparing the plugin against core rather than
-against the plugin's own test suite. That gap is smaller than it was an hour
-earlier. It is not zero.
+That was reproduction, not extension, and the distinction mattered enough to
+name precisely rather than let it blur the way "already tested" blurred into
+"already trustworthy" earlier in this document. **It was extended the same
+day** with three attacks reasoned from the mechanism itself, not copied from
+`#470`'s own test titles, run against a live instance with a real
+Application Password, a real logged-in session, and a real stolen cookie
+value — not simulated:
+
+- **Application-Password authentication combined with a binding cookie stolen
+  from a real, separately-authenticated browser session.** Application
+  Password auth resolves `current_user_can()` correctly (confirmed against
+  `/evidence`, which succeeded) but never establishes a `LOGGED_IN_COOKIE`, so
+  `wp_get_session_token()` returns an empty string regardless of which valid
+  binding cookie is presented alongside it. Refused with `phase27_auth` /
+  401 — confirmed via the one route (`/control`'s `restore-binding`
+  operation) that returns this error unwrapped, since the routes an attacker
+  would actually use mask it behind a generic 403.
+- **A duplicate-named binding cookie** — the exact scenario the adapter's
+  custom `HTTP_COOKIE` parser exists to catch, since PHP's `$_COOKIE`
+  superglobal silently collapses repeated names to one value. Sending the
+  real binding cookie's name twice, once with its genuine value and once with
+  an arbitrary one, was refused with "Exactly one binding is required" — the
+  parser's own duplicate check firing as its comment claims, not merely as it
+  claims.
+- **Skipping `/approve` entirely** — preflighting a real intent against a
+  file's actual SHA-256 digest, then presenting that same file straight to
+  `/effect-upload` without ever calling `/approve` or entering a password.
+  Refused at the atomic `state = 'approved'` guard even though the digest
+  matched exactly; `/evidence` confirmed `sink_count: 0` afterward — the real
+  upgrader effect never ran.
+
+A fourth request, sent as a positive control with the single genuine binding
+cookie and no attempted attack, succeeded normally — confirming the three
+refusals above were the mechanism holding under attack, not a broken test
+setup producing errors regardless of input.
+
+Three attacks is not exhaustive, and this remains short of the standard that
+found the seven bypasses in §2.1 — those came from reading core's dispatch
+code end to end and comparing it against the plugin's matcher line by line,
+not from three attempts, however genuinely adversarial. But it is no longer
+true that nobody has tried to break `#470` with something it did not already
+write down. Someone has, three times, and it held each time.
 
 The next experiment is **integration**: `#470`'s pattern — a session-bound,
 digest-bound, single-use intent, consumed atomically at the actual effect —
@@ -667,3 +701,18 @@ This is reproduction of `#470`'s own claims by an independent run, not
 independent adversarial extension — no attack was attempted that `#470`'s own
 fixtures had not already encoded. §6 states this distinction and why it still
 matters.
+
+That extension followed, the same day, against a live instance stood up the
+same way (`npx wp-env --config tests/e2e/phase27.wp-env.json start`, the
+adapter copied in as an mu-plugin via `docker cp`, a real Application
+Password minted with `wp user application-password create`). Three attacks —
+Application-Password auth combined with a cookie stolen from a separately
+authenticated real browser session, a duplicate-named binding cookie, and an
+attempt to reach `/effect-upload` with a matching digest without ever calling
+`/approve` — were constructed from reading the mechanism, not from `#470`'s
+own test titles, and fired as real HTTP requests with `curl`. All three were
+refused; a fourth request, a positive control with no attack, succeeded
+normally, confirming the refusals were the mechanism holding rather than a
+broken test setup. §6 records the three attempts and is explicit that three
+is not exhaustive and does not meet the read-the-source-against-core standard
+that found the seven bypasses in §2.1.
