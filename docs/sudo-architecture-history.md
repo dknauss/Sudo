@@ -88,19 +88,30 @@ specific login session so it can't be copied elsewhere or reused for a
 different action.
 
 The current design (item 5) was tested, not just theorized, in a testing
-effort called Phase 27 — a mechanism that holds up under deliberate attack
-attempts, including a genuine WordPress concurrency bug it found and fixed
-along the way. It isn't flawless: firing genuinely concurrent password
-attempts against it, rather than one at a time, found a real gap in its own
-account lockout — more attempts got through in a burst than the stated limit,
-because the check for "have they failed too many times" can read a stale
-count before an earlier attempt's failure has finished being recorded. That
-doesn't let anyone in without the real password; it just means the throttle
-meant to slow down guessing is weaker than advertised under a concurrent
-attack, and it's a narrow, fixable bug in this design's own rate limiter, not
-in the approval mechanism itself. Found the same way as the two things it
-already got right in this paragraph — by actually trying it, not by reading
-the code and assuming. A separate demo project, `consequential-actions`, is not a
+effort called Phase 27 — the core idea (each dangerous action needs its own
+one-time proof, tied to the exact bytes involved) held up against everything
+two independent adversarial testers threw at it. Neither could skip the
+proof step, redirect an approval to a different action, replay one, or use a
+stolen credential of the wrong kind to get in.
+
+What didn't hold up was the plumbing around it — a mechanism can be sound
+and its supporting parts still be broken, and both were found by actually
+trying things, not by reading the code and assuming. The account lockout
+that's supposed to slow down password guessing has no way to ever release
+once triggered — not on a later correct password, not by waiting, nothing.
+Three mistakes, and that avenue is closed forever, which is a real problem
+for an ordinary person who mistypes their password rather than an attacker.
+A related, smaller version of the same bug lets more guesses through in a
+single burst than intended, if they arrive at the same time rather than one
+after another. And the test-only side channel built to help automate all
+this testing turned out to be dangerous in its own right: a second
+administrator could reach into it and disrupt someone else's pending
+approval, and — worse — a leaked API credential alone, with no cookie or
+browser session at all, could do the same. None of this lets anyone bypass
+the actual proof-of-identity step. It does mean this candidate needs real
+fixes before it's trusted for anything beyond research, and the test-only
+parts must be provably left out of whatever ships, not just intended to be.
+A separate demo project, `consequential-actions`, is not a
 second, independent test of the same thing — it demonstrates item 3, the
 earlier reusable-window design that item 4 replaced, and is preserved for
 comparison rather than as supporting evidence for item 5. What's unsettled for

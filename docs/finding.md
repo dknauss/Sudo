@@ -1,7 +1,7 @@
 # Finding: route enumeration and post-submission interception cannot provide ecosystem-wide action-gated reauthentication
 
 **Status:** final finding; constructive direction, not a Core patch proposal
-**Date:** 2026-07-29, revised 2026-08-02 (rev. 8)
+**Date:** 2026-07-29, revised 2026-08-02 (rev. 9)
 **Source project:** WP Sudo (research prototype — see `PROJECT-STATUS.md`)
 
 ---
@@ -580,93 +580,121 @@ deferral under `#490`.
 That was reproduction, not extension, and the distinction mattered enough to
 name precisely rather than let it blur the way "already tested" blurred into
 "already trustworthy" earlier in this document. **It was extended the same
-day** with attacks reasoned from the mechanism itself, not copied from
-`#470`'s own test titles, run against a live instance with a real
-Application Password, a real logged-in session, and real concurrent
-requests — not simulated. Three held. One did not.
+day, by two independent efforts** — this session, and a separate Codex
+review — reasoning from the mechanism itself rather than from `#470`'s own
+test titles, against a live instance with real Application Passwords, real
+logged-in sessions, a real second administrator account, and real concurrent
+requests. Both converged on the same shape of result: **the digest-bound,
+single-use, session-and-binding-bound approval mechanism held against
+everything thrown at it. Its bespoke rate limiter, and the test-only surfaces
+around it, did not.**
 
-**Three attacks the mechanism refused correctly:**
+**What held, confirmed independently by both efforts:**
 
 - **Application-Password authentication combined with a binding cookie stolen
-  from a real, separately-authenticated browser session.** Application
-  Password auth resolves `current_user_can()` correctly (confirmed against
-  `/evidence`, which succeeded) but never establishes a `LOGGED_IN_COOKIE`, so
-  `wp_get_session_token()` returns an empty string regardless of which valid
-  binding cookie is presented alongside it. Refused with `phase27_auth` /
-  401 — confirmed via the one route (`/control`'s `restore-binding`
-  operation) that returns this error unwrapped, since the routes an attacker
-  would actually use mask it behind a generic 403.
+  from a real, separately-authenticated browser session** is refused. App
+  Password auth resolves `current_user_can()` correctly but never establishes
+  a `LOGGED_IN_COOKIE`, so `wp_get_session_token()` is empty regardless of
+  which valid binding cookie accompanies it — `phase27_auth` / 401.
 - **A duplicate-named binding cookie** — the exact scenario the adapter's
   custom `HTTP_COOKIE` parser exists to catch, since PHP's `$_COOKIE`
-  superglobal silently collapses repeated names to one value. Sending the
-  real binding cookie's name twice, once with its genuine value and once with
-  an arbitrary one, was refused with "Exactly one binding is required" — the
-  parser's own duplicate check firing as its comment claims, not merely as it
-  claims.
-- **Skipping `/approve` entirely** — preflighting a real intent against a
-  file's actual SHA-256 digest, then presenting that same file straight to
-  `/effect-upload` without ever calling `/approve` or entering a password.
-  Refused at the atomic `state = 'approved'` guard even though the digest
-  matched exactly; `/evidence` confirmed `sink_count: 0` afterward — the real
-  upgrader effect never ran.
+  superglobal silently collapses repeated names — is refused with "Exactly
+  one binding is required."
+- **Skipping `/approve` entirely** and presenting a digest-matching file
+  straight to `/effect-upload` is refused at the atomic `state = 'approved'`
+  guard; the sink stays at zero.
+- **Concurrent `/approve` calls against one `prepared` intent** resolve to
+  exactly one success — confirmed at the database level by both testers,
+  independently.
+- **A second administrator cannot read, approve, or cancel another user's
+  intent.** Generic error, and the database confirms the target row is
+  untouched — the `WHERE ... AND user_id = %d` scoping holds.
+- **Storage failure remains fail-closed**, and a failed upgrader effect does
+  not falsely record a successful capture.
 
-A fourth request, sent as a positive control with the single genuine binding
-cookie and no attempted attack, succeeded normally — confirming the three
-refusals above were the mechanism holding under attack, not a broken test
-setup producing errors regardless of input.
+**Confirmed defects, severity-ranked:**
 
-**One real weakness, found by firing genuinely concurrent requests rather
-than sequential ones.** Ten simultaneous `/approve` calls against the same
-`prepared` intent with the *correct* password: exactly one succeeded, nine
-got `409`, and the database showed a single row in state `approved` — the
-`WHERE state = 'prepared'` atomic update holds under real concurrency, the
-same guarantee already confirmed for `ATOMIC_CONSUME`.
+1. **BLOCKER — the approval lockout is permanent, with no recovery path.**
+   Three cumulative wrong passwords, even across unrelated intents, and every
+   later *correct* password returns 429 forever. A successful approval
+   between failures does not reset the counter; advancing the clock past any
+   plausible window does not release it; the rate table
+   (`user_id`, `failures`) has no timestamp column, so there is no
+   time-based backoff to add without a schema change. The response claims
+   "temporarily unavailable"; nothing about normal use makes that true.
+   Related, found independently in this session by firing genuinely
+   concurrent rather than sequential wrong-password attempts: the *same*
+   check has a read-then-act race, letting 7 of 10 concurrent attempts be
+   fully evaluated before the nominal 3-failure gate catches up (confirmed by
+   `failures = 7` in the database). These are two distinct bugs in one
+   broken component — one about the gate never releasing, one about the gate
+   being racy under concurrency — not the same bug described twice. Fix:
+   `phase27_verify_factor()`
+   (`tests/e2e/fixtures/phase27-wordpress-adapter.php`) needs an explicit
+   time window with backoff and a reset on successful authentication,
+   collapsed into the same atomic-update pattern already used correctly
+   elsewhere in this file, plus cross-intent tests — not a redesign.
+2. **Critical if shipped — `/control` bypasses every boundary the real
+   mechanism enforces.** `advance-clock` and `storage-fail` are global
+   WordPress options, not scoped to the caller: a second administrator with
+   no connection to another user's pending intent can expire it early or
+   force it to fail with a 503, confirmed both directions at the HTTP layer
+   and in the database. `/evidence` is likewise globally readable to any
+   `install_plugins` holder. More seriously: **Application-Password
+   authentication can call `operation=session-destroy` without ever
+   presenting a browser binding or a REST nonce** — neither of which
+   `/control` requires, unlike every route in the real mechanism. Returns
+   200, and invalidates that same account's legitimate browser-based
+   binding, so their in-progress browser approval then fails with 403. This
+   is not cross-*user* — it is cross-*credential-class, same account*: a
+   leaked Application Password alone, with no cookie or session access at
+   all, is sufficient to deny an administrator their own legitimate approval
+   flow. This is acceptable only if the entire `/control` route is provably
+   absent from anything ever deployed, not merely undocumented.
+3. **High if shipped — the GET-based reset is CSRF-capable.** A bare `GET`
+   to `/wp-admin/tools.php?page=phase27-research&phase27_reset=1`, with
+   valid login cookies and no nonce at all, deletes pending intents. `GET`
+   requests are trivially triggered cross-site (an `<img>` tag is enough),
+   unlike the `POST`-only REST routes, which at least require more attacker
+   effort. `phase27_render_page()`'s reset branch must stay test-only or
+   become a nonce-protected `POST`.
+4. **Low — a misleading error message**, confirmed independently by both
+   efforts. `/effect-upload` against an intent that was never approved
+   (still `prepared`) returns `phase27_consumed` / "Approval already
+   consumed" — the identical message and code used for a genuinely
+   already-consumed intent. The refusal is correct either way; the message
+   tells the caller the wrong reason.
 
-Ten simultaneous `/approve` calls against a fresh intent with the *wrong*
-password, lockout reset to zero first, did not hold the same way. The stated
-limit is three failures before a 429. Seven of the ten were fully evaluated —
-`wp_check_password()` ran, failed, and incremented — before the throttle
-caught up; only three got `429`. The database confirmed `failures = 7`, not
-capped at three. The cause is a read-then-act gap, not a broken increment:
-`phase27_verify_factor()` reads the failure count to decide whether to even
-attempt the check, then increments atomically only *after* a failed
-attempt — under concurrency, multiple requests read the same stale count
-before any sibling's increment commits, so the *decision* races even though
-the *write* does not. This is the same class of bug as the seven bypasses in
-spirit — a check whose guarantee depends on an assumption (here, that reads
-and writes are effectively serialized) that concurrency breaks — though
-narrower in consequence: no path around needing the correct password exists,
-only a weakened throttle against guessing it. This is a defect in Phase 27's
-own bespoke rate limiter, not in the digest-binding or single-use-approval
-mechanism the seven bypasses and the three held attacks above were actually
-testing.
+Six named results — six held, five confirmed defects across two testers —
+is still not exhaustive and remains short of the standard that found the
+seven bypasses in §2.1, which came from reading core's dispatch code end to
+end and comparing it against the plugin's matcher line by line. But it is no
+longer true that nobody has tried to break `#470` with something it did not
+already write down, and it is no longer true that everything tried has held.
+Something was tried, from two independent directions, and something broke
+in both. That is what this kind of testing is for, and a document that only
+ever reported clean results would be less credible for it, not more.
 
-Four attacks, three refused and one confirmed, is still not exhaustive and
-remains short of the standard that found the seven bypasses in §2.1 — those
-came from reading core's dispatch code end to end and comparing it against
-the plugin's matcher line by line, not from four attempts, however genuinely
-adversarial. But it is no longer true that nobody has tried to break `#470`
-with something it did not already write down, and it is no longer true that
-everything tried has held. Something was tried, and something broke. That is
-what this kind of testing is for.
+**`#470`, as it stands, should not advance to live integration unchanged.**
+The core digest-bound, single-use, session-and-binding-bound approval
+mechanism is the part worth carrying forward, and it held under everything
+above. The rate limiter needs the fix in finding 1 before anyone trusts it
+for a real lockout, and packaging for any live version must **provably and
+completely exclude** the `/control` route and the GET-based reset — not
+"strip before shipping" as an intention, but a build step that fails closed
+if either survives. Carrying a known-broken lockout or a test-only backdoor
+into a live feature would be a worse mistake than either defect on its own.
 
-The next experiment is **integration**: `#470`'s pattern — a session-bound,
-digest-bound, single-use intent, consumed atomically at the actual effect —
-joined to **one real wp-admin effect that is not already a research fixture**.
-`#470` already exercises the real `WP_Upgrader` path; the natural next step is
-attaching this pattern to that path (or a declared Abilities API equivalent,
-gated by the new `wp_pre_execute_ability` filter proposed in §4.6, if plugin
-install is ever expressed as an ability) as a **live** feature rather than a
-test-only adapter — with **no identity switch anywhere in the design**, per
-§4.9's correction.
-
-**The rate-limit race found above should be fixed before this integration,
-not carried into it.** The fix is narrow — collapse the read-then-act gate
-into the same atomic pattern already used correctly elsewhere in this code
-(a single conditional update, or a transaction that locks the row for the
-duration of the check), not a redesign. Carrying a known concurrency bug from
-a research fixture into a live feature is a worse mistake than the bug
-itself.
+The next experiment is still **integration**: `#470`'s pattern — a
+session-bound, digest-bound, single-use intent, consumed atomically at the
+actual effect — joined to **one real wp-admin effect that is not already a
+research fixture**. `#470` already exercises the real `WP_Upgrader` path; the
+natural next step is attaching this pattern to that path (or a declared
+Abilities API equivalent, gated by the new `wp_pre_execute_ability` filter
+proposed in §4.6, if plugin install is ever expressed as an ability) as a
+**live** feature — with **no identity switch anywhere in the design**, per
+§4.9's correction, and only after findings 1–3 above are closed, not
+alongside them.
 
 It must preserve the documented copied-cookie-only claim of §2.4 — not widen
 it — and must test at least:
@@ -684,13 +712,18 @@ it — and must test at least:
   matching intent for. This is the corrected form of what an earlier draft of
   this section called "session-window independence": there is no elevated
   session to protect, only individual approvals, and each one must stand
-  alone.
+  alone;
+- **exclusion of the test-only surfaces** — an automated build check, not a
+  manual step, confirming `/control` and the GET-based reset are absent from
+  whatever ships.
 
 Success is not "it feels smooth," and it is not "#470's own tests still pass"
 — though, as of 2026-08-02, independently confirmed rather than merely
-claimed, they do. Until this runs as a live, production-wired feature rather
-than a research fixture, and until someone tries to break it who did not
-write it, §4 is a design sketch with unusually strong supporting evidence.
+claimed, they do, alongside the five defects above that its own tests did
+not catch. Until this runs as a live, production-wired feature rather than a
+research fixture, with those defects closed rather than carried forward, §4
+is a design sketch with unusually strong — and now unusually honest —
+supporting evidence.
 
 ---
 
@@ -764,9 +797,34 @@ database, not three. This is a read-then-act race in
 `phase27_verify_factor()`'s own gate, not in the atomic increment that
 follows it — the same rate-limiting bug class that has broken login
 throttles elsewhere, found here by testing concurrency rather than assuming
-an atomic write implies an atomic decision. §6 records all six attempts —
-four sequential, two concurrent — and is explicit that this remains short of
-the read-the-source-against-core standard that found the seven bypasses in
-§2.1, and that this specific finding is a defect in Phase 27's own rate
-limiter, not in the digest-binding or single-use-approval mechanism the other
-five attempts were testing.
+an atomic write implies an atomic decision.
+
+A seventh and eighth test, the same day, targeted the test-only `/control`
+surface with a second, genuinely created administrator account rather than a
+simulated one: `advance-clock` and `storage-fail` were confirmed to be global
+WordPress options reaching a second administrator's unrelated, legitimately
+owned intent, in both directions, at the HTTP layer and in the database;
+`cancel`, by contrast, was confirmed correctly scoped by `user_id` — the
+target row was untouched. The second administrator account was deleted after
+testing; the live instance was left running.
+
+**A separate, independent review by Codex ran concurrently against the same
+live instance and its own copy of the same branch**, converging on the same
+overall shape — the core mechanism held, the rate limiter and the test-only
+surfaces did not — while finding two things this session's testing had not:
+that the lockout has no reset or time-based recovery at all, not merely a
+concurrency race in its gate (the more severe of the two related defects, and
+the correct one to lead with); and that Application-Password authentication
+can reach `/control`'s `session-destroy` operation without presenting the
+browser binding or REST nonce every other route requires, letting a leaked
+Application Password alone deny an administrator their own legitimate
+browser-based approval. It also independently confirmed the cross-user
+intent-ownership scoping this session tested, and independently noticed the
+same misleading-error-message detail this session had filed as an aside
+rather than a named finding. §6 records the combined result — six held
+properties and five confirmed defects, severity-ranked, attributed to
+whichever effort found each one — and states plainly that this remains
+short of the read-the-source-against-core standard that found the seven
+bypasses in §2.1, and that `#470` should not advance to live integration
+until the rate limiter is fixed and the test-only surfaces are provably
+excluded from whatever ships.
