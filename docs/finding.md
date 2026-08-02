@@ -1,7 +1,7 @@
 # Finding: route enumeration and post-submission interception cannot provide ecosystem-wide action-gated reauthentication
 
 **Status:** final finding; constructive direction, not a Core patch proposal
-**Date:** 2026-07-29, revised 2026-08-02 (rev. 7)
+**Date:** 2026-07-29, revised 2026-08-02 (rev. 8)
 **Source project:** WP Sudo (research prototype — see `PROJECT-STATUS.md`)
 
 ---
@@ -557,10 +557,11 @@ actually validates: every route gated by the actor's ordinary
 independent of the login cookie, digest-bound single-use intents consumed
 atomically against a dedicated table (with a genuine concurrency race in
 `WP_Upgrader`'s shared unpack directory found and fixed honestly, not
-loosened, per that file's own comments), password re-verification with a real
-account-scoped lockout, and revocation wired to `wp_logout` and
-`after_password_reset`. This is real, substantial evidence for the recency
-mechanism in §4.1–§4.7 and the corrected §4.9.
+loosened, per that file's own comments), password re-verification with an
+account-scoped lockout (a concurrency race in the lockout's own gate was
+found later the same day — see below), and revocation wired to `wp_logout`
+and `after_password_reset`. This is real, substantial evidence for the
+recency mechanism in §4.1–§4.7 and the corrected §4.9.
 
 **That reading was extended into a full independent reproduction the same
 day.** Every lane in `#470`'s own validation record was rerun, not read — from
@@ -579,10 +580,12 @@ deferral under `#490`.
 That was reproduction, not extension, and the distinction mattered enough to
 name precisely rather than let it blur the way "already tested" blurred into
 "already trustworthy" earlier in this document. **It was extended the same
-day** with three attacks reasoned from the mechanism itself, not copied from
+day** with attacks reasoned from the mechanism itself, not copied from
 `#470`'s own test titles, run against a live instance with a real
-Application Password, a real logged-in session, and a real stolen cookie
-value — not simulated:
+Application Password, a real logged-in session, and real concurrent
+requests — not simulated. Three held. One did not.
+
+**Three attacks the mechanism refused correctly:**
 
 - **Application-Password authentication combined with a binding cookie stolen
   from a real, separately-authenticated browser session.** Application
@@ -612,12 +615,40 @@ cookie and no attempted attack, succeeded normally — confirming the three
 refusals above were the mechanism holding under attack, not a broken test
 setup producing errors regardless of input.
 
-Three attacks is not exhaustive, and this remains short of the standard that
-found the seven bypasses in §2.1 — those came from reading core's dispatch
-code end to end and comparing it against the plugin's matcher line by line,
-not from three attempts, however genuinely adversarial. But it is no longer
-true that nobody has tried to break `#470` with something it did not already
-write down. Someone has, three times, and it held each time.
+**One real weakness, found by firing genuinely concurrent requests rather
+than sequential ones.** Ten simultaneous `/approve` calls against the same
+`prepared` intent with the *correct* password: exactly one succeeded, nine
+got `409`, and the database showed a single row in state `approved` — the
+`WHERE state = 'prepared'` atomic update holds under real concurrency, the
+same guarantee already confirmed for `ATOMIC_CONSUME`.
+
+Ten simultaneous `/approve` calls against a fresh intent with the *wrong*
+password, lockout reset to zero first, did not hold the same way. The stated
+limit is three failures before a 429. Seven of the ten were fully evaluated —
+`wp_check_password()` ran, failed, and incremented — before the throttle
+caught up; only three got `429`. The database confirmed `failures = 7`, not
+capped at three. The cause is a read-then-act gap, not a broken increment:
+`phase27_verify_factor()` reads the failure count to decide whether to even
+attempt the check, then increments atomically only *after* a failed
+attempt — under concurrency, multiple requests read the same stale count
+before any sibling's increment commits, so the *decision* races even though
+the *write* does not. This is the same class of bug as the seven bypasses in
+spirit — a check whose guarantee depends on an assumption (here, that reads
+and writes are effectively serialized) that concurrency breaks — though
+narrower in consequence: no path around needing the correct password exists,
+only a weakened throttle against guessing it. This is a defect in Phase 27's
+own bespoke rate limiter, not in the digest-binding or single-use-approval
+mechanism the seven bypasses and the three held attacks above were actually
+testing.
+
+Four attacks, three refused and one confirmed, is still not exhaustive and
+remains short of the standard that found the seven bypasses in §2.1 — those
+came from reading core's dispatch code end to end and comparing it against
+the plugin's matcher line by line, not from four attempts, however genuinely
+adversarial. But it is no longer true that nobody has tried to break `#470`
+with something it did not already write down, and it is no longer true that
+everything tried has held. Something was tried, and something broke. That is
+what this kind of testing is for.
 
 The next experiment is **integration**: `#470`'s pattern — a session-bound,
 digest-bound, single-use intent, consumed atomically at the actual effect —
@@ -628,6 +659,14 @@ gated by the new `wp_pre_execute_ability` filter proposed in §4.6, if plugin
 install is ever expressed as an ability) as a **live** feature rather than a
 test-only adapter — with **no identity switch anywhere in the design**, per
 §4.9's correction.
+
+**The rate-limit race found above should be fixed before this integration,
+not carried into it.** The fix is narrow — collapse the read-then-act gate
+into the same atomic pattern already used correctly elsewhere in this code
+(a single conditional update, or a transaction that locks the row for the
+duration of the check), not a redesign. Carrying a known concurrency bug from
+a research fixture into a live feature is a worse mistake than the bug
+itself.
 
 It must preserve the documented copied-cookie-only claim of §2.4 — not widen
 it — and must test at least:
@@ -713,6 +752,21 @@ attempt to reach `/effect-upload` with a matching digest without ever calling
 own test titles, and fired as real HTTP requests with `curl`. All three were
 refused; a fourth request, a positive control with no attack, succeeded
 normally, confirming the refusals were the mechanism holding rather than a
-broken test setup. §6 records the three attempts and is explicit that three
-is not exhaustive and does not meet the read-the-source-against-core standard
-that found the seven bypasses in §2.1.
+broken test setup.
+
+A fifth and sixth test, the same day, fired genuinely concurrent requests
+rather than sequential ones. Ten simultaneous `/approve` calls against one
+`prepared` intent with the correct password: exactly one succeeded, confirmed
+in the database. Ten simultaneous `/approve` calls with the wrong password
+against a lockout reset to zero: seven were fully evaluated before the stated
+three-failure throttle caught up, confirmed by `failures = 7` in the
+database, not three. This is a read-then-act race in
+`phase27_verify_factor()`'s own gate, not in the atomic increment that
+follows it — the same rate-limiting bug class that has broken login
+throttles elsewhere, found here by testing concurrency rather than assuming
+an atomic write implies an atomic decision. §6 records all six attempts —
+four sequential, two concurrent — and is explicit that this remains short of
+the read-the-source-against-core standard that found the seven bypasses in
+§2.1, and that this specific finding is a defect in Phase 27's own rate
+limiter, not in the digest-binding or single-use-approval mechanism the other
+five attempts were testing.
