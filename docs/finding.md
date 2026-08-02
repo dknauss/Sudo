@@ -128,8 +128,12 @@ the Codex architecture review, 2026-07-29):
    useful. Not generalizable: it requires per-screen knowledge of an admin UI
    the plugin does not own.
 
-The prototype has now occupied all three positions. `Challenge::HANDLER_LANDINGS`
-is option 3 attempted incrementally, at a single entry.
+The prototype has occupied positions 1 and 2: automatic replay (removed at
+4.9.0), then refuse-and-lose-context, which is the concluded, shipped state. A
+fix attempting position 3 — `Challenge::HANDLER_LANDINGS`, a single-entry
+bounded landing map — was built and independently reviewed twice, but the
+project concluded before it merged. The shipped tree occupies position 2 only;
+see `docs/sudo-architecture-history.md` for status.
 
 **#533–#537 are one missing contract surfacing repeatedly, not independent
 usability bugs.** Pre-4.9 smoothness was automatic replay concealing it.
@@ -427,9 +431,11 @@ do not present it as the successor to WP Sudo.
 
 ## 5. Consequences for the prototype
 
-- **Keep `HANDLER_LANDINGS` as a bounded fallback.** It is §2.3 option 3, and
-  the refusal path it improves remains the fallback under any successor
-  architecture. Bound it; do not grow it per screen.
+- **`HANDLER_LANDINGS` was built, reviewed, and never merged.** It implements
+  §2.3 option 3 as a single-entry bounded fallback; the project concluded
+  before the PR landed, so the shipped tree still sends every refused handler
+  request to the neutral dashboard (option 2). If this work is ever finished,
+  bound it at its current single entry rather than growing it per screen.
 - **Generic request stashing is not a foundation for transparent UX.** It may
   remain the mechanism for *naming* what is being authorised. It should not be
   extended toward restoring user work.
