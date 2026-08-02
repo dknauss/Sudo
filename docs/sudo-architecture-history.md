@@ -87,79 +87,102 @@ than trusting a window opened minutes earlier for something unrelated.
 specific login session so it can't be copied elsewhere or reused for a
 different action.
 
-This design was tested, not just theorized — in a separate demo project
-(`consequential-actions`) and a testing effort called Phase 27, both of
-which showed the mechanism holds up under deliberate attack attempts. What's
-unsettled is getting WordPress core to actually adopt anything like it —
-that part is still a proposal, not a patch.
+The current design (item 5) was tested, not just theorized, in a testing
+effort called Phase 27 — a mechanism that holds up under deliberate attack
+attempts, including a genuine WordPress concurrency bug it found and fixed
+along the way. A separate demo project, `consequential-actions`, is not a
+second, independent test of the same thing — it demonstrates item 3, the
+earlier reusable-window design that item 4 replaced, and is preserved for
+comparison rather than as supporting evidence for item 5. What's unsettled for
+Phase 27's design is getting WordPress core to actually adopt anything like
+it — that part is still a proposal, not a patch.
 
-## The newest idea (not built yet)
+## The newest idea (not built yet, and revised once already)
 
 Came up in conversation after the project concluded, and neither track above
 tried it: instead of gating requests or gating individual core actions,
-change who holds dangerous permissions *at all*.
+change who holds dangerous permissions *at all*. No real account holds
+capabilities like "install a plugin" while just sitting there — they're
+denied by default, and unlocked only by a deliberate, separate proof-of-
+identity step.
 
-No real account — not even the site owner's everyday login — holds
-capabilities like "install a plugin" while just sitting there. Those live on
-one separate account with no working password or email (so it can never be
-logged into directly). Using those capabilities requires a deliberate,
-separate proof-of-identity step first, which then switches the session into
-that account — like `sudo -i` on Unix giving you a root shell you then use
-normally, instead of asking permission for every command.
+**The first version of this idea was wrong in a specific, checkable way, and
+got corrected the same day.** It proposed one special account with no working
+password or email, reached by switching the session into it after reauth —
+like `sudo -i` opening a root shell you then use freely. Three things turned
+out to be wrong with that, found by an outside review and by actually reading
+the code this idea leaned on for evidence, not by further discussion:
 
-This sidesteps the one problem neither prior track solved: what to do with
-a dangerous request that's already in flight when it gets refused. If proof
-happens *before* anyone attempts anything dangerous, there's no half-finished
-request left to replay, refuse, or reconstruct a landing page for.
+- The mechanism proposed for denying capabilities by default doesn't reach
+  every account on a multisite install — a multisite Super Admin bypasses it
+  entirely, for a specific, verifiable reason in how WordPress checks
+  capabilities.
+- Switching one dangerous action (the "become admin" step) behind a proof
+  requirement doesn't put a proof requirement on the *other* dangerous
+  actions. Once switched in, installing a plugin or promoting a user would
+  proceed completely normally, with no further check — the design didn't
+  actually deliver the "every action needs its own proof" property it was
+  supposed to.
+- The evidence cited for this design — Phase 27 — doesn't contain anything
+  like a special account or a session switch when you actually read its code.
+  It proves a *different, better* idea: that this can all be done to the
+  same account, the site owner's own, without ever creating a synthetic
+  identity.
 
-It also isn't fooled by the seven bugs that broke the plugin's own
-request-matching, because it checks WordPress's actual permission system —
-which fires the same way regardless of how the request arrived — instead of
-guessing from the outside what a request means.
+**The corrected version keeps the site owner's own account throughout.**
+Nothing switches. A short-lived proof of identity attaches to the person's
+existing login. That proof doesn't authorize everything by itself — each
+dangerous action still has to consume its own one-time approval, tied to
+that specific action and, where it matters, to the exact bytes involved.
+Disabling the button in the browser is still just a visible side effect of a
+real, server-side "no" — never the "no" itself. This keeps everything the
+first version got right and drops the one piece (a synthetic account) that
+added complexity without adding any real protection.
 
-**Checked, not assumed, before trusting this:** disabling admin UI elements
-until reauth is only secure if the disabling is a *consequence* of a real
-server-side capability denial, not a substitute for one — otherwise it's
-exactly the "client-side disabling as authorization" trap `docs/finding.md`
-already warns against. Confirmed it holds across surfaces: REST calls
-authenticated by cookie inherit the same protection automatically; XML-RPC
-and direct login are closed the same way the special account is closed
-everywhere else; WP-CLI and cron are correctly out of scope rather than
-insecurely uncovered, since CLI access already implies filesystem trust this
-design can't add to, and cron has no logged-in human to check in the first
-place. One real, specific, closeable gap: Application Passwords issued to
-the special account would bypass the whole thing, since that credential
-never touches the reauth step at all.
+**Checked, not assumed:** REST calls authenticated by the same login cookie
+inherit the same protection automatically; XML-RPC is closed the same way
+direct login already is; WP-CLI and cron are correctly out of scope rather
+than insecurely uncovered, since CLI access already implies a level of trust
+this can't add to, and cron has no logged-in human to check against in the
+first place. One real, specific, closeable gap either version shares:
+Application Passwords issued to whatever account holds the elevated proof
+would bypass the whole thing, since that credential never touches the reauth
+step at all.
 
-It would not stop everything. A vulnerable plugin that writes a dangerous
-file without ever asking WordPress's permission system anything would still
-get through — there's no check there to intercept. And anyone who already
-has direct file access to the server could simply edit the rule enforcing
-all of this. But within its scope, it's more solid than either prior track,
-because it hooks the one place WordPress core itself already checks
-"can this person really do this," instead of guessing from outside.
+It would not stop everything, either version. A vulnerable plugin that writes
+a dangerous file without ever asking WordPress's permission system anything
+would still get through — there's no check there to intercept. And anyone who
+already has direct file access to the server could simply edit the rule
+enforcing all of this. But within its scope, the corrected version is more
+solid than either prior track, because it hooks the one place WordPress core
+itself already checks "can this person really do this," instead of guessing
+from outside — and it does so without inventing a second identity that never
+needed to exist.
 
 ## Next best steps
 
 **Track 1 — a working prototype of a real core change.**
 WordPress 6.9/7.0 already added a small, relevant hook
 (`wp_before_execute_ability`) at the point where a declared "ability" runs —
-but it can only watch, not refuse. The concrete next step: a working patch
-that makes that hook able to say no, with the already-tested proof mechanism
-(the B′ design) attached to it, proven on one real WordPress admin screen
-plus one real dangerous action. Not a redesign — a small, working
-demonstration that two already-proven pieces (a refusable hook, a working
-proof mechanism) actually fit together in real WordPress.
+but it can only watch, not refuse. The concrete next step: a *new*, separate
+filter at that same point that can actually say no, with the already-tested
+proof mechanism (Phase 27) attached to it, proven as a live feature on one
+real WordPress admin screen plus one real dangerous action — not the test-only
+adapter Phase 27 already built, but the same pattern wired into something a
+site actually runs. Before trusting the result, read Phase 27's own code
+independently first, rather than trusting that it does what its own tests say
+it does — that step is what caught the special-account mistake above, and
+skipping it here would risk the same kind of error a second time.
 
 **Track 2 — a new mu-plugin, built from scratch around "no standing admin."**
-Never built, only sketched. The next step is a small, working version: one
-rule file that strips dangerous capabilities from everyone, one special
-account with no usable password or email (and Application Passwords
-explicitly disabled for it), one small "prove it's you, then switch me in"
-page, and a written list of what's deliberately left out (server-level
-access, and non-capability-checked vulnerabilities in third-party code).
-Before trusting it, test it two ways: against the same seven bugs the
-plugin's own request-matching failed on, and with a server-bypass check on
-every surface — submit the raw request with the UI skipped entirely, on
-admin, REST-cookie, REST-app-password, and XML-RPC, and confirm the server
-still refuses each one.
+Never built, only sketched, and revised once already after the special-account
+version above didn't hold up. The next step is a small, working version: a
+denial layer written at the point WordPress actually resolves capabilities
+(not a shortcut that skips multisite's Super Admins), a short-lived proof
+attached to the site owner's own login rather than a second account, one
+small "prove it's you" step that unlocks it, and one dangerous action wired
+to require its own one-time approval before it runs. Before trusting it, test
+it two ways: against the same seven bugs the plugin's own request-matching
+failed on, and with a server-bypass check on every surface — submit the raw
+request with the UI skipped entirely, on admin, REST-cookie, REST-app-password,
+and XML-RPC, and confirm the server still refuses each one.
