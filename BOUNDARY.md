@@ -1,15 +1,57 @@
 # What this prototype actually claims
 
 Written 2026-08-02, after the binding-cookie fix and the first regression
-suite, both same-day, and revised the same day twice more: once after an
-independent fresh-context agent — given the live instances and the raw
+suite, both same-day, and revised the same day three more times: once after
+an independent fresh-context agent — given the live instances and the raw
 source, but not this file or the regression suite — found a high-severity
-defect in under ten minutes that the suite it's revising had not covered,
-and again after a second, separately spawned fresh-context agent, given the
+defect in under ten minutes that the suite it's revising had not covered;
+again after a second, separately spawned fresh-context agent, given the
 same access and the same exclusions, found four more defects in code that
-had already been "fixed" and re-tested once. This is the claim as it stands
-*today*, not aspirational, and not identical to what an earlier version of
-this prototype — or an earlier version of this file — would have supported.
+had already been "fixed" and re-tested once; and again after this
+prototype's own author found, by hand, that a real administrator could
+change another real user's email address with zero reauthentication --
+found not by either agent, and not by the regression suite, but by
+clicking through native wp-admin like an ordinary user would. This is the
+claim as it stands *today*, not aspirational, and not identical to what an
+earlier version of this prototype — or an earlier version of this file —
+would have supported.
+
+**A third finding, found by neither agent: the floor's filter checked the
+wrong string for most of its own stated purpose.** `wp-admin/user-edit.php`
+gates access to another user's profile with
+`current_user_can( 'edit_user', $user_id )` -- the singular meta
+capability. Core's own `map_meta_cap()` resolves that internally to the
+primitive `edit_users` by appending it directly to the `$caps` array,
+without ever re-invoking `map_meta_cap()` with `$cap = 'edit_users'`. The
+`map_meta_cap` filter this floor hooks always receives the *original*
+`$cap`, so a version of `cap_floor_deny()` that checked only `$cap` against
+the denied list -- which is what both `cap_floor_deny()` and
+`cap_floor_allow_with_approval()` did until this fix -- silently let
+`edit_user` straight through: the administrator's own role already had
+`edit_users`, so once the floor declined to add `do_not_allow`,
+`WP_User::has_cap()`'s final check against the role's own capabilities
+simply passed. Reproduced directly: opened `user-edit.php` for a second
+real account, changed its email field, submitted the real form, and the
+change took effect -- no password, no approval, nothing. `edit_users` was
+never actually enforced for the one screen that exists to use it, for the
+entire time it was on `CAP_FLOOR_DENIED_CAPS`. `delete_users` has the
+identical meta-cap indirection (`delete_user` → `delete_users`) but turned
+out to already be safe, for an unrelated reason: `wp-admin/users.php`
+checks the bare, unwrapped `current_user_can( 'delete_users' )` before
+ever reaching the per-row meta-cap check, so the floor's `$cap`-only check
+happened to still match there. `create_users` was never affected either --
+`user-new.php` calls `current_user_can( 'create_users' )` directly, with no
+meta-cap wrapper, so `$cap` already equals the primitive. Fixed by checking
+the resolved `$caps` array (`array_intersect` against the denied list), not
+only `$cap`, in both functions. **This changes what "two independent
+fresh-context agents reviewed this and found what they found" is actually
+evidence of**: both agents were pointed at, and stayed within, the
+approval/binding/rate-limit mechanics of one wired effect. Neither one
+tried the single most direct test of the floor's own headline claim --
+open a second real user's edit screen as an administrator and see what
+happens -- because neither was told to and neither happened to think of
+it unprompted. An agent finding nothing in its assigned area is evidence
+about that area, not about the whole surface.
 
 **The independent-review method worked, once, concretely.** The agent was
 told nothing about what had already been tested and explicitly instructed
@@ -83,9 +125,21 @@ flagged anywhere in the archived Sudo repo's `docs/finding.md`.
 
 ## Defends against — verified, not asserted
 
-- **No account holds a dangerous capability at rest.** Denial happens in
-  `map_meta_cap()`, confirmed to reach a multisite Super Admin, where an
-  earlier, discarded `user_has_cap`-based version did not.
+- **No account holds a dangerous capability at rest — for the specific
+  native screens actually exercised, not for all sixteen denied
+  capabilities uniformly.** Denial happens in `map_meta_cap()`, confirmed
+  to reach a multisite Super Admin, where an earlier, discarded
+  `user_has_cap`-based version did not. Confirmed against real native
+  wp-admin screens for `install_plugins`, `create_users`, `edit_users`, and
+  `delete_users` (the last two only after the meta-cap indirection fix
+  below). `edit_files`, `edit_plugins`, `edit_themes`, `upload_plugins`,
+  `upload_themes`, `update_plugins`, `update_themes`, `delete_plugins`,
+  `update_core`, and `unfiltered_html` are on the same list and use the
+  same `$cap`-and-`$caps` check, but **none of them has been individually
+  tried against a real native screen the way `edit_users` was** — and
+  `edit_users` looked correctly denied too, right up until someone actually
+  opened a second user's edit screen. Absence of a known bypass for these
+  ten is not the same claim as a verified one.
 - **Each dangerous action requires its own fresh, single-use approval**,
   scoped to the actor's own identity (no switch), their login session, a
   second independent `__Host`-bound cookie, and — where bytes matter — a
@@ -114,8 +168,26 @@ flagged anywhere in the archived Sudo repo's `docs/finding.md`.
   request time and mandatory at the matching side; a bare capability check
   with no target argument cannot match any approval, ever. This is the fix
   for the master-key finding above, not merely a mitigation of it.
+- **A real administrator cannot open another user's edit screen and change
+  their profile with no reauthentication.** This was false, for the entire
+  time `edit_users` has been on the denied list, until the meta-cap
+  indirection fix above. Reproduced fixed: `user-edit.php` for a second
+  account now returns "Sorry, you are not allowed to edit this user."
+- **The second gated effect (`create_users`) works end-to-end the same way
+  the first one does.** Wired the same day as this correction, using the
+  identical digest-bind-consume pattern as `/install-plugin`; see
+  "Generality across effects" below for what that does and doesn't prove.
 
 ## Does not defend against — named, not merely implied
+
+- **The same meta-cap indirection bug, in a capability nobody has tried
+  yet.** The fix above covers exactly the two cases found so far
+  (`edit_user`→`edit_users`, and `delete_user`→`delete_users`, which turned
+  out to already be safe for an unrelated reason). It is a general fix
+  (checks the resolved `$caps` array, not a name-by-name patch), so it
+  should generalize — but "should" is a claim about the mechanism, not a
+  report of having tried the other ten denied capabilities against their
+  own native screens one by one. Nobody has.
 
 - **A full cookie-jar clone.** By construction this almost certainly
   succeeds the same way it does against `#470` — the binding cookie is the
@@ -174,5 +246,16 @@ scope for minting a binding, until an outside perspective found otherwise
 evidence the *known* findings don't regress. It is not evidence there are
 no more findings, and this file having needed two separate corrections in
 one day, from two separately spawned agents, each finding what the other
-didn't, is the argument for that — not just an assertion of it. A third
-fresh pass would very plausibly find a fifth thing.
+didn't, is the argument for that — not just an assertion of it.
+
+**The third finding — the `edit_users` meta-cap bypass — wasn't found by
+an agent, or by the suite. It was found by the person who wrote both,
+clicking through wp-admin like an ordinary user, after two rounds of agent
+review had already run.** That is a different, and arguably more
+uncomfortable, data point than "agents catch what the author misses": the
+author's own attention, method, and the two agents' assigned scope all
+missed the same thing at the same time, for the same underlying reason —
+nobody had tried the single most direct test of the floor's headline claim
+against a capability that wasn't the one already-wired effect. A fourth
+fresh pass, scoped explicitly to try that, is the obvious next check, not
+a fifth thing to hope doesn't exist.
