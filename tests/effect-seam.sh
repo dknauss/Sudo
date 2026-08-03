@@ -94,6 +94,69 @@ CLI_N=$(wp plugin list --field=name 2>/dev/null | LC_ALL=C grep -c '^classic-edi
 chk "CLI install did not land" "0" "$CLI_N"
 
 cleanup_plugin
+
+# ---------------------------------------------------------------------
+# core.identity.email_change
+# ---------------------------------------------------------------------
+wp user delete victim --yes --network >/dev/null 2>&1
+wp user delete victim --yes >/dev/null 2>&1
+wp user create victim victim.old@example.com --role=author --user_pass=x >/dev/null 2>&1
+VID=$(wp user get victim --field=ID | LC_ALL=C grep -E '^[0-9]+$')
+curl -sS -b "$TMP/A.jar" "$BASE_URL/wp-admin/user-edit.php?user_id=$VID" -o "$TMP/f.html"
+UNONCE=$(LC_ALL=C grep -o 'name="_wpnonce" value="[a-f0-9]*"' "$TMP/f.html" | head -1 | LC_ALL=C sed 's/.*value="//;s/"//')
+
+edit_email() {
+	curl -sS -b "$TMP/A.jar" -X POST "$BASE_URL/wp-admin/user-edit.php" \
+		--data-urlencode "action=update" --data-urlencode "user_id=$VID" \
+		--data-urlencode "_wpnonce=$UNONCE" --data-urlencode "email=$1" \
+		--data-urlencode "nickname=victim" --data-urlencode "display_name=victim" \
+		--data-urlencode "role=author" -o "$2"
+}
+email_now() { wp user get victim --field=user_email 2>/dev/null | LC_ALL=C grep -E '@'; }
+digest_from() { LC_ALL=C grep -oE "Approve digest [a-f0-9]{64}" "$1" | head -1 | awk '{print $3}'; }
+grant() { wp eval "effect_policy_grant('$1', $ADMIN_ID, '$TOKEN');" >/dev/null 2>&1; }
+
+echo
+echo "=== 7. an admin changing ANOTHER user's email is refused without approval ==="
+edit_email "attacker@evil.test" "$TMP/e1.html"
+LC_ALL=C grep -q "requires approval" "$TMP/e1.html" && ok "refused at the Core seam" || bad "not refused"
+chk "the address is unchanged" "victim.old@example.com" "$(email_now)"
+
+echo
+echo "=== 8. the refusal names the exact change, from and to ==="
+LC_ALL=C grep -q 'change user #.* email from .* to ' "$TMP/e1.html" \
+	&& ok "refusal states the from->to transition" || bad "refusal does not name the transition"
+
+echo
+echo "=== 9. approving that exact digest permits it once ==="
+grant "$(digest_from "$TMP/e1.html")"
+edit_email "attacker@evil.test" "$TMP/e2.html"
+chk "the change committed" "attacker@evil.test" "$(email_now)"
+
+echo
+echo "=== 10. REDIRECT RESISTANCE: an approval for A->B does not authorise A->C ==="
+# The defect class this guards is the one that produced the master-key
+# finding earlier in this project: an approval that names less than the
+# effect can be spent on a different effect.
+edit_email "third@evil.test" "$TMP/e3.html"
+grant "$(digest_from "$TMP/e3.html")"      # approval bound to ->third
+edit_email "fourth@evil.test" "$TMP/e4.html"   # but submit ->fourth
+LC_ALL=C grep -q "requires approval" "$TMP/e4.html" && ok "the ->third approval refuses ->fourth" || bad "REDIRECT HOLE"
+chk "no unapproved address was written" "attacker@evil.test" "$(email_now)"
+
+echo
+echo "=== 11. and the approved transition still works ==="
+edit_email "third@evil.test" "$TMP/e5.html"
+chk "the approved change committed" "third@evil.test" "$(email_now)"
+
+echo
+echo "=== 12. a machine actor cannot change an email either ==="
+OUT2=$(npx @wordpress/env run cli wp user update victim --user_email=cli@evil.test --config "$WP_ENV_CONFIG" 2>&1)
+echo "$OUT2" | LC_ALL=C grep -q "Refused: change user" && ok "CLI refused" || bad "CLI not refused"
+chk "address unchanged by CLI" "third@evil.test" "$(email_now)"
+
+wp user delete victim --yes >/dev/null 2>&1
+
 echo
 echo "=== $PASS passed, $FAIL failed ==="
 [ "$FAIL" -eq 0 ]

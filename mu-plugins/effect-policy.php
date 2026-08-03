@@ -25,7 +25,15 @@ declare( strict_types = 1 );
 
 defined( 'ABSPATH' ) || exit;
 
-const EFFECT_POLICY_CAP = 'core.code.package_commit';
+/**
+ * Effects this policy governs. Anything not listed passes through
+ * untouched, so adding a Core seam does not silently start gating an
+ * effect nobody wrote a policy for.
+ */
+const EFFECT_POLICY_GOVERNED = array(
+	'core.code.package_commit',
+	'core.identity.email_change',
+);
 
 add_filter(
 	'wp_authorize_consequential_effect',
@@ -33,20 +41,15 @@ add_filter(
 		if ( is_wp_error( $decision ) ) {
 			return $decision; // Someone already refused; do not overturn.
 		}
-		if ( EFFECT_POLICY_CAP !== ( $effect['id'] ?? '' ) ) {
-			return $decision; // Not our effect.
+		if ( ! in_array( (string) ( $effect['id'] ?? '' ), EFFECT_POLICY_GOVERNED, true ) ) {
+			return $decision; // Not an effect this policy governs.
 		}
 
 		$actor  = $effect['actor'] ?? array();
 		$class  = (string) ( $actor['class'] ?? 'anonymous' );
 		$digest = (string) ( $effect['digest'] ?? '' );
 
-		$described = sprintf(
-			'%s %s "%s"',
-			$effect['target']['action'] ?? '?',
-			$effect['target']['type'] ?? '?',
-			$effect['target']['slug'] ?? '(new)'
-		);
+		$described = effect_policy_describe( $effect );
 
 		if ( 'interactive' === $class ) {
 			if ( effect_policy_has_approval( $digest ) ) {
@@ -137,4 +140,33 @@ function effect_policy_consume( string $digest ): void {
 function effect_policy_grant( string $digest, int $user_id, string $session ): void {
 	$key = 'effect_approval_' . hash( 'sha256', $user_id . '|' . $session . '|' . $digest );
 	set_transient( $key, 1, 120 );
+}
+
+/**
+ * Human-readable statement of exactly what is about to happen.
+ *
+ * This is what a confirmation UI would show, so it must be derived from the
+ * descriptor Core built — never from anything the request supplied. An
+ * operator approving "change bob@example.com to x@evil.test" is approving
+ * that sentence; if the sentence and the digest can disagree, the whole
+ * control is decorative.
+ */
+function effect_policy_describe( array $effect ): string {
+	$t = isset( $effect['target'] ) && is_array( $effect['target'] ) ? $effect['target'] : array();
+
+	if ( 'core.identity.email_change' === ( $effect['id'] ?? '' ) ) {
+		return sprintf(
+			'change user #%d email from "%s" to "%s"',
+			(int) ( $t['user_id'] ?? 0 ),
+			(string) ( $t['from'] ?? '?' ),
+			(string) ( $t['to'] ?? '?' )
+		);
+	}
+
+	return sprintf(
+		'%s %s "%s"',
+		(string) ( $t['action'] ?? '?' ),
+		(string) ( $t['type'] ?? '?' ),
+		(string) ( $t['slug'] ?? '(new)' )
+	);
 }
