@@ -102,7 +102,7 @@ tested this census, and the census failed — it had missed a seam.
 |---|---|---|
 | REST route capitalisation | whichever handler it reached | mechanism absent — a seam never parses routes |
 | File editor write (POST vs `action=update`) | `wp_edit_theme_plugin_file()` | ✅ covered |
-| `options.php` (`$_REQUEST` vs `$_POST`) | option write | ❌ **open** — see below |
+| `options.php` (`$_REQUEST` vs `$_POST`) | option write | ✅ **closeable** — a named-option seam; the earlier ❌ was based on an unmeasured claim, see below |
 | Bulk promote (`changeit`) | capabilities usermeta | ✅ covered |
 | REST plugin deactivation (method set) | `deactivate_plugins()` | ⚠️ **census had missed it** — now added |
 | 2FA bridge (`$_REQUEST` user_id) | user meta / auth change | ⚠️ partial |
@@ -117,8 +117,10 @@ it empirically: CLI is simply the most extreme case of "arrived by a path
 nobody enumerated."
 
 **But coverage is a separate question from mechanism, and the exercise
-proved it.** Two entries above are not green, and one of them is a seam
-this census had omitted entirely.
+proved it.** One entry above is still not green (the 2FA bridge, partial),
+and one was a seam this census had omitted entirely. A third — the option
+write — was marked open on an assumption that later measurement
+falsified.
 
 ## Seams added after the bypass cross-check
 
@@ -129,19 +131,57 @@ this census had omitted entirely.
 | `retrieve_password()` / `get_password_reset_key()` | `wp-includes/user.php:3243` / `3081` | Added for completeness, but see the pivot map: low priority. |
 | `reset_password()` | `wp-includes/user.php:3492` | Consumption side of the same flow. |
 
-## The option-write class stays open, and the seam does not rescue it
+## The option-write class: the "no answer" claim was wrong, and measuring it said so
 
-`update_option()` (`wp-includes/option.php:844`) is a single function, so
-*location* was never the problem — **discrimination** is. Core and
-legitimate plugins write options constantly during ordinary page loads, so
-telling a deliberate `siteurl` change from incidental churn is exactly as
-hard at a seam as at a hook. A named-option allowlist narrows the surface
-but does not solve the intent problem, and the set of security-relevant
-options is not bounded by Core (plugins define their own).
+This section previously asserted that option writes could not be gated,
+because Core and plugins write options constantly and a deliberate change
+could not be told from incidental churn. **That was asserted twice and
+never measured. Measuring it falsified it.**
 
-This is the one effect class where the architecture currently has no
-answer, and bypass #3 lands squarely in it. It should be stated as an open
-problem in any proposal rather than folded into a coverage claim.
+Method: instrument `updated_option`/`added_option`, crawl the admin doing
+nothing, then deliberately change dangerous settings through the real
+form. (`mu-plugins/option-churn-probe.php`.)
+
+| Scenario | Total option writes | Of which security-relevant |
+|---|---|---|
+| 20 admin pages + front page + cron spawn | 1 | **0** |
+| Same, plus 34 forced cron events and update transients cleared | 3 | **0** |
+| Settings → General submitted with `users_can_register=1`, `default_role=administrator` | 6 | **2 — both captured** |
+
+The single write in the first row was this prototype's own binding
+registry. The churn in the second is `_site_transient_update_core` and
+`cron` — distinguishable from the dangerous set by name alone, without any
+intent inference.
+
+**So the option name IS a sufficient discriminator**, and a named-option
+seam at `update_option()` is viable. The signal fires on deliberate change
+and stays silent through ordinary use, which is exactly the property the
+earlier claim said was unobtainable.
+
+**This closes bypass #3.** `options.php` self-protection failed because the
+plugin read `$_POST` while Core read `option_page` from `$_REQUEST`. At a
+seam on the option write itself, which superglobal the request used is not
+a fact the check consults. The bypass matrix above should be read with #3
+moved to covered.
+
+### What genuinely remains, stated narrowly
+
+- **Measured on a stock install with few plugins.** A site running thirty
+  plugins may write far more. The relevant question is narrower than
+  volume, though: would a *plugin* write `siteurl` or `default_role`
+  during ordinary operation? Migration and multisite tooling plausibly
+  would. Unmeasured.
+- **Extensibility is the real limit.** The dangerous list here is
+  hand-picked from what an attacker would want. Plugins define their own
+  security-relevant options — a security plugin's "disable two-factor"
+  switch is as dangerous as `default_role` and Core cannot know it exists.
+  A Core-owned list covers Core's own surface and nothing beyond it.
+- **`active_plugins` is double-covered**, since `activate_plugin()` is
+  also a seam. Harmless, but the descriptor should say which path is
+  being authorised so an operator is not asked twice for one act.
+
+That is a bounded extensibility problem, not the "no answer" this section
+previously claimed.
 
 ## Result: ~14 seams
 
