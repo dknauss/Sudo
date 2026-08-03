@@ -281,6 +281,38 @@ add_action(
 					$reassign = ( is_string( $reassign_param ) && ctype_digit( $reassign_param ) ) ? $reassign_param : '0';
 					$user_id  = (int) $user_id_param;
 
+					// Refused on multisite, deliberately, and this is the
+					// most interesting thing wiring this third effect
+					// turned up. wp_delete_user() does NOT delete an
+					// account on multisite -- core's own docblock says so
+					// ("on a Multisite installation the user only gets
+					// removed from the site and does not get deleted from
+					// the database"), and it was confirmed live here: the
+					// route returned {"status":"deleted"}, the site role
+					// was stripped, and the account remained intact
+					// network-wide.
+					//
+					// That is a *site removal* -- exactly the effect core
+					// governs with the separate remove_users capability,
+					// which this floor denies independently -- performed
+					// under an approval the human authorized as
+					// delete_users, and then reported back as "deleted".
+					// A gap between the effect a person approved and the
+					// effect that actually happened is the specific
+					// failure this whole design exists to close, so
+					// silently performing the lesser action (or renaming
+					// the response) would be answering the wrong question.
+					// Implementing multisite removal properly means its
+					// own approval under remove_users, which this
+					// prototype does not yet wire.
+					if ( is_multisite() ) {
+						return new WP_Error(
+							'cap_floor_multisite_unsupported',
+							'On multisite this would remove the user from this site without deleting the account, which is a different effect (remove_users) than the one approved. Not supported by this route.',
+							array( 'status' => 501 )
+						);
+					}
+
 					// Checked before the approval is touched, same principle
 					// as the create-user existing-username fix: a target
 					// that can never succeed should never cost a password

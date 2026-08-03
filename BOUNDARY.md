@@ -23,7 +23,9 @@ rather than the agent, turned out to be a sixth real bypass
 2026-08-03, after a third effect (`delete_users`) was wired two different
 ways to probe the intent-signal problem — an experiment whose stated
 prediction turned out to be wrong, recorded below rather than quietly
-dropped. This is the claim as it stands *today*, not aspirational, and not
+dropped, and which surfaced a sharper problem than the one it set out to
+test: on multisite the approved capability and the performed effect were
+not the same thing, and only reading core's source revealed it. This is the claim as it stands *today*, not aspirational, and not
 identical to what an earlier version of this prototype — or an earlier
 version of this file — would have supported.
 
@@ -223,19 +225,35 @@ what they say about the first pass, not just the second.
 
 **Walked back: the claim that a leaked `LOGGED_IN_COOKIE` alone is
 insufficient does not fully hold, even after fix #1 above.** The honest
-version: minting now requires a GET to one specific, publicly-discoverable
-admin URL rather than any admin page at all — that raises the cost and
-narrows the exposure, but it does not close it. An attacker who can freely
-replay a stolen login cookie in their own requests can simply also request
-`/wp-admin/tools.php?page=cap-floor-harness` with it; I reproduced this
-directly — a plain GET to `/wp-admin/index.php` with only stolen cookies no
-longer mints a binding, but the same request to the harness page URL still
-does. Nobody has verified whether the equivalent question — attacker holds
-only the stolen session cookie, requests `#470`'s own equivalent research
-page directly — was ever tested against `#470` itself, across all of this
-session's extensive adversarial work there. That is an open gap in `#470`'s
-evidentiary record, not just this prototype's, and it is not currently
-flagged anywhere in the archived Sudo repo's `docs/finding.md`.
+version: minting requires a GET to one of a small, fixed set of specific,
+publicly-discoverable admin URLs rather than any admin page at all — that
+raises the cost and narrows the exposure, but it does not close it. An
+attacker who can freely replay a stolen login cookie in their own requests
+can simply request one of those URLs with it; I reproduced this directly —
+a plain GET to `/wp-admin/index.php` with only stolen cookies mints
+nothing, but the same request to a minting URL still mints a valid
+binding.
+
+**That set grew from one URL to two on 2026-08-03**, when
+`/wp-admin/users.php` was added alongside
+`/wp-admin/tools.php?page=cap-floor-harness` so the intercepted native
+Delete button could work. Re-verified after the change: the dashboard
+still mints nothing, `users.php` now mints with stolen cookies alone. The
+increment is small, but the direction is the point — **under Approach A,
+every native screen given a real elevate flow has to become a minting
+URL, so this set grows monotonically as the design covers more of
+wp-admin.** A version of this idea covering a realistic slice of the admin
+would have minting reachable from most of the screens an attacker would
+want, at which point "scoped to a few known URLs" stops being a
+meaningful narrowing at all. This is a structural cost of the approach,
+not a bug to fix in it.
+
+Nobody has verified whether the equivalent question — attacker holds only
+the stolen session cookie, requests `#470`'s own equivalent research page
+directly — was ever tested against `#470` itself, across all of this
+session's extensive adversarial work there. That is an open gap in
+`#470`'s evidentiary record, not just this prototype's, and it is not
+currently flagged anywhere in the archived Sudo repo's `docs/finding.md`.
 
 ## Defends against — verified, not asserted
 
@@ -372,6 +390,31 @@ flagged anywhere in the archived Sudo repo's `docs/finding.md`.
   forever*, and one screen passing says nothing about the twentieth. Treat
   Approach A as the design and Approach B as a recorded experiment.
 
+- **The same approval meaning different things on different site types.**
+  Wiring the third effect turned this up, and it is the most substantive
+  finding of the exercise. `wp_delete_user()` does not delete an account on
+  multisite: core's own docblock states that "on a Multisite installation
+  the user only gets removed from the site and does not get deleted from
+  the database," and that is what happened live — the route returned
+  `{"status":"deleted"}`, the site role was stripped, and the account
+  remained intact network-wide. So an approval the human authorized as
+  `delete_users` would have performed a *site removal*: the effect core
+  governs with the separate `remove_users` capability, which this floor
+  denies independently, reported back under the wrong name.
+
+  Nothing about the approval machinery failed here — digest, binding,
+  single-use consumption all behaved correctly. **The gap was between the
+  effect the person approved and the effect the underlying function
+  performs**, which is precisely the failure this design exists to prevent
+  and which no amount of correctness in the approval layer detects. The
+  route now refuses on multisite with 501 rather than performing the
+  lesser action or renaming its response; implementing multisite removal
+  honestly means its own approval under `remove_users`, which is not
+  wired. The general lesson is uncomfortable for the whole approach: an
+  approval is only as meaningful as the caller's understanding of what the
+  function it guards actually does, and that understanding is not
+  something the mechanism can check.
+
 - **WP-CLI, for any of this.** `wp user delete` deletes the user with no
   `current_user_can()` consultation at all — confirmed live, with zero
   approvals ever issued. That is WP-CLI's own long-standing behavior, not
@@ -446,3 +489,19 @@ nobody had tried the single most direct test of the floor's headline claim
 against a capability that wasn't the one already-wired effect. A fourth
 fresh pass, scoped explicitly to try that, is the obvious next check, not
 a fifth thing to hope doesn't exist.
+
+**A fifth data point, and it is a different kind again.** The multisite
+`delete_users`/`remove_users` mismatch above was not found by an agent,
+not by clicking through wp-admin, and not by the suite — the suite in fact
+*passed* that route on single-site and only failed on multisite for what
+initially looked like a fixture bug. It was found by reading core's own
+docblock for the function being called, after a test failure that could
+easily have been "fixed" by relaxing the assertion instead. That is worth
+naming precisely because the cheap repair was available and would have
+buried a real finding: the test was asserting the right thing, and the
+code was doing the wrong thing, in the direction where the response text
+said "deleted" and the account still existed. The general form — *verify
+what the guarded function actually does, in the context it will run in,
+rather than what its name implies* — is not a check any of the four
+review rounds performed, on any effect, and has still only been done for
+this one function.
