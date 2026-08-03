@@ -197,7 +197,12 @@ for i in 1 2 3 4 5; do
 		-F "approval_id=$APPROVAL6" -F "package=@$REAL_ZIP" &
 done
 wait
-WINS=$(grep -l '"status":"installed"' "$TMP"/c*.txt 2>/dev/null | wc -l | tr -d ' ')
+# Matches the corrected response string. The route used to report
+# "installed"; an audit of what the guarded function actually does found
+# that nothing is ever installed (the real WP_Upgrader pipeline runs into
+# a throwaway directory under uploads that is then deleted), so the
+# response now says what happened instead of what the capability is named.
+WINS=$(grep -l '"status":"upgrader_pipeline_completed"' "$TMP"/c*.txt 2>/dev/null | wc -l | tr -d ' ')
 assert_true "exactly one of five concurrent redemptions wins" "$([ "$WINS" = "1" ] && echo 1 || echo 0)"
 
 echo

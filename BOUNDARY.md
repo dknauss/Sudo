@@ -390,6 +390,38 @@ currently flagged anywhere in the archived Sudo repo's `docs/finding.md`.
   forever*, and one screen passing says nothing about the twentieth. Treat
   Approach A as the design and Approach B as a recorded experiment.
 
+- **The flagship effect does not perform the dangerous action it names —
+  and never did, through four rounds of review that treated it as the
+  proof the design works.** An audit of what each guarded function
+  actually does, prompted by the multisite finding below, checked
+  `install_plugins` next. `phase27_real_upgrader_effect()` runs the
+  genuine `WP_Upgrader` package pipeline, but against an isolated
+  destination under `wp-content/uploads/`, which it then deletes. Nothing
+  ever reaches `WP_PLUGIN_DIR`; WordPress never loads anything new.
+  Confirmed live: `wp plugin list` and the contents of
+  `wp-content/plugins/` are byte-identical before and after a `200`
+  response that used to read `{"status":"installed"}`.
+
+  The sandboxing itself is correct and deliberate — it is `#470`'s test
+  infrastructure, and a suite that really installed plugins on every run
+  would be worse. The response string was the defect, and it has been
+  corrected to `upgrader_pipeline_completed` with an explicit
+  `"installed": false`. **What has to be walked back is this document's
+  own framing.** Earlier revisions described "one real effect... plugin
+  install via the real `WP_Upgrader`" and counted it as the demonstrated
+  case. The accurate statement: the approval machinery around that route
+  is real and well-tested, but the dangerous effect it guards is a
+  sandboxed no-op, so "this design gated a genuine plugin installation
+  end-to-end" was never demonstrated and is not demonstrated now.
+
+  Of the three wired effects, **two perform genuinely irreversible real
+  work** — `create_users` really creates an account (audited on both site
+  types: proper site membership and correct role on multisite, via
+  `is_user_member_of_blog`), and `delete_users` really deletes one on
+  single-site. The one presented as the flagship for four review rounds
+  does nothing. That is close to the inverse of the impression the
+  earlier text gave.
+
 - **The same approval meaning different things on different site types.**
   Wiring the third effect turned this up, and it is the most substantive
   finding of the exercise. `wp_delete_user()` does not delete an account on
@@ -430,10 +462,11 @@ currently flagged anywhere in the archived Sudo repo's `docs/finding.md`.
 - **Generality across effects — narrowed again, still not closed.** Three
   effects are now wired, each digesting the exact fields its approval
   covers before the matching `current_user_can( $cap, $target_hash )`
-  re-check, and consuming at the real commit point: plugin install
-  (`install_plugins`, digesting uploaded bytes), user creation
-  (`create_users`, digesting `username`+`email`+`role`), and user deletion
-  (`delete_users`, digesting `user_id`+`reassign`). The third was chosen
+  re-check, and consuming at the real commit point: the upgrader pipeline
+  (`install_plugins`, digesting uploaded bytes — but see above: this one
+  installs nothing), user creation (`create_users`, digesting
+  `username`+`email`+`role`), and user deletion (`delete_users`, digesting
+  `user_id`+`reassign`). The third was chosen
   specifically because it is structurally unlike the first two — it targets
   an **existing** resource by ID rather than creating fresh content with a
   natural fingerprint — and it needed no change to the approval mechanism

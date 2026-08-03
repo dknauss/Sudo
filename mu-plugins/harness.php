@@ -238,8 +238,33 @@ add_action(
 						return $effect_digest;
 					}
 
+					// NOT "installed", despite four rounds of review treating
+					// this as the flagship "real dangerous effect."
+					// phase27_real_upgrader_effect() runs the genuine
+					// WP_Upgrader package pipeline into a throwaway
+					// directory under uploads, hashes a proof file, and
+					// deletes the directory -- nothing ever reaches
+					// WP_PLUGIN_DIR, so no plugin is installed and
+					// WordPress never loads anything new. Confirmed live:
+					// `wp plugin list` and wp-content/plugins/ are
+					// byte-identical before and after a 200 response.
+					//
+					// The sandboxing is correct and deliberate (it is
+					// #470's test infrastructure; a suite that really
+					// installed plugins on every run would be worse). The
+					// defect was calling it "installed" anyway -- the same
+					// mistake the multisite delete path made with
+					// "deleted", found the same way, by reading what the
+					// guarded function actually does rather than trusting
+					// its name.
 					return new WP_REST_Response(
-						array( 'status' => 'installed', 'digest' => $digest, 'effect_digest' => $effect_digest ),
+						array(
+							'status'        => 'upgrader_pipeline_completed',
+							'installed'     => false,
+							'note'          => 'The real WP_Upgrader pipeline ran against an isolated destination under uploads, which was then deleted. No plugin was installed into WP_PLUGIN_DIR.',
+							'digest'        => $digest,
+							'effect_digest' => $effect_digest,
+						),
 						200
 					);
 				},
