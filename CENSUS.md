@@ -50,7 +50,7 @@ A principal becomes code-capable.
 
 | Mutation point | Location | Note |
 |---|---|---|
-| `wp_set_password()` | `wp-includes/pluggable.php:~3099` | Only 3 Core callers. **But pluggable — see caveat 1.** |
+| `wp_set_password()` | `wp-includes/pluggable.php:3099` (exact; writes `$wpdb->update` on `user_pass` at 3109) | Callers in `user.php` and `pluggable.php` only. **But pluggable — see caveat 1.** The line was originally recorded as approximate; verified exact on re-check, after a `^function` grep appeared to contradict it and was itself wrong (the definition is tab-indented inside the `function_exists` guard, which is *why* it is pluggable). |
 | `WP_Application_Passwords::create_new_application_password()` | `wp-includes/class-wp-application-passwords.php:89` | Issues a credential that bypasses interactive reauth by design. |
 | User row write | `wp-includes/user.php:2553` / `2555`, inside `wp_insert_user()` | `$wpdb->update`/`$wpdb->insert` on `$wpdb->users` — two branches, one function. Covers email change (which enables password reset). |
 
@@ -63,16 +63,100 @@ A principal becomes code-capable.
 
 ---
 
-## Result: ~10 seams
+## Credential pivot: mapped, and reset issuance is not the critical seam
 
-**Ten insertions, each at a point where the effect is fully determined,
-versus 36+ request predicates that provably drift.** Ten is enumerable,
-auditable, and stable across releases in a way request shapes are not —
-core function signatures change slowly and visibly; dispatch behaviour
-changes quietly.
+Mapped after the `install_package()` seam was built, to decide what the
+second seam should be. The result inverted the assumption that reset
+issuance mattered most.
 
-That is the case for the Core proposal, and it is now a counted number
-rather than an assumption.
+Three ways a hijacked admin session reaches another account:
+
+| Path | Route | Seam that stops it |
+|---|---|---|
+| **P1 — direct password set** | `edit_user()` sets `$user->user_pass` (`wp-admin/includes/user.php:187`) → `wp_update_user()` → the `wp_insert_user` row write. Immediate takeover, no email involved. | user row write, and/or `wp_set_password()` |
+| **P2 — email change, then public reset** | Admin changes the target's email, then uses the **unauthenticated** "Lost your password?" form. The reset link goes to the attacker's address. | **email change only** |
+| **P3 — admin-triggered reset** | `users.php:238` bulk `resetpassword`, and `retrieve_password()` (`user.php:3243`). | reset issuance |
+
+**P3 is close to worthless to an attacker, and that is the finding.** The
+reset link goes to the victim's *real* address, so it yields nothing unless
+the email was already changed — and if it was, the attacker uses the public
+form in P2 and never needs an admin-triggered reset at all. **Sealing reset
+issuance does not break the pivot chain**, because the load-bearing step is
+public and unauthenticated.
+
+So the second seam should be **P1 (direct password set)** or **P2 (email
+change)** — not reset issuance, which is where this was heading before the
+map was drawn. P1 is the more direct takeover; P2 is the one that also
+closes an asymmetry in shipping WordPress, where a user changing their own
+email must confirm it but an admin changing someone else's need not.
+
+## Coverage against the seven bypasses that killed the predecessor
+
+`docs/finding.md` §2.1 records seven verified bypasses across six axes that
+defeated the request-matching approach. They are the strongest available
+acceptance test for this one: real, independently found, and fatal to the
+thing they were found in. Running them against the seam architecture also
+tested this census, and the census failed — it had missed a seam.
+
+| Bypass | Effect reached | Seam |
+|---|---|---|
+| REST route capitalisation | whichever handler it reached | mechanism absent — a seam never parses routes |
+| File editor write (POST vs `action=update`) | `wp_edit_theme_plugin_file()` | ✅ covered |
+| `options.php` (`$_REQUEST` vs `$_POST`) | option write | ❌ **open** — see below |
+| Bulk promote (`changeit`) | capabilities usermeta | ✅ covered |
+| REST plugin deactivation (method set) | `deactivate_plugins()` | ⚠️ **census had missed it** — now added |
+| 2FA bridge (`$_REQUEST` user_id) | user meta / auth change | ⚠️ partial |
+| `wp_ajax_add-user` (surface coverage) | `wp_insert_user` + capabilities | ✅ covered |
+
+**All seven share one failure: predicate drift** — the plugin's guess about
+a request disagreeing with Core's actual dispatch. Inside a seam there is
+no predicate about the request, so route casing, superglobal choice, method
+set, and evaluation order cannot produce a bypass. That failure mode is
+absent by construction, not mitigated. The CLI result already demonstrates
+it empirically: CLI is simply the most extreme case of "arrived by a path
+nobody enumerated."
+
+**But coverage is a separate question from mechanism, and the exercise
+proved it.** Two entries above are not green, and one of them is a seam
+this census had omitted entirely.
+
+## Seams added after the bypass cross-check
+
+| Mutation point | Location | Why it was missed |
+|---|---|---|
+| `activate_plugin()` | `wp-admin/includes/plugin.php:641`, 6 caller files converging including the REST plugins controller and `ajax-actions.php` | The census enumerated code *arrival* and forgot code *activation* — the step that makes already-present code execute. |
+| `deactivate_plugins()` | `wp-admin/includes/plugin.php:758` | Same omission; also the effect behind bypass #5. |
+| `retrieve_password()` / `get_password_reset_key()` | `wp-includes/user.php:3243` / `3081` | Added for completeness, but see the pivot map: low priority. |
+| `reset_password()` | `wp-includes/user.php:3492` | Consumption side of the same flow. |
+
+## The option-write class stays open, and the seam does not rescue it
+
+`update_option()` (`wp-includes/option.php:844`) is a single function, so
+*location* was never the problem — **discrimination** is. Core and
+legitimate plugins write options constantly during ordinary page loads, so
+telling a deliberate `siteurl` change from incidental churn is exactly as
+hard at a seam as at a hook. A named-option allowlist narrows the surface
+but does not solve the intent problem, and the set of security-relevant
+options is not bounded by Core (plugins define their own).
+
+This is the one effect class where the architecture currently has no
+answer, and bypass #3 lands squarely in it. It should be stated as an open
+problem in any proposal rather than folded into a coverage claim.
+
+## Result: ~14 seams
+
+**Fourteen insertions, each at a point where the effect is fully
+determined, versus 36+ request predicates that provably drift.** Fourteen
+is still enumerable, auditable, and stable across releases in a way request
+shapes are not — Core function signatures change slowly and visibly;
+dispatch behaviour changes quietly.
+
+The number moved from ten to fourteen when the seven bypasses were used as
+a cross-check, which is the more useful result than either figure: **an
+enumeration built forward from effect classes missed seams that an
+independently derived attack list found immediately.** Expect it to move
+again. The claim worth making is the order of magnitude and the drift
+properties, never the completeness.
 
 ## Caveats that must travel with this number
 
