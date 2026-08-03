@@ -75,22 +75,33 @@ function seams(): array {
 PHP
 		),
 
-		// ---- core.identity.email_change -----------------------------
+		// ---- core.identity.{email_change,password_set} --------------
+		// One seam, two effects: both land on the same user row write,
+		// and a single submit can carry both.
+		//
 		// Inside the $update branch only: creating a user is a different
 		// effect, and gating it here would fire on every new account.
 		//
-		// Fires ONLY when the address actually changes, which is what
-		// makes the seam usable — an admin saving a profile without
-		// touching the email must not be challenged, or the control is
-		// abandoned within a day.
+		// Each fires ONLY when that field actually changes. An admin
+		// saving a profile without touching either must not be
+		// challenged, or the control is abandoned within a day.
 		//
-		// This covers BOTH the self-service and admin-edits-another
-		// paths, which is the point. Shipping WordPress requires
-		// confirmation only for the former (send_confirmation_on_profile_email
-		// is hooked to personal_options_update, which fires solely on
-		// self-edit), leaving the more dangerous path unconfirmed. One
-		// seam closes that asymmetry.
-		'email_change' => array(
+		// Email covers BOTH the self-service and admin-edits-another
+		// paths. Shipping WordPress requires confirmation only for the
+		// former (send_confirmation_on_profile_email is hooked to
+		// personal_options_update, which fires solely on self-edit),
+		// leaving the more dangerous path unconfirmed. One seam closes
+		// that asymmetry.
+		//
+		// Password: $user_pass is already hashed by wp_update_user()
+		// before this point, and bcrypt salts differ per call, so Core's
+		// own comparison two lines below means "a new password was
+		// submitted" rather than "the password differs". Deliberately
+		// NOT seamed at wp_set_password(): that is reached by
+		// reset_password() AND by rehash-on-login (user.php:225, 308), so
+		// a veto there would break ordinary authentication, quite apart
+		// from the function being pluggable.
+		'user_identity' => array(
 			'file'   => '/var/www/html/wp-includes/user.php',
 			'anchor' => "\$data['user_activation_key'] = '';",
 			'seek'   => "\tif ( \$update ) {",
@@ -98,25 +109,47 @@ PHP
 			'block'  => <<<'PHP'
 
 	// BEGIN effect-authorization seam
-	if ( $update
-		&& function_exists( 'wp_authorize_consequential_effect' )
-		&& ! empty( $old_user_data )
-		&& 0 !== strcasecmp( (string) $user_email, (string) $old_user_data->user_email )
-	) {
-		$cfp_effect = array(
-			'version' => 1,
-			'id'      => 'core.identity.email_change',
-			'site_id' => (int) get_current_blog_id(),
-			'target'  => array(
-				'user_id' => (int) $user_id,
-				'from'    => (string) wp_unslash( $old_user_data->user_email ),
-				'to'      => (string) wp_unslash( $user_email ),
-			),
-		);
+	if ( $update && function_exists( 'wp_authorize_consequential_effect' ) && ! empty( $old_user_data ) ) {
+		$cfp_effects = array();
 
-		$cfp_ok = wp_authorize_consequential_effect( $cfp_effect );
-		if ( is_wp_error( $cfp_ok ) ) {
-			return $cfp_ok;
+		if ( 0 !== strcasecmp( (string) $user_email, (string) $old_user_data->user_email ) ) {
+			$cfp_effects[] = array(
+				'version' => 1,
+				'id'      => 'core.identity.email_change',
+				'site_id' => (int) get_current_blog_id(),
+				'target'  => array(
+					'user_id' => (int) $user_id,
+					'from'    => (string) wp_unslash( $old_user_data->user_email ),
+					'to'      => (string) wp_unslash( $user_email ),
+				),
+			);
+		}
+
+		if ( (string) $user_pass !== (string) $old_user_data->user_pass ) {
+			/*
+			 * No payload digest, deliberately: the payload is a secret and
+			 * must not enter a descriptor that gets logged or displayed.
+			 * The approval therefore authorises "set a new password for
+			 * user X", not "set this exact password" -- weaker than the
+			 * package seam's byte binding, unavoidable, and stated rather
+			 * than glossed.
+			 */
+			$cfp_effects[] = array(
+				'version' => 1,
+				'id'      => 'core.identity.password_set',
+				'site_id' => (int) get_current_blog_id(),
+				'target'  => array(
+					'user_id'    => (int) $user_id,
+					'user_login' => (string) $old_user_data->user_login,
+				),
+			);
+		}
+
+		foreach ( $cfp_effects as $cfp_effect ) {
+			$cfp_ok = wp_authorize_consequential_effect( $cfp_effect );
+			if ( is_wp_error( $cfp_ok ) ) {
+				return $cfp_ok;
+			}
 		}
 	}
 	// END effect-authorization seam

@@ -155,6 +155,59 @@ OUT2=$(npx @wordpress/env run cli wp user update victim --user_email=cli@evil.te
 echo "$OUT2" | LC_ALL=C grep -q "Refused: change user" && ok "CLI refused" || bad "CLI not refused"
 chk "address unchanged by CLI" "third@evil.test" "$(email_now)"
 
+
+echo
+echo "=== 13. P1 — an admin setting ANOTHER user's password is refused ==="
+# The most direct takeover: no email, no reset link, immediate.
+set_pass() {
+	curl -sS -b "$TMP/A.jar" -X POST "$BASE_URL/wp-admin/user-edit.php" \
+		--data-urlencode "action=update" --data-urlencode "user_id=$VID" \
+		--data-urlencode "_wpnonce=$UNONCE" --data-urlencode "email=$(email_now)" \
+		--data-urlencode "nickname=victim" --data-urlencode "display_name=victim" \
+		--data-urlencode "role=author" --data-urlencode "pass1=$1" \
+		--data-urlencode "pass2=$1" -o "$2"
+}
+OLD_HASH=$(wp db query --skip-column-names "SELECT user_pass FROM wp_users WHERE ID = $VID;" 2>/dev/null | LC_ALL=C grep -E '^\$' | head -1)
+set_pass "AttackerOwnsYou123!" "$TMP/p1.html"
+LC_ALL=C grep -q "requires approval" "$TMP/p1.html" && ok "refused at the Core seam" || bad "not refused"
+NEW_HASH=$(wp db query --skip-column-names "SELECT user_pass FROM wp_users WHERE ID = $VID;" 2>/dev/null | LC_ALL=C grep -E '^\$' | head -1)
+[ "$OLD_HASH" = "$NEW_HASH" ] && ok "the stored password hash is unchanged" || bad "PASSWORD WAS CHANGED"
+
+echo
+echo "=== 14. the refusal names the target, and carries no password material ==="
+LC_ALL=C grep -q 'set a new password for user #' "$TMP/p1.html" && ok "refusal names the target user" || bad "target not named"
+LC_ALL=C grep -q "AttackerOwnsYou123" "$TMP/p1.html" && bad "PASSWORD LEAKED into the refusal" || ok "no password material in the descriptor or refusal"
+
+echo
+echo "=== 15. approving that digest permits the password set ==="
+grant "$(digest_from "$TMP/p1.html")"
+set_pass "AttackerOwnsYou123!" "$TMP/p2.html"
+FINAL_HASH=$(wp db query --skip-column-names "SELECT user_pass FROM wp_users WHERE ID = $VID;" 2>/dev/null | LC_ALL=C grep -E '^\$' | head -1)
+[ "$OLD_HASH" != "$FINAL_HASH" ] && ok "the password was set once approved" || bad "still not changed"
+
+echo
+echo "=== 16. self-service is NOT gated (or the control is unusable) ==="
+# Changing your OWN password must not be challenged: an attacker holding
+# the session can already act as that user, so gating it buys nothing and
+# would challenge every routine rotation.
+PNONCE=$(curl -sS -b "$TMP/A.jar" "$BASE_URL/wp-admin/profile.php" | LC_ALL=C grep -o 'name="_wpnonce" value="[a-f0-9]*"' | head -1 | LC_ALL=C sed 's/.*value="//;s/"//')
+curl -sS -b "$TMP/A.jar" -X POST "$BASE_URL/wp-admin/profile.php" \
+	--data-urlencode "action=update" --data-urlencode "user_id=$ADMIN_ID" \
+	--data-urlencode "_wpnonce=$PNONCE" --data-urlencode "email=admin@example.test" \
+	--data-urlencode "nickname=admin" --data-urlencode "display_name=admin" \
+	--data-urlencode "pass1=$ADMIN_PASS" --data-urlencode "pass2=$ADMIN_PASS" -o "$TMP/self.html"
+LC_ALL=C grep -q "requires approval" "$TMP/self.html" && bad "self-service password change was gated" || ok "self-service password change passes through"
+
+echo
+echo "=== 17. login still works — the seam did not break authentication ==="
+# wp_set_password() is reached by reset_password() AND rehash-on-login, so
+# a seam placed there would break logins. This confirms it was not.
+rm -f "$TMP/relogin.jar"
+curl -sS -c "$TMP/relogin.jar" "$BASE_URL/wp-login.php" \
+	--data-urlencode "log=admin" --data-urlencode "pwd=$ADMIN_PASS" \
+	--data-urlencode "wp-submit=Log In" --data-urlencode "redirect_to=$BASE_URL/wp-admin/" -L -o /dev/null
+LC_ALL=C grep -q "wordpress_logged_in" "$TMP/relogin.jar" && ok "admin can still log in" || bad "LOGIN BROKEN"
+
 wp user delete victim --yes >/dev/null 2>&1
 
 echo

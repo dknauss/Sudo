@@ -33,6 +33,7 @@ defined( 'ABSPATH' ) || exit;
 const EFFECT_POLICY_GOVERNED = array(
 	'core.code.package_commit',
 	'core.identity.email_change',
+	'core.identity.password_set',
 );
 
 add_filter(
@@ -50,6 +51,24 @@ add_filter(
 		$digest = (string) ( $effect['digest'] ?? '' );
 
 		$described = effect_policy_describe( $effect );
+
+		/*
+		 * Acting on YOURSELF is a different threat and is not gated here.
+		 *
+		 * Blocking self-service password and email changes would make the
+		 * control unusable -- every user rotating their own password would
+		 * be challenged -- and it buys nothing: an attacker holding the
+		 * session can already act as that user. The dangerous case is
+		 * acting on SOMEONE ELSE, which is the credential pivot (P1/P2 in
+		 * CENSUS.md). Core supplies both the actor and the target, so this
+		 * distinction is made on values Core computed, not on anything the
+		 * request asserted.
+		 */
+		$target_user = (int) ( $effect['target']['user_id'] ?? 0 );
+		$actor_user  = (int) ( $actor['user_id'] ?? 0 );
+		if ( $target_user > 0 && $actor_user > 0 && $target_user === $actor_user ) {
+			return $decision;
+		}
 
 		if ( 'interactive' === $class ) {
 			if ( effect_policy_has_approval( $digest ) ) {
@@ -153,6 +172,14 @@ function effect_policy_grant( string $digest, int $user_id, string $session ): v
  */
 function effect_policy_describe( array $effect ): string {
 	$t = isset( $effect['target'] ) && is_array( $effect['target'] ) ? $effect['target'] : array();
+
+	if ( 'core.identity.password_set' === ( $effect['id'] ?? '' ) ) {
+		return sprintf(
+			'set a new password for user #%d ("%s")',
+			(int) ( $t['user_id'] ?? 0 ),
+			(string) ( $t['user_login'] ?? '?' )
+		);
+	}
 
 	if ( 'core.identity.email_change' === ( $effect['id'] ?? '' ) ) {
 		return sprintf(
