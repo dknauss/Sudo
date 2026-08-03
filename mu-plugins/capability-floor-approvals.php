@@ -244,16 +244,23 @@ function cap_floor_current_binding_hash(): ?string {
  * one harness page. This restores that scoping.
  *
  * State plainly what this does and does not fix: narrowing the trigger to
- * one URL does not stop an attacker who can freely replay the stolen cookie
- * in their own requests -- they can request this one URL with it exactly as
- * easily as any other. It only requires them to know or discover this
- * specific URL first, which is a real but modest increase in cost, not a
- * closed gap. See BOUNDARY.md for the corrected claim.
+ * a small, fixed set of URLs does not stop an attacker who can freely
+ * replay the stolen cookie in their own requests -- they can request any
+ * one of these URLs with it exactly as easily as any other. It only
+ * requires them to know or discover one of these specific URLs first,
+ * which is a real but modest increase in cost, not a closed gap. See
+ * BOUNDARY.md for the corrected claim.
+ *
+ * users.php was added alongside the harness page once a real delete-user
+ * REST route and an intercepted native "Delete" button went live there
+ * (mu-plugins/harness.php) -- it is a second genuine elevate-flow entry
+ * point now, not an incidental admin screen swept in by a broad rule.
  */
 add_action(
 	'admin_init',
 	static function (): void {
-		if ( isset( $_GET['page'] ) && 'cap-floor-harness' === (string) $_GET['page'] ) {
+		$page = isset( $_GET['page'] ) ? (string) $_GET['page'] : '';
+		if ( 'cap-floor-harness' === $page || 'users.php' === ( $GLOBALS['pagenow'] ?? '' ) ) {
 			cap_floor_binding();
 		}
 	},

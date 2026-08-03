@@ -245,5 +245,140 @@ add_action(
 				},
 			)
 		);
+
+		// The third effect -- deliberately structurally different from the
+		// first two, which both create/upload fresh content with a natural
+		// byte-level fingerprint. This one targets an EXISTING resource by
+		// ID. Wired for real native-UI use (see users-delete-intercept.js,
+		// enqueued below) rather than a REST-only harness call, to test
+		// whether the digest-bound approval pattern still holds once a real
+		// wp-admin screen -- not just a bespoke fetch() call -- is driving
+		// it.
+		register_rest_route(
+			'cap-floor/v1',
+			'/delete-user',
+			array(
+				'methods'             => 'POST',
+				'permission_callback' => static function (): bool {
+					return is_user_logged_in();
+				},
+				'callback'            => static function ( WP_REST_Request $request ) {
+					$approval_id_param = $request->get_param( 'approval_id' );
+					$user_id_param     = $request->get_param( 'user_id' );
+					$reassign_param    = $request->get_param( 'reassign' );
+
+					if (
+						! is_string( $approval_id_param ) ||
+						! is_string( $user_id_param ) ||
+						( null !== $reassign_param && ! is_string( $reassign_param ) )
+					) {
+						return new WP_Error( 'cap_floor_invalid_param', 'Invalid parameter type.', array( 'status' => 400 ) );
+					}
+
+					if ( ! ctype_digit( $user_id_param ) ) {
+						return new WP_Error( 'cap_floor_user_params', 'Invalid user_id.', array( 'status' => 400 ) );
+					}
+					$reassign = ( is_string( $reassign_param ) && ctype_digit( $reassign_param ) ) ? $reassign_param : '0';
+					$user_id  = (int) $user_id_param;
+
+					// Checked before the approval is touched, same principle
+					// as the create-user existing-username fix: a target
+					// that can never succeed should never cost a password
+					// check or a rate-limited attempt.
+					if ( $user_id === get_current_user_id() ) {
+						return new WP_Error( 'cap_floor_self_delete', 'Cannot delete your own account through this route.', array( 'status' => 400 ) );
+					}
+					if ( ! get_userdata( $user_id ) ) {
+						return new WP_Error( 'cap_floor_user_missing', 'That user does not exist.', array( 'status' => 409 ) );
+					}
+					if ( '0' !== $reassign && ! get_userdata( (int) $reassign ) ) {
+						return new WP_Error( 'cap_floor_reassign_missing', 'The reassignment target does not exist.', array( 'status' => 409 ) );
+					}
+
+					// Same shape as the other two effects: a deterministic
+					// digest over exactly the fields this approval
+					// authorizes, computed identically on the requesting
+					// side (users-delete-intercept.js) and here.
+					$target_hash = hash( 'sha256', $user_id_param . "\n" . $reassign );
+
+					if ( ! current_user_can( 'delete_users', $target_hash ) ) {
+						return new WP_Error( 'cap_floor_digest_mismatch', 'No approval matches this exact user and reassignment.', array( 'status' => 403 ) );
+					}
+
+					if ( ! cap_floor_consume_approval( $approval_id_param, 'delete_users', $target_hash ) ) {
+						return new WP_Error( 'cap_floor_consumed', 'Approval already used or expired.', array( 'status' => 409 ) );
+					}
+
+					// wp_delete_user() lives in wp-admin/includes/user.php,
+					// never autoloaded on a REST request -- unlike
+					// wp_insert_user(), which is a wp-includes core function
+					// always available.
+					require_once ABSPATH . 'wp-admin/includes/user.php';
+					$result = wp_delete_user( $user_id, '0' === $reassign ? null : (int) $reassign );
+					if ( ! $result ) {
+						return new WP_Error( 'cap_floor_delete_failed', 'wp_delete_user() reported failure.', array( 'status' => 500 ) );
+					}
+
+					return new WP_REST_Response(
+						array( 'status' => 'deleted', 'user_id' => $user_id, 'target_hash' => $target_hash ),
+						200
+					);
+				},
+			)
+		);
 	}
+);
+
+// Loaded only on the real Users list screen, so the delete row-action link
+// can be intercepted there instead of requiring a separate harness page.
+add_action(
+	'admin_enqueue_scripts',
+	static function ( string $hook ): void {
+		if ( 'users.php' !== $hook ) {
+			return;
+		}
+		wp_enqueue_script(
+			'cap-floor-delete-intercept',
+			plugins_url( 'assets/users-delete-intercept.js', __FILE__ ),
+			array(),
+			'1.0.0',
+			true
+		);
+		wp_localize_script(
+			'cap-floor-delete-intercept',
+			'capFloorDeleteIntercept',
+			array(
+				'restUrl' => esc_url_raw( rest_url( 'cap-floor/v1/' ) ),
+				'nonce'   => wp_create_nonce( 'wp_rest' ),
+			)
+		);
+	}
+);
+
+// Cosmetic only -- restores the "Delete" row-action link that WordPress's
+// own list table omits entirely once current_user_can( 'delete_user', $id )
+// is false, which it always is here without an approval already held (see
+// class-wp-users-list-table.php around line 476). Found empirically: the
+// floor's side effect is not just that the action is blocked, it's that
+// the entire native affordance for it disappears, since core builds this
+// row-action array from the same capability check the floor denies.
+//
+// This filter does not grant anything. It is a static HTML link the JS
+// intercept above claims via a click handler before the browser ever
+// follows it; the real authorization decision happens entirely in the
+// /delete-user REST route, independent of this markup. If the JS fails to
+// load, the link still points at the real native flow (matching core's
+// own href construction), which still correctly requires an approval that
+// does not yet exist -- it fails closed, not open.
+add_filter(
+	'user_row_actions',
+	static function ( array $actions, WP_User $user_object ): array {
+		if ( is_multisite() || get_current_user_id() === $user_object->ID || isset( $actions['delete'] ) ) {
+			return $actions;
+		}
+		$actions['delete'] = "<a class='submitdelete' href='" . esc_url( wp_nonce_url( 'users.php?action=delete&user=' . $user_object->ID, 'bulk-users' ) ) . "'>" . __( 'Delete' ) . '</a>';
+		return $actions;
+	},
+	10,
+	2
 );

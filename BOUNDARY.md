@@ -19,10 +19,13 @@ effect; and again after a fourth fresh-context agent ran a clean, targeted
 sweep of the ten capabilities nobody had individually checked yet -- and
 whose one "cosmetic" side observation, chased by this prototype's author
 rather than the agent, turned out to be a sixth real bypass
-(`install_languages`, never covered under any name). This is the claim as
-it stands *today*, not aspirational, and not identical to what an earlier
-version of this prototype — or an earlier version of this file — would
-have supported.
+(`install_languages`, never covered under any name). Revised once more on
+2026-08-03, after a third effect (`delete_users`) was wired two different
+ways to probe the intent-signal problem — an experiment whose stated
+prediction turned out to be wrong, recorded below rather than quietly
+dropped. This is the claim as it stands *today*, not aspirational, and not
+identical to what an earlier version of this prototype — or an earlier
+version of this file — would have supported.
 
 **A third finding, found by neither agent: the floor's filter checked the
 wrong string for most of its own stated purpose.** `wp-admin/user-edit.php`
@@ -327,29 +330,90 @@ flagged anywhere in the archived Sudo repo's `docs/finding.md`.
   does not and cannot distinguish them; it only gates the commit point
   itself. Named already in `cap_floor_valid_approval_id()`'s own docblock,
   restated here because it belongs in the claim, not just the code comment.
+
+  **Two approaches to this were built and tested, and the prediction going
+  in was wrong.** The question was how a *native* wp-admin action — not a
+  bespoke REST call — could ever be let through, given that the master-key
+  fix makes a null-target capability check unable to match any approval,
+  and native `users.php`'s `dodelete` handler checks the bare, targetless
+  `current_user_can( 'delete_users' )` first.
+
+  - **Approach A (JS intercept, `assets/users-delete-intercept.js`)**
+    claims the real "Delete" link's click before the browser follows it and
+    routes the mutation through `/wp-json/cap-floor/v1/delete-user`. The
+    server-side trust boundary is unchanged — it is the same narrow,
+    single-entry-point route pattern as the other two effects. Verified
+    working in a real browser against a real click.
+  - **Approach B (`experimental-dispatch-gate.php`)** matches the real
+    native POST at `admin_init` — one action name, one screen, one request
+    method, single-target only — consumes the approval there, and grants a
+    request-scoped override so core's own two checks pass. **This is a
+    reconstruction of the request-shape-matching pattern that the earlier
+    WP Sudo work concluded was fragile, and I predicted it would break the
+    same way.** It did not break under the convergence tests aimed at it:
+    the same parameters sent as GET are refused *and leave the approval
+    unconsumed*; core's own REST `DELETE /wp/v2/users/{id}` is refused even
+    with a matching approval pending (it passes an integer ID, never a
+    string digest, so it cannot match by construction); five concurrent
+    real form POSTs sharing one approval produce exactly one winner.
+
+  **What that does not prove.** It survived the specific attacks aimed at
+  it in one sitting, on one action, on one screen, by the person who wrote
+  it — which is precisely the evidentiary situation that has been wrong
+  five times already in this file's history. The known costs are real and
+  unfixed: the approval is consumed at `admin_init`, *before* core's own
+  `check_admin_referer()` runs, so a subsequent nonce failure spends the
+  grant with no deletion performed; and the whole path is single-site-only,
+  because core `wp_die()`s on multisite before any capability check (a
+  guard had to be added so a multisite attempt would not burn an approval
+  against a screen that always dies). Most importantly, the argument
+  against this pattern was never "it fails one screen's tests" — it was
+  that it needs a correct request-shape matcher *per action, per surface,
+  forever*, and one screen passing says nothing about the twentieth. Treat
+  Approach A as the design and Approach B as a recorded experiment.
+
+- **WP-CLI, for any of this.** `wp user delete` deletes the user with no
+  `current_user_can()` consultation at all — confirmed live, with zero
+  approvals ever issued. That is WP-CLI's own long-standing behavior, not
+  something this prototype introduced or could fix from inside
+  `map_meta_cap()`; noted because a reader could otherwise reasonably
+  assume "the floor denies `delete_users`" implied CLI coverage. It does
+  not.
 - **Code that never calls `current_user_can()`.** Same structural limit as
   every capability-layer defense discussed this session. Nothing here
   reaches a vulnerability that skips WordPress's permission system.
 - **Filesystem-level compromise.** Anyone with write access to `mu-plugins`
   edits the rule enforcing all of this.
-- **Generality across effects — narrowed, not closed.** A second effect,
-  real `wp_insert_user()` user creation gated on `create_users`
-  (`/wp-json/cap-floor/v1/create-user`), was wired the same day using the
-  same pattern as `/install-plugin`: digest the exact fields the approval
-  covers (here, `username`+`email`+`role`, newline-joined) before the
-  matching `current_user_can( 'create_users', $target_hash )` re-check, and
-  consume at the real commit point. It worked on the first attempt — no
-  fix was needed to make it behave like the plugin-install effect — and the
-  same negative checks held: the native "Add New User" screen still denies
-  outright (no target argument to match), and replaying the consumed
-  approval against the same user details returns `cap_floor_digest_mismatch`
-  rather than creating a second account. That is **two** proofs of concept
-  now, not a demonstrated framework — no regression-suite coverage exists
-  for this second route yet (unlike plugin-install's tests 1–11), and every
-  effect wired so far has been a single, simple, string- or byte-digestible
-  target. A structurally different one — an effect with no natural single
-  digest, or one requiring several related approvals at once — has not been
-  attempted and may not fit this pattern as easily.
+- **Generality across effects — narrowed again, still not closed.** Three
+  effects are now wired, each digesting the exact fields its approval
+  covers before the matching `current_user_can( $cap, $target_hash )`
+  re-check, and consuming at the real commit point: plugin install
+  (`install_plugins`, digesting uploaded bytes), user creation
+  (`create_users`, digesting `username`+`email`+`role`), and user deletion
+  (`delete_users`, digesting `user_id`+`reassign`). The third was chosen
+  specifically because it is structurally unlike the first two — it targets
+  an **existing** resource by ID rather than creating fresh content with a
+  natural fingerprint — and it needed no change to the approval mechanism
+  to work. Regression coverage now exists for all three (tests 1–27).
+  Still not a demonstrated framework: every effect so far reduces to a
+  single deterministic digest. An effect with no natural single digest, or
+  one needing several related approvals at once, or a genuine bulk
+  operation over many targets, has not been attempted — `/delete-user`
+  explicitly refuses a multi-target batch rather than pretending to handle
+  one.
+- **Native wp-admin affordances, once floored, disappear rather than
+  fail.** Found empirically while wiring the delete effect: WordPress's own
+  users-list table builds its row-action links from the very capability
+  checks the floor denies, so with `delete_user`/`edit_user` denied, the
+  "Delete" and "Edit" links are never rendered for any other user at all —
+  there is no native button left to reauthenticate *through*. The floor's
+  real-world effect is therefore not "the action is blocked pending
+  approval" but "the action vanishes from the UI." Anything built on this
+  design has to restore its own affordances (this prototype adds a purely
+  cosmetic `user_row_actions` filter, granting nothing), which means a
+  shippable version owns a growing surface of re-added UI, one screen at a
+  time. Named here because it is a real design cost that no amount of
+  server-side correctness removes.
 - **Ordinary (non-Super-Admin) site administrators on multisite.** Core
   already denies them these capabilities independently
   (`is_multisite() && ! is_super_admin()` in core's own `map_meta_cap()`);

@@ -80,6 +80,14 @@ wp user update regressiontestb --user_pass=regtestbpass123 --skip-email >/dev/nu
 # variable instead.
 ADMIN_ID=$(wp user get admin --field=ID 2>/dev/null | tail -1)
 
+# wp-admin/users.php's own dodelete case wp_die()s unconditionally on
+# multisite -- it routes single-site removal through a structurally
+# different action ('remove', on remove_users) instead. Tests 24-27 drive
+# that exact single-site screen and have no multisite equivalent to test;
+# skipped there rather than failing for a reason that has nothing to do
+# with a real defect.
+IS_MULTISITE=$(wp eval 'echo is_multisite() ? "1" : "0";' 2>/dev/null | tail -1)
+
 login() {
 	local user="$1" pass="$2" jar="$3"
 	curl -sS -c "$jar" -c "$jar" "$BASE_URL/wp-login.php" \
@@ -94,6 +102,24 @@ harness_page() {
 nonce_of() { grep -o 'data-nonce="[^"]*"' "$1" | sed 's/data-nonce="//;s/"//'; }
 full_cookies_of() { awk -F'\t' '$6 ~ /^wordpress_/ || $6 == "__Host-cap_floor_binding" {printf "%s=%s; ", $6, $7}' "$1"; }
 login_only_of() { awk -F'\t' '$6 ~ /^wordpress_logged_in_/ {printf "%s=%s", $6, $7}' "$1"; }
+
+# Drives the REAL two-step native delete flow (row-action GET -> confirmation
+# form) far enough to extract the 'delete-users' nonce the actual dodelete
+# POST requires -- esc_url() encodes '&' as '&#038;', not '&amp;', in the
+# cosmetic row-action link (harness.php); matched against that real output,
+# not assumed.
+delete_confirm_nonce() {
+	local jar="$1" uid="$2"
+	local users_html confirm_html href nonce
+	users_html=$(mktemp)
+	confirm_html=$(mktemp)
+	curl -sS -b "$jar" "$BASE_URL/wp-admin/users.php" -o "$users_html"
+	href=$(grep -o "href='[^']*action=delete[^']*user=$uid[^']*'" "$users_html" | head -1 | sed "s/href='//;s/'\$//;s/&#038;/\&/g")
+	curl -sS -b "$jar" -c "$jar" "$BASE_URL/wp-admin/$href" -o "$confirm_html"
+	nonce=$(grep -o 'name="_wpnonce" value="[a-f0-9]*"' "$confirm_html" | head -1 | sed 's/name="_wpnonce" value="//;s/"//')
+	rm -f "$users_html" "$confirm_html"
+	echo "$nonce"
+}
 
 login admin "$ADMIN_PASS" "$TMP/A.jar"
 login regressiontestb regtestbpass123 "$TMP/B.jar"
@@ -376,6 +402,150 @@ CAN_UPDATE_LANG=$(wp eval 'echo current_user_can( "update_languages" ) ? "1" : "
 assert_true "the update_languages meta-cap wrapper is denied too" "$([ "$CAN_UPDATE_LANG" = "0" ] && echo 1 || echo 0)"
 
 echo
+echo "=== 19. delete-user: the third effect works end-to-end through the REST route ==="
+# The third effect, deliberately structurally different from the first
+# two: it targets an EXISTING resource by ID rather than creating fresh
+# content. Digest is over user_id + reassign, computed identically on the
+# client and server sides.
+wp user create regression-delete-target regression-delete-target@example.com --role=subscriber --user_pass=irrelevant >/dev/null 2>&1
+TARGET_ID=$(wp user get regression-delete-target --field=ID 2>/dev/null | tail -1)
+DIGEST19=$(printf '%s\n0' "$TARGET_ID" | shasum -a 256 | awk '{print $1}')
+RESP=$(curl -sS -H "Cookie: $COOKIES_A" -H "X-WP-Nonce: $NONCE_A" -X POST "$BASE_URL/wp-json/cap-floor/v1/request-approval" \
+	--data "capability=delete_users&password=$ADMIN_PASS&target_hash=$DIGEST19")
+APPROVAL19=$(echo "$RESP" | grep -o '"approval_id":"[^"]*"' | sed 's/"approval_id":"//;s/"//')
+STATUS=$(curl -sS -o /dev/null -w "%{http_code}" -H "Cookie: $COOKIES_A" -H "X-WP-Nonce: $NONCE_A" \
+	-X POST "$BASE_URL/wp-json/cap-floor/v1/delete-user" \
+	--data-urlencode "approval_id=$APPROVAL19" --data-urlencode "user_id=$TARGET_ID" --data-urlencode "reassign=0")
+assert_status "delete-user succeeds with a matching approval" "200" "$STATUS"
+STILL_EXISTS19=$(wp user get "$TARGET_ID" --field=ID 2>&1 | grep -E '^[0-9]+$')
+assert_true "the target user is actually gone" "$([ -z "$STILL_EXISTS19" ] && echo 1 || echo 0)"
+
+echo
+echo "=== 20. delete-user: the approval is consumed, not just accepted ==="
+# Checked directly against the DB rather than via a second HTTP call: by
+# now the target is deleted, so a second call would correctly refuse with
+# 'user does not exist' regardless of the approval's own state, which
+# would not actually distinguish "consumed" from "never checked."
+STATE20=$(wp db query --skip-column-names "SELECT state FROM wp_cap_floor_approvals WHERE id = '$APPROVAL19';" 2>&1 | grep -E '^(approved|consumed|cancelled)$' | tail -1)
+assert_true "the approval is marked consumed, not left approved" "$([ "$STATE20" = "consumed" ] && echo 1 || echo 0)"
+
+echo
+echo "=== 21. delete-user: cross-user, B cannot consume A's approval ==="
+wp user create regression-delete-target2 regression-delete-target2@example.com --role=subscriber --user_pass=irrelevant >/dev/null 2>&1
+TARGET_ID2=$(wp user get regression-delete-target2 --field=ID 2>/dev/null | tail -1)
+DIGEST21=$(printf '%s\n0' "$TARGET_ID2" | shasum -a 256 | awk '{print $1}')
+RESP=$(curl -sS -H "Cookie: $COOKIES_A" -H "X-WP-Nonce: $NONCE_A" -X POST "$BASE_URL/wp-json/cap-floor/v1/request-approval" \
+	--data "capability=delete_users&password=$ADMIN_PASS&target_hash=$DIGEST21")
+APPROVAL21=$(echo "$RESP" | grep -o '"approval_id":"[^"]*"' | sed 's/"approval_id":"//;s/"//')
+STATUS=$(curl -sS -o /dev/null -w "%{http_code}" -H "Cookie: $COOKIES_B" -H "X-WP-Nonce: $NONCE_B" \
+	-X POST "$BASE_URL/wp-json/cap-floor/v1/delete-user" \
+	--data-urlencode "approval_id=$APPROVAL21" --data-urlencode "user_id=$TARGET_ID2" --data-urlencode "reassign=0")
+assert_status "B cannot consume A's delete-user approval" "403" "$STATUS"
+STILL_EXISTS21=$(wp user get "$TARGET_ID2" --field=ID 2>&1 | grep -E '^[0-9]+$')
+assert_true "the target user still exists" "$([ -n "$STILL_EXISTS21" ] && echo 1 || echo 0)"
+
+echo
+echo "=== 22. delete-user: cannot delete your own account through this route ==="
+DIGEST22=$(printf '%s\n0' "$ADMIN_ID" | shasum -a 256 | awk '{print $1}')
+RESP=$(curl -sS -H "Cookie: $COOKIES_A" -H "X-WP-Nonce: $NONCE_A" -X POST "$BASE_URL/wp-json/cap-floor/v1/request-approval" \
+	--data "capability=delete_users&password=$ADMIN_PASS&target_hash=$DIGEST22")
+APPROVAL22=$(echo "$RESP" | grep -o '"approval_id":"[^"]*"' | sed 's/"approval_id":"//;s/"//')
+STATUS=$(curl -sS -o /dev/null -w "%{http_code}" -H "Cookie: $COOKIES_A" -H "X-WP-Nonce: $NONCE_A" \
+	-X POST "$BASE_URL/wp-json/cap-floor/v1/delete-user" \
+	--data-urlencode "approval_id=$APPROVAL22" --data-urlencode "user_id=$ADMIN_ID" --data-urlencode "reassign=0")
+assert_status "self-delete through this route is refused" "400" "$STATUS"
+
+echo
+echo "=== 23. delete-user: a nonexistent target is rejected before the approval is touched ==="
+FAKE_ID=999999
+DIGEST23=$(printf '%s\n0' "$FAKE_ID" | shasum -a 256 | awk '{print $1}')
+RESP=$(curl -sS -H "Cookie: $COOKIES_A" -H "X-WP-Nonce: $NONCE_A" -X POST "$BASE_URL/wp-json/cap-floor/v1/request-approval" \
+	--data "capability=delete_users&password=$ADMIN_PASS&target_hash=$DIGEST23")
+APPROVAL23=$(echo "$RESP" | grep -o '"approval_id":"[^"]*"' | sed 's/"approval_id":"//;s/"//')
+STATUS=$(curl -sS -o /dev/null -w "%{http_code}" -H "Cookie: $COOKIES_A" -H "X-WP-Nonce: $NONCE_A" \
+	-X POST "$BASE_URL/wp-json/cap-floor/v1/delete-user" \
+	--data-urlencode "approval_id=$APPROVAL23" --data-urlencode "user_id=$FAKE_ID" --data-urlencode "reassign=0")
+assert_status "a nonexistent target is refused" "409" "$STATUS"
+STILL_APPROVED23=$(wp db query --skip-column-names "SELECT state FROM wp_cap_floor_approvals WHERE id = '$APPROVAL23';" 2>&1 | grep -E '^(approved|consumed|cancelled)$' | tail -1)
+assert_true "the approval was not burned on a doomed request" "$([ "$STILL_APPROVED23" = "approved" ] && echo 1 || echo 0)"
+
+echo
+if [ "$IS_MULTISITE" = "1" ]; then
+echo "=== 24-27. delete-user (EXPERIMENTAL dispatch gate): SKIPPED on multisite ==="
+# Not a pass and deliberately not counted as one. wp-admin/users.php's
+# dodelete case wp_die()s unconditionally on multisite before any
+# capability check runs, so the screen these four tests drive does not
+# exist here to be tested. Multisite routes per-site user removal through
+# a structurally different action ('remove', gating remove_users), which
+# this experiment does not attempt. Recording the skip out loud rather
+# than silently running 23 tests here and 27 there and calling both
+# "all passed".
+echo "SKIP  the native dodelete screen does not exist on multisite (core wp_die()s before any capability check)"
+else
+echo "=== 24. delete-user (EXPERIMENTAL dispatch gate): denied outright without an approval ==="
+# Everything from here down exercises experimental-dispatch-gate.php, the
+# falsification experiment for the intent-signal question -- not the same
+# proven, single-entry-point pattern as tests 1-23. See that file's own
+# docblock and BOUNDARY.md for what "experimental" means here.
+wp user create regression-native-target regression-native-target@example.com --role=subscriber --user_pass=irrelevant >/dev/null 2>&1
+NATIVE_ID=$(wp user get regression-native-target --field=ID 2>/dev/null | tail -1)
+DODELETE_NONCE24=$(delete_confirm_nonce "$TMP/A.jar" "$NATIVE_ID")
+STATUS=$(curl -sS -b "$TMP/A.jar" -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/wp-admin/users.php" \
+	--data-urlencode "action=dodelete" --data-urlencode "users[]=$NATIVE_ID" --data-urlencode "delete_option=delete" \
+	--data-urlencode "_wpnonce=$DODELETE_NONCE24")
+assert_status "the real native dodelete POST is denied without an approval" "403" "$STATUS"
+STILL_EXISTS24=$(wp user get "$NATIVE_ID" --field=ID 2>&1 | grep -E '^[0-9]+$')
+assert_true "the target user still exists" "$([ -n "$STILL_EXISTS24" ] && echo 1 || echo 0)"
+
+echo
+echo "=== 25. delete-user (EXPERIMENTAL): a matching approval lets the REAL native form through ==="
+DIGEST25=$(printf '%s\n0' "$NATIVE_ID" | shasum -a 256 | awk '{print $1}')
+RESP=$(curl -sS -H "Cookie: $COOKIES_A" -H "X-WP-Nonce: $NONCE_A" -X POST "$BASE_URL/wp-json/cap-floor/v1/request-approval" \
+	--data "capability=delete_users&password=$ADMIN_PASS&target_hash=$DIGEST25")
+DODELETE_NONCE25=$(delete_confirm_nonce "$TMP/A.jar" "$NATIVE_ID")
+STATUS=$(curl -sS -b "$TMP/A.jar" -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/wp-admin/users.php" \
+	--data-urlencode "action=dodelete" --data-urlencode "users[]=$NATIVE_ID" --data-urlencode "delete_option=delete" \
+	--data-urlencode "_wpnonce=$DODELETE_NONCE25")
+assert_status "the real native form succeeds once approved, no REST route involved" "302" "$STATUS"
+STILL_EXISTS25=$(wp user get "$NATIVE_ID" --field=ID 2>&1 | grep -E '^[0-9]+$')
+assert_true "the target user is actually gone" "$([ -z "$STILL_EXISTS25" ] && echo 1 || echo 0)"
+
+echo
+echo "=== 26. delete-user (EXPERIMENTAL): the same request via GET instead of POST is refused ==="
+wp user create regression-native-target2 regression-native-target2@example.com --role=subscriber --user_pass=irrelevant >/dev/null 2>&1
+NATIVE_ID2=$(wp user get regression-native-target2 --field=ID 2>/dev/null | tail -1)
+DIGEST26=$(printf '%s\n0' "$NATIVE_ID2" | shasum -a 256 | awk '{print $1}')
+RESP=$(curl -sS -H "Cookie: $COOKIES_A" -H "X-WP-Nonce: $NONCE_A" -X POST "$BASE_URL/wp-json/cap-floor/v1/request-approval" \
+	--data "capability=delete_users&password=$ADMIN_PASS&target_hash=$DIGEST26")
+APPROVAL26=$(echo "$RESP" | grep -o '"approval_id":"[^"]*"' | sed 's/"approval_id":"//;s/"//')
+DODELETE_NONCE26=$(delete_confirm_nonce "$TMP/A.jar" "$NATIVE_ID2")
+STATUS=$(curl -sS -b "$TMP/A.jar" -o /dev/null -w "%{http_code}" \
+	"$BASE_URL/wp-admin/users.php?action=dodelete&users%5B%5D=$NATIVE_ID2&delete_option=delete&_wpnonce=$DODELETE_NONCE26")
+assert_status "GET instead of POST is refused even with a valid pending approval" "403" "$STATUS"
+STILL_APPROVED26=$(wp db query --skip-column-names "SELECT state FROM wp_cap_floor_approvals WHERE id = '$APPROVAL26';" 2>&1 | grep -E '^(approved|consumed|cancelled)$' | tail -1)
+assert_true "the approval survives the GET attempt, unconsumed" "$([ "$STILL_APPROVED26" = "approved" ] && echo 1 || echo 0)"
+
+echo
+echo "=== 27. delete-user (EXPERIMENTAL): concurrent redemption via the real form, exactly one winner ==="
+wp user create regression-native-target3 regression-native-target3@example.com --role=subscriber --user_pass=irrelevant >/dev/null 2>&1
+NATIVE_ID3=$(wp user get regression-native-target3 --field=ID 2>/dev/null | tail -1)
+DIGEST27=$(printf '%s\n0' "$NATIVE_ID3" | shasum -a 256 | awk '{print $1}')
+curl -sS -H "Cookie: $COOKIES_A" -H "X-WP-Nonce: $NONCE_A" -X POST "$BASE_URL/wp-json/cap-floor/v1/request-approval" \
+	--data "capability=delete_users&password=$ADMIN_PASS&target_hash=$DIGEST27" >/dev/null
+DODELETE_NONCE27=$(delete_confirm_nonce "$TMP/A.jar" "$NATIVE_ID3")
+for i in 1 2 3 4 5; do
+	curl -sS -b "$TMP/A.jar" -o /dev/null -w "%{http_code}" -X POST "$BASE_URL/wp-admin/users.php" \
+		--data-urlencode "action=dodelete" --data-urlencode "users[]=$NATIVE_ID3" --data-urlencode "delete_option=delete" \
+		--data-urlencode "_wpnonce=$DODELETE_NONCE27" > "$TMP/racedel_status_$i.txt" &
+done
+wait
+WINS=$(grep -l "^302$" "$TMP"/racedel_status_*.txt 2>/dev/null | wc -l | tr -d ' ')
+assert_true "exactly one of five concurrent native redemptions wins" "$([ "$WINS" = "1" ] && echo 1 || echo 0)"
+STILL_EXISTS27=$(wp user get "$NATIVE_ID3" --field=ID 2>&1 | grep -E '^[0-9]+$')
+assert_true "the target user is actually gone, exactly once" "$([ -z "$STILL_EXISTS27" ] && echo 1 || echo 0)"
+fi
+
+echo
 echo "=== cleanup ==="
 # regressiontestb is deliberately left in place (see the idempotent
 # create-or-ignore fixture setup above) -- it is reconciled, not recreated,
@@ -401,9 +571,22 @@ delete_user_completely() {
 }
 delete_user_completely "$USERNAME12"
 delete_user_completely "$USERNAME14"
+# Most delete-user targets are gone already -- that's what tests 19-27
+# verify. These four are only ever left behind by a FAILED assertion
+# (21's cross-user refusal and 26's GET refusal both expect the target to
+# survive), so cleanup here is for the unhappy path, not the common case.
+delete_user_completely "regression-delete-target"
+delete_user_completely "regression-delete-target2"
+delete_user_completely "regression-native-target"
+delete_user_completely "regression-native-target2"
+delete_user_completely "regression-native-target3"
 wp db query "DELETE FROM wp_cap_floor_approvals; DELETE FROM wp_cap_floor_rates;" >/dev/null 2>&1
 wp option delete cap_floor_bindings >/dev/null 2>&1
 
 echo
-echo "=== $PASS passed, $FAIL failed ==="
+if [ "$IS_MULTISITE" = "1" ]; then
+	echo "=== $PASS passed, $FAIL failed (tests 24-27 skipped: no native dodelete screen on multisite) ==="
+else
+	echo "=== $PASS passed, $FAIL failed ==="
+fi
 [ "$FAIL" -eq 0 ]
