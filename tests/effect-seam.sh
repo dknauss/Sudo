@@ -29,6 +29,19 @@ chk()  { [ "$2" = "$3" ] && ok "$1" || bad "$1 (expected $2, got $3)"; }
 installed() { wp plugin list --field=name 2>/dev/null | LC_ALL=C grep -c '^effectdemo$' | tr -d ' '; }
 cleanup_plugin() { wp plugin delete effectdemo >/dev/null 2>&1; }
 
+# Preconditions, checked rather than assumed. This suite silently produced
+# a DIFFERENT PASS COUNT when run with the capability-floor mu-plugins
+# active -- the floor denies install_plugins long before the upgrader runs,
+# so seam tests never reach the seam. A suite that reports a smaller number
+# instead of refusing is how a wrong figure reaches a proposal.
+PRECHECK=$(npx @wordpress/env run cli wp eval 'echo function_exists("wp_authorize_consequential_effect") ? "seam" : "noseam"; echo current_user_can("install_plugins") ? "|floor-off" : "|floor-on";' --user=admin --config "$WP_ENV_CONFIG" 2>/dev/null | LC_ALL=C grep -oE "(seam|noseam)\|floor-(on|off)" | tail -1)
+case "$PRECHECK" in
+	seam\|floor-off) ;;
+	noseam*) echo "ABORT: Core patch not applied. Run: core-patch/apply.sh $WP_ENV_CONFIG apply" >&2; exit 2 ;;
+	*floor-on)  echo "ABORT: capability-floor mu-plugins are active; they deny install_plugins before the seam is reached, so this suite would pass/fail for the wrong reasons. Park them first." >&2; exit 2 ;;
+	*) echo "ABORT: could not determine preconditions (got '$PRECHECK')" >&2; exit 2 ;;
+esac
+
 python3 - "$TMP" <<'PY'
 import sys, zipfile, os
 with zipfile.ZipFile(os.path.join(sys.argv[1], "effectdemo.zip"), "w") as z:
@@ -85,13 +98,39 @@ LC_ALL=C grep -q "requires approval" "$TMP/r4.html" && ok "an unrelated approval
 chk "nothing was installed" "0" "$(installed)"
 
 echo
-echo "=== 6. WP-CLI is gated too — the surface that bypassed everything before ==="
-# NOT via wp(), which discards stderr -- the Core refusal is emitted there,
-# so routing through the helper silently hides the very message under test.
-OUT=$(npx @wordpress/env run cli wp plugin install classic-editor --config "$WP_ENV_CONFIG" 2>&1)
-echo "$OUT" | LC_ALL=C grep -q "verified package provenance" && ok "CLI refused as a machine actor" || bad "CLI not refused"
+echo "=== 6. actor policy: automation runs, unauthenticated callers do not ==="
+# An earlier version of this suite asserted CLI was REFUSED, pinning a
+# policy that also disabled automatic security updates -- a non-starter for
+# Core, and a placeholder mistaken for a design. The seam reports; the
+# policy decides. Automation is allowed; the actor classes that have no
+# legitimate path to a consequential effect are not.
+cat > "$TMP/actors.php" <<'PHPEOF'
+<?php
+foreach ( array('cron','cli','interactive','remote','anonymous') as $c ) {
+    $e = array("version"=>1,"id"=>"core.code.package_commit","site_id"=>1,
+      "target"=>array("type"=>"plugin","action"=>"update","slug"=>"x/x.php","destination"=>"/tmp/x"),
+      "payload"=>array("sha256"=>"deadbeef"),
+      "actor"=>array("class"=>$c,"user_id"=>($c==='interactive'?1:0),"session"=>($c==='interactive'?'abc':'')));
+    $r = wp_authorize_consequential_effect($e);
+    WP_CLI::log( $c . "=" . ( is_wp_error($r) ? "REFUSED" : "ALLOWED" ) );
+}
+PHPEOF
+CLI_CT=$(docker ps --format '{{.Names}}' | grep -- '-cli-1' | grep -v tests | head -1)
+docker cp "$TMP/actors.php" "$CLI_CT":/tmp/actors.php >/dev/null 2>&1
+AOUT=$(npx @wordpress/env run cli wp eval-file /tmp/actors.php --config "$WP_ENV_CONFIG" 2>&1)
+for pair in "cron=ALLOWED" "cli=ALLOWED" "interactive=REFUSED" "remote=REFUSED" "anonymous=REFUSED"; do
+	echo "$AOUT" | LC_ALL=C grep -q "^${pair}$" && ok "actor ${pair}" || bad "actor ${pair} (not observed)"
+done
+
+echo
+echo "=== 6b. automatic updates are NOT broken by this control ==="
+# The concrete regression for the mistake above: a real CLI install must
+# still complete. A default that disables security updates in the name of
+# security is not conservative, it is broken.
+npx @wordpress/env run cli wp plugin install classic-editor --config "$WP_ENV_CONFIG" >/dev/null 2>&1
 CLI_N=$(wp plugin list --field=name 2>/dev/null | LC_ALL=C grep -c '^classic-editor$' | tr -d ' ')
-chk "CLI install did not land" "0" "$CLI_N"
+chk "an automated install still succeeds" "1" "$CLI_N"
+wp plugin delete classic-editor >/dev/null 2>&1
 
 cleanup_plugin
 
@@ -150,10 +189,11 @@ edit_email "third@evil.test" "$TMP/e5.html"
 chk "the approved change committed" "third@evil.test" "$(email_now)"
 
 echo
-echo "=== 12. a machine actor cannot change an email either ==="
-OUT2=$(npx @wordpress/env run cli wp user update victim --user_email=cli@evil.test --config "$WP_ENV_CONFIG" 2>&1)
-echo "$OUT2" | LC_ALL=C grep -q "Refused: change user" && ok "CLI refused" || bad "CLI not refused"
-chk "address unchanged by CLI" "third@evil.test" "$(email_now)"
+echo "=== 12. CLI can still administer email (operator with shell access) ==="
+# CLI is conceded: shell access can edit mu-plugins and remove the seam
+# entirely, so gating it buys nothing and breaks legitimate operations.
+npx @wordpress/env run cli wp user update victim --user_email=cli-admin@example.test --config "$WP_ENV_CONFIG" >/dev/null 2>&1
+chk "CLI email change succeeds" "cli-admin@example.test" "$(email_now)"
 
 
 echo

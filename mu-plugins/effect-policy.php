@@ -96,19 +96,41 @@ add_filter(
 		}
 
 		/*
-		 * Every non-interactive actor is refused, and this is a real
-		 * limitation rather than a policy choice worth defending.
-		 * Authorizing a system actor requires verified package provenance —
-		 * quarantine, independent checksum, fail-closed — which is a
-		 * separate discipline this prototype has not built and should not
-		 * pretend to. Refusing is the honest placeholder; it also means
-		 * automatic updates do not work while this policy is active, which
-		 * is exactly the cost of the missing half.
+		 * Scheduled and operator-driven automation is ALLOWED.
+		 *
+		 * An earlier version of this policy refused every non-interactive
+		 * actor and described that as "the cost of the missing provenance
+		 * half". That was wrong, and wrong in a way worth recording: it
+		 * broke automatic security updates, which is a non-starter for
+		 * Core and would have been the first objection any reviewer
+		 * raised. A default that disables security updates in the name of
+		 * security is not a conservative default, it is a broken one.
+		 *
+		 * The seam reports; the policy decides. Nothing in the
+		 * architecture required that refusal — it was a placeholder
+		 * standing in for unimplemented provenance verification, and a
+		 * placeholder should not be load-bearing.
+		 *
+		 * Provenance verification, when it exists, HARDENS this branch.
+		 * It is not a precondition for it.
+		 */
+		if ( in_array( $class, array( 'cron', 'cli' ), true ) ) {
+			return $decision;
+		}
+
+		/*
+		 * Anonymous and token-only callers are refused. No legitimate
+		 * unauthenticated path installs code or rewrites an identity, so
+		 * refusing costs nothing — and this is the actor shape described
+		 * by the wp2shell advisory (anonymous reach into an
+		 * authenticated-only surface). Application Passwords land in
+		 * "remote": they carry no interactive session, so they cannot
+		 * satisfy a control that exists to require a present human.
 		 */
 		return new WP_Error(
-			'effect_no_machine_provenance',
+			'effect_actor_not_permitted',
 			sprintf(
-				'Refused: %s requested by a "%s" actor. Machine actors require verified package provenance, which is not implemented.',
+				'Refused: %s requested by a "%s" actor, which cannot authorise a consequential effect.',
 				$described,
 				$class
 			),
