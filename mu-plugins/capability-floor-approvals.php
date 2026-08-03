@@ -90,7 +90,7 @@ function cap_floor_raw_cookie_values( string $name ): array {
  *
  * @return string|WP_Error Raw binding value, or a refusal.
  */
-function cap_floor_binding() {
+function cap_floor_binding( bool $may_mint = true ) {
 	static $resolved = null;
 	if ( is_string( $resolved ) ) {
 		return $resolved;
@@ -121,6 +121,26 @@ function cap_floor_binding() {
 	) {
 		$resolved = $binding;
 		return $binding;
+	}
+
+	// Everything below MINTS. Callers that must never mint say so
+	// explicitly, and this is where the round-2 fix actually has to be
+	// enforced -- not only at the admin_init hook.
+	//
+	// An Opus-tier claims audit found this hole: cap_floor_require_binding()
+	// called this function with no way to forbid minting, so presenting a
+	// *junk* binding cookie fell straight through the validity check above
+	// and minted a fresh registered one. The refusal response carried it in
+	// Set-Cookie. Reproduced end-to-end: junk cookie -> 403 + a valid
+	// binding, replay that value with only a stolen login cookie -> 201, a
+	// real approval. The docblock immediately above the require_binding()
+	// call in cap_floor_request_approval() asserted this could not happen
+	// ("Minting on demand here would silently defeat the whole fix") while
+	// the code did exactly that. Note the earlier no-cookie-at-all case
+	// still correctly 403'd, which is why regression test 5 never caught
+	// it -- it only ever sent no cookie, never a wrong one.
+	if ( ! $may_mint ) {
+		return new WP_Error( 'cap_floor_binding', 'Registered binding required.', array( 'status' => 403 ) );
 	}
 
 	$binding         = bin2hex( random_bytes( 32 ) );
@@ -165,6 +185,10 @@ function cap_floor_binding() {
  * Require the current request's registered binding, without minting one.
  * Use this wherever a missing binding must refuse, not silently proceed.
  *
+ * The `false` argument below is load-bearing, not stylistic: this function
+ * has always documented that it does not mint, but until an Opus-tier
+ * audit found otherwise it called the minting variant and therefore did.
+ *
  * @return string|WP_Error
  */
 function cap_floor_require_binding() {
@@ -173,7 +197,7 @@ function cap_floor_require_binding() {
 		return new WP_Error( 'cap_floor_binding', 'Exactly one binding is required.', array( 'status' => 403 ) );
 	}
 
-	$binding = cap_floor_binding();
+	$binding = cap_floor_binding( false );
 	if ( is_wp_error( $binding ) || ! hash_equals( $values[0], $binding ) ) {
 		return new WP_Error( 'cap_floor_binding', 'Registered binding required.', array( 'status' => 403 ) );
 	}
@@ -259,8 +283,18 @@ function cap_floor_current_binding_hash(): ?string {
 add_action(
 	'admin_init',
 	static function (): void {
-		$page = isset( $_GET['page'] ) ? (string) $_GET['page'] : '';
-		if ( 'cap-floor-harness' === $page || 'users.php' === ( $GLOBALS['pagenow'] ?? '' ) ) {
+		// $pagenow is checked for BOTH entry points. Checking only
+		// $_GET['page'] for the harness -- which is what this did until an
+		// Opus-tier audit and a concurrent adversarial pass independently
+		// flagged it -- keys the mint off a purely attacker-supplied query
+		// parameter that any admin script will happily carry. Minting was
+		// reproducible at /wp-admin/index.php?page=cap-floor-harness,
+		// edit.php, options-general.php, and admin-ajax.php (which fires
+		// admin_init), i.e. effectively the whole admin rather than the
+		// "one named page" the old comment claimed.
+		$pagenow = (string) ( $GLOBALS['pagenow'] ?? '' );
+		$page    = isset( $_GET['page'] ) ? (string) $_GET['page'] : '';
+		if ( ( 'tools.php' === $pagenow && 'cap-floor-harness' === $page ) || 'users.php' === $pagenow ) {
 			cap_floor_binding();
 		}
 	},

@@ -124,6 +124,41 @@ add_action(
 						return new WP_Error( 'cap_floor_user_params', 'Invalid username, email, or role.', array( 'status' => 400 ) );
 					}
 
+					// Refused on multisite for the same reason /delete-user
+					// is, and this one was missed by the audit that caught
+					// delete -- an Opus-tier claims audit found it after
+					// this effect had already been declared "audited on
+					// both site types."
+					//
+					// Core's own multisite create_users path
+					// (wp-admin/user-new.php, the is_multisite() branch)
+					// runs wpmu_validate_user_signup() and then
+					// wpmu_signup_user(), producing a PENDING signup the
+					// invitee must confirm by email. Activating without
+					// that confirmation is gated on a second capability,
+					// manage_network_users ("Skip Confirmation Email").
+					// Calling wp_insert_user() directly, as this route
+					// does, skips all of it: reproduced live on multisite,
+					// a create_users approval produced a live network-wide
+					// account with the administrator role instantly, with
+					// zero rows in wp_signups, and bypassed the username
+					// policy wpmu_validate_user_signup() enforces.
+					//
+					// So on multisite this performed strictly MORE than the
+					// capability the human approved authorizes -- the same
+					// approved-effect/actual-effect gap as the delete case,
+					// in the effect that had just been called clean. The
+					// earlier audit checked membership and role and found
+					// them correct; it did not check what core's own path
+					// for this capability actually does in this context.
+					if ( is_multisite() ) {
+						return new WP_Error(
+							'cap_floor_multisite_unsupported',
+							'On multisite, core creates users via a confirmable signup (wpmu_signup_user) and gates instant activation on manage_network_users. Creating directly would exceed the approved capability. Not supported by this route.',
+							array( 'status' => 501 )
+						);
+					}
+
 					// Checked here, before the approval is touched at all --
 					// not because wp_insert_user() wouldn't also catch this
 					// (it would, via WP_Error 'existing_user_login'), but

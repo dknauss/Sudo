@@ -88,6 +88,15 @@ ADMIN_ID=$(wp user get admin --field=ID 2>/dev/null | tail -1)
 # with a real defect.
 IS_MULTISITE=$(wp eval 'echo is_multisite() ? "1" : "0";' 2>/dev/null | tail -1)
 
+# Declared unconditionally, not inside the branch that uses them: with
+# `set -u`, cleanup referencing a name the multisite path never assigned
+# aborts the whole teardown (which is exactly what happened when
+# create-user became 501 on multisite and its block stopped running).
+USERNAME12="regression-create-user"
+EMAIL12="regression-create-user@example.com"
+ROLE12="editor"
+USERNAME14="regression-retarget-user"
+
 login() {
 	local user="$1" pass="$2" jar="$3"
 	curl -sS -c "$jar" -c "$jar" "$BASE_URL/wp-login.php" \
@@ -99,6 +108,24 @@ harness_page() {
 	local jar="$1" out="$2"
 	curl -sS -b "$jar" -c "$jar" "$BASE_URL/wp-admin/tools.php?page=cap-floor-harness" -o "$out"
 }
+# `wp user delete <user> --yes --reassign=1` alone does not do that on
+# multisite: without --network it only unassigns the site role, leaving
+# the account intact network-wide (wp_users is network-wide) -- exactly
+# what happened here once already, silently turning test 12 into a false
+# failure two runs later ("500", not "201", because the account it tried
+# to insert already existed). Deleting the row directly, the same "manipulate
+# test state via direct DB queries" discipline this suite already uses
+# for the rate-limit table, sidesteps the ambiguity entirely rather than
+# chasing the right combination of wp-cli flags for both site types.
+delete_user_completely() {
+	local login="$1"
+	local id
+	id=$(wp user get "$login" --field=ID 2>/dev/null | tail -1)
+	if [ -n "$id" ] && [ "$id" -gt 0 ] 2>/dev/null; then
+		wp db query "DELETE FROM wp_users WHERE ID = $id; DELETE FROM wp_usermeta WHERE user_id = $id;" >/dev/null 2>&1
+	fi
+}
+
 nonce_of() { grep -o 'data-nonce="[^"]*"' "$1" | sed 's/data-nonce="//;s/"//'; }
 full_cookies_of() { awk -F'\t' '$6 ~ /^wordpress_/ || $6 == "__Host-cap_floor_binding" {printf "%s=%s; ", $6, $7}' "$1"; }
 login_only_of() { awk -F'\t' '$6 ~ /^wordpress_logged_in_/ {printf "%s=%s", $6, $7}' "$1"; }
@@ -136,13 +163,25 @@ assert_status "denies without a valid approval" "403" "$STATUS"
 
 echo
 echo "=== 2. cross-user: B cannot consume A's approval ==="
-DIGEST=$(printf 'a%.0s' {1..64})
+# The digest here is the REAL sha256 of the file B uploads, which is the
+# whole point. An Opus-tier audit found the previous version vacuous: it
+# minted A's approval for 64x'a' and had B upload /dev/null (digest
+# e3b0c442...), two values that can never match, so the 403 came from the
+# digest comparison and the test stayed green even with cross-user
+# isolation deleted entirely. Matching the digest exactly leaves the
+# user_id/session_hash/binding_hash scoping as the only thing that can
+# refuse -- and the follow-up assertions prove B did not merely fail, but
+# left the approval intact for its real owner to spend.
+touch "$TMP/empty.bin"
+DIGEST=$(shasum -a 256 "$TMP/empty.bin" | awk '{print $1}')
 RESP=$(curl -sS -H "Cookie: $COOKIES_A" -H "X-WP-Nonce: $NONCE_A" -X POST "$BASE_URL/wp-json/cap-floor/v1/request-approval" \
 	--data "capability=install_plugins&password=$ADMIN_PASS&target_hash=$DIGEST")
 APPROVAL_A=$(echo "$RESP" | grep -o '"approval_id":"[^"]*"' | sed 's/"approval_id":"//;s/"//')
 STATUS=$(curl -sS -o /dev/null -w "%{http_code}" -H "Cookie: $COOKIES_B" -H "X-WP-Nonce: $NONCE_B" \
-	-X POST "$BASE_URL/wp-json/cap-floor/v1/install-plugin" -F "approval_id=$APPROVAL_A" -F "package=@/dev/null")
-assert_status "B refused consuming A's approval" "403" "$STATUS"
+	-X POST "$BASE_URL/wp-json/cap-floor/v1/install-plugin" -F "approval_id=$APPROVAL_A" -F "package=@$TMP/empty.bin")
+assert_status "B refused consuming A's approval (digests match; only ownership can refuse)" "403" "$STATUS"
+STATE2=$(wp db query --skip-column-names "SELECT state FROM wp_cap_floor_approvals WHERE id = '$APPROVAL_A';" 2>&1 | grep -E '^(approved|consumed|cancelled)$' | tail -1)
+assert_true "B's attempt did not consume A's approval" "$([ "$STATE2" = "approved" ] && echo 1 || echo 0)"
 
 echo
 echo "=== 3. cross-user: A's rate-limit lockout does not affect B ==="
@@ -271,15 +310,73 @@ STATUS=$(curl -sS -o /dev/null -w "%{http_code}" -H "Cookie: $COOKIES_A" -H "X-W
 assert_status "an over-length target hash is refused, not silently accepted" "400" "$STATUS"
 
 echo
+echo "=== 11b. the REST route must never MINT a binding (Opus audit finding) ==="
+# Test 5 checks the no-cookie-at-all case and passed throughout, which is
+# exactly why this went unnoticed: presenting a *junk* binding cookie fell
+# through cap_floor_binding()'s validity check into its minting branch, so
+# the 403 refusal shipped a freshly registered binding in Set-Cookie.
+# Harvesting it and replaying with only a stolen login cookie yielded a
+# real 201 approval -- defeating the entire round-2 second-factor fix,
+# while the function's own docblock asserted it could not happen.
+STOLEN_ONLY=$(awk -F'\t' '$6 ~ /^wordpress_/ {printf "%s=%s; ", $6, $7}' "$TMP/A.jar")
+MINT_HDRS=$(curl -sS -D - -o /dev/null \
+	-H "Cookie: ${STOLEN_ONLY}__Host-cap_floor_binding=junkvalue" -H "X-WP-Nonce: $NONCE_A" \
+	-X POST "$BASE_URL/wp-json/cap-floor/v1/request-approval" \
+	--data "capability=install_plugins&password=$ADMIN_PASS&target_hash=$(printf 'm%.0s' {1..64})")
+assert_true "a junk binding cookie does not cause the REST route to mint one" \
+	"$(echo "$MINT_HDRS" | grep -qi 'set-cookie:.*cap_floor_binding' && echo 0 || echo 1)"
+
+echo
+echo "=== 11c. binding minting is scoped to a real screen, not just ?page= ==="
+# Both an Opus adversarial pass and the claims audit independently found
+# that keying the mint off $_GET['page'] alone let ANY admin script mint
+# -- including admin-ajax.php, which fires admin_init. "Two known URLs"
+# was really "one query string against the whole admin."
+for SCRIPT in "index.php?page=cap-floor-harness" "admin-ajax.php?page=cap-floor-harness&action=heartbeat"; do
+	rm -f "$TMP/mintprobe.jar"
+	curl -sS -c "$TMP/mintprobe.jar" -H "Cookie: $STOLEN_ONLY" "$BASE_URL/wp-admin/$SCRIPT" -o /dev/null
+	assert_true "no binding minted at /wp-admin/$SCRIPT" \
+		"$(grep -q cap_floor_binding "$TMP/mintprobe.jar" && echo 0 || echo 1)"
+done
+# Positive control: the real entry point must still mint, or the guard
+# above would be "passing" by breaking the feature.
+rm -f "$TMP/mintok.jar"
+curl -sS -c "$TMP/mintok.jar" -H "Cookie: $STOLEN_ONLY" "$BASE_URL/wp-admin/tools.php?page=cap-floor-harness" -o /dev/null
+assert_true "the real harness page still mints" \
+	"$(grep -q cap_floor_binding "$TMP/mintok.jar" && echo 1 || echo 0)"
+
+echo
+if [ "$IS_MULTISITE" = "1" ]; then
+echo "=== 12-15. create-user: multisite behaviour ==="
+# Refused with 501 on multisite by design, and asserting that refusal is a
+# real test. Core's own multisite create_users path (user-new.php) runs
+# wpmu_validate_user_signup() then wpmu_signup_user(), producing a pending
+# signup the invitee confirms by email; instant activation is gated on the
+# separate manage_network_users capability. wp_insert_user() skips all of
+# it, so honouring a create_users approval here would perform strictly
+# more than the human approved -- the same gap as the delete case, found
+# by an Opus-tier audit in the effect that had just been called clean.
+MSC_DIGEST=$(printf '%s\n%s\n%s' "msauditprobe" "msauditprobe@example.com" "editor" | shasum -a 256 | awk '{print $1}')
+RESP=$(curl -sS -H "Cookie: $COOKIES_A" -H "X-WP-Nonce: $NONCE_A" -X POST "$BASE_URL/wp-json/cap-floor/v1/request-approval" \
+	--data "capability=create_users&password=$ADMIN_PASS&target_hash=$MSC_DIGEST")
+MSC_APPROVAL=$(echo "$RESP" | grep -o '"approval_id":"[^"]*"' | sed 's/"approval_id":"//;s/"//')
+STATUS=$(curl -sS -o /dev/null -w "%{http_code}" -H "Cookie: $COOKIES_A" -H "X-WP-Nonce: $NONCE_A" \
+	-X POST "$BASE_URL/wp-json/cap-floor/v1/create-user" \
+	--data-urlencode "approval_id=$MSC_APPROVAL" --data-urlencode "username=msauditprobe" \
+	--data-urlencode "email=msauditprobe@example.com" --data-urlencode "role=editor")
+assert_status "create-user refuses on multisite rather than bypassing the signup flow" "501" "$STATUS"
+MSC_MADE=$(wp db query --skip-column-names "SELECT ID FROM wp_users WHERE user_login = 'msauditprobe';" 2>&1 | grep -E '^[0-9]+$' | tail -1)
+assert_true "no account was created" "$([ -z "$MSC_MADE" ] && echo 1 || echo 0)"
+MSC_STATE=$(wp db query --skip-column-names "SELECT state FROM wp_cap_floor_approvals WHERE id = '$MSC_APPROVAL';" 2>&1 | grep -E '^(approved|consumed|cancelled)$' | tail -1)
+assert_true "the approval was not burned on the refused request" "$([ "$MSC_STATE" = "approved" ] && echo 1 || echo 0)"
+delete_user_completely "msauditprobe"
+else
 echo "=== 12. create-user: the second effect works end-to-end, not just install-plugin ==="
 # Same pattern as /install-plugin (digest the exact fields, re-check
 # current_user_can() against that digest, consume at the real commit
 # point) wired against a structurally different effect: wp_insert_user()
 # instead of WP_Upgrader. Verified live in the browser on 2026-08-02 before
 # this test existed; this locks that result down.
-USERNAME12="regression-create-user"
-EMAIL12="regression-create-user@example.com"
-ROLE12="editor"
 DIGEST12=$(printf '%s\n%s\n%s' "$USERNAME12" "$EMAIL12" "$ROLE12" | shasum -a 256 | awk '{print $1}')
 RESP=$(curl -sS -H "Cookie: $COOKIES_A" -H "X-WP-Nonce: $NONCE_A" -X POST "$BASE_URL/wp-json/cap-floor/v1/request-approval" \
 	--data "capability=create_users&password=$ADMIN_PASS&target_hash=$DIGEST12")
@@ -314,7 +411,6 @@ assert_true "exactly one account exists, not two" "$([ "$STILL_ONE" = "1" ] && e
 
 echo
 echo "=== 14. create-user: an approval cannot be retargeted to different user details ==="
-USERNAME14="regression-retarget-user"
 EMAIL14A="regression-retarget-a@example.com"
 EMAIL14B="regression-retarget-b@example.com"
 ROLE14="editor"
@@ -345,6 +441,7 @@ echo "=== 15. create-user: the native Add New User screen still denies outright 
 STATUS=$(curl -sS -o "$TMP/user-new.html" -w "%{http_code}" -b "$TMP/A.jar" "$BASE_URL/wp-admin/user-new.php")
 assert_status "native screen returns 403" "403" "$STATUS"
 assert_true "native screen still refuses a real administrator" "$(grep -qi 'not allowed' "$TMP/user-new.html" && echo 1 || echo 0)"
+fi
 
 echo
 echo "=== 16. remove_users is denied (found omitted entirely by a fresh-context agent) ==="
@@ -364,6 +461,15 @@ CAN_REMOVE=$(wp eval 'echo current_user_can( "remove_users" ) ? "1" : "0";' --us
 assert_true "administrator does not have remove_users" "$([ "$CAN_REMOVE" = "0" ] && echo 1 || echo 0)"
 
 echo
+if [ "$IS_MULTISITE" = "1" ]; then
+echo "=== 17. create-user: existing-identity check — N/A on multisite ==="
+# /create-user is refused outright with 501 on multisite (see tests
+# 12-15), so its existing-username pre-check never runs there. Asserting
+# 409 here would be asserting single-site behaviour on the wrong site
+# type -- which is exactly how this test started failing when the
+# multisite refusal landed.
+echo "SKIP  create-user is 501 on multisite; the pre-check it tests is single-site-only"
+else
 echo "=== 17. create-user: an existing username/email is rejected before the approval is touched ==="
 # Found by the same agent: request an approval for an already-registered
 # identity, redeem it, get a guaranteed-to-fail wp_insert_user() -- but by
@@ -386,6 +492,8 @@ STILL_APPROVED=$(wp db query --skip-column-names "SELECT state FROM wp_cap_floor
 assert_true "the approval was not burned on a doomed request" "$([ "$STILL_APPROVED" = "approved" ] && echo 1 || echo 0)"
 
 echo
+fi
+
 echo "=== 18. install_languages is denied (found by reasoning through a 'cosmetic' observation) ==="
 # core's map_meta_cap() case 'update_languages' -- checked by
 # wp-admin/update-core.php's real mutating action,
@@ -592,23 +700,6 @@ echo "=== cleanup ==="
 # each run. USERNAME12/14 are not: they must be gone before the next run,
 # or test 12's wp_insert_user() collides on a still-existing global login.
 #
-# `wp user delete <user> --yes --reassign=1` alone does not do that on
-# multisite: without --network it only unassigns the site role, leaving
-# the account intact network-wide (wp_users is network-wide) -- exactly
-# what happened here once already, silently turning test 12 into a false
-# failure two runs later ("500", not "201", because the account it tried
-# to insert already existed). Deleting the row directly, the same "manipulate
-# test state via direct DB queries" discipline this suite already uses
-# for the rate-limit table, sidesteps the ambiguity entirely rather than
-# chasing the right combination of wp-cli flags for both site types.
-delete_user_completely() {
-	local login="$1"
-	local id
-	id=$(wp user get "$login" --field=ID 2>/dev/null | tail -1)
-	if [ -n "$id" ] && [ "$id" -gt 0 ] 2>/dev/null; then
-		wp db query "DELETE FROM wp_users WHERE ID = $id; DELETE FROM wp_usermeta WHERE user_id = $id;" >/dev/null 2>&1
-	fi
-}
 delete_user_completely "$USERNAME12"
 delete_user_completely "$USERNAME14"
 # Most delete-user targets are gone already -- that's what tests 19-27

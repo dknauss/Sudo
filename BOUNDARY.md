@@ -186,10 +186,22 @@ test 9 in `tests/regression.sh` for the regression coverage.
 
 **This also clarifies the claim's actual shape, not just its safety.**
 Because a target is now mandatory and native WordPress code never passes
-one to a bare capability check, an approval issued by this prototype can
-**only ever be consumed through its own purpose-built REST route** — never
-through the native wp-admin UI. That was always the design's intent; it
-was not, until this fix, what the code actually enforced.
+one to a bare capability check, an approval issued by this prototype could
+at that time only be consumed through its own purpose-built REST route,
+never through the native wp-admin UI.
+
+**That is no longer true, and this paragraph asserted it for a full day
+after it stopped being true.** `experimental-dispatch-gate.php` (added
+2026-08-03) deliberately consumes an approval from the *real* native
+`users.php` POST and lifts the denial for core's own bare
+`current_user_can( 'delete_users' )` check. An Opus-tier claims audit
+reproduced it: mint an approval, POST the genuine native form, HTTP 302,
+user deleted, no REST route involved. The document described that
+experiment four sections below while still claiming here that it could not
+happen, and `tests/regression.sh` test 25 asserts the contradiction in as
+many words. Corrected rather than deleted, because the failure mode — a
+claim that was true when written and silently falsified by a later
+change — is the one this file is least able to catch on its own.
 
 **A second independent agent, on already-"fixed" code, found four more
 issues in one pass.** All four are fixed here; the point of naming them is
@@ -237,9 +249,47 @@ binding.
 **That set grew from one URL to two on 2026-08-03**, when
 `/wp-admin/users.php` was added alongside
 `/wp-admin/tools.php?page=cap-floor-harness` so the intercepted native
-Delete button could work. Re-verified after the change: the dashboard
-still mints nothing, `users.php` now mints with stolen cookies alone. The
-increment is small, but the direction is the point — **under Approach A,
+Delete button could work.
+
+**And "two URLs" was itself false — on two independent counts, both found
+the same day by an Opus-tier claims audit and an Opus-tier adversarial
+pass working separately.**
+
+1. The `admin_init` hook keyed the harness mint off `$_GET['page']` alone,
+   with no check on *which* admin script was running. Since `page` is an
+   attacker-supplied query parameter that any admin entry point will
+   carry, minting was reproducible at `/wp-admin/index.php?page=…`,
+   `edit.php`, `options-general.php`, and `admin-ajax.php` (which fires
+   `admin_init`). That is not two URLs; it is one query string against
+   essentially the whole admin, including its best-known endpoint.
+2. **Worse: the REST route minted.** `cap_floor_require_binding()` — whose
+   own docblock said it "deliberately requires a binding that already
+   exists rather than minting one here … Minting on demand here would
+   silently defeat the whole fix" — called the minting variant with no way
+   to forbid it. Presenting a *junk* binding cookie fell through the
+   validity check into the mint branch, so the 403 refusal shipped a
+   freshly registered binding in `Set-Cookie`. Reproduced end to end: junk
+   cookie → 403 + valid binding; replay that value with only a stolen
+   login cookie → 201, a real approval. Regression test 5 never caught it
+   because it only ever sent *no* cookie, never a wrong one.
+
+Both are now fixed (`$pagenow` is checked for both entry points;
+`cap_floor_binding()` takes an explicit `$may_mint` flag and
+`cap_floor_require_binding()` passes `false`), with regression tests 11b
+and 11c covering them including a positive control.
+
+**What this means for the claim, stated plainly: for most of this
+prototype's existence the binding cookie provided no meaningful protection
+against a login-cookie thief at all.** Not "modest extra cost" — none. The
+adversarial pass reached the same conclusion independently and rated its
+half LOW *precisely because* the document already conceded the threat; the
+audit's half shows the concession was more complete than intended. Fixing
+both restores the modest-cost position the document claimed, and the
+underlying limit is unchanged: the binding is the same class of bearer
+secret as the login cookie, so an attacker who can replay one can obtain
+the other.
+
+The increment from one URL to two is small, but the direction is the point — **under Approach A,
 every native screen given a real elevate flow has to become a minting
 URL, so this set grows monotonically as the design covers more of
 wp-admin.** A version of this idea covering a realistic slice of the admin
@@ -257,11 +307,22 @@ currently flagged anywhere in the archived Sudo repo's `docs/finding.md`.
 
 ## Defends against — verified, not asserted
 
-- **No account holds a dangerous capability at rest — now checked
-  individually against a real native trigger for every capability on the
-  list except one.** The list itself has grown twice past its original
-  sixteen: `remove_users` and `install_languages` were both simply absent
-  under any name until found, not denied-then-bypassed. Confirmed against
+- **No account holds a dangerous capability at rest — individually
+  verified for 16 of the 19 capabilities on the list.** The counts here
+  were wrong until an Opus-tier audit checked them against the code: the
+  list held **17** entries originally, not "sixteen", and holds **19**
+  now after `remove_users` and `install_languages` were found simply
+  absent under any name (not denied-then-bypassed). The related claim that
+  round 4 swept "the ten capabilities nobody had individually tried" was
+  also wrong — 13 were untried at that point, and it covered nine.
+  **`install_themes`, `delete_themes` and `promote_users` have never been
+  named as individually checked here.** The auditor did check all three
+  and found them correctly denied — `promote_users` against its real
+  native trigger (the `users.php` bulk "Change role to administrator"
+  POST, which core gates at `users.php:113`): 403, target's role
+  unchanged. So this was a documentation-accounting failure, not a
+  bypass, but it is exactly the kind of miscount that makes a coverage
+  claim worthless. Confirmed against
   real native wp-admin screens or direct capability checks for
   `install_plugins`, `create_users`, `edit_users`, `delete_users` (the
   last two only after the meta-cap indirection fix), `remove_users` and
@@ -278,7 +339,10 @@ currently flagged anywhere in the archived Sudo repo's `docs/finding.md`.
   code anywhere calls `current_user_can( 'edit_files' )` on its own; it
   exists only as a shared label inside core's own `map_meta_cap()` switch
   alongside `edit_plugins`/`edit_themes`. There is no real screen to have
-  tried it against. Every one of these four rounds found something
+  tried it against. (Strictly, "only inside the switch" overstates it: it
+  is also granted as a real role capability at
+  `wp-admin/includes/schema.php:765`. Nothing reads it, but it exists in
+  more than one place.) Every one of these four rounds found something
   wrong the first three times a genuinely new corner was checked
   (`edit_users`, `remove_users`, `install_languages`) and nothing wrong
   the one time a broad, systematic sweep of previously-untouched ground
@@ -293,14 +357,20 @@ currently flagged anywhere in the archived Sudo repo's `docs/finding.md`.
   and multisite.
 - **A leaked Application Password alone is insufficient** — no session
   token, refused before any password check runs.
-- **Minting a binding cookie requires visiting this prototype's one named
-  harness page, not just holding a `LOGGED_IN_COOKIE`.** A second
-  independent agent found that the original fix here overclaimed: the
-  `admin_init` hook that mints the binding fired on `is_user_logged_in()`,
-  meaning any stolen login cookie could mint a binding with one GET to
-  *any* wp-admin page. It is now scoped to the single harness page URL. See
-  "Walked back" below — this is a narrower, verified claim than the one
-  this line originally made, not the same claim re-confirmed.
+- **Minting a binding cookie requires visiting one of this prototype's two
+  named elevate-flow screens (`tools.php?page=cap-floor-harness` or
+  `users.php`), not just holding a `LOGGED_IN_COOKIE`.** This bullet has
+  now been wrong twice and should be read with that in mind. It first
+  claimed the binding was independent of the login cookie, which a second
+  agent disproved (the mint hook fired on `is_user_logged_in()`, so any
+  admin page minted). It was then corrected to "the single harness page
+  URL" — still wrong, on two counts an Opus-tier audit and adversarial
+  pass found separately: the hook matched `$_GET['page']` on *any* admin
+  script including `admin-ajax.php`, and the REST route itself minted when
+  handed a junk cookie. Both fixed; regression tests 11b/11c now cover
+  them. See "Walked back" above for the full account — the honest summary
+  is that this protection did not exist for most of the prototype's life,
+  and the claim survived two prior corrections without becoming true.
 - **Concurrent redemption of one approval has exactly one winner**; the
   rate limiter releases on a rolling time window rather than locking an
   account out permanently, which an earlier version of this same file did
@@ -330,8 +400,11 @@ currently flagged anywhere in the archived Sudo repo's `docs/finding.md`.
   out to already be safe for an unrelated reason). It is a general fix
   (checks the resolved `$caps` array, not a name-by-name patch), so it
   should generalize — but "should" is a claim about the mechanism, not a
-  report of having tried the other ten denied capabilities against their
-  own native screens one by one. Nobody has.
+  claim about every capability having been individually exercised. Round 4
+  did subsequently try nine of them against their real native screens (see
+  above); an earlier version of this bullet said "nobody has" and was left
+  unrevised after that round, which an Opus-tier audit flagged as
+  self-contradicting.
 
 - **A full cookie-jar clone.** By construction this almost certainly
   succeeds the same way it does against `#470` — the binding cookie is the
@@ -339,9 +412,16 @@ currently flagged anywhere in the archived Sudo repo's `docs/finding.md`.
   of it. **This is inferred from the mechanism's shape, not independently
   tested.** Do not read it as verified until someone actually tries it.
 - **Active same-origin script during the approval window.** Zero browser
-  or DOM-level testing exists for this prototype. `#470` had a 15-test
-  Playwright suite probing exactly this; this prototype has none. This is
-  a real gap, not a stated concession backed by evidence.
+  or DOM-level testing exists for this prototype. **An earlier version of
+  this bullet claimed `#470` had "a 15-test Playwright suite probing
+  exactly this." That was wrong** — an Opus-tier audit checked the
+  archived Sudo repo and found the 15 tests confirm the §2.4 cookie
+  boundary, while §4.2 names active same-origin script an explicit
+  *non-goal*. So `#470` conceded this rather than testing it, and the
+  correction matters twice over: the gap here is real either way, but a
+  claim about an external artifact was asserted without being checked
+  against that artifact — the exact failure mode this project'"'"'s
+  verification rules exist to prevent.
 - **The intent-signal problem.** `map_meta_cap()` fires identically for a
   user's deliberate action and for incidental checks — menu rendering, the
   admin bar — that happen to touch the same capability. This prototype
@@ -415,12 +495,40 @@ currently flagged anywhere in the archived Sudo repo's `docs/finding.md`.
   end-to-end" was never demonstrated and is not demonstrated now.
 
   Of the three wired effects, **two perform genuinely irreversible real
-  work** — `create_users` really creates an account (audited on both site
-  types: proper site membership and correct role on multisite, via
-  `is_user_member_of_blog`), and `delete_users` really deletes one on
-  single-site. The one presented as the flagship for four review rounds
-  does nothing. That is close to the inverse of the impression the
+  work** — `create_users` really creates an account and `delete_users`
+  really deletes one, both on single-site; both are now refused on
+  multisite (see below). The one presented as the flagship for four review
+  rounds does nothing. That is close to the inverse of the impression the
   earlier text gave.
+
+  **An earlier version of this paragraph said `create_users` was "audited
+  on both site types," citing `is_user_member_of_blog`. That audit was
+  shallow and this document repeated its conclusion as settled** — an
+  Opus-tier claims audit then found the multisite twin of the delete
+  finding sitting in the very effect just called clean. Checking
+  membership and role answers "did a usable account result?", not "is
+  this the effect core's own `create_users` path performs here?" It is
+  not: see the `create_users` bullet below.
+
+- **`create_users` on multisite: the same finding again, in the effect
+  that had just been declared clean.** Found by an Opus-tier claims audit
+  immediately after the delete case below was fixed and this document had
+  moved on. Core's own multisite `create_users` path
+  (`wp-admin/user-new.php`, the `is_multisite()` branch) runs
+  `wpmu_validate_user_signup()` and then `wpmu_signup_user()`, producing a
+  **pending signup the invitee must confirm by email**; activating without
+  that confirmation is gated on a *second* capability,
+  `manage_network_users` ("Skip Confirmation Email"). Calling
+  `wp_insert_user()` directly, as this route did, skips all of it. The
+  auditor reproduced it: a `create_users` approval produced a live,
+  network-wide account with the **administrator** role, instantly, with
+  zero rows in `wp_signups`, and bypassed the username policy
+  `wpmu_validate_user_signup()` enforces. So the approval performed
+  strictly *more* than the capability it names authorizes. Now refused
+  with 501 on multisite, like `delete_users`. **Two of the three effects
+  turned out to mean something different on multisite than the capability
+  they were approved under, and in both cases the mechanism was working
+  perfectly — this is not a bug class the approval layer can detect.**
 
 - **The same approval meaning different things on different site types.**
   Wiring the third effect turned this up, and it is the most substantive
@@ -470,13 +578,26 @@ currently flagged anywhere in the archived Sudo repo's `docs/finding.md`.
   specifically because it is structurally unlike the first two — it targets
   an **existing** resource by ID rather than creating fresh content with a
   natural fingerprint — and it needed no change to the approval mechanism
-  to work. Regression coverage now exists for all three (tests 1–27).
+  to work. Regression coverage exists for all three on **single-site**
+  (tests 1–27, 47 assertions). On multisite the picture is thinner than
+  the numbering suggests and an Opus-tier audit was right to flag the
+  earlier phrasing as overstated: tests 24–27 are skipped (announced in
+  the run footer), and tests 12–15 and 19–23 each collapse to a single
+  refusal scenario, because both user effects are now 501 there. So
+  multisite has **zero positive coverage** of either user effect —
+  necessarily, given they are refused, but "coverage for all three" read
+  as more than it was.
   Still not a demonstrated framework: every effect so far reduces to a
   single deterministic digest. An effect with no natural single digest, or
   one needing several related approvals at once, or a genuine bulk
-  operation over many targets, has not been attempted — `/delete-user`
-  explicitly refuses a multi-target batch rather than pretending to handle
-  one.
+  operation over many targets, has not been attempted. (An earlier version
+  said `/delete-user` "explicitly refuses a multi-target batch." It does
+  not: the REST route takes a scalar `user_id` and has no batch parameter
+  to refuse, while the dispatch gate silently `return`s on a count
+  mismatch and lets native code deny. The outcome is safe — an adversarial
+  pass confirmed a two-target POST is refused with both users surviving
+  and the approval unburned — but "explicitly refuses" described code that
+  does not exist.)
 - **Native wp-admin affordances, once floored, disappear rather than
   fail.** Found empirically while wiring the delete effect: WordPress's own
   users-list table builds its row-action links from the very capability
@@ -538,3 +659,43 @@ what the guarded function actually does, in the context it will run in,
 rather than what its name implies* — is not a check any of the four
 review rounds performed, on any effect, and has still only been done for
 this one function.
+
+**A sixth round, and the first run at a model tier above the code's own
+author.** Every prior review agent inherited the session model — so four
+rounds of "independent fresh-context review" were the same tier reviewing
+its own work. The independence was real; the capability ceiling was
+shared. Two Opus-tier agents were then run concurrently with deliberately
+different framings: one adversarial (excluded from this file and the
+suite, as always), one auditing *this document's claims* against the code,
+the tests, and core source. Neither framing had been used before.
+
+What that produced, and why the split matters:
+
+- **The adversarial pass found essentially nothing new.** One
+  informational finding — the binding mint keying off `$_GET['page']`,
+  which it correctly rated LOW because this document already conceded the
+  threat — and a long list of attacks that correctly held: the dispatch
+  gate's single-target binding, batch abuse, target mismatch without
+  burning the approval, digest confusion via leading zeros, duplicate
+  cookie smuggling, cross-admin theft, rate limiting under 12-way
+  concurrency (exactly 3 of 12 evaluated, against a limit of 3).
+- **The claims audit found eight false-or-stale claims and six
+  overstatements in this file**, including two that were security-relevant
+  rather than editorial: the REST route minting bindings, and
+  `create_users` bypassing multisite's signup flow. It also found a
+  vacuous regression test (test 2 would have passed with cross-user
+  isolation deleted outright) and dead code in the suite's own multisite
+  cleanup that had been silently failing.
+
+**The lesson is not "Opus finds more."** It is that the *question asked*
+dominated the tier. Five rounds of "find bugs in this code" had already
+hit diminishing returns; the first round of "is this document telling the
+truth" found a live security defect on its first pass, because the
+security defect was hiding inside a claim nobody had been asked to check.
+The mint hole in particular had survived four adversarial rounds *and* a
+targeted fix for the exact same class of bug, because every round tested
+the no-cookie case the document described rather than the wrong-cookie
+case it did not.
+
+The corollary for anything built on this: a claims audit is not
+documentation hygiene, and should not be scheduled as if it were.
