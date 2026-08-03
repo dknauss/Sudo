@@ -1,20 +1,28 @@
 # What this prototype actually claims
 
 Written 2026-08-02, after the binding-cookie fix and the first regression
-suite, both same-day, and revised the same day three more times: once after
+suite, both same-day, and revised the same day five more times: once after
 an independent fresh-context agent — given the live instances and the raw
 source, but not this file or the regression suite — found a high-severity
 defect in under ten minutes that the suite it's revising had not covered;
 again after a second, separately spawned fresh-context agent, given the
 same access and the same exclusions, found four more defects in code that
-had already been "fixed" and re-tested once; and again after this
-prototype's own author found, by hand, that a real administrator could
-change another real user's email address with zero reauthentication --
-found not by either agent, and not by the regression suite, but by
-clicking through native wp-admin like an ordinary user would. This is the
-claim as it stands *today*, not aspirational, and not identical to what an
-earlier version of this prototype — or an earlier version of this file —
-would have supported.
+had already been "fixed" and re-tested once; again after this prototype's
+own author found, by hand, that a real administrator could change another
+real user's email address with zero reauthentication -- found not by
+either agent, and not by the regression suite, but by clicking through
+native wp-admin like an ordinary user would; again after a third
+fresh-context agent, explicitly briefed on that history and told to hunt
+the same bug class elsewhere, found `remove_users` missing from the denied
+list entirely and an approval-burning bug in the newly-wired create-user
+effect; and again after a fourth fresh-context agent ran a clean, targeted
+sweep of the ten capabilities nobody had individually checked yet -- and
+whose one "cosmetic" side observation, chased by this prototype's author
+rather than the agent, turned out to be a sixth real bypass
+(`install_languages`, never covered under any name). This is the claim as
+it stands *today*, not aspirational, and not identical to what an earlier
+version of this prototype — or an earlier version of this file — would
+have supported.
 
 **A third finding, found by neither agent: the floor's filter checked the
 wrong string for most of its own stated purpose.** `wp-admin/user-edit.php`
@@ -106,6 +114,56 @@ excluded from this file and the regression suite.
   has only ever been run over plain HTTP on localhost; nobody has verified
   it against a real TLS-terminating deployment.
 
+**A fourth fresh-context agent ran a clean sweep, and its fine print led
+to a sixth real finding anyway.** Briefed on all three prior rounds for
+calibration, excluded from this file and the suite as always, and given a
+narrow, falsifiable brief: check the ten capabilities nobody had
+individually tried against a real native trigger yet
+(`edit_files`/`edit_plugins`/`edit_themes`/`upload_plugins`/`upload_themes`/
+`update_plugins`/`update_themes`/`delete_plugins`/`update_core`/`unfiltered_html`),
+against their actual screens, on both single-site and multisite Super
+Admin, with real HTTP cookie sessions rather than `wp --user`.
+
+- **Zero bypasses among the ten** — every one denied correctly on both
+  instances. `edit_files` has no native trigger to test at all (confirmed
+  by grepping all of wp-admin and wp-includes: nothing calls
+  `current_user_can( 'edit_files' )` directly; it exists only as a shared
+  label inside core's own switch statement), so nine were actually
+  exercised, all clean.
+- **The `array_intersect` fix from the `edit_users` finding is already
+  covering more than it was built for.** The agent noticed, while reading
+  core's `map_meta_cap()` source for calibration, that case `'edit_css'`
+  resolves to `'unfiltered_html'` -- the identical different-name
+  indirection as `edit_user` → `edit_users` -- and `'edit_css'` itself was
+  never on the denied list either. It doesn't bypass anything, purely
+  because the generalized fix already checks the *resolved* `$caps` array,
+  not the literal capability name requested. Confirms that fix was the
+  right generalization, not a narrow patch for one case.
+- **The one loose thread the agent flagged, and didn't chase, was real.**
+  Its brief was the ten listed capabilities; along the way it noticed
+  `update-core.php`'s page-level gate has an `update_languages` branch not
+  covered by the list, called it "cosmetic" (the page still renders no
+  working controls), and correctly left it outside its assigned scope.
+  Reading core's actual switch statement for that case found it wasn't
+  cosmetic: `update_languages` resolves to `install_languages` -- a
+  primitive that gates a real mutation
+  (`update-core.php?action=do-translation-upgrade`, driving a genuine
+  `Language_Pack_Upgrader`) -- and neither string had ever been on the
+  list. Confirmed live before the fix: `current_user_can( 'install_languages' )`
+  returned true for a real administrator on both single-site and
+  multisite. Fixed by adding it; see `capability-floor-prototype.php` and
+  regression test 18.
+- **Also untested, by the agent's own account**: whether a genuine
+  `DISALLOW_FILE_MODS` lockdown (neither instance defines the constant)
+  would interact safely with an approval trying to override it. Traced by
+  reading code, not exercised live: core's own switch would add a second
+  `do_not_allow` to `$caps` alongside the floor's, and
+  `cap_floor_allow_with_approval()`'s `array_search()`/`unset()` only
+  removes one occurrence -- so a survivable-looking read of the code
+  suggests an approval could never fully lift a genuine core-level
+  lockdown, which would be the fail-closed direction to be wrong in if
+  the reasoning is off. Nobody has set the constant and actually checked.
+
 **The independent-review method worked, once, concretely.** The agent was
 told nothing about what had already been tested and explicitly instructed
 to treat this file's own predecessor's claims as unverified. It found that
@@ -178,26 +236,33 @@ flagged anywhere in the archived Sudo repo's `docs/finding.md`.
 
 ## Defends against — verified, not asserted
 
-- **No account holds a dangerous capability at rest — for the specific
-  native screens actually exercised, not for all seventeen denied
-  capabilities uniformly.** (Seventeen, not sixteen, as of the
-  `remove_users` addition below — a capability that was simply missing
-  from the list entirely until a fresh-context agent went looking for
-  exactly that.) Denial happens in `map_meta_cap()`, confirmed to reach a
-  multisite Super Admin, where an earlier, discarded `user_has_cap`-based
-  version did not. Confirmed against real native wp-admin screens or
-  direct capability checks for `install_plugins`, `create_users`,
-  `edit_users`, `delete_users` (the last two only after the meta-cap
-  indirection fix), and `remove_users` (only after being added to the list
-  at all). `edit_files`, `edit_plugins`, `edit_themes`, `upload_plugins`,
-  `upload_themes`, `update_plugins`, `update_themes`, `delete_plugins`,
-  `update_core`, and `unfiltered_html` are on the same list and use the
-  same `$cap`-and-`$caps` check, but **none of them has been individually
-  tried against a real native screen the way `edit_users` was** — and both
-  `edit_users` and `remove_users` looked fine too, right up until someone
-  either opened a second user's edit screen or specifically checked whether
-  a real capability was missing from the list. Absence of a known bypass
-  for these ten is not the same claim as a verified one.
+- **No account holds a dangerous capability at rest — now checked
+  individually against a real native trigger for every capability on the
+  list except one.** The list itself has grown twice past its original
+  sixteen: `remove_users` and `install_languages` were both simply absent
+  under any name until found, not denied-then-bypassed. Confirmed against
+  real native wp-admin screens or direct capability checks for
+  `install_plugins`, `create_users`, `edit_users`, `delete_users` (the
+  last two only after the meta-cap indirection fix), `remove_users` and
+  `install_languages`/`update_languages` (both only after being added to
+  the list at all), and — as of a fourth fresh-context agent's targeted
+  sweep — `edit_plugins`, `edit_themes`, `upload_plugins`, `upload_themes`,
+  `update_plugins`, `update_themes`, `delete_plugins`, `update_core`, and
+  `unfiltered_html`, all denied correctly on both single-site and
+  multisite Super Admin against their actual native screens (theme/plugin
+  editors, upload forms, bulk update/delete actions, and a real
+  KSES-stripped `<script>`/`onclick` injection attempt). **`edit_files` is
+  the one exception, and not because it's unverified** — the agent found,
+  by grepping all of wp-admin and wp-includes, that no native WordPress
+  code anywhere calls `current_user_can( 'edit_files' )` on its own; it
+  exists only as a shared label inside core's own `map_meta_cap()` switch
+  alongside `edit_plugins`/`edit_themes`. There is no real screen to have
+  tried it against. Every one of these four rounds found something
+  wrong the first three times a genuinely new corner was checked
+  (`edit_users`, `remove_users`, `install_languages`) and nothing wrong
+  the one time a broad, systematic sweep of previously-untouched ground
+  was run instead — evidence the list itself is now reasonably solid, not
+  proof it's complete.
 - **Each dangerous action requires its own fresh, single-use approval**,
   scoped to the actor's own identity (no switch), their login session, a
   second independent `__Host`-bound cookie, and — where bytes matter — a
