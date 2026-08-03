@@ -522,6 +522,45 @@ piece (the distinguished identity) that added complexity without adding a
 security property, and correcting the one piece (`user_has_cap`) that was
 verified wrong outright. §6 is revised to match.
 
+**This corrected model was subsequently built and tested. See the
+`research/capability-floor` branch** (added 2026-08-03, preserved the same
+way `research/action-gate-phase-27` preserves `#470`). It implements points
+1–3 above against live single-site and multisite WordPress 7.0.2, with a
+regression suite (47 assertions single-site, 27 multisite) and two
+documents: `FINDING.md` for the result, `BOUNDARY.md` for claim-by-claim
+verification including every claim that turned out to be wrong.
+
+Three things it settles about this section:
+
+- **Point 1 is confirmed empirically, not just by reading source.** Denial
+  in `map_meta_cap()` reaches a multisite Super Admin; the discarded
+  `user_has_cap` version does not. The correction §4.9 made was right.
+- **Point 3 needs sharpening, and this is the branch's central finding.**
+  An approval "naming the actor, the operation, the target" is not
+  achievable by naming a *capability*. WordPress capability names are not
+  stable referents for effects: of three effects wired and examined, all
+  three were mismatched — one guarded an operation that performs nothing,
+  and two performed something other than what the capability authorised on
+  multisite (`create_users` bypassing the confirmable-signup flow that
+  gates instant activation behind `manage_network_users`; `delete_users`
+  performing the site-removal core governs with `remove_users`). Each was
+  discoverable only by reading core's source in both site contexts, and
+  none is detectable by the approval mechanism, which was working correctly
+  in all three cases. Binding must happen at the *effect*, not the name.
+- **Point 5 is supported from the other direction.** WP-CLI consults no
+  capability check at all for user deletion, confirming that CLI needs the
+  separately declared machine policy rather than any in-process gate.
+
+The enforcement kernel itself held: single-use, digest-bound,
+session-and-binding-bound approvals survived six review rounds, the last
+two at a model tier above the code's author, including cross-user theft,
+digest confusion, concurrent redemption, and rate-limiter races. What makes
+it unshippable as a plugin is not the mechanism but the per-effect,
+per-context audit obligation the second bullet implies — plus the floor
+removing native UI affordances rather than merely denying them, so each
+screen needs its controls restored by hand. `FINDING.md` §5 states the
+scaling argument in full.
+
 ## 5. Consequences for the prototype
 
 - **`HANDLER_LANDINGS` was built, reviewed, and never merged.** It implements
