@@ -210,6 +210,77 @@ LC_ALL=C grep -q "wordpress_logged_in" "$TMP/relogin.jar" && ok "admin can still
 
 wp user delete victim --yes >/dev/null 2>&1
 
+# ---------------------------------------------------------------------
+# core.config.option_write
+# ---------------------------------------------------------------------
+wp option update default_role subscriber >/dev/null 2>&1
+wp option update users_can_register 0 >/dev/null 2>&1
+wp transient delete settings_errors >/dev/null 2>&1
+
+# Re-login. Test 16 changes the admin's OWN password, which rotates the
+# auth cookie and leaves $TMP/A.jar dead. Without this, every request below
+# is unauthenticated and the option tests pass vacuously -- the change is
+# "blocked" because nothing was attempted, not because the seam refused.
+# Exactly the failure mode an audit caught in this project's other suite.
+rm -f "$TMP/A.jar"
+curl -sS -c "$TMP/A.jar" "$BASE_URL/wp-login.php" \
+	--data-urlencode "log=admin" --data-urlencode "pwd=$ADMIN_PASS" \
+	--data-urlencode "wp-submit=Log In" --data-urlencode "redirect_to=$BASE_URL/wp-admin/" -L -o /dev/null
+curl -sS -b "$TMP/A.jar" "$BASE_URL/wp-admin/options-general.php" -o "$TMP/g.html"
+LC_ALL=C grep -q 'name="_wpnonce"' "$TMP/g.html" \
+	&& ok "session is live for the option tests (guards against vacuous passes)" \
+	|| bad "session dead — option tests below would pass for the wrong reason"
+GNONCE=$(LC_ALL=C grep -o 'name="_wpnonce" value="[a-f0-9]*"' "$TMP/g.html" | head -1 | LC_ALL=C sed 's/.*value="//;s/"//')
+
+save_general() {  # $1 = default_role value, $2 = output file
+	curl -sS -b "$TMP/A.jar" -X POST "$BASE_URL/wp-admin/options.php" \
+		--data-urlencode "option_page=general" --data-urlencode "action=update" \
+		--data-urlencode "_wpnonce=$GNONCE" --data-urlencode "_wp_http_referer=/wp-admin/options-general.php" \
+		--data-urlencode "blogname=capability-floor-prototype" --data-urlencode "blogdescription=x" \
+		--data-urlencode "admin_email=admin@example.test" --data-urlencode "default_role=$1" \
+		--data-urlencode "timezone_string=UTC" --data-urlencode "date_format=F j, Y" \
+		--data-urlencode "time_format=g:i a" --data-urlencode "start_of_week=1" -o /dev/null
+	curl -sS -b "$TMP/A.jar" "$BASE_URL/wp-admin/options-general.php?settings-updated=true" -o "$2"
+}
+role_now() { wp option get default_role 2>/dev/null | LC_ALL=C grep -E '^[a-z]+$'; }
+
+echo
+echo "=== 18. a guarded option cannot be changed without approval ==="
+save_general "administrator" "$TMP/o1.html"
+chk "default_role unchanged" "subscriber" "$(role_now)"
+
+echo
+echo "=== 19. the refusal is VISIBLE, not silent ==="
+# update_option() returns bool, so Core discards the WP_Error. A silent
+# refusal is a security problem, not just a usability one: an admin who
+# cannot see the control fire cannot notice it firing when they did
+# nothing -- the signal that someone else is driving their session.
+LC_ALL=C grep -q 'Refused: change setting' "$TMP/o1.html" \
+	&& ok "the admin sees why it was refused" || bad "refusal is silent"
+
+echo
+echo "=== 20. NO false positive when the setting is not touched ==="
+# An unchecked checkbox submits int 0 against a stored string "0", which
+# survives Core's strict short-circuit. Challenging an admin who changed
+# nothing is how a control gets switched off within a day.
+save_general "subscriber" "$TMP/o2.html"
+LC_ALL=C grep -q 'Refused: change setting' "$TMP/o2.html" \
+	&& bad "challenged a no-op save" || ok "an unchanged save is not challenged"
+
+echo
+echo "=== 21. an UNGUARDED option still writes freely ==="
+wp option update blogdescription "seam-test-value" >/dev/null 2>&1
+chk "unguarded option written" "seam-test-value" "$(wp option get blogdescription 2>/dev/null | LC_ALL=C grep 'seam-test-value')"
+
+echo
+echo "=== 22. the guarded list cannot be emptied by a filter ==="
+# A replaceable list is not a control -- this project's predecessor
+# shipped exactly that bug. The filter is add-only.
+EMPTIED=$(wp eval 'add_filter("wp_effect_guarded_options", function(){ return array(); }, 99); echo in_array("default_role", wp_effect_guarded_options(), true) ? "still-guarded" : "EMPTIED";' 2>/dev/null | LC_ALL=C grep -oE "still-guarded|EMPTIED" | tail -1)
+chk "core entries survive a hostile filter" "still-guarded" "$EMPTIED"
+
+wp option update blogdescription "" >/dev/null 2>&1
+
 echo
 echo "=== $PASS passed, $FAIL failed ==="
 [ "$FAIL" -eq 0 ]

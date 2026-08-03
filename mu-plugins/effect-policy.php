@@ -34,6 +34,7 @@ const EFFECT_POLICY_GOVERNED = array(
 	'core.code.package_commit',
 	'core.identity.email_change',
 	'core.identity.password_set',
+	'core.config.option_write',
 );
 
 add_filter(
@@ -75,6 +76,8 @@ add_filter(
 				effect_policy_consume( $digest );
 				return $decision; // Allow.
 			}
+
+			effect_policy_surface_refusal( $effect, $described, $digest );
 
 			return new WP_Error(
 				'effect_unauthorized',
@@ -173,6 +176,15 @@ function effect_policy_grant( string $digest, int $user_id, string $session ): v
 function effect_policy_describe( array $effect ): string {
 	$t = isset( $effect['target'] ) && is_array( $effect['target'] ) ? $effect['target'] : array();
 
+	if ( 'core.config.option_write' === ( $effect['id'] ?? '' ) ) {
+		return sprintf(
+			'change setting "%s" from "%s" to "%s"',
+			(string) ( $t['option'] ?? '?' ),
+			(string) ( $t['from'] ?? '?' ),
+			(string) ( $t['to'] ?? '?' )
+		);
+	}
+
 	if ( 'core.identity.password_set' === ( $effect['id'] ?? '' ) ) {
 		return sprintf(
 			'set a new password for user #%d ("%s")',
@@ -195,5 +207,44 @@ function effect_policy_describe( array $effect ): string {
 		(string) ( $t['action'] ?? '?' ),
 		(string) ( $t['type'] ?? '?' ),
 		(string) ( $t['slug'] ?? '(new)' )
+	);
+}
+
+/**
+ * Make a refusal visible when the seam cannot return one.
+ *
+ * `update_option()` returns bool, so the WP_Error a policy returns is
+ * discarded by Core and the operator sees nothing at all — verified: the
+ * Settings screen redirected with no notice while both guarded values were
+ * silently left unchanged. WP-CLI at least prints a generic "Could not
+ * update option".
+ *
+ * A silent refusal is its own security problem, not merely a usability one:
+ * an administrator who cannot tell that a control fired cannot notice that
+ * it fired when they did nothing, which is exactly the signal that someone
+ * else is driving their session.
+ *
+ * This is the policy layer compensating for a Core contract that has no
+ * room for a reason. A real proposal should fix the contract instead — the
+ * compensation only works on screens that render settings errors, and
+ * nothing makes that true of every caller.
+ */
+function effect_policy_surface_refusal( array $effect, string $described, string $digest ): void {
+	if ( 'core.config.option_write' !== ( $effect['id'] ?? '' ) ) {
+		return; // Other seams return WP_Error and are surfaced by Core.
+	}
+	if ( ! function_exists( 'add_settings_error' ) ) {
+		return;
+	}
+
+	add_settings_error(
+		'effect_policy',
+		'effect_unauthorized',
+		sprintf(
+			'Refused: %s. This change requires approval. Approve digest %s, then retry.',
+			$described,
+			$digest
+		),
+		'error'
 	);
 }

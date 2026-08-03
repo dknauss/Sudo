@@ -156,6 +156,85 @@ PHP
 
 PHP
 		),
+
+		// ---- core.config.option_write -------------------------------
+		// Placed AFTER update_option()'s no-op short-circuit (so an
+		// unchanged write never fires) and BEFORE its delegation to
+		// add_option() (so one seam covers both the update and the
+		// delegated-create path).
+		//
+		// Guarded by an explicit option list because measurement showed
+		// the name is a sufficient signal: across an admin crawl, a cron
+		// run, and forced update checks, zero security-relevant options
+		// were written, while the real Settings form fired them
+		// immediately. See CENSUS.md.
+		'option_write' => array(
+			'file'   => '/var/www/html/wp-includes/option.php',
+			// Dollars escaped: this is a double-quoted PHP string, and
+			// unescaped $option/$value/$autoload interpolate to empty,
+			// which turns the anchor into nonsense. The patcher caught it
+			// by refusing rather than landing somewhere arbitrary.
+			'anchor' => "return add_option( \$option, \$value, '', \$autoload );",
+			'seek'   => "\t/** This filter is documented in wp-includes/option.php */",
+			'after'  => array( 'add_option(' ),
+			'block'  => <<<'PHP'
+	// BEGIN effect-authorization seam
+	/*
+	 * Reentrancy guard. A policy answering this veto may read or expire a
+	 * transient, and transients are options — without this, a guarded
+	 * write could re-enter its own authorization and recurse until the
+	 * stack dies. Cheap insurance against a failure that would be very
+	 * hard to read in a stack trace.
+	 */
+	static $cfp_option_seam_busy = false;
+
+	if ( ! $cfp_option_seam_busy
+		&& function_exists( 'wp_authorize_consequential_effect' )
+		&& function_exists( 'wp_effect_guarded_options' )
+		&& in_array( $option, wp_effect_guarded_options(), true )
+	) {
+		$cfp_from = wp_effect_option_summary( $old_value );
+		$cfp_to   = wp_effect_option_summary( $value );
+
+		/*
+		 * Core's short-circuit above is a STRICT comparison, so an
+		 * unchecked checkbox submitting int 0 against a stored string "0"
+		 * reaches here as a "change" that changes nothing. Challenging an
+		 * administrator who touched no such setting is how a control gets
+		 * switched off within a day, so compare on the same normalised
+		 * form the operator would be shown: if the descriptor cannot
+		 * distinguish them, there is nothing to approve.
+		 *
+		 * Found by reading a live refusal that said
+		 * 'from "0" to "0"' -- the notice surfaced its own false positive.
+		 */
+		if ( $cfp_from !== $cfp_to ) {
+			$cfp_option_seam_busy = true;
+
+			$cfp_effect = array(
+				'version' => 1,
+				'id'      => 'core.config.option_write',
+				'site_id' => (int) get_current_blog_id(),
+				'target'  => array(
+					'option' => (string) $option,
+					'from'   => $cfp_from,
+					'to'     => $cfp_to,
+				),
+			);
+
+			$cfp_ok = wp_authorize_consequential_effect( $cfp_effect );
+
+			$cfp_option_seam_busy = false;
+
+			if ( is_wp_error( $cfp_ok ) ) {
+				return false;
+			}
+		}
+	}
+	// END effect-authorization seam
+
+PHP
+		),
 	);
 }
 

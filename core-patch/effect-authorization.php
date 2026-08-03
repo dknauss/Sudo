@@ -107,6 +107,70 @@ function wp_effect_source_digest( string $source ): string {
 }
 
 /**
+ * Options whose mutation is security-relevant.
+ *
+ * Core-owned and, critically, **add-only via filter**. A replaceable list
+ * is not a control: this project's predecessor shipped a filter that let a
+ * caller return an empty rule set and silence all gating, and had to grow a
+ * guard that re-added missing builtins. Do not repeat it — plugins may
+ * extend this list, never shrink it.
+ *
+ * Measured rather than guessed (see CENSUS.md): across an admin crawl, a
+ * cron run, and forced update checks, none of these were written. They fire
+ * on deliberate change and stay silent through ordinary use.
+ *
+ * @return string[]
+ */
+function wp_effect_guarded_options(): array {
+	$core = array(
+		'siteurl',            // redirect the site, or serve its assets from a hostile origin
+		'home',
+		'users_can_register', // with default_role, self-service administrators
+		'default_role',
+		'active_plugins',     // a direct write path to code execution
+		'template',           // switch the executing theme
+		'stylesheet',
+		'admin_email',        // receives recovery and notification mail
+		'mailserver_url',     // mail interception
+		'mailserver_login',
+		'mailserver_pass',
+	);
+
+	/**
+	 * Filters ADDITIONAL guarded options. Core's own entries cannot be
+	 * removed — the array_unique/array_merge below is the enforcement, not
+	 * a convention.
+	 *
+	 * @param string[] $extra Additional option names to guard.
+	 */
+	$extra = apply_filters( 'wp_effect_guarded_options', array() );
+	$extra = is_array( $extra ) ? array_filter( $extra, 'is_string' ) : array();
+
+	return array_values( array_unique( array_merge( $core, $extra ) ) );
+}
+
+/**
+ * A descriptor-safe summary of an option value.
+ *
+ * Option values are arbitrary — arrays, objects, long blobs — and a
+ * descriptor is displayed to an operator and may be logged. Scalars short
+ * enough to read are shown verbatim so the confirmation can state what is
+ * actually changing; anything else is reduced to a digest of its
+ * serialized form.
+ */
+function wp_effect_option_summary( $value ): string {
+	if ( is_scalar( $value ) || null === $value ) {
+		$str = (string) $value;
+		if ( strlen( $str ) <= 100 ) {
+			return $str;
+		}
+		return 'sha256:' . hash( 'sha256', $str );
+	}
+
+	return 'sha256:' . hash( 'sha256', (string) maybe_serialize( $value ) );
+}
+
+/**
  * Classify the actor driving the current request.
  *
  * Deliberately coarse and deliberately conservative: anything not
