@@ -355,6 +355,27 @@ STILL_APPROVED=$(wp db query --skip-column-names "SELECT state FROM wp_cap_floor
 assert_true "the approval was not burned on a doomed request" "$([ "$STILL_APPROVED" = "approved" ] && echo 1 || echo 0)"
 
 echo
+echo "=== 18. install_languages is denied (found by reasoning through a 'cosmetic' observation) ==="
+# core's map_meta_cap() case 'update_languages' -- checked by
+# wp-admin/update-core.php's real mutating action,
+# action=do-translation-upgrade, which drives a genuine
+# Language_Pack_Upgrader -- resolves internally to 'install_languages',
+# never to 'update_languages' itself. Neither string was ever on
+# CAP_FLOOR_DENIED_CAPS, so this had no coverage under any name. A
+# fresh-context agent sweeping ten unrelated capabilities flagged, as a
+# secondary and explicitly "cosmetic" note, that update-core.php's
+# page-level gate has an update_languages branch -- it didn't chase this
+# further, since it was outside that round's assigned scope. Reasoning
+# through what update_languages actually resolves to underneath found the
+# real, previously unbypassed mutation it gated. Administrator had this
+# capability natively; confirmed live via current_user_can() on both
+# single-site and multisite before this fix landed.
+CAN_INSTALL_LANG=$(wp eval 'echo current_user_can( "install_languages" ) ? "1" : "0";' --user=admin 2>/dev/null | tail -1)
+assert_true "administrator does not have install_languages" "$([ "$CAN_INSTALL_LANG" = "0" ] && echo 1 || echo 0)"
+CAN_UPDATE_LANG=$(wp eval 'echo current_user_can( "update_languages" ) ? "1" : "0";' --user=admin 2>/dev/null | tail -1)
+assert_true "the update_languages meta-cap wrapper is denied too" "$([ "$CAN_UPDATE_LANG" = "0" ] && echo 1 || echo 0)"
+
+echo
 echo "=== cleanup ==="
 # regressiontestb is deliberately left in place (see the idempotent
 # create-or-ignore fixture setup above) -- it is reconciled, not recreated,

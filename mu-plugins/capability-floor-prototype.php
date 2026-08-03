@@ -69,6 +69,23 @@ const CAP_FLOOR_DENIED_CAPS = array(
 	// indirection bug (this is checked as a bare primitive, same as
 	// delete_users already was) -- just missing from the list.
 	'remove_users',
+	// core's map_meta_cap() case 'update_languages' (checked by
+	// wp-admin/update-core.php's actual mutating action,
+	// action=do-translation-upgrade, which drives a real
+	// Language_Pack_Upgrader) resolves internally to THIS primitive, never
+	// to 'update_languages' itself -- the same different-name meta-cap
+	// indirection as edit_css -> unfiltered_html, except this one landed
+	// on a primitive that was never on this list under any name, so
+	// array_intersect() had nothing to catch. Administrator has this
+	// natively; confirmed live via current_user_can('install_languages')
+	// returning true before this fix, on both single-site and multisite
+	// Super Admin. Found by reasoning through a secondary observation a
+	// fresh-context agent flagged as "cosmetic" (that update-core.php's
+	// page-level gate has an update_languages branch) -- the agent didn't
+	// chase it further since it was outside that round's assigned scope;
+	// checking what update_languages actually resolves to underneath found
+	// the real mutation this gated, unbypassed.
+	'install_languages',
 	'unfiltered_html',
 );
 
