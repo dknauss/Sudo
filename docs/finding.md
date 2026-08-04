@@ -522,13 +522,21 @@ piece (the distinguished identity) that added complexity without adding a
 security property, and correcting the one piece (`user_has_cap`) that was
 verified wrong outright. §6 is revised to match.
 
-**This corrected model was subsequently built and tested. See the
-`research/capability-floor` branch** (added 2026-08-03, preserved the same
-way `research/action-gate-phase-27` preserves `#470`). It implements points
-1–3 above against live single-site and multisite WordPress 7.0.2, with a
-regression suite (47 assertions single-site, 27 multisite) and two
-documents: `FINDING.md` for the result, `BOUNDARY.md` for claim-by-claim
-verification including every claim that turned out to be wrong.
+**This corrected model was subsequently built and tested, and the work then
+outgrew this repository. It now lives at
+<https://github.com/dknauss/wp-effect-authorization>** (public), mirrored
+here on the `research/capability-floor` branch the same way
+`research/action-gate-phase-27` preserves `#470`. Start with `WRITEUP.md`
+there; `PROPOSAL.md`, `CENSUS.md`, `FINDING.md`, and `BOUNDARY.md` are the
+supporting record, the last being claim-by-claim verification including
+every claim that turned out to be wrong.
+
+Points 1–3 above were implemented against live single-site and multisite
+WordPress 7.0.2 (regression suite: 47 assertions single-site, 27
+multisite). Testing them is what produced the finding below — and that
+finding then moved the work off the capability layer entirely, into a
+Core-owned effect-authorization boundary with four seams and a second suite
+of 36 assertions.
 
 Three things it settles about this section:
 
