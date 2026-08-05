@@ -88,7 +88,7 @@ the count in prose without a verification command.
 When any fact above changes, update this table first, then grep for the old
 value across these known consumers:
 
-- `readme.md`, `readme.txt` — plugin description
+- `README.md` — plugin description
 - `docs/abilities-api-assessment.md` — Gate surfaces table
 - `docs/ui-ux-testing-prompts.md` — settings page field count
 - `docs/developer-reference.md` — hook signatures, audit hooks
