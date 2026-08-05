@@ -55,7 +55,7 @@ operations it covered.
 
 Nothing in WordPress core or Sudo could have detected these gaps. Neither side can see the other's rules, and WordPress is under no obligation to keep its own rules stable.
 
-**Sudo's own tests could not find the holes either.** Thanks to test-driven development, there were over 1,600 tests, plus static
+**Sudo's own tests could not find the holes either.** Thanks to test-driven development, there were over 1,600 automated tests, plus static
 analysis and a mandatory adversarial review process from the beginning. A test looked like: *build a request
 that means "delete a user", hand it to the gate, check the gate stops it.* But
 "a request that means delete a user" was built from the plugin's own
