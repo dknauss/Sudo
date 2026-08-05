@@ -9,10 +9,9 @@
 >
 > — [Abutsu-ni](https://en.wikipedia.org/wiki/Abutsu-ni), *Diary of the Waning Moon*
 
-The verse was chosen at the start of this project, for the gate metaphor. It
-turned out to be the finding: this barrier had cracks too — seven of them,
-verified — and what endures is not the gate but the record of where the light
-came through.
+This 13th-century poem was chosen at the start of this project, for its gate metaphor. It
+turned out to describe the project all too well: Sudo's barrier gate had cracks too — seven of them,
+all verified — and what endures is not the gate but the record of where the light came through.
 
 > [!CAUTION]
 > **Do not install this plugin.** Not on production, not on staging, not on any
@@ -20,19 +19,19 @@ came through.
 > high-severity bypasses of its own central claim. They are documented rather
 > than fixed, because they are the result.
 
-WP Sudo was a research prototype investigating action-gated reauthentication in
-WordPress — requiring a fresh proof of intent before consequential operations,
-regardless of role. It took its name and its symbol from the gate: 門, the
+Sudo was a six-month research prototype investigation of action-gated reauthentication in
+WordPress exploring one question, initially: What if WordPress requires a fresh proof of intent before consequential operations,
+regardless of role? It took its name and its symbol from the gate: 門, the
 radical that runs through East Asian writing, evoking the fortified pass where
-movement is examined rather than assumed. It is finished. This repository is
-archived and read-only.
+everyone and everything attempting to cross the gate is examined rather than trusted. 
+The project is finished. This repository is archived and read-only.
 
 ## What was tried, and what happened
 
 WordPress asks for your password once, at login, and then never again. A valid
 session cookie is permission to do anything — install a plugin, which is
 arbitrary code execution; change another user's email and then their password;
-make every new signup an administrator. Steal the cookie and you have the site.
+make every new signup an administrator. Steal the cookie, and you have the site.
 
 The idea was to put a gate in front of the dangerous operations: notice the
 request, demand the password again, and only then let it through.
@@ -47,22 +46,21 @@ own code, using its own rules. So two pieces of software are answering nearly
 the same question, separately, and never comparing answers. When they disagree,
 the plugin waves through something WordPress treats as a deletion.
 
-They disagreed seven times. WordPress read a value from `$_REQUEST`; the plugin
+They disagreed seven times under well-calibrated independent adversarial testing 
+after passing many adversarial reviews before. WordPress read a value from `$_REQUEST`; the plugin
 read it from `$_POST`. WordPress matched a URL case-insensitively; the plugin
 did not. WordPress accepted `PATCH`; the plugin listed only `PUT` — a set of
 small, ordinary discrepancies, each one a complete bypass of the gate for the
 operations it covered.
 
-Nothing could have detected them. Neither side can see the other's rules, and
-WordPress is under no obligation to keep its own stable.
+Nothing in WordPress core or Sudo could have detected these gaps. Neither side can see the other's rules, and WordPress is under no obligation to keep its own rules stable.
 
-**And the tests could not find them either.** There were over 1,600, plus static
-analysis and a mandatory adversarial review. A test looked like: *build a request
+**Sudo's own tests could not find the holes either.** Thanks to test-driven development, there were over 1,600 tests, plus static
+analysis and a mandatory adversarial review process from the beginning. A test looked like: *build a request
 that means "delete a user", hand it to the gate, check the gate stops it.* But
 "a request that means delete a user" was built from the plugin's own
 understanding — the same understanding that was wrong. A wrong assumption
-produces a test that passes while proving nothing. All seven were eventually
-found by reading WordPress's source and the plugin's side by side, by hand.
+produces a test that passes while proving nothing. All seven critical bypasses were eventually found by an independent adversarial analysis — another AI reading WordPress's source and the plugin's side by side.
 
 That is the result, and it is a negative one, documented in full rather than
 quietly fixed.
@@ -87,7 +85,7 @@ Two mechanisms fail, and they fail on the same operations.
 high-severity bypasses across six independent axes — REST route case, HTTP
 method set, `$_POST` versus `$_REQUEST`, action-name derivation, matcher
 evaluation order, and surface coverage. Each is a total bypass. All seven were
-independently verified against WordPress 7.0 source.
+independently verified against WordPress 7.x source and simulated an attack where an admin session is hijacked by the attacker who does not know the hijacked admin's password. 
 
 The defect is not an incomplete rule list. It is that the plugin's matching
 predicate and the predicate WordPress core dispatches on are two independently
@@ -110,7 +108,7 @@ incidentally during normal admin loads — there is no intent signal to key on.
 Every one of the seven bypasses lands in that excluded set.
 
 1,308 unit tests, 243 integration tests, 112 E2E tests, PHPStan level 6, Psalm,
-and a mandatory adversarial review gate detected none of the seven. They could
+and a mandatory adversarial review gate detected none of the seven bypasses. They could
 not have: every test asserts the plugin against its own model of a request, so a
 wrong predicate produces a wrong test that passes. All six axes were found by
 reading core and the matcher side by side.
@@ -173,7 +171,7 @@ Sudo's core design, development, and inexorable fate owes a debt to four people:
 - **John Blackbourn**, for the action-gating concept — that consequential operations should require a fresh proof of intent, regardless of role. It was the single biggest conceptual contribution to the project. A minimal, five-minute-readable demonstrator of the same core-primitive argument (Trac #20140) is preserved at [consequential-actions](https://github.com/dknauss/consequential-actions) — also concluded, also archived, also not for installation.
 - **Tim Nash**, for pragmatic security ideas, including the lockdown for roles and permissions, which shaped Sudo's opt-in admin-escalation guard and its opt-in role/capability lockdown audit, which have always been a viable mechanism for user account oversight.
 - **Calvin Alkan**, for critical early feedback on the Sudo concept, the only (then) complete and accurate documentation for WordPress user authentication, and for his work on Fortress as inspiration. Calvin's insistence that a normal plugin cannot fully achieve what Fortress does was a motivation to see how close a plugin could get — and how the UX might be smoothed out. Calvin's "Is this becoming a SIEM?" critique shaped Sudo's explicit not-a-SIEM boundary. (Which was intentionally violated a bit.)
-- **Austin Ginder**, for AI advice and adversarial testing — helping make the machine a better collaborator, then turning it loose as a tireless skeptic until confident claims yielded the expected evidence.
+- **Austin Ginder**, for AI advice and adversarial testing — helping make the machine a better collaborator, then turning it loose as a tireless skeptic until confident claims yielded the expected contrary evidence.
 
 ## License
 
