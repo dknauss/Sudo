@@ -27,6 +27,46 @@ radical that runs through East Asian writing, evoking the fortified pass where
 movement is examined rather than assumed. It is finished. This repository is
 archived and read-only.
 
+## What was tried, and what happened
+
+WordPress asks for your password once, at login, and then never again. A valid
+session cookie is permission to do anything — install a plugin, which is
+arbitrary code execution; change another user's email and then their password;
+make every new signup an administrator. Steal the cookie and you have the site.
+
+The idea was to put a gate in front of the dangerous operations: notice the
+request, demand the password again, and only then let it through.
+
+**The gate could not reliably tell which requests were dangerous.** Not because
+the list of dangerous operations was incomplete — that is the limitation
+everyone expects — but for a subtler reason.
+
+To decide whether a request is about to delete a user, the plugin has to work
+out what WordPress is going to do with it. WordPress works that out too, in its
+own code, using its own rules. So two pieces of software are answering nearly
+the same question, separately, and never comparing answers. When they disagree,
+the plugin waves through something WordPress treats as a deletion.
+
+They disagreed seven times. WordPress read a value from `$_REQUEST`; the plugin
+read it from `$_POST`. WordPress matched a URL case-insensitively; the plugin
+did not. WordPress accepted `PATCH`; the plugin listed only `PUT` — a set of
+small, ordinary discrepancies, each one a complete bypass of the gate for the
+operations it covered.
+
+Nothing could have detected them. Neither side can see the other's rules, and
+WordPress is under no obligation to keep its own stable.
+
+**And the tests could not find them either.** There were over 1,600, plus static
+analysis and a mandatory adversarial review. A test looked like: *build a request
+that means "delete a user", hand it to the gate, check the gate stops it.* But
+"a request that means delete a user" was built from the plugin's own
+understanding — the same understanding that was wrong. A wrong assumption
+produces a test that passes while proving nothing. All seven were eventually
+found by reading WordPress's source and the plugin's side by side, by hand.
+
+That is the result, and it is a negative one, documented in full rather than
+quietly fixed.
+
 > [!TIP]
 > **New here? Start with
 > [`docs/sudo-architecture-history.md`](docs/sudo-architecture-history.md).**
@@ -89,6 +129,16 @@ A narrow WordPress core primitive:
    action-bound proof, refuse, or follow an explicitly separate and auditable
    machine policy. Not universal reauthentication: cron and the auto-updater have
    no present human, so reauthentication is category-incoherent there.
+
+## Where the work went
+
+The finding pointed somewhere specific: authorization has to happen where an
+effect is *committed*, inside WordPress, rather than being guessed at from a
+request outside it. That successor work — including a Core patch demonstrating
+it, and a second failed attempt that explains why the obvious fix does not work
+either — is at
+**[wp-effect-authorization](https://github.com/dknauss/wp-effect-authorization)**.
+Its history is mirrored here on the `research/capability-floor` branch.
 
 ## Documents
 
