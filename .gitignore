@@ -38,6 +38,7 @@ test-results/
 .claude/
 .codex/
 .playwright-mcp/
+outputs/
 
 # VS Code workspace files and settings
 *.code-workspace
