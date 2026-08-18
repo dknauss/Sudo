@@ -616,7 +616,7 @@ Everything else in §6 already returns `WP_Error` and needs no contract change.
 | 14-pre | `upgrader_pre_download` | **Yes, and early enough** | Returns the filter value when not `false`, so a `WP_Error` stops the download before `unpack_package()` runs. The only seam in this family that refuses *before* attacker-controlled bytes reach disk. |
 | 14 | `WP_Upgrader::install_package()` | **Yes** | Six `WP_Error` returns; the upgrader's callers already thread them. |
 | 14b | `wp_edit_theme_plugin_file()` | **Yes** | Twenty-one `WP_Error` returns — the most defensively written sink in the set. |
-| 14c | `activate_plugin()`, `delete_plugins()` | **Yes** | Four `WP_Error` returns each. |
+| 14c | `activate_plugin()`, `delete_plugins()` | **Yes** | `delete_plugins()` returns `WP_Error` on four paths. `activate_plugin()` refuses on **three**: `validate_plugin()`'s and `validate_plugin_requirements()`'s errors propagated unchanged, plus one constructed `unexpected_output`. Its fourth `return` is the `null` success, not a refusal (#83). |
 | 4f | core update (`Core_Upgrader::upgrade()`) | **Yes, but only before unpack** | `update_core()` returns `WP_Error` on six paths, so a guard there refuses — too late, since `unpack_package()` ran at `:156`. A guard placed early in `upgrade()` refuses before extraction. |
 | 5b | `wpmu_delete_user()` | **No — core patch** | Same `bool` return contract as `wp_delete_user()`; network-admin deletion reaches it without passing through row 5's seam. |
 | 15 | `delete_theme()` | **Yes** | Returns `WP_Error`; callers test `is_wp_error()`. (`switch_theme()` in the same row cannot — §6.1.) |
